@@ -2,16 +2,18 @@
   description="Entre na sua conta e teste gratuitamente as nossas funcionalidades."
   googleBtnText="Entrar com o Google"
   primaryBtnText="Entrar"
+  navigateText="Não tem conta?"
+  navigateBtnText="Criar conta"
   (submit)="submit()"
   (navigate)="navigate()"
   [disablePrimaryBtn]="!loginForm.valid"
 >
   <form [formGroup]="loginForm" (ngSubmit)="submit()" novalidate>
     <app-primary-input
-    label="Email"
+    label="E-mail"
     type="email"
     formControlName="email"
-    placeholder="Digite seu email"
+    placeholder="seu@email.com"
     iconSrc="svg/email-icon.svg">
     </app-primary-input>
 
@@ -22,7 +24,7 @@
     placeholder="********"
     iconSrc="svg/password-lock-icon.svg">
     </app-primary-input>
-    <div class="w-full text-right text-sm mb-6">
+    <div class="w-full text-right text-sm">
         <span class="text-primary-500 font-medium cursor-pointer hover:text-primary-600 transition">
             Redefinir senha
         </span>

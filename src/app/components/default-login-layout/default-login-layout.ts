@@ -10,6 +10,8 @@ export class DefaultLoginLayout {
   @Input() description: string = '';
   @Input() googleBtnText: string = '';
   @Input() primaryBtnText: string = '';
+  @Input() navigateText: string = '';
+  @Input() navigateBtnText: string = '';
   @Input() disablePrimaryBtn: boolean = true;
   @Output("submit") onSubmit = new EventEmitter(); 
   @Output("navigate") onNavigate = new EventEmitter(); 

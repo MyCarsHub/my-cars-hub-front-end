@@ -12,7 +12,7 @@ import { Router } from '@angular/router';
 import { LoginService } from '../../services/loginService';
 
 @Component({
-  selector: 'app-login',
+  selector: 'app-signup',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DefaultLoginLayout,
@@ -23,39 +23,41 @@ import { LoginService } from '../../services/loginService';
   providers: [
     LoginService
   ],
-  templateUrl: './login.html',
-  styleUrls: ['./login.css'],
+  templateUrl: './signup.html',
+  styleUrls: ['./signup.css'],
 })
-export class Login {
-  loginForm: FormGroup;
+export class Signup {
+  signupForm: FormGroup;
 
   constructor(
     private router: Router,
     private loginService: LoginService
   ) {
-    this.loginForm = new FormGroup({
+    this.signupForm = new FormGroup({
+      name: new FormControl('', [Validators.required]),
       email: new FormControl('', [Validators.required, Validators.email]),
-      password: new FormControl('', [Validators.required, Validators.minLength(6)]),
+      password: new FormControl('', [Validators.required, Validators.minLength(8)]),
+      passwordConfirm: new FormControl('', [Validators.required, Validators.minLength(8)]),
     });
   }
 
 
   submit() {
-    this.loginService.login(this.loginForm.value.email, this.loginForm.value.password).subscribe({
+    this.loginService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password).subscribe({
       next: () => {
-        console.log('Login successful')
-        this.clearForm();
-        this.router.navigate(['/account-steps']);
+          console.log('Signup successful');
+          this.clearForm(); 
+          this.router.navigate(['/login']);
       },
-      error: (err) => console.error('Login failed', err)
+      error: (err) => console.error('Signup failed', err)
     });
   }
 
   navigate() {
-    this.router.navigate(['/signup']);
+    this.router.navigate(['/login']);
   }
 
   clearForm() {
-    this.loginForm.reset();
+    this.signupForm.reset();
   }
 }
