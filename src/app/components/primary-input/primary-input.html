@@ -1,0 +1,21 @@
+<div>
+    <label class="text-sm text-neutral-600">{{ label }}</label>
+    <div class="relative">
+        <div class="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none flex items-center">
+            <img
+                [ngSrc]="iconSrc"
+                alt="ícone de {{ label }}"
+                width="24"
+                height="24">
+        </div>
+        <input
+            [type]="type"
+            [placeholder]="placeholder"
+            [value]="value"
+            (input)="onInput($event)"
+            class="w-full mt-1 bg-white rounded-xl border border-neutral-200 pl-12 pr-4 py-3
+                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+    </div>
+
+</div>
+

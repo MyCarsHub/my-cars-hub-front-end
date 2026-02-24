@@ -1,1 +1,33 @@
-<app-default-login-layout></app-default-login-layout>
+<app-default-login-layout
+  description="Entre na sua conta e teste gratuitamente as nossas funcionalidades."
+  googleBtnText="Entrar com o Google"
+  primaryBtnText="Entrar"
+  (submit)="submit()"
+  (navigate)="navigate()"
+  [disablePrimaryBtn]="!loginForm.valid"
+>
+  <form [formGroup]="loginForm" (ngSubmit)="submit()" novalidate>
+    <app-primary-input
+    label="Email"
+    type="email"
+    formControlName="email"
+    placeholder="Digite seu email"
+    iconSrc="svg/email-icon.svg">
+    </app-primary-input>
+
+    <app-primary-input
+    label="Password"
+    type="password"
+    formControlName="password"
+    placeholder="********"
+    iconSrc="svg/password-lock-icon.svg">
+    </app-primary-input>
+    <div class="w-full text-right text-sm mb-6">
+        <span class="text-primary-500 font-medium cursor-pointer hover:text-primary-600 transition">
+            Redefinir senha
+        </span>
+    </div>
+    
+
+  </form>
+</app-default-login-layout>
