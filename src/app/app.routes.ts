@@ -1,8 +1,10 @@
 import { Routes } from '@angular/router';
+import { authGuard } from './services/auth-guard';
 import { Login } from './pages/login/login';
 import { Signup } from './pages/signup/signup';
-import { AccountSteps } from './pages/account-steps/account-steps';
-import { AuthGuard } from './services/auth-guard';
+import { ConstructorPage } from './pages/constructor-page/constructor-page';
+import { AppShell } from './components/core/layouts/app-shell';
+
 
 export const routes: Routes = [
     {
@@ -11,11 +13,70 @@ export const routes: Routes = [
     },
     {
         path: 'signup',
-        component: Signup
+        component: Signup,
     },
     {
-        path: 'account-steps',
-        component: AccountSteps,
-        canActivate: [AuthGuard]
-    }
+        path: '',
+        component: AppShell,
+        canActivate: [authGuard],
+        children: [
+            {
+                path: 'dashboard',
+                component: ConstructorPage,
+                data: { 
+                    pageTitle: 'Dashboard' 
+                },
+            },
+            {
+                path: 'veiculos',
+                component: ConstructorPage,
+                data: { 
+                    pageTitle: 'Veículos' 
+                },
+            },
+            {
+                path: 'motoristas',
+                component: ConstructorPage,
+                data: { 
+                    pageTitle: 'Motoristas' 
+                },
+            },
+            {
+                path: 'manutencoes',
+                component: ConstructorPage,
+                data: { 
+                    pageTitle: 'Manutenções' 
+                },
+            },
+            {
+                path: 'relatorios',
+                component: ConstructorPage,
+                data: { 
+                    pageTitle: 'Relatórios' 
+                },
+            },
+            {
+                path: 'configuracoes',
+                component: ConstructorPage,
+                data: { 
+                    pageTitle: 'Configurações' 
+                },
+            },
+            {
+                path: 'account-steps',
+                component: ConstructorPage,
+                data: { 
+                    pageTitle: 'Passos da Conta' 
+                },
+            },
+            {
+                path: '',
+                redirectTo: 'dashboard',
+                pathMatch: 'full' },
+        ],
+    },
+    { 
+        path: '**', 
+        redirectTo: 'login' 
+    },
 ];

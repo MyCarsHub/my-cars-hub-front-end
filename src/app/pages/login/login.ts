@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
-import { DefaultLoginLayout } from '../../components/default-login-layout/default-login-layout';
 import {
   FormControl,
   FormGroup,
@@ -10,6 +9,7 @@ import { PrimaryInput } from '../../components/primary-input/primary-input';
 import { NgOptimizedImage } from '@angular/common';
 import { Router } from '@angular/router';
 import { LoginService } from '../../services/loginService';
+import { DefaultLoginLayout } from '../../components/layout/default-login-layout/default-login-layout';
 
 @Component({
   selector: 'app-login',

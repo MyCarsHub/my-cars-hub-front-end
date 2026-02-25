@@ -1,0 +1,32 @@
+:host {
+    display: block;
+}
+
+/* Active navigation link */
+.active-link {
+    background-color: color-mix(in srgb, var(--color-primary-500) 10%, transparent);
+    color: var(--color-primary-500);
+    font-weight: 600;
+}
+
+.active-link:hover {
+    background-color: color-mix(in srgb, var(--color-primary-500) 15%, transparent);
+}
+
+/* Scrollbar for navigation overflow */
+nav::-webkit-scrollbar {
+    width: 4px;
+}
+
+nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+nav::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 9999px;
+}
+
+nav::-webkit-scrollbar-thumb:hover {
+    background-color: #9ca3af;
+}

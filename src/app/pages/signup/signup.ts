@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
-import { DefaultLoginLayout } from '../../components/default-login-layout/default-login-layout';
+import { DefaultLoginLayout } from '../../components/layout/default-login-layout/default-login-layout';
 import {
   FormControl,
   FormGroup,
