@@ -23,60 +23,62 @@ export const routes: Routes = [
             {
                 path: 'dashboard',
                 component: ConstructorPage,
-                data: { 
-                    pageTitle: 'Dashboard' 
+                data: {
+                    pageTitle: 'Dashboard'
                 },
             },
             {
                 path: 'veiculos',
                 component: ConstructorPage,
-                data: { 
-                    pageTitle: 'Veículos' 
+                data: {
+                    pageTitle: 'Veículos'
                 },
             },
             {
                 path: 'motoristas',
                 component: ConstructorPage,
-                data: { 
-                    pageTitle: 'Motoristas' 
+                data: {
+                    pageTitle: 'Motoristas'
                 },
             },
             {
                 path: 'manutencoes',
                 component: ConstructorPage,
-                data: { 
-                    pageTitle: 'Manutenções' 
+                data: {
+                    pageTitle: 'Manutenções'
                 },
             },
             {
                 path: 'relatorios',
                 component: ConstructorPage,
-                data: { 
-                    pageTitle: 'Relatórios' 
+                data: {
+                    pageTitle: 'Relatórios'
                 },
             },
             {
                 path: 'configuracoes',
                 component: ConstructorPage,
-                data: { 
-                    pageTitle: 'Configurações' 
+                data: {
+                    pageTitle: 'Configurações'
                 },
             },
             {
                 path: 'account-steps',
-                component: ConstructorPage,
-                data: { 
-                    pageTitle: 'Passos da Conta' 
+                loadComponent: () =>
+                    import('./pages/account-steps/account-steps').then((m) => m.AccountSteps),
+                data: {
+                    pageTitle: 'Passos da Conta'
                 },
             },
             {
                 path: '',
                 redirectTo: 'dashboard',
-                pathMatch: 'full' },
+                pathMatch: 'full'
+            },
         ],
     },
-    { 
-        path: '**', 
-        redirectTo: 'login' 
+    {
+        path: '**',
+        redirectTo: 'login'
     },
 ];
