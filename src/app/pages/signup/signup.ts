@@ -42,6 +42,10 @@ export class Signup {
   }
 
 
+    summitGoogle() {
+      window.location.href = 'http://localhost:8085/v1/auth/login/google';
+  }
+
   submit() {
     this.loginService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password).subscribe({
       next: () => {

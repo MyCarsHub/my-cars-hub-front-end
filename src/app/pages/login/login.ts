@@ -39,6 +39,9 @@ export class Login {
     });
   }
 
+  summitGoogle() {
+    window.location.href = 'http://localhost:8085/v1/auth/login/google';
+  }
 
   submit() {
     this.loginService.login(this.loginForm.value.email, this.loginForm.value.password).subscribe({

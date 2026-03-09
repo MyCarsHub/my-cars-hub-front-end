@@ -9,6 +9,10 @@ import { LoginResponse } from '../types/login-response.type';
 export class LoginService {
   constructor(private httpClient: HttpClient) {}
 
+  loginWithGoogle() {
+    window.location.href = 'http://localhost:8085/v1/auth/login/google';
+  }
+
   login(email: string, password: string) {
     return this.httpClient.post<LoginResponse>('http://localhost:8085/v1/auth/login', { email, password }).pipe(
       tap((value) => {

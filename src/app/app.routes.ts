@@ -4,6 +4,7 @@ import { Login } from './pages/login/login';
 import { Signup } from './pages/signup/signup';
 import { ConstructorPage } from './pages/constructor-page/constructor-page';
 import { AppShell } from './components/core/layouts/app-shell';
+import { OauthSuccess } from './pages/oauth-success/oauth-success';
 
 
 export const routes: Routes = [
@@ -14,6 +15,10 @@ export const routes: Routes = [
     {
         path: 'signup',
         component: Signup,
+    },
+    {
+        path: 'oauth-success',
+        component: OauthSuccess
     },
     {
         path: '',
