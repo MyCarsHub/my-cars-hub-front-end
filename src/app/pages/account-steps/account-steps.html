@@ -1,0 +1,82 @@
+<!-- Modal backdrop -->
+<div class="fixed inset-0 z-100 flex items-center justify-center bg-black/40 backdrop-blur-sm" @backdropFade>
+    <!-- Modal card -->
+    <div class="bg-white rounded-2xl p-8 w-full max-w-[480px] max-h-[90vh] overflow-y-auto
+              shadow-2xl max-sm:mx-4 max-sm:p-5 max-sm:rounded-xl" @cardEnter role="dialog" aria-modal="true"
+        aria-label="Configuração da conta">
+
+        <!-- Logo -->
+        <div class="flex items-center gap-2 mb-5">
+            <img src="svg/logo-my-cars-hub.svg" alt="MyCarsHub" class="h-5" />
+            <span class="text-lg font-bold text-gray-900">MyCarsHub</span>
+        </div>
+
+        <!-- Progress bar -->
+        <app-step-progress-bar [currentStep]="store.currentStep()" [totalSteps]="store.totalSteps"
+            [stepTitle]="store.currentStepConfig().title" [stepIcon]="store.currentStepConfig().icon" />
+
+        <!-- Step content area -->
+        <div class="mt-6 relative overflow-hidden min-h-[180px]">
+            @switch (store.currentStep()) {
+            @case (1) {
+            <div [attr.data-step]="1"
+                [class]="store.direction() === 1 ? 'step-animate-forward' : 'step-animate-backward'">
+                <app-step-personal-data />
+            </div>
+            }
+            @case (2) {
+            <div [attr.data-step]="2"
+                [class]="store.direction() === 1 ? 'step-animate-forward' : 'step-animate-backward'">
+                <app-step-company />
+            </div>
+            }
+            @case (3) {
+            <div [attr.data-step]="3"
+                [class]="store.direction() === 1 ? 'step-animate-forward' : 'step-animate-backward'">
+                <app-step-cnpj />
+            </div>
+            }
+            @case (4) {
+            <div [attr.data-step]="4"
+                [class]="store.direction() === 1 ? 'step-animate-forward' : 'step-animate-backward'">
+                <app-step-complete />
+            </div>
+            }
+            }
+        </div>
+
+        <!-- Footer navigation -->
+        <div class="flex items-center mt-6" [class.justify-between]="!store.isFirstStep()"
+            [class.justify-end]="store.isFirstStep()">
+
+            @if (!store.isFirstStep()) {
+            <button class="flex items-center gap-2 text-sm font-medium text-gray-600
+                 hover:text-gray-900 transition-colors px-3 py-2 rounded-lg
+                 hover:bg-gray-100" (click)="onBack()" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                </svg>
+                Voltar
+            </button>
+            }
+
+            <button class="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold
+               text-white transition-all duration-200" [class.bg-primary-500]="canAdvance"
+                [class.hover:bg-primary-600]="canAdvance" [class.shadow-sm]="canAdvance"
+                [class.bg-gray-300]="!canAdvance" [class.cursor-not-allowed]="!canAdvance" [disabled]="!canAdvance"
+                (click)="onNext()" type="button">
+                {{ nextLabel }}
+                @if (!store.isLastStep()) {
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                </svg>
+                }
+            </button>
+        </div>
+
+    </div>
+</div>

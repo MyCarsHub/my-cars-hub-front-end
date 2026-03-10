@@ -1,0 +1,47 @@
+<app-default-login-layout
+  description="Crie sua conta e teste gratuitamente as nossas funcionalidades."
+  googleBtnText="Cadastrar-se com o Google"
+  primaryBtnText="Cadastrar-se"
+  navigateText="Já tem conta?"
+  navigateBtnText="Entrar"
+  (summitGoogle)="summitGoogle()"
+  (submit)="submit()"
+  (navigate)="navigate()"
+  [disablePrimaryBtn]="!signupForm.valid"
+>
+  <form [formGroup]="signupForm" (ngSubmit)="submit()" novalidate>
+    <app-primary-input
+      label="Nome Completo"
+      type="text"
+      formControlName="name"
+      placeholder="Digite seu nome completo"
+      iconSrc="svg/name-icon.svg"
+    >
+    </app-primary-input>
+    <app-primary-input
+      label="E-mail"
+      type="email"
+      formControlName="email"
+      placeholder="seu@email.com"
+      iconSrc="svg/email-icon.svg"
+      >
+    </app-primary-input>
+
+    <app-primary-input
+      label="Password"
+      type="password"
+      formControlName="password"
+      placeholder="Mínimo 8 caracteres"
+      iconSrc="svg/password-lock-icon.svg"
+    >
+    </app-primary-input>
+    <app-primary-input
+      label="Confirmar sua Senha"
+      type="password"
+      formControlName="passwordConfirm"
+      placeholder="********"
+      iconSrc="svg/password-lock-icon.svg"
+    >
+    </app-primary-input>    
+  </form>
+</app-default-login-layout>
