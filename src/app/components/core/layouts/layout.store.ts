@@ -1,4 +1,5 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, Injectable, signal, inject } from '@angular/core';
+import { Router } from '@angular/router';
 
 export interface Tenant {
   id: string;
@@ -7,11 +8,36 @@ export interface Tenant {
   initial: string;
 }
 
-const DEFAULT_TENANTS: Tenant[] = [
-  { id: '1', name: 'Transportes ABC', role: 'Dono', initial: 'T' },
-  { id: '2', name: 'Logística XYZ', role: 'Driver', initial: 'L' },
-  { id: '3', name: 'Frota Pessoal', role: 'Dono', initial: 'F' },
-];
+function loadTenantsFromStorage(): Tenant[] {
+  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') return [];
+  try {
+    const stored = sessionStorage.getItem('userCompanies');
+    if (stored) {
+      const companies = JSON.parse(stored) as any[];
+      return companies.map(c => ({
+        id: c.companyId,
+        name: c.companyName,
+        role: c.role,
+        initial: c.companyName ? c.companyName.charAt(0).toUpperCase() : 'C'
+      }));
+    }
+  } catch (e) {
+    console.error('Failed to parse userCompanies', e);
+  }
+  return [];
+}
+
+const FALLBACK_TENANT: Tenant = { id: '', name: 'Sem Empresa', role: '', initial: '-' };
+
+function loadSelectedTenantFromStorage(tenants: Tenant[]): Tenant {
+  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') return FALLBACK_TENANT;
+  const selectedId = sessionStorage.getItem('selectedCompanyId');
+  if (selectedId) {
+    const found = tenants.find(t => t.id === selectedId);
+    if (found) return found;
+  }
+  return tenants.length > 0 ? tenants[0] : FALLBACK_TENANT;
+}
 
 @Injectable({ providedIn: 'root' })
 export class LayoutStore {
@@ -28,10 +54,12 @@ export class LayoutStore {
   readonly isMobile = signal(false);
 
   /** Available tenants */
-  readonly tenants = signal<Tenant[]>(DEFAULT_TENANTS);
+  readonly tenants = signal<Tenant[]>(loadTenantsFromStorage());
 
   /** Currently selected tenant */
-  readonly selectedTenant = signal<Tenant>(DEFAULT_TENANTS[0]);
+  readonly selectedTenant = signal<Tenant>(loadSelectedTenantFromStorage(loadTenantsFromStorage()));
+
+  private readonly router = inject(Router);
 
   /** Current sidebar width token for animations */
   readonly sidebarWidth = computed(() => (this.isCollapsed() ? '72px' : '260px'));
@@ -63,6 +91,20 @@ export class LayoutStore {
   selectTenant(tenant: Tenant): void {
     this.selectedTenant.set(tenant);
     this.isTenantOpen.set(false);
+    
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('selectedCompanyId', tenant.id);
+      sessionStorage.setItem('selectedCompanyName', tenant.name);
+      sessionStorage.setItem('selectedRole', tenant.role);
+    }
+    
+    this.router.navigate(['/dashboard']);
+  }
+
+  refreshTenants(): void {
+    const newTenants = loadTenantsFromStorage();
+    this.tenants.set(newTenants);
+    this.selectedTenant.set(loadSelectedTenantFromStorage(newTenants));
   }
 
   setMobile(isMobile: boolean): void {
@@ -71,4 +113,4 @@ export class LayoutStore {
       this.isMobileOpen.set(false);
     }
   }
-}
+}

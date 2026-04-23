@@ -1,16 +1,20 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './services/auth-guard';
+import { roleGuard } from './services/role.guard';
 import { Login } from './pages/login/login';
 import { Signup } from './pages/signup/signup';
 import { ConstructorPage } from './pages/constructor-page/constructor-page';
 import { AppShell } from './components/core/layouts/app-shell';
 import { OauthSuccess } from './pages/oauth-success/oauth-success';
-
+import {
+    onboardingGuard,
+    onboardingCompleteGuard,
+} from './pages/onboarding/onboarding.guard';
 
 export const routes: Routes = [
     {
         path: 'login',
-        component: Login
+        component: Login,
     },
     {
         path: 'signup',
@@ -18,7 +22,7 @@ export const routes: Routes = [
     },
     {
         path: 'oauth-success',
-        component: OauthSuccess
+        component: OauthSuccess,
     },
     {
         path: '',
@@ -26,64 +30,63 @@ export const routes: Routes = [
         canActivate: [authGuard],
         children: [
             {
-                path: 'dashboard',
-                component: ConstructorPage,
-                data: {
-                    pageTitle: 'Dashboard'
-                },
-            },
-            {
-                path: 'veiculos',
-                component: ConstructorPage,
-                data: {
-                    pageTitle: 'Veículos'
-                },
-            },
-            {
-                path: 'motoristas',
-                component: ConstructorPage,
-                data: {
-                    pageTitle: 'Motoristas'
-                },
-            },
-            {
-                path: 'manutencoes',
-                component: ConstructorPage,
-                data: {
-                    pageTitle: 'Manutenções'
-                },
-            },
-            {
-                path: 'relatorios',
-                component: ConstructorPage,
-                data: {
-                    pageTitle: 'Relatórios'
-                },
-            },
-            {
-                path: 'configuracoes',
-                component: ConstructorPage,
-                data: {
-                    pageTitle: 'Configurações'
-                },
-            },
-            {
-                path: 'account-steps',
+                path: 'onboarding',
+                canActivate: [onboardingCompleteGuard],
                 loadComponent: () =>
-                    import('./pages/account-steps/account-steps').then((m) => m.AccountSteps),
-                data: {
-                    pageTitle: 'Passos da Conta'
-                },
+                    import(
+                        './pages/onboarding/onboarding-container'
+                    ).then((m) => m.OnboardingContainer),
             },
             {
                 path: '',
-                redirectTo: 'dashboard',
-                pathMatch: 'full'
+                canActivateChild: [onboardingGuard],
+                children: [
+                    {
+                        path: 'dashboard',
+                        component: ConstructorPage,
+                        data: { pageTitle: 'Dashboard' },
+                    },
+                    {
+                        path: 'veiculos',
+                        component: ConstructorPage,
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        data: { pageTitle: 'Veículos' },
+                    },
+                    {
+                        path: 'motoristas',
+                        component: ConstructorPage,
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        data: { pageTitle: 'Motoristas' },
+                    },
+                    {
+                        path: 'manutencoes',
+                        component: ConstructorPage,
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        data: { pageTitle: 'Manutenções' },
+                    },
+                    {
+                        path: 'relatorios',
+                        component: ConstructorPage,
+                        canActivate: [roleGuard(['OWNER'])],
+                        data: { pageTitle: 'Relatórios' },
+                    },
+                    {
+                        path: 'configuracoes',
+                        component: ConstructorPage,
+                        canActivate: [roleGuard(['OWNER'])],
+                        data: { pageTitle: 'Configurações' },
+                    },
+                    {
+                        path: '',
+                        redirectTo: 'dashboard',
+                        pathMatch: 'full',
+                    },
+                ],
             },
         ],
     },
     {
         path: '**',
-        redirectTo: 'login'
+        redirectTo: 'login',
     },
 ];
