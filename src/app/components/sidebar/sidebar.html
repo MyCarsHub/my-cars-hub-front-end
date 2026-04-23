@@ -112,7 +112,7 @@
 
   <!-- ===== NAVIGATION ===== -->
   <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-1" aria-label="Navegação principal">
-    @for (item of navItems; track item.route) {
+    @for (item of navItems(); track item.route) {
     <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
                text-gray-600 hover:bg-gray-100 hover:text-gray-900
                transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"

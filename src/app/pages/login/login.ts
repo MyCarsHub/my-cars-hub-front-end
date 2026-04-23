@@ -46,9 +46,14 @@ export class Login {
   submit() {
     this.loginService.login(this.loginForm.value.email, this.loginForm.value.password).subscribe({
       next: () => {
-        console.log('Login successful')
+        console.log('Login successful');
         this.clearForm();
-        this.router.navigate(['/account-steps']);
+        const onboardingCompleted = sessionStorage.getItem('onboardingCompleted') === 'true';
+        if (onboardingCompleted) {
+          this.router.navigate(['/dashboard']);
+        } else {
+          this.router.navigate(['/onboarding']);
+        }
       },
       error: (err) => console.error('Login failed', err)
     });
