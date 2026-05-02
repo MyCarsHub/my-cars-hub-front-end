@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
+import { SessionService } from '../../services/session.service';
+
 @Component({
   selector: 'app-oauth-success',
   imports: [],
@@ -12,7 +14,8 @@ export class OauthSuccess {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
+    private sessionService: SessionService
   ) { }
 
   ngOnInit(): void {
@@ -24,12 +27,12 @@ export class OauthSuccess {
       return;
     }
 
-    sessionStorage.setItem('token', token);
+    this.sessionService.setToken(token);
 
     this.authService.getMe().subscribe({
       next: () => {
         const onboardingCompleted =
-          sessionStorage.getItem('onboardingCompleted') === 'true';
+          this.sessionService.isOnboardingCompleted();
 
         if (onboardingCompleted) {
           this.router.navigate(['/dashboard']);
@@ -38,7 +41,7 @@ export class OauthSuccess {
         }
       },
       error: () => {
-        sessionStorage.clear();
+        this.sessionService.clear();
         this.router.navigate(['/login']);
       },
     });

@@ -1,20 +1,12 @@
-import { Component, Input, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { Component, ChangeDetectionStrategy, input } from '@angular/core';
 
 @Component({
   selector: 'app-constructor-page',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
   templateUrl: './constructor-page.html',
   styleUrl: './constructor-page.css',
 })
-export class ConstructorPage implements OnInit {
-  pageTitle!: string;
-
-  constructor(private route: ActivatedRoute) {}
-
-  ngOnInit() {
-    this.route.data.subscribe(data => {
-      this.pageTitle = data['pageTitle'];
-  });
-  }
+export class ConstructorPage {
+  pageTitle = input<string>('Página em construção');
 }

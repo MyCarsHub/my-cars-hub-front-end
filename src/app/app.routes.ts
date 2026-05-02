@@ -10,6 +10,7 @@ import {
     onboardingGuard,
     onboardingCompleteGuard,
 } from './pages/onboarding/onboarding.guard';
+import { CompanySettings } from './pages/company-settings/company-settings';
 
 export const routes: Routes = [
     {
@@ -72,7 +73,7 @@ export const routes: Routes = [
                     },
                     {
                         path: 'configuracoes',
-                        component: ConstructorPage,
+                        component: CompanySettings,
                         canActivate: [roleGuard(['OWNER'])],
                         data: { pageTitle: 'Configurações' },
                     },

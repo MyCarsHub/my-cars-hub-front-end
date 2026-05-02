@@ -25,7 +25,7 @@ import { LayoutStore } from './layout.store';
         class="flex-1 overflow-y-auto transition-none"
         [@contentMargin]="contentState()"
       >
-        <div class="p-6">
+        <div>
           <router-outlet />
         </div>
       </main>

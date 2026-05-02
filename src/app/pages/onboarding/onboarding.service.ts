@@ -2,8 +2,10 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, tap, catchError, finalize, throwError, timeout, map, of } from 'rxjs';
 import { OnboardingData, OnboardingState, OnboardingStepPayload } from './onboarding.types';
+import { SessionService } from '../../services/session.service';
+import { environment } from '../../../environments/environment';
 
-const API_BASE = 'http://localhost:8085/v1/onboarding';
+const API_BASE = `${environment.apiUrl}/onboarding`;
 
 const INITIAL_STATE: OnboardingState = {
   step: 1,
@@ -14,6 +16,7 @@ const INITIAL_STATE: OnboardingState = {
 @Injectable({ providedIn: 'root' })
 export class OnboardingService {
   private readonly http = inject(HttpClient);
+  private readonly sessionService = inject(SessionService);
 
   /** Local cache of backend state — backend is source of truth */
   private readonly _state = signal<OnboardingState>({ ...INITIAL_STATE });
@@ -101,17 +104,13 @@ export class OnboardingService {
       map(() => void 0),
       tap(() => {
         this._state.update((s) => ({ ...s, isCompleted: true }));
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem('onboardingCompleted', 'true');
-        }
+        this.sessionService.setOnboardingCompleted(true);
       }),
       catchError((err: HttpErrorResponse) => {
         const errorText = typeof err.error === 'string' ? err.error : JSON.stringify(err.error || {});
         if (err.status === 409 || errorText.includes('já finalizado')) {
           this._state.update((s) => ({ ...s, isCompleted: true }));
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem('onboardingCompleted', 'true');
-          }
+          this.sessionService.setOnboardingCompleted(true);
           return of(void 0);
         }
         this.error.set('Não foi possível finalizar o cadastro. Tente novamente.');

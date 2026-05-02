@@ -3,6 +3,9 @@ import { Injectable } from '@angular/core';
 import { switchMap, tap } from 'rxjs';
 import { LoginResponse } from '../types/login-response.type';
 import { AuthService } from './auth.service';
+import { environment } from '../../environments/environment';
+
+import { SessionService } from './session.service';
 
 @Injectable({
   providedIn: 'root',
@@ -10,23 +13,23 @@ import { AuthService } from './auth.service';
 export class LoginService {
   constructor(
     private httpClient: HttpClient,
-    private authService: AuthService
+    private authService: AuthService,
+    private sessionService: SessionService
   ) { }
 
   loginWithGoogle() {
-    window.location.href =
-      'http://localhost:8085/v1/auth/login/google';
+    window.location.href = `${environment.apiUrl}/auth/login/google`;
   }
 
   login(email: string, password: string) {
     return this.httpClient
       .post<LoginResponse>(
-        'http://localhost:8085/v1/auth/login',
+        `${environment.apiUrl}/auth/login`,
         { email, password }
       )
       .pipe(
         tap((response) => {
-          sessionStorage.setItem('token', response.token);
+          this.sessionService.setToken(response.token);
         }),
         switchMap(() => this.authService.getMe())
       );
@@ -34,7 +37,7 @@ export class LoginService {
 
   signup(name: string, email: string, password: string) {
     return this.httpClient.post<void>(
-      'http://localhost:8085/v1/auth/register',
+      `${environment.apiUrl}/auth/register`,
       { name, email, password }
     );
   }

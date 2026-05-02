@@ -43,7 +43,7 @@ export class Signup {
 
 
     summitGoogle() {
-      window.location.href = 'http://localhost:8085/v1/auth/login/google';
+      this.loginService.loginWithGoogle();
   }
 
   submit() {

@@ -1,0 +1,15 @@
+<section class="w-full h-full p-12 lg:p-10 max-w-8xl mx-auto space-y-10 bg-gray-50">
+    <header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-neutral-900">
+                {{ title }}
+            </h1>
+            <p class="text-neutral-500 mt-1">
+                {{ description }}
+            </p>
+        </div>
+    </header>
+    <div class="w-full">
+        <ng-content></ng-content>
+    </div>
+</section>
