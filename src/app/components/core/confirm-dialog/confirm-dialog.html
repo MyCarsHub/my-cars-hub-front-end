@@ -1,0 +1,62 @@
+@if (open()) {
+<div @backdrop class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" (click)="onCancel()" aria-hidden="true"></div>
+
+<div @dialog role="dialog" aria-modal="true" [attr.aria-labelledby]="'confirm-dialog-title'"
+  [attr.aria-describedby]="'confirm-dialog-description'"
+  class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+  <div
+    class="bg-white rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-hidden">
+
+    <div class="flex items-start gap-4 p-6 pb-4">
+      <div class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" [class]="iconBgClass()">
+        @switch (variant()) {
+        @case ('danger') {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-500">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        }
+        @case ('warning') {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        }
+        @default {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          class="text-primary-500">
+          <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+          <path d="M12 16v-4" />
+          <path d="M12 8h.01" />
+        </svg>
+        }
+        }
+      </div>
+      <div class="flex-1 min-w-0">
+        <h2 id="confirm-dialog-title" class="text-base font-semibold text-neutral-900 leading-snug">
+          {{ title() }}
+        </h2>
+        <p id="confirm-dialog-description" class="mt-1 text-sm text-neutral-500 leading-relaxed">
+          {{ message() }}
+        </p>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-3 p-6 pt-4">
+      <button type="button" (click)="onCancel()"
+        class="px-4 py-2 text-sm font-medium text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-300 cursor-pointer">
+        {{ cancelLabel() }}
+      </button>
+      <button type="button" (click)="onConfirm()" [class]="confirmBtnClass()"
+        class="px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-[0.98] cursor-pointer">
+        {{ confirmLabel() }}
+      </button>
+    </div>
+  </div>
+</div>
+}

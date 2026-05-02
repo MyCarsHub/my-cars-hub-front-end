@@ -5,6 +5,8 @@ import { PrimaryInput } from '../../components/primary-input/primary-input';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { SessionService } from '../../services/session.service';
 import { CompanyService } from '../../services/company.service';
+import { CompanyFullResponse } from '../../types/company-full-response.type';
+import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 
 interface CompanyStats {
   activeUsers: number;
@@ -29,7 +31,7 @@ interface BillingInfo {
 @Component({
   selector: 'app-company-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, PrimaryInput, DefaultPageLayout],
+  imports: [CommonModule, ReactiveFormsModule, PrimaryInput, DefaultPageLayout, ConfirmDialog],
   templateUrl: './company-settings.html',
   styleUrl: './company-settings.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,24 +41,24 @@ export class CompanySettings {
   private readonly sessionService = inject(SessionService);
   private readonly companyService = inject(CompanyService);
 
-  createdAt: string = '';
+  protected readonly companyInfo = signal<CompanyFullResponse | null>(null);
 
   ngOnInit() {
     this.getInfoCompany();
   }
 
   protected readonly companyForm = this.fb.group({
-    name: ['MyCarsHub Fleet Solutions', [Validators.required]],
-    documentType: ['CNPJ', [Validators.required]],
-    documentNumber: ['12.345.678/0001-90', [Validators.required]],
-    createdAt: [{ value: this.createdAt, disabled: true }],
-    status: [{ value: 'ACTIVE', disabled: true }],
+    name: [{ value: '', disabled: true }, [Validators.required]],
+    documentType: [{ value: '', disabled: true }, [Validators.required]],
+    documentNumber: [{ value: '', disabled: true }, [Validators.required]],
+    createdAt: [{ value: '', disabled: true }],
+    status: [{ value: '', disabled: true }],
   });
 
   protected readonly owner = signal<CompanyOwner>({
     name: this.sessionService.getItem('name') || '',
     email: this.sessionService.getItem('email') || '',
-    joinedAt: this.createdAt,
+    joinedAt: '',
   });
 
   protected readonly billing = signal<BillingInfo>({
@@ -75,31 +77,56 @@ export class CompanySettings {
 
   protected readonly isEditing = signal(false);
   protected readonly isSaving = signal(false);
+  protected readonly showConfirmDialog = signal(false);
 
   protected toggleEdit(): void {
     if (this.isEditing()) {
-      this.saveChanges();
+      this.showConfirmDialog.set(true);
     } else {
       this.isEditing.set(true);
+      this.companyForm.get('name')?.enable();
+      this.companyForm.get('documentType')?.enable();
+      this.companyForm.get('documentNumber')?.enable();
     }
   }
 
-  protected cancelEdit(): void {
-    this.companyForm.reset({
-      name: 'MyCarsHub Fleet Solutions',
-      documentType: 'CNPJ',
-      documentNumber: '12.345.678/0001-90',
-      createdAt: '15 de Março, 2024',
-      status: 'ACTIVE'
-    });
-    this.isEditing.set(false);
+  protected onConfirmSave(): void {
+    this.showConfirmDialog.set(false);
+    this.saveChanges();
   }
 
+  protected onCancelConfirm(): void {
+    this.showConfirmDialog.set(false);
+  }
+
+  protected cancelEdit(): void {
+    const info = this.companyInfo();
+    if (info) {
+      this.companyForm.reset({
+        name: info.name,
+        documentType: info.documentType,
+        documentNumber: info.documentValue,
+        createdAt: info.createdDate,
+        status: info.status
+      });
+    }
+    this.isEditing.set(false);
+    this.companyForm.get('name')?.disable();
+    this.companyForm.get('documentType')?.disable();
+    this.companyForm.get('documentNumber')?.disable();
+  }
 
   private getInfoCompany() {
     this.companyService.getInfoCompany().subscribe((response) => {
-      this.companyForm.patchValue(response);
-      this.createdAt = response.createdDate;
+      this.companyInfo.set(response);
+      this.companyForm.patchValue({
+        name: response.name,
+        documentType: response.documentType,
+        documentNumber: response.documentValue,
+        createdAt: response.createdDate,
+        status: response.status
+      });
+      this.owner.update(o => ({ ...o, joinedAt: response.createdDate }));
     });
   }
 
@@ -110,7 +137,9 @@ export class CompanySettings {
     setTimeout(() => {
       this.isSaving.set(false);
       this.isEditing.set(false);
-
+      this.companyForm.get('name')?.disable();
+      this.companyForm.get('documentType')?.disable();
+      this.companyForm.get('documentNumber')?.disable();
     }, 1000);
   }
 
