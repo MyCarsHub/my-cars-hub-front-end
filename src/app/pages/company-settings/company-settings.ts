@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, signal, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
@@ -7,45 +7,26 @@ import { SessionService } from '../../services/session.service';
 import { CompanyService } from '../../services/company.service';
 import { CompanyFullResponse } from '../../types/company-full-response.type';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
-
-interface CompanyStats {
-  activeUsers: number;
-  pendingInvites: number;
-  lastAdminAccess: string;
-  companyId: string;
-}
-
-interface CompanyOwner {
-  name: string;
-  email: string;
-  joinedAt: string;
-}
-
-interface BillingInfo {
-  plan: 'TRIAL' | 'PRO' | 'ENTERPRISE';
-  billingCycle: 'Monthly' | 'Yearly';
-  nextBillingDate: string;
-  status: 'ACTIVE' | 'PAST_DUE' | 'CANCELED';
-}
+import { PageCard } from '../../components/core/page-card/page-card';
+import { BillingInfo, CompanyOwner, CompanyStats } from '../../types/company-settings.types';
 
 @Component({
   selector: 'app-company-settings',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, PrimaryInput, DefaultPageLayout, ConfirmDialog],
+  imports: [CommonModule, ReactiveFormsModule, PrimaryInput, DefaultPageLayout, ConfirmDialog, PageCard],
   templateUrl: './company-settings.html',
   styleUrl: './company-settings.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CompanySettings {
+export class CompanySettings implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly sessionService = inject(SessionService);
   private readonly companyService = inject(CompanyService);
 
-  protected readonly companyInfo = signal<CompanyFullResponse | null>(null);
-
-  ngOnInit() {
-    this.getInfoCompany();
+  ngOnInit(): void {
+    this.loadCompanyInfo();
   }
+
+  protected readonly companyInfo = signal<CompanyFullResponse | null>(null);
 
   protected readonly companyForm = this.fb.group({
     name: [{ value: '', disabled: true }, [Validators.required]],
@@ -56,11 +37,12 @@ export class CompanySettings {
   });
 
   protected readonly owner = signal<CompanyOwner>({
-    name: this.sessionService.getItem('name') || '',
-    email: this.sessionService.getItem('email') || '',
+    name: this.sessionService.getItem('name') ?? '',
+    email: this.sessionService.getItem('email') ?? '',
     joinedAt: '',
   });
 
+  // TODO: replace with real API data once endpoints are available
   protected readonly billing = signal<BillingInfo>({
     plan: 'PRO',
     billingCycle: 'Yearly',
@@ -68,35 +50,25 @@ export class CompanySettings {
     status: 'ACTIVE',
   });
 
+  // TODO: replace with real API data once endpoints are available
   protected readonly stats = signal<CompanyStats>({
     activeUsers: 12,
     pendingInvites: 3,
-    lastAdminAccess: 'Há 2 horas',
-    companyId: '550e8400-e29b-41d4-a716-446655440000',
   });
 
   protected readonly isEditing = signal(false);
   protected readonly isSaving = signal(false);
   protected readonly showConfirmDialog = signal(false);
 
+
+
   protected toggleEdit(): void {
     if (this.isEditing()) {
       this.showConfirmDialog.set(true);
     } else {
       this.isEditing.set(true);
-      this.companyForm.get('name')?.enable();
-      this.companyForm.get('documentType')?.enable();
-      this.companyForm.get('documentNumber')?.enable();
+      this.enableEditableControls();
     }
-  }
-
-  protected onConfirmSave(): void {
-    this.showConfirmDialog.set(false);
-    this.saveChanges();
-  }
-
-  protected onCancelConfirm(): void {
-    this.showConfirmDialog.set(false);
   }
 
   protected cancelEdit(): void {
@@ -111,12 +83,23 @@ export class CompanySettings {
       });
     }
     this.isEditing.set(false);
-    this.companyForm.get('name')?.disable();
-    this.companyForm.get('documentType')?.disable();
-    this.companyForm.get('documentNumber')?.disable();
+    this.disableEditableControls();
   }
 
-  private getInfoCompany() {
+  protected onConfirmSave(): void {
+    this.showConfirmDialog.set(false);
+    this.saveChanges();
+  }
+
+  protected onCancelConfirm(): void {
+    this.showConfirmDialog.set(false);
+  }
+
+  protected copyToClipboard(text: string): void {
+    navigator.clipboard.writeText(text);
+  }
+
+  private loadCompanyInfo(): void {
     this.companyService.getInfoCompany().subscribe((response) => {
       this.companyInfo.set(response);
       this.companyForm.patchValue({
@@ -124,9 +107,9 @@ export class CompanySettings {
         documentType: response.documentType,
         documentNumber: response.documentValue,
         createdAt: response.createdDate,
-        status: response.status
+        status: response.status,
       });
-      this.owner.update(o => ({ ...o, joinedAt: response.createdDate }));
+      this.owner.update((o) => ({ ...o, joinedAt: response.createdDate }));
     });
   }
 
@@ -134,16 +117,23 @@ export class CompanySettings {
     if (this.companyForm.invalid) return;
 
     this.isSaving.set(true);
+    // TODO: wire up real API call
     setTimeout(() => {
       this.isSaving.set(false);
       this.isEditing.set(false);
-      this.companyForm.get('name')?.disable();
-      this.companyForm.get('documentType')?.disable();
-      this.companyForm.get('documentNumber')?.disable();
+      this.disableEditableControls();
     }, 1000);
   }
 
-  protected copyToClipboard(text: string): void {
-    navigator.clipboard.writeText(text);
+  private enableEditableControls(): void {
+    this.companyForm.get('name')?.enable();
+    this.companyForm.get('documentType')?.enable();
+    this.companyForm.get('documentNumber')?.enable();
+  }
+
+  private disableEditableControls(): void {
+    this.companyForm.get('name')?.disable();
+    this.companyForm.get('documentType')?.disable();
+    this.companyForm.get('documentNumber')?.disable();
   }
 }

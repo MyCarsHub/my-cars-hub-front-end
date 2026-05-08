@@ -23,14 +23,9 @@ export class LoginService {
 
   login(email: string, password: string) {
     return this.httpClient
-      .post<LoginResponse>(
-        `${environment.apiUrl}/auth/login`,
-        { email, password }
-      )
+      .post<LoginResponse>(`${environment.apiUrl}/auth/login`, { email, password })
       .pipe(
-        tap((response) => {
-          this.sessionService.setToken(response.token);
-        }),
+        tap((response) => this.sessionService.setToken(response.token)),
         switchMap(() => this.authService.getMe())
       );
   }

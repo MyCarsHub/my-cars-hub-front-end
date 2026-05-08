@@ -34,9 +34,9 @@ export const routes: Routes = [
                 path: 'onboarding',
                 canActivate: [onboardingCompleteGuard],
                 loadComponent: () =>
-                    import(
-                        './pages/onboarding/onboarding-container'
-                    ).then((m) => m.OnboardingContainer),
+                    import('./pages/onboarding/onboarding-container').then(
+                        (m) => m.OnboardingContainer
+                    ),
             },
             {
                 path: '',

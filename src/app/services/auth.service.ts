@@ -23,33 +23,17 @@ export class AuthService {
 
                     this.sessionService.setItem('name', user.name ?? '');
                     this.sessionService.setItem('email', user.email ?? '');
-
                     this.sessionService.setOnboardingCompleted(companies.length > 0);
-
-                    this.sessionService.setItem(
-                        'userCompanies',
-                        JSON.stringify(companies)
-                    );
+                    this.sessionService.setItem('userCompanies', JSON.stringify(companies));
 
                     const defaultCompany =
-                        companies.find(company => company.role === 'OWNER') ??
+                        companies.find((company) => company.role === 'OWNER') ??
                         companies[0];
 
                     if (defaultCompany) {
-                        this.sessionService.setItem(
-                            'selectedCompanyId',
-                            defaultCompany.companyId
-                        );
-
-                        this.sessionService.setItem(
-                            'selectedCompanyName',
-                            defaultCompany.companyName
-                        );
-
-                        this.sessionService.setItem(
-                            'selectedRole',
-                            defaultCompany.role
-                        );
+                        this.sessionService.setItem('selectedCompanyId', defaultCompany.companyId);
+                        this.sessionService.setItem('selectedCompanyName', defaultCompany.companyName);
+                        this.sessionService.setItem('selectedRole', defaultCompany.role);
                     }
                 })
             );

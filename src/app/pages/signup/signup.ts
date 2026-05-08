@@ -42,16 +42,16 @@ export class Signup {
   }
 
 
-    summitGoogle() {
-      this.loginService.loginWithGoogle();
+  summitGoogle() {
+    this.loginService.loginWithGoogle();
   }
 
   submit() {
     this.loginService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password).subscribe({
       next: () => {
-          console.log('Signup successful');
-          this.clearForm(); 
-          this.router.navigate(['/login']);
+        console.log('Signup successful');
+        this.clearForm();
+        this.router.navigate(['/login']);
       },
       error: (err) => console.error('Signup failed', err)
     });
