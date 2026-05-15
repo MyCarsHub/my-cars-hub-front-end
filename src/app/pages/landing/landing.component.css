@@ -1,0 +1,13 @@
+.landing-root {
+  background: var(--color-gray-50);
+  color: var(--color-black);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.landing-root :is(h1, h2, h3, h4) {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
