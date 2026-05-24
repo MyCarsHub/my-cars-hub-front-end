@@ -9,5 +9,5 @@
 .landing-root :is(h1, h2, h3, h4) {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
-  line-height: 1.05;
+  line-height: 1.08;
 }

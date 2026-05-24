@@ -7,7 +7,6 @@ import {
   Validators,
 } from '@angular/forms';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
-import { NgOptimizedImage } from '@angular/common';
 import { Router } from '@angular/router';
 import { LoginService } from '../../services/loginService';
 
@@ -18,7 +17,6 @@ import { LoginService } from '../../services/loginService';
     DefaultLoginLayout,
     ReactiveFormsModule,
     PrimaryInput,
-    NgOptimizedImage,
   ],
   providers: [
     LoginService
