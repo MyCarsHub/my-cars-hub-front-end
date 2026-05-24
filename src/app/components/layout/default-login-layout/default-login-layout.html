@@ -14,32 +14,23 @@
             </div>
 
             <!-- GOOGLE BUTTON -->
-            <button
-                (click)="summitGoogle()"
-                type="button"
-                class="w-full bg-white border border-neutral-200 rounded-xl py-3 px-4 text-sm font-medium
+            <button (click)="summitGoogle()" type="button" class="w-full bg-white border border-neutral-200 rounded-xl py-3 px-4 text-sm font-medium
                        flex items-center justify-center gap-3 shadow-sm cursor-pointer
                        transition-all duration-300 hover:bg-neutral-50">
-                <img
-                    src="png/google-logo.png"
-                    class="w-5 h-5"
-                    alt="Google Icon" />
+                <img src="png/google-logo.png" class="w-5 h-5" alt="Google Icon" />
                 <span class="text-sm font-medium">{{ googleBtnText }}</span>
             </button>
 
 
             <!-- DIVIDER -->
             <span class="w-full text-center text-neutral-400 text-sm my-4">ou</span>
-             
+
             <div class="w-full">
                 <ng-content></ng-content>
             </div>
 
             <!-- LOGIN BUTTON -->
-            <button
-                (click)="submit()"
-                [disabled]="disablePrimaryBtn"
-                class="w-full mt-6 bg-primary-500 text-white rounded-xl py-3 font-semibold
+            <button (click)="submit()" [disabled]="disablePrimaryBtn" class="w-full mt-6 bg-primary-500 text-white rounded-xl py-3 font-semibold
                         shadow-md cursor-pointer
                         transition-all duration-300 ease-in-out
                         hover:bg-primary-600 hover:shadow-lg hover:-translate-y-0.5
@@ -49,8 +40,7 @@
 
             <p class="w-full text-center text-sm text-neutral-500 mt-6">
                 {{ navigateText }}
-                <span
-                    (click)="navigate()" 
+                <span (click)="navigate()"
                     class="text-primary-500 font-medium cursor-pointer hover:text-primary-600 transition">
                     {{ navigateBtnText }}
                 </span>
@@ -62,10 +52,7 @@
     <!-- RIGHT SIDE -->
     <section class="w-full hidden lg:flex lg:w-1/2">
         <div class="w-full relative h-11/12 m-12 bg-white rounded-3xl shadow-xl p-16 flex items-center justify-center">
-            <img
-            src="svg/logo-my-cars-hub.svg"
-            class="max-w-sm w-full h-auto object-contain"
-            alt="MyCarsHub Logo" />
+            <img src="svg/logo-my-cars-hub.svg" class="max-w-sm w-full h-auto object-contain" alt="MyCarsHub Logo" />
         </div>
     </section>
 </main>

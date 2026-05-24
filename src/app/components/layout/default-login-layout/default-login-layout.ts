@@ -13,7 +13,7 @@ export class DefaultLoginLayout {
   @Input() navigateText: string = '';
   @Input() navigateBtnText: string = '';
   @Input() disablePrimaryBtn: boolean = true;
-  @Output("submit") onSubmit = new EventEmitter(); 
+  @Output("submit") onSubmit = new EventEmitter();
   @Output("navigate") onNavigate = new EventEmitter();
   @Output("summitGoogle") onSummitGoogle = new EventEmitter();
 

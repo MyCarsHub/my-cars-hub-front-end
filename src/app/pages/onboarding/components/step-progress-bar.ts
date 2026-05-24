@@ -22,7 +22,6 @@ import { STEP_CONFIGS } from '../onboarding.types';
     <!-- Step label -->
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center gap-2">
-        <span class="text-lg leading-none" aria-hidden="true">{{ currentConfig().icon }}</span>
         <span class="text-sm font-semibold text-gray-800">{{ currentConfig().title }}</span>
       </div>
       <span class="text-xs text-gray-400 font-medium tabular-nums">

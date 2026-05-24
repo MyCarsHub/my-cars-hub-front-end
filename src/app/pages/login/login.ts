@@ -6,10 +6,11 @@ import {
   Validators,
 } from '@angular/forms';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
-import { NgOptimizedImage } from '@angular/common';
 import { Router } from '@angular/router';
 import { LoginService } from '../../services/loginService';
 import { DefaultLoginLayout } from '../../components/layout/default-login-layout/default-login-layout';
+
+import { SessionService } from '../../services/session.service';
 
 @Component({
   selector: 'app-login',
@@ -18,7 +19,6 @@ import { DefaultLoginLayout } from '../../components/layout/default-login-layout
     DefaultLoginLayout,
     ReactiveFormsModule,
     PrimaryInput,
-    NgOptimizedImage,
   ],
   providers: [
     LoginService
@@ -31,7 +31,8 @@ export class Login {
 
   constructor(
     private router: Router,
-    private loginService: LoginService
+    private loginService: LoginService,
+    private sessionService: SessionService
   ) {
     this.loginForm = new FormGroup({
       email: new FormControl('', [Validators.required, Validators.email]),
@@ -40,7 +41,7 @@ export class Login {
   }
 
   summitGoogle() {
-    window.location.href = 'http://localhost:8085/v1/auth/login/google';
+    this.loginService.loginWithGoogle();
   }
 
   submit() {
@@ -48,7 +49,7 @@ export class Login {
       next: () => {
         console.log('Login successful');
         this.clearForm();
-        const onboardingCompleted = sessionStorage.getItem('onboardingCompleted') === 'true';
+        const onboardingCompleted = this.sessionService.isOnboardingCompleted();
         if (onboardingCompleted) {
           this.router.navigate(['/dashboard']);
         } else {

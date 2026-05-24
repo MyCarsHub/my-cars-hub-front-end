@@ -10,8 +10,17 @@ import {
     onboardingGuard,
     onboardingCompleteGuard,
 } from './pages/onboarding/onboarding.guard';
+import { CompanySettings } from './pages/company-settings/company-settings';
 
 export const routes: Routes = [
+    {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () =>
+            import('./pages/landing/page/landing.component').then(
+                (m) => m.LandingComponent
+            ),
+    },
     {
         path: 'login',
         component: Login,
@@ -33,9 +42,9 @@ export const routes: Routes = [
                 path: 'onboarding',
                 canActivate: [onboardingCompleteGuard],
                 loadComponent: () =>
-                    import(
-                        './pages/onboarding/onboarding-container'
-                    ).then((m) => m.OnboardingContainer),
+                    import('./pages/onboarding/onboarding-container').then(
+                        (m) => m.OnboardingContainer
+                    ),
             },
             {
                 path: '',
@@ -72,7 +81,7 @@ export const routes: Routes = [
                     },
                     {
                         path: 'configuracoes',
-                        component: ConstructorPage,
+                        component: CompanySettings,
                         canActivate: [roleGuard(['OWNER'])],
                         data: { pageTitle: 'Configurações' },
                     },

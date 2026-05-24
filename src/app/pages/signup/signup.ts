@@ -7,7 +7,6 @@ import {
   Validators,
 } from '@angular/forms';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
-import { NgOptimizedImage } from '@angular/common';
 import { Router } from '@angular/router';
 import { LoginService } from '../../services/loginService';
 
@@ -18,7 +17,6 @@ import { LoginService } from '../../services/loginService';
     DefaultLoginLayout,
     ReactiveFormsModule,
     PrimaryInput,
-    NgOptimizedImage,
   ],
   providers: [
     LoginService
@@ -42,16 +40,16 @@ export class Signup {
   }
 
 
-    summitGoogle() {
-      window.location.href = 'http://localhost:8085/v1/auth/login/google';
+  summitGoogle() {
+    this.loginService.loginWithGoogle();
   }
 
   submit() {
     this.loginService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password).subscribe({
       next: () => {
-          console.log('Signup successful');
-          this.clearForm(); 
-          this.router.navigate(['/login']);
+        console.log('Signup successful');
+        this.clearForm();
+        this.router.navigate(['/login']);
       },
       error: (err) => console.error('Signup failed', err)
     });

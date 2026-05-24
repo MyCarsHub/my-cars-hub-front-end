@@ -1,0 +1,162 @@
+.mt {
+  padding: 120px 24px;
+  background: var(--color-primary-50);
+  position: relative;
+  isolation: isolate;
+}
+.mt::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 10% 10%, rgba(235,63,0,0.06), transparent 40%),
+    radial-gradient(circle at 90% 90%, rgba(255,87,34,0.06), transparent 40%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.mt__inner { max-width: 1100px; margin: 0 auto; }
+
+.mt__head { text-align: center; max-width: 760px; margin: 0 auto 56px; }
+.kicker {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-primary-600);
+  background: var(--color-white);
+  padding: 6px 14px;
+  border-radius: 999px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 10px rgba(235,63,0,0.10);
+}
+h2 {
+  font-size: clamp(34px, 4.8vw, 60px);
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: var(--color-black);
+}
+h2 em { font-style: italic; color: var(--color-primary-500); }
+.mt__head p { color: rgba(15,15,15,0.65); font-size: 18px; margin: 0; }
+
+.diagram {
+  position: relative;
+  margin-bottom: 56px;
+}
+.diagram__user {
+  margin: 0 auto;
+  background: var(--color-white);
+  border: 1px solid rgba(235,63,0,0.18);
+  border-radius: 18px;
+  padding: 18px 22px;
+  width: 220px;
+  text-align: center;
+  box-shadow: 0 18px 40px -16px rgba(235,63,0,0.25);
+  position: relative;
+  z-index: 2;
+}
+.diagram__user strong { display: block; font-size: 16px; color: var(--color-black); }
+.diagram__user small { color: rgba(15,15,15,0.55); font-size: 12.5px; }
+.diagram__avatar {
+  width: 48px; height: 48px;
+  margin: 0 auto 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--color-primary-400), var(--color-primary-600));
+  color: var(--color-white);
+  font-weight: 800;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diagram__lines {
+  position: absolute;
+  inset: 70px 0 60px;
+  width: 100%;
+  height: calc(100% - 130px);
+  display: none;
+  pointer-events: none;
+  z-index: 1;
+}
+@media (min-width: 768px) {
+  .diagram__lines { display: block; }
+}
+
+.diagram__companies {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  position: relative;
+  z-index: 2;
+}
+@media (min-width: 768px) {
+  .diagram__companies { grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 64px; }
+}
+
+.comp {
+  background: var(--color-white);
+  border: 1px solid #ECECEC;
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 10px 28px -16px rgba(15,15,15,0.18);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.comp:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 36px -14px rgba(235,63,0,0.28);
+}
+.comp__role {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+}
+.role-ico {
+  width: 22px; height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.comp--owner .comp__role { background: var(--color-primary-low); color: var(--color-primary-600); }
+.comp--manager .comp__role { background: #DBEAFE; color: #1D4ED8; }
+.comp--driver .comp__role { background: #DCFCE7; color: #15803D; }
+
+.comp strong { display: block; font-family: var(--font-display); font-size: 19px; color: var(--color-black); margin-bottom: 4px; }
+.comp small { color: rgba(15,15,15,0.6); font-size: 13.5px; }
+
+.mt__swap {
+  text-align: center;
+}
+.mt__swap .badge {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--color-primary-400), var(--color-primary-600));
+  color: var(--color-white);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14.5px;
+  box-shadow: 0 8px 22px rgba(235,63,0,0.30);
+  margin-bottom: 12px;
+}
+.mt__swap p {
+  color: rgba(15,15,15,0.6);
+  font-size: 15px;
+  margin: 0;
+  font-style: italic;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.revealed { opacity: 1; transform: translateY(0); }

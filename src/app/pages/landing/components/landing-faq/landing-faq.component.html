@@ -1,0 +1,16 @@
+<section class="section-faq">
+  <div class="faq__inner">
+    <header class="faq__head">
+      <h2 class="reveal">Perguntas frequentes</h2>
+      <p class="reveal">Selecionamos as dúvidas mais comuns sobre o MyCarsHub.</p>
+    </header>
+    <div class="faq__list reveal">
+      @for (item of faqs; track item.q) {
+        <details class="faq__item">
+          <summary>{{ item.q }}</summary>
+          <p>{{ item.a }}</p>
+        </details>
+      }
+    </div>
+  </div>
+</section>

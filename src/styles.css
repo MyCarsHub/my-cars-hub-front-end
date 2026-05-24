@@ -19,6 +19,20 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+:root {
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --container: 1120px;
+  --container-narrow: 1040px;
+  --color-border: #E8E4E0;
 }

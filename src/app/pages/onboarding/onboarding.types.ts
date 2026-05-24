@@ -20,10 +20,10 @@ export interface OnboardingStepPayload {
 }
 
 export const STEP_CONFIGS = [
-  { step: 1, title: 'Dados Pessoais', icon: '👤', subtitle: 'Como devemos te chamar?' },
-  { step: 2, title: 'Empresa', icon: '🏢', subtitle: 'Informações da sua organização' },
-  { step: 3, title: 'Documento', icon: '📋', subtitle: 'CNPJ da empresa (opcional)' },
-  { step: 4, title: 'Bem-vindo', icon: '🎉', subtitle: 'Pronto para começar!' },
+  { step: 1, title: 'Dados Pessoais', subtitle: 'Como devemos te chamar?' },
+  { step: 2, title: 'Empresa', subtitle: 'Informações da sua organização' },
+  { step: 3, title: 'Documento', subtitle: 'CNPJ da empresa (opcional)' },
+  { step: 4, title: 'Bem-vindo', subtitle: 'Pronto para começar!' },
 ] as const;
 
 export const TOTAL_STEPS = STEP_CONFIGS.length;

@@ -2,12 +2,14 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { map, catchError, of } from 'rxjs';
 import { OnboardingService } from './onboarding.service';
+import { SessionService } from '../../services/session.service';
 
 export const onboardingGuard: CanActivateFn = () => {
   const onboardingService = inject(OnboardingService);
   const router = inject(Router);
+  const sessionService = inject(SessionService);
 
-  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('onboardingCompleted') === 'true') {
+  if (sessionService.isOnboardingCompleted()) {
     return true;
   }
 
@@ -30,8 +32,9 @@ export const onboardingGuard: CanActivateFn = () => {
 export const onboardingCompleteGuard: CanActivateFn = () => {
   const onboardingService = inject(OnboardingService);
   const router = inject(Router);
+  const sessionService = inject(SessionService);
 
-  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('onboardingCompleted') === 'true') {
+  if (sessionService.isOnboardingCompleted()) {
     return router.createUrlTree(['/dashboard']);
   }
 

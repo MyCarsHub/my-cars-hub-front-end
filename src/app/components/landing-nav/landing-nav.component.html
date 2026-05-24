@@ -1,0 +1,46 @@
+<header class="nav" [class.nav--scrolled]="scrolled()">
+  <div class="nav__inner">
+    <a class="logo" href="#top" aria-label="MyCarsHub - Início">
+      <span class="logo__mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
+          <rect x="2" y="2" width="28" height="28" rx="8" fill="var(--color-primary-500)"/>
+          <path d="M8 19l1.5-5.5A2 2 0 0 1 11.4 12h9.2a2 2 0 0 1 1.9 1.5L24 19v3h-2v-1.5H10V22H8v-3z" fill="white"/>
+          <circle cx="11" cy="20" r="1.4" fill="var(--color-primary-600)"/>
+          <circle cx="21" cy="20" r="1.4" fill="var(--color-primary-600)"/>
+        </svg>
+      </span>
+      <span class="logo__text">MyCars<strong>Hub</strong></span>
+    </a>
+
+    <nav class="links" aria-label="Seções da landing">
+      <a href="#problema">Problema</a>
+      <a href="#solucao">Solução</a>
+      <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#planos">Planos</a>
+    </nav>
+
+    <div class="actions">
+      <a routerLink="/login" class="btn-primary">Acessar Plataforma</a>
+      <button
+        type="button"
+        class="burger"
+        [attr.aria-expanded]="mobileOpen()"
+        aria-controls="mobile-menu"
+        aria-label="Abrir menu"
+        (click)="toggleMobile()"
+      >
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+
+  @if (mobileOpen()) {
+    <div id="mobile-menu" class="mobile">
+      <a href="#problema" (click)="closeMobile()">Problema</a>
+      <a href="#solucao" (click)="closeMobile()">Solução</a>
+      <a href="#funcionalidades" (click)="closeMobile()">Funcionalidades</a>
+      <a href="#planos" (click)="closeMobile()">Planos</a>
+      <a routerLink="/login" class="btn-primary btn-primary--full">Acessar Plataforma</a>
+    </div>
+  }
+</header>
