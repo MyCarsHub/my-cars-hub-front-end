@@ -1,0 +1,202 @@
+<app-default-page-layout
+  title="Assinatura"
+  description="Gerencie seu plano, forma de cobrança e status da assinatura.">
+
+  @if (error()) {
+    <div role="alert" class="mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-sm">
+      {{ error() }}
+    </div>
+  }
+
+  <!-- Assinatura atual -->
+  <div class="mb-8">
+    <app-page-card title="Assinatura Atual">
+      <div cardIcon class="p-2 bg-primary-low rounded-lg" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" class="text-primary-500">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      </div>
+
+      @if (subscription(); as sub) {
+        <div class="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+          <div class="space-y-1">
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Plano</p>
+            <p class="text-xl font-bold text-neutral-900">{{ sub.planName }}</p>
+            <p class="text-xs text-neutral-500">Ciclo: {{ sub.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual' }}</p>
+          </div>
+
+          <div class="space-y-1">
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Status</p>
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border"
+              [class]="statusBadgeClass(sub.status)">
+              {{ statusLabel(sub.status) }}
+            </span>
+            @if (sub.cancelAtPeriodEnd) {
+              <p class="text-xs text-amber-700 mt-1">Cancelamento agendado ao fim do período</p>
+            }
+          </div>
+
+          <div class="space-y-1">
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+              @if (sub.status === 'TRIALING') { Fim do teste } @else { Próxima cobrança }
+            </p>
+            <p class="text-neutral-800 font-medium">
+              @if (sub.status === 'TRIALING') {
+                {{ formatDate(sub.trialEndsAt) }}
+              } @else {
+                {{ formatDate(sub.currentPeriodEnd) }}
+              }
+            </p>
+          </div>
+        </div>
+
+        <div class="px-4 sm:px-6 pb-4 sm:pb-6 flex flex-wrap gap-3">
+          @if (!sub.cancelAtPeriodEnd && sub.status !== 'CANCELED' && sub.status !== 'EXPIRED') {
+            <button
+              type="button"
+              (click)="openCancel()"
+              [disabled]="loading()"
+              class="w-full sm:w-auto text-sm font-medium text-rose-600 hover:bg-rose-50 border border-rose-200 px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+              Cancelar Assinatura
+            </button>
+          }
+        </div>
+      } @else {
+        <div class="p-6 text-sm text-neutral-600">
+          @if (loading()) {
+            <p>Carregando informações da assinatura…</p>
+          } @else {
+            <p>Você ainda não possui uma assinatura ativa. Escolha um plano abaixo para começar.</p>
+          }
+        </div>
+      }
+    </app-page-card>
+  </div>
+
+  <!-- Toggle de ciclo -->
+  <div class="mb-6 flex justify-center">
+    <div
+      role="tablist"
+      aria-label="Ciclo de cobrança"
+      class="inline-flex bg-neutral-100 rounded-full p-1 border border-neutral-200">
+      <button
+        role="tab"
+        type="button"
+        [attr.aria-selected]="cycle() === 'MONTHLY'"
+        (click)="setCycle('MONTHLY')"
+        class="px-4 py-2 text-sm font-medium rounded-full transition-colors"
+        [class.bg-white]="cycle() === 'MONTHLY'"
+        [class.text-neutral-900]="cycle() === 'MONTHLY'"
+        [class.shadow-sm]="cycle() === 'MONTHLY'"
+        [class.text-neutral-500]="cycle() !== 'MONTHLY'">
+        Mensal
+      </button>
+      <button
+        role="tab"
+        type="button"
+        [attr.aria-selected]="cycle() === 'YEARLY'"
+        (click)="setCycle('YEARLY')"
+        class="px-4 py-2 text-sm font-medium rounded-full transition-colors"
+        [class.bg-white]="cycle() === 'YEARLY'"
+        [class.text-neutral-900]="cycle() === 'YEARLY'"
+        [class.shadow-sm]="cycle() === 'YEARLY'"
+        [class.text-neutral-500]="cycle() !== 'YEARLY'">
+        Anual
+      </button>
+    </div>
+  </div>
+
+  <!-- Grid de planos -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+    @for (plan of plans(); track plan.id) {
+      <div
+        class="relative bg-white rounded-2xl border shadow-sm p-5 sm:p-6 flex flex-col"
+        [class.border-primary-500]="isRecommended(plan) || isCurrent(plan)"
+        [class.border-neutral-200]="!isRecommended(plan) && !isCurrent(plan)"
+        [class.ring-2]="isRecommended(plan)"
+        [class.ring-primary-500]="isRecommended(plan)">
+
+        @if (isRecommended(plan)) {
+          <span class="absolute -top-3 right-6 bg-primary-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow">
+            Recomendado
+          </span>
+        }
+        @if (isCurrent(plan)) {
+          <span class="absolute -top-3 left-6 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow">
+            Seu plano
+          </span>
+        }
+
+        <div class="mb-4">
+          <h3 class="text-lg sm:text-xl font-bold text-neutral-900 break-words">{{ plan.name }}</h3>
+          <p class="text-xs text-neutral-500 uppercase tracking-wider mt-1 break-words">{{ plan.code }}</p>
+        </div>
+
+        <div class="mb-6">
+          <p class="text-3xl sm:text-4xl font-black text-neutral-900 tabular-nums">{{ formatPrice(priceFor(plan)) }}</p>
+          <p class="text-sm text-neutral-500">
+            /{{ cycle() === 'MONTHLY' ? 'mês' : 'ano' }}
+          </p>
+        </div>
+
+        <ul class="space-y-2 mb-6 text-sm text-neutral-700 flex-1">
+          <li class="flex items-start gap-2">
+            <span class="text-emerald-500" aria-hidden="true">✓</span>
+            Até {{ plan.vehicleLimit }} veículos
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-emerald-500" aria-hidden="true">✓</span>
+            Até {{ plan.driverLimit }} motoristas
+          </li>
+          @if (plan.trialDays > 0) {
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-500" aria-hidden="true">✓</span>
+              {{ plan.trialDays }} dias de teste grátis
+            </li>
+          }
+        </ul>
+
+        <button
+          type="button"
+          (click)="subscribe(plan)"
+          [disabled]="isCurrent(plan) || redirecting() || loading()"
+          class="w-full py-3 rounded-xl font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          [class.bg-primary-500]="!isCurrent(plan)"
+          [class.text-white]="!isCurrent(plan)"
+          [class.hover:bg-primary-600]="!isCurrent(plan)"
+          [class.bg-neutral-100]="isCurrent(plan)"
+          [class.text-neutral-500]="isCurrent(plan)"
+          [attr.aria-label]="'Assinar plano ' + plan.name">
+          @if (isCurrent(plan)) {
+            Plano atual
+          } @else if (redirecting()) {
+            Redirecionando…
+          } @else {
+            Assinar
+          }
+        </button>
+      </div>
+    } @empty {
+      @if (loading()) {
+        <p class="col-span-full text-center text-neutral-500 py-12">Carregando planos…</p>
+      } @else {
+        <p class="col-span-full text-center text-neutral-500 py-12">Nenhum plano disponível no momento.</p>
+      }
+    }
+  </div>
+
+  <app-confirm-dialog
+    [open]="showCancelDialog()"
+    title="Cancelar assinatura"
+    message="Tem certeza que deseja cancelar sua assinatura? Você continuará com acesso até o fim do período atual."
+    confirmLabel="Sim, cancelar"
+    cancelLabel="Manter assinatura"
+    variant="danger"
+    (confirmed)="onCancelConfirmed()"
+    (cancelled)="onCancelDismissed()" />
+
+</app-default-page-layout>

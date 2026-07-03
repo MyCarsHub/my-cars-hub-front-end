@@ -1,0 +1,381 @@
+<app-default-page-layout
+  title="Roadmap"
+  description="Sugira melhorias e dê combustível às ideias que mais te interessam.">
+
+  @if (error()) {
+    <div role="alert" class="mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-sm">
+      {{ error() }}
+    </div>
+  }
+
+  <!-- Controls: sort + new task -->
+  <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div
+      role="tablist"
+      aria-label="Ordenação"
+      class="inline-flex bg-neutral-100 rounded-full p-1 border border-neutral-200 self-start">
+      <button
+        role="tab"
+        type="button"
+        [attr.aria-selected]="sort() === 'fuel'"
+        (click)="setSort('fuel')"
+        class="px-4 py-2 text-sm font-medium rounded-full transition-colors"
+        [class.bg-white]="sort() === 'fuel'"
+        [class.text-neutral-900]="sort() === 'fuel'"
+        [class.shadow-sm]="sort() === 'fuel'"
+        [class.text-neutral-500]="sort() !== 'fuel'">
+        Mais Combustível
+      </button>
+      <button
+        role="tab"
+        type="button"
+        [attr.aria-selected]="sort() === 'new'"
+        (click)="setSort('new')"
+        class="px-4 py-2 text-sm font-medium rounded-full transition-colors"
+        [class.bg-white]="sort() === 'new'"
+        [class.text-neutral-900]="sort() === 'new'"
+        [class.shadow-sm]="sort() === 'new'"
+        [class.text-neutral-500]="sort() !== 'new'">
+        Mais Novas
+      </button>
+    </div>
+
+    <button
+      type="button"
+      (click)="openCreate()"
+      class="inline-flex items-center gap-2 bg-primary-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:bg-primary-600 transition-all self-start md:self-auto">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      Nova Sugestão
+    </button>
+  </div>
+
+  <!-- Board -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+    @for (column of columns; track trackByColumnKey($index, column)) {
+      <app-page-card [title]="column.label">
+        <div cardIcon class="p-2 bg-primary-low rounded-lg" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="text-primary-500">
+            <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+        </div>
+
+        <div cardActions>
+          <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-[11px] font-bold
+                       text-primary-500 bg-primary-low border border-primary-low rounded-full tracking-wider uppercase">
+            {{ columnTasksFor(column.key).length }}
+          </span>
+        </div>
+
+        <div class="p-4 space-y-3 min-h-[200px]">
+          @if (loading() && columnTasksFor(column.key).length === 0) {
+            @for (s of skeletons; track trackByIndex($index)) {
+              <div class="bg-neutral-50 border border-neutral-100 rounded-xl p-4 animate-pulse">
+                <div class="h-4 bg-neutral-200 rounded w-3/4 mb-3"></div>
+                <div class="h-3 bg-neutral-200 rounded w-full mb-1.5"></div>
+                <div class="h-3 bg-neutral-200 rounded w-5/6"></div>
+              </div>
+            }
+          } @else {
+            @for (task of columnTasksFor(column.key); track trackByTaskId($index, task)) {
+              <article
+                class="bg-white border border-neutral-200 rounded-xl p-4 hover:border-neutral-300 hover:shadow-sm transition-all">
+
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <h3 class="text-sm font-semibold text-neutral-900 leading-snug line-clamp-2 min-w-0 flex-1 break-words">{{ task.title }}</h3>
+
+                  @if (canEdit(task) || canDelete(task) || isAdmin()) {
+                    <div class="flex items-center gap-1 shrink-0">
+                      @if (canEdit(task)) {
+                        <button type="button" (click)="openEdit(task)" aria-label="Editar sugestão"
+                          class="p-1.5 rounded-lg text-neutral-400 hover:text-primary-500 hover:bg-primary-low transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                          </svg>
+                        </button>
+                      }
+                      @if (canDelete(task)) {
+                        <button type="button" (click)="askDelete(task, false)" aria-label="Excluir sugestão"
+                          class="p-1.5 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                            <path d="M10 11v6"></path>
+                            <path d="M14 11v6"></path>
+                          </svg>
+                        </button>
+                      }
+                      @if (isAdmin()) {
+                        <button type="button" (click)="askDelete(task, true)" aria-label="Excluir como admin"
+                          class="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="15" y1="9" x2="9" y2="15"></line>
+                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                          </svg>
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+
+                @if (task.authorName) {
+                <div class="flex items-center gap-1.5 mb-2">
+                  <div class="w-5 h-5 rounded-full bg-neutral-100 flex items-center justify-center text-[10px] font-bold text-neutral-600">
+                    {{ authorInitial(task) }}
+                  </div>
+                  <span class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider truncate">
+                    {{ task.authorName }}
+                  </span>
+                </div>
+                }
+
+                @if (task.description) {
+                  <p class="text-sm text-neutral-600 leading-relaxed line-clamp-3 mb-3">
+                    {{ task.description }}
+                  </p>
+                }
+
+                @if (task.adminNote && task.status === 'REJECTED') {
+                  <div class="mb-3 p-2 rounded-lg bg-neutral-50 border border-neutral-100">
+                    <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-0.5">Nota do time</p>
+                    <p class="text-xs text-neutral-600 leading-relaxed">{{ task.adminNote }}</p>
+                  </div>
+                }
+
+                <div class="flex items-center justify-between gap-2 mt-3 flex-wrap">
+                  <button
+                    type="button"
+                    (click)="toggleFuel(task)"
+                    [disabled]="isFuelPending(task.id)"
+                    [attr.aria-pressed]="task.hasVoted"
+                    [attr.aria-label]="task.hasVoted ? 'Remover combustível' : 'Dar combustível'"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    [class.bg-primary-low]="task.hasVoted"
+                    [class.text-primary-500]="task.hasVoted"
+                    [class.border-primary-low]="task.hasVoted"
+                    [class.bg-neutral-50]="!task.hasVoted"
+                    [class.text-neutral-500]="!task.hasVoted"
+                    [class.border-neutral-200]="!task.hasVoted"
+                    [class.hover:bg-primary-low]="!task.hasVoted"
+                    [class.hover:text-primary-500]="!task.hasVoted"
+                    [class.hover:border-primary-low]="!task.hasVoted">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                      [attr.fill]="task.hasVoted ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+                    </svg>
+                    {{ task.fuelCount }}
+                  </button>
+
+                  @if (isAdmin()) {
+                    <select
+                      (change)="onAdminStatusChange(task, $event)"
+                      aria-label="Mover status"
+                      class="text-xs bg-white border border-neutral-200 rounded-lg px-2 py-1.5 text-neutral-600 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors cursor-pointer">
+                      @for (option of statusOptions; track trackByStatusValue($index, option)) {
+                        <option [value]="option.value" [selected]="option.value === task.status">
+                          {{ option.label }}
+                        </option>
+                      }
+                    </select>
+                  }
+                </div>
+              </article>
+            } @empty {
+              @if (!loading()) {
+                <div class="flex flex-col items-center justify-center py-10 text-center">
+                  <div class="w-10 h-10 rounded-full bg-neutral-50 flex items-center justify-center mb-2" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                      class="text-neutral-300">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                  </div>
+                  <p class="text-xs text-neutral-400">Nada por aqui ainda.</p>
+                </div>
+              }
+            }
+          }
+        </div>
+      </app-page-card>
+    }
+  </div>
+
+  <!-- Rejected collapsible -->
+  <div class="mt-8">
+    <button
+      type="button"
+      (click)="toggleRejected()"
+      [attr.aria-expanded]="rejectedOpen()"
+      class="w-full flex items-center justify-between bg-white border border-neutral-200 rounded-2xl px-6 py-4 hover:border-neutral-300 transition-colors">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-neutral-100 rounded-lg" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="text-neutral-500">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+        </div>
+        <div class="text-left">
+          <p class="text-sm font-semibold text-neutral-800">Rejeitadas</p>
+          <p class="text-xs text-neutral-500">Sugestões que não seguirão adiante.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-[11px] font-bold
+                     text-neutral-500 bg-neutral-100 border border-neutral-200 rounded-full tracking-wider uppercase">
+          {{ rejectedTasks().length }}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          class="text-neutral-400 transition-transform"
+          [class.rotate-180]="rejectedOpen()">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+    </button>
+
+    @if (rejectedOpen()) {
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        @for (task of rejectedTasks(); track trackByTaskId($index, task)) {
+          <article class="bg-neutral-50 border border-neutral-100 rounded-xl p-4">
+            <h3 class="text-sm font-semibold text-neutral-700 mb-2 leading-snug">{{ task.title }}</h3>
+            @if (task.description) {
+              <p class="text-xs text-neutral-500 leading-relaxed line-clamp-3 mb-2">{{ task.description }}</p>
+            }
+            @if (task.adminNote) {
+              <p class="text-xs text-neutral-500 italic">"{{ task.adminNote }}"</p>
+            }
+          </article>
+        } @empty {
+          <p class="col-span-full text-center text-xs text-neutral-400 py-6">Nenhuma sugestão rejeitada.</p>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- Task Form Dialog -->
+  @if (showTaskDialog()) {
+    <div class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" (click)="closeTaskDialog()" aria-hidden="true"></div>
+    <div role="dialog" aria-modal="true" aria-labelledby="task-dialog-title"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      <div class="bg-white rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-lg pointer-events-auto overflow-hidden">
+        <form [formGroup]="taskForm" (ngSubmit)="submitTask()">
+          <div class="p-6">
+            <h2 id="task-dialog-title" class="text-base font-semibold text-neutral-900 mb-1">{{ dialogTitle() }}</h2>
+            <p class="text-sm text-neutral-500 mb-5">Descreva sua ideia com clareza. Boas descrições recebem mais combustível.</p>
+
+            <div class="space-y-4">
+              <div>
+                <label for="task-title" class="block text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">
+                  Título
+                </label>
+                <input
+                  id="task-title"
+                  type="text"
+                  formControlName="title"
+                  maxlength="120"
+                  placeholder="Ex: Notificações por WhatsApp"
+                  class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                @if (taskForm.controls.title.invalid && taskForm.controls.title.touched) {
+                  <p class="mt-1 text-xs text-rose-600">Título é obrigatório (máx. 120 caracteres).</p>
+                }
+              </div>
+
+              <div>
+                <label for="task-description" class="block text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">
+                  Descrição
+                </label>
+                <textarea
+                  id="task-description"
+                  formControlName="description"
+                  maxlength="2000"
+                  rows="5"
+                  placeholder="Detalhe o problema e como sua ideia melhora o produto."
+                  class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors resize-none"></textarea>
+              </div>
+
+              @if (formError()) {
+                <p role="alert" class="text-xs text-rose-600">{{ formError() }}</p>
+              }
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 px-6 py-4 bg-neutral-50 border-t border-neutral-100">
+            <button
+              type="button"
+              (click)="closeTaskDialog()"
+              [disabled]="submitting()"
+              class="px-4 py-2 text-sm font-medium text-neutral-600 bg-white border border-neutral-200 hover:bg-neutral-100 rounded-xl transition-colors disabled:opacity-50">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              [disabled]="submitting() || taskForm.invalid"
+              class="px-4 py-2 text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+              {{ submitLabel() }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- Reject dialog -->
+  @if (showRejectDialog()) {
+    <div class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" (click)="cancelReject()" aria-hidden="true"></div>
+    <div role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none">
+      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-hidden">
+        <div class="p-5 sm:p-6">
+          <h2 id="reject-dialog-title" class="text-base font-semibold text-neutral-900 mb-1">Rejeitar sugestão</h2>
+          <p class="text-sm text-neutral-500 mb-4 sm:mb-5">Explique brevemente por que a sugestão foi rejeitada (opcional).</p>
+          <textarea
+            [value]="rejectNote()"
+            (input)="onRejectNoteInput($event)"
+            maxlength="500"
+            rows="4"
+            placeholder="Motivo da rejeição..."
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors resize-none"></textarea>
+        </div>
+        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 px-5 sm:px-6 py-4 bg-neutral-50 border-t border-neutral-100">
+          <button type="button" (click)="cancelReject()"
+            class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-white border border-neutral-200 hover:bg-neutral-100 rounded-xl transition-colors">
+            Cancelar
+          </button>
+          <button type="button" (click)="confirmReject()"
+            class="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 rounded-xl transition-colors shadow-sm">
+            Rejeitar
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Delete confirm -->
+  <app-confirm-dialog
+    [open]="showDeleteDialog()"
+    title="Excluir sugestão"
+    message="Tem certeza que deseja excluir esta sugestão? Esta ação não pode ser desfeita."
+    confirmLabel="Sim, excluir"
+    cancelLabel="Cancelar"
+    variant="danger"
+    (confirmed)="onDeleteConfirmed()"
+    (cancelled)="onDeleteDismissed()" />
+
+</app-default-page-layout>

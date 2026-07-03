@@ -127,6 +127,25 @@
     }
   </nav>
 
+  <!-- ===== BOTTOM-PINNED NAV (Perfil etc.) ===== -->
+  @if (bottomNavItems().length > 0) {
+  <div class="px-3 pt-3 pb-1 shrink-0 space-y-1">
+    @for (item of bottomNavItems(); track item.route) {
+    <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
+               text-gray-600 hover:bg-gray-100 hover:text-gray-900
+               transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
+      [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
+      [attr.aria-label]="item.label">
+      <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+
+      @if (!layout.isCollapsed() || layout.isMobile()) {
+      <span class="text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
+      }
+    </a>
+    }
+  </div>
+  }
+
   <!-- ===== COLLAPSE TOGGLE (Desktop only) ===== -->
   @if (!layout.isMobile()) {
   <div class="p-3 border-t border-gray-200 shrink-0">

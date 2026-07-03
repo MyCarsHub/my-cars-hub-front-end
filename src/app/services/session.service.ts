@@ -50,4 +50,18 @@ export class SessionService {
     return this.getItem('onboardingCompleted') === 'true';
   }
 
+  getUserId(): string | null {
+    return this.getItem('id');
+  }
+
+  getSystemRole(): 'USER' | 'PLATFORM_ADMIN' {
+    return this.getItem('systemRole') === 'PLATFORM_ADMIN'
+      ? 'PLATFORM_ADMIN'
+      : 'USER';
+  }
+
+  isPlatformAdmin(): boolean {
+    return this.getSystemRole() === 'PLATFORM_ADMIN';
+  }
+
 }
