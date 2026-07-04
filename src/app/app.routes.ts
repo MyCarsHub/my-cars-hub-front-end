@@ -58,21 +58,206 @@ export const routes: Routes = [
                     },
                     {
                         path: 'veiculos',
-                        component: ConstructorPage,
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
-                        data: { pageTitle: 'Veículos' },
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicles-list'
+                                    ).then((m) => m.VehiclesList),
+                                data: { pageTitle: 'Veículos' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-form'
+                                    ).then((m) => m.VehicleForm),
+                                data: { pageTitle: 'Novo veículo' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-detail'
+                                    ).then((m) => m.VehicleDetail),
+                                data: { pageTitle: 'Detalhes do veículo' },
+                            },
+                            {
+                                path: ':id/gerencia',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-gerencia/vehicle-gerencia-hub'
+                                    ).then((m) => m.VehicleGerenciaHub),
+                                data: { pageTitle: 'Gerência do veículo' },
+                            },
+                            {
+                                path: ':id/gerencia/multas',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-gerencia/gerencia-fines'
+                                    ).then((m) => m.GerenciaFines),
+                                data: { pageTitle: 'Multas do veículo' },
+                            },
+                            {
+                                path: ':id/gerencia/manutencoes',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-gerencia/gerencia-maintenances'
+                                    ).then((m) => m.GerenciaMaintenances),
+                                data: { pageTitle: 'Manutenções do veículo' },
+                            },
+                            {
+                                path: ':id/gerencia/financiamentos',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-gerencia/gerencia-financings'
+                                    ).then((m) => m.GerenciaFinancings),
+                                data: { pageTitle: 'Financiamentos do veículo' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-form'
+                                    ).then((m) => m.VehicleForm),
+                                data: { pageTitle: 'Editar veículo' },
+                            },
+                        ],
                     },
                     {
                         path: 'motoristas',
-                        component: ConstructorPage,
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
-                        data: { pageTitle: 'Motoristas' },
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/drivers/drivers-list'
+                                    ).then((m) => m.DriversList),
+                                data: { pageTitle: 'Motoristas' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/drivers/driver-form'
+                                    ).then((m) => m.DriverForm),
+                                data: { pageTitle: 'Novo motorista' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/drivers/driver-detail'
+                                    ).then((m) => m.DriverDetail),
+                                data: { pageTitle: 'Detalhes do motorista' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/drivers/driver-form'
+                                    ).then((m) => m.DriverForm),
+                                data: { pageTitle: 'Editar motorista' },
+                            },
+                        ],
                     },
                     {
                         path: 'manutencoes',
-                        component: ConstructorPage,
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
-                        data: { pageTitle: 'Manutenções' },
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/maintenances/maintenances-list'
+                                    ).then((m) => m.MaintenancesList),
+                                data: { pageTitle: 'Manutenções' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/maintenances/maintenance-form'
+                                    ).then((m) => m.MaintenanceForm),
+                                data: { pageTitle: 'Nova manutenção' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/maintenances/maintenance-detail'
+                                    ).then((m) => m.MaintenanceDetail),
+                                data: { pageTitle: 'Detalhes da manutenção' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/maintenances/maintenance-form'
+                                    ).then((m) => m.MaintenanceForm),
+                                data: { pageTitle: 'Editar manutenção' },
+                            },
+                        ],
+                    },
+                    {
+                        path: 'multas',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import('./pages/fines/fines-list').then(
+                                        (m) => m.FinesList
+                                    ),
+                                data: { pageTitle: 'Multas' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import('./pages/fines/fine-form').then(
+                                        (m) => m.FineForm
+                                    ),
+                                data: { pageTitle: 'Nova multa' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import('./pages/fines/fine-detail').then(
+                                        (m) => m.FineDetail
+                                    ),
+                                data: { pageTitle: 'Detalhes da multa' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import('./pages/fines/fine-form').then(
+                                        (m) => m.FineForm
+                                    ),
+                                data: { pageTitle: 'Editar multa' },
+                            },
+                        ],
+                    },
+                    {
+                        path: 'financiamentos',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/financings/financings-list'
+                                    ).then((m) => m.FinancingsList),
+                                data: { pageTitle: 'Financiamentos' },
+                            },
+                        ],
                     },
                     {
                         path: 'relatorios',

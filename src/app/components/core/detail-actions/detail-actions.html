@@ -1,0 +1,39 @@
+<div class="flex flex-col lg:flex-row gap-3 w-full lg:justify-end">
+  @if (editRouterLink(); as link) {
+    <a
+      [routerLink]="link"
+      class="w-full lg:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+             bg-[#EB3F00] hover:bg-[#C23300] text-white transition-colors
+             focus:outline-none focus:ring-2 focus:ring-[#EB3F00]/40 focus:ring-offset-2"
+      [attr.aria-disabled]="editDisabled() ? 'true' : null"
+      [class.pointer-events-none]="editDisabled()"
+      [class.opacity-60]="editDisabled()"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 20h9"/>
+        <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      </svg>
+      Editar
+    </a>
+  }
+
+  <button
+    type="button"
+    (click)="onDelete()"
+    class="w-full lg:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+           bg-white text-red-700 border border-red-300 hover:bg-red-50 hover:border-red-400
+           transition-colors focus:outline-none focus:ring-2 focus:ring-red-200"
+    aria-label="Excluir"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/>
+      <path d="M14 11v6"/>
+      <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+    </svg>
+    Excluir
+  </button>
+</div>

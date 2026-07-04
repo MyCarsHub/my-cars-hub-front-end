@@ -1,0 +1,190 @@
+<app-default-page-layout
+  title="Detalhes do veículo"
+  description="Informações completas do veículo cadastrado."
+>
+  @if (loading()) {
+    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      Carregando…
+    </div>
+  } @else if (error()) {
+    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+      {{ error() }}
+    </div>
+  } @else if (vehicle(); as v) {
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-12 h-12 rounded-xl bg-primary-500 text-white flex items-center justify-center
+                    shrink-0 shadow-inner" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
+            <circle cx="6.5" cy="16.5" r="2.5"/>
+            <circle cx="16.5" cy="16.5" r="2.5"/>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 tracking-wider tabular-nums">
+            {{ formatPlate(v.plate) }}
+          </h2>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+              [class]="typeInfo().chip">
+              {{ typeInfo().label }}
+            </span>
+            <span class="text-sm text-neutral-600 break-words">
+              {{ v.brand }} {{ v.model }} · {{ v.yearModel }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop actions (top-right) -->
+      <div class="hidden lg:flex shrink-0">
+        <app-detail-actions
+          [editRouterLink]="['/veiculos', v.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+    </div>
+
+    <!-- Gerência do veículo CTA -->
+    <a
+      [routerLink]="['/veiculos', v.id, 'gerencia']"
+      class="flex items-center justify-between gap-3 rounded-2xl bg-primary-50 border border-primary-200 p-4 sm:p-5 hover:bg-primary-100 transition-colors mb-4 sm:mb-6"
+    >
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="flex-none inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white text-primary-700 border border-primary-200"
+          aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </span>
+        <div class="min-w-0">
+          <p class="text-xs font-semibold uppercase tracking-wider text-primary-700">Gerência do veículo</p>
+          <p class="text-base font-semibold text-primary-900 truncate">
+            Multas, manutenções e financiamento
+          </p>
+        </div>
+      </div>
+      <svg class="flex-none w-6 h-6 text-primary-700"
+        xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </a>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+
+      <!-- Identificação -->
+      <app-page-card title="Identificação">
+        <div class="p-4 sm:p-6 grid grid-cols-2 gap-3">
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Placa</p>
+            <p class="text-neutral-900 font-medium tabular-nums tracking-wider">{{ formatPlate(v.plate) }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Tipo</p>
+            <p class="text-neutral-900 font-medium">{{ typeInfo().label }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Marca / Modelo</p>
+            <p class="text-neutral-900 font-medium break-words">{{ v.brand }} {{ v.model }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Ano fab. / mod.</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ v.yearManufacture }} / {{ v.yearModel }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Cor</p>
+            <p class="text-neutral-900 font-medium">{{ v.color ?? '—' }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Hodômetro</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ v.hodometer | number }} km</p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Documentação -->
+      <app-page-card title="Documentação">
+        <div class="p-4 sm:p-6 space-y-3">
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Chassi</p>
+            <p class="text-neutral-900 font-medium tabular-nums tracking-wider break-all">
+              {{ v.chassis ?? '—' }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">RENAVAM</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ v.renavam ?? '—' }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Licenciamento</p>
+            <p class="font-medium tabular-nums flex items-center gap-2 flex-wrap"
+              [class.text-rose-600]="licensingBadge()"
+              [class.text-neutral-900]="!licensingBadge()">
+              {{ formatDate(v.licensingExpiration) }}
+              @if (licensingBadge(); as badge) {
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                  [class]="badge.chip">
+                  {{ badge.label }}
+                </span>
+              }
+            </p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Data de compra</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ formatDate(v.purchaseDate) }}</p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Cadastro -->
+      <app-page-card title="Cadastro" class="lg:col-span-2">
+        <div class="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Criado em</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ formatDate(v.createdDate) }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Última alteração</p>
+            <p class="text-neutral-900 font-medium tabular-nums">
+              {{ v.modifyDate ? formatDate(v.modifyDate) : '—' }}
+            </p>
+          </div>
+        </div>
+      </app-page-card>
+
+    </div>
+
+    <!-- Mobile actions (bottom) -->
+    <div class="lg:hidden mt-6">
+      <app-detail-actions
+        [editRouterLink]="['/veiculos', v.id, 'editar']"
+        (delete)="askDelete()"
+      />
+    </div>
+
+    <div class="mt-6">
+      <a routerLink="/veiculos" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+        ← Voltar para a lista
+      </a>
+    </div>
+  }
+</app-default-page-layout>
+
+<!-- Delete confirm -->
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir veículo"
+  [message]="'Tem certeza que deseja excluir o veículo «' + formatPlate(vehicle()?.plate) + '»?'"
+  confirmLabel="Excluir"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>

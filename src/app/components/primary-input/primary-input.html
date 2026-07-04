@@ -7,6 +7,7 @@
         </div>
         }
         <input [type]="type()" [placeholder]="placeholder()" [value]="internalValue()" [disabled]="isDisabled()"
+            [attr.maxlength]="maxLength()"
             (input)="onInput($event)" class="w-full mt-1 bg-white rounded-xl border border-neutral-200 pr-4 py-3
                     focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors
                     disabled:opacity-60 disabled:bg-neutral-50 disabled:cursor-not-allowed" [class.pl-12]="iconSrc()"

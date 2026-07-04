@@ -14,6 +14,10 @@ export interface CompaniesMetrics {
   newLast30Days: number;
 }
 
+export interface VehiclesMetrics {
+  total: number;
+}
+
 export interface SubscriptionsMetrics {
   total: number;
   active: number;
@@ -31,6 +35,7 @@ export interface FeedbackMetrics {
 export interface AdminOverviewResponse {
   users: UsersMetrics;
   companies: CompaniesMetrics;
+  vehicles: VehiclesMetrics;
   subscriptions: SubscriptionsMetrics;
   feedback: FeedbackMetrics;
 }

@@ -1,0 +1,198 @@
+<app-default-page-layout title="Detalhes da multa">
+  @if (loading()) {
+    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      Carregando…
+    </div>
+  } @else if (error() && !fine()) {
+    <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
+      <p class="text-rose-700 text-sm">{{ error() }}</p>
+      <a routerLink="/multas" class="inline-block text-sm text-primary-500 hover:text-primary-600 font-medium">
+        Voltar para lista
+      </a>
+    </div>
+  } @else if (fine(); as f) {
+    <div class="space-y-4 sm:space-y-6">
+      <!-- Desktop actions (top-right) -->
+      <div class="hidden lg:flex justify-end gap-3">
+        @if (canMarkAsPaid()) {
+          <button
+            type="button"
+            (click)="openPay()"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                   bg-emerald-600 hover:bg-emerald-700 text-white transition-colors
+                   focus:outline-none focus:ring-2 focus:ring-emerald-300">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Marcar como paga
+          </button>
+        }
+        <app-detail-actions
+          [editRouterLink]="['/multas', f.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+
+      @if (vehicle(); as v) {
+        <app-vehicle-summary-chip [vehicle]="v" />
+      }
+
+      @if (error()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ error() }}
+        </div>
+      }
+
+      <app-page-card title="Resumo">
+        <div class="p-4 sm:p-6 space-y-4">
+          <div class="flex flex-wrap items-center gap-2">
+            @if (statusInfo(); as s) {
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                [class]="s.chip">{{ s.label }}</span>
+            }
+            @if (severityInfo(); as s) {
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                [class]="s.chip">{{ s.label }}</span>
+            }
+            @if (overdue()) {
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">
+                Vencida
+              </span>
+            }
+          </div>
+
+          <div>
+            <p class="text-xs uppercase tracking-wide text-neutral-400 mb-0.5">Descrição</p>
+            <p class="text-base text-neutral-900">{{ f.description }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Valor</p>
+              <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(f.amountCents) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Pontos</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ f.points ?? '—' }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Código</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ f.infractionCode || '—' }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Data da infração</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDateTime(f.infractionDate) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Vencimento</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.dueDate) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Data do pagamento</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.paidDate) }}</p>
+            </div>
+            <div class="col-span-2 sm:col-span-3">
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Local</p>
+              <p class="font-medium text-neutral-800">{{ f.location || '—' }}</p>
+            </div>
+            <div class="col-span-2 sm:col-span-3">
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Motorista</p>
+              <p class="font-medium text-neutral-800">{{ driverName() || '—' }}</p>
+            </div>
+            @if (f.notes) {
+              <div class="col-span-2 sm:col-span-3">
+                <p class="text-xs uppercase tracking-wide text-neutral-400">Observações</p>
+                <p class="text-neutral-700 whitespace-pre-wrap">{{ f.notes }}</p>
+              </div>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Mobile actions (bottom) -->
+      <div class="lg:hidden flex flex-col gap-3 w-full">
+        @if (canMarkAsPaid()) {
+          <button
+            type="button"
+            (click)="openPay()"
+            class="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium
+                   bg-emerald-600 hover:bg-emerald-700 text-white transition-colors
+                   focus:outline-none focus:ring-2 focus:ring-emerald-300">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Marcar como paga
+          </button>
+        }
+        <app-detail-actions
+          [editRouterLink]="['/multas', f.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+    </div>
+  }
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir multa"
+  message="Tem certeza que deseja excluir esta multa? Esta ação não pode ser desfeita."
+  confirmLabel="Excluir"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>
+
+<!-- Bottom sheet (mobile) / centered dialog (sm+) for pay date -->
+@if (payOpen()) {
+  <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div
+      class="absolute inset-0 bg-neutral-900/50"
+      @sheetBackdrop
+      (click)="closePay()"
+      aria-hidden="true"
+    ></div>
+    <div
+      class="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-neutral-200 p-5 space-y-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pay-title"
+      @sheet
+    >
+      <h3 id="pay-title" class="text-base font-semibold text-neutral-900">Marcar multa como paga</h3>
+      <p class="text-sm text-neutral-500">
+        Informe a data em que o pagamento foi efetuado. Deixe em branco para usar a data de hoje.
+      </p>
+      <div>
+        <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="pay-date">Data do pagamento</label>
+        <input
+          id="pay-date"
+          type="date"
+          [ngModel]="payDate()"
+          (ngModelChange)="payDate.set($event)"
+          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+      </div>
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+        <button
+          type="button"
+          (click)="closePay()"
+          [disabled]="paying()"
+          class="w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-medium text-neutral-700
+                 bg-white border border-neutral-200 hover:bg-neutral-50 disabled:opacity-60">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="confirmPay()"
+          [disabled]="paying()"
+          class="w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-500 text-white
+                 hover:bg-emerald-600 shadow-sm disabled:opacity-60">
+          {{ paying() ? 'Salvando…' : 'Confirmar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

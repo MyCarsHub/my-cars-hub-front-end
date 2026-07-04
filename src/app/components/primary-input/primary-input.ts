@@ -27,6 +27,7 @@ export class PrimaryInput implements ControlValueAccessor {
   type = input<InputType>("text");
   placeholder = input<string>("");
   iconSrc = input<string>("");
+  maxLength = input<number | null>(null);
 
   protected readonly internalValue = signal<string>('');
   protected readonly isDisabled = signal<boolean>(false);

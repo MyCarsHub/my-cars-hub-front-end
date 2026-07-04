@@ -1,0 +1,253 @@
+<app-default-page-layout
+  [title]="isEdit() ? 'Editar motorista' : 'Novo motorista'"
+  description="Preencha as informações do motorista."
+>
+  @if (loading()) {
+    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      Carregando…
+    </div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
+
+      @if (error()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ error() }}
+        </div>
+      }
+
+      <!-- ====== Informações Pessoais ====== -->
+      <app-page-card title="Informações pessoais">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div class="md:col-span-2">
+            <app-primary-input label="Nome completo" placeholder="Ex: João da Silva" formControlName="name" />
+            @if (fieldInvalid(['name'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe o nome do motorista.</p>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- ====== Contato ====== -->
+      <app-page-card title="Contato">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6" formGroupName="contact">
+          <div>
+            <app-primary-input label="E-mail" type="email" placeholder="motorista@empresa.com" formControlName="email" />
+            @if (fieldInvalid(['contact','email'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe um e-mail válido.</p>
+            }
+          </div>
+          <div>
+            <label class="text-sm text-neutral-600" for="motorista-phone">Telefone</label>
+            <input
+              id="motorista-phone"
+              type="tel"
+              inputmode="numeric"
+              placeholder="(11) 98765-4321"
+              maxlength="15"
+              [value]="phoneDisplay()"
+              (beforeinput)="onPhoneBeforeInput($event)"
+              (input)="onPhoneInput($event)"
+              class="w-full mt-1 bg-white rounded-xl border border-neutral-200 px-4 py-3
+                     focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+            @if (fieldInvalid(['contact','phone'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe um telefone válido (10 ou 11 dígitos).</p>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- ====== Endereço ====== -->
+      <app-page-card title="Endereço">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-6 gap-4 sm:gap-6" formGroupName="address">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">CEP</label>
+            <input
+              type="text"
+              formControlName="cep"
+              placeholder="00000-000"
+              maxlength="9"
+              (blur)="onCepBlur()"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            @if (cepLoading()) {
+              <p class="text-xs text-neutral-400 mt-1">Buscando endereço…</p>
+            }
+            @if (fieldInvalid(['address','cep'])) {
+              <p class="text-xs text-rose-600 mt-1">CEP inválido (00000-000).</p>
+            }
+          </div>
+
+          <div class="md:col-span-4">
+            <app-primary-input label="Rua" placeholder="Rua das Flores" formControlName="street" />
+            @if (fieldInvalid(['address','street'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe a rua.</p>
+            }
+          </div>
+
+          <div class="md:col-span-2">
+            <app-primary-input label="Número" placeholder="123" formControlName="number" />
+          </div>
+
+          <div class="md:col-span-4">
+            <app-primary-input label="Complemento" placeholder="Apto 4, bloco B" formControlName="complement" />
+          </div>
+
+          <div class="md:col-span-3">
+            <app-primary-input label="Bairro" placeholder="Centro" formControlName="district" />
+            @if (fieldInvalid(['address','district'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe o bairro.</p>
+            }
+          </div>
+
+          <div class="md:col-span-2">
+            <app-primary-input label="Cidade" placeholder="São Paulo" formControlName="city" />
+            @if (fieldInvalid(['address','city'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe a cidade.</p>
+            }
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">UF</label>
+            <select
+              formControlName="uf"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+              <option value="">—</option>
+              @for (uf of ufs; track uf) {
+                <option [value]="uf">{{ uf }}</option>
+              }
+            </select>
+            @if (fieldInvalid(['address','uf'])) {
+              <p class="text-xs text-rose-600 mt-1">Selecione a UF.</p>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- ====== CNH ====== -->
+      <app-page-card title="Carteira de habilitação">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div>
+            <label class="text-sm text-neutral-600" for="motorista-cnh">Número da CNH</label>
+            <input
+              id="motorista-cnh"
+              type="text"
+              placeholder="Ex: A1B2C3D4E5F"
+              maxlength="11"
+              autocapitalize="characters"
+              [value]="licenseDisplay()"
+              (input)="onLicenseInput($event)"
+              class="w-full mt-1 bg-white rounded-xl border border-neutral-200 px-4 py-3 tracking-wider
+                     focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+            @if (fieldInvalid(['licenseNumber'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe o número da CNH.</p>
+            }
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Categoria</label>
+            <select
+              formControlName="licenseCategory"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+              @for (cat of categories; track cat) {
+                <option [value]="cat">{{ cat }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Vencimento</label>
+            <input
+              type="date"
+              formControlName="licenseExpiry"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            @if (fieldInvalid(['licenseExpiry'])) {
+              <p class="text-xs text-rose-600 mt-1">Informe a data de vencimento.</p>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- ====== Associações ====== -->
+      <app-page-card title="Associações">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div formGroupName="document">
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo de documento</label>
+            <select
+              formControlName="type"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60">
+              <option value="CPF">CPF</option>
+              <option value="CNPJ">CNPJ</option>
+            </select>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5 mt-4">Número do documento</label>
+            <input
+              type="text"
+              placeholder="11 - 14 dígitos"
+              maxlength="14"
+              autocapitalize="characters"
+              [value]="documentDisplay()"
+              (input)="onDocumentInput($event)"
+              [disabled]="isEdit()"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tracking-wider
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60" />
+            @if (isEdit()) {
+              <p class="text-xs text-neutral-400 mt-1">Documento não pode ser alterado após a criação.</p>
+            }
+            @if (fieldInvalid(['document','value'])) {
+              <p class="text-xs text-rose-600 mt-1">CPF: 11 dígitos. CNPJ: 14 dígitos.</p>
+            }
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">
+              ID do usuário vinculado <span class="text-neutral-400">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              formControlName="userId"
+              placeholder="UUID do usuário — deixe em branco se o motorista não tem login"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            <p class="text-xs text-neutral-400 mt-1">
+              Vincule apenas se o motorista já tiver conta na plataforma.
+            </p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- ====== Status ====== -->
+      <app-page-card title="Status">
+        <div class="p-4 sm:p-6">
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5">Situação atual</label>
+          <select
+            formControlName="status"
+            class="w-full md:w-72 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+            @for (s of statuses; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </div>
+      </app-page-card>
+
+      <!-- ====== Ações ====== -->
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+        <button
+          type="button"
+          (click)="cancel()"
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-neutral-700
+                 bg-white border border-neutral-200 hover:bg-neutral-50">
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          [disabled]="saving()"
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-semibold bg-primary-500 text-white
+                 hover:bg-primary-600 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
+          {{ saving() ? 'Salvando…' : (isEdit() ? 'Salvar alterações' : 'Cadastrar motorista') }}
+        </button>
+      </div>
+    </form>
+  }
+</app-default-page-layout>
