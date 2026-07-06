@@ -1,0 +1,168 @@
+<!-- ==================== MOBILE OVERLAY ==================== -->
+@if (layout.isMobile() && layout.isMobileOpen()) {
+<div class="fixed inset-0 bg-black/50 z-40" @overlayFade (click)="onMobileOverlayClick()" aria-hidden="true"></div>
+}
+
+<!-- ==================== MOBILE HAMBURGER ==================== -->
+@if (layout.isMobile() && !layout.isMobileOpen()) {
+<button class="fixed top-4 left-4 z-50 flex items-center justify-center w-10 h-10
+           rounded-lg bg-white shadow-md border border-gray-200
+           text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+  (click)="layout.openMobile()" aria-label="Abrir menu" type="button">
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <line x1="3" y1="18" x2="21" y2="18" />
+  </svg>
+</button>
+}
+
+<!-- ==================== SIDEBAR (DESKTOP) ==================== -->
+@if (!layout.isMobile()) {
+<aside class="fixed top-0 left-0 z-30 h-screen bg-white border-r border-gray-200
+           flex flex-col overflow-hidden" [@sidebarWidth]="layout.isCollapsed() ? 'collapsed' : 'expanded'"
+  role="navigation" aria-label="Menu principal">
+  <ng-container *ngTemplateOutlet="sidebarContent" />
+</aside>
+}
+
+<!-- ==================== SIDEBAR (MOBILE DRAWER) ==================== -->
+@if (layout.isMobile() && layout.isMobileOpen()) {
+<aside class="fixed top-0 left-0 z-50 h-screen w-[260px] bg-white border-r border-gray-200
+           flex flex-col shadow-2xl" @mobileSlide role="navigation" aria-label="Menu principal">
+  <!-- Close button -->
+  <button class="absolute top-4 right-3 flex items-center justify-center w-8 h-8
+             rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100
+             focus:outline-none focus:ring-2 focus:ring-primary-500" (click)="layout.closeMobile()"
+    aria-label="Fechar menu" type="button">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  </button>
+
+  <ng-container *ngTemplateOutlet="sidebarContent" />
+</aside>
+}
+
+<!-- ==================== SIDEBAR CONTENT TEMPLATE ==================== -->
+<ng-template #sidebarContent>
+  <!-- ===== LOGO ===== -->
+  <div class="h-16 flex items-center px-4 border-b border-gray-200 shrink-0">
+    @if (!layout.isCollapsed() || layout.isMobile()) {
+    <img src="svg/logo-my-cars-hub.svg" class="h-6" alt="MyCarsHub logo" @fadeLabel />
+    } @else {
+    <div class="w-full flex items-center justify-center">
+      <span class="text-primary-500 font-bold text-xl" aria-label="MyCarsHub">M</span>
+    </div>
+    }
+  </div>
+
+  <!-- ===== MULTI-TENANT SWITCHER ===== -->
+  <div class="p-3 border-b border-gray-100 shrink-0">
+    <button class="w-full flex items-center gap-3 bg-gray-50 hover:bg-gray-100
+             px-3 py-2.5 rounded-xl transition-colors"
+      [class.justify-center]="layout.isCollapsed() && !layout.isMobile()" (click)="layout.toggleTenant()"
+      [attr.aria-expanded]="layout.isTenantOpen()" aria-haspopup="listbox" type="button"
+      [title]="layout.isCollapsed() && !layout.isMobile() ? layout.selectedTenant().name : ''">
+      <div class="w-8 h-8 bg-primary-500 text-white rounded-full shrink-0
+               flex items-center justify-center font-semibold text-sm">
+        {{ layout.selectedTenant().initial }}
+      </div>
+
+      @if (!layout.isCollapsed() || layout.isMobile()) {
+      <div class="flex-1 text-left min-w-0" @fadeLabel>
+        <p class="text-sm font-semibold text-gray-900 truncate">{{ layout.selectedTenant().name }}</p>
+        <p class="text-xs text-primary-500 font-medium">{{ layout.selectedTenant().role }}</p>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        class="text-gray-400 shrink-0" [@rotateTenantChevron]="layout.isTenantOpen() ? 'open' : 'closed'">
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+      }
+    </button>
+
+    <!-- Tenant dropdown list -->
+    @if (layout.isTenantOpen() && (!layout.isCollapsed() || layout.isMobile())) {
+    <div class="mt-2 space-y-1" @dropdownSlide role="listbox" aria-label="Selecionar empresa">
+      @for (tenant of layout.tenants(); track tenant.id) {
+      <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100
+                   transition-colors text-left" [class.bg-primary-500/10]="tenant.id === layout.selectedTenant().id"
+        (click)="onSelectTenant(tenant)" role="option" [attr.aria-selected]="tenant.id === layout.selectedTenant().id"
+        type="button">
+        <div class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-sm font-medium"
+          [class.bg-primary-500]="tenant.id === layout.selectedTenant().id"
+          [class.text-white]="tenant.id === layout.selectedTenant().id"
+          [class.bg-gray-200]="tenant.id !== layout.selectedTenant().id"
+          [class.text-gray-700]="tenant.id !== layout.selectedTenant().id">
+          {{ tenant.initial }}
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-gray-900 truncate">{{ tenant.name }}</p>
+          <p class="text-xs text-gray-500">{{ tenant.role }}</p>
+        </div>
+      </button>
+      }
+    </div>
+    }
+  </div>
+
+  <!-- ===== NAVIGATION ===== -->
+  <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-1" aria-label="Navegação principal">
+    @for (item of navItems(); track item.route) {
+    <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
+               text-gray-600 hover:bg-gray-100 hover:text-gray-900
+               transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
+      [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
+      [attr.aria-label]="item.label">
+      <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+
+      @if (!layout.isCollapsed() || layout.isMobile()) {
+      <span class="text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
+      }
+    </a>
+    }
+  </nav>
+
+  <!-- ===== BOTTOM-PINNED NAV (Perfil etc.) ===== -->
+  @if (bottomNavItems().length > 0) {
+  <div class="px-3 pt-3 pb-1 shrink-0 space-y-1">
+    @for (item of bottomNavItems(); track item.route) {
+    <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
+               text-gray-600 hover:bg-gray-100 hover:text-gray-900
+               transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
+      [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
+      [attr.aria-label]="item.label">
+      <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+
+      @if (!layout.isCollapsed() || layout.isMobile()) {
+      <span class="text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
+      }
+    </a>
+    }
+  </div>
+  }
+
+  <!-- ===== COLLAPSE TOGGLE (Desktop only) ===== -->
+  @if (!layout.isMobile()) {
+  <div class="p-3 border-t border-gray-200 shrink-0">
+    <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+               text-gray-500 hover:bg-gray-100 hover:text-gray-700
+               transition-colors" [class.justify-center]="layout.isCollapsed()" (click)="layout.toggleCollapse()"
+      [attr.aria-label]="layout.isCollapsed() ? 'Expandir sidebar' : 'Recolher sidebar'" type="button">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"
+        [@rotateChevron]="layout.isCollapsed() ? 'collapsed' : 'expanded'">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+
+      @if (!layout.isCollapsed()) {
+      <span class="text-sm font-medium" @fadeLabel>Recolher</span>
+      }
+    </button>
+  </div>
+  }
+</ng-template>

@@ -1,0 +1,44 @@
+<footer class="footer">
+  <div class="footer__inner">
+    <div class="footer__brand">
+      <a class="logo" href="#top" aria-label="MyCarsHub - voltar ao topo">
+        <span class="logo__mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="26" height="26" fill="none">
+            <rect x="2" y="2" width="28" height="28" rx="8" fill="var(--color-primary-500)"/>
+            <path d="M8 19l1.5-5.5A2 2 0 0 1 11.4 12h9.2a2 2 0 0 1 1.9 1.5L24 19v3h-2v-1.5H10V22H8v-3z" fill="white"/>
+            <circle cx="11" cy="20" r="1.4" fill="var(--color-primary-600)"/>
+            <circle cx="21" cy="20" r="1.4" fill="var(--color-primary-600)"/>
+          </svg>
+        </span>
+        <span class="logo__text">MyCars<strong>Hub</strong></span>
+      </a>
+      <p>O ERP definitivo para locadoras de veículos.</p>
+    </div>
+
+    <nav class="footer__cols" aria-label="Links do rodapé">
+      <div>
+        <h4>Produto</h4>
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#planos">Planos</a>
+        <a routerLink="/signup">Trial gratuito</a>
+      </div>
+      <div>
+        <h4>Empresa</h4>
+        <a href="#">Sobre</a>
+        <a href="#">Contato</a>
+        <a href="#">Blog</a>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <a href="#">Termos de uso</a>
+        <a href="#">Privacidade</a>
+        <a href="#">Cookies</a>
+      </div>
+    </nav>
+  </div>
+
+  <div class="footer__bottom">
+    <span>© {{ year }} MyCarsHub. Todos os direitos reservados.</span>
+    <a routerLink="/login">Acessar plataforma →</a>
+  </div>
+</footer>

@@ -1,0 +1,64 @@
+<section id="top" class="hero">
+  <div class="hero__slash" aria-hidden="true"></div>
+  <div class="hero__noise" aria-hidden="true"></div>
+
+  <div class="hero__inner">
+    <div class="hero__copy">
+      <span class="badge reveal">Sem cartão • 14 dias grátis • Cancele quando quiser</span>
+      <h1 class="reveal">
+        Sua locadora no caos.
+        <span class="hero__break"></span>
+        <span class="hero__accent">Sua locadora no MyCarsHub.</span>
+      </h1>
+      <p class="hero__sub reveal">
+        Chega de planilha, caderno e cobrança no manual. Controle aluguéis,
+        contratos, multas e manutenções em um lugar só.
+      </p>
+      <div class="hero__ctas reveal">
+        <a routerLink="/signup" class="btn-primary">
+          Começar 14 dias grátis
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        <a href="#funcionalidades" class="btn-ghost">Ver como funciona</a>
+      </div>
+
+      <div class="hero__trust reveal">
+        <div class="trust-stars" aria-hidden="true">
+          @for (s of [1,2,3,4,5]; track s) {
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 2l3 7 7 .9-5.2 4.7 1.5 7-6.3-3.7L5.7 21.6l1.5-7L2 9.9 9 9z" fill="var(--color-primary-500)"/></svg>
+          }
+        </div>
+        <span>+200 locadoras confiam no MyCarsHub</span>
+      </div>
+    </div>
+
+    <div class="hero__visual reveal">
+      <div class="hero__visual-inner">
+        <img
+          ngSrc="png/dashboard-mockup.png"
+          width="1200"
+          height="800"
+          alt="Painel do MyCarsHub mostrando contratos, veículos e cobranças"
+          priority
+        />
+      </div>
+      <div class="hero__chip hero__chip--1" aria-hidden="true">
+        <span class="dot"></span> Contrato ativo
+      </div>
+      <div class="hero__chip hero__chip--2" aria-hidden="true">
+        R$ 14.230 <small>recebidos hoje</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero__brands reveal" aria-label="Marcas que utilizam o MyCarsHub">
+    <span>Confiado por:</span>
+    <strong>RodaCar</strong>
+    <strong>VelozLoc</strong>
+    <strong>CityFrota</strong>
+    <strong>Drive&Go</strong>
+    <strong>Auto+</strong>
+  </div>
+</section>

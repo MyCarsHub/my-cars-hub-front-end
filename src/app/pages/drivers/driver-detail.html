@@ -1,0 +1,174 @@
+<app-default-page-layout
+  title="Detalhes do motorista"
+  description="Informações completas do motorista cadastrado."
+>
+  @if (loading()) {
+    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      Carregando…
+    </div>
+  } @else if (error()) {
+    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+      {{ error() }}
+    </div>
+  } @else if (driver(); as d) {
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center
+                    font-bold text-lg shadow-inner shrink-0">
+          {{ d.name.charAt(0).toUpperCase() }}
+        </div>
+        <div class="min-w-0">
+          <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 break-words">{{ d.name }}</h2>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+              [class]="statusInfo().chip">
+              {{ statusInfo().label }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop actions (top-right) -->
+      <div class="hidden lg:flex shrink-0">
+        <app-detail-actions
+          [editRouterLink]="['/motoristas', d.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+
+      <!-- Pessoal -->
+      <app-page-card title="Pessoal">
+        <div class="p-4 sm:p-6 space-y-3">
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Nome</p>
+            <p class="text-neutral-900 font-medium break-words">{{ d.name }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Documento</p>
+            <p class="text-neutral-900 font-medium tabular-nums">
+              {{ formatDoc(d.document.type, d.document.value) }}
+              @if (d.document.type) {
+                <span class="text-neutral-400 text-xs ml-2">({{ d.document.type }})</span>
+              }
+            </p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Cadastrado em</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ formatDate(d.createdDate) }}</p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Contato -->
+      <app-page-card title="Contato">
+        <div class="p-4 sm:p-6 space-y-3">
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">E-mail</p>
+            <p class="text-neutral-900 font-medium break-all">{{ d.contact.email }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Telefone</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ formatPhone(d.contact.phone) }}</p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Endereço -->
+      <app-page-card title="Endereço">
+        <div class="p-4 sm:p-6 space-y-2">
+          <p class="text-neutral-900 break-words">
+            {{ d.address.street }}@if (d.address.number) {, {{ d.address.number }}}
+            @if (d.address.complement) { <span class="text-neutral-500">— {{ d.address.complement }}</span> }
+          </p>
+          <p class="text-sm text-neutral-600">
+            {{ d.address.district }} · {{ d.address.city }}/{{ d.address.uf }}
+          </p>
+          <p class="text-xs text-neutral-500 tabular-nums">CEP {{ formatCep(d.address.cep) }}</p>
+        </div>
+      </app-page-card>
+
+      <!-- CNH -->
+      <app-page-card title="Carteira de habilitação">
+        <div class="p-4 sm:p-6 grid grid-cols-2 gap-3">
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Número</p>
+            <p class="text-neutral-900 font-medium tabular-nums">{{ d.licenseNumber }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Categoria</p>
+            <p class="text-neutral-900 font-medium">{{ d.licenseCategory }}</p>
+          </div>
+          <div class="col-span-2">
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Vencimento</p>
+            <p class="font-medium tabular-nums"
+              [class.text-rose-600]="expiringSoon()"
+              [class.text-neutral-900]="!expiringSoon()">
+              {{ formatDate(d.licenseExpiry) }}
+              @if (expiringSoon()) {
+                <span class="text-xs text-rose-600 ml-2">(vence em breve)</span>
+              }
+            </p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Empresa / vínculo -->
+      <app-page-card title="Empresa e vínculo">
+        <div class="p-4 sm:p-6 space-y-3">
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Empresa</p>
+            <p class="text-neutral-900 font-medium tabular-nums text-xs break-all">{{ d.companyId }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Usuário vinculado</p>
+            <p class="text-neutral-900 font-medium tabular-nums text-xs break-all">
+              {{ d.userId ?? '— não vinculado' }}
+            </p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Status -->
+      <app-page-card title="Status atual">
+        <div class="p-4 sm:p-6">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+            [class]="statusInfo().chip">
+            {{ statusInfo().label }}
+          </span>
+          @if (d.modifyDate) {
+            <p class="text-xs text-neutral-400 mt-3">Última alteração em {{ formatDate(d.modifyDate) }}</p>
+          }
+        </div>
+      </app-page-card>
+
+    </div>
+
+    <!-- Mobile actions (bottom) -->
+    <div class="lg:hidden mt-6">
+      <app-detail-actions
+        [editRouterLink]="['/motoristas', d.id, 'editar']"
+        (delete)="askDelete()"
+      />
+    </div>
+
+    <div class="mt-6">
+      <a routerLink="/motoristas" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+        ← Voltar para a lista
+      </a>
+    </div>
+  }
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir motorista"
+  [message]="'Tem certeza que deseja excluir «' + (driver()?.name ?? '') + '»?'"
+  confirmLabel="Excluir"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>

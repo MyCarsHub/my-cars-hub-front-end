@@ -1,0 +1,285 @@
+<app-default-page-layout
+  title="Veículos"
+  description="Gerencie a frota da sua empresa."
+>
+  <app-page-card title="Lista">
+    <div cardActions>
+      <a
+        routerLink="/veiculos/novo"
+        class="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white
+               text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Novo veículo
+      </a>
+    </div>
+
+    <div class="p-3 sm:p-4 space-y-4">
+      <!-- Filters -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <form (ngSubmit)="onSearchSubmit()" class="sm:col-span-2 lg:col-span-2">
+          <label for="veiculos-search" class="sr-only">Buscar por placa, marca ou modelo</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-3 flex items-center text-neutral-400" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </span>
+            <input
+              id="veiculos-search"
+              type="search"
+              placeholder="Buscar por placa, marca, modelo…"
+              [ngModel]="search()"
+              (ngModelChange)="search.set($event)"
+              name="search"
+              class="w-full pl-9 pr-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+          </div>
+        </form>
+
+        <div>
+          <label class="sr-only" for="veiculos-type">Tipo</label>
+          <select
+            id="veiculos-type"
+            [ngModel]="typeFilter()"
+            (ngModelChange)="typeFilter.set($event); onFilterChange()"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (opt of typeOptions; track opt.value) {
+              <option [value]="opt.value">Tipo: {{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label class="sr-only" for="veiculos-sort">Ordenação</label>
+          <select
+            id="veiculos-sort"
+            [ngModel]="sort()"
+            (ngModelChange)="sort.set($event); onFilterChange()"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (opt of sortOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="lg:col-span-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            (click)="clearFilters()"
+            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      </div>
+
+      <!-- Error -->
+      @if (error()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ error() }}
+        </div>
+      }
+
+      <!-- Loading skeleton -->
+      @if (loading() && items().length === 0) {
+        <div class="space-y-2">
+          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+        </div>
+      }
+
+      <!-- Empty -->
+      @if (!loading() && items().length === 0) {
+        <div class="text-center py-12 space-y-3">
+          <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+            aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="text-neutral-400">
+              <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
+              <circle cx="6.5" cy="16.5" r="2.5"/>
+              <circle cx="16.5" cy="16.5" r="2.5"/>
+            </svg>
+          </div>
+          <p class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
+          <a routerLink="/veiculos/novo"
+            class="inline-flex items-center gap-2 text-sm font-medium text-primary-500 hover:text-primary-600">
+            Cadastrar primeiro veículo
+          </a>
+        </div>
+      }
+
+      <!-- Cards (mobile / tablet) -->
+      @if (items().length > 0) {
+        <div class="space-y-3 lg:hidden">
+          @for (vehicle of items(); track vehicle.id) {
+            <article
+              class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 cursor-pointer
+                     hover:border-primary-300 transition-colors"
+              (click)="openDetail(vehicle)"
+              (keydown.enter)="openDetail(vehicle)"
+              tabindex="0"
+              [attr.aria-label]="'Ver detalhes do veículo ' + vehicle.plate"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <h3 class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider">
+                    {{ formatPlate(vehicle.plate) }}
+                  </h3>
+                  <p class="text-xs text-neutral-500 mt-0.5 break-words">
+                    {{ vehicle.brand }} {{ vehicle.model }} · {{ vehicle.yearModel }}
+                  </p>
+                </div>
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide shrink-0"
+                  [class]="typeChip(vehicle.type)">
+                  {{ typeLabel(vehicle.type) }}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Licenciamento</span>
+                  <p class="font-medium tabular-nums">
+                    {{ formatDate(vehicle.licensingExpiration) }}
+                  </p>
+                </div>
+                <div class="flex items-end">
+                  @if (licensingBadge(vehicle.licensingExpiration); as badge) {
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      [class]="badge.chip">
+                      {{ badge.label }}
+                    </span>
+                  }
+                </div>
+              </div>
+
+              <div class="flex justify-end gap-2 pt-1 border-t border-neutral-50">
+                <a
+                  [routerLink]="['/veiculos', vehicle.id, 'editar']"
+                  (click)="$event.stopPropagation()"
+                  class="text-xs font-medium text-primary-500 hover:bg-primary-low px-3 py-2 rounded-lg">
+                  Editar
+                </a>
+                <button
+                  type="button"
+                  (click)="askDelete(vehicle, $event)"
+                  class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-lg">
+                  Excluir
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+
+        <!-- Table (desktop) -->
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                <th class="py-2 pr-4 font-medium">Placa</th>
+                <th class="py-2 pr-4 font-medium">Tipo</th>
+                <th class="py-2 pr-4 font-medium">Marca</th>
+                <th class="py-2 pr-4 font-medium">Modelo</th>
+                <th class="py-2 pr-4 font-medium">Ano</th>
+                <th class="py-2 pr-4 font-medium">Licenciamento</th>
+                <th class="py-2 pr-4 font-medium text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (vehicle of items(); track vehicle.id) {
+                <tr class="border-b border-neutral-50 hover:bg-neutral-50/60 cursor-pointer"
+                  (click)="openDetail(vehicle)"
+                  (keydown.enter)="openDetail(vehicle)"
+                  tabindex="0"
+                  [attr.aria-label]="'Ver detalhes do veículo ' + vehicle.plate">
+                  <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums tracking-wider">
+                    {{ formatPlate(vehicle.plate) }}
+                  </td>
+                  <td class="py-3 pr-4">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      [class]="typeChip(vehicle.type)">
+                      {{ typeLabel(vehicle.type) }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4 text-neutral-700">{{ vehicle.brand }}</td>
+                  <td class="py-3 pr-4 text-neutral-700">{{ vehicle.model }}</td>
+                  <td class="py-3 pr-4 text-neutral-700 tabular-nums">{{ vehicle.yearModel }}</td>
+                  <td class="py-3 pr-4 tabular-nums">
+                    <div class="flex items-center gap-2">
+                      <span>{{ formatDate(vehicle.licensingExpiration) }}</span>
+                      @if (licensingBadge(vehicle.licensingExpiration); as badge) {
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                          [class]="badge.chip">
+                          {{ badge.label }}
+                        </span>
+                      }
+                    </div>
+                  </td>
+                  <td class="py-3 pr-4">
+                    <div class="flex items-center justify-end gap-2">
+                      <a
+                        [routerLink]="['/veiculos', vehicle.id, 'editar']"
+                        (click)="$event.stopPropagation()"
+                        class="text-xs font-medium text-primary-500 hover:bg-primary-low px-2 py-1 rounded-md">
+                        Editar
+                      </a>
+                      <button
+                        type="button"
+                        (click)="askDelete(vehicle, $event)"
+                        class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-md">
+                        Excluir
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between pt-2 border-t border-neutral-100 text-sm">
+          <p class="text-neutral-500">
+            {{ total() }} veículo(s) — página {{ pageNumber() }} de {{ totalPages() }}
+          </p>
+          <div class="flex items-center gap-2">
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() === 0 || loading()"
+              (click)="prev()">
+              Anterior
+            </button>
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() + 1 >= totalPages() || loading()"
+              (click)="next()">
+              Próxima
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </app-page-card>
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="deletingVehicle() !== null"
+  title="Excluir veículo"
+  [message]="'Tem certeza que deseja excluir o veículo «' + (deletingVehicle()?.plate ?? '') + '»? Esta ação não pode ser desfeita.'"
+  confirmLabel="Excluir"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>

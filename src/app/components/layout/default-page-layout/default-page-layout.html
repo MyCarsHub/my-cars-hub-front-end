@@ -1,0 +1,15 @@
+<section class="w-full h-full px-4 sm:px-6 lg:px-10 pt-20 lg:pt-10 pb-6 sm:pb-8 lg:pb-10 max-w-8xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 bg-gray-50">
+    <header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div class="min-w-0">
+            <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-neutral-900 break-words">
+                {{ title }}
+            </h1>
+            <p class="text-base sm:text-lg text-neutral-500 mt-1.5">
+                {{ description }}
+            </p>
+        </div>
+    </header>
+    <div class="w-full">
+        <ng-content></ng-content>
+    </div>
+</section>

@@ -1,0 +1,69 @@
+:host {
+    display: block;
+    min-h-screen: 100vh;
+    background-color: #fafafa;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Custom shadow for premium cards */
+.shadow-sm {
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow-xl {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Glassmorphism effect for the billing card */
+.backdrop-blur-md {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+/* Transitions for interactive elements */
+button, select, input {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Status colors - matching the theme in styles.css */
+.bg-primary-low {
+    background-color: var(--color-primary-low);
+}
+
+.text-primary-base {
+    color: var(--color-primary-500);
+}
+
+.bg-primary-base {
+    background-color: var(--color-primary-500);
+}
+
+.hover\:bg-primary-dark:hover {
+    background-color: var(--color-primary-600);
+}
+
+.border-primary-low {
+    border-color: var(--color-primary-low);
+}
+
+.focus\:ring-primary-base\/20:focus {
+    --tw-ring-color: rgba(235, 63, 0, 0.2);
+}
+
+.focus\:border-primary-base:focus {
+    border-color: var(--color-primary-500);
+}

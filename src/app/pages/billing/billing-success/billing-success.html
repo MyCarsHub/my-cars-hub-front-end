@@ -1,0 +1,68 @@
+<app-default-page-layout
+  title="Confirmando pagamento"
+  description="Estamos verificando o status da sua assinatura.">
+
+  <div class="max-w-xl mx-auto bg-white rounded-2xl border border-neutral-200 shadow-sm p-6 sm:p-10 text-center">
+
+    @if (state() === 'polling') {
+      <div class="flex flex-col items-center gap-4" role="status" aria-live="polite">
+        <div class="w-14 h-14 rounded-full border-4 border-primary-100 border-t-primary-500 animate-spin" aria-hidden="true"></div>
+        <h2 class="text-xl font-bold text-neutral-900">Confirmando pagamento…</h2>
+        <p class="text-sm text-neutral-600">
+          Aguardando confirmação do provedor de pagamento. Isso pode levar alguns segundos.
+        </p>
+      </div>
+    }
+
+    @if (state() === 'active') {
+      <div class="flex flex-col items-center gap-4" role="status" aria-live="polite">
+        <div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+            class="text-emerald-600">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-neutral-900">Assinatura ativada!</h2>
+        <p class="text-sm text-neutral-600">
+          @if (subscription(); as sub) {
+            Seu plano <strong>{{ sub.planName }}</strong> está ativo.
+          } @else {
+            Sua assinatura foi ativada com sucesso.
+          }
+        </p>
+        <a
+          routerLink="/dashboard"
+          class="mt-2 inline-flex items-center px-5 py-3 rounded-xl bg-primary-500 text-white font-bold hover:bg-primary-600 transition-colors">
+          Ir para o Dashboard
+        </a>
+      </div>
+    }
+
+    @if (state() === 'timeout' || state() === 'error') {
+      <div class="flex flex-col items-center gap-4" role="alert">
+        <div class="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="text-amber-600">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-bold text-neutral-900">Ainda processando</h2>
+        <p class="text-sm text-neutral-600">
+          Não recebemos a confirmação a tempo. Isso pode levar alguns minutos.
+          Você receberá acesso assim que o pagamento for confirmado.
+        </p>
+        <button
+          type="button"
+          (click)="goToBilling()"
+          class="mt-2 inline-flex items-center px-5 py-3 rounded-xl bg-neutral-900 text-white font-bold hover:bg-neutral-800 transition-colors">
+          Voltar para Assinatura
+        </button>
+      </div>
+    }
+  </div>
+
+</app-default-page-layout>

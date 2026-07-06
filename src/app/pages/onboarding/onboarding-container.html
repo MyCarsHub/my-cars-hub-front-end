@@ -1,0 +1,135 @@
+<!-- Full-screen backdrop -->
+<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-4" @backdropFade
+  role="presentation">
+  <!-- Card -->
+  <div class="onboarding-card bg-white rounded-2xl w-full max-w-[500px] max-h-[92vh] flex flex-col shadow-2xl"
+    @cardEnter role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <!-- Header (sticky) -->
+    <div class="px-5 sm:px-8 pt-6 sm:pt-7 pb-4 sm:pb-5 border-b border-gray-100">
+      <div class="flex items-center gap-2 mb-5">
+        <img src="svg/logo-my-cars-hub.svg" alt="" aria-hidden="true" class="h-5" />
+        <span class="text-base font-bold text-gray-900" id="onboarding-title">MyCarsHub</span>
+      </div>
+
+      @if (loaded()) {
+      <app-onboarding-progress-bar [currentStep]="currentStep()" [totalSteps]="totalSteps" />
+      } @else {
+      <!-- Progress bar skeleton -->
+      <div class="flex gap-1.5 mb-5">
+        @for (n of [1, 2, 3, 4, 5]; track n) {
+        <div class="h-1.5 flex-1 rounded-full bg-gray-200 animate-pulse"></div>
+        }
+      </div>
+      <div class="h-4 w-40 rounded bg-gray-100 animate-pulse"></div>
+      }
+    </div>
+
+    <!-- Scrollable step content -->
+    <div class="flex-1 overflow-y-auto px-5 sm:px-8 py-5 sm:py-6 relative">
+
+      <!-- Saving overlay (shows while POST is in flight) -->
+      @if (loading() && loaded()) {
+      <div class="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-b-2xl"
+        aria-live="polite" aria-label="Salvando...">
+        <div class="flex flex-col items-center gap-3">
+          <div class="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin"
+            aria-hidden="true"></div>
+          <span class="text-xs text-gray-500 font-medium">Salvando...</span>
+        </div>
+      </div>
+      }
+
+      <!-- Error banner -->
+      @if (error()) {
+      <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700" role="alert">
+        {{ error() }}
+      </div>
+      }
+
+      <!-- Initial loading skeleton (while GET /onboarding is in flight) -->
+      @if (!loaded()) {
+      <div class="space-y-4 animate-pulse">
+        <div class="h-6 w-48 bg-gray-200 rounded"></div>
+        <div class="h-4 w-64 bg-gray-100 rounded"></div>
+        <div class="space-y-3 pt-2">
+          @for (n of [1, 2, 3]; track n) {
+          <div>
+            <div class="h-3.5 w-24 bg-gray-100 rounded mb-1.5"></div>
+            <div class="h-10 w-full bg-gray-100 rounded-lg"></div>
+          </div>
+          }
+        </div>
+      </div>
+      }
+
+      <!-- Step content — only rendered AFTER loadState() resolves so ngOnInit gets correct data -->
+      @if (loaded()) {
+      <div [class]="direction() === 'forward' ? 'step-animate-forward' : 'step-animate-backward'">
+        @switch (currentStep()) {
+        @case (1) {
+        <app-step-personal [initialData]="formData()" (formChange)="onStepFormChange($event)"
+          (isValid)="onStepValidityChange($event)" />
+        }
+        @case (2) {
+        <app-step-company [initialData]="formData()" (formChange)="onStepFormChange($event)"
+          (isValid)="onStepValidityChange($event)" />
+        }
+        @case (3) {
+        <app-step-document [initialData]="formData()" (formChange)="onStepFormChange($event)"
+          (isValid)="onStepValidityChange($event)" />
+        }
+        @case (4) {
+        <app-step-welcome (isValid)="onStepValidityChange($event)" [loading]="loading()" (finish)="onNext()" />
+        }
+        }
+      </div>
+      }
+    </div>
+
+    <!-- Footer navigation (sticky) -->
+    @if (!isLastStep()) {
+    <div class="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100 flex items-center gap-2" [class.justify-between]="!isFirstStep()"
+      [class.justify-end]="isFirstStep()">
+      @if (!isFirstStep()) {
+      <button type="button" class="flex items-center gap-2 text-sm font-medium text-gray-500
+                 hover:text-gray-800 transition-colors px-3 py-2 rounded-lg
+                 hover:bg-gray-100 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-gray-400 disabled:opacity-40" (click)="onBack()" [disabled]="loading()"
+        aria-label="Voltar para o passo anterior">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
+        </svg>
+        Voltar
+      </button>
+      }
+
+      <button type="button" class="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold
+               text-white transition-all duration-200 focus:outline-none
+               focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+        [class.bg-primary-500]="stepValid() && !loading() && loaded()"
+        [class.hover:bg-primary-600]="stepValid() && !loading() && loaded()"
+        [class.shadow-sm]="stepValid() && !loading() && loaded()"
+        [class.bg-gray-300]="!stepValid() || loading() || !loaded()"
+        [class.cursor-not-allowed]="!stepValid() || loading() || !loaded()"
+        [disabled]="!stepValid() || loading() || !loaded()" (click)="onNext()" [attr.aria-busy]="loading()">
+        {{ nextLabel() }}
+        @if (!isLastStep()) {
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+        }
+        @if (isLastStep()) {
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        }
+      </button>
+    </div>
+    }
+  </div>
+</div>

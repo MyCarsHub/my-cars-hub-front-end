@@ -1,0 +1,22 @@
+<section class="testimonials">
+  <div class="testimonials__inner">
+    <header class="testimonials__head">
+      <h2 class="reveal">Locadoras reais. <em>Decisões reais.</em></h2>
+      <p class="reveal">Quem já saiu da planilha não volta mais.</p>
+    </header>
+    <div class="testimonials__grid">
+      @for (t of testimonials; track t.initials) {
+        <article class="testimonial reveal">
+          <p>{{ t.quote }}</p>
+          <footer>
+            <span class="testimonial__avatar">{{ t.initials }}</span>
+            <div>
+              <strong>{{ t.name }}</strong>
+              <small>{{ t.location }}</small>
+            </div>
+          </footer>
+        </article>
+      }
+    </div>
+  </div>
+</section>
