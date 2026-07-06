@@ -49,8 +49,8 @@ export class LayoutStore {
           initial: c.companyName ? c.companyName.charAt(0).toUpperCase() : 'C'
         }));
       }
-    } catch (e) {
-      console.error('Failed to parse userCompanies', e);
+    } catch {
+      // fail silent: corrupted userCompanies falls back to empty tenant list
     }
     return [];
   }

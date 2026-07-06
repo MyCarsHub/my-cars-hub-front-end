@@ -47,11 +47,12 @@ export class Signup {
   submit() {
     this.loginService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password).subscribe({
       next: () => {
-        console.log('Signup successful');
         this.clearForm();
         this.router.navigate(['/login']);
       },
-      error: (err) => console.error('Signup failed', err)
+      error: () => {
+        // errors are surfaced by the global errorInterceptor
+      },
     });
   }
 

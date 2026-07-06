@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   FormBuilder,
@@ -36,7 +36,7 @@ const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','P
 @Component({
   selector: 'app-driver-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, PrimaryInput],
+  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, PrimaryInput],
   templateUrl: './driver-form.html',
 })
 export class DriverForm implements OnInit {

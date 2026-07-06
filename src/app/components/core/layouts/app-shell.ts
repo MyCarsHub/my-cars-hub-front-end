@@ -2,12 +2,13 @@ import { ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit } from '@
 import { RouterOutlet } from '@angular/router';
 import { animate, state, style, transition, trigger } from '@angular/animations';
 import { Sidebar } from '../../sidebar/sidebar';
+import { ToastHost } from '../../toast-host/toast-host';
 import { LayoutStore } from './layout.store';
 
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar],
+  imports: [RouterOutlet, Sidebar, ToastHost],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -30,6 +31,7 @@ import { LayoutStore } from './layout.store';
         </div>
       </main>
     </div>
+    <app-toast-host />
   `,
   styles: `
     :host {

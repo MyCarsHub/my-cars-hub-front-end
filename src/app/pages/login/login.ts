@@ -47,7 +47,6 @@ export class Login {
   submit() {
     this.loginService.login(this.loginForm.value.email, this.loginForm.value.password).subscribe({
       next: () => {
-        console.log('Login successful');
         this.clearForm();
         const onboardingCompleted = this.sessionService.isOnboardingCompleted();
         if (onboardingCompleted) {
@@ -56,7 +55,9 @@ export class Login {
           this.router.navigate(['/onboarding']);
         }
       },
-      error: (err) => console.error('Login failed', err)
+      error: () => {
+        // errors are surfaced by the global errorInterceptor
+      },
     });
   }
 
