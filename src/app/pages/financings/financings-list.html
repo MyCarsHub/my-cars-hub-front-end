@@ -1,0 +1,210 @@
+<app-default-page-layout
+  title="Financiamentos"
+  description="Visão consolidada dos contratos de financiamento da frota."
+>
+  <app-page-card title="Lista">
+    <div class="p-3 sm:p-4 space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        @if (!vehicleIdPrefilter()) {
+          <div class="sm:col-span-2">
+            <label class="sr-only" for="fin-vehicle">Veículo</label>
+            <select
+              id="fin-vehicle"
+              [ngModel]="vehicleFilter()"
+              (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
+              class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+            >
+              <option value="">Veículo: Todos</option>
+              @for (v of vehicles(); track v.id) {
+                <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        <div>
+          <label class="sr-only" for="fin-status">Status</label>
+          <select
+            id="fin-status"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="statusFilter.set($event); onFilterChange()"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (opt of statusOptions; track opt.value) {
+              <option [value]="opt.value">Status: {{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label class="sr-only" for="fin-sort">Ordenação</label>
+          <select
+            id="fin-sort"
+            [ngModel]="sort()"
+            (ngModelChange)="sort.set($event); onFilterChange()"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (opt of sortOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="lg:col-span-4 flex items-center justify-end">
+          <button
+            type="button"
+            (click)="clearFilters()"
+            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      </div>
+
+      @if (error()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ error() }}
+        </div>
+      }
+
+      @if (loading() && items().length === 0) {
+        <div class="space-y-2">
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+        </div>
+      }
+
+      @if (!loading() && items().length === 0) {
+        <div class="text-center py-12 space-y-3">
+          <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+            aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="text-neutral-400">
+              <line x1="12" y1="1" x2="12" y2="23"/>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <p class="text-sm text-neutral-500">Nenhum financiamento encontrado.</p>
+          <p class="text-xs text-neutral-400">
+            Financiamentos são cadastrados a partir da página do veículo.
+          </p>
+        </div>
+      }
+
+      @if (items().length > 0) {
+        <div class="space-y-3 lg:hidden">
+          @for (f of items(); track f.id) {
+            <article
+              class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 cursor-pointer
+                     hover:border-primary-300 transition-colors"
+              (click)="openDetail(f)"
+              (keydown.enter)="openDetail(f)"
+              tabindex="0"
+              [attr.aria-label]="'Abrir veículo ' + f.vehiclePlate"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider">
+                    {{ formatPlate(f.vehiclePlate) }}
+                  </p>
+                  <p class="text-xs text-neutral-500 mt-0.5 truncate">
+                    {{ f.vehicleBrand }} {{ f.vehicleModel }}
+                  </p>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                  [class]="statusInfo(f.status).chip">
+                  {{ statusInfo(f.status).label }}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Compra</span>
+                  <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(f.purchasePrice) }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Parcela</span>
+                  <p class="font-medium tabular-nums">{{ formatCurrency(f.installmentAmount) }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Contrato</span>
+                  <p class="tabular-nums">{{ formatDate(f.contractDate) }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Parcelas</span>
+                  <p class="tabular-nums">{{ f.installments ?? '—' }}</p>
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                <th class="py-2 pr-4 font-medium">Veículo</th>
+                <th class="py-2 pr-4 font-medium">Contrato</th>
+                <th class="py-2 pr-4 font-medium">Compra</th>
+                <th class="py-2 pr-4 font-medium">Parcela</th>
+                <th class="py-2 pr-4 font-medium">Parcelas</th>
+                <th class="py-2 pr-4 font-medium">Status</th>
+                <th class="py-2 pr-4 font-medium">Quitado em</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of items(); track f.id) {
+                <tr class="border-b border-neutral-50 hover:bg-neutral-50/60 cursor-pointer"
+                  (click)="openDetail(f)"
+                  (keydown.enter)="openDetail(f)"
+                  tabindex="0">
+                  <td class="py-3 pr-4">
+                    <p class="font-semibold text-neutral-900 tabular-nums tracking-wider">
+                      {{ formatPlate(f.vehiclePlate) }}
+                    </p>
+                    <p class="text-xs text-neutral-500">{{ f.vehicleBrand }} {{ f.vehicleModel }}</p>
+                  </td>
+                  <td class="py-3 pr-4 tabular-nums">{{ formatDate(f.contractDate) }}</td>
+                  <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(f.purchasePrice) }}</td>
+                  <td class="py-3 pr-4 tabular-nums">{{ formatCurrency(f.installmentAmount) }}</td>
+                  <td class="py-3 pr-4 tabular-nums">{{ f.installments ?? '—' }}</td>
+                  <td class="py-3 pr-4">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      [class]="statusInfo(f.status).chip">
+                      {{ statusInfo(f.status).label }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4 tabular-nums">{{ formatDate(f.paidOffDate) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-neutral-100 text-sm">
+          <p class="text-neutral-500">
+            {{ total() }} financiamento(s) — página {{ pageNumber() }} de {{ totalPages() }}
+          </p>
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() === 0 || loading()"
+              (click)="prev()">
+              Anterior
+            </button>
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() + 1 >= totalPages() || loading()"
+              (click)="next()">
+              Próxima
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </app-page-card>
+</app-default-page-layout>

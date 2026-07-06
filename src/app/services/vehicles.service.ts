@@ -1,0 +1,164 @@
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { Injectable, inject, signal } from '@angular/core';
+import { Observable, catchError, finalize, map, tap, throwError } from 'rxjs';
+import { environment } from '../../environments/environment';
+import { PagedResponse } from '../types/feedback.types';
+import { GerenciaSummary } from '../types/gerencia-summary.types';
+import {
+  CreateFinancingRequest,
+  CreateVehicleRequest,
+  Financing,
+  FinancingFilters,
+  FinancingListItem,
+  MarkPaidOffRequest,
+  UpdateVehicleRequest,
+  Vehicle,
+  VehicleFilters,
+  VehicleListItem,
+} from '../types/vehicle.types';
+
+const BASE = `${environment.apiUrl}/vehicles`;
+const FLEET_FINANCINGS_BASE = `${environment.apiUrl}/financings`;
+
+@Injectable({ providedIn: 'root' })
+export class VehiclesService {
+  private readonly http = inject(HttpClient);
+
+  private readonly _items = signal<VehicleListItem[]>([]);
+  private readonly _page = signal(0);
+  private readonly _size = signal(20);
+  private readonly _total = signal(0);
+  private readonly _loading = signal(false);
+  private readonly _error = signal<string | null>(null);
+
+  readonly items = this._items.asReadonly();
+  readonly page = this._page.asReadonly();
+  readonly size = this._size.asReadonly();
+  readonly total = this._total.asReadonly();
+  readonly loading = this._loading.asReadonly();
+  readonly error = this._error.asReadonly();
+
+  // Fleet-wide financings cache (separate keys from vehicle-scoped state above).
+  private readonly _financings = signal<FinancingListItem[]>([]);
+  private readonly _financingsPage = signal(0);
+  private readonly _financingsSize = signal(20);
+  private readonly _financingsTotal = signal(0);
+  private readonly _financingsLoading = signal(false);
+  private readonly _financingsError = signal<string | null>(null);
+
+  readonly financings = this._financings.asReadonly();
+  readonly financingsPage = this._financingsPage.asReadonly();
+  readonly financingsSize = this._financingsSize.asReadonly();
+  readonly financingsTotal = this._financingsTotal.asReadonly();
+  readonly financingsLoading = this._financingsLoading.asReadonly();
+  readonly financingsError = this._financingsError.asReadonly();
+
+  list(filters: VehicleFilters = {}): Observable<PagedResponse<VehicleListItem>> {
+    this._loading.set(true);
+    this._error.set(null);
+
+    let params = new HttpParams();
+    if (filters.q?.trim()) params = params.set('q', filters.q.trim());
+    if (filters.type) params = params.set('type', filters.type);
+    if (filters.sort) params = params.set('sort', filters.sort);
+    if (filters.page !== undefined) params = params.set('page', String(filters.page));
+    if (filters.size !== undefined) params = params.set('size', String(filters.size));
+
+    return this.http.get<PagedResponse<VehicleListItem>>(BASE, { params }).pipe(
+      tap((res) => {
+        this._items.set(res.content ?? []);
+        this._page.set(res.page ?? 0);
+        this._size.set(res.size ?? 20);
+        this._total.set(res.total ?? 0);
+      }),
+      catchError((err: HttpErrorResponse) => {
+        this._error.set('Não foi possível carregar os veículos.');
+        return throwError(() => err);
+      }),
+      finalize(() => this._loading.set(false)),
+    );
+  }
+
+  getOne(id: string): Observable<Vehicle> {
+    return this.http.get<Vehicle>(`${BASE}/${id}`);
+  }
+
+  create(payload: CreateVehicleRequest): Observable<Vehicle> {
+    return this.http.post<Vehicle>(BASE, payload);
+  }
+
+  update(id: string, payload: UpdateVehicleRequest): Observable<Vehicle> {
+    return this.http.put<Vehicle>(`${BASE}/${id}`, payload);
+  }
+
+  remove(id: string): Observable<void> {
+    return this.http.delete(`${BASE}/${id}`, { responseType: 'text' }).pipe(
+      map(() => void 0),
+      tap(() => this._items.update((list) => list.filter((v) => v.id !== id))),
+    );
+  }
+
+  /** Aggregated vehicle summary for the "Gerência do veículo" hub. */
+  getGerenciaSummary(vehicleId: string): Observable<GerenciaSummary> {
+    return this.http.get<GerenciaSummary>(`${BASE}/${vehicleId}/gerencia/summary`);
+  }
+
+  listFinancings(vehicleId: string): Observable<Financing[]> {
+    return this.http.get<Financing[]>(`${BASE}/${vehicleId}/financings`);
+  }
+
+  createFinancing(
+    vehicleId: string,
+    payload: CreateFinancingRequest,
+  ): Observable<Financing> {
+    return this.http.post<Financing>(`${BASE}/${vehicleId}/financings`, payload);
+  }
+
+  markPaidOff(
+    vehicleId: string,
+    financingId: string,
+    payload: MarkPaidOffRequest = {},
+  ): Observable<Financing> {
+    return this.http.patch<Financing>(
+      `${BASE}/${vehicleId}/financings/${financingId}/paid-off`,
+      payload,
+    );
+  }
+
+  deleteFinancing(vehicleId: string, financingId: string): Observable<void> {
+    return this.http
+      .delete(`${BASE}/${vehicleId}/financings/${financingId}`, { responseType: 'text' })
+      .pipe(map(() => void 0));
+  }
+
+  /** Fleet-wide financings listing (GET /v1/financings). */
+  listFleetFinancings(
+    filters: FinancingFilters = {},
+  ): Observable<PagedResponse<FinancingListItem>> {
+    this._financingsLoading.set(true);
+    this._financingsError.set(null);
+
+    let params = new HttpParams();
+    if (filters.vehicleId) params = params.set('vehicleId', filters.vehicleId);
+    if (filters.status) params = params.set('status', filters.status);
+    if (filters.sort) params = params.set('sort', filters.sort);
+    if (filters.page !== undefined) params = params.set('page', String(filters.page));
+    if (filters.size !== undefined) params = params.set('size', String(filters.size));
+
+    return this.http
+      .get<PagedResponse<FinancingListItem>>(FLEET_FINANCINGS_BASE, { params })
+      .pipe(
+        tap((res) => {
+          this._financings.set(res.content ?? []);
+          this._financingsPage.set(res.page ?? 0);
+          this._financingsSize.set(res.size ?? 20);
+          this._financingsTotal.set(res.total ?? 0);
+        }),
+        catchError((err: HttpErrorResponse) => {
+          this._financingsError.set('Não foi possível carregar os financiamentos.');
+          return throwError(() => err);
+        }),
+        finalize(() => this._financingsLoading.set(false)),
+      );
+  }
+}

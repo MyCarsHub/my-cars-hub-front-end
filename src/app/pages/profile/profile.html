@@ -1,0 +1,191 @@
+<app-default-page-layout title="Meu Perfil"
+    description="Suas informações de conta, empresas vinculadas e assinatura.">
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+
+        <div class="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
+
+            <!-- Informações Pessoais -->
+            <app-page-card title="Informações Pessoais">
+
+                <div cardIcon class="p-2 bg-primary-low rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="text-primary-500">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </svg>
+                </div>
+
+                <form [formGroup]="profileForm" class="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    <div class="md:col-span-2">
+                        <app-primary-input label="Nome" placeholder="—" formControlName="name" />
+                    </div>
+
+                    <app-primary-input label="E-mail" placeholder="—" formControlName="email" />
+
+                    <app-primary-input [label]="documentType()" placeholder="—" formControlName="document" />
+
+                    <app-primary-input label="Empresa Ativa" placeholder="—" formControlName="company" />
+
+                    <div class="pt-2">
+                        <label class="block text-sm font-medium text-neutral-500 mb-1">Seu Papel</label>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                     bg-primary-low text-primary-500 border border-primary-low">
+                            {{ roleLabel(selectedRole()) }}
+                        </span>
+                    </div>
+                </form>
+
+            </app-page-card>
+
+            <!-- Empresas Vinculadas -->
+            <app-page-card title="Empresas Vinculadas">
+
+                <div cardIcon class="p-2 bg-blue-50 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="text-blue-600">
+                        <rect width="16" height="16" x="4" y="4" rx="2" />
+                        <path d="M9 22v-4h6v4" />
+                    </svg>
+                </div>
+
+                <div class="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
+                    <div class="space-y-1 min-w-0">
+                        <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Total de Empresas</p>
+                        <p class="text-xl sm:text-2xl font-bold text-neutral-900 tabular-nums">{{ companies().length }}</p>
+                        <p class="text-xs text-neutral-500">Empresas com acesso</p>
+                    </div>
+                    <div class="space-y-1 min-w-0">
+                        <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Empresa Ativa</p>
+                        <p class="text-xl sm:text-2xl font-bold text-neutral-900 truncate">{{ selectedCompanyName() }}</p>
+                        <p class="text-xs text-neutral-500">{{ roleLabel(selectedRole()) }}</p>
+                    </div>
+                </div>
+
+                @if (companies().length > 0) {
+                <div class="border-t border-neutral-50">
+                    <ul class="divide-y divide-neutral-50">
+                        @for (company of companies(); track company.companyId) {
+                        <li class="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
+                            <div class="min-w-0 flex-1">
+                                <p class="font-medium text-neutral-800 truncate">{{ company.companyName }}</p>
+                                <p class="text-sm text-neutral-500">{{ roleLabel(company.role) }}</p>
+                            </div>
+                            @if (isActiveTenant(company.companyId)) {
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                         bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Ativa
+                            </span>
+                            }
+                        </li>
+                        }
+                    </ul>
+                </div>
+                }
+
+            </app-page-card>
+
+        </div>
+
+        <div class="space-y-4 sm:space-y-6 lg:space-y-8">
+
+            <!-- Sua Conta -->
+            <app-page-card title="Sua Conta">
+                <div class="p-4 sm:p-6">
+                    <div class="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                        <div class="w-12 h-12 shrink-0 rounded-full bg-primary-500 flex items-center justify-center
+                                    text-white font-bold text-lg shadow-inner">
+                            {{ initials() }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p class="font-semibold text-neutral-900 truncate">{{ name() }}</p>
+                                <span class="px-2 py-0.5 bg-primary-low text-primary-500 text-[10px] font-bold
+                                             uppercase rounded-md tracking-wider border border-primary-low shrink-0">
+                                    {{ roleLabel(selectedRole()) }}
+                                </span>
+                            </div>
+                            <p class="text-sm text-neutral-500 break-all">{{ email() }}</p>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-neutral-50 flex items-center justify-between gap-3">
+                        <span class="text-sm text-neutral-500">Encerrar sessão</span>
+                        <button type="button" (click)="logout()"
+                            class="text-sm font-medium text-rose-600 hover:bg-rose-50 px-4 py-2 rounded-lg transition-colors
+                                   focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2">
+                            Sair
+                        </button>
+                    </div>
+                </div>
+            </app-page-card>
+
+            <!-- Plano / Billing (dark card — mesmo padrão de company-settings) -->
+            <section class="relative overflow-hidden bg-neutral-900 rounded-2xl shadow-xl border border-neutral-800">
+                <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary-500/20 blur-[80px] rounded-full"></div>
+                <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[80px] rounded-full"></div>
+
+                <div class="relative p-4 sm:p-6 space-y-4 sm:space-y-6">
+                    @if (subscription(); as sub) {
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="space-y-1 min-w-0">
+                            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Plano Atual</p>
+                            <h3 class="text-xl sm:text-2xl font-black text-white italic tracking-tight break-words">{{ sub.planName }}</h3>
+                        </div>
+                        <div class="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10
+                                    text-[10px] font-bold text-white uppercase shrink-0">
+                            {{ billingCycleLabel(sub) }}
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-neutral-400">Status</span>
+                            <span class="font-medium flex items-center gap-1.5"
+                                [class.text-emerald-400]="billingStatusIsHealthy(sub)"
+                                [class.text-rose-400]="!billingStatusIsHealthy(sub)">
+                                <span class="w-1.5 h-1.5 rounded-full"
+                                    [class.bg-emerald-400]="billingStatusIsHealthy(sub)"
+                                    [class.bg-rose-400]="!billingStatusIsHealthy(sub)"></span>
+                                {{ billingStatusLabel(sub) }}
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-neutral-400">
+                                @if (sub.status === 'TRIALING') { Fim do teste } @else { Próxima cobrança }
+                            </span>
+                            <span class="text-white font-medium">{{ billingNextDate(sub) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 space-y-3">
+                        <button type="button" (click)="goToBilling()"
+                            class="w-full py-3 bg-white text-neutral-950 font-bold rounded-xl
+                                   hover:bg-neutral-100 transition-all shadow-lg active:scale-[0.98]">
+                            Gerenciar Assinatura
+                        </button>
+                    </div>
+                    } @else {
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Assinatura</p>
+                            <h3 class="text-2xl font-black text-white italic tracking-tight">Sem plano ativo</h3>
+                        </div>
+                        <p class="text-sm text-neutral-400">
+                            Escolha um plano para desbloquear todos os recursos da plataforma.
+                        </p>
+                        <button type="button" (click)="goToBilling()"
+                            class="w-full py-3 bg-white text-neutral-950 font-bold rounded-xl
+                                   hover:bg-neutral-100 transition-all shadow-lg active:scale-[0.98]">
+                            Ver Planos
+                        </button>
+                    </div>
+                    }
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+</app-default-page-layout>

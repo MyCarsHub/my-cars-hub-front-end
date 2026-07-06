@@ -8,7 +8,7 @@ import { CompanyService } from '../../services/company.service';
 import { CompanyFullResponse } from '../../types/company-full-response.type';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../components/core/page-card/page-card';
-import { BillingInfo, CompanyOwner, CompanyStats } from '../../types/company-settings.types';
+import { CompanyOwner, CompanyStats } from '../../types/company-settings.types';
 
 @Component({
   selector: 'app-company-settings',
@@ -40,14 +40,6 @@ export class CompanySettings implements OnInit {
     name: this.sessionService.getItem('name') ?? '',
     email: this.sessionService.getItem('email') ?? '',
     joinedAt: '',
-  });
-
-  // TODO: replace with real API data once endpoints are available
-  protected readonly billing = signal<BillingInfo>({
-    plan: 'PRO',
-    billingCycle: 'Yearly',
-    nextBillingDate: '15 de Março, 2025',
-    status: 'ACTIVE',
   });
 
   // TODO: replace with real API data once endpoints are available
@@ -136,4 +128,5 @@ export class CompanySettings implements OnInit {
     this.companyForm.get('documentType')?.disable();
     this.companyForm.get('documentNumber')?.disable();
   }
+
 }

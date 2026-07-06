@@ -1,0 +1,238 @@
+<app-default-page-layout
+  [title]="isEdit() ? 'Editar multa' : 'Nova multa'"
+  description="Registre uma infração para um veículo da frota."
+>
+  @if (loading()) {
+    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      Carregando…
+    </div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
+      @if (error()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ error() }}
+        </div>
+      }
+
+      <app-page-card title="Veículo e motorista">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-vehicle">
+              Veículo <span class="text-rose-600">*</span>
+            </label>
+            <select
+              id="fine-vehicle"
+              formControlName="vehicleId"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors
+                     disabled:opacity-60"
+            >
+              <option value="">Selecione…</option>
+              @for (v of vehicles(); track v.id) {
+                <option [value]="v.id">{{ v.plate }} · {{ v.brand }} {{ v.model }}</option>
+              }
+            </select>
+            @if (isEdit()) {
+              <p class="text-xs text-neutral-400 mt-1">Veículo não pode ser alterado.</p>
+            } @else if (fieldInvalid('vehicleId')) {
+              <p class="text-xs text-rose-600 mt-1">Selecione um veículo.</p>
+            }
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-driver">
+              Motorista
+            </label>
+            <select
+              id="fine-driver"
+              formControlName="driverId"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"
+            >
+              <option value="">Não informado</option>
+              @for (d of drivers(); track d.id) {
+                <option [value]="d.id">{{ d.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Infração">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-desc">
+              Descrição <span class="text-rose-600">*</span>
+            </label>
+            <input
+              id="fine-desc"
+              type="text"
+              maxlength="300"
+              formControlName="description"
+              placeholder="Ex: Excesso de velocidade em rodovia"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            @if (fieldInvalid('description')) {
+              <p class="text-xs text-rose-600 mt-1">Informe a descrição da infração.</p>
+            }
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-code">Código</label>
+            <input
+              id="fine-code"
+              type="text"
+              maxlength="20"
+              formControlName="infractionCode"
+              placeholder="Ex: 745-50"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-date">
+              Data/hora da infração <span class="text-rose-600">*</span>
+            </label>
+            <input
+              id="fine-date"
+              type="datetime-local"
+              formControlName="infractionDate"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            @if (fieldInvalid('infractionDate')) {
+              <p class="text-xs text-rose-600 mt-1">Informe a data/hora da infração.</p>
+            }
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-location">Local</label>
+            <input
+              id="fine-location"
+              type="text"
+              maxlength="200"
+              formControlName="location"
+              placeholder="Ex: Av. Paulista, km 5"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          </div>
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Valor e gravidade">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-amount">
+              Valor (R$) <span class="text-rose-600">*</span>
+            </label>
+            <input
+              id="fine-amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              inputmode="decimal"
+              formControlName="amountReais"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            @if (fieldInvalid('amountReais')) {
+              <p class="text-xs text-rose-600 mt-1">Informe um valor maior que zero.</p>
+            }
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-severity">
+              Gravidade <span class="text-rose-600">*</span>
+            </label>
+            <select
+              id="fine-severity"
+              formControlName="severity"
+              (change)="onSeverityChange()"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+              @for (opt of severityOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }} ({{ opt.defaultPoints }} pts)</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-points">Pontos</label>
+            <input
+              id="fine-points"
+              type="number"
+              min="0"
+              formControlName="points"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            <p class="text-xs text-neutral-400 mt-1">Preenchido pela gravidade se vazio.</p>
+          </div>
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Pagamento">
+        <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-due">Vencimento</label>
+            <input
+              id="fine-due"
+              type="date"
+              formControlName="dueDate"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-status">
+              Status <span class="text-rose-600">*</span>
+            </label>
+            <select
+              id="fine-status"
+              formControlName="status"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+              @for (opt of statusOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-paid">Data do pagamento</label>
+            <input
+              id="fine-paid"
+              type="date"
+              formControlName="paidDate"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-notes">Observações</label>
+            <textarea
+              id="fine-notes"
+              rows="3"
+              formControlName="notes"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
+          </div>
+        </div>
+      </app-page-card>
+
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+        <button
+          type="button"
+          (click)="cancel()"
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-neutral-700
+                 bg-white border border-neutral-200 hover:bg-neutral-50">
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          [disabled]="saving()"
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-semibold bg-primary-500 text-white
+                 hover:bg-primary-600 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
+          {{ saving() ? 'Salvando…' : (isEdit() ? 'Salvar alterações' : 'Cadastrar multa') }}
+        </button>
+      </div>
+    </form>
+  }
+</app-default-page-layout>

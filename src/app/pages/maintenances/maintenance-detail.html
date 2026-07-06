@@ -1,0 +1,117 @@
+<app-default-page-layout title="Detalhes da manutenção">
+  @if (loading()) {
+    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      Carregando…
+    </div>
+  } @else if (error() && !item()) {
+    <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
+      <p class="text-rose-700 text-sm">{{ error() }}</p>
+      <a routerLink="/manutencoes" class="inline-block text-sm text-primary-500 hover:text-primary-600 font-medium">
+        Voltar para lista
+      </a>
+    </div>
+  } @else if (item(); as m) {
+    <div class="space-y-4 sm:space-y-6">
+      <!-- Desktop actions (top-right) -->
+      <div class="hidden lg:flex justify-end">
+        <app-detail-actions
+          [editRouterLink]="['/manutencoes', m.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+
+      @if (vehicle(); as v) {
+        <app-vehicle-summary-chip [vehicle]="v" />
+      }
+
+      @if (error()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ error() }}
+        </div>
+      }
+
+      <app-page-card title="Resumo">
+        <div class="p-4 sm:p-6 space-y-4">
+          <div class="flex flex-wrap items-center gap-2">
+            @if (typeInfo(); as t) {
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                [class]="t.chip">{{ t.label }}</span>
+            }
+            @if (statusInfo(); as s) {
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                [class]="s.chip">{{ s.label }}</span>
+            }
+            @if (nextBadge(); as b) {
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                [class]="b.chip">{{ b.label }}</span>
+            }
+          </div>
+
+          <div>
+            <p class="text-xs uppercase tracking-wide text-neutral-400 mb-0.5">Descrição</p>
+            <p class="text-base text-neutral-900">{{ m.description }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Data do serviço</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(m.serviceDate) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Hodômetro</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatNumber(m.hodometerReading) }} km</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Custo</p>
+              <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(m.costCents) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Fornecedor</p>
+              <p class="font-medium text-neutral-800">{{ m.provider || '—' }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Nota fiscal</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ m.invoiceNumber || '—' }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Próximo serviço</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(m.nextServiceDate) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Próximo hodômetro</p>
+              <p class="font-medium text-neutral-800 tabular-nums">
+                @if (m.nextServiceHodometer != null) {
+                  {{ formatNumber(m.nextServiceHodometer) }} km
+                } @else { — }
+              </p>
+            </div>
+            @if (m.notes) {
+              <div class="col-span-2 sm:col-span-3">
+                <p class="text-xs uppercase tracking-wide text-neutral-400">Observações</p>
+                <p class="text-neutral-700 whitespace-pre-wrap">{{ m.notes }}</p>
+              </div>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Mobile actions (bottom) -->
+      <div class="lg:hidden">
+        <app-detail-actions
+          [editRouterLink]="['/manutencoes', m.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+    </div>
+  }
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir manutenção"
+  message="Tem certeza que deseja excluir esta manutenção? Esta ação não pode ser desfeita."
+  confirmLabel="Excluir"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>

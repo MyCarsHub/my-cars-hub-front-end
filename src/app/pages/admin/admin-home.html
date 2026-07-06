@@ -1,0 +1,305 @@
+<app-default-page-layout
+  title="Administração"
+  description="Visão geral da plataforma."
+>
+  <!-- Error -->
+  @if (error()) {
+    <div class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100 mb-4">
+      {{ error() }}
+      <button
+        type="button"
+        class="ml-2 underline hover:no-underline"
+        (click)="reload()"
+      >
+        Tentar novamente
+      </button>
+    </div>
+  }
+
+  <!-- KPI cards -->
+  <div class="grid gap-4 grid-cols-2 lg:grid-cols-6 mb-4">
+    <!-- Users total -->
+    <div class="rounded-2xl bg-white border border-gray-200 p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Usuários</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+          {{ overview()?.users?.total ?? 0 }}
+        </p>
+        <p class="text-xs text-emerald-600 mt-1">
+          +{{ overview()?.users?.newLast30Days ?? 0 }} em 30 dias
+        </p>
+      }
+    </div>
+
+    <!-- Companies -->
+    <div class="rounded-2xl bg-white border border-gray-200 p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Empresas</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+          {{ overview()?.companies?.total ?? 0 }}
+        </p>
+        <p class="text-xs text-emerald-600 mt-1">
+          +{{ overview()?.companies?.newLast30Days ?? 0 }} em 30 dias
+        </p>
+      }
+    </div>
+
+    <!-- Vehicles -->
+    <div class="rounded-2xl bg-white border border-gray-200 p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Veículos</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+          {{ overview()?.vehicles?.total ?? 0 }}
+        </p>
+        <p class="text-xs text-gray-500 mt-1">Total cadastrado</p>
+      }
+    </div>
+
+    <!-- Active subscriptions -->
+    <div class="rounded-2xl bg-white border border-gray-200 p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Assinaturas ativas</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+          {{ overview()?.subscriptions?.active ?? 0 }}
+        </p>
+        <p class="text-xs text-gray-500 mt-1">
+          {{ overview()?.subscriptions?.trialing ?? 0 }} em trial
+        </p>
+      }
+    </div>
+
+    <!-- MRR -->
+    <div class="rounded-2xl bg-primary-500 text-white p-4">
+      <p class="text-xs text-white/70 uppercase tracking-wide">MRR estimado</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold mt-1 tabular-nums">
+          {{ formatCurrency(mrr()) }}
+        </p>
+        <p class="text-xs text-white/70 mt-1">Ativas + trial</p>
+      }
+    </div>
+
+    <!-- Feedback pending -->
+    <div class="rounded-2xl bg-white border border-gray-200 p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Feedback pendente</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+          {{ overview()?.feedback?.pending ?? 0 }}
+        </p>
+        <p class="text-xs text-gray-500 mt-1">
+          {{ overview()?.feedback?.total ?? 0 }} totais
+        </p>
+      }
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="grid gap-4 lg:grid-cols-3 mb-4">
+    <!-- Users spark -->
+    <div class="lg:col-span-2">
+      <app-page-card title="Novos usuários — últimos 30 dias">
+        <div class="p-4">
+          @if (loading() && !overview()) {
+            <div class="h-32 rounded bg-gray-100 animate-pulse"></div>
+          } @else if (usersSpark(); as spark) {
+            <svg
+              [attr.viewBox]="'0 0 ' + spark.width + ' ' + spark.height"
+              class="w-full h-32"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Novos usuários por dia"
+            >
+              <defs>
+                <linearGradient id="usersGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
+                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path [attr.d]="spark.area" fill="url(#usersGradient)" />
+              <path
+                [attr.d]="spark.path"
+                fill="none"
+                stroke="#3b82f6"
+                stroke-width="2"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              />
+              @for (p of spark.points; track p.raw.date) {
+                @if (p.raw.count > 0) {
+                  <circle
+                    [attr.cx]="p.x"
+                    [attr.cy]="p.y"
+                    r="2.5"
+                    fill="#3b82f6"
+                  >
+                    <title>{{ formatDayLabel(p.raw.date) }}: {{ p.raw.count }}</title>
+                  </circle>
+                }
+              }
+            </svg>
+            <div class="flex justify-between text-xs text-gray-400 mt-2 tabular-nums">
+              <span>{{ formatDayLabel(spark.points[0].raw.date) }}</span>
+              <span>pico: {{ spark.max }}</span>
+              <span>{{ formatDayLabel(spark.points[spark.points.length - 1].raw.date) }}</span>
+            </div>
+          } @else {
+            <p class="text-sm text-gray-500 text-center py-10">
+              Sem dados no período.
+            </p>
+          }
+        </div>
+      </app-page-card>
+    </div>
+
+    <!-- Subscription status -->
+    <div>
+      <app-page-card title="Assinaturas por status">
+        <div class="p-4 space-y-3">
+          @if (loading() && !overview()) {
+            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+          } @else {
+            @for (bar of subscriptionBars(); track bar.key) {
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span class="text-gray-600">{{ bar.label }}</span>
+                  <span class="text-gray-900 font-medium tabular-nums">{{ bar.count }}</span>
+                </div>
+                <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    class="h-full rounded-full transition-all duration-500"
+                    [style.width.%]="bar.percent"
+                    [style.background-color]="bar.color"
+                  ></div>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </app-page-card>
+    </div>
+  </div>
+
+  <!-- Feedback status + Sections nav -->
+  <div class="grid gap-4 lg:grid-cols-3 mb-4">
+    <div class="lg:col-span-2">
+      <app-page-card title="Feedback por status">
+        <div class="p-4 space-y-3">
+          @if (loading() && !overview()) {
+            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+          } @else {
+            @for (bar of feedbackBars(); track bar.key) {
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span class="text-gray-600">{{ bar.label }}</span>
+                  <span class="text-gray-900 font-medium tabular-nums">{{ bar.count }}</span>
+                </div>
+                <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    class="h-full rounded-full transition-all duration-500"
+                    [style.width.%]="bar.percent"
+                    [style.background-color]="bar.color"
+                  ></div>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </app-page-card>
+    </div>
+
+    <div>
+      <app-page-card title="Ações rápidas">
+        <div class="p-4">
+          <a
+            routerLink="/admin/feedback"
+            class="block rounded-xl bg-primary-500 text-white text-center px-4 py-3
+                   text-sm font-medium hover:bg-primary-600 transition-colors"
+          >
+            Ir para moderação
+          </a>
+          <button
+            type="button"
+            class="mt-2 w-full rounded-xl border border-gray-200 text-gray-700 px-4 py-3
+                   text-sm font-medium hover:bg-gray-50 transition-colors"
+            (click)="reload()"
+            [disabled]="loading()"
+          >
+            Atualizar métricas
+          </button>
+        </div>
+      </app-page-card>
+    </div>
+  </div>
+
+  <!-- Sections nav -->
+  <app-page-card title="Áreas administrativas">
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 p-4">
+      @for (section of sections; track section.title) {
+        @if (section.route && !section.disabled) {
+          <a
+            [routerLink]="section.route"
+            class="group flex flex-col gap-3 p-5 rounded-xl border border-gray-200
+                   bg-white hover:border-primary-400 hover:shadow-sm
+                   transition-all focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            <div
+              class="w-10 h-10 rounded-lg bg-primary-50 text-primary-500
+                     flex items-center justify-center group-hover:bg-primary-100 transition-colors"
+              aria-hidden="true"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path [attr.d]="section.icon" />
+              </svg>
+            </div>
+            <h3 class="text-base font-semibold text-gray-900">{{ section.title }}</h3>
+            <p class="text-sm text-gray-500">{{ section.description }}</p>
+          </a>
+        } @else {
+          <div
+            class="relative flex flex-col gap-3 p-5 rounded-xl border border-dashed
+                   border-gray-200 bg-gray-50"
+            aria-disabled="true"
+          >
+            @if (section.badge) {
+              <span class="absolute top-3 right-3 text-[10px] uppercase tracking-wide
+                           bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                {{ section.badge }}
+              </span>
+            }
+            <div
+              class="w-10 h-10 rounded-lg bg-gray-100 text-gray-400
+                     flex items-center justify-center"
+              aria-hidden="true"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path [attr.d]="section.icon" />
+              </svg>
+            </div>
+            <h3 class="text-base font-semibold text-gray-500">{{ section.title }}</h3>
+            <p class="text-sm text-gray-400">{{ section.description }}</p>
+          </div>
+        }
+      }
+    </div>
+  </app-page-card>
+</app-default-page-layout>

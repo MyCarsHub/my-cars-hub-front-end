@@ -5,7 +5,7 @@
   <div class="onboarding-card bg-white rounded-2xl w-full max-w-[500px] max-h-[92vh] flex flex-col shadow-2xl"
     @cardEnter role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
     <!-- Header (sticky) -->
-    <div class="px-8 pt-7 pb-5 border-b border-gray-100">
+    <div class="px-5 sm:px-8 pt-6 sm:pt-7 pb-4 sm:pb-5 border-b border-gray-100">
       <div class="flex items-center gap-2 mb-5">
         <img src="svg/logo-my-cars-hub.svg" alt="" aria-hidden="true" class="h-5" />
         <span class="text-base font-bold text-gray-900" id="onboarding-title">MyCarsHub</span>
@@ -25,7 +25,7 @@
     </div>
 
     <!-- Scrollable step content -->
-    <div class="flex-1 overflow-y-auto px-8 py-6 relative">
+    <div class="flex-1 overflow-y-auto px-5 sm:px-8 py-5 sm:py-6 relative">
 
       <!-- Saving overlay (shows while POST is in flight) -->
       @if (loading() && loaded()) {
@@ -88,7 +88,7 @@
 
     <!-- Footer navigation (sticky) -->
     @if (!isLastStep()) {
-    <div class="px-8 py-5 border-t border-gray-100 flex items-center" [class.justify-between]="!isFirstStep()"
+    <div class="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100 flex items-center gap-2" [class.justify-between]="!isFirstStep()"
       [class.justify-end]="isFirstStep()">
       @if (!isFirstStep()) {
       <button type="button" class="flex items-center gap-2 text-sm font-medium text-gray-500
