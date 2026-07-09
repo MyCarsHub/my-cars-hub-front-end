@@ -104,7 +104,7 @@
               (click)="openDetail(f)"
               (keydown.enter)="openDetail(f)"
               tabindex="0"
-              [attr.aria-label]="'Abrir veículo ' + f.vehiclePlate"
+              [attr.aria-label]="'Abrir financiamento do veículo ' + f.vehiclePlate"
             >
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
@@ -116,8 +116,8 @@
                   </p>
                 </div>
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                  [class]="statusInfo(f.status).chip">
-                  {{ statusInfo(f.status).label }}
+                  [class]="progressBadge(f).chip">
+                  {{ progressBadge(f).label }}
                 </span>
               </div>
 
@@ -174,8 +174,8 @@
                   <td class="py-3 pr-4 tabular-nums">{{ f.installments ?? '—' }}</td>
                   <td class="py-3 pr-4">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      [class]="statusInfo(f.status).chip">
-                      {{ statusInfo(f.status).label }}
+                      [class]="progressBadge(f).chip">
+                      {{ progressBadge(f).label }}
                     </span>
                   </td>
                   <td class="py-3 pr-4 tabular-nums">{{ formatDate(f.paidOffDate) }}</td>

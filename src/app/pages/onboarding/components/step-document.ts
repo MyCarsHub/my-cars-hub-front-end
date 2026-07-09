@@ -6,8 +6,11 @@ import {
   OnInit,
   output,
 } from '@angular/core';
-import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { OnboardingData } from '../onboarding.types';
+import { stripDigits } from '../../../utils/format';
+
+const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/;
 
 @Component({
   selector: 'app-step-document',
@@ -52,8 +55,14 @@ import { OnboardingData } from '../onboarding.types';
                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             placeholder="00.000.000/0000-00"
             maxlength="18"
+            [attr.aria-invalid]="cnpjInvalid()"
             (input)="onCnpjInput($event)"
           />
+          @if (cnpjInvalid()) {
+            <p class="mt-1 text-xs text-red-500" role="alert">
+              CNPJ inválido. Use o formato 00.000.000/0000-00.
+            </p>
+          }
         </div>
       }
     </form>
@@ -78,17 +87,39 @@ export class StepDocument implements OnInit {
       cnpj: data.cnpj ?? '',
     });
 
+    this.applyCnpjValidators(!!this.form.get('hasCnpj')?.value);
+
     this.form.valueChanges.subscribe((val) => {
+      this.applyCnpjValidators(!!val.hasCnpj);
       this.formChange.emit({
         hasCnpj: val.hasCnpj ?? false,
-        cnpj: val.hasCnpj ? (val.cnpj ?? '') : '',
+        // Send digits-only to backend — mask is UX only
+        cnpj: val.hasCnpj ? stripDigits(val.cnpj) : '',
       });
-      this.isValid.emit(true); // CNPJ is always optional
+      // Valid when CNPJ is disabled OR when the (masked/raw) value matches the pattern
+      this.isValid.emit(!val.hasCnpj || this.form.get('cnpj')?.valid === true);
     });
 
     setTimeout(() => {
-      this.isValid.emit(true);
+      const val = this.form.value;
+      this.isValid.emit(!val.hasCnpj || this.form.get('cnpj')?.valid === true);
     });
+  }
+
+  private applyCnpjValidators(hasCnpj: boolean): void {
+    const ctrl = this.form.get('cnpj');
+    if (!ctrl) return;
+    if (hasCnpj) {
+      ctrl.setValidators([Validators.required, Validators.pattern(CNPJ_PATTERN)]);
+    } else {
+      ctrl.clearValidators();
+    }
+    ctrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  protected cnpjInvalid(): boolean {
+    const ctrl = this.form.get('cnpj');
+    return !!(ctrl?.invalid && ctrl.touched);
   }
 
   protected onCnpjInput(event: Event): void {

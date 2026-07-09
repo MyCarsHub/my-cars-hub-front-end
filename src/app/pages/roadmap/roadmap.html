@@ -129,7 +129,7 @@
                   }
                 </div>
 
-                @if (task.authorName) {
+                @if (isAdmin() && task.authorName) {
                 <div class="flex items-center gap-1.5 mb-2">
                   <div class="w-5 h-5 rounded-full bg-neutral-100 flex items-center justify-center text-[10px] font-bold text-neutral-600">
                     {{ authorInitial(task) }}

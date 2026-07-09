@@ -25,6 +25,8 @@ import { VehiclesService } from '../../services/vehicles.service';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
+  IPVA_STATUS_OPTIONS,
+  IpvaStatus,
   UpdateVehicleRequest,
   VEHICLE_TYPE_OPTIONS,
   VehicleType,
@@ -54,6 +56,7 @@ export class VehicleForm implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly typeOptions = VEHICLE_TYPE_OPTIONS;
+  protected readonly ipvaStatusOptions = IPVA_STATUS_OPTIONS;
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly isEdit = computed(() => this.editingId() !== null);
@@ -84,6 +87,9 @@ export class VehicleForm implements OnInit {
       renavam: ['', [Validators.pattern(/^\d{9,11}$/)]],
       color: [''],
       purchaseDate: [''],
+      ipvaAmount: [null as number | null, [Validators.min(0)]],
+      ipvaDueDate: [''],
+      ipvaStatus: ['' as IpvaStatus | ''],
     },
     { validators: [yearRangeValidator] },
   );
@@ -150,6 +156,9 @@ export class VehicleForm implements OnInit {
           renavam: v.renavam ?? '',
           color: v.color ?? '',
           purchaseDate: v.purchaseDate ?? '',
+          ipvaAmount: v.ipvaAmount != null ? v.ipvaAmount / 100 : null,
+          ipvaDueDate: v.ipvaDueDate ?? '',
+          ipvaStatus: (v.ipvaStatus ?? '') as IpvaStatus | '',
         });
         this.loading.set(false);
       },
@@ -181,6 +190,10 @@ export class VehicleForm implements OnInit {
     this.error.set(null);
 
     const raw = this.form.getRawValue();
+    const ipvaAmountCents =
+      raw.ipvaAmount != null && !Number.isNaN(Number(raw.ipvaAmount))
+        ? toCents(Number(raw.ipvaAmount))
+        : null;
     const commonPayload = {
       plate: raw.plate.trim().toUpperCase(),
       type: raw.type,
@@ -192,6 +205,9 @@ export class VehicleForm implements OnInit {
       licensingExpiration: raw.licensingExpiration || null,
       color: raw.color?.trim() || null,
       purchaseDate: raw.purchaseDate || null,
+      ipvaAmount: ipvaAmountCents,
+      ipvaDueDate: raw.ipvaDueDate || null,
+      ipvaStatus: (raw.ipvaStatus || null) as IpvaStatus | null,
     };
 
     if (this.isEdit()) {

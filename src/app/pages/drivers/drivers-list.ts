@@ -18,19 +18,12 @@ import {
   DriverStatus,
   LicenseCategory,
 } from '../../types/driver.types';
+import {
+  DRIVER_STATUS_FILTER_OPTIONS,
+  driverStatusMeta,
+} from '../../utils/status-maps';
 
-interface StatusOption {
-  value: DriverStatus | '';
-  label: string;
-  chip: string;
-}
-
-const STATUS_OPTIONS: StatusOption[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
-  { value: 'AVAILABLE', label: 'Disponível', chip: 'bg-emerald-100 text-emerald-800' },
-  { value: 'WORKING', label: 'Em serviço', chip: 'bg-blue-100 text-blue-700' },
-  { value: 'SUSPENDED', label: 'Suspenso', chip: 'bg-red-100 text-red-700' },
-];
+const STATUS_OPTIONS = DRIVER_STATUS_FILTER_OPTIONS;
 
 const CATEGORY_OPTIONS: Array<{ value: LicenseCategory | ''; label: string }> = [
   { value: '', label: 'Todas' },
@@ -79,6 +72,10 @@ export class DriversList implements OnInit {
 
   protected readonly deletingDriver = signal<DriverListItem | null>(null);
   protected readonly deleting = signal(false);
+
+  protected readonly togglingStatusDriver = signal<DriverListItem | null>(null);
+  protected readonly togglingStatus = signal(false);
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -130,11 +127,11 @@ export class DriversList implements OnInit {
   }
 
   protected statusLabel(status: DriverStatus): string {
-    return STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
+    return driverStatusMeta(status).label;
   }
 
   protected statusChip(status: DriverStatus): string {
-    return STATUS_OPTIONS.find((s) => s.value === status)?.chip ?? 'bg-neutral-100 text-neutral-700';
+    return driverStatusMeta(status).chip;
   }
 
   protected formatPhone(phone: string | null): string {
@@ -172,6 +169,7 @@ export class DriversList implements OnInit {
   protected confirmDelete(): void {
     const driver = this.deletingDriver();
     if (!driver) return;
+    this.actionError.set(null);
     this.deleting.set(true);
     this.driverService.remove(driver.id).subscribe({
       next: () => {
@@ -179,10 +177,86 @@ export class DriversList implements OnInit {
         this.deletingDriver.set(null);
         this.reload(this.page());
       },
-      error: () => {
+      error: (err) => {
         this.deleting.set(false);
         this.deletingDriver.set(null);
+        this.actionError.set(this.readError(err, 'Não foi possível excluir o motorista.'));
       },
     });
+  }
+
+  protected canDelete(driver: DriverListItem): boolean {
+    return driver.status !== 'WORKING';
+  }
+
+  protected canToggleStatus(driver: DriverListItem): boolean {
+    return driver.status !== 'WORKING';
+  }
+
+  protected toggleStatusLabel(driver: DriverListItem): string {
+    return driver.status === 'SUSPENDED' ? 'Reativar' : 'Suspender';
+  }
+
+  protected toggleStatusTooltip(driver: DriverListItem): string | null {
+    if (driver.status === 'WORKING') {
+      return 'Motorista em serviço não pode ter o status alterado manualmente. Encerre o aluguel primeiro.';
+    }
+    return null;
+  }
+
+  protected deleteTooltip(driver: DriverListItem): string | null {
+    if (driver.status === 'WORKING') {
+      return 'Motorista em serviço não pode ser excluído. Encerre o aluguel primeiro.';
+    }
+    return null;
+  }
+
+  protected askToggleStatus(driver: DriverListItem, event?: Event): void {
+    event?.stopPropagation();
+    if (!this.canToggleStatus(driver)) return;
+    this.togglingStatusDriver.set(driver);
+  }
+
+  protected cancelToggleStatus(): void {
+    if (this.togglingStatus()) return;
+    this.togglingStatusDriver.set(null);
+  }
+
+  protected confirmToggleStatus(): void {
+    const driver = this.togglingStatusDriver();
+    if (!driver) return;
+    const next: DriverStatus = driver.status === 'SUSPENDED' ? 'AVAILABLE' : 'SUSPENDED';
+    this.actionError.set(null);
+    this.togglingStatus.set(true);
+    this.driverService.changeStatus(driver.id, next).subscribe({
+      next: () => {
+        this.togglingStatus.set(false);
+        this.togglingStatusDriver.set(null);
+      },
+      error: (err) => {
+        this.togglingStatus.set(false);
+        this.togglingStatusDriver.set(null);
+        this.actionError.set(
+          this.readError(err, 'Não foi possível alterar o status do motorista.'),
+        );
+      },
+    });
+  }
+
+  protected toggleConfirmMessage(): string {
+    const driver = this.togglingStatusDriver();
+    if (!driver) return '';
+    if (driver.status === 'SUSPENDED') {
+      return `Reativar «${driver.name}»? O motorista voltará a ficar disponível para novos aluguéis.`;
+    }
+    return `Suspender «${driver.name}»? O motorista ficará bloqueado para novos aluguéis até ser reativado.`;
+  }
+
+  private readError(err: unknown, fallback: string): string {
+    const body = (err as { error?: { message?: string } })?.error;
+    if (body && typeof body.message === 'string' && body.message.length > 0) {
+      return body.message;
+    }
+    return fallback;
   }
 }

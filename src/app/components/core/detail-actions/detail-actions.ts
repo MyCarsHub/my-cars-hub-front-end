@@ -11,9 +11,12 @@ import { RouterLink } from '@angular/router';
 export class DetailActions {
   readonly editRouterLink = input<unknown[] | null>(null);
   readonly editDisabled = input<boolean>(false);
+  readonly deleteDisabled = input<boolean>(false);
+  readonly deleteDisabledReason = input<string | null>(null);
   readonly delete = output<void>();
 
   protected onDelete(): void {
+    if (this.deleteDisabled()) return;
     this.delete.emit();
   }
 }

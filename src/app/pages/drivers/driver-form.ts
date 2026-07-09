@@ -24,13 +24,12 @@ import {
   LicenseCategory,
   UpdateDriverRequest,
 } from '../../types/driver.types';
+import { DRIVER_STATUS_META } from '../../utils/status-maps';
 
 const CATEGORIES: LicenseCategory[] = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
-const STATUSES: Array<{ value: DriverStatus; label: string }> = [
-  { value: 'AVAILABLE', label: 'Disponível' },
-  { value: 'WORKING', label: 'Em serviço' },
-  { value: 'SUSPENDED', label: 'Suspenso' },
-];
+const STATUSES: Array<{ value: DriverStatus; label: string }> = (
+  ['AVAILABLE', 'WORKING', 'SUSPENDED'] as DriverStatus[]
+).map((v) => ({ value: v, label: DRIVER_STATUS_META[v].label }));
 const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
 
 @Component({

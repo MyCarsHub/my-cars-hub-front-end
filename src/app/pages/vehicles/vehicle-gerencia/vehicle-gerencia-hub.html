@@ -1,16 +1,16 @@
 <app-default-page-layout
   title="Gerência do veículo"
-  description="Multas, manutenções, financiamento e licenciamento em um só lugar."
+  description="Painel consolidado: financeiro, manutenções, aluguéis e documentos."
 >
   @if (loading()) {
     <div class="space-y-3">
       <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-        <div class="h-28 rounded-2xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-28 rounded-2xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-28 rounded-2xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-28 rounded-2xl bg-neutral-100 animate-pulse"></div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
       </div>
+      <div class="h-40 rounded-2xl bg-neutral-100 animate-pulse"></div>
     </div>
   } @else if (error()) {
     <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-4 space-y-3">
@@ -18,7 +18,7 @@
       <button
         type="button"
         (click)="retry()"
-        class="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-700 hover:text-rose-900 px-3 py-2 rounded-lg border border-rose-200 bg-white"
+        class="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-700 hover:text-rose-900 px-3 py-2 rounded-lg border border-rose-200 bg-white min-h-[44px]"
       >
         Tentar novamente
       </button>
@@ -38,103 +38,356 @@
       </a>
     </div>
 
-    <!-- Sticky vehicle summary chip (mobile-first) -->
+    <!-- Sticky vehicle chip -->
     @if (chipVehicle(); as v) {
       <div class="sticky top-0 z-10 -mx-3 sm:-mx-4 lg:mx-0 px-3 sm:px-4 lg:px-0 py-2 bg-neutral-50/95 backdrop-blur border-b border-neutral-100 lg:border-0 lg:bg-transparent lg:backdrop-blur-0 lg:py-0 lg:mb-4">
         <app-vehicle-summary-chip [vehicle]="v" linkTo="none" />
       </div>
     }
 
-    <!-- KPI grid: single column on mobile, 2×2 on lg+ -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mt-3 lg:mt-0">
-      @for (kpi of kpis(); track kpi.key) {
-        @if (kpi.routerLink; as link) {
-          <a
-            [routerLink]="link"
-            class="group relative flex items-start gap-3 rounded-2xl border p-4 sm:p-5 transition-colors min-h-[96px]"
-            [class]="variantClasses(kpi.variant)"
-          >
-            <span
-              class="flex-none inline-flex items-center justify-center w-11 h-11 rounded-xl"
-              [class]="iconClasses(kpi.variant)"
-              aria-hidden="true"
+    <!-- Top KPI trio: Investido / Receita / Resultado -->
+    <section class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="rounded-2xl border border-neutral-200 bg-white p-4 min-h-[96px]">
+        <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Total investido</p>
+        <p class="mt-1 text-xl font-semibold tabular-nums text-neutral-900">
+          {{ formatMoney(s.finance.totalInvestedCents) }}
+        </p>
+        <p class="mt-1 text-xs text-neutral-500">
+          Compra + manutenções + parcelas pagas
+        </p>
+      </div>
+      <div class="rounded-2xl border border-neutral-200 bg-white p-4 min-h-[96px]">
+        <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Receita contratada</p>
+        <p class="mt-1 text-xl font-semibold tabular-nums text-emerald-700">
+          {{ formatMoney(s.finance.totalRentalRevenueCents) }}
+        </p>
+        <p class="mt-1 text-xs text-neutral-500">
+          Soma dos contratos (reservados, ativos e concluídos)
+        </p>
+      </div>
+      <div class="rounded-2xl border border-neutral-200 bg-white p-4 min-h-[96px]">
+        <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          Resultado
+          @if (s.finance.financingDataIncomplete) {
+            <span class="ml-1 normal-case tracking-normal text-amber-700">(sem financiamento)</span>
+          }
+        </p>
+        <p class="mt-1 text-xl font-semibold tabular-nums" [class]="resultClass(s.finance.resultCents)">
+          {{ formatMoney(s.finance.resultCents) }}
+        </p>
+        <p class="mt-1 text-xs text-neutral-500">
+          Receita menos investimento
+        </p>
+      </div>
+    </section>
+
+    <!-- Status + alerts strip -->
+    <section class="mt-3 flex flex-wrap gap-2">
+      @if (s.fines.openCount > 0) {
+        <a
+          [routerLink]="['/veiculos', vehicleId(), 'gerencia', 'multas']"
+          class="inline-flex items-center gap-2 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium px-3 py-2 min-h-[44px]"
+        >
+          <span aria-hidden="true">●</span>
+          {{ s.fines.openCount }} multa{{ s.fines.openCount > 1 ? 's' : '' }} pendente{{ s.fines.openCount > 1 ? 's' : '' }}
+          <span class="tabular-nums">({{ formatMoney(s.fines.openAmountCents) }})</span>
+        </a>
+      }
+      @if (s.maintenances.openCount > 0) {
+        <button
+          type="button"
+          (click)="selectTab('manutencoes')"
+          class="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium px-3 py-2 min-h-[44px]"
+        >
+          <span aria-hidden="true">●</span>
+          {{ s.maintenances.openCount }} manutenção{{ s.maintenances.openCount > 1 ? 'ões' : '' }} em aberto
+        </button>
+      }
+      @if (licensingChipLabel(); as chip) {
+        <span
+          class="inline-flex items-center gap-2 rounded-full text-xs font-medium px-3 py-2 min-h-[44px]"
+          [class]="chip.chip"
+        >
+          Licenciamento: {{ chip.label }}
+        </span>
+      }
+    </section>
+
+    <!-- Tabs -->
+    <nav
+      role="tablist"
+      aria-label="Seções de gerência"
+      class="mt-4 -mx-3 sm:-mx-4 lg:mx-0 px-3 sm:px-4 lg:px-0 overflow-x-auto"
+    >
+      <ul class="inline-flex gap-1 sm:gap-2 border-b border-neutral-200 w-full">
+        @for (tab of tabs; track tab.key) {
+          <li>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="activeTab() === tab.key"
+              (click)="selectTab(tab.key)"
+              class="relative inline-flex items-center px-3 sm:px-4 py-2 text-sm font-medium min-h-[44px] whitespace-nowrap border-b-2 -mb-px transition-colors"
+              [class]="activeTab() === tab.key
+                ? 'text-primary-700 border-primary-600'
+                : 'text-neutral-500 border-transparent hover:text-neutral-800'"
             >
-              @switch (kpi.icon) {
-                @case ('alert') {
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              {{ tab.label }}
+            </button>
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <!-- Tab panels -->
+    <div class="mt-4">
+      @switch (activeTab()) {
+        @case ('financeiro') {
+          <section role="tabpanel" class="space-y-4">
+            @if (s.finance.financingDataIncomplete) {
+              <div
+                role="alert"
+                class="rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 p-4 space-y-3"
+              >
+                <div class="flex items-start gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" class="flex-none mt-0.5" aria-hidden="true">
                     <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
                   </svg>
+                  <p class="text-sm">
+                    Dados de financiamento incompletos — inclua valor de parcela e número de
+                    parcelas para ver o resultado real.
+                  </p>
+                </div>
+                <a
+                  [routerLink]="['/veiculos', vehicleId(), 'gerencia', 'financiamentos']"
+                  class="inline-flex items-center justify-center rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 min-h-[44px]"
+                >
+                  Editar financiamento
+                </a>
+              </div>
+            }
+            <!-- Rental revenue vs received -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  Receita contratada
+                </p>
+                <p class="mt-1 text-lg font-semibold tabular-nums text-emerald-700">
+                  {{ formatMoney(s.finance.totalRentalRevenueCents) }}
+                </p>
+                <p class="mt-1 text-xs text-neutral-500">
+                  Soma dos contratos assinados (aluguéis reservados, ativos e concluídos).
+                </p>
+              </div>
+              <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  Recebido
+                </p>
+                <p class="mt-1 text-lg font-semibold tabular-nums"
+                   [class]="receivedClass(s.finance)">
+                  {{ formatMoney(s.finance.totalRentalReceivedCents) }}
+                </p>
+                <p class="mt-1 text-xs text-neutral-500">
+                  Cobranças pagas via boleto/Pix automático.
+                </p>
+                @if (s.finance.totalRentalReceivedCents === 0 && s.finance.totalRentalRevenueCents > 0) {
+                  <p class="mt-2 text-xs text-amber-700">
+                    {{ formatMoney(s.finance.totalRentalRevenueCents) }} ainda a receber via cobrança automática.
+                  </p>
                 }
-                @case ('wrench') {
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                  </svg>
+              </div>
+            </div>
+
+            <!-- Finance breakdown -->
+            <div class="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
+              <h3 class="text-sm font-semibold text-neutral-800 mb-3">Composição do investimento</h3>
+              <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                <div class="rounded-xl bg-neutral-50 border border-neutral-100 p-3">
+                  <dt class="text-xs uppercase tracking-wider text-neutral-500">Compra</dt>
+                  <dd class="mt-1 tabular-nums font-semibold text-neutral-900">
+                    {{ formatMoney(s.finance.purchaseCostCents) }}
+                  </dd>
+                </div>
+                <div class="rounded-xl bg-neutral-50 border border-neutral-100 p-3">
+                  <dt class="text-xs uppercase tracking-wider text-neutral-500">Manutenções</dt>
+                  <dd class="mt-1 tabular-nums font-semibold text-neutral-900">
+                    {{ formatMoney(s.finance.totalMaintenanceExpenseCents) }}
+                  </dd>
+                </div>
+                @if (!s.finance.financingDataIncomplete) {
+                  <div class="rounded-xl bg-neutral-50 border border-neutral-100 p-3">
+                    <dt class="text-xs uppercase tracking-wider text-neutral-500">Parcelas financ.</dt>
+                    <dd class="mt-1 tabular-nums font-semibold text-neutral-900">
+                      {{ formatMoney(s.finance.totalFinancingPaidCents) }}
+                    </dd>
+                  </div>
                 }
-                @case ('money') {
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="1" x2="12" y2="23"/>
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                  </svg>
-                }
-                @case ('document') {
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                  </svg>
-                }
-              }
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                {{ kpi.title }}
-              </p>
-              <p class="mt-0.5 text-lg font-semibold tabular-nums" [class]="valueClasses(kpi.variant)">
-                {{ kpi.value }}
-              </p>
-              @if (kpi.subtitle) {
-                <p class="mt-0.5 text-sm text-neutral-600 tabular-nums">{{ kpi.subtitle }}</p>
+              </dl>
+              @if (s.finance.purchaseCostCents == null && !s.finance.totalFinancingPaidCents) {
+                <p class="mt-3 text-xs text-neutral-500">
+                  Sem financiamento cadastrado — o valor de compra é estimado a partir do financiamento
+                  vinculado. <a class="text-primary-600 hover:underline"
+                    [routerLink]="['/veiculos', vehicleId(), 'gerencia', 'financiamentos']">
+                    Cadastrar financiamento
+                  </a>.
+                </p>
               }
             </div>
-            <svg class="flex-none text-neutral-300 group-hover:text-neutral-500 mt-1"
-              xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              aria-hidden="true">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </a>
-        } @else {
-          <div
-            class="relative flex items-start gap-3 rounded-2xl border p-4 sm:p-5 min-h-[96px]"
-            [class]="variantClasses(kpi.variant)"
-          >
-            <span
-              class="flex-none inline-flex items-center justify-center w-11 h-11 rounded-xl"
-              [class]="iconClasses(kpi.variant)"
-              aria-hidden="true"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                {{ kpi.title }}
-              </p>
-              <p class="mt-0.5 text-lg font-semibold tabular-nums" [class]="valueClasses(kpi.variant)">
-                {{ kpi.value }}
-              </p>
-              @if (kpi.subtitle) {
-                <p class="mt-0.5 text-sm text-neutral-600 tabular-nums">{{ kpi.subtitle }}</p>
-              }
+
+            <!-- Financings list scoped to vehicle -->
+            <app-financings-list [vehicleIdPrefilter]="vehicleId()" />
+          </section>
+        }
+
+        @case ('manutencoes') {
+          <section role="tabpanel">
+            <app-maintenances-list [vehicleIdPrefilter]="vehicleId()" />
+          </section>
+        }
+
+        @case ('alugueis') {
+          <section role="tabpanel" class="space-y-3">
+            @if (rentalsLoading()) {
+              <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
+              <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
+            } @else if (rentalsError()) {
+              <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-4 space-y-3">
+                <p>{{ rentalsError() }}</p>
+                <button
+                  type="button"
+                  (click)="retryRentals()"
+                  class="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-700 hover:text-rose-900 px-3 py-2 rounded-lg border border-rose-200 bg-white min-h-[44px]"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            } @else if (rentals().length === 0) {
+              <div class="rounded-2xl border border-dashed border-neutral-200 p-6 text-center">
+                <p class="text-sm text-neutral-600">Nenhum aluguel encontrado para este veículo.</p>
+                <a
+                  [routerLink]="['/alugueis/novo']"
+                  [queryParams]="{ vehicleId: vehicleId() }"
+                  class="mt-3 inline-flex items-center justify-center rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2 min-h-[44px]"
+                >
+                  Criar aluguel
+                </a>
+              </div>
+            } @else {
+              <ul class="space-y-2">
+                @for (r of rentals(); track r.id) {
+                  <li>
+                    <a
+                      [routerLink]="['/alugueis', r.id]"
+                      class="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 hover:border-primary-300 transition-colors min-h-[80px]"
+                    >
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span
+                            class="inline-flex items-center rounded-full text-xs font-semibold px-2 py-0.5"
+                            [class]="rentalStatusChip(r.status).chip"
+                          >
+                            {{ rentalStatusChip(r.status).label }}
+                          </span>
+                          <span class="text-xs text-neutral-500 tabular-nums">
+                            {{ formatDate(r.startDate) }} → {{ formatDate(r.endDate) }}
+                          </span>
+                        </div>
+                        <p class="mt-1 text-sm font-semibold text-neutral-900 tabular-nums">
+                          {{ formatMoney(r.totalAmount) }}
+                        </p>
+                        @if (r.caucaoAmount > 0) {
+                          <p class="mt-0.5 text-xs text-neutral-500 tabular-nums">
+                            Caução: {{ formatMoney(r.caucaoAmount) }}
+                          </p>
+                        }
+                      </div>
+                      <svg class="flex-none text-neutral-300"
+                        xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                    </a>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
+
+        @case ('documentos') {
+          <section role="tabpanel" class="space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  Aquisição
+                </p>
+                <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+                  {{ formatDate(s.dates.acquisitionDate) }}
+                </p>
+                <p class="mt-1 text-xs text-neutral-500">
+                  Data de compra do veículo (ou cadastro, quando não informada).
+                </p>
+              </div>
+              <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  Última manutenção
+                </p>
+                <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+                  {{ formatDate(s.dates.lastMaintenanceDate) }}
+                </p>
+                @if (!s.dates.lastMaintenanceDate) {
+                  <p class="mt-1 text-xs text-amber-700">Nenhuma manutenção concluída registrada.</p>
+                }
+              </div>
+              <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  Próxima manutenção
+                </p>
+                <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+                  {{ formatDate(s.dates.nextMaintenanceDate) }}
+                </p>
+                @if (!s.dates.nextMaintenanceDate) {
+                  <p class="mt-1 text-xs text-amber-700">
+                    Sem próxima manutenção planejada — informe no cadastro de manutenções.
+                  </p>
+                }
+              </div>
+              <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  Licenciamento
+                </p>
+                <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+                  {{ formatDate(s.licensing.expiration) }}
+                </p>
+                @if (licensingChipLabel(); as chip) {
+                  <span
+                    class="mt-2 inline-flex items-center rounded-full text-xs font-medium px-2 py-0.5"
+                    [class]="chip.chip"
+                  >
+                    {{ chip.label }}
+                  </span>
+                }
+              </div>
+              <div class="rounded-2xl border border-neutral-200 bg-white p-4 sm:col-span-2">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  Financiamento — última parcela
+                </p>
+                <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+                  {{ formatDate(s.dates.financingLastInstallmentDate) }}
+                </p>
+                @if (!s.dates.financingLastInstallmentDate) {
+                  <p class="mt-1 text-xs text-neutral-500">
+                    Sem financiamento cadastrado ou parcelas desconhecidas.
+                  </p>
+                }
+              </div>
             </div>
-          </div>
+          </section>
         }
       }
     </div>

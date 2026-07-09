@@ -1,5 +1,14 @@
 export type VehicleType = 'CAR' | 'MOTORCYCLE';
 export type FinancingStatus = 'ACTIVE' | 'PAID_OFF';
+export type IpvaStatus = 'PAID' | 'PENDING' | 'OVERDUE';
+export type VehicleStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'INACTIVE';
+
+import { IPVA_STATUS_OPTIONS as _IPVA_STATUS_OPTIONS } from '../utils/status-maps';
+
+/**
+ * @deprecated Import `IPVA_STATUS_OPTIONS` from `utils/status-maps.ts` instead.
+ */
+export const IPVA_STATUS_OPTIONS = _IPVA_STATUS_OPTIONS;
 
 export const VEHICLE_TYPE_OPTIONS = [
   { value: 'CAR', label: 'Carro' },
@@ -23,7 +32,10 @@ export interface VehicleListItem {
   model: string;
   yearModel: number;
   licensingExpiration: string | null;
+  status: VehicleStatus;
   createdDate: string;
+  ipvaStatus?: IpvaStatus | null;
+  ipvaExpired?: boolean;
 }
 
 export interface Financing {
@@ -56,6 +68,11 @@ export interface Vehicle {
   renavam: string | null;
   color: string | null;
   purchaseDate: string | null;
+  ipvaAmount: number | null;
+  ipvaDueDate: string | null;
+  ipvaStatus: IpvaStatus | null;
+  ipvaExpired: boolean;
+  status: VehicleStatus;
   activeFinancing: Financing | null;
   createdDate: string;
   modifyDate: string | null;
@@ -74,6 +91,9 @@ export interface CreateVehicleRequest {
   renavam?: string | null;
   color?: string | null;
   purchaseDate?: string | null;
+  ipvaAmount?: number | null;
+  ipvaDueDate?: string | null;
+  ipvaStatus?: IpvaStatus | null;
 }
 
 export interface UpdateVehicleRequest {
@@ -87,6 +107,9 @@ export interface UpdateVehicleRequest {
   licensingExpiration?: string | null;
   color?: string | null;
   purchaseDate?: string | null;
+  ipvaAmount?: number | null;
+  ipvaDueDate?: string | null;
+  ipvaStatus?: IpvaStatus | null;
 }
 
 export interface CreateFinancingRequest {
@@ -105,6 +128,7 @@ export interface MarkPaidOffRequest {
 export interface VehicleFilters {
   q?: string;
   type?: VehicleType | '';
+  status?: VehicleStatus | '';
   sort?: string;
   page?: number;
   size?: number;
@@ -128,6 +152,54 @@ export interface FinancingListItem {
   installmentAmount: number | null;
   status: FinancingStatus;
   paidOffDate: string | null;
+  /**
+   * Nº de parcelas em aberto vencidas — derivado no backend a partir de
+   * `financing_installments`. `null` quando o financing ainda não tem
+   * cronograma cadastrado (antigo, sem backfill).
+   */
+  overdueInstallments: number | null;
+}
+
+/**
+ * Detailed financing view returned by `GET /v1/financings/{id}`.
+ * Includes denormalized vehicle basics so the detail page renders in a single request.
+ */
+export interface FinancingDetail {
+  id: string;
+  createdDate: string;
+  modifyDate: string | null;
+  vehicleId: string;
+  vehiclePlate: string;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehicleYearModel: number | null;
+  contractDate: string;
+  purchasePrice: number;
+  downPayment: number | null;
+  totalFinanced: number | null;
+  installments: number | null;
+  installmentAmount: number | null;
+  status: FinancingStatus;
+  paidOffDate: string | null;
+  /**
+   * Cronograma real vindo de `financing_installments` (V24). Vazio quando o
+   * financing é antigo e não foi backfilleado — o UI deve tratar como "sem
+   * cronograma disponível".
+   */
+  schedule: FinancingInstallment[];
+}
+
+export type FinancingInstallmentStatus = 'PAID' | 'OVERDUE' | 'PENDING';
+
+/** Uma parcela real vinda de `financing_installments`. */
+export interface FinancingInstallment {
+  id: string;
+  number: number;
+  dueDate: string;
+  amountCents: number;
+  paidDate: string | null;
+  paidAmountCents: number | null;
+  status: FinancingInstallmentStatus;
 }
 
 export interface FinancingFilters {

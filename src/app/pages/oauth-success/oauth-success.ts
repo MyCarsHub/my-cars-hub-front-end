@@ -1,26 +1,23 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-
 import { SessionService } from '../../services/session.service';
 
 @Component({
   selector: 'app-oauth-success',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
   templateUrl: './oauth-success.html',
   styleUrls: ['./oauth-success.css'],
 })
-export class OauthSuccess {
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private authService: AuthService,
-    private sessionService: SessionService
-  ) { }
+export class OauthSuccess implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
+  private readonly sessionService = inject(SessionService);
 
   ngOnInit(): void {
-    const token =
-      this.route.snapshot.queryParamMap.get('token');
+    const token = this.route.snapshot.queryParamMap.get('token');
 
     if (!token) {
       this.router.navigate(['/login']);
@@ -31,8 +28,7 @@ export class OauthSuccess {
 
     this.authService.getMe().subscribe({
       next: () => {
-        const onboardingCompleted =
-          this.sessionService.isOnboardingCompleted();
+        const onboardingCompleted = this.sessionService.isOnboardingCompleted();
 
         if (onboardingCompleted) {
           this.router.navigate(['/dashboard']);

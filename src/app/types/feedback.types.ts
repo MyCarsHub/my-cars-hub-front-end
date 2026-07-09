@@ -19,12 +19,7 @@ export interface FeedbackTaskResponse {
   adminNote: string | null;
 }
 
-export interface PagedResponse<T> {
-  content: T[];
-  page: number;
-  size: number;
-  total: number;
-}
+export type { PagedResponse } from './paged.types';
 
 export interface CreateFeedbackTaskRequest {
   title: string;

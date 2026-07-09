@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { BillingService } from '../../../services/billing.service';
+import { BillingAccessService } from '../../../services/billing-access.service';
 
 type State = 'polling' | 'active' | 'timeout' | 'error';
 
@@ -25,6 +26,7 @@ const POLL_TIMEOUT_MS = 30000;
 })
 export class BillingSuccess implements OnInit, OnDestroy {
   private readonly billingService = inject(BillingService);
+  private readonly access = inject(BillingAccessService);
   private readonly router = inject(Router);
 
   protected readonly state = signal<State>('polling');
@@ -58,6 +60,16 @@ export class BillingSuccess implements OnInit, OnDestroy {
         if (sub && sub.status === 'ACTIVE') {
           this.state.set('active');
           this.stopPolling();
+          // Re-fetch access-status so the guard/paywall unblock immediately,
+          // then bounce the user to the default landing route.
+          this.access.refresh().subscribe({
+            next: () => {
+              if (!this.access.isBlocked()) {
+                this.router.navigate(['/dashboard']);
+              }
+            },
+            error: () => void 0,
+          });
         }
       },
       error: () => {
