@@ -1,0 +1,429 @@
+<app-default-page-layout
+    title="Dashboard"
+    description="Visão consolidada da operação da sua frota."
+>
+    <!-- Error banner -->
+    @if (error(); as msg) {
+        <div
+            class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100 mb-4"
+            role="alert"
+        >
+            {{ msg }}
+            <button
+                type="button"
+                class="ml-2 underline hover:no-underline"
+                (click)="reload()"
+            >
+                Tentar novamente
+            </button>
+        </div>
+    }
+
+    <!-- Alerts row: only rendered when at least one count > 0 -->
+    @if (showAlerts()) {
+        @if (summary(); as s) {
+            <section class="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 mb-4">
+                @if (s.alerts.openFines.count > 0) {
+                    <app-alert-chip
+                        variant="danger"
+                        label="Multas em aberto"
+                        [count]="s.alerts.openFines.count"
+                        [amountLabel]="format(s.alerts.openFines.amountCents)"
+                        icon="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
+                        (chipClick)="onAlertClick('/multas')"
+                    />
+                }
+                @if (s.alerts.openMaintenances.count > 0) {
+                    <app-alert-chip
+                        variant="warning"
+                        label="Manutenções abertas"
+                        [count]="s.alerts.openMaintenances.count"
+                        icon="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                        (chipClick)="onAlertClick('/manutencoes')"
+                    />
+                }
+                @if (s.alerts.expiringCnh30d.count > 0) {
+                    <app-alert-chip
+                        variant="warning"
+                        label="CNH a vencer (30d)"
+                        [count]="s.alerts.expiringCnh30d.count"
+                        icon="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
+                        (chipClick)="onAlertClick('/motoristas')"
+                    />
+                }
+                @if (s.alerts.expiringLicensing30d.count > 0) {
+                    <app-alert-chip
+                        variant="warning"
+                        label="Licenciamento a vencer (30d)"
+                        [count]="s.alerts.expiringLicensing30d.count"
+                        icon="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 15h6"
+                        (chipClick)="onAlertClick('/veiculos')"
+                    />
+                }
+                @if (s.alerts.reservedRentals.count > 0) {
+                    <app-alert-chip
+                        variant="info"
+                        label="Aluguéis reservados"
+                        [count]="s.alerts.reservedRentals.count"
+                        icon="M12 8v4l3 3 M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+                        (chipClick)="onAlertClick('/alugueis')"
+                    />
+                }
+            </section>
+        }
+    }
+
+    <!-- Fleet KPI grid: 2x2 on mobile, 4x1 on lg -->
+    <section class="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-4">
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Veículos</p>
+            @if (loading() && !summary()) {
+                <div class="h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse"></div>
+            } @else if (summary(); as s) {
+                <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
+                    {{ s.fleet.vehiclesTotal }}
+                </p>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                    {{ s.fleet.vehiclesTotal }} de {{ vehicleLimitLabel() }} do plano
+                </p>
+            }
+        </div>
+
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Motoristas ativos</p>
+            @if (loading() && !summary()) {
+                <div class="h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse"></div>
+            } @else if (summary(); as s) {
+                <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
+                    {{ s.fleet.driversActive }}
+                </p>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                    {{ s.fleet.driversActive }} de {{ driverLimitLabel() }} do plano
+                </p>
+            }
+        </div>
+
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Alugados agora</p>
+            @if (loading() && !summary()) {
+                <div class="h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse"></div>
+            } @else if (summary(); as s) {
+                <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
+                    {{ s.fleet.rentedNow }}
+                </p>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                    {{ s.fleet.reservedNow }} reservados
+                </p>
+            }
+        </div>
+
+        <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Utilização</p>
+            @if (loading() && !summary()) {
+                <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
+            } @else if (summary(); as s) {
+                <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
+                    {{ s.fleet.utilizationPct }}%
+                </p>
+                <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">frota rodando</p>
+            }
+        </div>
+    </section>
+
+    <!-- Period picker -->
+    <div class="mb-4">
+        <app-date-range-picker
+            [jumpToMonth]="jumpToMonth()"
+            (rangeChange)="onRangeChange($event)"
+        />
+    </div>
+
+    <!-- Faturamento: seção dedicada, mobile-first (2x2) -->
+    @if (summary()?.finance; as f) {
+        <section class="mb-4">
+            <app-page-card title="Faturamento">
+                <div class="p-4 min-w-0">
+                    <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+                        <!-- Faturamento -->
+                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                                Faturamento
+                            </p>
+                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 mt-1 tabular-nums truncate">
+                                {{ billingLabel() }}
+                            </p>
+                            @if (billingDelta().label; as d) {
+                                <p
+                                    class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
+                                    [class.text-emerald-600]="billingDelta().direction === 'up'"
+                                    [class.text-red-600]="billingDelta().direction === 'down'"
+                                    [class.text-gray-500]="billingDelta().direction === 'flat'"
+                                >
+                                    @if (billingDelta().direction === 'up') { ▲ }
+                                    @else if (billingDelta().direction === 'down') { ▼ }
+                                    {{ d }} vs período anterior
+                                </p>
+                            } @else {
+                                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                                    contratos assinados no período
+                                </p>
+                            }
+                        </div>
+
+                        <!-- Recebido -->
+                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                                Recebido
+                            </p>
+                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 mt-1 tabular-nums truncate">
+                                {{ receivedLabel() }}
+                            </p>
+                            @if (receivedDelta().label; as d) {
+                                <p
+                                    class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
+                                    [class.text-emerald-600]="receivedDelta().direction === 'up'"
+                                    [class.text-red-600]="receivedDelta().direction === 'down'"
+                                    [class.text-gray-500]="receivedDelta().direction === 'flat'"
+                                >
+                                    @if (receivedDelta().direction === 'up') { ▲ }
+                                    @else if (receivedDelta().direction === 'down') { ▼ }
+                                    {{ d }} vs anterior
+                                </p>
+                            }
+                            <p class="text-[10px] sm:text-[11px] text-gray-500 mt-1 truncate tabular-nums">
+                                de {{ billingLabel() }} faturados
+                            </p>
+                        </div>
+
+                        <!-- A receber -->
+                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                                A receber
+                            </p>
+                            <p class="text-lg sm:text-2xl font-semibold text-amber-600 mt-1 tabular-nums truncate">
+                                {{ pendingChargesLabel() }}
+                            </p>
+                            <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                                cobranças pendentes no período
+                            </p>
+                        </div>
+
+                        <!-- Inadimplência aluguel -->
+                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                                Inadimplência aluguel
+                            </p>
+                            <p
+                                class="text-lg sm:text-2xl font-semibold mt-1 tabular-nums truncate"
+                                [class.text-red-600]="hasOverdue()"
+                                [class.text-gray-900]="!hasOverdue()"
+                            >
+                                {{ overdueChargesLabel() }}
+                            </p>
+                            <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                                cobranças vencidas ou falhas
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Faturamento últimos 6 meses -->
+                    <div class="mt-6 min-w-0">
+                        <div class="flex items-baseline justify-between mb-2">
+                            <h3 class="text-sm font-medium text-gray-800">
+                                Faturamento últimos 6 meses
+                            </h3>
+                            <span class="text-[11px] text-gray-500">
+                                clique em um mês para filtrar
+                            </span>
+                        </div>
+                        <app-monthly-billing-chart
+                            [data]="monthlyBilling()"
+                            (barClick)="onMonthlyBarClick($event)"
+                        />
+                    </div>
+                </div>
+            </app-page-card>
+        </section>
+    }
+
+    <!-- Calendário Financeiro (peça central) -->
+    <section class="mb-4">
+        <app-page-card title="Calendário financeiro">
+            <div class="p-4 min-w-0">
+                <p class="text-xs text-gray-500 mb-3">
+                    Recebimentos projetados por frequência do contrato (diária,
+                    semanal, mensal) + multas e manutenções do período.
+                </p>
+                <app-financial-calendar
+                    [events]="cashflow()"
+                    [selectedDate]="selectedDay()"
+                    (daySelect)="onDaySelect($event)"
+                />
+            </div>
+        </app-page-card>
+    </section>
+
+    <!-- Distribuições: aluguéis por status + veículos por status -->
+    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2">
+        <app-page-card title="Aluguéis por status">
+            <div class="p-4 min-w-0">
+                @if (loading() && !summary()) {
+                    <div class="space-y-3">
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                    </div>
+                } @else {
+                    <app-status-bar-chart [buckets]="rentalsByStatusRows()" />
+                }
+            </div>
+        </app-page-card>
+        <app-page-card title="Veículos por status">
+            <div class="p-4 min-w-0">
+                @if (loading() && !summary()) {
+                    <div class="space-y-3">
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                    </div>
+                } @else {
+                    <app-status-bar-chart [buckets]="vehiclesByStatusRows()" />
+                }
+            </div>
+        </app-page-card>
+    </section>
+
+    <!-- Top 5 por receita: veículos + motoristas -->
+    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2">
+        <app-page-card title="Top 5 veículos por receita">
+            <div class="p-4 min-w-0">
+                @if (loading() && !summary()) {
+                    <div class="space-y-3">
+                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                    </div>
+                } @else {
+                    <app-bar-chart [data]="topVehiclesByRevenue()" />
+                }
+            </div>
+        </app-page-card>
+        <app-page-card title="Top 5 motoristas por receita">
+            <div class="p-4 min-w-0">
+                @if (loading() && !summary()) {
+                    <div class="space-y-3">
+                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                    </div>
+                } @else {
+                    <app-bar-chart [data]="topDriversByRevenue()" />
+                }
+            </div>
+        </app-page-card>
+    </section>
+
+    <!-- Top offenders -->
+    <section class="mb-4 min-w-0">
+        <app-page-card title="Top ofensores (multas)">
+            <div class="p-4 min-w-0">
+                <div class="flex gap-2 mb-3 flex-wrap">
+                    <button
+                        type="button"
+                        class="min-h-[44px] px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+                        [class.bg-gray-900]="offenderMode() === 'vehicles'"
+                        [class.text-white]="offenderMode() === 'vehicles'"
+                        [class.border-gray-900]="offenderMode() === 'vehicles'"
+                        [class.bg-white]="offenderMode() !== 'vehicles'"
+                        [class.text-gray-600]="offenderMode() !== 'vehicles'"
+                        [class.border-gray-200]="offenderMode() !== 'vehicles'"
+                        (click)="setOffenderMode('vehicles')"
+                    >
+                        Veículos
+                    </button>
+                    <button
+                        type="button"
+                        class="min-h-[44px] px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+                        [class.bg-gray-900]="offenderMode() === 'drivers'"
+                        [class.text-white]="offenderMode() === 'drivers'"
+                        [class.border-gray-900]="offenderMode() === 'drivers'"
+                        [class.bg-white]="offenderMode() !== 'drivers'"
+                        [class.text-gray-600]="offenderMode() !== 'drivers'"
+                        [class.border-gray-200]="offenderMode() !== 'drivers'"
+                        (click)="setOffenderMode('drivers')"
+                    >
+                        Motoristas
+                    </button>
+                </div>
+                @if (loading() && !summary()) {
+                    <div class="space-y-2">
+                        <div class="h-14 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-14 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-14 rounded bg-gray-100 animate-pulse"></div>
+                    </div>
+                } @else {
+                    <app-top-offenders-table
+                        [rows]="offenderRows()"
+                        (rowClick)="onOffenderClick($event)"
+                    />
+                }
+            </div>
+        </app-page-card>
+    </section>
+
+    <!-- Evolução do ticket médio (últimos 6 meses, line chart) -->
+    <section class="mb-4 min-w-0">
+        <app-page-card title="Evolução do ticket médio">
+            <div class="p-4 min-w-0">
+                <p class="text-xs text-gray-500 mb-3">
+                    Ticket médio das rentals concluídas por mês (últimos 6 meses).
+                </p>
+                <app-monthly-billing-chart
+                    mode="line"
+                    [data]="ticketMedioSeries()"
+                />
+            </div>
+        </app-page-card>
+    </section>
+
+    <!-- Ações rápidas -->
+    <section class="mb-4 min-w-0">
+        <app-page-card title="Ações rápidas">
+            <div class="p-4 min-w-0 grid gap-3 grid-cols-2 lg:grid-cols-4">
+                <app-quick-action-card
+                    route="/alugueis/novo"
+                    label="Novo aluguel"
+                    description="Reservar veículo"
+                    icon="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+                />
+                <app-quick-action-card
+                    route="/veiculos/novo"
+                    label="Novo veículo"
+                    description="Cadastrar frota"
+                    icon="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2 M7 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M17 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
+                />
+                <app-quick-action-card
+                    route="/manutencoes/novo"
+                    label="Nova manutenção"
+                    description="Agendar serviço"
+                    icon="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                />
+                <app-quick-action-card
+                    route="/multas/novo"
+                    label="Registrar multa"
+                    description="Nova infração"
+                    icon="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
+                />
+            </div>
+        </app-page-card>
+    </section>
+
+    <!-- Day detail sheet (mobile bottom / desktop right) -->
+    <app-cashflow-day-sheet
+        [date]="selectedDay()"
+        [events]="selectedDayEvents()"
+        (close)="onDaySheetClose()"
+    />
+</app-default-page-layout>

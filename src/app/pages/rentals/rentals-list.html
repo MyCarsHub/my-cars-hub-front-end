@@ -1,0 +1,597 @@
+<app-default-page-layout
+  title="Aluguéis"
+  description="Reservas, aluguéis ativos e cobranças via Asaas."
+>
+  <app-page-card title="Lista">
+    <div cardActions>
+      <a
+        routerLink="/alugueis/novo"
+        class="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white
+               text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Novo aluguel
+      </a>
+    </div>
+
+    <div class="p-3 sm:p-4 space-y-4">
+      <!-- Status filter chips + Filters button.
+           Status stays inline (fast one-tap change on mobile). Vehicle / driver /
+           period live inside the "Filtros" sheet — collapsed by default to keep
+           the mobile viewport tight. -->
+      <div class="flex items-center gap-2">
+        <div class="flex gap-2 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap pb-1 flex-1 min-w-0"
+          role="tablist" aria-label="Filtrar por status">
+          @for (opt of statusOptions; track opt.value) {
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="isActive(opt.value)"
+              (click)="setStatus(opt.value)"
+              class="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm
+                     font-medium border transition-colors min-h-[44px]"
+              [class.border-primary-500]="isActive(opt.value)"
+              [class.text-primary-600]="isActive(opt.value)"
+              [class.bg-primary-50]="isActive(opt.value)"
+              [class.border-neutral-200]="!isActive(opt.value)"
+              [class.text-neutral-600]="!isActive(opt.value)"
+              [class.bg-white]="!isActive(opt.value)"
+              [class.hover:bg-neutral-50]="!isActive(opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+
+        <button type="button"
+          (click)="openFilters()"
+          aria-label="Abrir filtros"
+          class="relative shrink-0 inline-flex items-center gap-2 px-3 py-2 min-h-[44px]
+                 rounded-full text-sm font-medium border border-neutral-200 bg-white
+                 text-neutral-700 hover:bg-neutral-50">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+          <span class="hidden sm:inline">Filtros</span>
+          @if (activeFilterCount() > 0) {
+            <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1
+                         rounded-full bg-primary-500 text-white text-[10px] font-semibold
+                         flex items-center justify-center"
+              aria-label="filtros ativos">
+              {{ activeFilterCount() }}
+            </span>
+          }
+        </button>
+      </div>
+
+      <!-- Desktop-inline extra filters (hidden on mobile — mobile uses the sheet). -->
+      <div class="hidden lg:grid grid-cols-4 gap-3 pb-1">
+        <label class="flex flex-col text-xs text-neutral-500 gap-1">
+          Veículo
+          <select
+            class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                   bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [value]="vehicleFilter()"
+            (change)="onDesktopFilterChange('vehicle', $any($event.target).value)">
+            <option value="">Todos</option>
+            @for (v of vehicles(); track v.id) {
+              <option [value]="v.id">{{ formatPlate(v.plate) }} — {{ v.brand }} {{ v.model }}</option>
+            }
+          </select>
+        </label>
+        <label class="flex flex-col text-xs text-neutral-500 gap-1">
+          Motorista
+          <select
+            class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                   bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [value]="driverFilter()"
+            (change)="onDesktopFilterChange('driver', $any($event.target).value)">
+            <option value="">Todos</option>
+            @for (d of drivers(); track d.id) {
+              <option [value]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        </label>
+        <label class="flex flex-col text-xs text-neutral-500 gap-1">
+          De
+          <input type="date"
+            class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                   bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [value]="fromFilter()"
+            (change)="onDesktopFilterChange('from', $any($event.target).value)" />
+        </label>
+        <label class="flex flex-col text-xs text-neutral-500 gap-1">
+          Até
+          <input type="date"
+            class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                   bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [value]="toFilter()"
+            (change)="onDesktopFilterChange('to', $any($event.target).value)" />
+        </label>
+      </div>
+
+      @if (error()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ error() }}
+        </div>
+      }
+
+      @if (loading() && items().length === 0) {
+        <div class="space-y-2">
+          <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+        </div>
+      }
+
+      @if (!loading() && items().length === 0) {
+        <div class="text-center py-12 space-y-3">
+          <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+            aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" class="text-neutral-400">
+              <rect x="3" y="4" width="18" height="18" rx="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+          <p class="text-sm text-neutral-500">Nenhum aluguel encontrado.</p>
+          <a routerLink="/alugueis/novo"
+            class="inline-flex items-center gap-2 text-sm font-medium text-primary-500 hover:text-primary-600">
+            Cadastrar primeiro aluguel
+          </a>
+        </div>
+      }
+
+      @if (items().length > 0) {
+        <!-- Cards (mobile / tablet) -->
+        <div class="space-y-3 lg:hidden">
+          @for (r of items(); track r.id) {
+            <article
+              class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 relative"
+            >
+              <div
+                class="flex items-start justify-between gap-2 cursor-pointer"
+                (click)="openDetail(r)"
+                (keydown.enter)="openDetail(r)"
+                (keydown.space)="$event.preventDefault(); openDetail(r)"
+                tabindex="0"
+                [attr.aria-label]="'Ver detalhes do aluguel'"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider">
+                    {{ vehiclePlate(r.vehicleId) }}
+                  </p>
+                  <p class="text-xs text-neutral-500 mt-0.5 truncate">
+                    {{ vehicleModel(r.vehicleId) }}
+                  </p>
+                  <p class="text-xs text-neutral-600 mt-1 truncate">
+                    <span class="text-neutral-400">Motorista:</span> {{ driverName(r.driverId) }}
+                  </p>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                  [class]="statusInfo(r.status).chip">
+                  {{ statusInfo(r.status).label }}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600 cursor-pointer"
+                (click)="openDetail(r)"
+                tabindex="-1">
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Período</span>
+                  <p class="tabular-nums">{{ formatDate(r.startDate) }} → {{ formatDate(r.endDate) }}</p>
+                  <p class="text-neutral-400 text-[10px]">
+                    {{ daysBetween(r.startDate, r.endDate) }} dia(s)
+                  </p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Total</span>
+                  <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(r.totalAmount) }}</p>
+                  @if (r.billingFrequency) {
+                    <p class="text-neutral-500 text-[10px]">
+                      {{ billingFrequencyLabel(r.billingFrequency) }}
+                    </p>
+                  }
+                  @if (r.caucaoAmount > 0) {
+                    <p class="text-neutral-400 text-[10px]">Caução {{ formatCurrency(r.caucaoAmount) }}</p>
+                  }
+                </div>
+              </div>
+
+              <!-- Actions row (mobile 3-dot menu) -->
+              @if (canEdit(r) || canDelete(r) || canCancel(r) || canComplete(r) || canActivate(r) || isAwaitingPayment(r)) {
+                <div class="flex justify-end items-center gap-2 pt-2 border-t border-neutral-100">
+                  @if (isAwaitingPayment(r)) {
+                    <span
+                      role="status"
+                      title="Ativação automática após confirmação do pagamento Asaas"
+                      aria-label="Aguardando pagamento — ativação automática após confirmação Asaas"
+                      class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px]
+                             rounded-full text-xs font-semibold bg-amber-100 text-amber-800
+                             border border-amber-200">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      Aguardando pagamento
+                    </span>
+                  }
+                  <div class="relative">
+                    @if (canEdit(r) || canDelete(r) || canCancel(r) || canComplete(r) || canActivate(r)) {
+                    <button type="button"
+                      (click)="toggleMenu(r.id, $event)"
+                      [attr.aria-expanded]="openMenuId() === r.id"
+                      aria-haspopup="menu"
+                      aria-label="Ações do aluguel"
+                      class="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg
+                             text-neutral-600 hover:bg-neutral-100 active:bg-neutral-200 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                        fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="2"/>
+                        <circle cx="12" cy="12" r="2"/>
+                        <circle cx="12" cy="19" r="2"/>
+                      </svg>
+                    </button>
+
+                    @if (openMenuId() === r.id) {
+                      <!-- Backdrop closes menu when tapping outside -->
+                      <div class="fixed inset-0 z-20" (click)="closeMenu()"></div>
+                      <div
+                        role="menu"
+                        class="absolute right-0 bottom-full mb-2 z-30 min-w-[200px] rounded-xl border
+                               border-neutral-200 bg-white shadow-lg overflow-hidden">
+                        @if (canEdit(r)) {
+                          <a role="menuitem"
+                            [routerLink]="['/alugueis', r.id, 'editar']"
+                            (click)="closeMenu()"
+                            class="flex items-center gap-2 px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50">
+                            Editar
+                          </a>
+                        }
+                        @if (canActivate(r)) {
+                          <button role="menuitem" type="button"
+                            (click)="askAction('activate', r, $event)"
+                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-blue-700 hover:bg-blue-50">
+                            Iniciar aluguel
+                          </button>
+                        }
+                        @if (canComplete(r)) {
+                          <button role="menuitem" type="button"
+                            (click)="askAction('complete', r, $event)"
+                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-emerald-700 hover:bg-emerald-50">
+                            Finalizar
+                          </button>
+                        }
+                        @if (canCancel(r)) {
+                          <button role="menuitem" type="button"
+                            (click)="askAction('cancel', r, $event)"
+                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-rose-700 hover:bg-rose-50">
+                            Cancelar
+                          </button>
+                        }
+                        @if (canDelete(r)) {
+                          <button role="menuitem" type="button"
+                            (click)="askAction('delete', r, $event)"
+                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-rose-700 hover:bg-rose-50 border-t border-neutral-100">
+                            Excluir
+                          </button>
+                        }
+                      </div>
+                    }
+                    }
+                  </div>
+                </div>
+              }
+            </article>
+          }
+        </div>
+
+        <!-- Table (desktop) -->
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                <th class="py-2 pr-4 font-medium">Veículo</th>
+                <th class="py-2 pr-4 font-medium">Motorista</th>
+                <th class="py-2 pr-4 font-medium">Período</th>
+                <th class="py-2 pr-4 font-medium">Dias</th>
+                <th class="py-2 pr-4 font-medium">Cobrança</th>
+                <th class="py-2 pr-4 font-medium">Total</th>
+                <th class="py-2 pr-4 font-medium">Caução</th>
+                <th class="py-2 pr-4 font-medium">Status</th>
+                <th class="py-2 pr-4 font-medium text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of items(); track r.id) {
+                <tr class="border-b border-neutral-50 hover:bg-neutral-50/60">
+                  <td class="py-3 pr-4 cursor-pointer" (click)="openDetail(r)">
+                    <p class="font-semibold text-neutral-900 tabular-nums tracking-wider">
+                      {{ vehiclePlate(r.vehicleId) }}
+                    </p>
+                    <p class="text-xs text-neutral-500">{{ vehicleModel(r.vehicleId) }}</p>
+                  </td>
+                  <td class="py-3 pr-4 text-neutral-700 cursor-pointer" (click)="openDetail(r)">
+                    {{ driverName(r.driverId) }}
+                  </td>
+                  <td class="py-3 pr-4 tabular-nums cursor-pointer" (click)="openDetail(r)">
+                    {{ formatDate(r.startDate) }} → {{ formatDate(r.endDate) }}
+                  </td>
+                  <td class="py-3 pr-4 tabular-nums cursor-pointer" (click)="openDetail(r)">
+                    {{ daysBetween(r.startDate, r.endDate) }}
+                  </td>
+                  <td class="py-3 pr-4 cursor-pointer" (click)="openDetail(r)">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">
+                      {{ billingFrequencyLabel(r.billingFrequency) }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums cursor-pointer" (click)="openDetail(r)">
+                    {{ formatCurrency(r.totalAmount) }}
+                  </td>
+                  <td class="py-3 pr-4 tabular-nums text-neutral-700 cursor-pointer" (click)="openDetail(r)">
+                    @if (r.caucaoAmount > 0) {
+                      {{ formatCurrency(r.caucaoAmount) }}
+                    } @else {
+                      <span class="text-neutral-400">—</span>
+                    }
+                  </td>
+                  <td class="py-3 pr-4 cursor-pointer" (click)="openDetail(r)">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      [class]="statusInfo(r.status).chip">
+                      {{ statusInfo(r.status).label }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4 text-right whitespace-nowrap">
+                    <div class="inline-flex items-center gap-1">
+                      @if (canEdit(r)) {
+                        <a [routerLink]="['/alugueis', r.id, 'editar']"
+                          title="Editar"
+                          aria-label="Editar aluguel"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-neutral-600
+                                 hover:bg-neutral-100">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 20h9"/>
+                            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                          </svg>
+                        </a>
+                      }
+                      @if (isAwaitingPayment(r)) {
+                        <span
+                          role="status"
+                          title="Ativação automática após confirmação do pagamento Asaas"
+                          aria-label="Aguardando pagamento — ativação automática após confirmação Asaas"
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full
+                                 text-[11px] font-semibold bg-amber-100 text-amber-800
+                                 border border-amber-200 whitespace-nowrap">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                          </svg>
+                          Aguardando pagamento
+                        </span>
+                      }
+                      @if (canActivate(r)) {
+                        <button type="button"
+                          (click)="askAction('activate', r, $event)"
+                          title="Iniciar aluguel"
+                          aria-label="Iniciar aluguel"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-blue-600
+                                 hover:bg-blue-50">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" aria-hidden="true">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                          </svg>
+                        </button>
+                      }
+                      @if (canComplete(r)) {
+                        <button type="button"
+                          (click)="askAction('complete', r, $event)"
+                          title="Finalizar aluguel"
+                          aria-label="Finalizar aluguel"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-emerald-600
+                                 hover:bg-emerald-50">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        </button>
+                      }
+                      @if (canCancel(r)) {
+                        <button type="button"
+                          (click)="askAction('cancel', r, $event)"
+                          title="Cancelar aluguel"
+                          aria-label="Cancelar aluguel"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-rose-600
+                                 hover:bg-rose-50">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                          </svg>
+                        </button>
+                      }
+                      @if (canDelete(r)) {
+                        <button type="button"
+                          (click)="askAction('delete', r, $event)"
+                          title="Excluir"
+                          aria-label="Excluir aluguel"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-rose-600
+                                 hover:bg-rose-50">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                          </svg>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-neutral-100 text-sm">
+          <p class="text-neutral-500">
+            {{ total() }} aluguel(is) — página {{ pageNumber() }} de {{ totalPages() }}
+          </p>
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() === 0 || loading()"
+              (click)="prev()">
+              Anterior
+            </button>
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() + 1 >= totalPages() || loading()"
+              (click)="next()">
+              Próxima
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </app-page-card>
+</app-default-page-layout>
+
+<!-- Mobile filters sheet: slides up from the bottom on small screens, becomes
+     a centered modal on desktop. Uses draft signals so tweaking values doesn't
+     trigger a reload until Apply is pressed (matches the mobile UX brief). -->
+@if (filtersOpen()) {
+  <div class="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
+    <div class="absolute inset-0 bg-black/40"
+      (click)="closeFilters()"
+      aria-hidden="true"></div>
+
+    <div role="dialog" aria-modal="true" aria-label="Filtros de aluguéis"
+      class="relative w-full sm:w-[420px] max-h-[85vh] overflow-y-auto
+             bg-white rounded-t-2xl sm:rounded-2xl shadow-xl p-4 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-semibold text-neutral-900">Filtros</h2>
+        <button type="button"
+          (click)="closeFilters()"
+          aria-label="Fechar filtros"
+          class="min-h-[44px] min-w-[44px] inline-flex items-center justify-center
+                 rounded-lg text-neutral-500 hover:bg-neutral-100">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <label class="flex flex-col text-xs text-neutral-500 gap-1">
+          Status
+          <select
+            class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                   bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [ngModel]="draftStatus()"
+            (ngModelChange)="draftStatus.set($any($event))">
+            @for (opt of statusOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="flex flex-col text-xs text-neutral-500 gap-1">
+          Veículo
+          <select
+            class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                   bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [ngModel]="draftVehicle()"
+            (ngModelChange)="draftVehicle.set($any($event))">
+            <option value="">Todos</option>
+            @for (v of vehicles(); track v.id) {
+              <option [value]="v.id">{{ formatPlate(v.plate) }} — {{ v.brand }} {{ v.model }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="flex flex-col text-xs text-neutral-500 gap-1">
+          Motorista
+          <select
+            class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                   bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [ngModel]="draftDriver()"
+            (ngModelChange)="draftDriver.set($any($event))">
+            <option value="">Todos</option>
+            @for (d of drivers(); track d.id) {
+              <option [value]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        </label>
+
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex flex-col text-xs text-neutral-500 gap-1">
+            De
+            <input type="date"
+              class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                     bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+              [ngModel]="draftFrom()"
+              (ngModelChange)="draftFrom.set($any($event))" />
+          </label>
+          <label class="flex flex-col text-xs text-neutral-500 gap-1">
+            Até
+            <input type="date"
+              class="min-h-[44px] rounded-lg border border-neutral-200 px-3 py-2 text-sm
+                     bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+              [ngModel]="draftTo()"
+              (ngModelChange)="draftTo.set($any($event))" />
+          </label>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 pt-2 border-t border-neutral-100">
+        <button type="button"
+          (click)="clearFilters()"
+          class="min-h-[44px] px-4 py-2 rounded-lg border border-neutral-200 text-sm
+                 font-medium text-neutral-700 hover:bg-neutral-50">
+          Limpar
+        </button>
+        <button type="button"
+          (click)="applyFilters()"
+          class="min-h-[44px] px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600
+                 text-white text-sm font-semibold">
+          Aplicar
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<app-confirm-dialog
+  [open]="dialogOpen()"
+  [title]="dialogTitle()"
+  [message]="dialogMessage()"
+  [confirmLabel]="dialogConfirmLabel()"
+  cancelLabel="Voltar"
+  [variant]="dialogVariant()"
+  (confirmed)="confirmDialog()"
+  (cancelled)="cancelDialog()"
+/>

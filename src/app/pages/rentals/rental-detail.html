@@ -1,0 +1,345 @@
+<app-default-page-layout
+  title="Detalhes do aluguel"
+  description="Contrato, cobranças Asaas e ações do ciclo de vida."
+>
+  @if (loading() && !rental()) {
+    <div class="space-y-3">
+      <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+      <div class="h-40 rounded-xl bg-neutral-100 animate-pulse"></div>
+      <div class="h-40 rounded-xl bg-neutral-100 animate-pulse"></div>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3 mb-4">
+      {{ error() }}
+      <button type="button" (click)="backToList()"
+        class="ml-2 underline font-medium text-rose-800">
+        Voltar para a lista
+      </button>
+    </div>
+  }
+
+  @if (rental(); as r) {
+    <div class="space-y-4 sm:space-y-6">
+      <!-- Desktop actions (top-right) -->
+      <div class="hidden lg:flex justify-end">
+        <app-detail-actions
+          [editRouterLink]="['/alugueis', r.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+
+      <!-- Header identification -->
+      <app-page-card title="Identificação">
+        <div class="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Veículo</p>
+            <p class="text-lg font-semibold text-neutral-900 tabular-nums tracking-wider">
+              {{ vehiclePlate() }}
+            </p>
+            <p class="text-sm text-neutral-500 truncate">{{ vehicleLabel() }}</p>
+            <p class="mt-2 text-xs uppercase tracking-wide text-neutral-400 font-semibold">Motorista</p>
+            <p class="text-sm text-neutral-800">{{ driverNameSig() }}</p>
+          </div>
+          <div class="shrink-0">
+            @if (statusInfo(); as s) {
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                [class]="s.chip">
+                {{ s.label }}
+              </span>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <app-page-card title="Período">
+          <div class="p-4 sm:p-6 space-y-2">
+            <div class="flex items-baseline justify-between">
+              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Início</span>
+              <span class="tabular-nums text-neutral-800">{{ formatDate(r.startDate) }}</span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Fim</span>
+              <span class="tabular-nums text-neutral-800">{{ formatDate(r.endDate) }}</span>
+            </div>
+            <div class="flex items-baseline justify-between pt-2 border-t border-neutral-100">
+              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Total</span>
+              <span class="text-lg font-semibold text-neutral-900 tabular-nums">
+                {{ totalDays() }} dia(s)
+              </span>
+            </div>
+          </div>
+        </app-page-card>
+
+        <app-page-card title="Valores">
+          <div class="p-4 sm:p-6 space-y-2">
+            <div class="flex items-baseline justify-between">
+              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Cobrança</span>
+              <span class="tabular-nums text-neutral-800">{{ billingFrequencyLabel(r.billingFrequency) }}</span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">{{ rateLabel(r.billingFrequency) }}</span>
+              <span class="tabular-nums text-neutral-800">{{ formatCurrency(r.dailyRate) }}</span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Caução</span>
+              <span class="tabular-nums text-neutral-800">
+                @if (r.caucaoAmount > 0) {
+                  {{ formatCurrency(r.caucaoAmount) }}
+                } @else {
+                  <span class="text-neutral-400">—</span>
+                }
+              </span>
+            </div>
+            <div class="flex items-baseline justify-between pt-2 border-t border-neutral-100">
+              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Total</span>
+              <span class="text-lg font-semibold text-primary-700 tabular-nums">
+                {{ formatCurrency(r.totalAmount) }}
+              </span>
+            </div>
+          </div>
+        </app-page-card>
+      </div>
+
+      <app-page-card title="Cobranças">
+        <div class="p-4 sm:p-6">
+          @if (r.charges.length === 0) {
+            <p class="text-sm text-neutral-500 text-center py-6">
+              Nenhuma cobrança gerada ainda.
+            </p>
+          } @else {
+            <ul class="space-y-3">
+              @for (charge of r.charges; track charge.id) {
+                <li class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
+                  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">
+                        {{ chargeKindLabel(charge.kind) }}
+                      </p>
+                      <p class="text-lg font-semibold text-neutral-900 tabular-nums">
+                        {{ formatCurrency(charge.amount) }}
+                      </p>
+                      @if (charge.paidAt) {
+                        <p class="text-xs text-neutral-500 mt-0.5">
+                          Pago em {{ formatDateTime(charge.paidAt) }}
+                        </p>
+                      }
+                    </div>
+                    <span class="inline-flex shrink-0 items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      [class]="chargeStatusInfo(charge.status).chip">
+                      {{ chargeStatusInfo(charge.status).label }}
+                    </span>
+                  </div>
+
+                  @if (canPayCharge(charge)) {
+                    <button
+                      type="button"
+                      (click)="payCharge(charge)"
+                      class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
+                             rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
+                             shadow-sm transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/>
+                        <line x1="10" y1="14" x2="21" y2="3"/>
+                      </svg>
+                      Pagar via Asaas
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </app-page-card>
+
+      <!-- Histórico de status -->
+      <app-page-card title="Histórico de status">
+        <div class="p-4 sm:p-6">
+          <!-- Toggle mobile-only: expandido por padrão em desktop -->
+          <button
+            type="button"
+            (click)="toggleHistory()"
+            class="lg:hidden w-full flex items-center justify-between text-sm font-semibold text-neutral-700 mb-3"
+            [attr.aria-expanded]="historyOpen()"
+          >
+            <span>
+              {{ historyOpen() ? 'Ocultar timeline' : 'Mostrar timeline' }}
+              @if (history().length > 0) {
+                <span class="ml-1 text-xs text-neutral-500">({{ history().length }})</span>
+              }
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true"
+              [style.transform]="historyOpen() ? 'rotate(180deg)' : 'rotate(0deg)'"
+              style="transition: transform .2s ease">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <div [class.hidden]="!historyOpen()" class="lg:!block">
+            @if (historyLoading()) {
+              <div class="space-y-3">
+                <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+                <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+              </div>
+            } @else if (history().length === 0) {
+              <p class="text-sm text-neutral-500 text-center py-6">
+                Nenhum evento registrado.
+              </p>
+            } @else {
+              <ol class="relative border-l-2 border-neutral-200 pl-5 space-y-4">
+                @for (entry of history(); track entry.id) {
+                  <li class="relative">
+                    <!-- Bolinha colorida pelo status destino -->
+                    <span
+                      class="absolute -left-[27px] top-1 inline-flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white"
+                      [style.background-color]="historyStatusMeta(entry.toStatus).color"
+                      aria-hidden="true"
+                    ></span>
+
+                    <div class="flex flex-col gap-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        @if (entry.fromStatus) {
+                          <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                            [class]="historyStatusMeta(entry.fromStatus).chip"
+                          >
+                            {{ historyStatusMeta(entry.fromStatus).label }}
+                          </span>
+                          <span class="text-neutral-400 text-xs" aria-hidden="true">→</span>
+                        } @else {
+                          <span class="text-xs text-neutral-500 font-medium">Criado como</span>
+                        }
+                        <span
+                          class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                          [class]="historyStatusMeta(entry.toStatus).chip"
+                        >
+                          {{ historyStatusMeta(entry.toStatus).label }}
+                        </span>
+                      </div>
+
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                        <span class="tabular-nums">{{ formatDateTime(entry.createdAt) }}</span>
+                        @if (entry.changedByName) {
+                          <span class="inline-flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"
+                              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                              <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            {{ entry.changedByName }}
+                          </span>
+                        }
+                      </div>
+
+                      @if (entry.reason) {
+                        <p class="text-xs text-neutral-600 mt-1">{{ entry.reason }}</p>
+                      }
+                    </div>
+                  </li>
+                }
+              </ol>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Actions -->
+      @if (canCancel() || canComplete() || canActivate()) {
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          @if (canCancel()) {
+            <button type="button"
+              (click)="askCancel()"
+              class="w-full sm:w-auto px-4 py-3 rounded-xl border border-rose-200 text-rose-700
+                     hover:bg-rose-50 text-sm font-semibold">
+              Cancelar reserva
+            </button>
+          }
+          @if (canActivate()) {
+            <button type="button"
+              (click)="activate()"
+              [disabled]="activateBusy()"
+              class="w-full sm:w-auto px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white
+                     text-sm font-semibold shadow-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              {{ activateBusy() ? 'Ativando…' : 'Marcar como ativo' }}
+            </button>
+          }
+          @if (canComplete()) {
+            <button type="button"
+              (click)="askComplete()"
+              class="w-full sm:w-auto px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white
+                     text-sm font-semibold shadow-sm">
+              Concluir aluguel
+            </button>
+          }
+        </div>
+      }
+
+      @if (r.notes) {
+        <app-page-card title="Observações">
+          <div class="p-4 sm:p-6 text-sm text-neutral-700 whitespace-pre-line">
+            {{ r.notes }}
+          </div>
+        </app-page-card>
+      }
+
+      <!-- Mobile actions (bottom) -->
+      <div class="lg:hidden">
+        <app-detail-actions
+          [editRouterLink]="['/alugueis', r.id, 'editar']"
+          (delete)="askDelete()"
+        />
+      </div>
+
+      <div class="pt-2">
+        <a routerLink="/alugueis" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+          ← Voltar para a lista
+        </a>
+      </div>
+    </div>
+  }
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="cancelOpen()"
+  title="Cancelar reserva"
+  message="Tem certeza que deseja cancelar esta reserva? As cobranças pendentes serão canceladas."
+  confirmLabel="Cancelar reserva"
+  cancelLabel="Voltar"
+  variant="danger"
+  (confirmed)="confirmCancel()"
+  (cancelled)="cancelCancel()"
+/>
+
+<app-confirm-dialog
+  [open]="completeOpen()"
+  title="Concluir aluguel"
+  message="Marcar aluguel como concluído? Isso dispara o reembolso da caução, quando houver."
+  confirmLabel="Concluir aluguel"
+  cancelLabel="Voltar"
+  variant="warning"
+  (confirmed)="confirmComplete()"
+  (cancelled)="cancelComplete()"
+/>
+
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir aluguel"
+  message="Tem certeza que deseja excluir este aluguel? Esta ação não pode ser desfeita."
+  confirmLabel="Excluir"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>
