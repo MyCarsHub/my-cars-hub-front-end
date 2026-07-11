@@ -8,6 +8,18 @@ import { NotificationService } from './notification.service';
 interface BackendErrorBody {
   message?: string;
   error?: string;
+  exception?: string;
+  code?: string;
+}
+
+function isTokenExpired(error: HttpErrorResponse, body: BackendErrorBody): boolean {
+  const details = [
+    typeof error.error === 'string' ? error.error : '',
+    body.message ?? '',
+    body.error ?? '',
+    body.exception ?? '',
+  ].join(' ');
+  return body.code === 'TOKEN_EXPIRED' || details.includes('TokenExpiredException');
 }
 
 /**
@@ -30,7 +42,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       const backendMessage =
         typeof body === 'object' && body !== null ? body.message ?? body.error : undefined;
 
-      if (status === 0) {
+      if (isTokenExpired(error, body)) {
+        session.clear();
+        notifications.warning('Sua sessão expirou. Faça login novamente.');
+        router.navigate(['/login'], { replaceUrl: true });
+      } else if (status === 0) {
         notifications.error('Sem conexão com o servidor. Verifique sua internet.');
       } else if (status === 401) {
         if (!req.url.includes('/auth/login')) {

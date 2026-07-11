@@ -75,6 +75,18 @@ describe('errorInterceptor', () => {
     expect(err?.status).toBe(401);
   });
 
+  it('clears session and redirects to /login when the backend reports TokenExpiredException', async () => {
+    const err = await runAndCatch(401, {
+      code: 'TOKEN_EXPIRED',
+      message: 'Sessão expirada. Faça login novamente.',
+    });
+
+    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    expect(err?.status).toBe(401);
+    expect(notifyWarning).toHaveBeenCalledWith('Sua sessão expirou. Faça login novamente.');
+  });
+
   it('does NOT clear session or redirect on 401 when request is /auth/login', async () => {
     const err = await runAndCatch(401, undefined, 'http://localhost/v1/auth/login');
     expect(sessionClear).not.toHaveBeenCalled();

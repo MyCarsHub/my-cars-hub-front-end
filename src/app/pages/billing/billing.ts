@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { SignatureModalComponent } from './components/signature-modal';
 import { BillingService } from '../../services/billing.service';
 import {
   BillingCycle,
@@ -19,7 +20,13 @@ import {
 
 @Component({
   selector: 'app-billing',
-  imports: [CommonModule, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [
+    CommonModule,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    SignatureModalComponent,
+  ],
   templateUrl: './billing.html',
   styleUrl: './billing.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,6 +42,9 @@ export class Billing implements OnInit {
   protected readonly cycle = signal<BillingCycle>('MONTHLY');
   protected readonly redirecting = signal(false);
   protected readonly showCancelDialog = signal(false);
+  protected readonly showSignatureModal = signal(false);
+  protected readonly pendingCheckoutPlanCode = signal<string | null>(null);
+  protected readonly pendingCheckoutCycle = signal<BillingCycle>('MONTHLY');
 
   protected readonly recommendedCode = 'PRO';
 
@@ -114,8 +124,24 @@ export class Billing implements OnInit {
 
   protected subscribe(plan: PlanResponse): void {
     if (this.redirecting()) return;
+    
+    // Show signature modal before proceeding
+    this.pendingCheckoutPlanCode.set(plan.code);
+    this.pendingCheckoutCycle.set(this.cycle());
+    this.showSignatureModal.set(true);
+  }
+
+  protected onSignatureSigned(): void {
+    const planCode = this.pendingCheckoutPlanCode();
+    const cycle = this.pendingCheckoutCycle();
+    
+    this.showSignatureModal.set(false);
+    this.pendingCheckoutPlanCode.set(null);
+
+    if (!planCode) return;
+
     this.redirecting.set(true);
-    this.billingService.startCheckout(plan.code, this.cycle()).subscribe({
+    this.billingService.startCheckout(planCode, cycle).subscribe({
       next: (res) => {
         window.location.href = res.redirectUrl;
       },
@@ -123,6 +149,11 @@ export class Billing implements OnInit {
         this.redirecting.set(false);
       },
     });
+  }
+
+  protected onSignatureCancelled(): void {
+    this.showSignatureModal.set(false);
+    this.pendingCheckoutPlanCode.set(null);
   }
 
   protected openCancel(): void {

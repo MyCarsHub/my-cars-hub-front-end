@@ -3,8 +3,6 @@ import { authGuard } from './services/auth-guard';
 import { roleGuard } from './services/role.guard';
 import { adminGuard } from './services/admin.guard';
 import { billingAccessGuard } from './services/billing-access.guard';
-import { Login } from './pages/login/login';
-import { Signup } from './pages/signup/signup';
 import { ConstructorPage } from './pages/constructor-page/constructor-page';
 import { AppShell } from './components/core/layouts/app-shell';
 import { OauthSuccess } from './pages/oauth-success/oauth-success';
@@ -25,11 +23,15 @@ export const routes: Routes = [
     },
     {
         path: 'login',
-        component: Login,
+        loadComponent: () =>
+            import('./pages/google-login/google-login').then(
+                (m) => m.GoogleLogin
+            ),
     },
     {
         path: 'signup',
-        component: Signup,
+        redirectTo: 'login',
+        pathMatch: 'full',
     },
     {
         path: 'oauth-success',

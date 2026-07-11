@@ -199,4 +199,12 @@
     (confirmed)="onCancelConfirmed()"
     (cancelled)="onCancelDismissed()" />
 
+  @if (subscription(); as sub) {
+    <app-signature-modal
+      [subscriptionId]="sub.id"
+      [isOpen]="showSignatureModal()"
+      (signed)="onSignatureSigned()"
+      (cancelRequested)="onSignatureCancelled()" />
+  }
+
 </app-default-page-layout>

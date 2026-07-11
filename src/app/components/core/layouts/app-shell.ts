@@ -10,7 +10,6 @@ import {
 import { Router, RouterOutlet } from '@angular/router';
 import { animate, state, style, transition, trigger } from '@angular/animations';
 import { Sidebar } from '../../sidebar/sidebar';
-import { ToastHost } from '../../toast-host/toast-host';
 import { LayoutStore } from './layout.store';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
@@ -19,7 +18,7 @@ import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, ToastHost, PaywallDialog],
+  imports: [RouterOutlet, Sidebar, PaywallDialog],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -42,8 +41,6 @@ import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
         </div>
       </main>
     </div>
-    <app-toast-host />
-
     <app-paywall-dialog
       [open]="paywallOpen()"
       [reason]="access.reason()"
