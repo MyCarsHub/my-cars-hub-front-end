@@ -122,6 +122,17 @@ body {
   overflow-x: hidden;
 }
 
+/* Cursor "mãozinha" em qualquer <button> / <a role="button"> não-desabilitado.
+   Reset do browser default (seta) que aparecia em botões sem class específica. */
+button:not(:disabled),
+a[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled,
+a[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Enquanto o app-shell autenticado estiver ativo, trava o scroll no body —
    só o <main class="flex-1 overflow-y-auto"> rola. Sem isso o body ganhava
    um segundo scrollbar do navegador junto com o da área de conteúdo. */
