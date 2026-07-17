@@ -2,8 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './services/auth-guard';
 import { roleGuard } from './services/role.guard';
 import { adminGuard } from './services/admin.guard';
-import { Login } from './pages/login/login';
-import { Signup } from './pages/signup/signup';
+import { billingAccessGuard } from './services/billing-access.guard';
 import { ConstructorPage } from './pages/constructor-page/constructor-page';
 import { AppShell } from './components/core/layouts/app-shell';
 import { OauthSuccess } from './pages/oauth-success/oauth-success';
@@ -24,15 +23,29 @@ export const routes: Routes = [
     },
     {
         path: 'login',
-        component: Login,
+        loadComponent: () =>
+            import('./pages/google-login/google-login').then(
+                (m) => m.GoogleLogin
+            ),
     },
     {
         path: 'signup',
-        component: Signup,
+        redirectTo: 'login',
+        pathMatch: 'full',
     },
     {
         path: 'oauth-success',
         component: OauthSuccess,
+    },
+    {
+        path: 'blog',
+        loadComponent: () =>
+            import('./pages/blog/blog-list').then((m) => m.BlogList),
+    },
+    {
+        path: 'blog/:slug',
+        loadComponent: () =>
+            import('./pages/blog/blog-detail').then((m) => m.BlogDetail),
     },
     {
         path: '',
@@ -49,11 +62,14 @@ export const routes: Routes = [
             },
             {
                 path: '',
-                canActivateChild: [onboardingGuard],
+                canActivateChild: [onboardingGuard, billingAccessGuard],
                 children: [
                     {
                         path: 'dashboard',
-                        component: ConstructorPage,
+                        loadComponent: () =>
+                            import('./pages/dashboard/dashboard-home').then(
+                                (m) => m.DashboardHome
+                            ),
                         data: { pageTitle: 'Dashboard' },
                     },
                     {
@@ -167,6 +183,45 @@ export const routes: Routes = [
                         ],
                     },
                     {
+                        path: 'alugueis',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/rentals/rentals-list'
+                                    ).then((m) => m.RentalsList),
+                                data: { pageTitle: 'Aluguéis' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/rentals/rental-form'
+                                    ).then((m) => m.RentalForm),
+                                data: { pageTitle: 'Novo aluguel' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/rentals/rental-detail'
+                                    ).then((m) => m.RentalDetail),
+                                data: { pageTitle: 'Detalhes do aluguel' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/rentals/rental-form'
+                                    ).then((m) => m.RentalForm),
+                                data: { pageTitle: 'Editar aluguel' },
+                            },
+                        ],
+                    },
+                    {
                         path: 'manutencoes',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
@@ -257,6 +312,14 @@ export const routes: Routes = [
                                     ).then((m) => m.FinancingsList),
                                 data: { pageTitle: 'Financiamentos' },
                             },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/financings/financing-detail'
+                                    ).then((m) => m.FinancingDetail),
+                                data: { pageTitle: 'Detalhes do financiamento' },
+                            },
                         ],
                     },
                     {
@@ -267,9 +330,43 @@ export const routes: Routes = [
                     },
                     {
                         path: 'configuracoes',
-                        component: CompanySettings,
-                        canActivate: [roleGuard(['OWNER'])],
-                        data: { pageTitle: 'Configurações' },
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                component: CompanySettings,
+                                canActivate: [roleGuard(['OWNER'])],
+                                data: { pageTitle: 'Configurações' },
+                            },
+                            {
+                                path: 'integracoes',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/integrations/charge-integration'
+                                    ).then((m) => m.ChargeIntegration),
+                                data: { pageTitle: 'Integração de cobranças' },
+                            },
+                            {
+                                path: 'integracoes/asaas',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/integrations/asaas-integration'
+                                    ).then((m) => m.AsaasIntegration),
+                                data: { pageTitle: 'Integração Asaas (legado)' },
+                            },
+                            {
+                                path: 'contratos',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/contract-template/contract-template'
+                                    ).then((m) => m.ContractTemplate),
+                                data: { pageTitle: 'Template de contrato' },
+                            },
+                        ],
                     },
                     {
                         path: 'billing',
@@ -303,6 +400,14 @@ export const routes: Routes = [
                         data: { pageTitle: 'Perfil' },
                     },
                     {
+                        path: 'suporte',
+                        loadComponent: () =>
+                            import('./pages/support/support').then(
+                                (m) => m.SupportPage,
+                            ),
+                        data: { pageTitle: 'Suporte' },
+                    },
+                    {
                         path: 'roadmap',
                         loadComponent: () =>
                             import('./pages/roadmap/roadmap').then(
@@ -331,6 +436,70 @@ export const routes: Routes = [
                                         './pages/admin/admin-feedback/admin-feedback'
                                     ).then((m) => m.AdminFeedback),
                                 data: { pageTitle: 'Moderação de Feedback' },
+                            },
+                            {
+                                path: 'users',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/users/admin-users'
+                                    ).then((m) => m.AdminUsers),
+                                data: { pageTitle: 'Usuários' },
+                            },
+                            {
+                                path: 'users/:id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/users/admin-user-detail'
+                                    ).then((m) => m.AdminUserDetail),
+                                data: { pageTitle: 'Detalhes do usuário' },
+                            },
+                            {
+                                path: 'companies',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/companies/admin-companies'
+                                    ).then((m) => m.AdminCompanies),
+                                data: { pageTitle: 'Empresas' },
+                            },
+                            {
+                                path: 'companies/:id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/companies/admin-company-detail'
+                                    ).then((m) => m.AdminCompanyDetail),
+                                data: { pageTitle: 'Detalhes da empresa' },
+                            },
+                            {
+                                path: 'blog',
+                                loadComponent: () =>
+                                    import('./pages/admin/blog/admin-blog-list').then(
+                                        (m) => m.AdminBlogList,
+                                    ),
+                                data: { pageTitle: 'Blog' },
+                            },
+                            {
+                                path: 'blog/novo',
+                                loadComponent: () =>
+                                    import('./pages/admin/blog/admin-blog-form').then(
+                                        (m) => m.AdminBlogForm,
+                                    ),
+                                data: { pageTitle: 'Novo post' },
+                            },
+                            {
+                                path: 'blog/:id/editar',
+                                loadComponent: () =>
+                                    import('./pages/admin/blog/admin-blog-form').then(
+                                        (m) => m.AdminBlogForm,
+                                    ),
+                                data: { pageTitle: 'Editar post' },
+                            },
+                            {
+                                path: 'suporte',
+                                loadComponent: () =>
+                                    import('./pages/admin/support/admin-support-list').then(
+                                        (m) => m.AdminSupportList,
+                                    ),
+                                data: { pageTitle: 'Suporte' },
                             },
                         ],
                     },

@@ -12,31 +12,22 @@ export type MaintenanceStatus =
   | 'DONE'
   | 'CANCELED';
 
-export const MAINTENANCE_TYPE_OPTIONS: Array<{
-  value: MaintenanceType | '';
-  label: string;
-  chip: string;
-}> = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
-  { value: 'PREVENTIVE', label: 'Preventiva', chip: 'bg-emerald-100 text-emerald-800' },
-  { value: 'CORRECTIVE', label: 'Corretiva', chip: 'bg-rose-100 text-rose-700' },
-  { value: 'INSPECTION', label: 'Inspeção', chip: 'bg-blue-100 text-blue-700' },
-  { value: 'TIRE', label: 'Pneus', chip: 'bg-amber-100 text-amber-800' },
-  { value: 'OIL', label: 'Óleo/filtros', chip: 'bg-orange-100 text-orange-800' },
-  { value: 'OTHER', label: 'Outros', chip: 'bg-neutral-200 text-neutral-700' },
-];
+import {
+  MAINTENANCE_STATUS_FILTER_OPTIONS,
+  MAINTENANCE_TYPE_FILTER_OPTIONS,
+} from '../utils/status-maps';
 
-export const MAINTENANCE_STATUS_OPTIONS: Array<{
-  value: MaintenanceStatus | '';
-  label: string;
-  chip: string;
-}> = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
-  { value: 'SCHEDULED', label: 'Agendada', chip: 'bg-blue-100 text-blue-700' },
-  { value: 'IN_PROGRESS', label: 'Em andamento', chip: 'bg-amber-100 text-amber-800' },
-  { value: 'DONE', label: 'Concluída', chip: 'bg-emerald-100 text-emerald-800' },
-  { value: 'CANCELED', label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-];
+/**
+ * @deprecated Import `MAINTENANCE_TYPE_FILTER_OPTIONS` from
+ * `utils/status-maps.ts` instead.
+ */
+export const MAINTENANCE_TYPE_OPTIONS = MAINTENANCE_TYPE_FILTER_OPTIONS;
+
+/**
+ * @deprecated Import `MAINTENANCE_STATUS_FILTER_OPTIONS` from
+ * `utils/status-maps.ts` instead.
+ */
+export const MAINTENANCE_STATUS_OPTIONS = MAINTENANCE_STATUS_FILTER_OPTIONS;
 
 export const MAINTENANCE_SORT_OPTIONS = [
   { value: 'service_date_desc', label: 'Serviço (recente)' },

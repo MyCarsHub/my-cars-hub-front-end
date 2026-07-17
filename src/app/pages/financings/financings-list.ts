@@ -17,12 +17,9 @@ import {
   FinancingStatus,
   VehicleListItem,
 } from '../../types/vehicle.types';
+import { FINANCING_STATUS_FILTER_OPTIONS } from '../../utils/status-maps';
 
-const STATUS_OPTIONS: Array<{ value: FinancingStatus | ''; label: string; chip: string }> = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
-  { value: 'ACTIVE', label: 'Ativo', chip: 'bg-blue-100 text-blue-700' },
-  { value: 'PAID_OFF', label: 'Quitado', chip: 'bg-emerald-100 text-emerald-800' },
-];
+const STATUS_OPTIONS = FINANCING_STATUS_FILTER_OPTIONS;
 
 const SORT_OPTIONS = [
   { value: 'created_desc', label: 'Cadastro (recente)' },
@@ -139,7 +136,21 @@ export class FinancingsList implements OnInit {
   }
 
   protected openDetail(f: FinancingListItem): void {
-    // Financings live under vehicle detail — navigate to the vehicle page.
-    this.router.navigate(['/veiculos', f.vehicleId]);
+    // Route to the financing detail page itself (not the vehicle).
+    this.router.navigate(['/financiamentos', f.id]);
+  }
+
+  /**
+   * Badge derivado do agregado `overdueInstallments` do backend, que consulta
+   * `financing_installments` (V24). Substituiu a projeção mensal do client.
+   */
+  protected progressBadge(f: FinancingListItem): { label: string; chip: string } {
+    if (f.status === 'PAID_OFF') {
+      return { label: 'Quitado', chip: 'bg-emerald-100 text-emerald-800' };
+    }
+    if ((f.overdueInstallments ?? 0) > 0) {
+      return { label: 'Atrasado', chip: 'bg-rose-100 text-rose-700' };
+    }
+    return { label: 'Em dia', chip: 'bg-blue-100 text-blue-700' };
   }
 }

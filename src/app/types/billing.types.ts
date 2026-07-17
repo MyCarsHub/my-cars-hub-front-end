@@ -31,9 +31,12 @@ export interface SubscriptionResponse {
   externalId: string | null;
 }
 
+export type GatewayOverride = 'abacate' | 'stripe';
+
 export interface CheckoutRequest {
   planCode: string;
   billingCycle: BillingCycle;
+  gatewayOverride?: GatewayOverride;
 }
 
 export interface CheckoutResponse {

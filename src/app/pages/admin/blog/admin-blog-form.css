@@ -1,0 +1,23 @@
+:host { display: block; }
+
+/* Prose leve para o preview (fica dentro do card admin, não usa tokens da landing). */
+.prose {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #333;
+}
+.prose > * + * { margin-top: 1em; }
+.prose h1, .prose h2, .prose h3, .prose h4 { font-weight: 700; letter-spacing: -0.01em; color: #0a0a0a; margin-top: 1.4em; }
+.prose h1 { font-size: 1.75rem; }
+.prose h2 { font-size: 1.4rem; }
+.prose h3 { font-size: 1.15rem; }
+.prose a { color: #EB3F00; text-decoration: underline; }
+.prose strong { color: #0a0a0a; }
+.prose ul, .prose ol { padding-left: 1.5em; }
+.prose li { margin: 0.4em 0; }
+.prose blockquote { border-left: 3px solid #EB3F00; padding-left: 16px; color: #555; font-style: italic; }
+.prose code { background: #f2f2f2; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+.prose pre { background: #0a0a0a; color: #fff; padding: 16px; border-radius: 8px; overflow-x: auto; }
+.prose pre code { background: none; color: inherit; padding: 0; }
+.prose img { max-width: 100%; height: auto; border-radius: 8px; }
+.prose hr { border: 0; border-top: 1px solid #ececec; }

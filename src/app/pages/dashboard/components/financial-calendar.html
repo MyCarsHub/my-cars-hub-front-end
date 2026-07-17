@@ -1,0 +1,157 @@
+<div class="min-w-0">
+    <!-- Header: month nav + Today -->
+    <div class="flex items-center justify-between gap-2 mb-3">
+        <button
+            type="button"
+            class="min-h-[44px] min-w-[44px] rounded-lg border border-gray-200 bg-white
+                   text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                   flex items-center justify-center"
+            aria-label="Mês anterior"
+            (click)="prevMonth()"
+        >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+        </button>
+        <div class="flex-1 text-center min-w-0">
+            <p class="text-sm sm:text-base font-semibold text-gray-800 capitalize truncate">
+                {{ monthLabel() }}
+            </p>
+        </div>
+        <button
+            type="button"
+            class="min-h-[44px] px-3 rounded-lg border border-gray-200 bg-white
+                   text-gray-700 text-xs hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            (click)="goToday()"
+        >
+            Hoje
+        </button>
+        <button
+            type="button"
+            class="min-h-[44px] min-w-[44px] rounded-lg border border-gray-200 bg-white
+                   text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                   flex items-center justify-center"
+            aria-label="Próximo mês"
+            (click)="nextMonth()"
+        >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 6l6 6-6 6" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Weekday header -->
+    <div class="grid grid-cols-7 gap-1 mb-1">
+        @for (w of weekdays; track w) {
+            <div class="text-[10px] sm:text-xs text-gray-500 text-center uppercase tracking-wide">
+                {{ w }}
+            </div>
+        }
+    </div>
+
+    <!-- Grid -->
+    <div class="grid grid-cols-7 gap-1">
+        @for (cell of cells(); track $index) {
+            @if (cell.isPad) {
+                <div class="min-h-[52px] sm:min-h-[64px] rounded-md bg-gray-50/40"></div>
+            } @else {
+                <button
+                    type="button"
+                    class="min-h-[52px] sm:min-h-[64px] rounded-md border p-1 text-left
+                           flex flex-col justify-between transition-colors
+                           focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    [class.bg-white]="!cell.isToday && selectedDate() !== cell.date"
+                    [class.border-gray-200]="!cell.isToday && selectedDate() !== cell.date"
+                    [class.bg-primary-50]="cell.isToday && selectedDate() !== cell.date"
+                    [class.border-primary-300]="cell.isToday"
+                    [class.ring-2]="selectedDate() === cell.date"
+                    [class.ring-primary-500]="selectedDate() === cell.date"
+                    [attr.aria-label]="'Dia ' + cell.dayOfMonth"
+                    (click)="onCellClick(cell)"
+                >
+                    <div class="flex items-center justify-between">
+                        <span
+                            class="text-[11px] sm:text-sm tabular-nums"
+                            [class.font-semibold]="cell.isToday"
+                            [class.text-primary-700]="cell.isToday"
+                            [class.text-gray-700]="!cell.isToday"
+                        >
+                            {{ cell.dayOfMonth }}
+                        </span>
+                        @if (cell.inCount + cell.outCount > 1) {
+                            <span class="text-[9px] sm:text-[10px] font-medium
+                                         bg-gray-100 text-gray-600 rounded-full px-1.5 tabular-nums">
+                                {{ cell.inCount + cell.outCount }}
+                            </span>
+                        }
+                    </div>
+                    <div class="flex flex-col gap-0.5 items-start">
+                        @if (cell.inCount > 0) {
+                            <span class="flex items-center gap-1 text-[9px] sm:text-[10px] text-emerald-700
+                                         font-medium tabular-nums leading-none">
+                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span class="truncate">{{ shortMoney(cell.inCents) }}</span>
+                            </span>
+                        }
+                        @if (cell.outCount > 0) {
+                            <span class="flex items-center gap-1 text-[9px] sm:text-[10px] text-red-700
+                                         font-medium tabular-nums leading-none">
+                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                <span class="truncate">{{ shortMoney(cell.outCents) }}</span>
+                            </span>
+                        }
+                    </div>
+                </button>
+            }
+        }
+    </div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap items-center gap-3 mt-3 text-[11px] text-gray-500">
+        <span class="flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+            Recebimentos
+        </span>
+        <span class="flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-red-500"></span>
+            Pagamentos (multas e manutenções)
+        </span>
+    </div>
+
+    <!-- Monthly summary cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+        <div class="rounded-xl bg-white border border-gray-200 p-3">
+            <p class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Recebimentos</p>
+            <p class="text-sm sm:text-lg font-semibold text-emerald-600 tabular-nums truncate">
+                {{ inLabel() }}
+            </p>
+            <p class="text-[10px] sm:text-xs text-gray-500 tabular-nums">
+                {{ monthSummary().inCount }} evento(s)
+            </p>
+        </div>
+        <div class="rounded-xl bg-white border border-gray-200 p-3">
+            <p class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Pagamentos</p>
+            <p class="text-sm sm:text-lg font-semibold text-red-600 tabular-nums truncate">
+                {{ outLabel() }}
+            </p>
+            <p class="text-[10px] sm:text-xs text-gray-500 tabular-nums">
+                {{ monthSummary().outCount }} evento(s)
+            </p>
+        </div>
+        <div class="rounded-xl bg-white border border-gray-200 p-3 col-span-2 sm:col-span-2">
+            <p class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">Saldo projetado</p>
+            <p
+                class="text-sm sm:text-lg font-semibold tabular-nums truncate"
+                [class.text-emerald-600]="monthSummary().balance >= 0"
+                [class.text-red-600]="monthSummary().balance < 0"
+            >
+                {{ balanceLabel() }}
+            </p>
+            <p class="text-[10px] sm:text-xs text-gray-500">
+                Recebimentos - pagamentos no mês
+            </p>
+        </div>
+    </div>
+</div>

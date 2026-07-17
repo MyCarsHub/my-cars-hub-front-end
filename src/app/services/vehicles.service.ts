@@ -2,12 +2,13 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { PagedResponse } from '../types/feedback.types';
+import { PagedResponse } from '../types/paged.types';
 import { GerenciaSummary } from '../types/gerencia-summary.types';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
   Financing,
+  FinancingDetail,
   FinancingFilters,
   FinancingListItem,
   MarkPaidOffRequest,
@@ -60,6 +61,7 @@ export class VehiclesService {
     let params = new HttpParams();
     if (filters.q?.trim()) params = params.set('q', filters.q.trim());
     if (filters.type) params = params.set('type', filters.type);
+    if (filters.status) params = params.set('status', filters.status);
     if (filters.sort) params = params.set('sort', filters.sort);
     if (filters.page !== undefined) params = params.set('page', String(filters.page));
     if (filters.size !== undefined) params = params.set('size', String(filters.size));
@@ -89,6 +91,19 @@ export class VehiclesService {
 
   update(id: string, payload: UpdateVehicleRequest): Observable<Vehicle> {
     return this.http.put<Vehicle>(`${BASE}/${id}`, payload);
+  }
+
+  /**
+   * Manual status transition. Backend rejects RENTED (system-managed) and
+   * returns 409 when there is an active rental. Cache is updated inline so
+   * the list reflects the new status without a refetch.
+   */
+  updateStatus(id: string, status: 'AVAILABLE' | 'MAINTENANCE' | 'INACTIVE'): Observable<Vehicle> {
+    return this.http.patch<Vehicle>(`${BASE}/${id}/status`, { status }).pipe(
+      tap((v) =>
+        this._items.update((list) => list.map((it) => (it.id === id ? { ...it, status: v.status } : it))),
+      ),
+    );
   }
 
   remove(id: string): Observable<void> {
@@ -129,6 +144,27 @@ export class VehiclesService {
     return this.http
       .delete(`${BASE}/${vehicleId}/financings/${financingId}`, { responseType: 'text' })
       .pipe(map(() => void 0));
+  }
+
+  /** Fleet-wide financing detail (GET /v1/financings/{id}). */
+  getFleetFinancing(id: string): Observable<FinancingDetail> {
+    return this.http.get<FinancingDetail>(`${FLEET_FINANCINGS_BASE}/${id}`);
+  }
+
+  /**
+   * Marca uma parcela como paga. Payload é opcional — backend usa hoje/valor
+   * da parcela quando ausente. Retorna o detalhe completo com o cronograma
+   * refrescado, incluindo os KPIs `paidCents/remainingCents` já derivados.
+   */
+  payFinancingInstallment(
+    financingId: string,
+    installmentId: string,
+    payload: { paidDate?: string; paidAmountCents?: number } = {},
+  ): Observable<FinancingDetail> {
+    return this.http.post<FinancingDetail>(
+      `${FLEET_FINANCINGS_BASE}/${financingId}/installments/${installmentId}/pay`,
+      payload,
+    );
   }
 
   /** Fleet-wide financings listing (GET /v1/financings). */

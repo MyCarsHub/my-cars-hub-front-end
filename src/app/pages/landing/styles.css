@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* =========================================================
+   MyCarsHub — Landing Design System
+   Preserva identidade da marca (Sora + DM Sans + laranja
+   #EB3F00). Adiciona JetBrains Mono só pra dados tabulares.
+   Motion sutil, objetivo, sem cara de template genérico.
+   Referência de vibe: abacatepay.com — atraente sem exagero.
+   ========================================================= */
+
 @theme {
   --color-primary-500: #EB3F00;
   --color-primary-600: #d63600;
@@ -7,44 +15,144 @@
   --color-primary-low: #FFE6DD;
   --color-primary-50: #FFF5F0;
 
-  --color-black: #0F0F0F;
+  --color-black: #0B0B0B;
   --color-white: #FFFFFF;
   --color-gray-50: #F2F2F2;
-  --color-border: #E8E4E0;
+  --color-border: #E5E2DA;
 
   --color-success-500: #22C55E;
   --color-success-50: #F0FDF4;
+}
+
+:root {
+  /* Tipo — preserva identidade da marca (Sora display / DM Sans body). */
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Paleta paper — warm neutrals para ancorar o laranja. */
+  --paper: #FBFAF7;
+  --paper-warm: #F5F2EA;
+  --ivory: #F0EDE5;
+  --rule: #E8E4DC;
+  --rule-strong: #C9C4B7;
+  --ink: #0B0B0B;
+  --ink-80: rgba(11, 11, 11, 0.82);
+  --ink-70: rgba(11, 11, 11, 0.68);
+  --ink-50: rgba(11, 11, 11, 0.52);
+  --ink-30: rgba(11, 11, 11, 0.32);
+  --muted: #6B6864;
+
+  /* Marca */
+  --brand: #EB3F00;
+  --brand-hover: #d63600;
+  --brand-soft: #FFE6DD;
+  --brand-tint: #FFF5F0;
+
+  /* Status */
+  --status-live: #22C55E;
+  --status-info: #1E5F8C;
+  --status-warn: #C99700;
+
+  /* Layout */
+  --container: 1200px;
+  --container-narrow: 960px;
+  --gutter: clamp(20px, 4vw, 40px);
+  --section-y: clamp(72px, 10vw, 128px);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 180ms;
+  --dur: 320ms;
+  --dur-slow: 700ms;
 }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 72px;
+  scroll-padding-top: 84px;
 }
 
-:root {
-  --font-display: 'Fustat', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-  --container: 1120px;
-  --container-narrow: 1040px;
-}
-
-body {
+.landing-root {
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--paper);
   -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+  position: relative;
 }
 
-/* Shared reveal-on-scroll */
+.landing-root h1,
+.landing-root h2,
+.landing-root h3,
+.landing-root .display {
+  font-family: var(--font-display);
+  /* NÃO setar color aqui — h2s herdam de .landing-root (var(--ink)) e Tailwind
+     text-white / text-ink continuam funcionando. Setar color aqui vence utility
+     por specificity (0,0,1,1 vs 0,0,1,0) e escondia o texto do CTA no laranja. */
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  font-weight: 700;
+}
+
+/* Tabular numbers */
+.landing-root .mono,
+.landing-root [data-mono] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Eyebrow — pequeno label uppercase pra marcar seções. Não exagerado. */
+.landing-root .eyebrow {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.landing-root .eyebrow::before {
+  content: "";
+  width: 20px;
+  height: 2px;
+  background: var(--brand);
+  border-radius: 2px;
+}
+
+.landing-root .hair-rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0;
+}
+
+/* Reveal-on-scroll */
 .reveal {
   opacity: 0;
-  transform: translateY(16px);
-  transition: opacity .5s cubic-bezier(0.16, 1, 0.3, 1),
-              transform .5s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(20px);
+  transition: opacity var(--dur-slow) var(--ease-out),
+              transform var(--dur-slow) var(--ease-out);
 }
 .reveal.revealed { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+.landing-root :focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.landing-root ::selection {
+  background: var(--brand);
+  color: var(--paper);
 }

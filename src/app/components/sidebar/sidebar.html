@@ -52,10 +52,10 @@
   <!-- ===== LOGO ===== -->
   <div class="h-16 flex items-center px-4 border-b border-gray-200 shrink-0">
     @if (!layout.isCollapsed() || layout.isMobile()) {
-    <img src="svg/logo-my-cars-hub.svg" class="h-6" alt="MyCarsHub logo" @fadeLabel />
+    <img src="svg/logo-my-cars-hub-complete.svg" class="h-6" alt="MyCarsHub logo" @fadeLabel />
     } @else {
     <div class="w-full flex items-center justify-center">
-      <span class="text-primary-500 font-bold text-xl" aria-label="MyCarsHub">M</span>
+      <img src="svg/logo-my-cars-hub.svg" class="h-7 w-auto" alt="MyCarsHub" />
     </div>
     }
   </div>
@@ -112,25 +112,60 @@
 
   <!-- ===== NAVIGATION ===== -->
   <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-1" aria-label="Navegação principal">
-    @for (item of navItems(); track item.route) {
-    <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
-               text-gray-600 hover:bg-gray-100 hover:text-gray-900
-               transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
-      [attr.aria-label]="item.label">
-      <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+    @for (item of navItems(); track trackByKey($index, item)) {
+      @if (item.children) {
+        <button type="button" (click)="onParentClick(item)"
+          class="nav-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors group"
+          [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
+          [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''"
+          [attr.aria-expanded]="isExpanded(item)" [attr.aria-label]="item.label">
+          <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
 
-      @if (!layout.isCollapsed() || layout.isMobile()) {
-      <span class="text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
+          @if (!layout.isCollapsed() || layout.isMobile()) {
+          <span class="flex-1 text-left text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="text-gray-400 shrink-0" [@rotateGroupChevron]="isExpanded(item) ? 'expanded' : 'collapsed'">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          }
+        </button>
+
+        @if (isExpanded(item) && (!layout.isCollapsed() || layout.isMobile())) {
+        <div class="ml-4 pl-3 border-l border-gray-200 space-y-1" @dropdownSlide>
+          @for (child of item.children; track trackByKey($index, child)) {
+          <a [routerLink]="child.route" routerLinkActive="active-link"
+            [routerLinkActiveOptions]="child.exactMatch ? { exact: true } : { exact: false }"
+            class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl
+                   text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors group"
+            (click)="onNavClick()" [attr.aria-label]="child.label">
+            <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(child.icon)"></span>
+            <span class="text-sm font-medium truncate">{{ child.label }}</span>
+          </a>
+          }
+        </div>
+        }
+      } @else {
+        <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
+                 text-gray-600 hover:bg-gray-100 hover:text-gray-900
+                 transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
+          [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
+          [attr.aria-label]="item.label">
+          <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
+
+          @if (!layout.isCollapsed() || layout.isMobile()) {
+          <span class="text-sm font-medium truncate" @fadeLabel>{{ item.label }}</span>
+          }
+        </a>
       }
-    </a>
     }
   </nav>
 
   <!-- ===== BOTTOM-PINNED NAV (Perfil etc.) ===== -->
   @if (bottomNavItems().length > 0) {
   <div class="px-3 pt-3 pb-1 shrink-0 space-y-1">
-    @for (item of bottomNavItems(); track item.route) {
+    @for (item of bottomNavItems(); track trackByKey($index, item)) {
     <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
                text-gray-600 hover:bg-gray-100 hover:text-gray-900
                transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"

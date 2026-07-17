@@ -16,9 +16,10 @@ import { StepPersonal } from './components/step-personal';
 import { StepCompany } from './components/step-company';
 import { StepDocument } from './components/step-document';
 import { StepWelcome } from './components/step-welcome';
-import { finalize } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
+import { NotificationService } from '../../services/notification.service';
+import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
   selector: 'app-onboarding-container',
@@ -56,6 +57,7 @@ export class OnboardingContainer implements OnInit {
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly layoutStore = inject(LayoutStore);
+  private readonly notify = inject(NotificationService);
 
   /** True once the initial GET /onboarding call has resolved */
   protected readonly loaded = signal(false);
@@ -111,9 +113,17 @@ export class OnboardingContainer implements OnInit {
         }
         this.loaded.set(true);
       },
-      error: () => {
-        // Even on error, show the form (fields will be empty)
+      error: (err: HttpErrorResponse) => {
+        // Even on error, show the form (fields will be empty), but toast
+        // so the user understands why the form is blank.
         this.loaded.set(true);
+        // 404 on first entry is expected (no onboarding row yet) — do not toast.
+        if (err?.status !== 404) {
+          this.notify.error(
+            err?.error?.message ??
+              'Não foi possível carregar seu progresso. Você pode continuar mesmo assim.',
+          );
+        }
       },
     });
   }
@@ -138,16 +148,20 @@ export class OnboardingContainer implements OnInit {
     const step = this.svc.currentStep();
 
     if (step === 4) {
-      this.svc.finish().pipe(
-        finalize(() => {
-          this.authService.getMe().pipe(
-            finalize(() => {
+      this.svc.finish().subscribe({
+        next: () => {
+          // Only refresh session + navigate on real success. On error we stay
+          // on /onboarding so the user can retry.
+          this.authService.getMe().subscribe({
+            next: () => {
               this.layoutStore.refreshTenants();
               this.router.navigate(['/dashboard']);
-            })
-          ).subscribe();
-        })
-      ).subscribe();
+            },
+            error: (err: HttpErrorResponse) => this.handleFinishError(err),
+          });
+        },
+        error: (err: HttpErrorResponse) => this.handleFinishError(err),
+      });
       return;
     }
 
@@ -162,19 +176,36 @@ export class OnboardingContainer implements OnInit {
         this.pendingData.set({});
         this.direction.set('forward');
       },
+      error: (err: HttpErrorResponse) => {
+        this.notify.error(
+          err?.error?.message ?? 'Não foi possível salvar esta etapa. Tente novamente.',
+        );
+      },
     });
+  }
+
+  private handleFinishError(err: HttpErrorResponse): void {
+    this.notify.error(
+      err?.error?.message ??
+        'Não foi possível finalizar seu cadastro. Verifique os dados e tente novamente.',
+    );
   }
 
   protected onBack(): void {
     if (this.svc.loading() || this.svc.isFirstStep()) return;
 
     this.svc.loadState().subscribe({
-      next: (state) => {
+      next: () => {
         this.stepValid.set(false);
         this.pendingData.set({});
         this.direction.set('backward');
         // Always decrement locally after re-syncing current backend state
         this.svc.goBackStep();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.notify.error(
+          err?.error?.message ?? 'Não foi possível voltar. Tente novamente.',
+        );
       },
     });
   }

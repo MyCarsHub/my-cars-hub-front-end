@@ -1,0 +1,110 @@
+<div class="blog-root landing-root">
+  <app-landing-nav />
+
+  <main class="blog-list">
+    <div class="blog-list__glow" aria-hidden="true"></div>
+
+    <header class="blog-list__hero">
+      <h1>Insights pra quem <span class="hl">toca uma locadora</span>.</h1>
+      <p>Dicas operacionais, análise de mercado, cases reais e produto. Direto do time do MyCarsHub.</p>
+    </header>
+
+    <!-- Filtros por categoria -->
+    <nav class="blog-list__filters" aria-label="Filtrar por categoria">
+      <button
+        type="button"
+        class="blog-list__filter"
+        [class.is-active]="selectedCategory() === 'ALL'"
+        (click)="selectCategory('ALL')"
+      >Todos</button>
+      @for (c of categories; track c.value) {
+        <button
+          type="button"
+          class="blog-list__filter"
+          [class.is-active]="selectedCategory() === c.value"
+          (click)="selectCategory(c.value)"
+        >{{ c.label }}</button>
+      }
+    </nav>
+
+    <!-- Grid -->
+    <section class="blog-list__grid" aria-live="polite">
+      @if (loading()) {
+        @for (skel of [1,2,3,4,5,6]; track skel) {
+          <div class="blog-card blog-card--skeleton">
+            <div class="blog-card__cover"></div>
+            <div class="blog-card__body">
+              <span class="skel-line skel-line--sm"></span>
+              <span class="skel-line skel-line--lg"></span>
+              <span class="skel-line skel-line--md"></span>
+            </div>
+          </div>
+        }
+      } @else if (error()) {
+        <div class="blog-list__error">
+          <p>{{ error() }}</p>
+        </div>
+      } @else if (items().length === 0) {
+        <div class="blog-list__empty">
+          <img src="svg/logo-my-cars-hub.svg" alt="" aria-hidden="true" />
+          <h2>Ainda sem posts por aqui.</h2>
+          <p>O time está escrevendo — volte em breve.</p>
+        </div>
+      } @else {
+        @for (post of items(); track post.id) {
+          <a class="blog-card" [routerLink]="['/blog', post.slug]">
+            <div class="blog-card__cover">
+              @if (post.coverUrl) {
+                <img [src]="post.coverUrl" [alt]="post.title" loading="lazy" />
+              } @else {
+                <div class="blog-card__cover-fallback" aria-hidden="true">
+                  <img src="svg/logo-my-cars-hub.svg" alt="" />
+                </div>
+              }
+              <span class="blog-card__cat">{{ categoryLabel(post.category) }}</span>
+            </div>
+            <div class="blog-card__body">
+              <h3>{{ post.title }}</h3>
+              @if (post.excerpt) {
+                <p>{{ post.excerpt }}</p>
+              }
+              <div class="blog-card__meta">
+                <span>{{ formatDate(post.publishedAt) }}</span>
+                <span aria-hidden="true">·</span>
+                <span>{{ post.readingMinutes }} min de leitura</span>
+              </div>
+            </div>
+          </a>
+        }
+      }
+    </section>
+
+    @if (totalPages() > 1) {
+      <div class="blog-list__pagination" role="navigation" aria-label="Paginação">
+        <button
+          type="button"
+          class="blog-list__page-btn"
+          [disabled]="page() === 0"
+          (click)="goPage(page() - 1)"
+          aria-label="Página anterior"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Anterior
+        </button>
+        <span class="blog-list__page-info">Página {{ page() + 1 }} de {{ totalPages() }}</span>
+        <button
+          type="button"
+          class="blog-list__page-btn"
+          [disabled]="page() >= totalPages() - 1"
+          (click)="goPage(page() + 1)"
+          aria-label="Próxima página"
+        >
+          Próxima
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    }
+  </main>
+
+  <app-landing-footer />
+</div>

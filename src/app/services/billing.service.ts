@@ -6,6 +6,7 @@ import {
   BillingCycle,
   CheckoutRequest,
   CheckoutResponse,
+  GatewayOverride,
   PlanResponse,
   SubscriptionResponse,
 } from '../types/billing.types';
@@ -59,10 +60,14 @@ export class BillingService {
   startCheckout(
     planCode: string,
     billingCycle: BillingCycle,
+    gatewayOverride?: GatewayOverride,
   ): Observable<CheckoutResponse> {
     this._loading.set(true);
     this._error.set(null);
     const payload: CheckoutRequest = { planCode, billingCycle };
+    if (gatewayOverride) {
+      payload.gatewayOverride = gatewayOverride;
+    }
     return this.http.post<CheckoutResponse>(`${API_BASE}/checkout`, payload).pipe(
       catchError((err: HttpErrorResponse) => {
         this._error.set('Não foi possível iniciar o checkout. Tente novamente.');

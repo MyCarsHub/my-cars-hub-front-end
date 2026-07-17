@@ -2,12 +2,13 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { PagedResponse } from '../types/feedback.types';
+import { PagedResponse } from '../types/paged.types';
 import {
   CreateDriverRequest,
   DriverFilters,
   DriverListItem,
   DriverResponse,
+  DriverStatus,
   UpdateDriverRequest,
 } from '../types/driver.types';
 
@@ -69,6 +70,23 @@ export class DriverService {
 
   update(id: string, payload: UpdateDriverRequest): Observable<DriverResponse> {
     return this.http.put<DriverResponse>(`${BASE}/${id}`, payload);
+  }
+
+  /**
+   * Suspend / reactivate a driver. Backend only accepts `AVAILABLE` or
+   * `SUSPENDED` here — `WORKING` is system-managed by the rental lifecycle.
+   * Also patches the in-memory list so the UI updates without a re-fetch.
+   */
+  changeStatus(id: string, status: DriverStatus): Observable<DriverResponse> {
+    return this.http
+      .patch<DriverResponse>(`${BASE}/${id}/status`, { status })
+      .pipe(
+        tap((updated) => {
+          this._items.update((list) =>
+            list.map((d) => (d.id === id ? { ...d, status: updated.status } : d)),
+          );
+        }),
+      );
   }
 
   remove(id: string): Observable<void> {

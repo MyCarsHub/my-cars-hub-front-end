@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { LandingNavComponent } from '../components/landing-nav/landing-nav.component';
 import { LandingHeroComponent } from '../components/landing-hero/landing-hero.component';
 import { LandingProblemComponent } from '../components/landing-problem/landing-problem.component';
@@ -31,5 +31,16 @@ import { LandingFooterComponent } from '../components/landing-footer/landing-foo
   templateUrl: './landing.component.html',
   styleUrls: ['./landing.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(window:scroll)': 'onScroll()' },
 })
-export class LandingComponent {}
+export class LandingComponent {
+  protected readonly showFab = signal(false);
+
+  protected onScroll(): void {
+    this.showFab.set(window.scrollY > 600);
+  }
+
+  protected scrollTop(): void {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}

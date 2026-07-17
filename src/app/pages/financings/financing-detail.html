@@ -1,0 +1,243 @@
+<app-default-page-layout title="Detalhes do financiamento">
+  @if (loading()) {
+    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      Carregando…
+    </div>
+  } @else if (error() && !financing()) {
+    <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
+      <p class="text-rose-700 text-sm">{{ error() }}</p>
+      <a routerLink="/financiamentos" class="inline-block text-sm text-primary-500 hover:text-primary-600 font-medium">
+        Voltar para lista
+      </a>
+    </div>
+  } @else if (financing(); as f) {
+    <div class="space-y-4 sm:space-y-6">
+      <!-- Header card -->
+      <app-page-card title="Contrato">
+        <div class="p-4 sm:p-6 space-y-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Veículo</p>
+              <p class="text-base font-semibold text-neutral-900 tabular-nums tracking-wider">
+                {{ formatPlate(f.vehiclePlate) }}
+              </p>
+              <p class="text-sm text-neutral-600 truncate">
+                {{ f.vehicleBrand }} {{ f.vehicleModel }}
+                @if (f.vehicleYearModel) { <span class="text-neutral-400">· {{ f.vehicleYearModel }}</span> }
+              </p>
+              <a
+                [routerLink]="['/veiculos', f.vehicleId, 'gerencia']"
+                class="inline-block mt-1 text-xs font-medium text-primary-500 hover:text-primary-600"
+              >
+                Ver veículo →
+              </a>
+            </div>
+            <span
+              class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold shrink-0"
+              [class]="statusBadge().chip"
+            >
+              {{ statusBadge().label }}
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm border-t border-neutral-100 pt-4">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Valor de compra</p>
+              <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(f.purchasePrice) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Entrada</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatCurrency(f.downPayment) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Financiado</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatCurrency(f.totalFinanced) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Nº de parcelas</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ f.installments ?? '—' }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Valor da parcela</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatCurrency(f.installmentAmount) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Data do contrato</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.contractDate) }}</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-neutral-400">Última parcela prevista</p>
+              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(lastInstallmentDate()) }}</p>
+            </div>
+            @if (f.paidOffDate) {
+              <div>
+                <p class="text-xs uppercase tracking-wide text-neutral-400">Quitado em</p>
+                <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.paidOffDate) }}</p>
+              </div>
+            }
+          </div>
+        </div>
+      </app-page-card>
+
+      <!-- Summary cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor pago</p>
+          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+            {{ formatCurrency(paidCents()) }}
+          </p>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor restante</p>
+          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+            {{ formatCurrency(remainingCents()) }}
+          </p>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Próximo vencimento</p>
+          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+            {{ formatDate(nextDueDate()) }}
+          </p>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Progresso</p>
+          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">{{ progressPct() }}%</p>
+          <div class="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+            <div
+              class="h-full bg-primary-500"
+              [style.width.%]="progressPct()"
+              aria-hidden="true"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cronograma real (financing_installments V24) -->
+      <app-page-card title="Cronograma">
+        <div class="p-3 sm:p-4 space-y-3">
+          @if (!hasSchedule()) {
+            <p class="text-xs text-neutral-500 bg-amber-50 border border-amber-100 text-amber-800 rounded-lg px-3 py-2">
+              Este financiamento foi cadastrado antes do controle de parcelas por linha e
+              não possui cronograma real disponível.
+            </p>
+            <p class="text-sm text-neutral-500 text-center py-6">
+              Sem parcelas cadastradas.
+            </p>
+          } @else {
+            <div class="text-xs text-neutral-500 flex items-center justify-between">
+              <span>
+                <strong class="text-neutral-800 tabular-nums">{{ paidCount() }}</strong>
+                de
+                <strong class="text-neutral-800 tabular-nums">{{ totalCount() }}</strong>
+                parcelas pagas
+              </span>
+              @if (overdueCount() > 0) {
+                <span class="text-rose-700 font-medium">
+                  {{ overdueCount() }} atrasada(s)
+                </span>
+              }
+            </div>
+
+            <!-- Mobile: cards -->
+            <ul class="space-y-2 lg:hidden" role="list">
+              @for (r of installments(); track trackInstallment($index, r)) {
+                <li
+                  class="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+                >
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-xs text-neutral-400 tabular-nums w-6 text-right">
+                      {{ r.number }}
+                    </span>
+                    <div class="min-w-0">
+                      <p class="text-sm text-neutral-800 tabular-nums">{{ formatDate(r.dueDate) }}</p>
+                      <p class="text-xs text-neutral-500 tabular-nums">
+                        {{ formatCurrency(r.amountCents) }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      [class]="installmentChip(r.status).chip"
+                    >
+                      {{ installmentChip(r.status).label }}
+                    </span>
+                    @if (r.status !== 'PAID') {
+                      <button
+                        type="button"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                               disabled:opacity-50 hover:bg-primary-600 active:scale-95 transition"
+                        [disabled]="paying() === r.id"
+                        (click)="markPaid(r)"
+                        [attr.aria-label]="'Marcar parcela ' + r.number + ' como paga'"
+                      >
+                        {{ paying() === r.id ? '…' : 'Pagar' }}
+                      </button>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+
+            <!-- Desktop: table -->
+            <div class="hidden lg:block overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                    <th class="py-2 pr-4 font-medium">#</th>
+                    <th class="py-2 pr-4 font-medium">Vencimento</th>
+                    <th class="py-2 pr-4 font-medium">Valor</th>
+                    <th class="py-2 pr-4 font-medium">Pago em</th>
+                    <th class="py-2 pr-4 font-medium">Situação</th>
+                    <th class="py-2 pr-4 font-medium text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of installments(); track trackInstallment($index, r)) {
+                    <tr class="border-b border-neutral-50">
+                      <td class="py-2.5 pr-4 tabular-nums text-neutral-500">{{ r.number }}</td>
+                      <td class="py-2.5 pr-4 tabular-nums">{{ formatDate(r.dueDate) }}</td>
+                      <td class="py-2.5 pr-4 tabular-nums font-medium">
+                        {{ formatCurrency(r.amountCents) }}
+                      </td>
+                      <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
+                        {{ formatDate(r.paidDate) }}
+                      </td>
+                      <td class="py-2.5 pr-4">
+                        <span
+                          class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                          [class]="installmentChip(r.status).chip"
+                        >
+                          {{ installmentChip(r.status).label }}
+                        </span>
+                      </td>
+                      <td class="py-2.5 pr-4 text-right">
+                        @if (r.status !== 'PAID') {
+                          <button
+                            type="button"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   disabled:opacity-50 hover:bg-primary-600 transition"
+                            [disabled]="paying() === r.id"
+                            (click)="markPaid(r)"
+                          >
+                            {{ paying() === r.id ? 'Registrando…' : 'Marcar como paga' }}
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </app-page-card>
+
+      <div class="pt-2">
+        <a routerLink="/financiamentos" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+          ← Voltar para a lista
+        </a>
+      </div>
+    </div>
+  }
+</app-default-page-layout>

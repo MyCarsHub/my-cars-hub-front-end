@@ -13,6 +13,31 @@
 
   --color-success-500: #22C55E;
   --color-success-50: #F0FDF4;
+
+  /* Landing/Blog tokens expostos como utilities Tailwind.
+     bg-brand, text-ink, border-rule, font-display etc funcionam automático. */
+  --color-brand: #EB3F00;
+  --color-brand-hover: #d63600;
+  --color-brand-strong: #C93300;
+  --color-brand-light: #FF5722;
+  --color-brand-soft: #FFE6DD;
+  --color-brand-tint: #FFF5F0;
+
+  --color-paper: #FFFFFF;
+  --color-paper-alt: #FAFAFA;
+  --color-paper-2: #F5F5F5;
+  --color-rule: #ECECEC;
+  --color-rule-strong: #D6D6D6;
+  --color-ink: #0A0A0A;
+  --color-ink-dark: #050505;
+  --color-muted: #666666;
+
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Motion tokens */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -35,4 +60,185 @@ body {
   --container: 1120px;
   --container-narrow: 1040px;
   --color-border: #E8E4E0;
+}
+
+/* =========================================================
+   Landing/Blog design tokens — globais pra serem herdados por
+   qualquer componente que use .landing-root (blog, landing, etc).
+   Custom properties passam ViewEncapsulation naturalmente, mas o
+   *seletor* .landing-root precisa estar em CSS global pra matar
+   scopo de component styles.
+   ========================================================= */
+.landing-root {
+  /* Type */
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Paleta */
+  --paper: #FFFFFF;
+  --paper-alt: #FAFAFA;
+  --paper-2: #F5F5F5;
+  --rule: #ECECEC;
+  --rule-strong: #D6D6D6;
+  --ink: #0A0A0A;
+  --ink-80: rgba(10, 10, 10, 0.85);
+  --ink-70: rgba(10, 10, 10, 0.68);
+  --ink-50: rgba(10, 10, 10, 0.52);
+  --ink-30: rgba(10, 10, 10, 0.30);
+  --muted: #666666;
+  --ink-dark: #050505;
+
+  /* Marca */
+  --brand: #EB3F00;
+  --brand-hover: #d63600;
+  --brand-strong: #C93300;
+  --brand-light: #FF5722;
+  --brand-soft: #FFE6DD;
+  --brand-tint: #FFF5F0;
+  --brand-gradient: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);
+  --brand-gradient-heavy: linear-gradient(135deg, #FF6B2C 0%, #EB3F00 40%, #C93300 100%);
+  --dark-gradient: linear-gradient(135deg, #1a1a1a 0%, #0A0A0A 100%);
+
+  /* Layout */
+  --container: 1200px;
+  --container-narrow: 960px;
+  --gutter: clamp(20px, 4vw, 40px);
+  --section-y: clamp(24px, 3vw, 48px);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 180ms;
+  --dur: 320ms;
+  --dur-slow: 700ms;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Cursor "mãozinha" em qualquer <button> / <a role="button"> não-desabilitado.
+   Reset do browser default (seta) que aparecia em botões sem class específica. */
+button:not(:disabled),
+a[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled,
+a[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* Enquanto o app-shell autenticado estiver ativo, trava o scroll no body —
+   só o <main class="flex-1 overflow-y-auto"> rola. Sem isso o body ganhava
+   um segundo scrollbar do navegador junto com o da área de conteúdo. */
+body.app-shell-active {
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+}
+
+.landing-root :is(h1, h2, h3, h4) {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.landing-root .hl {
+  color: var(--brand);
+  font-style: italic;
+  position: relative;
+  display: inline;
+  background-image: linear-gradient(180deg, transparent 60%, rgba(235,63,0,0.18) 60%, rgba(235,63,0,0.18) 92%, transparent 92%);
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  background-position: 0 0;
+  transition: background-size 900ms var(--ease-out) 200ms;
+  padding: 0 2px;
+}
+.landing-root .reveal.revealed .hl,
+.landing-root .revealed .hl {
+  background-size: 100% 100%;
+}
+/* Em bg laranja: highlight branco translúcido */
+.solution .hl,
+.cta .hl,
+.mt .hl {
+  color: #FFFFFF;
+  background-image: linear-gradient(180deg, transparent 60%, rgba(255,255,255,0.22) 60%, rgba(255,255,255,0.22) 92%, transparent 92%);
+}
+
+.landing-root .eyebrow {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.landing-root .eyebrow::before {
+  content: "";
+  width: 20px;
+  height: 2px;
+  background: var(--brand);
+  border-radius: 2px;
+}
+
+.landing-root .mono,
+.landing-root [data-mono] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.landing-root .hair-rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0;
+}
+
+.landing-root .reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity var(--dur-slow) var(--ease-out),
+              transform var(--dur-slow) var(--ease-out);
+  will-change: opacity, transform;
+}
+.landing-root .reveal.revealed {
+  opacity: 1;
+  transform: none;
+}
+.landing-root h2.reveal {
+  transform: translateY(24px) scale(0.98);
+  transform-origin: left center;
+}
+.landing-root h2.reveal.revealed {
+  transform: none;
+}
+.landing-root h2 {
+  transition: transform 900ms var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-root .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+.landing-root :focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.landing-root ::selection {
+  background: var(--brand);
+  color: var(--paper);
 }

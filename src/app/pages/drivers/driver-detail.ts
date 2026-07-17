@@ -14,12 +14,9 @@ import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dial
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { DriverService } from '../../services/driver.service';
 import { DriverResponse, DriverStatus } from '../../types/driver.types';
-
-const STATUS_LABEL: Record<DriverStatus, { label: string; chip: string }> = {
-  AVAILABLE: { label: 'Disponível', chip: 'bg-emerald-100 text-emerald-800' },
-  WORKING:   { label: 'Em serviço', chip: 'bg-blue-100 text-blue-700' },
-  SUSPENDED: { label: 'Suspenso',   chip: 'bg-red-100 text-red-700' },
-};
+import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
+import { RentalService } from '../rentals/rental.service';
+import { RentalListItemDto } from '../../types/rental.types';
 
 @Component({
   selector: 'app-driver-detail',
@@ -29,6 +26,7 @@ const STATUS_LABEL: Record<DriverStatus, { label: string; chip: string }> = {
 })
 export class DriverDetail implements OnInit {
   private readonly driverService = inject(DriverService);
+  private readonly rentalService = inject(RentalService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -37,10 +35,52 @@ export class DriverDetail implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
+  protected readonly toggleStatusOpen = signal(false);
+  protected readonly togglingStatus = signal(false);
+  protected readonly actionError = signal<string | null>(null);
+
+  protected readonly rentals = signal<RentalListItemDto[]>([]);
+  protected readonly rentalsLoading = signal(false);
+  protected readonly activeRental = computed<RentalListItemDto | null>(() => {
+    const list = this.rentals();
+    // ACTIVE takes precedence over RESERVED (driver becomes WORKING in both,
+    // see backend RentalService.create) so the banner reflects the ongoing rental.
+    return (
+      list.find((r) => r.status === 'ACTIVE') ??
+      list.find((r) => r.status === 'RESERVED') ??
+      null
+    );
+  });
+
+  protected readonly activeRentalBanner = computed(() => {
+    const rental = this.activeRental();
+    if (!rental) return null;
+    if (rental.status === 'RESERVED') {
+      return {
+        label: 'Aluguel reservado',
+        container: 'bg-amber-50 border-amber-200',
+        eyebrow: 'text-amber-700',
+        body: 'text-amber-900',
+        link: 'text-amber-700 hover:text-amber-900',
+        icon: 'clock' as const,
+      };
+    }
+    return {
+      label: 'Aluguel ativo',
+      container: 'bg-blue-50 border-blue-200',
+      eyebrow: 'text-blue-700',
+      body: 'text-blue-900',
+      link: 'text-blue-700 hover:text-blue-900',
+      icon: 'arrow' as const,
+    };
+  });
+  protected readonly recentRentals = computed(() => this.rentals().slice(0, 5));
 
   protected readonly statusInfo = computed(() => {
     const s = this.driver()?.status;
-    return s ? STATUS_LABEL[s] : { label: '—', chip: 'bg-neutral-100 text-neutral-700' };
+    if (!s) return { label: '—', chip: 'bg-neutral-100 text-neutral-700' };
+    const meta = driverStatusMeta(s);
+    return { label: meta.label, chip: meta.chip };
   });
 
   protected readonly expiringSoon = computed(() => {
@@ -52,7 +92,10 @@ export class DriverDetail implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
-    if (id) this.load(id);
+    if (id) {
+      this.load(id);
+      this.loadRentals(id);
+    }
   }
 
   private load(id: string): void {
@@ -70,7 +113,89 @@ export class DriverDetail implements OnInit {
     });
   }
 
+  private loadRentals(driverId: string): void {
+    this.rentalsLoading.set(true);
+    // We rely on a fresh HTTP call — the rentals list signal in RentalService is
+    // shared with the rentals page, so we don't read from it.
+    this.rentalService.list({ driverId, size: 20, page: 0 }).subscribe({
+      next: (res) => {
+        this.rentals.set(res.content ?? []);
+        this.rentalsLoading.set(false);
+      },
+      error: () => {
+        this.rentals.set([]);
+        this.rentalsLoading.set(false);
+      },
+    });
+  }
+
+  protected rentalStatusInfo(status: RentalListItemDto['status']): { label: string; chip: string } {
+    const meta = rentalStatusMeta(status);
+    return { label: meta.label, chip: meta.chip };
+  }
+
+  protected formatMoney(cents: number): string {
+    return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  protected canToggleStatus(): boolean {
+    const s = this.driver()?.status;
+    return s === 'AVAILABLE' || s === 'SUSPENDED';
+  }
+
+  protected canDelete(): boolean {
+    return this.driver()?.status !== 'WORKING';
+  }
+
+  protected toggleStatusLabel(): string {
+    return this.driver()?.status === 'SUSPENDED' ? 'Reativar' : 'Suspender';
+  }
+
+  protected askToggleStatus(): void {
+    if (!this.canToggleStatus()) return;
+    this.toggleStatusOpen.set(true);
+  }
+
+  protected cancelToggleStatus(): void {
+    if (this.togglingStatus()) return;
+    this.toggleStatusOpen.set(false);
+  }
+
+  protected confirmToggleStatus(): void {
+    const d = this.driver();
+    if (!d) return;
+    const next: DriverStatus = d.status === 'SUSPENDED' ? 'AVAILABLE' : 'SUSPENDED';
+    this.actionError.set(null);
+    this.togglingStatus.set(true);
+    this.driverService.changeStatus(d.id, next).subscribe({
+      next: (updated) => {
+        this.driver.set(updated);
+        this.togglingStatus.set(false);
+        this.toggleStatusOpen.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.togglingStatus.set(false);
+        this.toggleStatusOpen.set(false);
+        this.actionError.set(this.extractError(err, 'Não foi possível alterar o status.'));
+      },
+    });
+  }
+
+  protected toggleConfirmMessage(): string {
+    const d = this.driver();
+    if (!d) return '';
+    return d.status === 'SUSPENDED'
+      ? `Reativar «${d.name}»? O motorista voltará a ficar disponível para novos aluguéis.`
+      : `Suspender «${d.name}»? O motorista ficará bloqueado para novos aluguéis até ser reativado.`;
+  }
+
   protected askDelete(): void {
+    if (!this.canDelete()) {
+      this.actionError.set(
+        'Motorista em serviço não pode ser excluído. Encerre o aluguel primeiro.',
+      );
+      return;
+    }
     this.deleteOpen.set(true);
   }
 
@@ -82,13 +207,14 @@ export class DriverDetail implements OnInit {
   protected confirmDelete(): void {
     const d = this.driver();
     if (!d) return;
+    this.actionError.set(null);
     this.deleting.set(true);
     this.driverService.remove(d.id).subscribe({
       next: () => this.router.navigate(['/motoristas']),
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.error.set(this.extractError(err, 'Não foi possível excluir.'));
+        this.actionError.set(this.extractError(err, 'Não foi possível excluir.'));
       },
     });
   }
