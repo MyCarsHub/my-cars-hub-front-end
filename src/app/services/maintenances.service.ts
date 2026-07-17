@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { PagedResponse } from '../types/feedback.types';
+import { PagedResponse } from '../types/paged.types';
 import {
   CreateMaintenanceRequest,
   Maintenance,

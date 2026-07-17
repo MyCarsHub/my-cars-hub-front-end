@@ -29,6 +29,10 @@
           </h2>
           <div class="flex items-center gap-2 mt-1 flex-wrap">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+              [class]="statusInfo().chip">
+              {{ statusInfo().label }}
+            </span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
               [class]="typeInfo().chip">
               {{ typeInfo().label }}
             </span>
@@ -43,9 +47,50 @@
       <div class="hidden lg:flex shrink-0">
         <app-detail-actions
           [editRouterLink]="['/veiculos', v.id, 'editar']"
+          [deleteDisabled]="deleteDisabledReason() !== null"
+          [deleteDisabledReason]="deleteDisabledReason()"
           (delete)="askDelete()"
         />
       </div>
+    </div>
+
+    <!-- Status transitions -->
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      @if (canGoAvailable()) {
+        <button
+          type="button"
+          [disabled]="transitioning()"
+          (click)="transitionStatus('AVAILABLE')"
+          class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100
+                 border border-emerald-200 px-3 py-2 rounded-lg min-h-[44px] disabled:opacity-60">
+          Marcar disponível
+        </button>
+      }
+      @if (canGoMaintenance()) {
+        <button
+          type="button"
+          [disabled]="transitioning()"
+          (click)="transitionStatus('MAINTENANCE')"
+          class="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100
+                 border border-amber-200 px-3 py-2 rounded-lg min-h-[44px] disabled:opacity-60">
+          Marcar em manutenção
+        </button>
+      }
+      @if (canGoInactive()) {
+        <button
+          type="button"
+          [disabled]="transitioning()"
+          (click)="transitionStatus('INACTIVE')"
+          class="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100
+                 border border-neutral-200 px-3 py-2 rounded-lg min-h-[44px] disabled:opacity-60">
+          Marcar inativo
+        </button>
+      }
+      @if (v.status === 'RENTED') {
+        <p class="text-xs text-neutral-500">
+          Status alterado automaticamente pelo aluguel ativo — finalize o aluguel para alterar manualmente.
+        </p>
+      }
     </div>
 
     <!-- Gerência do veículo CTA -->
@@ -143,6 +188,48 @@
           </div>
         </div>
       </app-page-card>
+
+      <!-- IPVA -->
+      @if (hasIpva()) {
+        <app-page-card title="IPVA" class="lg:col-span-2">
+          <div class="p-4 sm:p-6 space-y-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div>
+                <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Valor</p>
+                <p class="text-neutral-900 font-medium tabular-nums">{{ formatMoney(v.ipvaAmount) }}</p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Vencimento</p>
+                <p class="text-neutral-900 font-medium tabular-nums">{{ formatDate(v.ipvaDueDate) }}</p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Status</p>
+                @if (ipvaStatusBadge(); as badge) {
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold mt-0.5"
+                    [class]="badge.chip">
+                    {{ badge.label }}
+                  </span>
+                } @else {
+                  <p class="text-neutral-900 font-medium">—</p>
+                }
+              </div>
+            </div>
+
+            @if (ipvaOverdueChip(); as chip) {
+              <div class="flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm p-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="shrink-0 mt-0.5" aria-hidden="true">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span class="font-medium">{{ chip.label }}</span>
+              </div>
+            }
+          </div>
+        </app-page-card>
+      }
 
       <!-- Cadastro -->
       <app-page-card title="Cadastro" class="lg:col-span-2">

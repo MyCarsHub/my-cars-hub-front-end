@@ -1,18 +1,67 @@
-<section class="cta">
-  <div class="cta__particles" aria-hidden="true">
+<section class="cta relative isolate overflow-hidden text-white text-center px-5 md:px-8 py-16 md:py-24 lg:py-32" style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);">
+  <!-- Partículas flutuando -->
+  <div class="absolute inset-0 -z-10 pointer-events-none" aria-hidden="true">
     @for (i of particles; track i) {
-      <span class="p" [style.--i]="i"></span>
+      <span
+        class="absolute rounded-full animate-[ctaFloat_calc(9s+var(--i)*0.6s)_ease-in-out_infinite]"
+        [style.--i]="i"
+        [style.top]="'calc(15% + ' + (i * 9) + '%)'"
+        [style.left]="'calc(8% + ' + (i * 11) + '%)'"
+        [style.animation-delay]="(-i * 0.5) + 's'"
+        [class.w-[3px]]="i % 3 === 0"
+        [class.h-[3px]]="i % 3 === 0"
+        [class.w-[7px]]="i % 5 === 0"
+        [class.h-[7px]]="i % 5 === 0"
+        [class.w-[5px]]="i % 3 !== 0 && i % 5 !== 0"
+        [class.h-[5px]]="i % 3 !== 0 && i % 5 !== 0"
+        [style.background]="i % 3 === 0 ? 'rgba(255,255,255,0.35)' : (i % 5 === 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.5)')"
+        [style.filter]="i % 5 === 0 ? 'blur(2px)' : 'blur(0.5px)'"
+        style="opacity: 0.55;"
+      ></span>
     }
   </div>
-  <div class="cta__inner">
-    <h2>Sua locadora organizada começa <span class="accent">hoje</span>.</h2>
-    <p>14 dias grátis. Sem cartão. Sem burocracia.</p>
-    <a routerLink="/signup" class="btn-primary">
+
+  <!-- Glow radial -->
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 50% 40% at 20% 15%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(ellipse 50% 40% at 85% 90%, rgba(0,0,0,0.24), transparent 55%);"></div>
+
+  <!-- Logo watermark gigante -->
+  <img
+    src="svg/logo-my-cars-hub.svg"
+    alt=""
+    aria-hidden="true"
+    class="absolute -right-[6%] -bottom-[18%] w-[620px] max-w-[60vw] h-auto opacity-[0.08] pointer-events-none -z-10 animate-[ctaLogoFloat_14s_ease-in-out_infinite] max-md:right-[-20%] max-md:bottom-[-22%] max-md:w-[360px] max-md:opacity-[0.10]"
+    style="filter: brightness(0) invert(1); transform-origin: center;"
+  />
+
+  <div class="reveal max-w-[720px] mx-auto flex flex-col items-center gap-5 relative z-[1]" style="color: #ffffff;">
+    <h2 class="font-display font-bold text-[clamp(2rem,5vw,3.5rem)] tracking-[-0.035em] leading-[1.05] m-0"
+        style="color: #ffffff;">
+      Sua locadora organizada começa hoje.
+      <span aria-hidden="true" class="inline-block w-3 h-3 rounded-full bg-white ml-2 -translate-y-1.5 align-baseline animate-[ctaDot_2.2s_ease-in-out_infinite]"></span>
+    </h2>
+
+    <p class="text-base sm:text-lg m-0 max-w-[48ch] leading-[1.55] font-medium"
+       style="color: rgba(255,255,255,0.95);">
+      14 dias grátis. Sem cartão. Sem burocracia.
+    </p>
+
+    <a
+      routerLink="/login"
+      class="group relative isolate overflow-hidden bg-white text-brand-strong px-7 py-4 rounded-full font-body font-bold text-base no-underline inline-flex items-center gap-2.5 min-h-[52px] shadow-[0_1px_0_0_rgba(255,255,255,0.5)_inset,0_20px_44px_-12px_rgba(0,0,0,0.35)] hover:-translate-y-0.5 hover:text-brand hover:shadow-[0_1px_0_0_rgba(255,255,255,0.5)_inset,0_30px_56px_-12px_rgba(0,0,0,0.45)] active:translate-y-0 transition-all duration-300 mt-2"
+    >
       Começar agora
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="transition-transform duration-200 group-hover:translate-x-1">
         <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
+      <span
+        aria-hidden="true"
+        class="absolute inset-0 -z-10 -translate-x-[120%] group-hover:translate-x-[120%] transition-transform duration-[800ms] pointer-events-none"
+        style="background: linear-gradient(115deg, transparent 30%, rgba(235,63,0,0.15) 50%, transparent 70%);"
+      ></span>
     </a>
-    <small>Cancele quando quiser. Migração assistida grátis.</small>
+
+    <p class="text-sm m-0 leading-[1.5]" style="color: rgba(255,255,255,0.85);">
+      Cancele quando quiser. Migração assistida grátis.
+    </p>
   </div>
 </section>

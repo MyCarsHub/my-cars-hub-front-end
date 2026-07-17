@@ -1,30 +1,82 @@
-<section id="solucao" class="solution">
-  <div class="solution__noise" aria-hidden="true"></div>
-  <div class="solution__glow" aria-hidden="true"></div>
-  <div class="solution__inner">
-    <div class="solution__head">
-      <h2 class="reveal">Pare de remediar. <span class="hl">Comece a operar.</span></h2>
-      <p class="reveal">Três promessas concretas — nenhuma delas envolve você abrir uma planilha.</p>
-    </div>
-    <div class="pillars reveal">
-      <article class="pillar">
-        <div class="pillar__ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12h4l3-7 4 14 3-7h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <h3>Você fecha o mês em <span>minutos</span>, não madrugadas.</h3>
-        <p>Conciliação automática e dashboards que já vêm prontos.</p>
-        <div class="pillar__viz"><div class="pillar__progress" aria-hidden="true"><span class="is-done"></span><span class="is-done"></span><span class="is-done"></span><span class="is-cur"></span></div><small class="pillar__hint">Fechamento de maio · 75% concluído</small></div>
-      </article>
-      <article class="pillar pillar--mid">
-        <div class="pillar__ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17l5-5 4 4 7-7M15 9h6V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <h3>Você decide com <span>dados</span>, não com chutes.</h3>
-        <p>Receita, ocupação e inadimplência num painel só — em tempo real.</p>
-        <div class="pillar__viz"><div class="pillar__kpis"><div class="pillar__kpi"><span>Receita mês</span><strong>R$ 84,2k</strong></div><div class="pillar__kpi"><span>Ocupação</span><strong>92%</strong></div></div></div>
-      </article>
-      <article class="pillar">
-        <div class="pillar__ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3a6 6 0 0 0-6 6c0 4-2 5-2 7h16c0-2-2-3-2-7a6 6 0 0 0-6-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
-        <h3>Sua frota <span>não para</span> sem você saber.</h3>
-        <p>Manutenções agendadas com alerta automático antes do vencimento.</p>
-        <div class="pillar__viz"><div class="pillar__alert"><strong>Revisão agendada</strong><span>Honda Civic · BRA2E19 · em 4 dias</span></div></div>
-      </article>
+<section
+  id="solucao"
+  class="solution relative isolate overflow-hidden text-white px-5 md:px-8 py-14 sm:py-8 lg:py-12"
+  style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);"
+>
+  <!-- Ambient radial -->
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 50% 40% at 15% 5%, rgba(255,255,255,0.22), transparent 55%), radial-gradient(ellipse 40% 35% at 90% 95%, rgba(0,0,0,0.22), transparent 55%);"></div>
+
+  <!-- Grid pattern branco sutil -->
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 56px 56px; -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%); mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%);"></div>
+
+  <div class="relative z-10 max-w-[1200px] mx-auto flex flex-col gap-8">
+    <header class="flex flex-col gap-3.5 max-w-[680px]">
+      <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] text-white m-0">
+        Locadoras que operam sem <span class="hl">madrugada de fechamento</span>.
+      </h2>
+      <p class="reveal text-[15.5px] text-white/85 m-0 max-w-[52ch]">
+        Três promessas concretas — nenhuma envolve abrir planilha.
+      </p>
+    </header>
+
+    <div class="reveal grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
+      @for (p of pillars; track p.emphasis) {
+        <article
+          class="relative bg-white/10 border border-white/20 rounded-2xl p-7 flex flex-col gap-5 overflow-hidden group hover:-translate-y-1.5 hover:bg-white/[0.18] hover:border-white/[0.35] hover:shadow-[0_30px_60px_-20px_rgba(0,0,0,0.35)] transition-all duration-300"
+          [class.bg-white/[0.16]]="p.mid"
+          [class.border-white/[0.32]]="p.mid"
+          [class.shadow-[0_24px_48px_-18px_rgba(0,0,0,0.28)]]="p.mid"
+          style="backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);"
+        >
+          <span aria-hidden="true" class="absolute inset-0 -z-[1] pointer-events-none" style="background: linear-gradient(160deg, rgba(255,255,255,0.10) 0%, transparent 55%);"></span>
+
+          <div
+            class="w-11 h-11 rounded-[10px] bg-white/20 text-white border border-white/25 inline-flex items-center justify-center shrink-0 transition-all duration-300 group-hover:rotate-[-6deg] group-hover:scale-[1.08] group-hover:bg-white/30"
+            aria-hidden="true"
+            [innerHTML]="p.iconHtml"
+          ></div>
+
+          <div class="flex flex-col gap-2.5 flex-1">
+            <h3 class="font-display font-bold text-[16px] leading-[1.35] tracking-[-0.02em] text-white m-0">
+              {{ p.titleBefore }} <span class="italic text-transparent bg-clip-text" style="background-image: linear-gradient(90deg, #FFFFFF, rgba(255,255,255,0.7)); -webkit-background-clip: text;">{{ p.emphasis }}</span>{{ p.titleAfter }}
+            </h3>
+            <p class="text-[13.5px] leading-[1.55] text-white/80 m-0">{{ p.body }}</p>
+          </div>
+
+          <div class="mt-auto pt-4 border-t border-white/[0.18] flex flex-col gap-2.5">
+            @switch (p.viz) {
+              @case ('progress') {
+                <div aria-hidden="true" class="grid grid-cols-4 gap-1">
+                  <span class="h-1.5 rounded-full bg-white/95"></span>
+                  <span class="h-1.5 rounded-full bg-white/95"></span>
+                  <span class="h-1.5 rounded-full bg-white/95"></span>
+                  <span class="h-1.5 rounded-full animate-[solProgress_1.8s_ease-in-out_infinite]" style="background: linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.4));"></span>
+                </div>
+                <small class="mono text-[11.5px] text-white/70">Fechamento maio · 75% concluído</small>
+              }
+              @case ('kpis') {
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="bg-white/[0.14] border border-white/20 rounded-[10px] px-3 py-2.5">
+                    <span class="block text-[10px] font-medium uppercase tracking-[0.08em] text-white/70 mb-1">Receita mês</span>
+                    <strong class="mono text-base font-bold text-white tracking-[-0.02em]">R$ 84,2k</strong>
+                  </div>
+                  <div class="bg-white/[0.14] border border-white/20 rounded-[10px] px-3 py-2.5">
+                    <span class="block text-[10px] font-medium uppercase tracking-[0.08em] text-white/70 mb-1">Ocupação</span>
+                    <strong class="mono text-base font-bold text-white tracking-[-0.02em]">92%</strong>
+                  </div>
+                </div>
+              }
+              @case ('alert') {
+                <div class="relative bg-white/[0.14] border border-white/20 rounded-[10px] px-3.5 py-3 pr-10">
+                  <span aria-hidden="true" class="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-white animate-[solDotPulse_2s_ease-in-out_infinite]" style="box-shadow: 0 0 0 4px rgba(255,255,255,0.24);"></span>
+                  <strong class="block text-[13px] font-bold text-white mb-0.5">Revisão agendada</strong>
+                  <span class="mono text-[11.5px] text-white/70">Honda Civic · BRA2E19 · em 4 dias</span>
+                </div>
+              }
+            }
+          </div>
+        </article>
+      }
     </div>
   </div>
 </section>

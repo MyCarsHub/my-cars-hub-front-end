@@ -29,6 +29,11 @@ export class AuthService {
                     this.sessionService.setItem('name', user.name ?? '');
                     this.sessionService.setItem('email', user.email ?? '');
                     this.sessionService.setItem('systemRole', user.systemRole ?? 'USER');
+                    // TODO(BUG-15): backend should expose an explicit `hasCompletedOnboarding`
+                    // (or `onboardingCompleted`) flag on /auth/me. Deriving it from
+                    // `companies.length > 0` breaks the "user left every org" case: they'll
+                    // be looped back into the onboarding flow even though they already
+                    // completed it once. Waiting on backend contract change.
                     this.sessionService.setOnboardingCompleted(companies.length > 0);
                     this.sessionService.setItem('userCompanies', JSON.stringify(companies));
                     // Do NOT persist `user.document` — CPF/CNPJ is PII. Any consumer that

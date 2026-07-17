@@ -1,0 +1,488 @@
+<app-default-page-layout
+  [title]="isEdit() ? 'Aluguel' : 'Novo aluguel'"
+  [description]="isEdit() ? 'Edite os campos permitidos. Rentais concluídos/cancelados são somente leitura.' : 'Reserve um veículo para um motorista. Você escolhe se registra manualmente ou já dispara cobrança via Asaas.'"
+>
+  <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3 sm:space-y-4">
+    <!-- 1-4: veículo, motorista, datas, frequência -->
+    <app-page-card title="Contrato">
+      <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-vehicle">
+            Veículo <span class="text-rose-600">*</span>
+          </label>
+          <select
+            id="rental-vehicle"
+            formControlName="vehicleId"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+            <option value="">Selecione...</option>
+            @for (v of vehicles(); track v.id) {
+              <option [value]="v.id">
+                {{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}
+              </option>
+            }
+          </select>
+          @if (fieldInvalid('vehicleId')) {
+            <p class="text-xs text-rose-600 mt-1">Selecione um veículo.</p>
+          }
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-driver">
+            Motorista <span class="text-rose-600">*</span>
+          </label>
+          <select
+            id="rental-driver"
+            formControlName="driverId"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+            <option value="">Selecione...</option>
+            @for (d of drivers(); track d.id) {
+              <option [value]="d.id">{{ d.name }}</option>
+            }
+          </select>
+          @if (fieldInvalid('driverId')) {
+            <p class="text-xs text-rose-600 mt-1">Selecione um motorista.</p>
+          }
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-start">
+            Início <span class="text-rose-600">*</span>
+          </label>
+          <input
+            id="rental-start"
+            type="date"
+            formControlName="startDate"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          @if (fieldInvalid('startDate')) {
+            <p class="text-xs text-rose-600 mt-1">Informe a data de início.</p>
+          }
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-end">
+            Fim <span class="text-rose-600">*</span>
+          </label>
+          <input
+            id="rental-end"
+            type="date"
+            formControlName="endDate"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          @if (fieldInvalid('endDate')) {
+            <p class="text-xs text-rose-600 mt-1">Informe a data final.</p>
+          }
+          @if (formHasEndBeforeStart()) {
+            <p class="text-xs text-rose-600 mt-1">A data final deve ser igual ou depois do início.</p>
+          }
+        </div>
+      </div>
+    </app-page-card>
+
+    <!-- 5-7: valores (frequência ANTES do valor, com label dinâmico) -->
+    <app-page-card title="Valores">
+      <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-billing-frequency">
+              Frequência de cobrança <span class="text-rose-600">*</span>
+            </label>
+            <select
+              id="rental-billing-frequency"
+              formControlName="billingFrequency"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+              @for (opt of billingFrequencyOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+            @if (fieldInvalid('billingFrequency')) {
+              <p class="text-xs text-rose-600 mt-1">Selecione a frequência.</p>
+            }
+            <p class="text-xs text-neutral-400 mt-1">
+              Semanal cobra por semana cheia; mensal, por mês cheio (30 dias).
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-daily">
+              {{ rateLabel() }} <span class="text-rose-600">*</span>
+            </label>
+            <input
+              id="rental-daily"
+              type="number"
+              step="0.01"
+              min="0.01"
+              inputmode="decimal"
+              formControlName="dailyRateReais"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            @if (fieldInvalid('dailyRateReais')) {
+              <p class="text-xs text-rose-600 mt-1">Informe um valor maior que zero.</p>
+            }
+            <p class="text-xs text-neutral-400 mt-1">
+              Valor por período de cobrança (por dia, semana ou mês).
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-caucao">
+              Caução (R$)
+            </label>
+            <input
+              id="rental-caucao"
+              type="number"
+              step="0.01"
+              min="0"
+              inputmode="decimal"
+              formControlName="caucaoReais"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            <p class="text-xs text-neutral-400 mt-1">
+              Reembolsada ao concluir o aluguel. Deixe 0 para não cobrar.
+            </p>
+          </div>
+        </div>
+
+        <!-- Live computed total -->
+        <div class="rounded-xl border border-primary-100 bg-primary-50/40 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-primary-700 font-semibold">Total previsto</p>
+            <p class="text-xs text-neutral-500 mt-0.5">
+              {{ totalDays() }} dia(s) · {{ totalPreviewCaption() }}
+            </p>
+          </div>
+          <p class="text-2xl font-semibold text-primary-700 tabular-nums">
+            {{ totalAmountLabel() }}
+          </p>
+        </div>
+      </div>
+    </app-page-card>
+
+    <!-- 7.5 (V29): Condições de pagamento — todos obrigatórios -->
+    <app-page-card title="Condições de pagamento">
+      <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-initial-km">
+                Km inicial (retirada) <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-initial-km"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                formControlName="initialKm"
+                placeholder="Ex.: 45820"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('initialKm')) {
+                <p class="text-xs text-rose-600 mt-1">Informe a quilometragem inicial.</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-pickup-date">
+                Data/hora da retirada <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-pickup-date"
+                type="datetime-local"
+                formControlName="pickupDate"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('pickupDate')) {
+                <p class="text-xs text-rose-600 mt-1">Informe a data e hora da retirada.</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-first-payment">
+                Data da 1ª parcela <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-first-payment"
+                type="date"
+                formControlName="firstPaymentDate"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('firstPaymentDate')) {
+                <p class="text-xs text-rose-600 mt-1">Informe a data da 1ª parcela.</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-daily-interest">
+                Juros diário por atraso (R$) <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-daily-interest"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                formControlName="dailyInterestReais"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('dailyInterestReais')) {
+                <p class="text-xs text-rose-600 mt-1">Informe o juros diário (0 se não cobrar).</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-late-fine-type">
+                Multa por atraso <span class="text-rose-600">*</span>
+              </label>
+              <select
+                id="rental-late-fine-type"
+                formControlName="lateFineType"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                <option value="PERCENT">Percentual (%)</option>
+                <option value="FIXED">Valor fixo (R$)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-late-fine-value">
+                Valor da multa <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-late-fine-value"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                formControlName="lateFineValueInput"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('lateFineValueInput')) {
+                <p class="text-xs text-rose-600 mt-1">Informe o valor da multa (0 se não cobrar).</p>
+              } @else {
+                <p class="text-xs text-neutral-400 mt-1">
+                  Se %: informe percentagem (ex.: 2 = 2%). Se R$: informe reais.
+                </p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-franchise-km">
+                Franquia diária (km)
+              </label>
+              <input
+                id="rental-franchise-km"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                formControlName="franchiseKm"
+                placeholder="Ex.: 150 (0 ou vazio = ilimitada)"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-return-fuel">
+                Política de devolução (combustível)
+              </label>
+              <input
+                id="rental-return-fuel"
+                type="text"
+                maxlength="60"
+                list="rental-return-fuel-options"
+                formControlName="returnFuelPolicy"
+                placeholder="Ex.: Mesmo nível da retirada"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              <datalist id="rental-return-fuel-options">
+                <option value="Mesmo nível da retirada"></option>
+                <option value="Tanque cheio"></option>
+                <option value="Livre (sem exigência)"></option>
+              </datalist>
+            </div>
+          </div>
+        </div>
+    </app-page-card>
+
+    <!-- 8: observações -->
+    <app-page-card title="Observações">
+      <div class="p-4 sm:p-6">
+        <label class="sr-only" for="rental-notes">Observações</label>
+        <textarea
+          id="rental-notes"
+          rows="3"
+          formControlName="notes"
+          placeholder="Anotações internas sobre o aluguel..."
+          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
+      </div>
+    </app-page-card>
+
+    <!-- 8.5 (V29): origem do contrato — AUTO gera do template, MANUAL exige upload depois -->
+    <app-page-card title="Contrato">
+      <div class="p-4 sm:p-6 space-y-3">
+        <div class="flex items-start gap-4">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-semibold text-neutral-900">
+              Gerar contrato automaticamente do template
+            </p>
+            <p class="text-xs text-neutral-500 mt-1 leading-relaxed">
+              @if (hasContractTemplate()) {
+                Ao criar o aluguel, o PDF de contrato é gerado a partir do template configurado
+                em Configurações → Contratos, já preenchido com os dados do motorista e veículo.
+                Desative para fazer upload manual do PDF depois.
+              } @else {
+                Nenhum template configurado. Faça upload em
+                <a routerLink="/configuracoes/contratos"
+                   class="text-primary-600 hover:text-primary-700 font-medium underline">
+                  Configurações → Contratos
+                </a>
+                pra habilitar a geração automática.
+              }
+            </p>
+          </div>
+
+          <label class="relative inline-flex shrink-0 cursor-pointer items-center"
+            [class.opacity-50]="!hasContractTemplate() || isEdit()"
+            [class.cursor-not-allowed]="!hasContractTemplate() || isEdit()">
+            <input
+              type="checkbox"
+              formControlName="useContractTemplate"
+              [attr.disabled]="!hasContractTemplate() || isEdit() ? true : null"
+              class="sr-only peer" />
+            <span aria-hidden="true"
+              class="w-12 h-7 rounded-full bg-neutral-200 peer-checked:bg-emerald-500
+                     transition-colors relative
+                     after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                     after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
+                     after:transition-transform peer-checked:after:translate-x-5"></span>
+          </label>
+        </div>
+
+        @if (isEdit()) {
+          <p class="text-xs text-neutral-400">
+            A origem do contrato é fixada no momento da criação e não pode ser alterada aqui.
+          </p>
+        }
+      </div>
+    </app-page-card>
+
+    <!-- 9: toggle cobrança automática (gated por TRIAL) -->
+    <app-page-card title="Cobrança">
+      <div class="p-4 sm:p-6 space-y-3">
+        <div class="flex items-start gap-4">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <p class="text-sm font-semibold text-neutral-900">Cobrança automática via Asaas</p>
+              @if (isTrial()) {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold
+                             bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wide">
+                  Plano PRO
+                </span>
+              }
+            </div>
+            <p class="text-xs text-neutral-500 mt-1 leading-relaxed">
+              Ative para gerar cobranças no Asaas automaticamente. Desative para apenas
+              registrar o aluguel (você cobra por fora).
+            </p>
+            @if (isTrial()) {
+              <p class="text-xs text-neutral-500 mt-1">
+                Disponível no plano PRO —
+                <a routerLink="/billing" class="text-primary-600 hover:text-primary-700 font-medium underline">
+                  fazer upgrade
+                </a>
+              </p>
+            }
+          </div>
+
+          <!-- Toggle -->
+          <label class="relative inline-flex shrink-0 cursor-pointer items-center"
+            [class.opacity-50]="isTrial()"
+            [class.cursor-not-allowed]="isTrial()">
+            <input
+              type="checkbox"
+              formControlName="automaticCharge"
+              class="sr-only peer" />
+            <span aria-hidden="true"
+              class="w-12 h-7 rounded-full bg-neutral-200 peer-checked:bg-emerald-500
+                     transition-colors relative
+                     after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                     after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
+                     after:transition-transform peer-checked:after:translate-x-5"></span>
+          </label>
+        </div>
+
+        @if (automaticChargeOn() && !isTrial()) {
+          @if (!asaasConnected()) {
+            <div class="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm p-3 flex items-start gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" class="shrink-0 mt-0.5 text-amber-600" aria-hidden="true">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <div class="min-w-0">
+                <p class="font-semibold">Nenhuma integração Asaas configurada.</p>
+                <p class="text-xs mt-0.5">
+                  <a routerLink="/configuracoes/integracoes/asaas"
+                    class="underline font-medium hover:text-amber-950">
+                    Configure agora →
+                  </a>
+                </p>
+              </div>
+            </div>
+          } @else {
+            <div class="rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm p-3 flex items-start gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" class="shrink-0 mt-0.5 text-blue-600" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <p class="text-xs">
+                Ao salvar, cobranças serão criadas automaticamente no Asaas.
+                Verifique se sua integração está ativa em
+                <a routerLink="/configuracoes/integracoes/asaas" class="underline font-medium">
+                  Configurações → Integrações
+                </a>.
+              </p>
+            </div>
+          }
+        }
+      </div>
+    </app-page-card>
+
+    @if (error()) {
+      <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+        {{ error() }}
+      </div>
+    }
+
+    <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+      <button type="button"
+        (click)="cancel()"
+        class="w-full sm:w-auto px-4 py-3 rounded-xl border border-neutral-200 text-neutral-700
+               hover:bg-neutral-50 text-sm font-medium">
+        {{ isEdit() ? 'Voltar' : 'Cancelar' }}
+      </button>
+      @if (!isEdit()) {
+        <button type="submit"
+          [disabled]="saving()"
+          class="w-full sm:w-auto px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
+                 text-sm font-semibold shadow-sm disabled:opacity-60">
+          {{ saving() ? 'Criando…' : 'Criar aluguel' }}
+        </button>
+      } @else if (form.enabled) {
+        <button type="submit"
+          [disabled]="saving()"
+          class="w-full sm:w-auto px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
+                 text-sm font-semibold shadow-sm disabled:opacity-60">
+          {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
+        </button>
+      }
+    </div>
+  </form>
+</app-default-page-layout>

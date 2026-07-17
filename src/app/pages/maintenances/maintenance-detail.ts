@@ -23,6 +23,7 @@ import {
   MAINTENANCE_TYPE_OPTIONS,
   Maintenance,
 } from '../../types/maintenance.types';
+import { licensingBadge } from '../../utils/status-maps';
 
 @Component({
   selector: 'app-maintenance-detail',
@@ -56,12 +57,12 @@ export class MaintenanceDetail implements OnInit {
   protected readonly nextBadge = computed(() => {
     const iso = this.item()?.nextServiceDate;
     if (!iso) return null;
-    const next = new Date(iso + 'T00:00:00').getTime();
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const days = Math.round((next - today) / 86400000);
-    if (days < 0) return { label: 'Vencida', chip: 'bg-rose-100 text-rose-700' };
-    if (days <= 30) return { label: `Próxima em ${days}d`, chip: 'bg-amber-100 text-amber-800' };
+    const badge = licensingBadge(iso);
+    // Only surface urgency states for the "próxima manutenção" chip — "Em dia"
+    // is redundant next to the plain date.
+    if (badge.label === 'Vencido' || badge.label.startsWith('Vence em')) {
+      return badge;
+    }
     return null;
   });
 

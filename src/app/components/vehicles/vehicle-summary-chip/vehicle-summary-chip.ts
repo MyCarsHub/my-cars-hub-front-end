@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { VehicleType } from '../../../types/vehicle.types';
+import { VehicleStatus, VehicleType } from '../../../types/vehicle.types';
+import { vehicleStatusMeta } from '../../../utils/status-maps';
 
 export interface VehicleSummary {
   id: string;
@@ -10,6 +11,7 @@ export interface VehicleSummary {
   type?: VehicleType;
   hodometer?: number | null;
   licensingExpiration?: string | null;
+  status?: VehicleStatus;
 }
 
 export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
@@ -41,12 +43,20 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
             {{ v.brand }} {{ v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
           </p>
         </div>
-        @if (typeChip(); as chip) {
-          <span
-            class="hidden xs:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide flex-none"
-            [class]="chip.klass"
-          >{{ chip.label }}</span>
-        }
+        <div class="hidden xs:flex flex-col items-end gap-1 flex-none">
+          @if (statusChip(); as chip) {
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+              [class]="chip.klass"
+            >{{ chip.label }}</span>
+          }
+          @if (typeChip(); as chip) {
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+              [class]="chip.klass"
+            >{{ chip.label }}</span>
+          }
+        </div>
       </div>
     } @else {
       <a
@@ -71,12 +81,20 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
             {{ v.brand }} {{ v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
           </p>
         </div>
-        @if (typeChip(); as chip) {
-          <span
-            class="hidden xs:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide flex-none"
-            [class]="chip.klass"
-          >{{ chip.label }}</span>
-        }
+        <div class="hidden xs:flex flex-col items-end gap-1 flex-none">
+          @if (statusChip(); as chip) {
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+              [class]="chip.klass"
+            >{{ chip.label }}</span>
+          }
+          @if (typeChip(); as chip) {
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+              [class]="chip.klass"
+            >{{ chip.label }}</span>
+          }
+        </div>
         <svg class="flex-none text-neutral-300" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
           stroke-linejoin="round" aria-hidden="true">
@@ -114,5 +132,12 @@ export class VehicleSummaryChip {
     if (t === 'CAR') return { label: 'Carro', klass: 'bg-blue-100 text-blue-700' };
     if (t === 'MOTORCYCLE') return { label: 'Moto', klass: 'bg-amber-100 text-amber-800' };
     return null;
+  }
+
+  protected statusChip(): { label: string; klass: string } | null {
+    const s = this.vehicle().status;
+    if (!s) return null;
+    const meta = vehicleStatusMeta(s);
+    return { label: meta.label, klass: meta.chip };
   }
 }

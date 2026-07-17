@@ -1,0 +1,54 @@
+<div class="blog-root landing-root">
+  <app-landing-nav />
+
+  <main class="blog-detail">
+    @if (loading()) {
+      <div class="blog-detail__loading">
+        <span class="blog-detail__spinner" aria-hidden="true"></span>
+        <p>Carregando post…</p>
+      </div>
+    } @else if (error()) {
+      <div class="blog-detail__error">
+        <h1>Ops.</h1>
+        <p>{{ error() }}</p>
+        <a routerLink="/blog" class="blog-detail__back">← Voltar para o blog</a>
+      </div>
+    } @else if (post(); as p) {
+      <article class="blog-detail__article">
+        <a routerLink="/blog" class="blog-detail__back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Voltar para o blog
+        </a>
+
+        <header class="blog-detail__head">
+          <span class="blog-detail__cat">{{ categoryLabel(p.category) }}</span>
+          <h1>{{ p.title }}</h1>
+          @if (p.excerpt) {
+            <p class="blog-detail__excerpt">{{ p.excerpt }}</p>
+          }
+          <div class="blog-detail__meta">
+            <span>{{ formatDate(p.publishedAt) }}</span>
+            <span aria-hidden="true">·</span>
+            <span>{{ p.readingMinutes }} min de leitura</span>
+          </div>
+        </header>
+
+        @if (p.coverUrl) {
+          <img class="blog-detail__cover" [src]="p.coverUrl" [alt]="p.title" />
+        } @else {
+          <div class="blog-detail__cover-fallback" aria-hidden="true">
+            <img src="svg/logo-my-cars-hub.svg" alt="" />
+          </div>
+        }
+
+        <div class="prose" [innerHTML]="safeBody()"></div>
+
+        <footer class="blog-detail__foot">
+          <a routerLink="/blog" class="blog-detail__back">← Ver outros posts</a>
+        </footer>
+      </article>
+    }
+  </main>
+
+  <app-landing-footer />
+</div>

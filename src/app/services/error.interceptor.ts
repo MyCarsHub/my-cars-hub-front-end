@@ -8,6 +8,18 @@ import { NotificationService } from './notification.service';
 interface BackendErrorBody {
   message?: string;
   error?: string;
+  exception?: string;
+  code?: string;
+}
+
+function isTokenExpired(error: HttpErrorResponse, body: BackendErrorBody): boolean {
+  const details = [
+    typeof error.error === 'string' ? error.error : '',
+    body.message ?? '',
+    body.error ?? '',
+    body.exception ?? '',
+  ].join(' ');
+  return body.code === 'TOKEN_EXPIRED' || details.includes('TokenExpiredException');
 }
 
 /**
@@ -30,12 +42,20 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       const backendMessage =
         typeof body === 'object' && body !== null ? body.message ?? body.error : undefined;
 
-      if (status === 0) {
-        notifications.error('Sem conexão com o servidor. Verifique sua internet.');
+      if (isTokenExpired(error, body)) {
+        session.clear();
+        notifications.warning('Sua sessão expirou. Faça login novamente.');
+        router.navigate(['/login'], { replaceUrl: true });
+      } else if (status === 0) {
+        // Falha de rede/servidor inacessível → aviso único + volta pro login.
+        notifications.error('Sem conexão com o servidor. Faça login novamente.');
+        session.clear();
+        router.navigate(['/login'], { replaceUrl: true });
       } else if (status === 401) {
         if (!req.url.includes('/auth/login')) {
+          notifications.warning('Sessão inválida. Faça login novamente.');
           session.clear();
-          router.navigate(['/login']);
+          router.navigate(['/login'], { replaceUrl: true });
         }
       } else if (status === 403) {
         notifications.warning('Acesso negado');
@@ -44,7 +64,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           notifications.error(backendMessage);
         }
       } else if (status >= 500 && status < 600) {
-        notifications.error('Erro no servidor, tente novamente');
+        // Falha de servidor (5xx) → aviso único + volta pro login (pode ser
+        // token corrompido, DB fora, etc — mais seguro reautenticar).
+        notifications.error(backendMessage || 'Erro no servidor. Faça login novamente.');
+        session.clear();
+        router.navigate(['/login'], { replaceUrl: true });
       }
 
       return throwError(() => error);

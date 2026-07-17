@@ -5,17 +5,20 @@ export interface DailyCount {
 
 export interface UsersMetrics {
   total: number;
+  activeTotal: number;
   newLast30Days: number;
   newByDay: DailyCount[];
 }
 
 export interface CompaniesMetrics {
   total: number;
+  activeTotal: number;
   newLast30Days: number;
 }
 
 export interface VehiclesMetrics {
   total: number;
+  activeTotal: number;
 }
 
 export interface SubscriptionsMetrics {
@@ -24,6 +27,7 @@ export interface SubscriptionsMetrics {
   trialing: number;
   byStatus: Record<string, number>;
   mrrCents: number;
+  mrrActiveOnlyCents: number;
 }
 
 export interface FeedbackMetrics {

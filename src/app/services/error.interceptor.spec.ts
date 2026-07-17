@@ -71,8 +71,21 @@ describe('errorInterceptor', () => {
   it('clears session and redirects to /login on 401', async () => {
     const err = await runAndCatch(401);
     expect(sessionClear).toHaveBeenCalledTimes(1);
-    expect(routerNavigate).toHaveBeenCalledWith(['/login']);
+    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    expect(notifyWarning).toHaveBeenCalledWith('Sessão inválida. Faça login novamente.');
     expect(err?.status).toBe(401);
+  });
+
+  it('clears session and redirects to /login when the backend reports TokenExpiredException', async () => {
+    const err = await runAndCatch(401, {
+      code: 'TOKEN_EXPIRED',
+      message: 'Sessão expirada. Faça login novamente.',
+    });
+
+    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    expect(err?.status).toBe(401);
+    expect(notifyWarning).toHaveBeenCalledWith('Sua sessão expirou. Faça login novamente.');
   });
 
   it('does NOT clear session or redirect on 401 when request is /auth/login', async () => {
@@ -87,9 +100,11 @@ describe('errorInterceptor', () => {
     expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
   });
 
-  it('shows generic message on 500', async () => {
+  it('shows generic message and forces reauth on 500', async () => {
     await runAndCatch(500);
-    expect(notifyError).toHaveBeenCalledWith('Erro no servidor, tente novamente');
+    expect(notifyError).toHaveBeenCalledWith('Erro no servidor. Faça login novamente.');
+    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
   });
 
   it('forwards backend message on 422', async () => {

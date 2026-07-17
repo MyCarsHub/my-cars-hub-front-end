@@ -1,14 +1,31 @@
-<section class="section-faq">
-  <div class="faq__inner">
-    <header class="faq__head">
-      <h2 class="reveal">Perguntas frequentes</h2>
-      <p class="reveal">Selecionamos as dúvidas mais comuns sobre o MyCarsHub.</p>
-    </header>
-    <div class="faq__list reveal">
+<section class="relative overflow-hidden bg-paper-2 px-5 md:px-8 py-14 sm:py-8 lg:py-12">
+  <div class="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-[0.9fr_1.3fr] gap-8 lg:gap-16 items-start">
+    <aside class="reveal flex flex-col gap-3.5 lg:sticky lg:top-24">
+      <h2 class="font-display font-bold text-[clamp(1.75rem,3.2vw,2.5rem)] tracking-[-0.03em] leading-[1.05] text-ink m-0">
+        Dúvidas de quem <span class="hl">toca uma locadora</span>.
+      </h2>
+      <p class="text-[15px] text-ink/70 leading-[1.6] max-w-[42ch] m-0">
+        Selecionamos as perguntas que a gente mais recebe. Se ainda ficar dúvida, escreva pra
+        <a href="mailto:mycarshubcompany@gmail.com" class="text-brand font-semibold no-underline hover:text-brand-hover hover:underline underline-offset-[3px] transition-colors duration-200">mycarshubcompany&#64;gmail.com</a> — respondemos rápido.
+      </p>
+    </aside>
+
+    <div class="reveal flex flex-col bg-paper border border-rule rounded-2xl overflow-hidden shadow-[0_12px_30px_-22px_rgba(10,10,10,0.12)]">
       @for (item of faqs; track item.q) {
-        <details class="faq__item">
-          <summary>{{ item.q }}</summary>
-          <p>{{ item.a }}</p>
+        <details class="border-b border-rule last:border-b-0 open:bg-paper-alt transition-colors duration-200 group">
+          <summary class="flex items-center justify-between gap-4 px-6 py-5 font-display font-semibold text-[15.5px] text-ink cursor-pointer tracking-[-0.015em] hover:text-brand transition-colors duration-200 list-none [&::-webkit-details-marker]:hidden">
+            <span>{{ item.q }}</span>
+            <span
+              class="w-7 h-7 shrink-0 rounded-full bg-paper border border-rule inline-flex items-center justify-center transition-all duration-300 group-open:bg-brand group-open:border-brand group-open:rotate-180"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 24 24" fill="none" class="w-3.5 h-3.5 text-ink group-open:text-white transition-colors duration-300">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="group-open:hidden"/>
+                <path d="M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" class="hidden group-open:block"/>
+              </svg>
+            </span>
+          </summary>
+          <p class="text-[14.5px] leading-[1.65] text-ink/70 m-0 px-6 pb-5 animate-[faqOpen_280ms_ease-out]">{{ item.a }}</p>
         </details>
       }
     </div>

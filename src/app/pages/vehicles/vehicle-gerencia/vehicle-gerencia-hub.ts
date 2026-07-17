@@ -14,34 +14,55 @@ import {
   VehicleSummary,
 } from '../../../components/vehicles/vehicle-summary-chip/vehicle-summary-chip';
 import { VehiclesService } from '../../../services/vehicles.service';
-import { GerenciaSummary } from '../../../types/gerencia-summary.types';
+import { GerenciaFinanceChunk, GerenciaSummary } from '../../../types/gerencia-summary.types';
+import { FinancingsList } from '../../financings/financings-list';
+import { MaintenancesList } from '../../maintenances/maintenances-list';
+import { RentalService } from '../../rentals/rental.service';
+import { RentalListItemDto, rentalStatusInfo } from '../../../types/rental.types';
+import { licensingBadge } from '../../../utils/status-maps';
 
-type KpiVariant = 'default' | 'success' | 'warning' | 'danger';
+type TabKey = 'financeiro' | 'manutencoes' | 'alugueis' | 'documentos';
 
-interface KpiViewModel {
-  key: 'fines' | 'maintenances' | 'financing' | 'licensing';
-  title: string;
-  value: string;
-  subtitle: string | null;
-  variant: KpiVariant;
-  icon: 'alert' | 'wrench' | 'money' | 'document';
-  routerLink: (string | number)[] | null;
+interface TabDef {
+  key: TabKey;
+  label: string;
 }
 
 @Component({
   selector: 'app-vehicle-gerencia-hub',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, VehicleSummaryChip],
+  imports: [
+    RouterLink,
+    DefaultPageLayout,
+    VehicleSummaryChip,
+    FinancingsList,
+    MaintenancesList,
+  ],
   templateUrl: './vehicle-gerencia-hub.html',
 })
 export class VehicleGerenciaHub implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly rentalService = inject(RentalService);
   private readonly route = inject(ActivatedRoute);
 
   protected readonly vehicleId = signal<string>('');
   protected readonly summary = signal<GerenciaSummary | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  protected readonly rentals = signal<RentalListItemDto[]>([]);
+  protected readonly rentalsLoading = signal(false);
+  protected readonly rentalsError = signal<string | null>(null);
+  private rentalsFetched = false;
+
+  protected readonly activeTab = signal<TabKey>('financeiro');
+
+  protected readonly tabs: TabDef[] = [
+    { key: 'financeiro', label: 'Financeiro' },
+    { key: 'manutencoes', label: 'Manutenções' },
+    { key: 'alugueis', label: 'Aluguéis' },
+    { key: 'documentos', label: 'Documentos' },
+  ];
 
   protected readonly chipVehicle = computed<VehicleSummary | null>(() => {
     const s = this.summary();
@@ -54,20 +75,8 @@ export class VehicleGerenciaHub implements OnInit {
       hodometer: s.vehicle.hodometer,
       licensingExpiration: s.vehicle.licensingExpiration,
       type: s.vehicle.type,
+      status: s.vehicle.status,
     };
-  });
-
-  protected readonly kpis = computed<KpiViewModel[]>(() => {
-    const s = this.summary();
-    const id = this.vehicleId();
-    if (!s || !id) return [];
-
-    return [
-      this.buildFinesKpi(s, id),
-      this.buildMaintenancesKpi(s, id),
-      this.buildFinancingKpi(s, id),
-      this.buildLicensingKpi(s),
-    ];
   });
 
   ngOnInit(): void {
@@ -80,6 +89,13 @@ export class VehicleGerenciaHub implements OnInit {
   protected retry(): void {
     const id = this.vehicleId();
     if (id) this.load(id);
+  }
+
+  protected selectTab(key: TabKey): void {
+    this.activeTab.set(key);
+    if (key === 'alugueis' && !this.rentalsFetched) {
+      this.loadRentals(this.vehicleId());
+    }
   }
 
   private load(id: string): void {
@@ -97,136 +113,29 @@ export class VehicleGerenciaHub implements OnInit {
     });
   }
 
-  private buildFinesKpi(s: GerenciaSummary, id: string): KpiViewModel {
-    const openCount = s.fines.openCount ?? 0;
-    return {
-      key: 'fines',
-      title: 'Multas',
-      value: openCount > 0 ? `${openCount} pendente${openCount > 1 ? 's' : ''}` : 'Nenhuma pendente',
-      subtitle: openCount > 0 ? this.formatCurrency(s.fines.openAmountCents) : null,
-      variant: openCount > 0 ? 'danger' : 'default',
-      icon: 'alert',
-      routerLink: ['/veiculos', id, 'gerencia', 'multas'],
-    };
+  private loadRentals(vehicleId: string): void {
+    if (!vehicleId) return;
+    this.rentalsLoading.set(true);
+    this.rentalsError.set(null);
+    this.rentalService.list({ vehicleId, size: 50 }).subscribe({
+      next: (res) => {
+        this.rentals.set(res.content ?? []);
+        this.rentalsFetched = true;
+        this.rentalsLoading.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.rentalsLoading.set(false);
+        this.rentalsError.set(this.extractError(err, 'Não foi possível carregar os aluguéis.'));
+      },
+    });
   }
 
-  private buildMaintenancesKpi(s: GerenciaSummary, id: string): KpiViewModel {
-    const openCount = s.maintenances.openCount ?? 0;
-    return {
-      key: 'maintenances',
-      title: 'Manutenções',
-      value: openCount > 0 ? `${openCount} agendada${openCount > 1 ? 's' : ''}` : 'Sem agendamentos',
-      subtitle: s.maintenances.nextServiceDate
-        ? `Próxima: ${this.formatDate(s.maintenances.nextServiceDate)}`
-        : null,
-      variant: openCount > 0 ? 'warning' : 'default',
-      icon: 'wrench',
-      routerLink: ['/veiculos', id, 'gerencia', 'manutencoes'],
-    };
+  protected retryRentals(): void {
+    this.rentalsFetched = false;
+    this.loadRentals(this.vehicleId());
   }
 
-  private buildFinancingKpi(s: GerenciaSummary, id: string): KpiViewModel {
-    const f = s.activeFinancing;
-    if (!f) {
-      return {
-        key: 'financing',
-        title: 'Financiamento',
-        value: 'Sem financiamento',
-        subtitle: null,
-        variant: 'default',
-        icon: 'money',
-        routerLink: ['/veiculos', id, 'gerencia', 'financiamentos'],
-      };
-    }
-    return {
-      key: 'financing',
-      title: 'Financiamento',
-      value: 'ATIVO',
-      subtitle: f.installments != null ? `${f.installments} parcelas` : null,
-      variant: 'success',
-      icon: 'money',
-      routerLink: ['/veiculos', id, 'gerencia', 'financiamentos'],
-    };
-  }
-
-  private buildLicensingKpi(s: GerenciaSummary): KpiViewModel {
-    const l = s.licensing;
-    let value = 'Sem cadastro';
-    let subtitle: string | null = null;
-    let variant: KpiVariant = 'default';
-
-    if (l.expiration) {
-      if (l.expired) {
-        value = 'Vencido';
-        subtitle = this.formatDate(l.expiration);
-        variant = 'danger';
-      } else if (l.expiringSoon) {
-        const days = this.daysUntil(l.expiration);
-        value = days != null ? `Vence em ${days}d` : 'Vence em breve';
-        subtitle = this.formatDate(l.expiration);
-        variant = 'warning';
-      } else {
-        value = this.formatDate(l.expiration);
-        subtitle = 'Em dia';
-      }
-    }
-
-    return {
-      key: 'licensing',
-      title: 'Licenciamento',
-      value,
-      subtitle,
-      variant,
-      icon: 'document',
-      routerLink: null,
-    };
-  }
-
-  protected variantClasses(variant: KpiVariant): string {
-    switch (variant) {
-      case 'danger':
-        return 'border-rose-200 bg-rose-50/60 hover:border-rose-300';
-      case 'warning':
-        return 'border-amber-200 bg-amber-50/60 hover:border-amber-300';
-      case 'success':
-        return 'border-emerald-200 bg-emerald-50/60 hover:border-emerald-300';
-      default:
-        return 'border-neutral-200 bg-white hover:border-primary-300';
-    }
-  }
-
-  protected iconClasses(variant: KpiVariant): string {
-    switch (variant) {
-      case 'danger':
-        return 'bg-rose-100 text-rose-700';
-      case 'warning':
-        return 'bg-amber-100 text-amber-700';
-      case 'success':
-        return 'bg-emerald-100 text-emerald-700';
-      default:
-        return 'bg-primary-50 text-primary-600';
-    }
-  }
-
-  protected valueClasses(variant: KpiVariant): string {
-    switch (variant) {
-      case 'danger':
-        return 'text-rose-800';
-      case 'warning':
-        return 'text-amber-800';
-      case 'success':
-        return 'text-emerald-800';
-      default:
-        return 'text-neutral-900';
-    }
-  }
-
-  private formatDate(iso: string | null): string {
-    if (!iso) return '—';
-    return new Date(iso.length === 10 ? iso + 'T00:00:00' : iso).toLocaleDateString('pt-BR');
-  }
-
-  private formatCurrency(cents: number | null | undefined): string {
+  protected formatMoney(cents: number | null | undefined): string {
     if (cents == null) return '—';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -234,12 +143,52 @@ export class VehicleGerenciaHub implements OnInit {
     }).format(cents / 100);
   }
 
-  private daysUntil(iso: string): number | null {
+  protected formatDate(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    return new Date(iso.length === 10 ? iso + 'T00:00:00' : iso).toLocaleDateString('pt-BR');
+  }
+
+  protected daysUntil(iso: string | null | undefined): number | null {
     if (!iso) return null;
     const then = new Date(iso + 'T00:00:00').getTime();
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     return Math.round((then - today) / 86400000);
+  }
+
+  protected rentalStatusChip(status: RentalListItemDto['status']): { label: string; chip: string } {
+    return rentalStatusInfo(status);
+  }
+
+  /** Sign-aware currency: negative results shown in red, positive in green. */
+  protected resultClass(cents: number): string {
+    if (cents > 0) return 'text-emerald-700';
+    if (cents < 0) return 'text-rose-700';
+    return 'text-neutral-900';
+  }
+
+  /**
+   * Color for the "Recebido" amount vs contracted revenue:
+   * - equal (fully paid) → emerald
+   * - < revenue but > 0 (partial) → amber
+   * - 0 with revenue > 0 → neutral gray (hint shown separately)
+   * - both zero → neutral
+   */
+  protected receivedClass(finance: GerenciaFinanceChunk): string {
+    const rev = finance.totalRentalRevenueCents;
+    const recv = finance.totalRentalReceivedCents;
+    if (rev === 0 && recv === 0) return 'text-neutral-900';
+    if (recv === 0) return 'text-neutral-500';
+    if (recv >= rev) return 'text-emerald-700';
+    return 'text-amber-700';
+  }
+
+  protected licensingChipLabel(): { label: string; chip: string } | null {
+    const s = this.summary();
+    if (!s) return null;
+    const iso = s.licensing.expiration;
+    if (!iso) return null;
+    return licensingBadge(iso);
   }
 
   private extractError(err: HttpErrorResponse, fallback: string): string {

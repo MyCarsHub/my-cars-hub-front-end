@@ -1,0 +1,98 @@
+<app-default-page-layout
+  title="Blog"
+  description="Gerenciar posts públicos exibidos em /blog."
+>
+  <div class="space-y-4 sm:space-y-6">
+    <div class="flex justify-end">
+      <a routerLink="/admin/blog/novo"
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+        Novo post
+      </a>
+    </div>
+
+    <app-page-card title="Posts">
+      <div class="p-2 sm:p-3">
+        @if (loading()) {
+          <div class="space-y-3 p-4">
+            <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+            <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+            <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+          </div>
+        } @else if (items().length === 0) {
+          <p class="text-center text-neutral-500 text-sm py-12">Nenhum post ainda.</p>
+        } @else {
+          <ul class="divide-y divide-neutral-100">
+            @for (post of items(); track post.id) {
+              <li class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 hover:bg-neutral-50 transition-colors rounded-lg">
+                <div class="flex-1 min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 mb-1">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+                      [class.bg-emerald-100]="post.status === 'PUBLISHED'"
+                      [class.text-emerald-800]="post.status === 'PUBLISHED'"
+                      [class.bg-neutral-200]="post.status !== 'PUBLISHED'"
+                      [class.text-neutral-700]="post.status !== 'PUBLISHED'">
+                      {{ post.status === 'PUBLISHED' ? 'Publicado' : 'Rascunho' }}
+                    </span>
+                    <span class="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                      {{ categoryLabel(post.category) }}
+                    </span>
+                  </div>
+                  <p class="text-sm font-semibold text-neutral-900 truncate">{{ post.title }}</p>
+                  <p class="text-xs text-neutral-500 mt-0.5">
+                    /blog/{{ post.slug }} · {{ post.readingMinutes }} min
+                    @if (post.publishedAt) {
+                      · publicado {{ formatDate(post.publishedAt) }}
+                    } @else {
+                      · criado {{ formatDate(post.createdDate) }}
+                    }
+                  </p>
+                </div>
+                <div class="flex flex-wrap gap-2 shrink-0">
+                  <button type="button" (click)="togglePublish(post)"
+                    class="inline-flex items-center px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-100 text-neutral-700 text-xs font-medium min-h-[36px]">
+                    {{ post.status === 'PUBLISHED' ? 'Despublicar' : 'Publicar' }}
+                  </button>
+                  <a [routerLink]="['/admin/blog', post.id, 'editar']"
+                    class="inline-flex items-center px-3 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold min-h-[36px]">
+                    Editar
+                  </a>
+                  <button type="button" (click)="askDelete(post)"
+                    class="inline-flex items-center px-3 py-2 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-medium min-h-[36px]">
+                    Excluir
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </app-page-card>
+
+    @if (totalPages() > 1) {
+      <div class="flex items-center justify-between gap-2">
+        <button type="button" (click)="goPage(page() - 1)" [disabled]="page() === 0"
+          class="px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium disabled:opacity-40">
+          Anterior
+        </button>
+        <span class="text-sm text-neutral-500">Página {{ page() + 1 }} de {{ totalPages() }}</span>
+        <button type="button" (click)="goPage(page() + 1)" [disabled]="page() >= totalPages() - 1"
+          class="px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium disabled:opacity-40">
+          Próxima
+        </button>
+      </div>
+    }
+  </div>
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir post?"
+  message="O post será removido permanentemente e a URL /blog/{slug} deixará de funcionar."
+  confirmLabel="Excluir"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="closeDelete()"
+/>

@@ -1,0 +1,65 @@
+<main class="login-page">
+  <!-- Ambient: gradient laranja + grid + glow -->
+  <div class="login-glow" aria-hidden="true"></div>
+  <div class="login-grid" aria-hidden="true"></div>
+
+  <!-- Logo icons flutuando ao redor (só o símbolo) — reforça identidade -->
+  <div class="login-marks" aria-hidden="true">
+    <img class="login-mark login-mark--1" src="svg/logo-my-cars-hub.svg" alt="" />
+    <img class="login-mark login-mark--2" src="svg/logo-my-cars-hub.svg" alt="" />
+    <img class="login-mark login-mark--3" src="svg/logo-my-cars-hub.svg" alt="" />
+    <img class="login-mark login-mark--4" src="svg/logo-my-cars-hub.svg" alt="" />
+  </div>
+
+  <section class="login-card" aria-labelledby="login-title">
+    <a class="login-back" href="/" aria-label="Voltar para o site">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M19 12H5M11 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Voltar
+    </a>
+
+    <a class="login-brand" routerLink="/" aria-label="MyCarsHub — início">
+      <img ngSrc="svg/logo-my-cars-hub-complete.svg" width="178" height="42" priority alt="MyCarsHub" />
+    </a>
+
+    <div class="login-intro">
+      <h1 id="login-title">
+        Acesse sua
+        <span class="hl">locadora</span>
+      </h1>
+      <p>Entre com sua conta Google. Sem senha, sem cadastro chato.</p>
+    </div>
+
+    <button
+      class="login-google"
+      type="button"
+      (click)="continueWithGoogle()"
+      [disabled]="isRedirecting()"
+      [attr.aria-busy]="isRedirecting()"
+    >
+      <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
+      @if (isRedirecting()) {
+        <span class="login-spinner" aria-hidden="true"></span>
+        <span>Redirecionando…</span>
+      } @else {
+        <span>Continuar com o Google</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="login-google__arrow">
+          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      }
+    </button>
+
+    <div class="login-divider" aria-hidden="true">
+      <span></span>
+      <small>Acesso seguro</small>
+      <span></span>
+    </div>
+
+    <p class="login-terms">
+      Ao continuar, você concorda com os
+      <a href="#">termos de uso</a> e a
+      <a href="#">política de privacidade</a>.
+    </p>
+  </section>
+</main>

@@ -116,6 +116,11 @@
           {{ error() }}
         </div>
       }
+      @if (actionError()) {
+        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
+          {{ actionError() }}
+        </div>
+      }
 
       <!-- Loading skeleton -->
       @if (loading() && items().length === 0) {
@@ -187,7 +192,7 @@
                 </div>
               </div>
 
-              <div class="flex justify-end gap-2 pt-1 border-t border-neutral-50">
+              <div class="flex flex-wrap justify-end gap-2 pt-1 border-t border-neutral-50">
                 <a
                   [routerLink]="['/motoristas', driver.id, 'editar']"
                   (click)="$event.stopPropagation()"
@@ -196,8 +201,24 @@
                 </a>
                 <button
                   type="button"
+                  (click)="askToggleStatus(driver, $event)"
+                  [disabled]="!canToggleStatus(driver)"
+                  [attr.title]="toggleStatusTooltip(driver)"
+                  [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + driver.name"
+                  class="text-xs font-medium px-3 py-2 rounded-lg
+                         disabled:cursor-not-allowed disabled:opacity-50
+                         hover:bg-neutral-100"
+                  [class.text-amber-700]="driver.status !== 'SUSPENDED'"
+                  [class.text-emerald-700]="driver.status === 'SUSPENDED'">
+                  {{ toggleStatusLabel(driver) }}
+                </button>
+                <button
+                  type="button"
                   (click)="askDelete(driver, $event)"
-                  class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-lg">
+                  [disabled]="!canDelete(driver)"
+                  [attr.title]="deleteTooltip(driver)"
+                  class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-lg
+                         disabled:cursor-not-allowed disabled:opacity-50">
                   Excluir
                 </button>
               </div>
@@ -243,7 +264,7 @@
                     {{ formatDate(driver.licenseExpiry) }}
                   </td>
                   <td class="py-3 pr-4">
-                    <div class="flex items-center justify-end gap-2">
+                    <div class="flex items-center justify-end gap-1">
                       <a
                         [routerLink]="['/motoristas', driver.id, 'editar']"
                         (click)="$event.stopPropagation()"
@@ -252,8 +273,22 @@
                       </a>
                       <button
                         type="button"
+                        (click)="askToggleStatus(driver, $event)"
+                        [disabled]="!canToggleStatus(driver)"
+                        [attr.title]="toggleStatusTooltip(driver)"
+                        class="text-xs font-medium px-2 py-1 rounded-md hover:bg-neutral-100
+                               disabled:cursor-not-allowed disabled:opacity-50"
+                        [class.text-amber-700]="driver.status !== 'SUSPENDED'"
+                        [class.text-emerald-700]="driver.status === 'SUSPENDED'">
+                        {{ toggleStatusLabel(driver) }}
+                      </button>
+                      <button
+                        type="button"
                         (click)="askDelete(driver, $event)"
-                        class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-md">
+                        [disabled]="!canDelete(driver)"
+                        [attr.title]="deleteTooltip(driver)"
+                        class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-md
+                               disabled:cursor-not-allowed disabled:opacity-50">
                         Excluir
                       </button>
                     </div>
@@ -297,4 +332,14 @@
   variant="danger"
   (confirmed)="confirmDelete()"
   (cancelled)="cancelDelete()"
+/>
+
+<app-confirm-dialog
+  [open]="togglingStatusDriver() !== null"
+  [title]="togglingStatusDriver()?.status === 'SUSPENDED' ? 'Reativar motorista' : 'Suspender motorista'"
+  [message]="toggleConfirmMessage()"
+  [confirmLabel]="togglingStatusDriver()?.status === 'SUSPENDED' ? 'Reativar' : 'Suspender'"
+  variant="warning"
+  (confirmed)="confirmToggleStatus()"
+  (cancelled)="cancelToggleStatus()"
 />

@@ -30,13 +30,67 @@
       </div>
 
       <!-- Desktop actions (top-right) -->
-      <div class="hidden lg:flex shrink-0">
+      <div class="hidden lg:flex shrink-0 items-center gap-2">
+        @if (canToggleStatus()) {
+          <button
+            type="button"
+            (click)="askToggleStatus()"
+            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                   bg-white border border-neutral-200 hover:bg-neutral-50 transition-colors
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+            [class.text-amber-700]="d.status !== 'SUSPENDED'"
+            [class.text-emerald-700]="d.status === 'SUSPENDED'">
+            {{ toggleStatusLabel() }}
+          </button>
+        }
         <app-detail-actions
           [editRouterLink]="['/motoristas', d.id, 'editar']"
           (delete)="askDelete()"
         />
       </div>
     </div>
+
+    @if (actionError()) {
+      <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3 mb-4">
+        {{ actionError() }}
+      </div>
+    }
+
+    @if (activeRental(); as rental) {
+      @if (activeRentalBanner(); as banner) {
+        <div class="rounded-xl border p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+             [class]="banner.container">
+          <div class="min-w-0 flex items-center gap-3">
+            @if (banner.icon === 'clock') {
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true" [class]="banner.eyebrow + ' shrink-0'">
+                <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+              </svg>
+            }
+            <div class="min-w-0">
+              <p class="text-xs font-semibold uppercase tracking-wider" [class]="banner.eyebrow">
+                {{ banner.label }}
+              </p>
+              <p class="text-sm font-medium tabular-nums" [class]="banner.body">
+                {{ formatDate(rental.startDate) }} → {{ formatDate(rental.endDate) }}
+                · Total {{ formatMoney(rental.totalAmount) }}
+              </p>
+            </div>
+          </div>
+          <a
+            [routerLink]="['/alugueis', rental.id]"
+            class="inline-flex items-center gap-1 text-sm font-semibold shrink-0"
+            [class]="banner.link">
+            Abrir aluguel
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+      }
+    }
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
 
@@ -147,8 +201,56 @@
 
     </div>
 
+    <!-- Rental history -->
+    <div class="mt-4 sm:mt-6">
+      <app-page-card title="Histórico de aluguéis">
+        <div class="p-3 sm:p-4">
+          @if (rentalsLoading()) {
+            <p class="text-sm text-neutral-500">Carregando aluguéis…</p>
+          } @else if (recentRentals().length === 0) {
+            <p class="text-sm text-neutral-500">Este motorista ainda não teve aluguéis.</p>
+          } @else {
+            <ul class="divide-y divide-neutral-100">
+              @for (rental of recentRentals(); track rental.id) {
+                <li>
+                  <a
+                    [routerLink]="['/alugueis', rental.id]"
+                    class="flex items-center justify-between gap-3 py-3 hover:bg-neutral-50 -mx-2 px-2 rounded-lg">
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-medium text-neutral-900 tabular-nums">
+                        {{ formatDate(rental.startDate) }} → {{ formatDate(rental.endDate) }}
+                      </p>
+                      <p class="text-xs text-neutral-500 tabular-nums">
+                        {{ formatMoney(rental.totalAmount) }}
+                      </p>
+                    </div>
+                    <span
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide shrink-0"
+                      [class]="rentalStatusInfo(rental.status).chip">
+                      {{ rentalStatusInfo(rental.status).label }}
+                    </span>
+                  </a>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </app-page-card>
+    </div>
+
     <!-- Mobile actions (bottom) -->
-    <div class="lg:hidden mt-6">
+    <div class="lg:hidden mt-6 space-y-3">
+      @if (canToggleStatus()) {
+        <button
+          type="button"
+          (click)="askToggleStatus()"
+          class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium
+                 bg-white border border-neutral-200 hover:bg-neutral-50 transition-colors"
+          [class.text-amber-700]="d.status !== 'SUSPENDED'"
+          [class.text-emerald-700]="d.status === 'SUSPENDED'">
+          {{ toggleStatusLabel() }}
+        </button>
+      }
       <app-detail-actions
         [editRouterLink]="['/motoristas', d.id, 'editar']"
         (delete)="askDelete()"
@@ -171,4 +273,14 @@
   variant="danger"
   (confirmed)="confirmDelete()"
   (cancelled)="cancelDelete()"
+/>
+
+<app-confirm-dialog
+  [open]="toggleStatusOpen()"
+  [title]="driver()?.status === 'SUSPENDED' ? 'Reativar motorista' : 'Suspender motorista'"
+  [message]="toggleConfirmMessage()"
+  [confirmLabel]="driver()?.status === 'SUSPENDED' ? 'Reativar' : 'Suspender'"
+  variant="warning"
+  (confirmed)="confirmToggleStatus()"
+  (cancelled)="cancelToggleStatus()"
 />

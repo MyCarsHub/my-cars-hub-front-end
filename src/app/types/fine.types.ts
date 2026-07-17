@@ -1,35 +1,23 @@
 export type FineStatus = 'PENDING' | 'PAID' | 'CONTESTED' | 'CANCELED';
 export type FineSeverity = 'LEVE' | 'MEDIA' | 'GRAVE' | 'GRAVISSIMA';
 
-export const FINE_STATUS_OPTIONS: Array<{
-  value: FineStatus | '';
-  label: string;
-  chip: string;
-}> = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
-  { value: 'PENDING', label: 'Pendente', chip: 'bg-amber-100 text-amber-800' },
-  { value: 'PAID', label: 'Paga', chip: 'bg-emerald-100 text-emerald-800' },
-  { value: 'CONTESTED', label: 'Contestada', chip: 'bg-blue-100 text-blue-700' },
-  { value: 'CANCELED', label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-];
+import {
+  FINE_SEVERITY_FILTER_OPTIONS,
+  FINE_STATUS_FILTER_OPTIONS,
+} from '../utils/status-maps';
 
-export const FINE_SEVERITY_OPTIONS: Array<{
-  value: FineSeverity | '';
-  label: string;
-  chip: string;
-  defaultPoints: number;
-}> = [
-  { value: '', label: 'Todas', chip: 'bg-neutral-100 text-neutral-700', defaultPoints: 0 },
-  { value: 'LEVE', label: 'Leve', chip: 'bg-emerald-100 text-emerald-800', defaultPoints: 3 },
-  { value: 'MEDIA', label: 'Média', chip: 'bg-amber-100 text-amber-800', defaultPoints: 4 },
-  { value: 'GRAVE', label: 'Grave', chip: 'bg-orange-100 text-orange-800', defaultPoints: 5 },
-  {
-    value: 'GRAVISSIMA',
-    label: 'Gravíssima',
-    chip: 'bg-rose-100 text-rose-700',
-    defaultPoints: 7,
-  },
-];
+/**
+ * @deprecated Import `FINE_STATUS_FILTER_OPTIONS` from
+ * `utils/status-maps.ts` instead. Kept as a re-export to avoid breaking
+ * existing consumers.
+ */
+export const FINE_STATUS_OPTIONS = FINE_STATUS_FILTER_OPTIONS;
+
+/**
+ * @deprecated Import `FINE_SEVERITY_FILTER_OPTIONS` from
+ * `utils/status-maps.ts` instead.
+ */
+export const FINE_SEVERITY_OPTIONS = FINE_SEVERITY_FILTER_OPTIONS;
 
 export const FINE_SORT_OPTIONS = [
   { value: 'infraction_date_desc', label: 'Data infração (recente)' },

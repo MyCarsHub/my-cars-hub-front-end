@@ -5,12 +5,18 @@ import { RouterModule } from '@angular/router';
   selector: 'app-landing-nav',
   imports: [RouterModule],
   templateUrl: './landing-nav.component.html',
-  styleUrls: ['./landing-nav.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(window:scroll)': 'onScroll()' },
 })
 export class LandingNavComponent {
   readonly scrolled = signal(false);
+
+  readonly links = [
+    { href: '#problema', label: 'Problema' },
+    { href: '#solucao', label: 'Solução' },
+    { href: '#funcionalidades', label: 'Funcionalidades' },
+    { href: '#planos', label: 'Planos' },
+  ];
 
   onScroll(): void {
     this.scrolled.set(window.scrollY > 12);

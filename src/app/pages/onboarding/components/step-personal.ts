@@ -8,6 +8,10 @@ import {
 } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { OnboardingData } from '../onboarding.types';
+import { stripDigits } from '../../../utils/format';
+
+const CPF_PATTERN = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/;
+const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
 @Component({
   selector: 'app-step-personal',
@@ -63,7 +67,7 @@ import { OnboardingData } from '../onboarding.types';
           (input)="onCpfInput($event)"
         />
         @if (cpfInvalid()) {
-          <p class="mt-1 text-xs text-red-500" role="alert">CPF é obrigatório.</p>
+          <p class="mt-1 text-xs text-red-500" role="alert">{{ cpfErrorMessage() }}</p>
         }
       </div>
 
@@ -73,7 +77,7 @@ import { OnboardingData } from '../onboarding.types';
         </label>
         <input
           id="ob-phone"
-          formControlName="phone"
+          formControlName="phoneNumber"
           type="tel"
           autocomplete="tel"
           inputmode="tel"
@@ -88,7 +92,7 @@ import { OnboardingData } from '../onboarding.types';
           (input)="onPhoneInput($event)"
         />
         @if (phoneInvalid()) {
-          <p class="mt-1 text-xs text-red-500" role="alert">Telefone é obrigatório.</p>
+          <p class="mt-1 text-xs text-red-500" role="alert">{{ phoneErrorMessage() }}</p>
         }
       </div>
     </form>
@@ -103,8 +107,8 @@ export class StepPersonal implements OnInit {
 
   readonly form: FormGroup = this.fb.group({
     name: ['', Validators.required],
-    cpf: ['', Validators.required],
-    phone: ['', Validators.required],
+    cpf: ['', [Validators.required, Validators.pattern(CPF_PATTERN)]],
+    phoneNumber: ['', [Validators.required, Validators.pattern(PHONE_PATTERN)]],
   });
 
   ngOnInit(): void {
@@ -112,14 +116,16 @@ export class StepPersonal implements OnInit {
     this.form.patchValue({
       name: data.name ?? '',
       cpf: data.cpf ?? '',
-      phone: data.phone ?? '',
+      phoneNumber: data.phoneNumber ?? '',
     });
 
     this.form.valueChanges.subscribe((val) => {
+      // Emit RAW (digits-only) values so the container/service can POST them
+      // straight to the backend without further normalization.
       this.formChange.emit({
         name: val.name ?? '',
-        cpf: val.cpf ?? '',
-        phone: val.phone ?? '',
+        cpf: stripDigits(val.cpf),
+        phoneNumber: stripDigits(val.phoneNumber),
       });
       this.isValid.emit(this.form.valid);
     });
@@ -141,8 +147,22 @@ export class StepPersonal implements OnInit {
   }
 
   protected phoneInvalid(): boolean {
-    const ctrl = this.form.get('phone');
+    const ctrl = this.form.get('phoneNumber');
     return !!(ctrl?.invalid && ctrl.touched);
+  }
+
+  protected cpfErrorMessage(): string {
+    const ctrl = this.form.get('cpf');
+    if (ctrl?.hasError('required')) return 'CPF é obrigatório.';
+    if (ctrl?.hasError('pattern')) return 'CPF inválido. Use o formato 000.000.000-00.';
+    return '';
+  }
+
+  protected phoneErrorMessage(): string {
+    const ctrl = this.form.get('phoneNumber');
+    if (ctrl?.hasError('required')) return 'Telefone é obrigatório.';
+    if (ctrl?.hasError('pattern')) return 'Telefone inválido. Use DDD + número.';
+    return '';
   }
 
   /** Mark all fields touched so validation messages appear */
@@ -185,6 +205,6 @@ export class StepPersonal implements OnInit {
       formatted = value;
     }
 
-    this.form.get('phone')?.setValue(formatted, { emitEvent: true });
+    this.form.get('phoneNumber')?.setValue(formatted, { emitEvent: true });
   }
 }

@@ -1,13 +1,94 @@
-.landing-root {
-  background: var(--color-gray-50);
-  color: var(--color-black);
-  font-family: var(--font-body);
-  min-height: 100vh;
-  overflow-x: hidden;
+/* =========================================================
+   Landing scope — tokens e classes .landing-root vivem em
+   src/styles.css (global) pra serem herdados por componentes
+   filhos com view encapsulation (blog, etc).
+   Este arquivo agora só tem o FAB back-to-top específico.
+   ========================================================= */
+
+:host { display: block; }
+
+/* =========================================================
+   FAB — back-to-top com o logo (interativo, só o ícone).
+   ========================================================= */
+.fab-logo {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 1px 0 0 rgba(255,255,255,0.18) inset,
+    0 12px 32px -8px rgba(235,63,0,0.5);
+  z-index: 60;
+  opacity: 0;
+  transform: translateY(20px) scale(0.85);
+  pointer-events: none;
+  transition: opacity 320ms var(--ease-out),
+              transform 320ms var(--ease-out),
+              box-shadow 200ms var(--ease-out);
+  overflow: visible;
+}
+.fab-logo--visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  animation: fabPulse 2.6s var(--ease-in-out) infinite;
+}
+@keyframes fabPulse {
+  0%, 100% { box-shadow: 0 1px 0 0 rgba(255,255,255,0.18) inset, 0 12px 32px -8px rgba(235,63,0,0.5); }
+  50%      { box-shadow: 0 1px 0 0 rgba(255,255,255,0.18) inset, 0 12px 32px -8px rgba(235,63,0,0.5), 0 0 0 8px rgba(235,63,0,0.12); }
+}
+.fab-logo img {
+  width: 30px;
+  height: auto;
+  filter: brightness(0) invert(1);
+  transition: transform 400ms var(--ease-out);
+}
+.fab-logo:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow:
+    0 1px 0 0 rgba(255,255,255,0.18) inset,
+    0 18px 40px -8px rgba(235,63,0,0.65);
+}
+.fab-logo:hover img {
+  transform: rotate(-14deg) scale(1.08);
+}
+.fab-logo:active { transform: translateY(0) scale(1); }
+
+.fab-logo__arrow {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px -2px rgba(10,10,10,0.24);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+.fab-logo:hover .fab-logo__arrow {
+  opacity: 1;
+  transform: scale(1);
 }
 
-.landing-root :is(h1, h2, h3, h4) {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
-  line-height: 1.08;
+@media (max-width: 767px) {
+  .fab-logo { right: 16px; bottom: 16px; width: 52px; height: 52px; }
+  .fab-logo img { width: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fab-logo--visible { animation: none; }
+  .fab-logo, .fab-logo img, .fab-logo__arrow { transition: none; }
 }

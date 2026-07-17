@@ -8,17 +8,25 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { VehiclesService } from '../../services/vehicles.service';
+import { NotificationService } from '../../services/notification.service';
 import {
   VEHICLE_SORT_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
   VehicleFilters,
   VehicleListItem,
+  VehicleStatus,
   VehicleType,
 } from '../../types/vehicle.types';
+import {
+  VEHICLE_STATUS_FILTER_OPTIONS,
+  licensingBadge,
+  vehicleStatusMeta,
+} from '../../utils/status-maps';
 
 const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
   { value: '', label: 'Todos' },
@@ -34,8 +42,10 @@ const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
 export class VehiclesList implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly router = inject(Router);
+  private readonly notify = inject(NotificationService);
 
   protected readonly typeOptions = TYPE_OPTIONS;
+  protected readonly statusOptions = VEHICLE_STATUS_FILTER_OPTIONS;
   protected readonly sortOptions = VEHICLE_SORT_OPTIONS;
 
   protected readonly items = this.vehiclesService.items;
@@ -47,11 +57,14 @@ export class VehiclesList implements OnInit {
 
   protected readonly search = signal('');
   protected readonly typeFilter = signal<VehicleType | ''>('');
+  protected readonly statusFilter = signal<VehicleStatus | ''>('');
   protected readonly sort = signal<VehicleFilters['sort']>('plate_asc');
   protected readonly pageSize = signal(20);
 
   protected readonly deletingVehicle = signal<VehicleListItem | null>(null);
   protected readonly deleting = signal(false);
+  protected readonly openMenuId = signal<string | null>(null);
+  protected readonly transitioningId = signal<string | null>(null);
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -76,6 +89,7 @@ export class VehiclesList implements OnInit {
   protected clearFilters(): void {
     this.search.set('');
     this.typeFilter.set('');
+    this.statusFilter.set('');
     this.sort.set('plate_asc');
     this.reload(0);
   }
@@ -93,11 +107,20 @@ export class VehiclesList implements OnInit {
       .list({
         q: this.search().trim() || undefined,
         type: this.typeFilter() || undefined,
+        status: this.statusFilter() || undefined,
         sort: this.sort(),
         page,
         size: this.pageSize(),
       })
       .subscribe({ error: () => {} });
+  }
+
+  protected statusLabel(status: VehicleStatus): string {
+    return vehicleStatusMeta(status).label;
+  }
+
+  protected statusChip(status: VehicleStatus): string {
+    return vehicleStatusMeta(status).chip;
   }
 
   protected typeLabel(type: VehicleType): string {
@@ -129,11 +152,19 @@ export class VehiclesList implements OnInit {
     return Math.round((expiry - startOfToday) / 86400000);
   }
 
+  protected showIpvaOverdue(v: VehicleListItem): boolean {
+    if (v.ipvaStatus === 'PAID') return false;
+    return v.ipvaStatus === 'OVERDUE' || v.ipvaExpired === true;
+  }
+
   protected licensingBadge(iso: string | null): { label: string; chip: string } | null {
-    const days = this.licensingDaysLeft(iso);
-    if (days === null) return null;
-    if (days < 0) return { label: 'Vencido', chip: 'bg-rose-100 text-rose-700' };
-    if (days <= 30) return { label: `Vence em ${days}d`, chip: 'bg-amber-100 text-amber-800' };
+    if (!iso) return null;
+    const badge = licensingBadge(iso);
+    // list only surfaces alertful states (overdue / near-due). "Em dia" is
+    // covered by the plain date column, no chip needed.
+    if (badge.label === 'Vencido' || badge.label.startsWith('Vence em')) {
+      return badge;
+    }
     return null;
   }
 
@@ -159,12 +190,77 @@ export class VehiclesList implements OnInit {
       next: () => {
         this.deleting.set(false);
         this.deletingVehicle.set(null);
+        this.notify.success(`Veículo «${this.formatPlate(vehicle.plate)}» excluído.`);
         this.reload(this.page());
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deletingVehicle.set(null);
+        this.notify.error(this.extractError(err, 'Não foi possível excluir o veículo.'));
       },
     });
+  }
+
+  /**
+   * Delete is disabled when the vehicle is currently RENTED — backend also
+   * blocks it (409), but the tooltip surfaces the reason without a round-trip.
+   */
+  protected deleteDisabledReason(vehicle: VehicleListItem): string | null {
+    if (vehicle.status === 'RENTED') {
+      return 'Veículo está alugado. Finalize o aluguel para excluir.';
+    }
+    return null;
+  }
+
+  protected toggleMenu(id: string, event?: Event): void {
+    event?.stopPropagation();
+    this.openMenuId.update((cur) => (cur === id ? null : id));
+  }
+
+  protected closeMenu(): void {
+    this.openMenuId.set(null);
+  }
+
+  protected canGoMaintenance(vehicle: VehicleListItem): boolean {
+    return vehicle.status === 'AVAILABLE' || vehicle.status === 'INACTIVE';
+  }
+
+  protected canGoAvailable(vehicle: VehicleListItem): boolean {
+    return vehicle.status === 'MAINTENANCE' || vehicle.status === 'INACTIVE';
+  }
+
+  protected canGoInactive(vehicle: VehicleListItem): boolean {
+    return vehicle.status === 'AVAILABLE' || vehicle.status === 'MAINTENANCE';
+  }
+
+  protected transitionStatus(
+    vehicle: VehicleListItem,
+    target: 'AVAILABLE' | 'MAINTENANCE' | 'INACTIVE',
+    event?: Event,
+  ): void {
+    event?.stopPropagation();
+    this.closeMenu();
+    if (this.transitioningId() === vehicle.id) return;
+    this.transitioningId.set(vehicle.id);
+    this.vehiclesService.updateStatus(vehicle.id, target).subscribe({
+      next: (v) => {
+        this.transitioningId.set(null);
+        this.notify.success(
+          `Status do veículo «${this.formatPlate(vehicle.plate)}» atualizado para ${this.statusLabel(v.status)}.`,
+        );
+      },
+      error: (err: HttpErrorResponse) => {
+        this.transitioningId.set(null);
+        this.notify.error(this.extractError(err, 'Não foi possível alterar o status.'));
+      },
+    });
+  }
+
+  private extractError(err: HttpErrorResponse, fallback: string): string {
+    const body = err.error;
+    if (body && typeof body === 'object' && typeof body.message === 'string') {
+      return body.message;
+    }
+    return fallback;
   }
 }

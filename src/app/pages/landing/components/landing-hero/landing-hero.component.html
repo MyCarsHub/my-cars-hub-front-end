@@ -1,69 +1,127 @@
-<section id="top" class="hero">
-  <div class="hero__orb hero__orb--1" aria-hidden="true"></div>
-  <div class="hero__orb hero__orb--2" aria-hidden="true"></div>
-  <div class="hero__grid" aria-hidden="true"></div>
+<section
+  id="top"
+  class="relative isolate overflow-hidden bg-paper px-5 md:px-8 pt-10 pb-14 md:pt-14 md:pb-24"
+  (mousemove)="onMouseMove($event)"
+>
+  <!-- Spotlight que segue mouse (só desktop) -->
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-0 -z-10 hidden md:block transition-opacity duration-300"
+    style="background: radial-gradient(380px circle at var(--spotlight-x, 50%) var(--spotlight-y, 30%), rgba(235,63,0,0.08), transparent 65%);"
+  ></div>
 
-  <div class="hero__inner">
-    <div class="hero__copy">
-      <h1 class="reveal">
-        Sua locadora inteira<span class="hero__break"></span>
-        <span class="hero__accent">na palma da mão.</span>
+  <!-- Glow orgânico ao fundo do produto -->
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute -top-[10%] -right-[20%] -z-10 w-[900px] h-[900px] max-w-[80vw] max-h-[80vw] blur-2xl animate-[heroGlow_24s_ease-in-out_infinite]"
+    style="background: radial-gradient(circle at 40% 40%, rgba(255,87,34,0.28) 0%, rgba(235,63,0,0.14) 30%, transparent 65%);"
+  ></div>
+
+  <!-- Blueprint grid sutil -->
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-0 -z-20"
+    style="background-image: linear-gradient(to right, rgba(10,10,10,0.035) 1px, transparent 1px), linear-gradient(to bottom, rgba(10,10,10,0.035) 1px, transparent 1px); background-size: 56px 56px; -webkit-mask-image: radial-gradient(ellipse 65% 55% at 50% 30%, black 20%, transparent 78%); mask-image: radial-gradient(ellipse 65% 55% at 50% 30%, black 20%, transparent 78%);"
+  ></div>
+
+  <div class="relative max-w-[1280px] mx-auto grid grid-cols-1 lg:grid-cols-[0.85fr_1.35fr] gap-10 md:gap-12 lg:gap-14 items-center">
+    <!-- Copy -->
+    <div class="relative z-10 flex flex-col gap-[22px]">
+      <h1
+        class="reveal font-display font-bold text-[clamp(1.85rem,4.6vw,3.25rem)] leading-[1.08] tracking-[-0.028em] text-ink max-w-[17ch] mt-1 m-0"
+        style="transition-delay: 0ms;"
+      >
+        Menos planilha.
+        <span class="block italic text-brand relative">
+          Mais frota rodando.
+          <span
+            aria-hidden="true"
+            class="inline-block w-2.5 h-2.5 rounded-full bg-brand ml-1.5 -translate-y-1.5 align-baseline animate-[heroDotPulse_2.4s_ease-in-out_infinite]"
+          ></span>
+        </span>
       </h1>
-      <p class="hero__sub reveal">
-        Chega de planilha, caderno e cobrança no manual. Controle aluguéis,
-        contratos, multas e manutenções em um lugar só.
+
+      <p
+        class="reveal font-body text-[clamp(15px,1.05vw,17px)] leading-[1.55] text-ink/70 max-w-[40ch] m-0"
+        style="transition-delay: 90ms;"
+      >
+        Contratos, cobranças, vistorias e assinatura eletrônica — tudo integrado num sistema
+        desenhado pra locadoras que querem escalar sem virar refém de planilha.
       </p>
-      <div class="hero__ctas reveal">
-        <a routerLink="/signup" class="btn-primary">
+
+      <div class="reveal flex flex-wrap items-center gap-4 mt-1" style="transition-delay: 180ms;">
+        <a
+          routerLink="/login"
+          class="group relative isolate overflow-hidden inline-flex items-center gap-2 px-[22px] py-3.5 rounded-full font-body font-semibold text-[15px] tracking-[-0.005em] text-white min-h-[48px] shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_8px_22px_-6px_rgba(235,63,0,0.45)] hover:-translate-y-px hover:shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_14px_32px_-8px_rgba(235,63,0,0.55)] active:translate-y-0 transition-all duration-300 w-full sm:w-auto justify-center"
+          style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); background-size: 200% 100%; background-position: 0% 50%;"
+          onmouseover="this.style.backgroundPosition='100% 50%'"
+          onmouseout="this.style.backgroundPosition='0% 50%'"
+        >
           Começar 14 dias grátis
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="transition-transform duration-200 group-hover:translate-x-1">
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
+          <span
+            aria-hidden="true"
+            class="absolute inset-0 -z-10 -translate-x-[120%] group-hover:translate-x-[120%] transition-transform duration-[800ms] pointer-events-none"
+            style="background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.3) 50%, transparent 70%);"
+          ></span>
         </a>
       </div>
+
+      <ul
+        class="reveal list-none p-0 m-0 mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-x-6 max-w-[560px]"
+        aria-label="Recursos-chave"
+        style="transition-delay: 260ms;"
+      >
+        @for (perk of perks; track perk) {
+          <li class="flex items-start gap-2.5 text-sm text-ink/70 leading-[1.45]">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" class="w-4 h-4 text-brand shrink-0 mt-0.5">
+              <path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>{{ perk }}</span>
+          </li>
+        }
+      </ul>
     </div>
 
-    <div class="hero__visual reveal">
-      <div class="hero__visual-inner">
+    <!-- Visual: mockup (mobile + tablet) + chips flutuantes -->
+    <div class="reveal relative isolate" style="transition-delay: 200ms;">
+      <div
+        class="group relative transition-transform duration-500 hover:-translate-y-1 lg:scale-110 lg:origin-left"
+      >
         <img
-          ngSrc="png/dashboard-mockup.png"
-          width="1200"
-          height="800"
-          alt="Painel do MyCarsHub mostrando contratos, veículos e cobranças"
+          ngSrc="png/header-image.png"
+          width="1333"
+          height="931"
+          alt="MyCarsHub em mobile e tablet — dashboard com veículos, motoristas ativos e faturamento"
           priority
+          class="w-full h-auto block"
         />
       </div>
-      <div class="hero__chip hero__chip--1" aria-hidden="true">
-        <span class="dot"></span> Contrato ativo
-      </div>
-      <div class="hero__chip hero__chip--2" aria-hidden="true">
-        R$ 14.230 <small>recebidos hoje</small>
-      </div>
-      <div class="hero__chip hero__chip--3" aria-hidden="true">
-        <span class="dot dot--blue"></span> +12 veículos disponíveis
-      </div>
-    </div>
-  </div>
 
-  <div class="hero__brands reveal" aria-label="Marcas que utilizam o MyCarsHub">
-    <span class="hero__brands-label">Confiado por:</span>
-    <div class="hero__brands-marquee" aria-hidden="true">
-      <div class="hero__brands-track">
-        <strong>RodaCar</strong>
-        <strong>VelozLoc</strong>
-        <strong>CityFrota</strong>
-        <strong>Drive&amp;Go</strong>
-        <strong>Auto+</strong>
-        <strong>Mobi Rent</strong>
-        <strong>Loca Express</strong>
-        <strong>RodaCar</strong>
-        <strong>VelozLoc</strong>
-        <strong>CityFrota</strong>
-        <strong>Drive&amp;Go</strong>
-        <strong>Auto+</strong>
-        <strong>Mobi Rent</strong>
-        <strong>Loca Express</strong>
-      </div>
+      <!-- Chip live (contratos ativos) -->
+      <aside
+        class="absolute -top-0 -left-3 md:-left-3.5 z-[2] bg-paper border border-rule-strong rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 shadow-[0_14px_32px_-12px_rgba(10,10,10,0.18)] max-w-[44%] md:max-w-none will-change-transform transition-transform duration-300"
+        [style.transform]="'translate3d(' + chipParallax(1, 'x') + ',' + chipParallax(1, 'y') + ',0)'"
+        aria-hidden="true"
+      >
+        <span class="w-2 h-2 rounded-full bg-brand shrink-0 animate-[heroChipPulse_2.2s_ease-in-out_infinite]" style="box-shadow: 0 0 0 4px rgba(235,63,0,0.18);"></span>
+        <div class="flex flex-col gap-0.5 leading-tight">
+          <span class="font-mono font-bold text-[15px] md:text-[15px] text-ink tabular-nums">27</span>
+          <small class="text-muted text-[10.5px] tracking-wide">contratos ativos</small>
+        </div>
+      </aside>
+
+      <!-- Chip money (recebidos hoje) -->
+      <aside
+        class="absolute bottom-3 -right-3 md:-right-4 z-[2] bg-paper border border-rule-strong rounded-xl px-3.5 py-2.5 flex flex-col items-start gap-1 shadow-[0_14px_32px_-12px_rgba(10,10,10,0.18)] max-w-[44%] md:max-w-none will-change-transform transition-transform duration-300"
+        [style.transform]="'translate3d(' + chipParallax(2, 'x') + ',' + chipParallax(2, 'y') + ',0)'"
+        aria-hidden="true"
+      >
+        <span class="text-[10.5px] text-muted uppercase tracking-[0.1em] font-medium">Recebidos hoje</span>
+        <span class="font-mono font-bold text-[17px] text-brand tabular-nums">R$ 14.230</span>
+      </aside>
     </div>
   </div>
 </section>

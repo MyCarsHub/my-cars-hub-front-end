@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
@@ -12,7 +13,7 @@ import { CompanyOwner, CompanyStats } from '../../types/company-settings.types';
 
 @Component({
   selector: 'app-company-settings',
-  imports: [CommonModule, ReactiveFormsModule, PrimaryInput, DefaultPageLayout, ConfirmDialog, PageCard],
+  imports: [CommonModule, RouterLink, ReactiveFormsModule, PrimaryInput, DefaultPageLayout, ConfirmDialog, PageCard],
   templateUrl: './company-settings.html',
   styleUrl: './company-settings.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
