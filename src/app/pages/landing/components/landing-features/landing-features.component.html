@@ -1,55 +1,101 @@
-<section id="funcionalidades" class="features">
-  <div class="features__inner">
-    <header class="features__head">
-      <h2 class="reveal">Tudo no <em>mesmo lugar</em>.</h2>
-      <p class="reveal">Quatro pilares que substituem cinco planilhas e três cadernos.</p>
+<section id="funcionalidades" class="relative isolate overflow-hidden bg-paper px-5 md:px-8 py-14 sm:py-8 lg:py-12">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 50% 40% at 10% 30%, rgba(235,63,0,0.06), transparent 60%);"></div>
+
+  <div class="max-w-[1200px] mx-auto flex flex-col gap-7">
+    <header class="flex flex-col gap-3.5 max-w-[680px]">
+      <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] m-0">
+        Sua locadora com <span class="hl">tudo no mesmo lugar</span>.
+      </h2>
+      <p class="reveal text-[15.5px] text-ink/70 m-0 max-w-[60ch]">
+        Contratos, cobranças, multas, manutenções e financiamentos — quatro pilares que substituem cinco planilhas.
+      </p>
     </header>
-    <article class="feature-hero reveal">
-      <div class="feature-hero__copy">
-        <span class="pill">Contratos &amp; Aluguéis</span>
-        <h3>Cada contrato, do início ao fim.</h3>
-        <p>Status em tempo real, vencimentos, devoluções e histórico do locatário — sem aba de planilha.</p>
+
+    <!-- Feature-hero (card grande no topo) -->
+    <article class="reveal grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 lg:gap-12 items-center bg-paper border border-rule rounded-[20px] p-7 lg:p-10 shadow-[0_20px_48px_-28px_rgba(10,10,10,0.14)] hover:-translate-y-1.5 hover:border-rule-strong hover:shadow-[0_30px_60px_-28px_rgba(235,63,0,0.2)] transition-all duration-300 group">
+      <div class="flex flex-col gap-2.5">
+        <span class="inline-flex items-center gap-1.5 self-start bg-brand-tint text-brand-strong text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-brand/[0.14] transition-transform duration-300 group-hover:translate-x-1">
+          Contratos & Aluguéis
+        </span>
+        <h3 class="font-display font-bold text-[clamp(1.35rem,2.2vw,1.75rem)] tracking-[-0.025em] text-ink leading-[1.15] mt-3">
+          Cada contrato, do início ao fim.
+        </h3>
+        <p class="text-[15px] leading-[1.6] text-ink/70 m-0">
+          Status em tempo real, vencimentos, devoluções e histórico do locatário. Vistoria digital com 6 fotos por veículo e contrato gerado a partir do seu template — sem digitar tudo de novo.
+        </p>
       </div>
-      <div class="feature-hero__visual">
-        <div class="mock-card">
-          <div class="mock-card__head">
-            <div class="mock-avatar">JS</div>
-            <div><strong>João Silva</strong><small>Contrato #C-1042 · HB20 — ABC2D34</small></div>
-            <span class="badge-status badge-status--ok">Ativo</span>
+
+      <!-- Mock card visual -->
+      <div class="bg-paper border border-rule rounded-[14px] p-[18px] shadow-[0_18px_40px_-24px_rgba(10,10,10,0.18)]">
+        <div class="grid grid-cols-[38px_1fr_auto] items-center gap-2.5 mb-3.5">
+          <div class="w-[38px] h-[38px] rounded-full text-white font-bold text-[13px] inline-flex items-center justify-center shadow-[0_4px_12px_-4px_rgba(235,63,0,0.4)]" style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);">JS</div>
+          <div>
+            <strong class="block text-sm text-ink">João Silva</strong>
+            <small class="text-muted text-xs">Contrato #C-1042 · HB20 — ABC2D34</small>
           </div>
-          <div class="mock-card__grid">
-            <div><span>Início</span><strong>01/04/2026</strong></div>
-            <div><span>Vencimento</span><strong>30/06/2026</strong></div>
-            <div><span>Valor mensal</span><strong>R$ 2.480</strong></div>
-            <div><span>Status pgto</span><strong class="ok">Em dia</strong></div>
-          </div>
-          <div class="mock-card__bar"><span></span></div>
-          <small class="mock-card__foot">64% do contrato decorrido</small>
+          <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap bg-brand-tint text-brand-strong border border-brand/[0.14]">Ativo</span>
         </div>
+        <div class="grid grid-cols-2 gap-2.5 my-3">
+          <div class="bg-paper-alt px-3 py-2.5 rounded-[9px] border border-rule">
+            <span class="block text-[10.5px] uppercase tracking-[0.03em] font-medium text-muted mb-0.5">Início</span>
+            <strong class="text-[13px] text-ink">01/04/2026</strong>
+          </div>
+          <div class="bg-paper-alt px-3 py-2.5 rounded-[9px] border border-rule">
+            <span class="block text-[10.5px] uppercase tracking-[0.03em] font-medium text-muted mb-0.5">Vencimento</span>
+            <strong class="text-[13px] text-ink">30/06/2026</strong>
+          </div>
+          <div class="bg-paper-alt px-3 py-2.5 rounded-[9px] border border-rule">
+            <span class="block text-[10.5px] uppercase tracking-[0.03em] font-medium text-muted mb-0.5">Valor mensal</span>
+            <strong class="text-[13px] text-ink">R$ 2.480</strong>
+          </div>
+          <div class="bg-paper-alt px-3 py-2.5 rounded-[9px] border border-rule">
+            <span class="block text-[10.5px] uppercase tracking-[0.03em] font-medium text-muted mb-0.5">Status pgto</span>
+            <strong class="text-[13px] text-brand-strong">Em dia</strong>
+          </div>
+        </div>
+        <div class="h-[5px] bg-paper-alt border border-rule rounded-full overflow-hidden mb-1.5">
+          <span class="block h-full w-0 rounded-full transition-[width] duration-[1600ms] delay-[350ms]" [class.!w-[64%]]="revealed()" style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);"></span>
+        </div>
+        <small class="text-muted text-[11.5px]">64% do contrato decorrido</small>
       </div>
     </article>
-    <div class="feature-grid">
-      <article class="feature-card reveal">
-        <span class="pill">Cobranças</span>
-        <h4>Conectado ao seu PSP.</h4>
-        <p>Pix, boleto ou cartão pelo gateway que você já usa — status sincronizado por webhook.</p>
-        <div class="feature-card__viz"><div class="feature-card__chips"><span class="chip-pay">Pix</span><span class="chip-pay">Boleto</span><span class="chip-pay">Cartão</span></div></div>
-      </article>
-      <article class="feature-card reveal">
-        <span class="pill">Multas &amp; Manutenções</span>
-        <h4>Volta pro motorista certo.</h4>
-        <p>Multa vinculada ao contrato. Manutenções agendadas com alerta automático.</p>
-        <div class="feature-card__viz">
-          <div class="fc-row"><strong>AIT 5829-G</strong><span class="badge-status badge-status--warn">A cobrar</span></div>
-          <div class="fc-row"><strong>Revisão agendada</strong><span class="badge-status badge-status--info">Em 4 dias</span></div>
-        </div>
-      </article>
-      <article class="feature-card reveal">
-        <span class="pill">Financiamentos</span>
-        <h4>Saldo devedor à vista.</h4>
-        <p>Parcelas, juros e calendário consolidados por veículo da frota.</p>
-        <div class="feature-card__viz"><div class="fc-bar"><span></span></div><small>Civic 2024 · 18 de 48 parcelas · R$ 61.580 restantes</small></div>
-      </article>
+
+    <!-- 3 feature-cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+      @for (f of features; track f.title) {
+        <article class="reveal relative bg-paper border border-rule rounded-2xl p-6 flex flex-col gap-3 overflow-hidden shadow-[0_12px_30px_-22px_rgba(10,10,10,0.12)] hover:-translate-y-1.5 hover:border-brand/30 hover:shadow-[0_20px_42px_-22px_rgba(235,63,0,0.22)] transition-all duration-300 group before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300" style="--gradient-line: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);">
+          <span class="inline-flex items-center gap-1.5 self-start bg-brand-tint text-brand-strong text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-brand/[0.14] transition-transform duration-300 group-hover:translate-x-1">
+            {{ f.pill }}
+          </span>
+          <h4 class="font-display font-bold text-base tracking-[-0.02em] text-ink mt-1.5 leading-[1.3] m-0">{{ f.title }}</h4>
+          <p class="text-[13.5px] leading-[1.55] text-ink/70 m-0">{{ f.description }}</p>
+          <div class="mt-auto pt-3.5 border-t border-rule flex flex-col gap-2">
+            @switch (f.viz) {
+              @case ('chips') {
+                <div class="flex flex-wrap gap-1.5">
+                  @for (chip of f.chips; track chip) {
+                    <span class="text-[11.5px] font-bold px-[11px] py-[5px] rounded-lg bg-brand-tint text-brand-strong border border-brand/[0.14]">{{ chip }}</span>
+                  }
+                </div>
+              }
+              @case ('rows') {
+                @for (row of f.rows; track row.label) {
+                  <div class="flex items-center justify-between gap-2.5 text-[12.5px] bg-paper-alt px-3 py-2 rounded-lg border border-rule">
+                    <strong class="text-ink font-semibold">{{ row.label }}</strong>
+                    <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap" [class]="row.badgeClass">{{ row.status }}</span>
+                  </div>
+                }
+              }
+              @case ('bar') {
+                <div class="h-1.5 bg-paper-alt border border-rule rounded-full overflow-hidden">
+                  <span class="block h-full w-0 rounded-full transition-[width] duration-[1600ms] delay-[350ms]" [class.!w-[38%]]="revealed()" style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);"></span>
+                </div>
+                <small class="text-muted text-[11.5px]">{{ f.barLabel }}</small>
+              }
+            }
+          </div>
+        </article>
+      }
     </div>
   </div>
 </section>

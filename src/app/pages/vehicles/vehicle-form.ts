@@ -28,7 +28,9 @@ import {
   IPVA_STATUS_OPTIONS,
   IpvaStatus,
   UpdateVehicleRequest,
+  VEHICLE_FUEL_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
+  VehicleFuel,
   VehicleType,
 } from '../../types/vehicle.types';
 
@@ -57,6 +59,7 @@ export class VehicleForm implements OnInit {
 
   protected readonly typeOptions = VEHICLE_TYPE_OPTIONS;
   protected readonly ipvaStatusOptions = IPVA_STATUS_OPTIONS;
+  protected readonly fuelOptions = VEHICLE_FUEL_OPTIONS;
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly isEdit = computed(() => this.editingId() !== null);
@@ -90,6 +93,7 @@ export class VehicleForm implements OnInit {
       ipvaAmount: [null as number | null, [Validators.min(0)]],
       ipvaDueDate: [''],
       ipvaStatus: ['' as IpvaStatus | ''],
+      fuel: ['' as VehicleFuel | ''],
     },
     { validators: [yearRangeValidator] },
   );
@@ -159,6 +163,7 @@ export class VehicleForm implements OnInit {
           ipvaAmount: v.ipvaAmount != null ? v.ipvaAmount / 100 : null,
           ipvaDueDate: v.ipvaDueDate ?? '',
           ipvaStatus: (v.ipvaStatus ?? '') as IpvaStatus | '',
+          fuel: (v.fuel ?? '') as VehicleFuel | '',
         });
         this.loading.set(false);
       },
@@ -208,6 +213,7 @@ export class VehicleForm implements OnInit {
       ipvaAmount: ipvaAmountCents,
       ipvaDueDate: raw.ipvaDueDate || null,
       ipvaStatus: (raw.ipvaStatus || null) as IpvaStatus | null,
+      fuel: (raw.fuel || null) as VehicleFuel | null,
     };
 
     if (this.isEdit()) {

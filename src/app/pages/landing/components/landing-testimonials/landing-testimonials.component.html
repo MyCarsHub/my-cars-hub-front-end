@@ -1,21 +1,83 @@
-<section class="testimonials">
-  <div class="testimonials__inner">
-    <header class="testimonials__head">
-      <h2 class="reveal">Locadoras reais. <em>Decisões reais.</em></h2>
-      <p class="reveal">Quem já saiu da planilha não volta mais.</p>
+<section class="relative isolate overflow-hidden bg-paper px-5 md:px-8 py-14 sm:py-8 lg:py-12">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 55% 40% at 70% 20%, rgba(235,63,0,0.06), transparent 60%);"></div>
+
+  <div class="max-w-[1200px] mx-auto flex flex-col gap-10">
+    <header class="flex flex-col gap-3.5 max-w-[680px]">
+      <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] m-0">
+        Locadoras reais. <span class="hl">Decisões reais.</span>
+      </h2>
+      <p class="reveal text-[15.5px] text-ink/70 m-0">
+        Quem já saiu da planilha não volta mais.
+      </p>
     </header>
-    <div class="testimonials__grid">
-      @for (t of testimonials; track t.initials) {
-        <article class="testimonial reveal">
-          <p>{{ t.quote }}</p>
-          <footer>
-            <span class="testimonial__avatar">{{ t.initials }}</span>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-6 lg:gap-8 items-stretch">
+      <!-- Featured quote (gigante à esquerda) -->
+      <figure
+        class="reveal relative text-white rounded-[20px] p-8 md:p-9 m-0 overflow-hidden flex flex-col justify-between gap-6 min-h-[280px] shadow-[0_1px_0_0_rgba(255,255,255,0.2)_inset,0_28px_60px_-20px_rgba(235,63,0,0.4)] hover:-translate-y-1 hover:shadow-[0_1px_0_0_rgba(255,255,255,0.22)_inset,0_36px_72px_-20px_rgba(235,63,0,0.55)] transition-all duration-300"
+        style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);"
+      >
+        <div aria-hidden="true" class="absolute inset-0 z-0 pointer-events-none" style="background: radial-gradient(circle at 15% 10%, rgba(255,255,255,0.15), transparent 50%), radial-gradient(circle at 90% 95%, rgba(0,0,0,0.15), transparent 60%);"></div>
+
+        <svg class="relative z-[1] w-11 h-11 text-white/35" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <path d="M18 14c-6 0-10 5-10 12v8h12V22h-6c0-4 2-6 6-6V14zm22 0c-6 0-10 5-10 12v8h12V22h-6c0-4 2-6 6-6V14z" fill="currentColor"/>
+        </svg>
+
+        <blockquote class="relative z-[1] m-0 p-0">
+          <p class="font-display font-semibold text-[clamp(1.15rem,1.8vw,1.5rem)] leading-[1.35] text-white tracking-[-0.015em] m-0">
+            {{ testimonials[0].quote }}
+          </p>
+        </blockquote>
+
+        <figcaption class="relative z-[1] flex items-center gap-3.5 pt-5 border-t border-white/[0.22]">
+          <span class="w-12 h-12 shrink-0 rounded-full text-white font-bold text-[15px] inline-flex items-center justify-center bg-white/[0.22] border border-white/[0.32]">
+            {{ testimonials[0].initials }}
+          </span>
+          <div>
+            <strong class="block text-[15px] text-white font-bold">{{ testimonials[0].name }}</strong>
+            <small class="text-white/80 text-[12.5px]">{{ testimonials[0].location }}</small>
+          </div>
+        </figcaption>
+      </figure>
+
+      <!-- Stack: 3 minis à direita -->
+      <div class="flex flex-col gap-3.5">
+        @for (t of testimonials.slice(1, 4); track t.initials) {
+          <figure class="reveal bg-paper border border-rule rounded-[14px] p-5 flex flex-col gap-3.5 m-0 flex-1 hover:-translate-y-1 hover:border-brand/[0.28] hover:shadow-[0_20px_36px_-20px_rgba(235,63,0,0.2)] transition-all duration-300">
+            <blockquote class="m-0 p-0 flex-1">
+              <p class="text-sm leading-[1.55] text-ink/85 m-0 before:content-['&#8220;'] before:text-brand before:font-bold after:content-['&#8221;'] after:text-brand after:font-bold">
+                {{ t.quote }}
+              </p>
+            </blockquote>
+            <figcaption class="flex items-center gap-2.5 pt-3 border-t border-rule">
+              <span class="w-9 h-9 shrink-0 rounded-full text-white font-bold text-xs inline-flex items-center justify-center shadow-[0_4px_10px_-3px_rgba(235,63,0,0.4)]" style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);">{{ t.initials }}</span>
+              <div>
+                <strong class="block font-display text-[13.5px] text-ink tracking-[-0.01em]">{{ t.name }}</strong>
+                <small class="block text-muted text-xs">{{ t.location }}</small>
+              </div>
+            </figcaption>
+          </figure>
+        }
+      </div>
+    </div>
+
+    <!-- Compactos na base: 2 horizontais -->
+    <div class="reveal grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      @for (t of testimonials.slice(4, 6); track t.initials) {
+        <figure class="bg-paper-alt border border-rule rounded-[14px] p-5 flex flex-col md:flex-row items-start gap-3 md:gap-4 m-0 hover:-translate-y-1 hover:border-brand/[0.28] hover:shadow-[0_20px_36px_-20px_rgba(235,63,0,0.2)] transition-all duration-300">
+          <blockquote class="m-0 p-0 flex-1">
+            <p class="text-[13.5px] leading-[1.55] text-ink/85 m-0 before:content-['&#8220;'] before:text-brand before:font-bold after:content-['&#8221;'] after:text-brand after:font-bold">
+              {{ t.quote }}
+            </p>
+          </blockquote>
+          <figcaption class="flex flex-row md:flex-col items-center md:items-start gap-2.5 md:gap-1 md:min-w-[130px] md:shrink-0">
+            <span class="w-9 h-9 shrink-0 rounded-full text-white font-bold text-xs inline-flex items-center justify-center shadow-[0_4px_10px_-3px_rgba(235,63,0,0.4)]" style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);">{{ t.initials }}</span>
             <div>
-              <strong>{{ t.name }}</strong>
-              <small>{{ t.location }}</small>
+              <strong class="block font-display text-[13.5px] text-ink tracking-[-0.01em]">{{ t.name }}</strong>
+              <small class="block text-muted text-xs">{{ t.location }}</small>
             </div>
-          </footer>
-        </article>
+          </figcaption>
+        </figure>
       }
     </div>
   </div>

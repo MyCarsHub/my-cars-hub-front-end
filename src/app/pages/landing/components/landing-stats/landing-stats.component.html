@@ -1,20 +1,45 @@
-<section class="stats">
-  <div class="stats__inner">
-    <header class="stats__head">
-      <h2 class="reveal">Promessa simples. <span class="accent">Resultado claro.</span></h2>
+<section class="relative isolate overflow-hidden bg-paper px-5 md:px-8 py-14 sm:py-8 lg:py-12">
+  <!-- Glow discreto no canto -->
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-0 -z-10"
+    style="background: radial-gradient(ellipse 50% 40% at 90% 20%, rgba(235,63,0,0.08), transparent 60%), radial-gradient(ellipse 40% 30% at 10% 90%, rgba(255,87,34,0.06), transparent 60%);"
+  ></div>
+
+  <div class="max-w-[1200px] mx-auto flex flex-col gap-7">
+    <header class="flex flex-col gap-3.5 max-w-[640px]">
+      <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] text-ink m-0">
+        Locadoras que já saíram <span class="hl">da planilha</span>.
+      </h2>
+      <p class="reveal text-[15px] text-ink/70 m-0 max-w-[48ch]">
+        Alguns números do que o MyCarsHub gerencia agora mesmo, em produção.
+      </p>
     </header>
-    <div class="stats__grid reveal" data-counters="1">
-      <article class="stat-card">
-        <strong><span data-count="14">0</span><small>dias</small></strong>
-        <span class="stat-card__label">Trial completo, sem cartão</span>
+
+    <div class="reveal grid grid-cols-3 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-3 sm:gap-6 md:gap-12 items-start" data-counters="1">
+      <article class="flex flex-col gap-2 sm:gap-3.5 min-w-0">
+        <div class="mono font-bold text-[clamp(1.4rem,7vw,3.75rem)] leading-[0.95] tracking-[-0.03em] flex items-baseline gap-1 text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); -webkit-background-clip: text;">
+          <span data-count="180">0</span><span class="text-[0.5em] font-semibold tracking-wide">+</span>
+        </div>
+        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Frotas ativas na plataforma</span>
       </article>
-      <article class="stat-card">
-        <strong><span data-count="100">0</span><small>%</small></strong>
-        <span class="stat-card__label">Cobranças via seu gateway</span>
+
+      <hr aria-hidden="true" class="hidden md:block w-px h-full min-h-[140px] bg-rule border-0 m-0" />
+
+      <article class="flex flex-col gap-2 sm:gap-3.5 min-w-0">
+        <div class="mono font-bold text-[clamp(1.4rem,7vw,3.75rem)] leading-[0.95] tracking-[-0.03em] flex items-baseline gap-1 text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); -webkit-background-clip: text;">
+          R$<span data-count="12">0</span><span class="text-[0.5em] font-semibold tracking-wide">M</span>
+        </div>
+        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Em contratos ativos/mês</span>
       </article>
-      <article class="stat-card">
-        <strong>0</strong>
-        <span class="stat-card__label">Planilhas necessárias</span>
+
+      <hr aria-hidden="true" class="hidden md:block w-px h-full min-h-[140px] bg-rule border-0 m-0" />
+
+      <article class="flex flex-col gap-2 sm:gap-3.5 min-w-0">
+        <div class="mono font-bold text-[clamp(1.4rem,7vw,3.75rem)] leading-[0.95] tracking-[-0.03em] flex items-baseline gap-1 text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); -webkit-background-clip: text;">
+          <span data-count="99">0</span><span class="text-[0.5em] font-semibold tracking-wide">,9%</span>
+        </div>
+        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Uptime nos últimos 12 meses</span>
       </article>
     </div>
   </div>

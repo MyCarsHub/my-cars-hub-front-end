@@ -175,12 +175,18 @@
 
             <div class="p-4 sm:p-6 space-y-4">
               <p class="text-sm text-neutral-600">
-                Comece com <strong class="text-neutral-800">Sandbox</strong> para testar sem cobrança real.
-                Depois de validar, volte aqui e troque para Produção.
+                @if (isPlatformAdmin()) {
+                  Use <strong class="text-neutral-800">Sandbox</strong> para testes internos ou
+                  Produção para cobranças reais.
+                } @else {
+                  Conecte a conta de <strong class="text-neutral-800">Produção</strong> da sua empresa.
+                  Os pagamentos serão recebidos diretamente nela.
+                }
               </p>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <button type="button" (click)="selectEnvironment('SANDBOX')"
+              <div class="grid grid-cols-1 gap-3" [class.md:grid-cols-2]="isPlatformAdmin()">
+                @if (isPlatformAdmin()) {
+                  <button type="button" (click)="selectEnvironment('SANDBOX')"
                   class="text-left p-4 sm:p-5 rounded-2xl border-2 transition-all min-h-[44px]"
                   [class.border-primary-500]="selectedEnv() === 'SANDBOX'"
                   [class.ring-2]="selectedEnv() === 'SANDBOX'"
@@ -203,9 +209,10 @@
                   </div>
                   <span class="inline-flex items-center gap-1 mt-3 px-2 py-0.5 rounded-full text-[10px] font-semibold
                                bg-amber-100 text-amber-800 uppercase tracking-wide">
-                    Recomendado para começar
+                    Exclusivo para administradores
                   </span>
-                </button>
+                  </button>
+                }
 
                 <button type="button" (click)="selectEnvironment('PRODUCTION')"
                   class="text-left p-4 sm:p-5 rounded-2xl border-2 transition-all min-h-[44px]"

@@ -1,19 +1,38 @@
-<footer class="footer">
-  <div class="footer__inner">
-    <div class="footer__brand">
-      <a class="logo" href="#top" aria-label="MyCarsHub - voltar ao topo">
-        <img src="svg/logo-my-cars-hub-complete.svg" alt="MyCarsHub" class="logo__img" />
+<footer class="relative isolate overflow-hidden bg-ink-dark text-white/70 px-5 md:px-8 pt-16 pb-6">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 50% 40% at 10% 0%, rgba(235,63,0,0.12), transparent 60%), radial-gradient(ellipse 40% 30% at 90% 100%, rgba(255,87,34,0.08), transparent 60%);"></div>
+
+  <div class="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-[1.2fr_2fr] gap-10 md:gap-16 pb-10 border-b border-white/10">
+    <div class="flex flex-col">
+      <a class="inline-flex items-center no-underline" href="#top" aria-label="MyCarsHub - voltar ao topo" style="filter: brightness(0) invert(1);">
+        <img src="svg/logo-my-cars-hub-complete.svg" alt="MyCarsHub" class="h-6 md:h-7 w-auto block" />
       </a>
-      <p>O ERP definitivo para locadoras de veículos.</p>
+      <p class="text-white/55 text-sm mt-3.5 max-w-[300px] leading-[1.55]">O ERP definitivo para locadoras de veículos.</p>
     </div>
-    <nav class="footer__cols" aria-label="Links do rodapé">
-      <div><h4>Produto</h4><a href="#funcionalidades">Funcionalidades</a><a href="#planos">Planos</a><a routerLink="/login">Trial gratuito</a></div>
-      <div><h4>Empresa</h4><a href="#">Sobre</a><a href="#">Contato</a><a href="#">Blog</a></div>
-      <div><h4>Legal</h4><a href="#">Termos de uso</a><a href="#">Privacidade</a><a href="#">Cookies</a></div>
+
+    <nav class="grid grid-cols-3 gap-4 sm:gap-8 max-[480px]:grid-cols-1 max-[480px]:gap-5" aria-label="Links do rodapé">
+      <div>
+        <h4 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Produto</h4>
+        <a href="#funcionalidades" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Funcionalidades</a>
+        <a href="#planos" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Planos</a>
+        <a routerLink="/login" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Trial gratuito</a>
+      </div>
+      <div>
+        <h4 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Empresa</h4>
+        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Sobre</a>
+        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Contato</a>
+        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Blog</a>
+      </div>
+      <div>
+        <h4 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Legal</h4>
+        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Termos de uso</a>
+        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Privacidade</a>
+        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Cookies</a>
+      </div>
     </nav>
   </div>
-  <div class="footer__bottom">
+
+  <div class="max-w-[1200px] mx-auto mt-6 flex flex-wrap items-center justify-between gap-3 text-[13px] text-white/50">
     <span>© {{ year }} MyCarsHub. Todos os direitos reservados.</span>
-    <a routerLink="/login">Acessar plataforma →</a>
+    <a routerLink="/login" class="text-brand no-underline font-semibold hover:text-brand-light transition-colors duration-200">Acessar plataforma →</a>
   </div>
 </footer>

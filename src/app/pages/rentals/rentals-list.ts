@@ -361,8 +361,10 @@ export class RentalsList implements OnInit {
     return r.status === 'RESERVED' || r.status === 'ACTIVE';
   }
 
-  protected canDelete(r: RentalListItemDto): boolean {
-    return r.status === 'RESERVED' || r.status === 'CANCELED';
+  protected canDelete(_r: RentalListItemDto): boolean {
+    // Backend agora libera delete em qualquer status (RentalService.delete()).
+    // Manter o param pra permitir gating futuro por role/tenant sem refactor de callers.
+    return true;
   }
 
   protected canCancel(r: RentalListItemDto): boolean {

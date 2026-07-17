@@ -1,68 +1,120 @@
+/* =========================================================
+   FOOTER — ÚNICA seção preta. Multi-column classic.
+   ========================================================= */
 .footer {
-  background: var(--color-gray-50);
-  border-top: 1px solid rgba(15,15,15,0.08);
-  padding: 52px 24px 22px;
+  position: relative;
+  isolation: isolate;
+  background: var(--ink-dark);
+  color: rgba(255,255,255,0.72);
+  padding: 64px var(--gutter) 24px;
+  overflow: hidden;
 }
+.footer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 50% 40% at 10% 0%, rgba(235,63,0,0.12), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(255,87,34,0.08), transparent 60%);
+  pointer-events: none;
+}
+
 .footer__inner {
-  max-width: var(--container); margin: 0 auto;
-  display: grid; grid-template-columns: 1fr; gap: 32px;
-  padding-bottom: 32px;
-  border-bottom: 1px dashed rgba(15,15,15,0.10);
+  max-width: var(--container);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
 }
 @media (min-width: 768px) {
-  .footer__inner { grid-template-columns: 1.2fr 2fr; gap: 56px; }
+  .footer__inner {
+    grid-template-columns: 1.2fr 2fr;
+    gap: 72px;
+  }
 }
+
 .footer__brand p {
-  color: rgba(15,15,15,0.55);
-  font-size: 13.5px; margin: 10px 0 0;
-  max-width: 260px;
+  color: rgba(255,255,255,0.55);
+  font-size: 14px;
+  margin: 14px 0 0;
+  max-width: 300px;
+  line-height: 1.55;
 }
 .logo {
-  display: inline-flex; align-items: center; gap: 9px;
-  text-decoration: none; color: var(--color-black);
-  font-family: var(--font-display); font-weight: 600; font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  filter: brightness(0) invert(1);
 }
-.logo strong { color: var(--color-primary-500); font-weight: 800; }
-.logo__img { height: 28px; width: auto; display: block; }
+.logo__img {
+  height: 28px;
+  width: auto;
+  display: block;
+}
 @media (max-width: 767px) {
   .logo__img { height: 24px; }
 }
 
-.footer__cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.footer__cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
 .footer__cols h4 {
   font-family: var(--font-display);
-  font-size: 12px; font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: rgba(15,15,15,0.48); margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin: 0 0 16px;
 }
 .footer__cols a {
-  display: block; color: var(--color-black);
-  text-decoration: none; font-size: 14px;
-  padding: 4px 0; transition: color .2s;
+  display: block;
+  color: rgba(255,255,255,0.72);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 5px 0;
+  transition: color var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
 }
-.footer__cols a:hover { color: var(--color-primary-500); }
+.footer__cols a:hover {
+  color: #FFFFFF;
+  transform: translateX(2px);
+}
 
 .footer__bottom {
-  max-width: var(--container); margin: 22px auto 0;
-  display: flex; flex-wrap: wrap;
-  justify-content: space-between; gap: 10px;
-  color: rgba(15,15,15,0.55); font-size: 13px;
+  max-width: var(--container);
+  margin: 24px auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255,255,255,0.5);
+  font-size: 13px;
 }
 .footer__bottom a {
-  color: var(--color-primary-600);
-  text-decoration: none; font-weight: 600;
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--dur-fast) var(--ease-out);
 }
-.footer__bottom a:hover { text-decoration: underline; }
+.footer__bottom a:hover {
+  color: #FF7A4A;
+}
 
 @media (max-width: 767px) {
-  .footer { padding: 44px 20px 20px; }
-  .footer__cols { gap: 12px; }
-  .footer__cols h4 { font-size: 11px; margin-bottom: 8px; }
-  .footer__cols a { font-size: 13.5px; padding: 3px 0; }
+  .footer { padding: 48px 20px 20px; }
+  .footer__cols { gap: 16px; }
+  .footer__cols h4 { margin-bottom: 10px; }
 }
 @media (max-width: 480px) {
-  .footer__cols { grid-template-columns: 1fr; gap: 16px; }
-  .footer__inner { gap: 28px; }
+  .footer__cols { grid-template-columns: 1fr; gap: 20px; }
+  .footer__inner { gap: 32px; }
 }
 
 @media (hover: none) and (pointer: coarse) {

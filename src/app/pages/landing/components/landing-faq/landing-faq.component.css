@@ -1,26 +1,5 @@
-.section-faq { padding: 88px 24px; background: #FFFFFF; }
-.faq__inner { max-width: 680px; margin: 0 auto; }
-.faq__head { text-align: center; margin-bottom: 48px; }
-h2 { font-size: clamp(24px, 3.2vw, 38px); font-weight: 700; margin: 0 0 12px; color: var(--color-black); }
-.faq__head p { font-size: 16px; color: rgba(15,15,15,0.55); margin: 0; }
-.faq__list { display: flex; flex-direction: column; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: 16px; overflow: hidden; }
-.faq__item { border-bottom: 1px solid var(--color-border); }
-.faq__item:last-child { border-bottom: none; }
-.faq__item summary { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; font-family: var(--font-display); font-size: 15.5px; font-weight: 600; color: var(--color-black); cursor: pointer; list-style: none; transition: background .2s, color .2s; gap: 16px; }
-.faq__item summary:hover { background: rgba(235,63,0,0.03); color: var(--color-primary-500); }
-.faq__item summary::-webkit-details-marker { display: none; }
-.faq__item summary::after {
-  content: ''; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 999px;
-  background: var(--color-white);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 5v14M5 12h14' stroke='%230F0F0F' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-size: 14px; background-repeat: no-repeat; background-position: center;
-  transition: transform .25s ease, background-color .25s ease;
+/* FAQ 100% Tailwind. Keyframe custom pro fade-in do conteúdo. */
+@keyframes faqOpen {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
 }
-.faq__item[open] summary::after {
-  background-color: var(--color-primary-low);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M5 12h14' stroke='%23EB3F00' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-  transform: rotate(180deg);
-}
-.faq__item p { font-size: 15px; line-height: 1.65; color: rgba(15,15,15,0.58); margin: 0; padding: 0 22px 18px; animation: faqOpen .25s ease; }
-@keyframes faqOpen { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
-@media (max-width: 767px) { .section-faq { padding: 56px 20px; } .faq__head { margin-bottom: 32px; } .faq__item summary { font-size: 14.5px; padding: 16px 18px; } .faq__item p { font-size: 14px; padding: 0 18px 16px; } }

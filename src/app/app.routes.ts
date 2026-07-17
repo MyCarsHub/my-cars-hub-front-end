@@ -38,6 +38,16 @@ export const routes: Routes = [
         component: OauthSuccess,
     },
     {
+        path: 'blog',
+        loadComponent: () =>
+            import('./pages/blog/blog-list').then((m) => m.BlogList),
+    },
+    {
+        path: 'blog/:slug',
+        loadComponent: () =>
+            import('./pages/blog/blog-detail').then((m) => m.BlogDetail),
+    },
+    {
         path: '',
         component: AppShell,
         canActivate: [authGuard],
@@ -330,13 +340,31 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Configurações' },
                             },
                             {
+                                path: 'integracoes',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/integrations/charge-integration'
+                                    ).then((m) => m.ChargeIntegration),
+                                data: { pageTitle: 'Integração de cobranças' },
+                            },
+                            {
                                 path: 'integracoes/asaas',
                                 canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/integrations/asaas-integration'
                                     ).then((m) => m.AsaasIntegration),
-                                data: { pageTitle: 'Integração Asaas' },
+                                data: { pageTitle: 'Integração Asaas (legado)' },
+                            },
+                            {
+                                path: 'contratos',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/contract-template/contract-template'
+                                    ).then((m) => m.ContractTemplate),
+                                data: { pageTitle: 'Template de contrato' },
                             },
                         ],
                     },
@@ -372,6 +400,14 @@ export const routes: Routes = [
                         data: { pageTitle: 'Perfil' },
                     },
                     {
+                        path: 'suporte',
+                        loadComponent: () =>
+                            import('./pages/support/support').then(
+                                (m) => m.SupportPage,
+                            ),
+                        data: { pageTitle: 'Suporte' },
+                    },
+                    {
                         path: 'roadmap',
                         loadComponent: () =>
                             import('./pages/roadmap/roadmap').then(
@@ -400,6 +436,70 @@ export const routes: Routes = [
                                         './pages/admin/admin-feedback/admin-feedback'
                                     ).then((m) => m.AdminFeedback),
                                 data: { pageTitle: 'Moderação de Feedback' },
+                            },
+                            {
+                                path: 'users',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/users/admin-users'
+                                    ).then((m) => m.AdminUsers),
+                                data: { pageTitle: 'Usuários' },
+                            },
+                            {
+                                path: 'users/:id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/users/admin-user-detail'
+                                    ).then((m) => m.AdminUserDetail),
+                                data: { pageTitle: 'Detalhes do usuário' },
+                            },
+                            {
+                                path: 'companies',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/companies/admin-companies'
+                                    ).then((m) => m.AdminCompanies),
+                                data: { pageTitle: 'Empresas' },
+                            },
+                            {
+                                path: 'companies/:id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/companies/admin-company-detail'
+                                    ).then((m) => m.AdminCompanyDetail),
+                                data: { pageTitle: 'Detalhes da empresa' },
+                            },
+                            {
+                                path: 'blog',
+                                loadComponent: () =>
+                                    import('./pages/admin/blog/admin-blog-list').then(
+                                        (m) => m.AdminBlogList,
+                                    ),
+                                data: { pageTitle: 'Blog' },
+                            },
+                            {
+                                path: 'blog/novo',
+                                loadComponent: () =>
+                                    import('./pages/admin/blog/admin-blog-form').then(
+                                        (m) => m.AdminBlogForm,
+                                    ),
+                                data: { pageTitle: 'Novo post' },
+                            },
+                            {
+                                path: 'blog/:id/editar',
+                                loadComponent: () =>
+                                    import('./pages/admin/blog/admin-blog-form').then(
+                                        (m) => m.AdminBlogForm,
+                                    ),
+                                data: { pageTitle: 'Editar post' },
+                            },
+                            {
+                                path: 'suporte',
+                                loadComponent: () =>
+                                    import('./pages/admin/support/admin-support-list').then(
+                                        (m) => m.AdminSupportList,
+                                    ),
+                                data: { pageTitle: 'Suporte' },
                             },
                         ],
                     },

@@ -24,10 +24,12 @@ import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
 import { BillingAccessService } from '../../services/billing-access.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
+import { ContractTemplateService } from '../company-settings/contract-template/contract-template-service';
 import {
   BILLING_FREQUENCY_OPTIONS,
   CreateRentalRequest,
   RentalBillingFrequency,
+  RentalLateFineType,
   RentalUpdateRequest,
 } from '../../types/rental.types';
 import { VehicleListItem } from '../../types/vehicle.types';
@@ -45,9 +47,14 @@ export class RentalForm implements OnInit {
   private readonly driverService = inject(DriverService);
   private readonly billingAccess = inject(BillingAccessService);
   private readonly asaasService = inject(AsaasIntegrationService);
+  private readonly contractTemplateService = inject(ContractTemplateService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+
+  /** V29: true se a company tem template de contrato — controla default do toggle. */
+  protected readonly hasContractTemplate = signal(false);
+
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly editingStatus = signal<string | null>(null);
@@ -86,6 +93,22 @@ export class RentalForm implements OnInit {
       caucaoReais: [0, [Validators.min(0)]],
       automaticCharge: [false],
       notes: [''],
+
+      // V29: Condições de pagamento — todos obrigatórios.
+      initialKm: [null as number | null, [Validators.required, Validators.min(0)]],
+      pickupDate: ['', [Validators.required]], // datetime-local yyyy-MM-ddTHH:mm
+      firstPaymentDate: ['', [Validators.required]], // yyyy-MM-dd
+      dailyInterestReais: [0, [Validators.required, Validators.min(0)]],
+      lateFineType: ['PERCENT' as RentalLateFineType, [Validators.required]],
+      // PERCENT: percentagem (2 = 2%). FIXED: reais.
+      lateFineValueInput: [0, [Validators.required, Validators.min(0)]],
+
+      // V32: franquia e política de combustível — opcionais.
+      franchiseKm: [null as number | null, [Validators.min(0)]],
+      returnFuelPolicy: [''],
+
+      // V29: gerar contrato do template (só ativa se hasContractTemplate).
+      useContractTemplate: [false],
     },
     { validators: endAfterStartValidator },
   );
@@ -197,6 +220,19 @@ export class RentalForm implements OnInit {
     // toggles automatic charge without a connected integration.
     this.asaasService.load().subscribe({ error: () => {} });
 
+    // V29: descobre se a company tem template de contrato — habilita o toggle
+    // "Gerar contrato do template" e o pré-marca por default. 404 = sem template.
+    this.contractTemplateService.get().subscribe({
+      next: () => {
+        this.hasContractTemplate.set(true);
+        // Só liga o default em criação; edição preserva o valor gravado.
+        if (!this.editingId()) {
+          this.form.controls.useContractTemplate.setValue(true);
+        }
+      },
+      error: () => this.hasContractTemplate.set(false),
+    });
+
     // Disable the toggle up-front when we already know the plan is TRIAL.
     // A microtask-level effect could handle late arrivals; for now, patch on
     // load and the template also reads isTrial() to reinforce.
@@ -210,6 +246,8 @@ export class RentalForm implements OnInit {
       this.editingId.set(id);
       this.rentalService.getById(id).subscribe({
         next: (r) => {
+          const lateFineType: RentalLateFineType = r.lateFineType ?? 'PERCENT';
+          const lateFineValueInput = fromLateFineStored(lateFineType, r.lateFineValue);
           this.form.patchValue({
             vehicleId: r.vehicleId,
             driverId: r.driverId,
@@ -220,7 +258,18 @@ export class RentalForm implements OnInit {
             caucaoReais: r.caucaoAmount / 100,
             automaticCharge: r.automaticCharge ?? false,
             notes: r.notes ?? '',
+            initialKm: r.initialKm ?? null,
+            pickupDate: toDateTimeLocalInput(r.pickupDate),
+            firstPaymentDate: r.firstPaymentDate ?? '',
+            dailyInterestReais: (r.dailyInterestAmount ?? 0) / 100,
+            lateFineType,
+            lateFineValueInput,
+            franchiseKm: r.franchiseKm ?? null,
+            returnFuelPolicy: r.returnFuelPolicy ?? '',
+            useContractTemplate: r.contractSource === 'AUTO',
           });
+          // contractSource é imutável após create — não permite alternar em edit.
+          this.form.controls.useContractTemplate.disable();
           // Post-load: rentals in COMPLETED/CANCELED are immutable server-side;
           // ACTIVE forbids swapping vehicle/driver. We restrict UI accordingly
           // instead of disabling the whole form (which used to make PUT unusable).
@@ -255,6 +304,17 @@ export class RentalForm implements OnInit {
     const dailyRate = toCents(Number(raw.dailyRateReais)) ?? 0;
     const caucao = toCents(Number(raw.caucaoReais ?? 0)) ?? 0;
 
+    // V29: campos financeiros
+    const dailyInterestAmount = toCents(Number(raw.dailyInterestReais ?? 0)) ?? 0;
+    const lateFineType: RentalLateFineType = raw.lateFineType;
+    const lateFineValue = toLateFineStored(lateFineType, Number(raw.lateFineValueInput ?? 0));
+    const pickupDateIso = fromDateTimeLocalInput(raw.pickupDate);
+    const firstPaymentDate = raw.firstPaymentDate?.trim() || null;
+    const initialKm = raw.initialKm ?? null;
+    // V32
+    const franchiseKm = raw.franchiseKm ?? null;
+    const returnFuelPolicy = raw.returnFuelPolicy?.trim() || null;
+
     const editingId = this.editingId();
     if (editingId) {
       const updatePayload: RentalUpdateRequest = {
@@ -266,6 +326,14 @@ export class RentalForm implements OnInit {
         billingFrequency: raw.billingFrequency,
         caucaoAmount: caucao,
         notes: raw.notes?.trim() || undefined,
+        initialKm,
+        pickupDate: pickupDateIso,
+        firstPaymentDate,
+        dailyInterestAmount,
+        lateFineType,
+        lateFineValue,
+        franchiseKm,
+        returnFuelPolicy,
       };
       this.rentalService.update(editingId, updatePayload).subscribe({
         next: (r) => this.router.navigate(['/alugueis', r.id]),
@@ -287,6 +355,15 @@ export class RentalForm implements OnInit {
       caucaoAmount: caucao,
       automaticCharge: raw.automaticCharge === true,
       notes: raw.notes?.trim() || undefined,
+      initialKm,
+      pickupDate: pickupDateIso,
+      firstPaymentDate,
+      dailyInterestAmount,
+      lateFineType,
+      lateFineValue,
+      franchiseKm,
+      returnFuelPolicy,
+      contractSource: raw.useContractTemplate ? 'AUTO' : 'MANUAL',
     };
 
     this.rentalService.create(payload).subscribe({
@@ -336,4 +413,45 @@ function endAfterStartValidator(group: AbstractControl): ValidationErrors | null
   if (!start || !end) return null;
   if (end < start) return { endBeforeStart: true };
   return null;
+}
+
+/**
+ * V29 helpers para multa de atraso.
+ * PERCENT no BD é basis-points (200 = 2%); no form pede-se percentagem (2 = 2%).
+ * FIXED no BD é centavos; no form pede-se reais.
+ */
+function toLateFineStored(type: RentalLateFineType, input: number): number {
+  if (!Number.isFinite(input) || input <= 0) return 0;
+  return type === 'PERCENT'
+    ? Math.round(input * 100) // 2 → 200
+    : Math.round(input * 100); // 1.5 → 150
+}
+
+function fromLateFineStored(type: RentalLateFineType, stored: number | null): number {
+  if (stored == null || stored === 0) return 0;
+  return type === 'PERCENT' ? stored / 100 : stored / 100;
+}
+
+/**
+ * Converte ISO 8601 do backend (UTC ou local naive) para o formato
+ * `yyyy-MM-ddTHH:mm` esperado por `<input type="datetime-local">`.
+ * Trata null → '' pra não sujar o form.
+ */
+function toDateTimeLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+/** Volta pra ISO 8601 mantendo o horário local (sem TZ shift). */
+function fromDateTimeLocalInput(v: string | null | undefined): string | null {
+  if (!v) return null;
+  // `<input type="datetime-local">` devolve algo como "2026-07-16T14:30" —
+  // backend recebe LocalDateTime sem TZ, então enviamos como está.
+  return v;
 }

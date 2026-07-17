@@ -14,6 +14,8 @@ interface PaywallCopy {
   cta: string;
 }
 
+const CTA_SEE_PLANS = 'Ver planos';
+
 @Component({
   selector: 'app-paywall-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,29 +58,29 @@ export class PaywallDialog {
     switch (this.reason()) {
       case 'TRIAL_EXPIRED':
         return {
-          title: 'Seu teste grátis acabou',
-          body: 'Escolha um plano para continuar usando o MyCarsHub sem interrupções.',
-          cta: 'Escolher plano',
+          title: 'Seu período de teste terminou',
+          body: 'Assine o PRO para continuar usando o MyCarsHub.',
+          cta: CTA_SEE_PLANS,
         };
       case 'PAYMENT_FAILED':
       case 'PAST_DUE':
         return {
-          title: 'Não conseguimos processar seu pagamento',
-          body: 'Atualize sua forma de pagamento para reativar sua assinatura.',
-          cta: 'Atualizar pagamento',
+          title: 'Pagamento pendente',
+          body: 'Regularize o pagamento para reativar sua assinatura e voltar a usar o MyCarsHub.',
+          cta: CTA_SEE_PLANS,
         };
       case 'CANCELED':
         return {
           title: 'Sua assinatura foi cancelada',
           body: 'Escolha um plano para retomar o acesso completo à plataforma.',
-          cta: 'Escolher plano',
+          cta: CTA_SEE_PLANS,
         };
       case 'NO_SUBSCRIPTION':
       default:
         return {
-          title: 'Escolha um plano para continuar',
+          title: 'Escolha um plano para começar',
           body: 'Você precisa de um plano ativo para acessar sua conta.',
-          cta: 'Escolher plano',
+          cta: CTA_SEE_PLANS,
         };
     }
   });

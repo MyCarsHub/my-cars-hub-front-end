@@ -13,6 +13,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { NotificationService } from '../../../services/notification.service';
+import { SessionService } from '../../../services/session.service';
 import { AsaasIntegrationService } from './asaas-integration.service';
 import { AsaasEnvironment } from './asaas-integration.types';
 
@@ -37,6 +38,7 @@ export class AsaasIntegration implements OnInit {
   private readonly service = inject(AsaasIntegrationService);
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(NotificationService);
+  private readonly session = inject(SessionService);
 
   protected readonly status = this.service.status;
   protected readonly loading = this.service.loading;
@@ -45,6 +47,7 @@ export class AsaasIntegration implements OnInit {
 
   protected readonly connected = computed(() => this.status()?.connected === true);
   protected readonly hasLoaded = computed(() => this.status() !== null);
+  protected readonly isPlatformAdmin = computed(() => this.session.isPlatformAdmin());
 
   protected readonly showDisconnectDialog = signal(false);
   protected readonly formError = signal<string | null>(null);
@@ -56,10 +59,10 @@ export class AsaasIntegration implements OnInit {
 
   protected readonly connectForm = this.fb.nonNullable.group({
     accessToken: ['', [Validators.required, Validators.minLength(10)]],
-    environment: ['SANDBOX' as AsaasEnvironment, [Validators.required]],
+    environment: ['PRODUCTION' as AsaasEnvironment, [Validators.required]],
   });
 
-  protected readonly selectedEnv = signal<AsaasEnvironment>('SANDBOX');
+  protected readonly selectedEnv = signal<AsaasEnvironment>('PRODUCTION');
 
   protected readonly asaasConfigUrl = computed(() =>
     this.selectedEnv() === 'PRODUCTION'
@@ -72,6 +75,7 @@ export class AsaasIntegration implements OnInit {
   }
 
   protected selectEnvironment(env: AsaasEnvironment): void {
+    if (env === 'SANDBOX' && !this.isPlatformAdmin()) return;
     this.selectedEnv.set(env);
     this.connectForm.controls.environment.setValue(env);
   }
@@ -107,18 +111,22 @@ export class AsaasIntegration implements OnInit {
     }
     this.formError.set(null);
     const raw = this.connectForm.getRawValue();
+    const environment: AsaasEnvironment = this.isPlatformAdmin()
+      ? raw.environment
+      : 'PRODUCTION';
+    this.selectEnvironment(environment);
     this.service
       .connect({
         accessToken: raw.accessToken.trim(),
-        environment: raw.environment,
+        environment,
       })
       .subscribe({
         next: () => {
           this.notifications.push('success', 'Integração Asaas conectada com sucesso.');
           // Reset wizard for next time.
           this.step.set(1);
-          this.connectForm.reset({ accessToken: '', environment: 'SANDBOX' });
-          this.selectedEnv.set('SANDBOX');
+          this.connectForm.reset({ accessToken: '', environment: 'PRODUCTION' });
+          this.selectedEnv.set('PRODUCTION');
         },
         error: (err: HttpErrorResponse) => {
           this.formError.set(

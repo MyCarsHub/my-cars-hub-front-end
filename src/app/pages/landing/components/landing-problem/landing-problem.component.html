@@ -1,54 +1,88 @@
-<section id="problema" class="problem">
-  <div class="problem__inner">
-    <div class="problem__head">
-      <h2 class="reveal">Compare como sua locadora <em>é gerida hoje</em>.</h2>
-      <p class="reveal">Três formas de gerir uma locadora. Só uma escala com você.</p>
-    </div>
-    <div class="compare">
-      <article class="compare-card compare-card--bad reveal">
-        <header class="compare-card__head">
-          <div class="compare-card__ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v18M11 8h6M11 12h6M11 16h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+<section id="problema" class="relative isolate overflow-hidden bg-paper px-5 md:px-8 py-14 sm:py-8 lg:py-12">
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-0 -z-10"
+    style="background: radial-gradient(ellipse 45% 40% at 85% 70%, rgba(235,63,0,0.06), transparent 60%);"
+  ></div>
+
+  <div class="max-w-[1200px] mx-auto flex flex-col gap-7">
+    <header class="flex flex-col gap-3.5 max-w-[680px]">
+      <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] m-0">
+        Sua locadora ainda opera <span class="hl">como se fosse 2010</span>.
+      </h2>
+      <p class="reveal text-[15.5px] text-ink/70 m-0 max-w-[52ch]">
+        Três formas de gerir uma locadora. Só uma escala com você sem virar caos.
+      </p>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.1fr] gap-5 md:gap-6">
+      <!-- Caderno -->
+      <article class="reveal relative bg-paper border border-rule rounded-2xl p-7 flex flex-col gap-5 opacity-95 hover:opacity-100 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-20px_rgba(10,10,10,0.14)] transition-all duration-300">
+        <header class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-[10px] inline-flex items-center justify-center bg-paper-alt text-muted shrink-0" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" class="w-[22px] h-[22px]"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 3v18M11 8h6M11 12h6M11 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </div>
-          <h3>Caderno</h3>
+          <h3 class="font-display font-bold text-[17px] tracking-[-0.02em] text-ink m-0">Caderno</h3>
         </header>
-        <ul class="compare-list compare-list--bad">
-          <li>Vencimentos e devoluções no escuro</li>
-          <li>Multas esquecidas no CNPJ</li>
-          <li>Zero automação</li>
+        <ul class="list-none p-0 m-0 flex flex-col gap-2.5">
+          @for (item of cadernoItems; track item) {
+            <li class="relative pl-[26px] text-sm text-ink/70 leading-[1.5] before:content-[''] before:absolute before:left-0 before:top-[9px] before:w-3.5 before:h-0.5 before:bg-muted/50 before:rounded-sm">{{ item }}</li>
+          }
         </ul>
       </article>
-      <article class="compare-card compare-card--bad reveal">
-        <header class="compare-card__head">
-          <div class="compare-card__ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M9 4v16M15 4v16" stroke="currentColor" stroke-width="1.8"/></svg>
+
+      <!-- Planilha -->
+      <article class="reveal relative bg-paper border border-rule rounded-2xl p-7 flex flex-col gap-5 opacity-95 hover:opacity-100 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-20px_rgba(10,10,10,0.14)] transition-all duration-300">
+        <header class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-[10px] inline-flex items-center justify-center bg-paper-alt text-muted shrink-0" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" class="w-[22px] h-[22px]"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 9h18M9 4v16M15 4v16" stroke="currentColor" stroke-width="1.6"/></svg>
           </div>
-          <h3>Planilha</h3>
+          <h3 class="font-display font-bold text-[17px] tracking-[-0.02em] text-ink m-0">Planilha</h3>
         </header>
-        <ul class="compare-list compare-list--bad">
-          <li>Só uma pessoa edita por vez</li>
-          <li>Sem integração com gateway</li>
-          <li>Qualquer erro derruba tudo</li>
+        <ul class="list-none p-0 m-0 flex flex-col gap-2.5">
+          @for (item of planilhaItems; track item) {
+            <li class="relative pl-[26px] text-sm text-ink/70 leading-[1.5] before:content-[''] before:absolute before:left-0 before:top-[9px] before:w-3.5 before:h-0.5 before:bg-muted/50 before:rounded-sm">{{ item }}</li>
+          }
         </ul>
       </article>
-      <article class="compare-card compare-card--good reveal">
-        <span class="compare-card__ribbon">Recomendado</span>
-        <header class="compare-card__head">
-          <div class="compare-card__ico compare-card__ico--good" aria-hidden="true">
-            <svg viewBox="0 0 32 32" fill="none"><path d="M8 19l1.5-5.5A2 2 0 0 1 11.4 12h9.2a2 2 0 0 1 1.9 1.5L24 19v3h-2v-1.5H10V22H8v-3z" fill="currentColor"/><circle cx="11" cy="20" r="1.4" fill="#d63600"/><circle cx="21" cy="20" r="1.4" fill="#d63600"/></svg>
+
+      <!-- MyCarsHub (protagonista) — overflow-visible pra badge "Recomendado" não ser cortada -->
+      <article
+        class="reveal relative text-white rounded-2xl p-7 flex flex-col gap-5 shadow-[0_1px_0_0_rgba(255,255,255,0.2)_inset,0_24px_60px_-18px_rgba(235,63,0,0.45)] hover:-translate-y-1.5 hover:shadow-[0_1px_0_0_rgba(255,255,255,0.2)_inset,0_32px_72px_-20px_rgba(235,63,0,0.6)] transition-all duration-300"
+        style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); background-size: 200% 200%; background-position: 0% 0%;"
+        onmouseover="this.style.backgroundPosition='100% 100%'"
+        onmouseout="this.style.backgroundPosition='0% 0%'"
+      >
+        <span
+          class="absolute -top-3 right-5 bg-white text-brand-strong text-[11px] font-bold tracking-[0.1em] uppercase px-3 py-1.5 rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.24)] z-[2] whitespace-nowrap"
+        >Recomendado</span>
+
+        <div aria-hidden="true" class="absolute inset-0 pointer-events-none z-0 rounded-2xl overflow-hidden" style="background: radial-gradient(circle at 20% 10%, rgba(255,255,255,0.15), transparent 55%), radial-gradient(circle at 90% 100%, rgba(0,0,0,0.15), transparent 60%);"></div>
+
+        <header class="relative z-[1] flex items-center gap-3">
+          <div class="w-10 h-10 rounded-[10px] inline-flex items-center justify-center bg-white/[0.18] text-white border border-white/[0.22] shrink-0" aria-hidden="true">
+            <img src="svg/logo-my-cars-hub.svg" alt="" width="24" height="24" style="filter: brightness(0) invert(1);" />
           </div>
-          <h3>MyCars<strong>Hub</strong></h3>
+          <h3 class="font-display font-bold text-[20px] tracking-[-0.02em] text-white m-0">MyCarsHub</h3>
         </header>
-        <ul class="compare-list compare-list--good">
-          <li>Contratos, veículos e locatários num lugar só</li>
-          <li>Cobranças via gateway com status automático</li>
-          <li>Multas vinculadas ao motorista certo</li>
-          <li>Manutenções com alerta antecipado</li>
-          <li>Multi-empresa num login só</li>
+
+        <ul class="relative z-[1] list-none p-0 m-0 flex flex-col gap-2.5">
+          @for (item of ourItems; track item) {
+            <li class="flex items-start gap-2.5 text-sm text-white/95 leading-[1.5] font-medium">
+              <span class="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-white shrink-0 mt-[3px]">
+                <svg viewBox="0 0 24 24" fill="none" class="w-3 h-3 text-brand-strong"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span>{{ item }}</span>
+            </li>
+          }
         </ul>
-        <a routerLink="/login" class="compare-card__cta">
+
+        <a
+          routerLink="/login"
+          class="relative z-[1] mt-auto inline-flex items-center justify-center gap-2 px-[22px] py-3 rounded-full bg-white text-brand-strong hover:text-brand no-underline font-bold text-sm min-h-[46px] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.25)] hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.35)] transition-all duration-300 group"
+        >
           Começar 14 dias grátis
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="transition-transform duration-200 group-hover:translate-x-1"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </a>
       </article>
     </div>

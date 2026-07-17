@@ -13,6 +13,9 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { NotificationService } from '../../services/notification.service';
+import { RentalContractCard } from './documents/rental-contract-card';
+import { RentalInspectionCard } from './documents/rental-inspection-card';
+import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
@@ -32,7 +35,16 @@ import { RENTAL_STATUS_META } from '../../utils/status-maps';
 @Component({
   selector: 'app-rental-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, DetailActions],
+  imports: [
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    DetailActions,
+    RentalContractCard,
+    RentalInspectionCard,
+    RentalProgressChecklist,
+  ],
   templateUrl: './rental-detail.html',
 })
 export class RentalDetail implements OnInit {
@@ -63,6 +75,11 @@ export class RentalDetail implements OnInit {
 
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
+
+  protected readonly docChanges = signal(0);
+  protected onDocsChanged(): void {
+    this.docChanges.update((n) => n + 1);
+  }
 
   protected readonly statusInfo = computed(() => {
     const r = this.rental();
@@ -251,6 +268,40 @@ export class RentalDetail implements OnInit {
 
   protected canPayCharge(charge: RentalChargeDto): boolean {
     return charge.status === 'PENDING' && !!charge.checkoutUrl;
+  }
+
+  protected canRetryCharge(charge: RentalChargeDto): boolean {
+    return charge.status === 'FAILED';
+  }
+
+  protected readonly retrying = signal<string | null>(null);
+
+  protected retryCharge(charge: RentalChargeDto): void {
+    const r = this.rental();
+    if (!r || this.retrying()) return;
+    this.retrying.set(charge.id);
+    this.rentalService.retryCharge(r.id, charge.id).subscribe({
+      next: (res) => {
+        this.retrying.set(null);
+        const msg =
+          res.outcome === 'RETRIED'
+            ? 'Nova cobrança gerada com sucesso.'
+            : res.outcome === 'ALREADY_PAID'
+            ? 'Cobrança já estava paga no provedor — status sincronizado.'
+            : 'Cobrança já estava reembolsada no provedor — status sincronizado.';
+        this.notifications.push('success', msg);
+        this.rentalService.getById(r.id).subscribe({
+          next: (fresh: RentalResponseDto) => this.rental.set(fresh),
+        });
+      },
+      error: (err: HttpErrorResponse) => {
+        this.retrying.set(null);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível regerar a cobrança. Tente novamente.'),
+        );
+      },
+    });
   }
 
   private loadHistory(id: string): void {

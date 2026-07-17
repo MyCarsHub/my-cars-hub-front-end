@@ -9,5 +9,5 @@ import { RouterModule } from '@angular/router';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LandingCtaComponent {
-  readonly particles = Array.from({ length: 18 }, (_, i) => i);
+  readonly particles = Array.from({ length: 8 }, (_, i) => i);
 }

@@ -2,7 +2,7 @@
   [title]="isEdit() ? 'Aluguel' : 'Novo aluguel'"
   [description]="isEdit() ? 'Edite os campos permitidos. Rentais concluídos/cancelados são somente leitura.' : 'Reserve um veículo para um motorista. Você escolhe se registra manualmente ou já dispara cobrança via Asaas.'"
 >
-  <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
+  <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3 sm:space-y-4">
     <!-- 1-4: veículo, motorista, datas, frequência -->
     <app-page-card title="Contrato">
       <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -161,6 +161,152 @@
       </div>
     </app-page-card>
 
+    <!-- 7.5 (V29): Condições de pagamento — todos obrigatórios -->
+    <app-page-card title="Condições de pagamento">
+      <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-initial-km">
+                Km inicial (retirada) <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-initial-km"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                formControlName="initialKm"
+                placeholder="Ex.: 45820"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('initialKm')) {
+                <p class="text-xs text-rose-600 mt-1">Informe a quilometragem inicial.</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-pickup-date">
+                Data/hora da retirada <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-pickup-date"
+                type="datetime-local"
+                formControlName="pickupDate"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('pickupDate')) {
+                <p class="text-xs text-rose-600 mt-1">Informe a data e hora da retirada.</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-first-payment">
+                Data da 1ª parcela <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-first-payment"
+                type="date"
+                formControlName="firstPaymentDate"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('firstPaymentDate')) {
+                <p class="text-xs text-rose-600 mt-1">Informe a data da 1ª parcela.</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-daily-interest">
+                Juros diário por atraso (R$) <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-daily-interest"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                formControlName="dailyInterestReais"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('dailyInterestReais')) {
+                <p class="text-xs text-rose-600 mt-1">Informe o juros diário (0 se não cobrar).</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-late-fine-type">
+                Multa por atraso <span class="text-rose-600">*</span>
+              </label>
+              <select
+                id="rental-late-fine-type"
+                formControlName="lateFineType"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                <option value="PERCENT">Percentual (%)</option>
+                <option value="FIXED">Valor fixo (R$)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-late-fine-value">
+                Valor da multa <span class="text-rose-600">*</span>
+              </label>
+              <input
+                id="rental-late-fine-value"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                formControlName="lateFineValueInput"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              @if (fieldInvalid('lateFineValueInput')) {
+                <p class="text-xs text-rose-600 mt-1">Informe o valor da multa (0 se não cobrar).</p>
+              } @else {
+                <p class="text-xs text-neutral-400 mt-1">
+                  Se %: informe percentagem (ex.: 2 = 2%). Se R$: informe reais.
+                </p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-franchise-km">
+                Franquia diária (km)
+              </label>
+              <input
+                id="rental-franchise-km"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                formControlName="franchiseKm"
+                placeholder="Ex.: 150 (0 ou vazio = ilimitada)"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-return-fuel">
+                Política de devolução (combustível)
+              </label>
+              <input
+                id="rental-return-fuel"
+                type="text"
+                maxlength="60"
+                list="rental-return-fuel-options"
+                formControlName="returnFuelPolicy"
+                placeholder="Ex.: Mesmo nível da retirada"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              <datalist id="rental-return-fuel-options">
+                <option value="Mesmo nível da retirada"></option>
+                <option value="Tanque cheio"></option>
+                <option value="Livre (sem exigência)"></option>
+              </datalist>
+            </div>
+          </div>
+        </div>
+    </app-page-card>
+
     <!-- 8: observações -->
     <app-page-card title="Observações">
       <div class="p-4 sm:p-6">
@@ -172,6 +318,55 @@
           placeholder="Anotações internas sobre o aluguel..."
           class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                  focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
+      </div>
+    </app-page-card>
+
+    <!-- 8.5 (V29): origem do contrato — AUTO gera do template, MANUAL exige upload depois -->
+    <app-page-card title="Contrato">
+      <div class="p-4 sm:p-6 space-y-3">
+        <div class="flex items-start gap-4">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-semibold text-neutral-900">
+              Gerar contrato automaticamente do template
+            </p>
+            <p class="text-xs text-neutral-500 mt-1 leading-relaxed">
+              @if (hasContractTemplate()) {
+                Ao criar o aluguel, o PDF de contrato é gerado a partir do template configurado
+                em Configurações → Contratos, já preenchido com os dados do motorista e veículo.
+                Desative para fazer upload manual do PDF depois.
+              } @else {
+                Nenhum template configurado. Faça upload em
+                <a routerLink="/configuracoes/contratos"
+                   class="text-primary-600 hover:text-primary-700 font-medium underline">
+                  Configurações → Contratos
+                </a>
+                pra habilitar a geração automática.
+              }
+            </p>
+          </div>
+
+          <label class="relative inline-flex shrink-0 cursor-pointer items-center"
+            [class.opacity-50]="!hasContractTemplate() || isEdit()"
+            [class.cursor-not-allowed]="!hasContractTemplate() || isEdit()">
+            <input
+              type="checkbox"
+              formControlName="useContractTemplate"
+              [attr.disabled]="!hasContractTemplate() || isEdit() ? true : null"
+              class="sr-only peer" />
+            <span aria-hidden="true"
+              class="w-12 h-7 rounded-full bg-neutral-200 peer-checked:bg-emerald-500
+                     transition-colors relative
+                     after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                     after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
+                     after:transition-transform peer-checked:after:translate-x-5"></span>
+          </label>
+        </div>
+
+        @if (isEdit()) {
+          <p class="text-xs text-neutral-400">
+            A origem do contrato é fixada no momento da criação e não pode ser alterada aqui.
+          </p>
+        }
       </div>
     </app-page-card>
 

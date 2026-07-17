@@ -2,6 +2,25 @@ export type VehicleType = 'CAR' | 'MOTORCYCLE';
 export type FinancingStatus = 'ACTIVE' | 'PAID_OFF';
 export type IpvaStatus = 'PAID' | 'PENDING' | 'OVERDUE';
 export type VehicleStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'INACTIVE';
+/** V31: combustível do veículo. Nullable — legado pode não ter valor. */
+export type VehicleFuel =
+  | 'GASOLINA'
+  | 'ETANOL'
+  | 'DIESEL'
+  | 'FLEX'
+  | 'GNV'
+  | 'ELETRICO'
+  | 'HIBRIDO';
+
+export const VEHICLE_FUEL_OPTIONS: ReadonlyArray<{ value: VehicleFuel; label: string }> = [
+  { value: 'GASOLINA', label: 'Gasolina' },
+  { value: 'ETANOL', label: 'Etanol' },
+  { value: 'DIESEL', label: 'Diesel' },
+  { value: 'FLEX', label: 'Flex' },
+  { value: 'GNV', label: 'GNV' },
+  { value: 'ELETRICO', label: 'Elétrico' },
+  { value: 'HIBRIDO', label: 'Híbrido' },
+];
 
 import { IPVA_STATUS_OPTIONS as _IPVA_STATUS_OPTIONS } from '../utils/status-maps';
 
@@ -73,6 +92,7 @@ export interface Vehicle {
   ipvaStatus: IpvaStatus | null;
   ipvaExpired: boolean;
   status: VehicleStatus;
+  fuel: VehicleFuel | null;
   activeFinancing: Financing | null;
   createdDate: string;
   modifyDate: string | null;
@@ -94,6 +114,7 @@ export interface CreateVehicleRequest {
   ipvaAmount?: number | null;
   ipvaDueDate?: string | null;
   ipvaStatus?: IpvaStatus | null;
+  fuel?: VehicleFuel | null;
 }
 
 export interface UpdateVehicleRequest {
@@ -110,6 +131,7 @@ export interface UpdateVehicleRequest {
   ipvaAmount?: number | null;
   ipvaDueDate?: string | null;
   ipvaStatus?: IpvaStatus | null;
+  fuel?: VehicleFuel | null;
 }
 
 export interface CreateFinancingRequest {

@@ -13,4 +13,21 @@
     <app-landing-cta />
   </main>
   <app-landing-footer />
+
+  <!-- FAB back-to-top com o logo. Aparece ao rolar. Hover: pulsa e gira sutil. -->
+  <button
+    type="button"
+    class="fab-logo"
+    [class.fab-logo--visible]="showFab()"
+    (click)="scrollTop()"
+    aria-label="Voltar ao topo"
+    title="Voltar ao topo"
+  >
+    <img src="svg/logo-my-cars-hub.svg" alt="" aria-hidden="true" />
+    <span class="fab-logo__arrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
+        <path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+  </button>
 </div>

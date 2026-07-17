@@ -4,6 +4,10 @@ export type RentalStatus = 'RESERVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
 export type ChargeKind = 'RENTAL_TOTAL' | 'CAUCAO';
 export type ChargeStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'RELEASED';
 export type RentalBillingFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+/** V29: fonte do PDF de contrato — AUTO (gera do template) ou MANUAL (upload). */
+export type RentalContractSource = 'AUTO' | 'MANUAL';
+/** V29: unidade da multa de atraso — PERCENT (basis-points 0-10000) ou FIXED (centavos). */
+export type RentalLateFineType = 'PERCENT' | 'FIXED';
 
 export const BILLING_FREQUENCY_OPTIONS: Array<{
   value: RentalBillingFrequency;
@@ -75,6 +79,17 @@ export interface RentalResponseDto {
    */
   automaticCharge?: boolean;
   notes: string | null;
+  // V29: campos financeiros + fonte do contrato
+  initialKm: number | null;
+  pickupDate: string | null; // ISO
+  firstPaymentDate: string | null; // yyyy-MM-dd
+  dailyInterestAmount: number | null; // cents/day
+  lateFineType: RentalLateFineType | null;
+  lateFineValue: number | null; // PERCENT: basis-points; FIXED: cents
+  contractSource: RentalContractSource | null;
+  // V32
+  franchiseKm: number | null;
+  returnFuelPolicy: string | null;
   charges: RentalChargeDto[];
   createdAt: string;
   modifiedAt: string;
@@ -106,6 +121,16 @@ export interface RentalUpdateRequest {
   billingFrequency: RentalBillingFrequency;
   caucaoAmount?: number;
   notes?: string;
+  // V29: campos financeiros editáveis (contractSource é imutável após create)
+  initialKm?: number | null;
+  pickupDate?: string | null;
+  firstPaymentDate?: string | null;
+  dailyInterestAmount?: number | null;
+  lateFineType?: RentalLateFineType | null;
+  lateFineValue?: number | null;
+  // V32
+  franchiseKm?: number | null;
+  returnFuelPolicy?: string | null;
 }
 
 export interface CreateRentalRequest {
@@ -122,6 +147,21 @@ export interface CreateRentalRequest {
    */
   automaticCharge?: boolean;
   notes?: string;
+  // V29: campos financeiros + fonte do contrato
+  initialKm?: number | null;
+  pickupDate?: string | null;
+  firstPaymentDate?: string | null;
+  dailyInterestAmount?: number | null;
+  lateFineType?: RentalLateFineType | null;
+  lateFineValue?: number | null;
+  /**
+   * AUTO: gera contrato do template configurado. Null → backend infere (AUTO
+   * se company tem template, senão MANUAL). AUTO sem template retorna 409.
+   */
+  contractSource?: RentalContractSource | null;
+  // V32
+  franchiseKm?: number | null;
+  returnFuelPolicy?: string | null;
 }
 
 export interface RentalFilters {
@@ -188,4 +228,77 @@ export interface RentalStatusHistoryDto {
   changedByName: string | null;
   reason: string | null;
   createdAt: string;
+}
+
+export type RentalDocumentKind = 'CONTRACT' | 'CHECKIN' | 'CHECKOUT';
+
+/**
+ * Metadata do PDF armazenado no Supabase Storage. Nunca inclui a URL —
+ * o frontend obtém acesso via GET .../documents/{id}/signed-url que devolve
+ * uma URL temporária.
+ */
+export interface RentalDocumentDto {
+  id: string;
+  rentalId: string;
+  kind: RentalDocumentKind;
+  mimeType: string;
+  sizeBytes: number | null;
+  generated: boolean;
+  uploadedBy: string | null;
+  createdDate: string;
+}
+
+export interface SignedUrlDto {
+  url: string;
+  expiresInSeconds: number;
+}
+
+export type SignatureStatus = 'NOT_REQUIRED' | 'PENDING' | 'SIGNED' | 'REFUSED' | 'EXPIRED';
+export type SignatureProvider = 'AUTENTIQUE' | 'DOCUSIGN';
+
+export interface SignatureStatusDto {
+  documentId: string;
+  status: SignatureStatus;
+  provider: SignatureProvider | null;
+  externalDocumentId: string | null;
+  signedAt: string | null;
+}
+
+export interface SignerRequest {
+  name: string;
+  email: string;
+}
+
+export type RentalPhotoKind = 'CHECKIN' | 'CHECKOUT';
+export type RentalPhotoAngle =
+  | 'FRONT'
+  | 'BACK'
+  | 'LEFT'
+  | 'RIGHT'
+  | 'DASHBOARD'
+  | 'ODOMETER';
+
+/** Ordem canônica de renderização dos 6 slots — casa com o PDF gerado. */
+export const RENTAL_PHOTO_ANGLES: Array<{ value: RentalPhotoAngle; label: string }> = [
+  { value: 'FRONT', label: 'Frente' },
+  { value: 'BACK', label: 'Traseira' },
+  { value: 'LEFT', label: 'Lateral esquerda' },
+  { value: 'RIGHT', label: 'Lateral direita' },
+  { value: 'DASHBOARD', label: 'Painel' },
+  { value: 'ODOMETER', label: 'Hodômetro' },
+];
+
+/**
+ * Foto de vistoria com signedUrl inline. O backend embute o signedUrl
+ * na listagem para evitar N+1 round-trips ao renderizar previews.
+ */
+export interface RentalPhotoDto {
+  id: string;
+  rentalId: string;
+  kind: RentalPhotoKind;
+  angle: RentalPhotoAngle;
+  mimeType: string;
+  sizeBytes: number | null;
+  signedUrl: string | null;
+  createdDate: string;
 }
