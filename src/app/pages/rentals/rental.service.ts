@@ -189,7 +189,7 @@ export class RentalService {
   ): Observable<RentalPhotoDto> {
     const form = new FormData();
     form.append('file', file);
-    let params = new HttpParams().set('kind', kind).set('angle', angle);
+    const params = new HttpParams().set('kind', kind).set('angle', angle);
     return this.http.post<RentalPhotoDto>(`${BASE}/${rentalId}/photos`, form, { params });
   }
 

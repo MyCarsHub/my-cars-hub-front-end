@@ -1,7 +1,6 @@
 import {
     ChangeDetectionStrategy,
     Component,
-    OnInit,
     computed,
     inject,
     signal,
@@ -80,7 +79,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
     ],
     templateUrl: './dashboard-home.html',
 })
-export class DashboardHome implements OnInit {
+export class DashboardHome {
     private readonly service = inject(DashboardService);
     private readonly router = inject(Router);
 
@@ -219,10 +218,8 @@ export class DashboardHome implements OnInit {
         }));
     });
 
-    ngOnInit(): void {
-        // The picker will fire (rangeChange) on init with the 30d default,
-        // which calls onRangeChange → reload().
-    }
+    // The picker fires (rangeChange) on init with the 30d default,
+    // which calls onRangeChange → reload(). No manual ngOnInit needed.
 
     protected onRangeChange(range: DateRange): void {
         this.currentRange.set(range);
