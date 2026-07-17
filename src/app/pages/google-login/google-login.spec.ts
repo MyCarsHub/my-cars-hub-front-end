@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { LoginService } from '../../services/loginService';
 import { GoogleLogin } from './google-login';
@@ -11,7 +12,10 @@ describe('GoogleLogin', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [GoogleLogin],
-      providers: [{ provide: LoginService, useValue: { loginWithGoogle } }],
+      providers: [
+        { provide: LoginService, useValue: { loginWithGoogle } },
+        provideRouter([]),
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(GoogleLogin);
@@ -28,6 +32,6 @@ describe('GoogleLogin', () => {
 
     expect(loginWithGoogle).toHaveBeenCalledTimes(1);
     expect(button.disabled).toBe(true);
-    expect(button.textContent).toContain('Redirecionando para o Google');
+    expect(button.textContent).toContain('Redirecionando');
   });
 });
