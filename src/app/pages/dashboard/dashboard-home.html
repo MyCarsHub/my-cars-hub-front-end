@@ -255,9 +255,10 @@
                     semanal, mensal) + multas e manutenções do período.
                 </p>
                 <app-financial-calendar
-                    [events]="cashflow()"
+                    [events]="calendarCashflow()"
                     [selectedDate]="selectedDay()"
                     (daySelect)="onDaySelect($event)"
+                    (monthChange)="onCalendarMonthChange($event)"
                 />
             </div>
         </app-page-card>

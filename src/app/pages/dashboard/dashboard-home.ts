@@ -160,14 +160,17 @@ export class DashboardHome implements OnInit {
     );
 
     // ---- Cashflow (calendar) ---------------------------------------------
-    protected readonly cashflow = computed<CashflowEventDto[]>(
-        () => this.summary()?.finance?.cashflow ?? [],
-    );
+    // Kept separate from the filtered `summary` so the calendar always shows
+    // every entry/exit for the visible month, regardless of the chart filters.
+    protected readonly calendarCashflow = signal<CashflowEventDto[]>([]);
+
+    /** Month currently displayed by the calendar (`YYYY-MM`). */
+    private readonly calendarMonth = signal<string | null>(null);
 
     protected readonly selectedDayEvents = computed<CashflowEventDto[]>(() => {
         const iso = this.selectedDay();
         if (!iso) return [];
-        return this.cashflow().filter((e) => e.date === iso);
+        return this.calendarCashflow().filter((e) => e.date === iso);
     });
 
     // ---- Distributions --------------------------------------------------
@@ -245,6 +248,23 @@ export class DashboardHome implements OnInit {
 
     protected onDaySheetClose(): void {
         this.selectedDay.set(null);
+    }
+
+    protected onCalendarMonthChange(monthKey: string): void {
+        if (this.calendarMonth() === monthKey) return;
+        this.calendarMonth.set(monthKey);
+        this.loadCalendarMonth(monthKey);
+    }
+
+    private loadCalendarMonth(monthKey: string): void {
+        const [year, month] = monthKey.split('-').map(Number);
+        const from = `${monthKey}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const to = `${monthKey}-${lastDay < 10 ? '0' : ''}${lastDay}`;
+        this.service.loadOverview(from, to).subscribe({
+            next: (res) => this.calendarCashflow.set(res.finance?.cashflow ?? []),
+            error: () => this.calendarCashflow.set([]),
+        });
     }
 
     /**

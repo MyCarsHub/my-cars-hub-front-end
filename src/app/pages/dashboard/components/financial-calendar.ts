@@ -1,6 +1,7 @@
 import {
     ChangeDetectionStrategy,
     Component,
+    OnInit,
     computed,
     input,
     output,
@@ -39,7 +40,7 @@ export interface DayCell {
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './financial-calendar.html',
 })
-export class FinancialCalendar {
+export class FinancialCalendar implements OnInit {
     /** All cashflow events for the current window (any subset of dates). */
     readonly events = input<CashflowEventDto[]>([]);
 
@@ -48,8 +49,15 @@ export class FinancialCalendar {
 
     readonly daySelect = output<string>();
 
+    /** Emitted with `YYYY-MM` on init and whenever the visible month changes. */
+    readonly monthChange = output<string>();
+
     /** Internal month cursor as `YYYY-MM`. Defaults to current month. */
     private readonly monthCursor = signal<string>(this.buildTodayKey());
+
+    ngOnInit(): void {
+        this.monthChange.emit(this.monthCursor());
+    }
 
     protected readonly weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -145,17 +153,23 @@ export class FinancialCalendar {
     protected prevMonth(): void {
         const [year, month] = this.monthCursor().split('-').map(Number);
         const d = new Date(year, month - 2, 1);
-        this.monthCursor.set(`${d.getFullYear()}-${this.pad(d.getMonth() + 1)}`);
+        this.setMonth(`${d.getFullYear()}-${this.pad(d.getMonth() + 1)}`);
     }
 
     protected nextMonth(): void {
         const [year, month] = this.monthCursor().split('-').map(Number);
         const d = new Date(year, month, 1);
-        this.monthCursor.set(`${d.getFullYear()}-${this.pad(d.getMonth() + 1)}`);
+        this.setMonth(`${d.getFullYear()}-${this.pad(d.getMonth() + 1)}`);
     }
 
     protected goToday(): void {
-        this.monthCursor.set(this.buildTodayKey());
+        this.setMonth(this.buildTodayKey());
+    }
+
+    private setMonth(key: string): void {
+        if (this.monthCursor() === key) return;
+        this.monthCursor.set(key);
+        this.monthChange.emit(key);
     }
 
     protected onCellClick(cell: DayCell): void {
