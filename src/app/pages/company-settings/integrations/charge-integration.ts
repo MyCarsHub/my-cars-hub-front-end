@@ -9,8 +9,8 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
-import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { PageCard } from '../../../components/core/page-card/page-card';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import { ChargeIntegrationService } from './charge-integration.service';
@@ -29,7 +29,7 @@ import {
 @Component({
   selector: 'app-charge-integration',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [ReactiveFormsModule, DefaultPageLayout, ConfirmDialog, PageCard],
   templateUrl: './charge-integration.html',
 })
 export class ChargeIntegration implements OnInit {

@@ -19,6 +19,7 @@ import { StepWelcome } from './components/step-welcome';
 import { AuthService } from '../../services/auth.service';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { NotificationService } from '../../services/notification.service';
+import { SessionService } from '../../services/session.service';
 import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
@@ -58,6 +59,7 @@ export class OnboardingContainer implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly layoutStore = inject(LayoutStore);
   private readonly notify = inject(NotificationService);
+  private readonly session = inject(SessionService);
 
   /** True once the initial GET /onboarding call has resolved */
   protected readonly loaded = signal(false);
@@ -154,6 +156,14 @@ export class OnboardingContainer implements OnInit {
           // on /onboarding so the user can retry.
           this.authService.getMe().subscribe({
             next: () => {
+              // Guarda: se o getMe pós-finish veio SEM companies, algo quebrou
+              // (rollback silencioso backend, transaction visibility no pooler,
+              // etc). Navegar pra /dashboard aqui joga o user num 403 mudo.
+              // Melhor mostrar erro e deixar ele retentar.
+              if (!this.session.getItem('selectedCompanyId')) {
+                this.notify.error('Não conseguimos vincular sua empresa. Tente novamente.');
+                return;
+              }
               this.layoutStore.refreshTenants();
               this.router.navigate(['/dashboard']);
             },

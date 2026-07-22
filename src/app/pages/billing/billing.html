@@ -3,340 +3,260 @@
   description="Gerencie seu plano, forma de cobrança e status da assinatura.">
 
   @if (error()) {
-    <div role="alert" class="mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-sm">
-      {{ error() }}
+    <div
+      role="alert"
+      class="mb-6 flex items-start gap-3 p-4 rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-sm font-medium">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        class="mt-0.5 shrink-0" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <span>{{ error() }}</span>
     </div>
   }
 
-  <!-- Assinatura atual -->
-  <div class="mb-8">
-    <app-page-card title="Assinatura Atual">
-      <div cardIcon class="p-2 bg-primary-low rounded-lg" aria-hidden="true">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round" class="text-primary-500">
-          <rect x="2" y="5" width="20" height="14" rx="2" />
-          <line x1="2" y1="10" x2="22" y2="10" />
-        </svg>
-      </div>
+  <div class="space-y-4 sm:space-y-6 lg:space-y-8">
 
-      @if (subscription(); as sub) {
-        <div class="p-4 sm:p-6">
-          <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-            <!-- Plano + preço + status -->
-            <div class="flex-1 min-w-0">
-              <p class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Plano ativo</p>
-              <div class="mt-1 flex items-center gap-3 flex-wrap">
-                <h3 class="text-2xl sm:text-3xl font-black text-neutral-900 break-words">{{ sub.planName }}</h3>
-                <span
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border"
-                  [class]="statusBadgeClass(sub.status)">
-                  @switch (sub.status) {
-                    @case ('ACTIVE') {
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                    }
-                    @case ('TRIALING') {
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 15" /></svg>
-                    }
-                    @case ('PAST_DUE') {
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                    }
-                    @default {
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                    }
-                  }
-                  {{ statusLabel(sub.status) }}
-                </span>
-              </div>
+    <!-- Section 1 — Current subscription hero (dark, on-brand) -->
+    @if (subscription(); as sub) {
+      <section
+        class="relative overflow-hidden rounded-2xl shadow-xl border"
+        [class.bg-neutral-900]="!currentHeroBackground()"
+        [class.border-neutral-800]="!currentHeroBackground()"
+        [class.border-white/10]="!!currentHeroBackground()"
+        [style.background]="currentHeroBackground()"
+        aria-labelledby="assinatura-atual-title">
+        <div aria-hidden="true"
+          class="pointer-events-none absolute -top-24 -right-24 w-56 h-56 blur-[90px] rounded-full"
+          [style.background]="currentHeroGlow()"></div>
+        <div aria-hidden="true"
+          class="pointer-events-none absolute -bottom-28 -left-24 w-56 h-56 bg-white/5 blur-[90px] rounded-full"></div>
 
-              @if (currentPlan(); as cp) {
-                <p class="mt-2 text-sm text-neutral-600">
-                  <span class="font-semibold text-neutral-800 tabular-nums">
-                    {{ formatPrice(sub.billingCycle === 'MONTHLY' ? cp.priceMonthly : cp.priceYearly) }}
-                  </span>
-                  /{{ sub.billingCycle === 'MONTHLY' ? 'mês' : 'ano' }}
-                  @if (sub.billingCycle === 'YEARLY' && planYearlySavings(cp) > 0) {
-                    <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider">
-                      Economiza {{ planYearlySavings(cp) }}%
-                    </span>
-                  }
-                </p>
-              } @else {
-                <p class="mt-2 text-sm text-neutral-600">
-                  Ciclo: <span class="font-medium text-neutral-800">{{ sub.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual' }}</span>
-                </p>
-              }
+        <div class="relative p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
 
-              @if (sub.cancelAtPeriodEnd) {
-                <p class="mt-2 inline-flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                  Cancelamento agendado ao fim do período
-                </p>
-              }
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">Plano atual</p>
+              <h2 id="assinatura-atual-title"
+                class="mt-1 text-2xl sm:text-3xl font-black text-white italic tracking-tight break-words">
+                {{ sub.planName }}
+              </h2>
             </div>
+            @if (sub.status !== 'TRIALING') {
+              <span
+                class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider"
+                [class]="statusPillClass(sub.status)">
+                <span
+                  class="w-1.5 h-1.5 rounded-full"
+                  [class]="statusDotClass(sub.status)"
+                  aria-hidden="true"></span>
+                {{ statusLabel(sub.status) }}
+              </span>
+            }
+          </div>
 
-            <!-- Próxima data -->
-            <div class="lg:text-right lg:min-w-[220px]">
-              <p class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+          <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+            @if (currentPlan(); as cp) {
+              <div class="min-w-0">
+                <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">Valor</dt>
+                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white tabular-nums">
+                  {{ formatPrice(cp.price) }}
+                  <span class="text-sm font-medium" [class]="currentHeroMutedClass()">/{{ sub.billingCycle === 'MONTHLY' ? 'mês' : 'ano' }}</span>
+                </dd>
+              </div>
+            }
+            <div class="min-w-0">
+              <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">
                 @if (sub.status === 'TRIALING') { Fim do teste } @else { Próxima cobrança }
-              </p>
-              <p class="mt-1 text-base font-semibold text-neutral-800">
+              </dt>
+              <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
                 @if (sub.status === 'TRIALING') {
                   {{ formatDate(sub.trialEndsAt) }}
                 } @else {
                   {{ formatDate(sub.currentPeriodEnd) }}
                 }
-              </p>
+              </dd>
             </div>
-          </div>
+            <div class="min-w-0">
+              <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">Ciclo</dt>
+              <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
+                {{ sub.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual' }}
+              </dd>
+            </div>
+          </dl>
+
+          @if (sub.cancelAtPeriodEnd) {
+            <div
+              class="flex items-start gap-2.5 text-xs sm:text-sm bg-amber-500/10 border border-amber-400/30 text-amber-100 rounded-xl px-4 py-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="mt-0.5 shrink-0" aria-hidden="true">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span>Cancelamento agendado para {{ formatDate(sub.currentPeriodEnd) }}. Você mantém acesso até essa data.</span>
+            </div>
+          }
 
           @if (!sub.cancelAtPeriodEnd && sub.status !== 'CANCELED' && sub.status !== 'EXPIRED') {
-            <div class="mt-6 pt-4 border-t border-neutral-100 flex flex-wrap gap-3">
+            <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-white/10">
               <button
                 type="button"
                 (click)="openCancel()"
                 [disabled]="loading()"
-                class="w-full sm:w-auto min-h-[44px] text-sm font-medium text-rose-600 hover:bg-rose-50 border border-rose-200 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+                class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white/90
+                       bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
                 Cancelar assinatura
               </button>
             </div>
           }
         </div>
-      } @else {
-        <div class="p-6 text-sm text-neutral-600">
+      </section>
+    } @else {
+      <app-page-card title="Assinatura">
+        <div cardIcon class="p-2 bg-primary-low rounded-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="text-primary-500" aria-hidden="true">
+            <rect x="2" y="6" width="20" height="12" rx="2" />
+            <path d="M2 10h20" />
+          </svg>
+        </div>
+        <div class="px-6 pb-6">
           @if (loading()) {
-            <p>Carregando informações da assinatura…</p>
+            <div class="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <span
+                class="inline-block w-6 h-6 rounded-full border-2 border-neutral-200 border-t-primary-500 animate-spin"
+                aria-hidden="true"></span>
+              <p class="text-sm text-neutral-500">Carregando informações da assinatura…</p>
+            </div>
           } @else {
-            <p>Você ainda não possui uma assinatura ativa. Escolha um plano abaixo para começar.</p>
+            <div class="flex flex-col items-center justify-center gap-2 py-10 text-center">
+              <div class="p-3 bg-primary-low rounded-full mb-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="text-primary-500" aria-hidden="true">
+                  <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
+                  <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
+                  <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" />
+                </svg>
+              </div>
+              <p class="text-base font-semibold text-neutral-900">Você ainda não tem uma assinatura ativa</p>
+              <p class="text-sm text-neutral-500 max-w-md">Escolha um plano abaixo para desbloquear os recursos da plataforma.</p>
+            </div>
           }
         </div>
-      }
-    </app-page-card>
-  </div>
-
-  <!-- Admin-only gateway override (debug/testing only) -->
-  @if (isPlatformAdmin) {
-    <div class="mb-4 mx-auto max-w-xl rounded-xl border border-amber-300 bg-amber-50 p-3 sm:p-4">
-      <p class="text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-2">
-        ADMIN DEBUG — gateway do checkout
-      </p>
-      <div role="radiogroup" aria-label="Gateway de pagamento" class="flex gap-2 flex-wrap">
-        <button
-          type="button"
-          role="radio"
-          [attr.aria-checked]="adminGateway() === 'stripe'"
-          (click)="setAdminGateway('stripe')"
-          class="min-h-[44px] px-4 rounded-lg text-sm font-medium border transition-colors"
-          [class.bg-amber-600]="adminGateway() === 'stripe'"
-          [class.text-white]="adminGateway() === 'stripe'"
-          [class.border-amber-600]="adminGateway() === 'stripe'"
-          [class.bg-white]="adminGateway() !== 'stripe'"
-          [class.text-amber-900]="adminGateway() !== 'stripe'"
-          [class.border-amber-300]="adminGateway() !== 'stripe'">
-          Stripe
-        </button>
-        <button
-          type="button"
-          role="radio"
-          [attr.aria-checked]="adminGateway() === 'abacate'"
-          (click)="setAdminGateway('abacate')"
-          class="min-h-[44px] px-4 rounded-lg text-sm font-medium border transition-colors"
-          [class.bg-amber-600]="adminGateway() === 'abacate'"
-          [class.text-white]="adminGateway() === 'abacate'"
-          [class.border-amber-600]="adminGateway() === 'abacate'"
-          [class.bg-white]="adminGateway() !== 'abacate'"
-          [class.text-amber-900]="adminGateway() !== 'abacate'"
-          [class.border-amber-300]="adminGateway() !== 'abacate'">
-          AbacatePay
-        </button>
-      </div>
-    </div>
-  }
-
-  <!-- Toggle de ciclo -->
-  <div class="mb-8 flex flex-col items-center gap-3">
-    <div
-      role="tablist"
-      aria-label="Ciclo de cobrança"
-      class="inline-flex bg-neutral-100 rounded-full p-1 border border-neutral-200">
-      <button
-        role="tab"
-        type="button"
-        [attr.aria-selected]="cycle() === 'MONTHLY'"
-        (click)="setCycle('MONTHLY')"
-        class="min-h-[44px] px-5 py-2 text-sm font-semibold rounded-full transition-colors"
-        [class.bg-white]="cycle() === 'MONTHLY'"
-        [class.text-neutral-900]="cycle() === 'MONTHLY'"
-        [class.shadow-sm]="cycle() === 'MONTHLY'"
-        [class.text-neutral-500]="cycle() !== 'MONTHLY'">
-        Mensal
-      </button>
-      <button
-        role="tab"
-        type="button"
-        [attr.aria-selected]="cycle() === 'YEARLY'"
-        (click)="setCycle('YEARLY')"
-        class="min-h-[44px] px-5 py-2 text-sm font-semibold rounded-full transition-colors inline-flex items-center gap-2"
-        [class.bg-white]="cycle() === 'YEARLY'"
-        [class.text-neutral-900]="cycle() === 'YEARLY'"
-        [class.shadow-sm]="cycle() === 'YEARLY'"
-        [class.text-neutral-500]="cycle() !== 'YEARLY'">
-        Anual
-        @if (yearlySavingsBadge() > 0) {
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white uppercase tracking-wider">
-            -{{ yearlySavingsBadge() }}%
-          </span>
-        }
-      </button>
-    </div>
-    @if (cycle() === 'YEARLY' && yearlySavingsBadge() > 0) {
-      <p class="text-xs text-emerald-700 font-medium">
-        Economize até {{ yearlySavingsBadge() }}% pagando anualmente
-      </p>
+      </app-page-card>
     }
-  </div>
 
-  <!-- Grid de planos -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-6 md:items-center">
-    @for (plan of plans(); track plan.id) {
-      <div
-        class="relative bg-white rounded-2xl border shadow-sm p-5 sm:p-6 flex flex-col transition-all md:hover:shadow-lg md:hover:-translate-y-1"
-        [class.border-2]="isRecommended(plan)"
-        [class.border-primary-500]="isRecommended(plan)"
-        [class.ring-4]="isRecommended(plan)"
-        [class.ring-primary-500/20]="isRecommended(plan)"
-        [class.shadow-lg]="isRecommended(plan)"
-        [class.md:shadow-2xl]="isRecommended(plan)"
-        [class.md:scale-105]="isRecommended(plan)"
-        [class.md:z-10]="isRecommended(plan)"
-        [class.md:scale-95]="!isRecommended(plan)"
-        [class.md:opacity-95]="!isRecommended(plan)"
-        [class.order-first]="isRecommended(plan)"
-        [class.md:order-none]="isRecommended(plan)"
-        [class.border-emerald-400]="isCurrent(plan) && !isRecommended(plan)"
-        [class.border-neutral-200]="!isRecommended(plan) && !isCurrent(plan)">
+    <!-- Section 2 — Trocar de plano -->
+    <app-page-card title="Escolha seu plano" id="planos">
+      <div cardIcon class="p-2 bg-primary-low rounded-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          class="text-primary-500" aria-hidden="true">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      </div>
 
-        @if (isRecommended(plan)) {
-          <span class="absolute -top-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 text-white text-[11px] font-black uppercase tracking-wider px-4 py-1.5 rounded-full shadow-lg ring-2 ring-white animate-pulse">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-            Mais popular
-          </span>
-        }
-        @if (isCurrent(plan)) {
-          <span class="absolute -top-3 left-4 inline-flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-md">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-            Seu plano
-          </span>
-        }
-
-        <!-- Cabeçalho -->
-        <div class="mb-5">
-          <p class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{{ plan.code }}</p>
-          <h3 class="mt-1 text-2xl font-black text-neutral-900 break-words">{{ plan.name }}</h3>
-        </div>
-
-        <!-- Preço -->
-        <div class="mb-6">
-          <div class="flex items-baseline gap-1">
-            <span class="text-4xl sm:text-5xl font-black text-neutral-900 tabular-nums leading-none">
-              {{ formatPrice(priceFor(plan)) }}
-            </span>
-            <span class="text-sm text-neutral-500 font-medium">
-              /{{ cycle() === 'MONTHLY' ? 'mês' : 'ano' }}
-            </span>
-          </div>
-          @if (cycle() === 'YEARLY' && plan.priceYearly > 0 && plan.priceMonthly > 0) {
-            <p class="mt-1 text-xs text-emerald-700 font-medium">
-              Equivale a {{ formatPrice(monthlyEquivalent(plan)) }} /mês
-              @if (planYearlySavings(plan) > 0) {
-                · economia de {{ planYearlySavings(plan) }}%
+      <div class="px-4 sm:px-6 pb-6 pt-2">
+        <!-- Cycle toggle -->
+        <div class="flex justify-center mb-6">
+          <div
+            class="inline-flex items-center gap-1 bg-neutral-100 border border-neutral-200 rounded-full p-1"
+            role="tablist"
+            aria-label="Ciclo de cobrança">
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="cycle() === 'MONTHLY'"
+              (click)="setCycle('MONTHLY')"
+              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[40px] transition-colors duration-200
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              [class.text-white]="cycle() === 'MONTHLY'"
+              [class.text-neutral-500]="cycle() !== 'MONTHLY'"
+              [class.hover:text-neutral-900]="cycle() !== 'MONTHLY'"
+              [style.background]="cycle() === 'MONTHLY' ? 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)' : 'transparent'"
+              [style.box-shadow]="cycle() === 'MONTHLY' ? '0 6px 18px -6px rgba(235,63,0,0.4)' : 'none'">
+              Mensal
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="cycle() === 'YEARLY'"
+              (click)="setCycle('YEARLY')"
+              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[40px] transition-colors duration-200
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              [class.text-white]="cycle() === 'YEARLY'"
+              [class.text-neutral-500]="cycle() !== 'YEARLY'"
+              [class.hover:text-neutral-900]="cycle() !== 'YEARLY'"
+              [style.background]="cycle() === 'YEARLY' ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)' : 'transparent'"
+              [style.box-shadow]="cycle() === 'YEARLY' ? '0 6px 18px -6px rgba(16,185,129,0.45)' : 'none'">
+              Anual
+              @if (yearlySavingsBadge() > 0) {
+                <span
+                  class="text-[10.5px] font-bold px-2 py-0.5 rounded-full tracking-[0.04em] text-white"
+                  [class.bg-white/25]="cycle() === 'YEARLY'"
+                  [class.bg-emerald-600]="cycle() !== 'YEARLY'">
+                  -{{ yearlySavingsBadge() }}%
+                </span>
               }
-            </p>
-          }
+            </button>
+          </div>
         </div>
 
-        <!-- Features -->
-        <ul class="space-y-2.5 mb-6 text-sm text-neutral-700 flex-1">
-          <li class="flex items-start gap-2">
-            <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-            Até <span class="font-semibold text-neutral-900">{{ plan.vehicleLimit }}</span> veículos
-          </li>
-          <li class="flex items-start gap-2">
-            <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-            Até <span class="font-semibold text-neutral-900">{{ plan.driverLimit }}</span> motoristas
-          </li>
-          @if (plan.trialDays > 0) {
-            <li class="flex items-start gap-2">
-              <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-              <span><span class="font-semibold text-neutral-900">{{ plan.trialDays }}</span> dias de teste grátis</span>
-            </li>
+        <!-- Plans grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.15fr_0.9fr] gap-6 lg:gap-6 items-stretch lg:items-center pt-4">
+          @for (plan of visiblePlans(); track plan.id) {
+            <app-plan-card
+              [variant]="planVariant(plan)"
+              [name]="plan.name"
+              [price]="formatPrice(plan.price)"
+              [cycleSuffix]="planCycleSuffix()"
+              [subtitleText]="planSubtitle(plan)"
+              [description]="planDescription(plan)"
+              [features]="planFeatures(plan)"
+              [beforeFeaturesText]="planBeforeFeaturesText(plan)"
+              [ribbonText]="planRibbon(plan)"
+              [gradientCss]="planGradient(plan)"
+              [shadowCss]="planShadow(plan)"
+              [accentTextClass]="planAccentClass(plan)"
+              [isCurrent]="isCurrent(plan)"
+              [ctaLabel]="planCtaLabel(plan)"
+              [ctaDisabled]="planCtaDisabled(plan)"
+              (ctaClick)="subscribe(plan)" />
+          } @empty {
+            @if (loading()) {
+              <div class="col-span-full flex flex-col items-center justify-center gap-3 py-10 text-center">
+                <span
+                  class="inline-block w-6 h-6 rounded-full border-2 border-neutral-200 border-t-primary-500 animate-spin"
+                  aria-hidden="true"></span>
+                <p class="text-sm text-neutral-500">Carregando planos…</p>
+              </div>
+            } @else {
+              <p class="col-span-full text-center text-sm text-neutral-500 py-10">Nenhum plano disponível no momento.</p>
+            }
           }
-          <li class="flex items-start gap-2">
-            <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-            Cobrança automática
-          </li>
-          <li class="flex items-start gap-2">
-            <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-            Integração Asaas / AbacatePay / Stripe
-          </li>
-          <li class="flex items-start gap-2">
-            <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-            Dashboard completo
-          </li>
-          @if (isRecommended(plan)) {
-            <li class="flex items-start gap-2">
-              <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-              <span class="font-medium">Relatórios de frota avançados</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <svg class="text-emerald-500 shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-              <span class="font-medium">Suporte prioritário</span>
-            </li>
-          }
-        </ul>
-
-        <!-- CTA -->
-        <button
-          type="button"
-          (click)="subscribe(plan)"
-          [disabled]="isCurrent(plan) || redirecting() || loading()"
-          class="w-full py-3.5 min-h-[52px] rounded-xl font-bold transition-all disabled:cursor-not-allowed"
-          [class.bg-primary-500]="!isCurrent(plan)"
-          [class.text-white]="!isCurrent(plan)"
-          [class.shadow-sm]="!isCurrent(plan)"
-          [class.hover:bg-primary-600]="!isCurrent(plan)"
-          [class.hover:shadow-md]="!isCurrent(plan)"
-          [class.bg-neutral-100]="isCurrent(plan)"
-          [class.text-neutral-500]="isCurrent(plan)"
-          [class.border]="isCurrent(plan)"
-          [class.border-neutral-200]="isCurrent(plan)"
-          [attr.aria-label]="isCurrent(plan) ? 'Plano atual: ' + plan.name : 'Assinar plano ' + plan.name">
-          @if (isCurrent(plan)) {
-            Plano atual
-          } @else if (redirecting()) {
-            Redirecionando…
-          } @else {
-            Assinar {{ plan.name }}
-          }
-        </button>
+        </div>
       </div>
-    } @empty {
-      @if (loading()) {
-        <p class="col-span-full text-center text-neutral-500 py-12">Carregando planos…</p>
-      } @else {
-        <p class="col-span-full text-center text-neutral-500 py-12">Nenhum plano disponível no momento.</p>
-      }
-    }
-  </div>
+    </app-page-card>
 
-  <!-- Compare os planos -->
-  @if (plans().length > 0) {
-    <div class="mt-10">
-      <app-page-card title="Compare os planos">
-        <div cardIcon class="p-2 bg-primary-low rounded-lg" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" class="text-primary-500">
+    <!-- Section 3 — Comparar recursos (collapsible) -->
+    @if (visiblePlans().length > 0) {
+      <app-page-card title="Comparar recursos">
+        <div cardIcon class="p-2 bg-blue-50 rounded-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="text-blue-600" aria-hidden="true">
             <line x1="8" y1="6" x2="21" y2="6" />
             <line x1="8" y1="12" x2="21" y2="12" />
             <line x1="8" y1="18" x2="21" y2="18" />
@@ -345,169 +265,245 @@
             <line x1="3" y1="18" x2="3.01" y2="18" />
           </svg>
         </div>
+        <button
+          cardActions
+          type="button"
+          (click)="toggleCompare()"
+          [attr.aria-expanded]="showCompare()"
+          class="min-h-[36px] px-3 rounded-lg text-xs font-semibold text-primary-500 hover:text-primary-600 hover:bg-primary-low inline-flex items-center gap-1.5 transition-colors
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
+          @if (showCompare()) { Ocultar } @else { Mostrar comparação }
+          <svg
+            class="transition-transform duration-200"
+            [class.rotate-180]="showCompare()"
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
 
-        <!-- Desktop: tabela -->
-        <div class="hidden lg:block p-6 overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-neutral-200">
-                <th class="text-left font-semibold text-neutral-500 uppercase text-xs tracking-wider pb-3 pr-4">Recurso</th>
-                @for (plan of plans(); track plan.id) {
-                  <th class="text-center pb-3 px-3">
-                    <div class="flex flex-col items-center gap-1">
-                      <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{{ plan.code }}</span>
-                      <span class="text-base font-black text-neutral-900">{{ plan.name }}</span>
+        @if (showCompare()) {
+          <div class="px-4 sm:px-6 pb-6 min-w-0">
+            <!-- Desktop: table -->
+            <div class="hidden lg:block overflow-x-auto rounded-xl border border-neutral-200">
+              <table class="w-full text-sm">
+                <thead class="bg-neutral-50">
+                  <tr class="border-b border-neutral-200">
+                    <th class="text-left text-[11px] font-semibold text-neutral-500 uppercase tracking-wide px-4 py-3.5">Recurso</th>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <th class="text-center px-3 py-3.5">
+                        <div class="flex flex-col items-center gap-1.5">
+                          <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ plan.code }}</span>
+                          <span class="font-semibold text-base text-neutral-900">{{ plan.name }}</span>
+                          @if (isRecommended(plan)) {
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-500 border border-primary-low">
+                              Recomendado
+                            </span>
+                          }
+                        </div>
+                      </th>
+                    }
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100 bg-white">
+                  <tr>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">Veículos</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.vehicleLimit) }}</td>
+                    }
+                  </tr>
+                  <tr>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">Motoristas</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.driverLimit) }}</td>
+                    }
+                  </tr>
+                  <tr>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">Dias de teste grátis</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center text-neutral-900 tabular-nums">
+                        @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-neutral-400">—</span> }
+                      </td>
+                    }
+                  </tr>
+                  <tr>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">Cobrança automática</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center">
+                        <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                      </td>
+                    }
+                  </tr>
+                  <tr>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">Dashboard completo</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center">
+                        <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                      </td>
+                    }
+                  </tr>
+                  <tr>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">Relatórios avançados</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center">
+                        @if (isRecommended(plan)) {
+                          <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        } @else {
+                          <span class="text-neutral-400">—</span>
+                        }
+                      </td>
+                    }
+                  </tr>
+                  <tr>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">Suporte prioritário</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center">
+                        @if (isRecommended(plan)) {
+                          <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        } @else {
+                          <span class="text-neutral-400">—</span>
+                        }
+                      </td>
+                    }
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Mobile: accordion per plan -->
+            <div class="lg:hidden space-y-3">
+              @for (plan of visiblePlans(); track plan.id) {
+                <div class="border border-neutral-200 rounded-2xl overflow-hidden bg-white">
+                  <button
+                    type="button"
+                    (click)="toggleExpanded(plan.id)"
+                    [attr.aria-expanded]="isExpanded(plan.id)"
+                    class="w-full min-h-[56px] flex items-center justify-between p-4 text-left hover:bg-neutral-50 transition-colors
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset">
+                    <div class="flex flex-col min-w-0">
+                      <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ plan.code }}</span>
+                      <span class="font-semibold text-base text-neutral-900 mt-0.5 truncate">{{ plan.name }}</span>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
                       @if (isRecommended(plan)) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-primary-100 text-primary-700 uppercase tracking-wider">
-                          Recomendado
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-500 border border-primary-low">
+                          Popular
                         </span>
                       }
+                      <svg
+                        class="text-neutral-500 transition-transform duration-200"
+                        [class.rotate-180]="isExpanded(plan.id)"
+                        width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
                     </div>
-                  </th>
-                }
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-neutral-100">
-              <tr>
-                <td class="py-3 pr-4 font-medium text-neutral-700">Veículos</td>
-                @for (plan of plans(); track plan.id) {
-                  <td class="py-3 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ plan.vehicleLimit }}</td>
-                }
-              </tr>
-              <tr>
-                <td class="py-3 pr-4 font-medium text-neutral-700">Motoristas</td>
-                @for (plan of plans(); track plan.id) {
-                  <td class="py-3 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ plan.driverLimit }}</td>
-                }
-              </tr>
-              <tr>
-                <td class="py-3 pr-4 font-medium text-neutral-700">Dias de teste grátis</td>
-                @for (plan of plans(); track plan.id) {
-                  <td class="py-3 px-3 text-center text-neutral-800 tabular-nums">
-                    @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { — }
-                  </td>
-                }
-              </tr>
-              <tr>
-                <td class="py-3 pr-4 font-medium text-neutral-700">Cobrança automática</td>
-                @for (plan of plans(); track plan.id) {
-                  <td class="py-3 px-3 text-center">
-                    <svg class="inline text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                  </td>
-                }
-              </tr>
-              <tr>
-                <td class="py-3 pr-4 font-medium text-neutral-700">Dashboard completo</td>
-                @for (plan of plans(); track plan.id) {
-                  <td class="py-3 px-3 text-center">
-                    <svg class="inline text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                  </td>
-                }
-              </tr>
-              <tr>
-                <td class="py-3 pr-4 font-medium text-neutral-700">Relatórios avançados</td>
-                @for (plan of plans(); track plan.id) {
-                  <td class="py-3 px-3 text-center">
-                    @if (isRecommended(plan)) {
-                      <svg class="inline text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                    } @else {
-                      <span class="text-neutral-300">—</span>
-                    }
-                  </td>
-                }
-              </tr>
-              <tr>
-                <td class="py-3 pr-4 font-medium text-neutral-700">Suporte prioritário</td>
-                @for (plan of plans(); track plan.id) {
-                  <td class="py-3 px-3 text-center">
-                    @if (isRecommended(plan)) {
-                      <svg class="inline text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                    } @else {
-                      <span class="text-neutral-300">—</span>
-                    }
-                  </td>
-                }
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  </button>
 
-        <!-- Mobile: acordeão por plano -->
-        <div class="lg:hidden p-4 space-y-3">
-          @for (plan of plans(); track plan.id) {
-            <div class="border border-neutral-200 rounded-xl overflow-hidden">
-              <button
-                type="button"
-                (click)="toggleExpanded(plan.id)"
-                [attr.aria-expanded]="isExpanded(plan.id)"
-                class="w-full min-h-[56px] flex items-center justify-between p-4 text-left bg-white active:bg-neutral-50 transition-colors">
-                <div class="flex flex-col">
-                  <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{{ plan.code }}</span>
-                  <span class="text-base font-black text-neutral-900">{{ plan.name }}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  @if (isRecommended(plan)) {
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-primary-100 text-primary-700 uppercase tracking-wider">
-                      Popular
-                    </span>
+                  @if (isExpanded(plan.id)) {
+                    <ul class="p-4 pt-3 space-y-3 text-sm text-neutral-700 border-t border-neutral-100 bg-neutral-50">
+                      <li class="flex items-center justify-between">
+                        <span class="text-neutral-500">Veículos</span>
+                        <span class="font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.vehicleLimit) }}</span>
+                      </li>
+                      <li class="flex items-center justify-between">
+                        <span class="text-neutral-500">Motoristas</span>
+                        <span class="font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.driverLimit) }}</span>
+                      </li>
+                      <li class="flex items-center justify-between">
+                        <span class="text-neutral-500">Dias de teste</span>
+                        <span class="font-semibold text-neutral-900 tabular-nums">
+                          @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-neutral-400">—</span> }
+                        </span>
+                      </li>
+                      <li class="flex items-center justify-between">
+                        <span class="text-neutral-500">Cobrança automática</span>
+                        <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                      </li>
+                      <li class="flex items-center justify-between">
+                        <span class="text-neutral-500">Dashboard completo</span>
+                        <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                      </li>
+                      <li class="flex items-center justify-between">
+                        <span class="text-neutral-500">Relatórios avançados</span>
+                        @if (isRecommended(plan)) {
+                          <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        } @else {
+                          <span class="text-neutral-400">—</span>
+                        }
+                      </li>
+                      <li class="flex items-center justify-between">
+                        <span class="text-neutral-500">Suporte prioritário</span>
+                        @if (isRecommended(plan)) {
+                          <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        } @else {
+                          <span class="text-neutral-400">—</span>
+                        }
+                      </li>
+                    </ul>
                   }
-                  <svg
-                    class="text-neutral-400 transition-transform"
-                    [class.rotate-180]="isExpanded(plan.id)"
-                    width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
                 </div>
-              </button>
-
-              @if (isExpanded(plan.id)) {
-                <ul class="p-4 pt-2 space-y-2.5 text-sm text-neutral-700 border-t border-neutral-100 bg-neutral-50/40">
-                  <li class="flex items-center justify-between">
-                    <span class="text-neutral-600">Veículos</span>
-                    <span class="font-semibold text-neutral-900 tabular-nums">{{ plan.vehicleLimit }}</span>
-                  </li>
-                  <li class="flex items-center justify-between">
-                    <span class="text-neutral-600">Motoristas</span>
-                    <span class="font-semibold text-neutral-900 tabular-nums">{{ plan.driverLimit }}</span>
-                  </li>
-                  <li class="flex items-center justify-between">
-                    <span class="text-neutral-600">Dias de teste</span>
-                    <span class="font-semibold text-neutral-900 tabular-nums">
-                      @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { — }
-                    </span>
-                  </li>
-                  <li class="flex items-center justify-between">
-                    <span class="text-neutral-600">Cobrança automática</span>
-                    <svg class="text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                  </li>
-                  <li class="flex items-center justify-between">
-                    <span class="text-neutral-600">Dashboard completo</span>
-                    <svg class="text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                  </li>
-                  <li class="flex items-center justify-between">
-                    <span class="text-neutral-600">Relatórios avançados</span>
-                    @if (isRecommended(plan)) {
-                      <svg class="text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                    } @else {
-                      <span class="text-neutral-300">—</span>
-                    }
-                  </li>
-                  <li class="flex items-center justify-between">
-                    <span class="text-neutral-600">Suporte prioritário</span>
-                    @if (isRecommended(plan)) {
-                      <svg class="text-emerald-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                    } @else {
-                      <span class="text-neutral-300">—</span>
-                    }
-                  </li>
-                </ul>
               }
             </div>
-          }
+          </div>
+        }
+      </app-page-card>
+    }
+
+    <!-- Section 4 — Admin gateway override (bottom, low-emphasis) -->
+    @if (isPlatformAdmin) {
+      <app-page-card title="Admin — gateway override">
+        <div cardIcon class="p-2 bg-amber-50 rounded-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="text-amber-600" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <div class="px-4 sm:px-6 pb-6">
+          <p class="text-xs text-neutral-500 mb-3">Selecione o gateway usado no próximo checkout de teste.</p>
+          <div
+            role="radiogroup"
+            aria-label="Gateway de pagamento"
+            class="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              role="radio"
+              [attr.aria-checked]="adminGateway() === 'stripe'"
+              (click)="setAdminGateway('stripe')"
+              class="rounded-full min-h-[44px] px-4 py-2 text-sm font-medium border transition-colors
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              [class.bg-primary-500]="adminGateway() === 'stripe'"
+              [class.text-white]="adminGateway() === 'stripe'"
+              [class.border-primary-500]="adminGateway() === 'stripe'"
+              [class.bg-white]="adminGateway() !== 'stripe'"
+              [class.text-neutral-700]="adminGateway() !== 'stripe'"
+              [class.border-neutral-200]="adminGateway() !== 'stripe'"
+              [class.hover:bg-neutral-50]="adminGateway() !== 'stripe'">
+              Stripe
+            </button>
+            <button
+              type="button"
+              role="radio"
+              [attr.aria-checked]="adminGateway() === 'abacate'"
+              (click)="setAdminGateway('abacate')"
+              class="rounded-full min-h-[44px] px-4 py-2 text-sm font-medium border transition-colors
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              [class.bg-primary-500]="adminGateway() === 'abacate'"
+              [class.text-white]="adminGateway() === 'abacate'"
+              [class.border-primary-500]="adminGateway() === 'abacate'"
+              [class.bg-white]="adminGateway() !== 'abacate'"
+              [class.text-neutral-700]="adminGateway() !== 'abacate'"
+              [class.border-neutral-200]="adminGateway() !== 'abacate'"
+              [class.hover:bg-neutral-50]="adminGateway() !== 'abacate'">
+              AbacatePay
+            </button>
+          </div>
         </div>
       </app-page-card>
-    </div>
-  }
+    }
+
+  </div>
 
   <app-confirm-dialog
     [open]="showCancelDialog()"

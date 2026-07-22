@@ -7,15 +7,25 @@ export type SubscriptionStatus =
 
 export type BillingCycle = 'MONTHLY' | 'YEARLY';
 
+export type PlanPeriod = 'MONTHLY' | 'YEARLY';
+
+export type PlanGateway = 'stripe' | 'abacate';
+
+/**
+ * Flat plan row from the backend — one row per (name, period, gateway) triple.
+ * `code` is the fully qualified variant identifier (e.g. `PRO_MONTHLY_STRIPE`).
+ */
 export interface PlanResponse {
   id: string;
   code: string;
   name: string;
-  priceMonthly: number;
-  priceYearly: number;
-  vehicleLimit: number;
-  driverLimit: number;
+  period: PlanPeriod;
+  price: number;
+  vehicleLimit: number | null;
+  driverLimit: number | null;
   trialDays: number;
+  productExternalId: string | null;
+  gateway: PlanGateway;
 }
 
 export interface SubscriptionResponse {
@@ -31,11 +41,10 @@ export interface SubscriptionResponse {
   externalId: string | null;
 }
 
-export type GatewayOverride = 'abacate' | 'stripe';
+export type GatewayOverride = PlanGateway;
 
 export interface CheckoutRequest {
   planCode: string;
-  billingCycle: BillingCycle;
   gatewayOverride?: GatewayOverride;
 }
 

@@ -49,6 +49,11 @@ body {
   height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+}
+
 body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
@@ -60,15 +65,60 @@ body {
   --container: 1120px;
   --container-narrow: 1040px;
   --color-border: #E8E4E0;
+
+  /* Brand gradient tokens — exposed globally (not only inside .landing-root)
+     so authenticated pages can reference them via `background: var(--brand-gradient)`.
+     Keep the recipe identical to .landing-root for visual consistency. */
+  --brand-gradient: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);
+  --brand-gradient-vertical: linear-gradient(180deg, #FF5722 0%, #EB3F00 60%, #C93300 100%);
+  --brand-gradient-radial-hero: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(235,63,0,0.06), transparent 65%);
+  --brand-gradient-radial-hero-soft: radial-gradient(ellipse 55% 40% at 50% 0%, rgba(235,63,0,0.05), transparent 65%);
+  --brand-gradient-shine: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
 }
 
 /* =========================================================
-   Landing/Blog design tokens — globais pra serem herdados por
-   qualquer componente que use .landing-root (blog, landing, etc).
-   Custom properties passam ViewEncapsulation naturalmente, mas o
-   *seletor* .landing-root precisa estar em CSS global pra matar
-   scopo de component styles.
+   Pricing scope — mesmos tokens de landing-root SEM o
+   background/min-height/overflow-x, pra usar <app-plan-card>
+   dentro do app-shell autenticado (billing / assinatura) com
+   Sora + brand palette idênticos ao landing.
    ========================================================= */
+.pricing-scope,
+.landing-root {
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  --paper: #FFFFFF;
+  --paper-alt: #FAFAFA;
+  --paper-2: #F5F5F5;
+  --rule: #ECECEC;
+  --rule-strong: #D6D6D6;
+  --ink: #0A0A0A;
+  --ink-80: rgba(10, 10, 10, 0.85);
+  --ink-70: rgba(10, 10, 10, 0.68);
+  --ink-50: rgba(10, 10, 10, 0.52);
+  --ink-30: rgba(10, 10, 10, 0.30);
+  --muted: #666666;
+  --ink-dark: #050505;
+  --brand: #EB3F00;
+  --brand-hover: #d63600;
+  --brand-strong: #C93300;
+  --brand-light: #FF5722;
+  --brand-soft: #FFE6DD;
+  --brand-tint: #FFF5F0;
+  --brand-gradient: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);
+  --brand-gradient-heavy: linear-gradient(135deg, #FF6B2C 0%, #EB3F00 40%, #C93300 100%);
+  --dark-gradient: linear-gradient(135deg, #1a1a1a 0%, #0A0A0A 100%);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+.pricing-scope :is(h1, h2, h3, h4) {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
 .landing-root {
   /* Type */
   --font-display: 'Sora', system-ui, sans-serif;

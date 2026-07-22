@@ -42,7 +42,7 @@
   </div>
 
   <!-- KPI cards -->
-  <div class="grid gap-4 grid-cols-2 lg:grid-cols-6 mb-4">
+  <div class="grid gap-4 grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 mb-4">
     <!-- Users total -->
     <div class="rounded-2xl bg-white border border-gray-200 p-4">
       <p class="text-xs text-gray-500 uppercase tracking-wide">Usuários</p>
@@ -103,7 +103,33 @@
       }
     </div>
 
-    <!-- MRR -->
+    <!-- MRR (active subs, strict) -->
+    <div class="rounded-2xl bg-emerald-600 text-white p-4">
+      <p class="text-xs text-white/70 uppercase tracking-wide">MRR</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold mt-1 tabular-nums">
+          {{ formatCurrency(mrrActiveOnly()) }}
+        </p>
+        <p class="text-xs text-white/70 mt-1">assinantes ativos</p>
+      }
+    </div>
+
+    <!-- ARR -->
+    <div class="rounded-2xl bg-emerald-700 text-white p-4">
+      <p class="text-xs text-white/70 uppercase tracking-wide">ARR</p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold mt-1 tabular-nums">
+          {{ formatCurrency(arr()) }}
+        </p>
+        <p class="text-xs text-white/70 mt-1">MRR × 12</p>
+      }
+    </div>
+
+    <!-- MRR estimated (toggleable) -->
     <div class="rounded-2xl bg-primary-500 text-white p-4">
       <p class="text-xs text-white/70 uppercase tracking-wide">MRR estimado</p>
       @if (loading() && !overview()) {

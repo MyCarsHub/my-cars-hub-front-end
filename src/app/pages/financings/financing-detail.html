@@ -165,13 +165,26 @@
                     @if (r.status !== 'PAID') {
                       <button
                         type="button"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                               disabled:opacity-50 hover:bg-primary-600 active:scale-95 transition"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                               disabled:opacity-50 hover:bg-emerald-600 active:scale-95 transition
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                         [disabled]="paying() === r.id"
-                        (click)="markPaid(r)"
+                        (click)="askMarkPaid(r)"
                         [attr.aria-label]="'Marcar parcela ' + r.number + ' como paga'"
                       >
-                        {{ paying() === r.id ? '…' : 'Pagar' }}
+                        {{ paying() === r.id ? '…' : 'Marcar como paga' }}
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                               disabled:opacity-50 hover:bg-primary-600 active:scale-95 transition
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                        [disabled]="paying() === r.id"
+                        (click)="askUnmarkPaid(r)"
+                        [attr.aria-label]="'Desmarcar parcela ' + r.number + ' como paga'"
+                      >
+                        {{ paying() === r.id ? '…' : 'Desmarcar' }}
                       </button>
                     }
                   </div>
@@ -215,12 +228,24 @@
                         @if (r.status !== 'PAID') {
                           <button
                             type="button"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   disabled:opacity-50 hover:bg-primary-600 transition"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   disabled:opacity-50 hover:bg-emerald-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                             [disabled]="paying() === r.id"
-                            (click)="markPaid(r)"
+                            (click)="askMarkPaid(r)"
                           >
                             {{ paying() === r.id ? 'Registrando…' : 'Marcar como paga' }}
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   disabled:opacity-50 hover:bg-primary-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                            [disabled]="paying() === r.id"
+                            (click)="askUnmarkPaid(r)"
+                          >
+                            {{ paying() === r.id ? 'Desmarcando…' : 'Desmarcar' }}
                           </button>
                         }
                       </td>
@@ -241,3 +266,27 @@
     </div>
   }
 </app-default-page-layout>
+
+<app-mark-paid-dialog
+  [open]="markPaidTarget() !== null"
+  title="Marcar como paga"
+  [amountCents]="markPaidTarget()?.amountCents ?? 0"
+  [entityLabel]="markPaidEntityLabel()"
+  [minDate]="markPaidMinDate()"
+  [maxDate]="markPaidMaxDate()"
+  [defaultDate]="markPaidDefaultDate()"
+  [busy]="markPaidBusy()"
+  (confirmed)="confirmMarkPaid($event)"
+  (cancelled)="cancelMarkPaid()"
+/>
+
+<app-confirm-dialog
+  [open]="unmarkPaidTarget() !== null"
+  title="Desmarcar pagamento?"
+  [message]="unmarkPaidMessage()"
+  confirmLabel="Desmarcar"
+  cancelLabel="Cancelar"
+  variant="warning"
+  (confirmed)="confirmUnmarkPaid()"
+  (cancelled)="cancelUnmarkPaid()"
+/>

@@ -1,0 +1,519 @@
+<div class="legal-root">
+  <app-legal-nav
+    [pageTitlePt]="'Termos de Uso'"
+    [pageTitleEn]="'Terms of Use'"
+    [lang]="lang()"
+    (langChange)="setLang($event)"
+  />
+
+  <main class="legal-layout">
+    @if (lang() === 'pt') {
+      <nav class="legal-toc-desktop" aria-label="Índice">
+        <h2>Índice</h2>
+        <ol>
+          <li><a href="#aceite">Aceite</a></li>
+          <li><a href="#servico">Sobre o serviço</a></li>
+          <li><a href="#cadastro-e-conta">Cadastro e conta</a></li>
+          <li><a href="#planos-e-pagamento">Planos e pagamento</a></li>
+          <li><a href="#uso-permitido">Uso permitido</a></li>
+          <li><a href="#conteudo-do-usuario">Conteúdo do usuário</a></li>
+          <li><a href="#propriedade-intelectual">Propriedade intelectual</a></li>
+          <li><a href="#privacidade">Privacidade</a></li>
+          <li><a href="#suspensao-e-rescisao">Suspensão e rescisão</a></li>
+          <li><a href="#garantia-e-responsabilidade">Garantia e responsabilidade</a></li>
+          <li><a href="#alteracoes">Alterações dos termos</a></li>
+          <li><a href="#lei-e-foro">Lei e foro</a></li>
+          <li><a href="#contato">Contato</a></li>
+        </ol>
+      </nav>
+
+      <div class="legal-content">
+        <details class="legal-toc-mobile">
+          <summary>Índice</summary>
+          <ol>
+            <li><a href="#aceite">Aceite</a></li>
+            <li><a href="#servico">Sobre o serviço</a></li>
+            <li><a href="#cadastro-e-conta">Cadastro e conta</a></li>
+            <li><a href="#planos-e-pagamento">Planos e pagamento</a></li>
+            <li><a href="#uso-permitido">Uso permitido</a></li>
+            <li><a href="#conteudo-do-usuario">Conteúdo do usuário</a></li>
+            <li><a href="#propriedade-intelectual">Propriedade intelectual</a></li>
+            <li><a href="#privacidade">Privacidade</a></li>
+            <li><a href="#suspensao-e-rescisao">Suspensão e rescisão</a></li>
+            <li><a href="#garantia-e-responsabilidade">Garantia e responsabilidade</a></li>
+            <li><a href="#alteracoes">Alterações dos termos</a></li>
+            <li><a href="#lei-e-foro">Lei e foro</a></li>
+            <li><a href="#contato">Contato</a></li>
+          </ol>
+        </details>
+
+        <h1>Termos de Uso</h1>
+        <p class="legal-content__meta">Última atualização: {{ lastUpdated }}</p>
+
+        <section id="aceite">
+          <h2>1. Aceite</h2>
+          <p>
+            Estes Termos de Uso regulam o acesso e o uso do MyCarsHub, plataforma SaaS
+            operada por <strong>MyCarsHub</strong>.
+          </p>
+          <p>
+            Ao criar uma conta, marcar o aceite no cadastro ou utilizar qualquer parte
+            do serviço, você declara ter lido, entendido e concordado com estes termos e
+            com a nossa <a href="/politica-de-privacidade">Política de Privacidade</a>.
+            Se não concordar com algum ponto, não crie a conta e não utilize a plataforma.
+          </p>
+        </section>
+
+        <section id="servico">
+          <h2>2. Sobre o serviço</h2>
+          <p>
+            O MyCarsHub é uma <strong>plataforma SaaS de gestão para locadoras de
+            veículos</strong>. Reúne, em um único ambiente, o gerenciamento de contratos
+            de aluguel, cobranças recorrentes, motoristas, vistorias em 14 ângulos,
+            financiamentos de veículos e emissão de multas.
+          </p>
+          <p>
+            O serviço é entregue via web (SPA no navegador) e integra provedores de
+            pagamento (Asaas, AbacatePay, Stripe) e assinatura eletrônica (Autentique)
+            para automatizar operações do dia a dia da locadora.
+          </p>
+        </section>
+
+        <section id="cadastro-e-conta">
+          <h2>3. Cadastro e conta</h2>
+          <p>
+            Para usar o MyCarsHub, você precisa ter <strong>18 anos ou mais</strong> e
+            <strong>capacidade civil plena</strong>. Ao se cadastrar, você se compromete a
+            fornecer dados verdadeiros, completos e atualizados.
+          </p>
+          <p>
+            A conta é <strong>pessoal e intransferível</strong>. Você é responsável pela
+            segurança da sua senha e por qualquer atividade realizada com suas credenciais.
+            Recomendamos senhas fortes e o uso do login com Google quando disponível.
+          </p>
+          <p>
+            O MyCarsHub opera em modelo <strong>multiempresa (multi-tenant)</strong>: um
+            mesmo usuário pode pertencer a várias empresas, com papéis distintos —
+            <strong>OWNER</strong> (dono) ou <strong>MANAGER</strong> (gestor). O OWNER
+            é responsável pelos convites que envia, pelas permissões que concede e pelas
+            ações realizadas por qualquer membro dentro da sua empresa.
+          </p>
+        </section>
+
+        <section id="planos-e-pagamento">
+          <h2>4. Planos e pagamento</h2>
+          <p>
+            O MyCarsHub oferece um <strong>período de trial gratuito</strong> e planos
+            pagos (Pro e Business), com recursos e limites diferentes descritos na página
+            de preços.
+          </p>
+          <p>
+            A cobrança dos planos pagos é <strong>recorrente</strong> e processada por um
+            dos gateways integrados (Asaas, AbacatePay ou Stripe). A renovação é
+            <strong>automática</strong> ao fim de cada período, exceto se cancelada antes
+            da data de renovação.
+          </p>
+          <p>
+            Você pode <strong>cancelar a assinatura a qualquer momento, sem multa</strong>.
+            O acesso permanece ativo até o fim do período já pago; após isso, a conta
+            passa para o plano gratuito (ou é bloqueada, quando o plano gratuito não
+            cobrir os dados existentes).
+          </p>
+        </section>
+
+        <section id="uso-permitido">
+          <h2>5. Uso permitido</h2>
+          <p>
+            O MyCarsHub é destinado ao <strong>uso comercial pela locadora</strong> para
+            operar o seu negócio de aluguel de veículos. É proibido:
+          </p>
+          <ul>
+            <li>
+              Revender, sublicenciar ou oferecer a plataforma como serviço próprio a
+              terceiros.
+            </li>
+            <li>
+              Fazer engenharia reversa, descompilar ou tentar extrair o código-fonte.
+            </li>
+            <li>
+              Utilizar a plataforma para atividades ilícitas, fraudulentas, discriminatórias
+              ou que violem direitos de terceiros.
+            </li>
+            <li>
+              Sobrecarregar a infraestrutura com automações abusivas, ataques ou
+              scraping em massa.
+            </li>
+          </ul>
+        </section>
+
+        <section id="conteudo-do-usuario">
+          <h2>6. Conteúdo do usuário</h2>
+          <p>
+            Os dados que você insere no MyCarsHub — cadastros de motoristas, contratos,
+            fotos de vistoria, dados de veículos e financeiros — <strong>continuam sendo
+            seus</strong>.
+          </p>
+          <p>
+            Você nos concede uma <strong>licença limitada, não exclusiva e revogável</strong>
+            para armazenar, processar e exibir esse conteúdo apenas na medida necessária
+            para <strong>prestar o serviço a você</strong>: gerar cobranças, emitir
+            contratos, salvar fotos, enviar e-mails transacionais, etc.
+          </p>
+          <p>
+            Você é responsável por ter <strong>base legal</strong> para tratar os dados
+            dos motoristas e demais titulares que cadastrar (consentimento, execução de
+            contrato ou outra hipótese da LGPD).
+          </p>
+        </section>
+
+        <section id="propriedade-intelectual">
+          <h2>7. Propriedade intelectual</h2>
+          <p>
+            O código-fonte, a marca <strong>MyCarsHub</strong>, o design da plataforma,
+            os textos, as ilustrações e todos os elementos da experiência do produto são
+            de propriedade exclusiva de <strong>MyCarsHub</strong>.
+          </p>
+          <p>
+            Estes termos não conferem a você qualquer licença sobre o software além do
+            direito de <strong>uso</strong> da plataforma enquanto sua assinatura estiver
+            ativa. Nada aqui transfere propriedade intelectual.
+          </p>
+        </section>
+
+        <section id="privacidade">
+          <h2>8. Privacidade</h2>
+          <p>
+            O tratamento dos dados pessoais coletados pelo MyCarsHub — inclusive quais
+            dados guardamos, com quem compartilhamos e como você exerce seus direitos —
+            é descrito em detalhe na nossa
+            <a href="/politica-de-privacidade">Política de Privacidade</a>, que é parte
+            integrante destes termos.
+          </p>
+        </section>
+
+        <section id="suspensao-e-rescisao">
+          <h2>9. Suspensão e rescisão</h2>
+          <p>Podemos <strong>suspender ou encerrar</strong> a sua conta se:</p>
+          <ul>
+            <li>Você violar estes termos ou a Política de Privacidade.</li>
+            <li>Houver <strong>inadimplência superior a 30 dias</strong> em plano pago.</li>
+            <li>Detectarmos <strong>atividade fraudulenta</strong> ou uso indevido da plataforma.</li>
+            <li>Formos <strong>obrigados por ordem judicial</strong> ou determinação legal.</li>
+          </ul>
+          <p>
+            Sempre que possível, avisaremos por e-mail antes de suspender, dando prazo
+            para regularização. Você pode <strong>cancelar a sua conta a qualquer
+            momento</strong> pelo canal de Suporte, sem necessidade de justificativa.
+          </p>
+        </section>
+
+        <section id="garantia-e-responsabilidade">
+          <h2>10. Garantia e responsabilidade</h2>
+          <p>
+            O MyCarsHub é fornecido <strong>"no estado em que se encontra"</strong>
+            (<em>as is</em>). Nos esforçamos para manter a plataforma disponível, segura e
+            funcional, mas não garantimos que estará livre de erros, interrupções ou
+            falhas em provedores terceirizados.
+          </p>
+          <p>
+            O MyCarsHub <strong>não é responsável pelas decisões de negócio</strong> que
+            você toma com base nas informações da plataforma — cobranças, aprovações de
+            motoristas, contratos assinados. A responsabilidade pela operação da locadora
+            é sua.
+          </p>
+          <p>
+            Nos limites permitidos por lei, a <strong>responsabilidade total</strong> do
+            MyCarsHub, por qualquer prejuízo relacionado ao serviço, fica limitada aos
+            <strong>valores efetivamente pagos por você nos últimos 12 meses</strong>.
+          </p>
+        </section>
+
+        <section id="alteracoes">
+          <h2>11. Alterações dos termos</h2>
+          <p>
+            Podemos atualizar estes termos periodicamente. Quando a mudança for
+            <strong>material</strong> — impactar preços, direitos ou obrigações
+            relevantes — <strong>avisaremos por e-mail com pelo menos 30 dias de
+            antecedência</strong>.
+          </p>
+          <p>
+            Se você continuar a usar o MyCarsHub após a entrada em vigor da nova versão,
+            considera-se aceite. Se discordar, você pode cancelar a conta sem qualquer
+            ônus antes da data de vigência.
+          </p>
+        </section>
+
+        <section id="lei-e-foro">
+          <h2>12. Lei e foro</h2>
+          <p>
+            Estes Termos são regidos pelas leis da República Federativa do Brasil.
+            Qualquer disputa será resolvida perante os tribunais brasileiros competentes.
+          </p>
+        </section>
+
+        <section id="contato">
+          <h2>13. Contato</h2>
+          <div class="legal-contact">
+            <p><strong>Empresa:</strong> MyCarsHub</p>
+            <p><strong>Contato:</strong> mycarshubcompany&#64;gmail.com</p>
+            <p><strong>Suporte:</strong> WhatsApp +55 11 98788-5083</p>
+            <p><strong>E-mail transacional:</strong> noreply&#64;mycarshub.app.br</p>
+          </div>
+        </section>
+      </div>
+    } @else {
+      <nav class="legal-toc-desktop" aria-label="Table of contents">
+        <h2>Contents</h2>
+        <ol>
+          <li><a href="#aceite">Acceptance</a></li>
+          <li><a href="#servico">About the service</a></li>
+          <li><a href="#cadastro-e-conta">Registration and account</a></li>
+          <li><a href="#planos-e-pagamento">Plans and payment</a></li>
+          <li><a href="#uso-permitido">Permitted use</a></li>
+          <li><a href="#conteudo-do-usuario">User content</a></li>
+          <li><a href="#propriedade-intelectual">Intellectual property</a></li>
+          <li><a href="#privacidade">Privacy</a></li>
+          <li><a href="#suspensao-e-rescisao">Suspension and termination</a></li>
+          <li><a href="#garantia-e-responsabilidade">Warranty and liability</a></li>
+          <li><a href="#alteracoes">Changes to the terms</a></li>
+          <li><a href="#lei-e-foro">Governing law and jurisdiction</a></li>
+          <li><a href="#contato">Contact</a></li>
+        </ol>
+      </nav>
+
+      <div class="legal-content">
+        <details class="legal-toc-mobile">
+          <summary>Contents</summary>
+          <ol>
+            <li><a href="#aceite">Acceptance</a></li>
+            <li><a href="#servico">About the service</a></li>
+            <li><a href="#cadastro-e-conta">Registration and account</a></li>
+            <li><a href="#planos-e-pagamento">Plans and payment</a></li>
+            <li><a href="#uso-permitido">Permitted use</a></li>
+            <li><a href="#conteudo-do-usuario">User content</a></li>
+            <li><a href="#propriedade-intelectual">Intellectual property</a></li>
+            <li><a href="#privacidade">Privacy</a></li>
+            <li><a href="#suspensao-e-rescisao">Suspension and termination</a></li>
+            <li><a href="#garantia-e-responsabilidade">Warranty and liability</a></li>
+            <li><a href="#alteracoes">Changes to the terms</a></li>
+            <li><a href="#lei-e-foro">Governing law and jurisdiction</a></li>
+            <li><a href="#contato">Contact</a></li>
+          </ol>
+        </details>
+
+        <h1>Terms of Use</h1>
+        <p class="legal-content__meta">Last updated: {{ lastUpdated }}</p>
+
+        <section id="aceite">
+          <h2>1. Acceptance</h2>
+          <p>
+            These Terms of Use govern the access and use of MyCarsHub, a SaaS platform
+            operated by <strong>MyCarsHub</strong>.
+          </p>
+          <p>
+            By creating an account, ticking the acceptance box during sign-up, or using
+            any part of the service, you declare that you have read, understood and
+            agreed to these terms and to our
+            <a href="/politica-de-privacidade">Privacy Policy</a>. If you disagree with
+            any point, do not create an account and do not use the platform.
+          </p>
+        </section>
+
+        <section id="servico">
+          <h2>2. About the service</h2>
+          <p>
+            MyCarsHub is a <strong>SaaS management platform for vehicle rental
+            companies</strong>. It brings together, in a single environment, rental
+            contract management, recurring billing, drivers, 14-angle vehicle
+            inspections, vehicle financing and fine issuance.
+          </p>
+          <p>
+            The service is delivered via the web (SPA in the browser) and integrates
+            payment providers (Asaas, AbacatePay, Stripe) and electronic signature
+            (Autentique) to automate day-to-day rental operations.
+          </p>
+        </section>
+
+        <section id="cadastro-e-conta">
+          <h2>3. Registration and account</h2>
+          <p>
+            To use MyCarsHub, you must be <strong>18 years of age or older</strong> and
+            have <strong>full legal capacity</strong>. By signing up, you commit to
+            providing true, complete and up-to-date information.
+          </p>
+          <p>
+            The account is <strong>personal and non-transferable</strong>. You are
+            responsible for the security of your password and for any activity performed
+            with your credentials. We recommend strong passwords and using Google login
+            when available.
+          </p>
+          <p>
+            MyCarsHub runs on a <strong>multi-tenant model</strong>: the same user can
+            belong to multiple companies with distinct roles —
+            <strong>OWNER</strong> or <strong>MANAGER</strong>. The OWNER is responsible
+            for the invitations they send, the permissions they grant, and the actions
+            performed by any member within their company.
+          </p>
+        </section>
+
+        <section id="planos-e-pagamento">
+          <h2>4. Plans and payment</h2>
+          <p>
+            MyCarsHub offers a <strong>free trial period</strong> and paid plans (Pro and
+            Business), with different features and limits described on the pricing page.
+          </p>
+          <p>
+            Paid plan billing is <strong>recurring</strong> and processed by one of the
+            integrated gateways (Asaas, AbacatePay or Stripe). Renewal is
+            <strong>automatic</strong> at the end of each period, unless cancelled before
+            the renewal date.
+          </p>
+          <p>
+            You can <strong>cancel your subscription at any time, without penalty</strong>.
+            Access remains active until the end of the period already paid; after that,
+            the account moves to the free plan (or is blocked, when the free plan does
+            not cover the existing data).
+          </p>
+        </section>
+
+        <section id="uso-permitido">
+          <h2>5. Permitted use</h2>
+          <p>
+            MyCarsHub is intended for <strong>commercial use by the rental company</strong>
+            to run its vehicle rental business. It is prohibited to:
+          </p>
+          <ul>
+            <li>
+              Resell, sublicense or offer the platform as a service of your own to third
+              parties.
+            </li>
+            <li>
+              Reverse engineer, decompile or attempt to extract the source code.
+            </li>
+            <li>
+              Use the platform for illegal, fraudulent, discriminatory activities, or
+              activities that violate third-party rights.
+            </li>
+            <li>
+              Overload the infrastructure with abusive automations, attacks or mass
+              scraping.
+            </li>
+          </ul>
+        </section>
+
+        <section id="conteudo-do-usuario">
+          <h2>6. User content</h2>
+          <p>
+            The data you enter into MyCarsHub — driver records, contracts, inspection
+            photos, vehicle and financial data — <strong>remains yours</strong>.
+          </p>
+          <p>
+            You grant us a <strong>limited, non-exclusive and revocable license</strong>
+            to store, process and display this content only to the extent necessary to
+            <strong>deliver the service to you</strong>: generate charges, issue
+            contracts, save photos, send transactional emails, and so on.
+          </p>
+          <p>
+            You are responsible for having a <strong>legal basis</strong> to process the
+            data of the drivers and other subjects you register (consent, contract
+            performance or another LGPD hypothesis).
+          </p>
+        </section>
+
+        <section id="propriedade-intelectual">
+          <h2>7. Intellectual property</h2>
+          <p>
+            The source code, the <strong>MyCarsHub</strong> brand, the platform design,
+            the texts, illustrations and all elements of the product experience are the
+            exclusive property of <strong>MyCarsHub</strong>.
+          </p>
+          <p>
+            These terms do not grant you any license over the software beyond the right
+            to <strong>use</strong> the platform while your subscription is active.
+            Nothing here transfers intellectual property.
+          </p>
+        </section>
+
+        <section id="privacidade">
+          <h2>8. Privacy</h2>
+          <p>
+            The processing of personal data collected by MyCarsHub — including what data
+            we hold, with whom we share it, and how you exercise your rights — is
+            described in detail in our
+            <a href="/politica-de-privacidade">Privacy Policy</a>, which is an integral
+            part of these terms.
+          </p>
+        </section>
+
+        <section id="suspensao-e-rescisao">
+          <h2>9. Suspension and termination</h2>
+          <p>We may <strong>suspend or terminate</strong> your account if:</p>
+          <ul>
+            <li>You breach these terms or the Privacy Policy.</li>
+            <li>There is <strong>payment default of more than 30 days</strong> on a paid plan.</li>
+            <li>We detect <strong>fraudulent activity</strong> or misuse of the platform.</li>
+            <li>We are <strong>required by court order</strong> or legal determination.</li>
+          </ul>
+          <p>
+            Whenever possible, we will notify you by email before suspending, giving a
+            grace period to remedy the situation. You can <strong>cancel your account at
+            any time</strong> via the Support channel, without needing to justify.
+          </p>
+        </section>
+
+        <section id="garantia-e-responsabilidade">
+          <h2>10. Warranty and liability</h2>
+          <p>
+            MyCarsHub is provided <strong>"as is"</strong>. We do our best to keep the
+            platform available, secure and functional, but we do not guarantee it will be
+            free from errors, interruptions or failures in third-party providers.
+          </p>
+          <p>
+            MyCarsHub <strong>is not responsible for the business decisions</strong> you
+            make based on the platform's information — charges, driver approvals, signed
+            contracts. Responsibility for operating the rental business is yours.
+          </p>
+          <p>
+            Within the limits allowed by law, MyCarsHub's <strong>total liability</strong>
+            for any damage related to the service is limited to the
+            <strong>amounts actually paid by you in the last 12 months</strong>.
+          </p>
+        </section>
+
+        <section id="alteracoes">
+          <h2>11. Changes to the terms</h2>
+          <p>
+            We may update these terms from time to time. When the change is
+            <strong>material</strong> — affecting prices, rights or relevant obligations —
+            we will <strong>notify you by email at least 30 days in advance</strong>.
+          </p>
+          <p>
+            If you continue to use MyCarsHub after the new version takes effect, this is
+            considered acceptance. If you disagree, you can cancel the account at no
+            cost before the effective date.
+          </p>
+        </section>
+
+        <section id="lei-e-foro">
+          <h2>12. Governing law and jurisdiction</h2>
+          <p>
+            These Terms are governed by the laws of the Federative Republic of Brazil.
+            Any dispute shall be resolved before the competent Brazilian courts.
+          </p>
+        </section>
+
+        <section id="contato">
+          <h2>13. Contact</h2>
+          <div class="legal-contact">
+            <p><strong>Company:</strong> MyCarsHub</p>
+            <p><strong>Contact:</strong> mycarshubcompany&#64;gmail.com</p>
+            <p><strong>Support:</strong> WhatsApp +55 11 98788-5083</p>
+            <p><strong>Transactional email:</strong> noreply&#64;mycarshub.app.br</p>
+          </div>
+        </section>
+      </div>
+    }
+  </main>
+
+  <app-landing-footer />
+</div>

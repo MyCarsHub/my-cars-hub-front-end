@@ -44,6 +44,9 @@ export class DriverService {
     if (filters.sort) params = params.set('sort', filters.sort);
     if (filters.page !== undefined) params = params.set('page', String(filters.page));
     if (filters.size !== undefined) params = params.set('size', String(filters.size));
+    if (filters.availableForRental) params = params.set('availableForRental', 'true');
+    if (filters.includeCurrentRentalId)
+      params = params.set('includeCurrentRentalId', filters.includeCurrentRentalId);
 
     return this.http.get<PagedResponse<DriverListItem>>(BASE, { params }).pipe(
       tap((res) => {

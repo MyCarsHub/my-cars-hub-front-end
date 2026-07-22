@@ -83,4 +83,14 @@ export interface DriverFilters {
   sort?: 'name_asc' | 'name_desc' | 'license_expiry_asc' | 'license_expiry_desc' | 'created_desc' | 'created_asc';
   page?: number;
   size?: number;
+  /**
+   * Filtro do picker de "novo aluguel": quando `true`, o backend exclui
+   * motoristas já vinculados a rentals RESERVED/ACTIVE do tenant.
+   */
+  availableForRental?: boolean;
+  /**
+   * Modo edição do rental: inclui o motorista do rental sendo editado mesmo
+   * que ele esteja em uso (escape hatch para não sumir da lista).
+   */
+  includeCurrentRentalId?: string;
 }

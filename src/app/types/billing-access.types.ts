@@ -13,11 +13,14 @@ export type BlockReason =
   | 'CANCELED'
   | 'NO_SUBSCRIPTION';
 
+import { PlanPeriod } from './billing.types';
+
 export interface AccessStatusPlan {
   id: string;
   code: string;
   name: string;
-  priceMonthly: number;
+  period: PlanPeriod;
+  price: number;
   maxVehicles: number | null;
   maxDrivers: number | null;
 }

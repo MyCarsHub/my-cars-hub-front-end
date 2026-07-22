@@ -10,6 +10,7 @@ import { Location } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { SupportTicketService } from '../../services/support-ticket.service';
 import { SupportTicketChannel } from '../../types/support.types';
 
@@ -33,6 +34,7 @@ export class SupportPage {
   private readonly location = inject(Location);
   private readonly service = inject(SupportTicketService);
   private readonly fb = inject(FormBuilder);
+  private readonly externalNav = inject(ExternalNavigationService);
 
   protected readonly whatsappNumber = environment.supportWhatsapp;
   protected readonly whatsappEnabled = this.whatsappNumber.length > 0;
@@ -71,7 +73,7 @@ export class SupportPage {
     const text = this.form.getRawValue().message.trim();
     this.submit('WHATSAPP', () => {
       const wa = `https://wa.me/${this.whatsappNumber}?text=${encodeURIComponent(text)}`;
-      window.open(wa, '_blank', 'noopener,noreferrer');
+      this.externalNav.openExternal(wa);
       this.success.set('Ticket registrado e conversa aberta no WhatsApp.');
     });
   }

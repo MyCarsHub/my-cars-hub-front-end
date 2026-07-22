@@ -31,7 +31,7 @@
       <div class="mt-8 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 relative z-[2]">
         @for (c of companies; track c.name) {
           <article class="bg-white border border-rule rounded-[14px] p-5 shadow-[0_16px_32px_-18px_rgba(10,10,10,0.24)] hover:-translate-y-1.5 hover:border-brand/[0.32] hover:shadow-[0_24px_44px_-18px_rgba(235,63,0,0.3)] transition-all duration-300">
-            <div class="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.06em] uppercase px-2.5 py-1 rounded-full mb-3.5 border" [class]="c.roleClass">
+            <div class="inline-flex items-center gap-1.5 text-[12px] font-semibold tracking-[-0.005em] px-2.5 py-1 rounded-full mb-3.5 border" [class]="c.roleClass">
               <span class="w-[18px] h-[18px] inline-flex items-center justify-center" aria-hidden="true" [innerHTML]="c.roleIcon"></span>
               {{ c.role }}
             </div>

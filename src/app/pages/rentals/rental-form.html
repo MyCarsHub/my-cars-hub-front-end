@@ -22,6 +22,11 @@
               </option>
             }
           </select>
+          @if (!vehicles().length) {
+            <p class="text-sm text-neutral-500 mt-1">
+              Nenhum veículo disponível — todos estão em aluguel ativo.
+            </p>
+          }
           @if (fieldInvalid('vehicleId')) {
             <p class="text-xs text-rose-600 mt-1">Selecione um veículo.</p>
           }
@@ -41,6 +46,11 @@
               <option [value]="d.id">{{ d.name }}</option>
             }
           </select>
+          @if (!drivers().length) {
+            <p class="text-sm text-neutral-500 mt-1">
+              Nenhum motorista disponível — todos estão em aluguel ativo.
+            </p>
+          }
           @if (fieldInvalid('driverId')) {
             <p class="text-xs text-rose-600 mt-1">Selecione um motorista.</p>
           }
@@ -116,10 +126,10 @@
               step="0.01"
               min="0.01"
               inputmode="decimal"
-              formControlName="dailyRateReais"
+              formControlName="periodRateReais"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('dailyRateReais')) {
+            @if (fieldInvalid('periodRateReais')) {
               <p class="text-xs text-rose-600 mt-1">Informe um valor maior que zero.</p>
             }
             <p class="text-xs text-neutral-400 mt-1">
@@ -145,6 +155,33 @@
             </p>
           </div>
         </div>
+
+        @if (caucaoAmountPositive()) {
+          <div class="flex items-start gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-neutral-900">
+                Caução recebida por fora (dinheiro / PIX manual)
+              </p>
+              <p class="text-xs text-neutral-500 mt-1 leading-relaxed">
+                Marque quando o valor da caução já foi recebido por outro meio. Isso impede
+                que uma nova cobrança seja gerada via Asaas.
+              </p>
+            </div>
+            <label class="relative inline-flex shrink-0 cursor-pointer items-center min-h-[44px]">
+              <input
+                id="rental-caucao-paid"
+                type="checkbox"
+                formControlName="caucaoPaid"
+                class="sr-only peer" />
+              <span aria-hidden="true"
+                class="w-12 h-7 rounded-full bg-neutral-200 peer-checked:bg-emerald-500
+                       transition-colors relative
+                       after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                       after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
+                       after:transition-transform peer-checked:after:translate-x-5"></span>
+            </label>
+          </div>
+        }
 
         <!-- Live computed total -->
         <div class="rounded-xl border border-primary-100 bg-primary-50/40 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

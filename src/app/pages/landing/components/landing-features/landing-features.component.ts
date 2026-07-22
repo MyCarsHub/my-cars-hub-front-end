@@ -17,10 +17,12 @@ interface Feature {
   pill: string;
   title: string;
   description: string;
-  viz: 'chips' | 'rows' | 'bar';
+  viz: 'chips' | 'rows' | 'bar' | 'export';
   chips?: string[];
   rows?: FeatureRow[];
   barLabel?: string;
+  exportDoc?: string;
+  exportTargets?: string[];
 }
 
 @Component({
@@ -58,6 +60,14 @@ export class LandingFeaturesComponent implements AfterViewInit {
       description: 'Parcelas, juros e calendário consolidados por veículo da frota.',
       viz: 'bar',
       barLabel: 'Civic 2024 · 18 de 48 parcelas · R$ 61.580 restantes',
+    },
+    {
+      pill: 'Contrato & IA',
+      title: 'Contrato pronto — e editável na IA.',
+      description: 'Gerado do zero a partir do seu template. Baixe em Markdown ou copie o texto e peça pra sua IA favorita ajustar cláusulas.',
+      viz: 'export',
+      exportDoc: 'contrato.md',
+      exportTargets: ['ChatGPT', 'Claude', 'Gemini'],
     },
   ];
 

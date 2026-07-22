@@ -1,0 +1,68 @@
+<section
+  id="integracoes"
+  aria-labelledby="integracoes-title"
+  class="relative isolate overflow-hidden bg-paper-alt px-5 md:px-8 py-14 sm:py-16 lg:py-20"
+>
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-0 -z-10"
+    style="background: radial-gradient(ellipse 45% 60% at 90% 20%, rgba(235,63,0,0.05), transparent 55%);"
+  ></div>
+
+  <div class="max-w-[1200px] mx-auto flex flex-col gap-10">
+    <header class="reveal flex flex-col gap-3.5 max-w-[700px]">
+      <span class="section-eyebrow">
+        <span class="section-eyebrow__rule" aria-hidden="true"></span>
+        <span>Integrações</span>
+      </span>
+      <h2
+        id="integracoes-title"
+        class="font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] m-0"
+      >
+        Conecta com o que sua locadora <span class="hl">já usa</span>.
+      </h2>
+      <p class="text-[15.5px] text-ink/70 m-0 max-w-[60ch]">
+        Cobranças pelos gateways certificados que você já opera. Contrato editável na IA que já ganhou sua confiança — sem lock-in.
+      </p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_1px_minmax(0,3fr)] gap-8 lg:gap-10 items-stretch">
+      @for (group of groups; track group.pill; let last = $last) {
+        <div class="reveal flex flex-col gap-5">
+          <div class="flex flex-col gap-2">
+            <span class="cat-label">{{ group.pill }}</span>
+            <p class="text-[13.5px] leading-[1.55] text-ink/60 m-0">{{ group.caption }}</p>
+          </div>
+
+          <ul
+            class="grid gap-3"
+            [class.grid-cols-2]="group.brands.length === 2"
+            [class.grid-cols-3]="group.brands.length === 3"
+          >
+            @for (brand of group.brands; track brand.name) {
+              <li
+                class="brand-tile group relative flex items-center justify-center rounded-2xl border border-rule bg-paper px-4 py-6 sm:py-7 lg:py-8 transition-all duration-300 hover:-translate-y-1 hover:border-rule-strong hover:shadow-[0_18px_36px_-24px_rgba(10,10,10,0.18)]"
+              >
+                <img
+                  [src]="brand.logoSrc"
+                  [alt]="brand.logoAlt"
+                  [style.height.px]="brand.logoHeightPx"
+                  class="brand-logo w-auto max-w-full transition-[filter,opacity] duration-300"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </li>
+            }
+          </ul>
+        </div>
+
+        @if (!last) {
+          <div
+            aria-hidden="true"
+            class="hidden lg:block w-px bg-rule"
+          ></div>
+        }
+      }
+    </div>
+  </div>
+</section>

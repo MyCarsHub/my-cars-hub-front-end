@@ -89,8 +89,9 @@ export class RentalForm implements OnInit {
       // Order in the UI: frequency comes BEFORE the rate so the rate label can
       // reflect the chosen period ("Valor da diária" / "semanal" / "mensal").
       billingFrequency: ['DAILY' as RentalBillingFrequency, [Validators.required]],
-      dailyRateReais: [0, [Validators.required, Validators.min(0.01)]],
+      periodRateReais: [0, [Validators.required, Validators.min(0.01)]],
       caucaoReais: [0, [Validators.min(0)]],
+      caucaoPaid: [false],
       automaticCharge: [false],
       notes: [''],
 
@@ -138,8 +139,8 @@ export class RentalForm implements OnInit {
 
   /**
    * Dynamic label for the rate input — switches based on the chosen frequency.
-   * The form control name stays `dailyRateReais` (and is posted as `dailyRate`)
-   * so the backend contract is unchanged.
+   * The form control name is `periodRateReais` (posted as `periodRate` in cents)
+   * so the backend contract stays consistent with the periodRate rename.
    */
   protected readonly rateLabel = computed(() => {
     switch (this.billingFrequency()) {
@@ -169,7 +170,7 @@ export class RentalForm implements OnInit {
     const v = this.formValue();
     const days = this.totalDays();
     if (!days) return null;
-    const cents = toCents(Number(v?.dailyRateReais ?? 0));
+    const cents = toCents(Number(v?.periodRateReais ?? 0));
     if (cents == null) return null;
     switch (this.billingFrequency()) {
       case 'WEEKLY':
@@ -202,16 +203,17 @@ export class RentalForm implements OnInit {
     () => this.formValue()?.automaticCharge === true,
   );
 
+  /** Só mostra o toggle "caução recebida por fora" quando há caução. */
+  protected readonly caucaoAmountPositive = computed(
+    () => Number(this.formValue()?.caucaoReais ?? 0) > 0,
+  );
+
   ngOnInit(): void {
-    this.vehiclesService.list({ size: 500, sort: 'plate_asc' }).subscribe({
-      next: (res) => this.vehicles.set(res.content ?? []),
-      error: () => this.vehicles.set([]),
-    });
-    this.driverService.list({ size: 500, sort: 'name_asc' }).subscribe({
-      next: (res) =>
-        this.drivers.set((res.content ?? []).filter((d) => d.status !== 'SUSPENDED')),
-      error: () => this.drivers.set([]),
-    });
+    // Determine mode up-front so the picker filters know whether to include
+    // the current rental's vehicle/driver (edit escape hatch).
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) this.editingId.set(id);
+    this.loadPickers(id);
 
     // Prime billing access (cached — no-op if already loaded elsewhere).
     this.billingAccess.load().subscribe();
@@ -241,9 +243,7 @@ export class RentalForm implements OnInit {
     }
 
     // Edit mode: pre-fill from backend rental.
-    const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.editingId.set(id);
       this.rentalService.getById(id).subscribe({
         next: (r) => {
           const lateFineType: RentalLateFineType = r.lateFineType ?? 'PERCENT';
@@ -253,9 +253,10 @@ export class RentalForm implements OnInit {
             driverId: r.driverId,
             startDate: r.startDate,
             endDate: r.endDate,
-            dailyRateReais: r.dailyRate / 100,
+            periodRateReais: r.periodRate / 100,
             billingFrequency: r.billingFrequency ?? 'DAILY',
             caucaoReais: r.caucaoAmount / 100,
+            caucaoPaid: r.caucaoPaid ?? false,
             automaticCharge: r.automaticCharge ?? false,
             notes: r.notes ?? '',
             initialKm: r.initialKm ?? null,
@@ -291,6 +292,40 @@ export class RentalForm implements OnInit {
     }
   }
 
+  /**
+   * Picker fetching for vehicle/driver dropdowns.
+   *
+   * Sempre passa `availableForRental=true` para o backend excluir veículos e
+   * motoristas já em rentals RESERVED/ACTIVE do tenant. Em modo edição, também
+   * enviamos `includeCurrentRentalId` — assim o veículo/motorista atualmente
+   * vinculado ao rental sendo editado permanece visível na lista.
+   */
+  private loadPickers(currentRentalId: string | null): void {
+    this.vehiclesService
+      .list({
+        size: 500,
+        sort: 'plate_asc',
+        availableForRental: true,
+        ...(currentRentalId ? { includeCurrentRentalId: currentRentalId } : {}),
+      })
+      .subscribe({
+        next: (res) => this.vehicles.set(res.content ?? []),
+        error: () => this.vehicles.set([]),
+      });
+    this.driverService
+      .list({
+        size: 500,
+        sort: 'name_asc',
+        availableForRental: true,
+        ...(currentRentalId ? { includeCurrentRentalId: currentRentalId } : {}),
+      })
+      .subscribe({
+        next: (res) =>
+          this.drivers.set((res.content ?? []).filter((d) => d.status !== 'SUSPENDED')),
+        error: () => this.drivers.set([]),
+      });
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -301,7 +336,7 @@ export class RentalForm implements OnInit {
     this.saving.set(true);
     this.error.set(null);
     const raw = this.form.getRawValue();
-    const dailyRate = toCents(Number(raw.dailyRateReais)) ?? 0;
+    const periodRate = toCents(Number(raw.periodRateReais)) ?? 0;
     const caucao = toCents(Number(raw.caucaoReais ?? 0)) ?? 0;
 
     // V29: campos financeiros
@@ -322,9 +357,10 @@ export class RentalForm implements OnInit {
         driverId: raw.driverId,
         startDate: raw.startDate,
         endDate: raw.endDate,
-        dailyRate,
+        periodRate,
         billingFrequency: raw.billingFrequency,
         caucaoAmount: caucao,
+        caucaoPaid: caucao > 0 ? raw.caucaoPaid === true : false,
         notes: raw.notes?.trim() || undefined,
         initialKm,
         pickupDate: pickupDateIso,
@@ -350,9 +386,10 @@ export class RentalForm implements OnInit {
       driverId: raw.driverId,
       startDate: raw.startDate,
       endDate: raw.endDate,
-      dailyRate,
+      periodRate,
       billingFrequency: raw.billingFrequency,
       caucaoAmount: caucao,
+      caucaoPaid: caucao > 0 ? raw.caucaoPaid === true : false,
       automaticCharge: raw.automaticCharge === true,
       notes: raw.notes?.trim() || undefined,
       initialKm,

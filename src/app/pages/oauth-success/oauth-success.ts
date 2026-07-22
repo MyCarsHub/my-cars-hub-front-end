@@ -66,6 +66,10 @@ export class OauthSuccess implements OnInit {
   }
 
   private completeLogin(token: string): void {
+    // Wipe any leftover state from a previous login (companies=[], selectedCompanyId,
+    // onboardingCompleted=false, etc). Sem isso, um relogin depois de trocar de
+    // usuário/onboarding herda cache velho e o user cai num dashboard 403 mudo.
+    this.sessionService.clear();
     this.sessionService.setToken(token);
     this.authService.getMe().subscribe({
       next: () => {

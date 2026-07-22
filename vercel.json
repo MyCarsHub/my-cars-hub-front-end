@@ -16,7 +16,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; connect-src 'self' https://*.supabase.co https://api.autentique.com.br https://accounts.google.com https://oauth2.googleapis.com; img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com; font-src 'self' https://fonts.gstatic.com data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; object-src 'none'"
+          "value": "default-src 'self'; connect-src 'self' https://viacep.com.br https://*.supabase.co https://api.autentique.com.br https://accounts.google.com https://oauth2.googleapis.com; img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com; font-src 'self' https://fonts.gstatic.com data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; object-src 'none'"
         },
         {
           "key": "X-Frame-Options",
