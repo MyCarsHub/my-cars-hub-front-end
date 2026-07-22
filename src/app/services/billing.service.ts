@@ -3,7 +3,6 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, of, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
-  BillingCycle,
   CheckoutRequest,
   CheckoutResponse,
   GatewayOverride,
@@ -57,14 +56,18 @@ export class BillingService {
     );
   }
 
+  /**
+   * @param planCode Fully-qualified plan code (e.g. `PRO_MONTHLY_STRIPE`).
+   *                 The specific row already encodes name + period + gateway;
+   *                 no separate billing cycle argument is needed.
+   */
   startCheckout(
     planCode: string,
-    billingCycle: BillingCycle,
     gatewayOverride?: GatewayOverride,
   ): Observable<CheckoutResponse> {
     this._loading.set(true);
     this._error.set(null);
-    const payload: CheckoutRequest = { planCode, billingCycle };
+    const payload: CheckoutRequest = { planCode };
     if (gatewayOverride) {
       payload.gatewayOverride = gatewayOverride;
     }

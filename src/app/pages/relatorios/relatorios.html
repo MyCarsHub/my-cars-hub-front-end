@@ -1,0 +1,481 @@
+<app-default-page-layout
+  title="Relatórios"
+  description="Financeiro, operação e rankings da sua frota. Exporte pra PDF, Excel ou envie pra sua IA.">
+
+  <!-- Error banner -->
+  @if (error(); as msg) {
+    <div
+      class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100 mb-4"
+      role="alert"
+    >
+      {{ msg }}
+    </div>
+  }
+
+  <!-- Controle: período + exports -->
+  <section class="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5 mb-4">
+    <div class="flex flex-col lg:flex-row lg:items-end gap-5">
+      <div class="flex-1 min-w-0">
+        <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide mb-2">Período</p>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button type="button" (click)="setPreset('thisMonth')"
+                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
+                  [class.bg-primary-500]="activePreset() === 'thisMonth'"
+                  [class.text-white]="activePreset() === 'thisMonth'"
+                  [class.border-primary-500]="activePreset() === 'thisMonth'"
+                  [class.bg-white]="activePreset() !== 'thisMonth'"
+                  [class.text-gray-700]="activePreset() !== 'thisMonth'"
+                  [class.border-gray-200]="activePreset() !== 'thisMonth'"
+                  [class.hover:bg-gray-50]="activePreset() !== 'thisMonth'">Este mês</button>
+          <button type="button" (click)="setPreset('lastMonth')"
+                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
+                  [class.bg-primary-500]="activePreset() === 'lastMonth'"
+                  [class.text-white]="activePreset() === 'lastMonth'"
+                  [class.border-primary-500]="activePreset() === 'lastMonth'"
+                  [class.bg-white]="activePreset() !== 'lastMonth'"
+                  [class.text-gray-700]="activePreset() !== 'lastMonth'"
+                  [class.border-gray-200]="activePreset() !== 'lastMonth'"
+                  [class.hover:bg-gray-50]="activePreset() !== 'lastMonth'">Mês passado</button>
+          <button type="button" (click)="setPreset('last30')"
+                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
+                  [class.bg-primary-500]="activePreset() === 'last30'"
+                  [class.text-white]="activePreset() === 'last30'"
+                  [class.border-primary-500]="activePreset() === 'last30'"
+                  [class.bg-white]="activePreset() !== 'last30'"
+                  [class.text-gray-700]="activePreset() !== 'last30'"
+                  [class.border-gray-200]="activePreset() !== 'last30'"
+                  [class.hover:bg-gray-50]="activePreset() !== 'last30'">Últimos 30 dias</button>
+          <button type="button" (click)="setPreset('thisYear')"
+                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
+                  [class.bg-primary-500]="activePreset() === 'thisYear'"
+                  [class.text-white]="activePreset() === 'thisYear'"
+                  [class.border-primary-500]="activePreset() === 'thisYear'"
+                  [class.bg-white]="activePreset() !== 'thisYear'"
+                  [class.text-gray-700]="activePreset() !== 'thisYear'"
+                  [class.border-gray-200]="activePreset() !== 'thisYear'"
+                  [class.hover:bg-gray-50]="activePreset() !== 'thisYear'">Este ano</button>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div class="flex-1">
+            <label class="block text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide mb-1">De</label>
+            <input type="date" [ngModel]="from()" (ngModelChange)="from.set($event)"
+                   class="w-full min-h-[44px] px-3 rounded-xl border border-gray-200 bg-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-sm text-gray-900 transition-colors" />
+          </div>
+          <div class="flex-1">
+            <label class="block text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide mb-1">Até</label>
+            <input type="date" [ngModel]="to()" (ngModelChange)="to.set($event)"
+                   class="w-full min-h-[44px] px-3 rounded-xl border border-gray-200 bg-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-sm text-gray-900 transition-colors" />
+          </div>
+          <button type="button" (click)="load()" [disabled]="loading()"
+                  class="min-h-[44px] px-5 rounded-xl bg-primary-500 text-white hover:bg-primary-600 text-sm font-medium transition-colors disabled:opacity-60">
+            @if (loading()) { Carregando… } @else { Atualizar }
+          </button>
+        </div>
+      </div>
+
+      <div class="lg:min-w-[280px] shrink-0 space-y-3">
+        <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide">Exportar</p>
+        <button type="button" (click)="exportPdf()" [disabled]="!report() || exporting() !== null"
+                class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm min-h-[44px] disabled:opacity-60">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <polyline points="9 15 12 18 15 15"/>
+          </svg>
+          Baixar PDF
+        </button>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <button type="button" (click)="copyMarkdown()" [disabled]="!report() || exporting() !== null"
+                  class="w-full sm:flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm min-h-[44px] disabled:opacity-60">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copiar p/ IA
+          </button>
+          <button type="button" (click)="exportExcel()" [disabled]="!report() || exporting() !== null"
+                  class="w-full sm:flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-primary-200 hover:bg-primary-50 text-primary-700 text-sm font-semibold min-h-[44px] disabled:opacity-60">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Excel
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  @if (report(); as r) {
+    @if (hasNoFinancialActivity()) {
+      <!-- Empty-state financeiro: sem receita paga + sem custo + sem receita a receber -->
+      <section
+        class="rounded-2xl bg-white border border-gray-200 p-6 sm:p-8 mb-4 text-center"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="mx-auto w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <h2 class="text-base sm:text-lg font-semibold text-gray-900">Sem cobranças quitadas no período</h2>
+        <p class="mt-2 text-sm text-gray-600 max-w-md mx-auto">
+          As cobranças pendentes aparecem em <span class="font-medium text-gray-800">Receita a receber</span> quando existirem.
+        </p>
+        <p class="mt-3 text-xs text-gray-500">
+          Veja os aluguéis ativos em <a href="#operacao" class="text-primary-600 hover:text-primary-700 underline underline-offset-2">Operações</a> abaixo.
+        </p>
+
+        <!-- KPI de ocupação continua visível — não é dado financeiro -->
+        <div class="mt-6 max-w-xs mx-auto rounded-2xl bg-primary-500 text-white p-4">
+          <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Taxa de ocupação</p>
+          <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
+            {{ formatPct(r.operations.fleetOccupancyRate) }}
+          </p>
+          <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all bg-white"
+                 [style.width.%]="r.operations.fleetOccupancyRate * 100"></div>
+          </div>
+        </div>
+      </section>
+    } @else {
+      <!-- KPIs -->
+      <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Receita recebida</p>
+          <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
+            {{ formatBRL(r.financial.grossRevenueCents) }}
+          </p>
+        </div>
+        <div class="rounded-2xl bg-gray-50 border border-dashed border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Receita a receber</p>
+          <p class="text-xl sm:text-2xl font-semibold text-gray-600 mt-1 tabular-nums truncate">
+            {{ formatBRL(r.financial.accruedRevenueCents) }}
+          </p>
+          <p class="text-[10px] sm:text-[11px] text-gray-400 mt-1 truncate">(previsto)</p>
+        </div>
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Custo operacional</p>
+          <p class="text-xl sm:text-2xl font-semibold text-rose-700 mt-1 tabular-nums truncate">
+            {{ formatBRL(r.financial.operatingCostCents) }}
+          </p>
+        </div>
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Lucro líquido</p>
+          <p
+            class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
+            [class.text-emerald-700]="netIsPositive()"
+            [class.text-rose-700]="!netIsPositive()"
+          >
+            {{ formatBRL(r.financial.netProfitCents) }}
+          </p>
+        </div>
+        <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Taxa de ocupação</p>
+          <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
+            {{ formatPct(r.operations.fleetOccupancyRate) }}
+          </p>
+          <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all bg-white"
+                 [style.width.%]="r.operations.fleetOccupancyRate * 100"></div>
+          </div>
+        </div>
+      </section>
+    }
+
+    <!-- Receita mensal -->
+    @if (r.financial.monthlyRevenue.length > 0) {
+      <div class="mb-4">
+        <app-page-card title="Receita mensal">
+          <div class="px-6 pb-6">
+            <div class="flex items-end gap-2 sm:gap-3 h-[180px]">
+              @for (m of r.financial.monthlyRevenue; track m.yearMonth) {
+                <div class="flex-1 flex flex-col items-center gap-2 min-w-0">
+                  <div class="w-full flex items-end justify-center" style="height: 140px;">
+                    <div class="w-full max-w-[48px] rounded-t-lg transition-all"
+                         [class.opacity-60]="m.isPartial"
+                         [class.border-2]="m.isPartial"
+                         [class.border-dashed]="m.isPartial"
+                         [class.border-primary-500]="m.isPartial"
+                         [attr.data-partial]="m.isPartial ? 'true' : null"
+                         [style.height.%]="monthlyBarPct(m.revenueCents)"
+                         style="background: var(--brand-gradient-vertical); min-height: 4px;"
+                         [attr.title]="monthlyBarTitle(m)"></div>
+                  </div>
+                  <span class="text-[11px] text-gray-500 whitespace-nowrap">
+                    {{ fmtYearMonth(m.yearMonth) }}@if (m.isPartial) {<span aria-hidden="true">*</span>}
+                  </span>
+                </div>
+              }
+            </div>
+            @if (hasPartialMonth()) {
+              <p class="mt-3 text-[11px] text-gray-500">
+                <span aria-hidden="true">*</span> mês parcial — período não cobre o mês inteiro
+              </p>
+            }
+          </div>
+        </app-page-card>
+      </div>
+    }
+
+    <!-- Receita por gateway -->
+    @if (r.financial.revenueByGateway.length > 0) {
+      <div class="mb-4">
+        <app-page-card title="Receita por gateway">
+          <div class="px-6 pb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              @for (g of r.financial.revenueByGateway; track g.provider) {
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide">{{ g.provider }}</p>
+                  <p class="mt-1 text-lg font-semibold text-gray-900 tabular-nums">{{ formatBRL(g.amountCents) }}</p>
+                </div>
+              }
+            </div>
+          </div>
+        </app-page-card>
+      </div>
+    }
+
+    <!-- Rankings veículos -->
+    <section class="grid gap-4 grid-cols-1 lg:grid-cols-2 mb-4">
+      <app-page-card title="Top 5 veículos · Mais lucrativos">
+        <div class="px-6 pb-6">
+          @if (r.vehicleRanking.topProfitable.length === 0) {
+            <p class="text-sm text-gray-500 text-center py-6">Sem dados no período.</p>
+          } @else {
+            <!-- Mobile -->
+            <ul class="space-y-2 lg:hidden">
+              @for (v of r.vehicleRanking.topProfitable; track v.vehicleId; let i = $index) {
+                <li>
+                  <div class="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white min-h-[64px]">
+                    <span class="w-8 h-8 shrink-0 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xs font-semibold tabular-nums">{{ i + 1 }}</span>
+                    <span class="flex-1 min-w-0">
+                      <span class="block text-sm font-medium text-gray-900 truncate">{{ v.plate }}</span>
+                      <span class="block text-xs text-gray-500 truncate">Receita {{ formatBRL(v.revenueCents) }} · Custo {{ formatBRL(v.costCents) }}</span>
+                    </span>
+                    <span class="text-sm font-semibold text-emerald-700 tabular-nums">{{ formatBRL(v.netCents) }}</span>
+                  </div>
+                </li>
+              }
+            </ul>
+            <!-- Desktop -->
+            <div class="hidden lg:block overflow-hidden rounded-xl border border-gray-200">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th class="text-left px-4 py-2 font-medium w-10">#</th>
+                    <th class="text-left px-4 py-2 font-medium">Placa</th>
+                    <th class="text-right px-4 py-2 font-medium">Receita</th>
+                    <th class="text-right px-4 py-2 font-medium">Custo</th>
+                    <th class="text-right px-4 py-2 font-medium">Líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (v of r.vehicleRanking.topProfitable; track v.vehicleId; let i = $index) {
+                    <tr class="border-t border-gray-100">
+                      <td class="px-4 py-3 tabular-nums text-gray-500">{{ i + 1 }}</td>
+                      <td class="px-4 py-3 font-medium text-gray-900">{{ v.plate }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ formatBRL(v.revenueCents) }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ formatBRL(v.costCents) }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums font-semibold text-emerald-700">{{ formatBRL(v.netCents) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Prejuízo · Custo maior que receita">
+        <div class="px-6 pb-6">
+          @if (r.vehicleRanking.topUnprofitable.length === 0) {
+            <p class="text-sm text-gray-500 text-center py-6">Nenhum veículo com prejuízo no período.</p>
+          } @else {
+            <!-- Mobile -->
+            <ul class="space-y-2 lg:hidden">
+              @for (v of r.vehicleRanking.topUnprofitable; track v.vehicleId; let i = $index) {
+                <li>
+                  <div class="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white min-h-[64px]">
+                    <span class="w-8 h-8 shrink-0 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center text-xs font-semibold tabular-nums">{{ i + 1 }}</span>
+                    <span class="flex-1 min-w-0">
+                      <span class="block text-sm font-medium text-gray-900 truncate">{{ v.plate }}</span>
+                      <span class="block text-xs text-gray-500 truncate">Receita {{ formatBRL(v.revenueCents) }} · Custo {{ formatBRL(v.costCents) }}</span>
+                    </span>
+                    <span class="text-sm font-semibold text-rose-700 tabular-nums">{{ formatBRL(v.netCents) }}</span>
+                  </div>
+                </li>
+              }
+            </ul>
+            <!-- Desktop -->
+            <div class="hidden lg:block overflow-hidden rounded-xl border border-gray-200">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th class="text-left px-4 py-2 font-medium w-10">#</th>
+                    <th class="text-left px-4 py-2 font-medium">Placa</th>
+                    <th class="text-right px-4 py-2 font-medium">Receita</th>
+                    <th class="text-right px-4 py-2 font-medium">Custo</th>
+                    <th class="text-right px-4 py-2 font-medium">Líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (v of r.vehicleRanking.topUnprofitable; track v.vehicleId; let i = $index) {
+                    <tr class="border-t border-gray-100">
+                      <td class="px-4 py-3 tabular-nums text-gray-500">{{ i + 1 }}</td>
+                      <td class="px-4 py-3 font-medium text-gray-900">{{ v.plate }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ formatBRL(v.revenueCents) }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ formatBRL(v.costCents) }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums font-semibold text-rose-700">{{ formatBRL(v.netCents) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </app-page-card>
+    </section>
+
+    <!-- Rankings motoristas -->
+    <section class="grid gap-4 grid-cols-1 lg:grid-cols-2 mb-4">
+      <app-page-card title="Top 5 motoristas · Mais receita">
+        <div class="px-6 pb-6">
+          @if (r.driverRanking.topRevenue.length === 0) {
+            <p class="text-sm text-gray-500 text-center py-6">Sem dados no período.</p>
+          } @else {
+            <!-- Mobile -->
+            <ul class="space-y-2 lg:hidden">
+              @for (d of r.driverRanking.topRevenue; track d.driverId; let i = $index) {
+                <li>
+                  <div class="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white min-h-[64px]">
+                    <span class="w-8 h-8 shrink-0 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xs font-semibold tabular-nums">{{ i + 1 }}</span>
+                    <span class="flex-1 min-w-0">
+                      <span class="block text-sm font-medium text-gray-900 truncate">{{ d.name }}</span>
+                    </span>
+                    <span class="text-sm font-semibold text-emerald-700 tabular-nums">{{ formatBRL(d.revenueCents) }}</span>
+                  </div>
+                </li>
+              }
+            </ul>
+            <!-- Desktop -->
+            <div class="hidden lg:block overflow-hidden rounded-xl border border-gray-200">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th class="text-left px-4 py-2 font-medium w-10">#</th>
+                    <th class="text-left px-4 py-2 font-medium">Motorista</th>
+                    <th class="text-right px-4 py-2 font-medium">Receita</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (d of r.driverRanking.topRevenue; track d.driverId; let i = $index) {
+                    <tr class="border-t border-gray-100">
+                      <td class="px-4 py-3 tabular-nums text-gray-500">{{ i + 1 }}</td>
+                      <td class="px-4 py-3 font-medium text-gray-900">{{ d.name }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums font-semibold text-emerald-700">{{ formatBRL(d.revenueCents) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Atenção · motoristas">
+        <div class="px-6 pb-6">
+          @if (r.driverRanking.topProblematic.length === 0) {
+            <p class="text-sm text-gray-500 text-center py-6">Nenhum motorista com pendências.</p>
+          } @else {
+            <!-- Mobile -->
+            <ul class="space-y-2 lg:hidden">
+              @for (d of r.driverRanking.topProblematic; track d.driverId; let i = $index) {
+                <li>
+                  <div class="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white min-h-[64px]">
+                    <span class="w-8 h-8 shrink-0 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center text-xs font-semibold tabular-nums">{{ i + 1 }}</span>
+                    <span class="flex-1 min-w-0">
+                      <span class="block text-sm font-medium text-gray-900 truncate">{{ d.name }}</span>
+                      <span class="block text-xs text-gray-500 truncate">Multas {{ formatBRL(d.unpaidFinesCents) }} · Charges {{ formatBRL(d.unpaidChargesCents) }}</span>
+                    </span>
+                    <span class="text-sm font-semibold text-rose-700 tabular-nums">{{ formatBRL(d.totalProblematicCents) }}</span>
+                  </div>
+                </li>
+              }
+            </ul>
+            <!-- Desktop -->
+            <div class="hidden lg:block overflow-hidden rounded-xl border border-gray-200">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th class="text-left px-4 py-2 font-medium w-10">#</th>
+                    <th class="text-left px-4 py-2 font-medium">Motorista</th>
+                    <th class="text-right px-4 py-2 font-medium">Multas</th>
+                    <th class="text-right px-4 py-2 font-medium">Charges</th>
+                    <th class="text-right px-4 py-2 font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (d of r.driverRanking.topProblematic; track d.driverId; let i = $index) {
+                    <tr class="border-t border-gray-100">
+                      <td class="px-4 py-3 tabular-nums text-gray-500">{{ i + 1 }}</td>
+                      <td class="px-4 py-3 font-medium text-gray-900">{{ d.name }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ formatBRL(d.unpaidFinesCents) }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ formatBRL(d.unpaidChargesCents) }}</td>
+                      <td class="px-4 py-3 text-right tabular-nums font-semibold text-rose-700">{{ formatBRL(d.totalProblematicCents) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </app-page-card>
+    </section>
+
+    <!-- Operação -->
+    <div id="operacao" class="mb-4">
+      <app-page-card title="Aluguéis no período">
+        <div class="px-6 pb-6">
+          <div class="grid grid-cols-3 gap-3">
+            <div class="rounded-xl border border-gray-200 bg-white p-4">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-primary-500" aria-hidden="true"></span>
+                <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide">Ativos</p>
+              </div>
+              <p class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{{ r.operations.activeRentalsCount }}</p>
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-white p-4">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide">Concluídos</p>
+              </div>
+              <p class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{{ r.operations.completedRentalsCount }}</p>
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-white p-4">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-rose-500" aria-hidden="true"></span>
+                <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide">Cancelados</p>
+              </div>
+              <p class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{{ r.operations.canceledRentalsCount }}</p>
+            </div>
+          </div>
+        </div>
+      </app-page-card>
+    </div>
+
+    <p class="text-xs text-gray-500 italic text-center mb-4">
+      Relatório gerado a partir dos dados do seu tenant. Exporte pra PDF, Excel ou copie o Markdown pra sua IA analisar.
+    </p>
+  } @else if (loading()) {
+    <div class="rounded-2xl bg-white border border-gray-200 p-10 text-center text-gray-500">
+      Carregando relatório…
+    </div>
+  } @else if (!error()) {
+    <div class="rounded-2xl bg-white border border-gray-200 p-10 text-center text-gray-500">
+      Selecione um período e clique em "Atualizar".
+    </div>
+  }
+</app-default-page-layout>

@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Route through the `frontend-angular` subagent** for any code change here — see root `../CLAUDE.md` §2. Do not edit `src/**` directly from the orchestrator.
+
 Angular/TypeScript conventions for this repo live in [.claude/CLAUDE.md](.claude/CLAUDE.md) — read it first.
 
 ## Commands

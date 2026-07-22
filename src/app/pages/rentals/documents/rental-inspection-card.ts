@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { PageCard } from '../../../components/core/page-card/page-card';
+import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
 import {
   RENTAL_PHOTO_ANGLES,
@@ -34,10 +35,15 @@ interface Slot {
 }
 
 /**
- * Card de vistoria (check-in ou check-out). Grid 2x3 mobile, 3x2 desktop com
- * os 6 ângulos. Clicar em qualquer slot abre o picker; upload substitui a foto
- * anterior do mesmo ângulo. Botão "Gerar PDF" fica destacado assim que existe
- * pelo menos 1 foto — o backend valida se o kind é permitido pro status atual.
+ * Card de vistoria (check-in ou check-out). Grid 2 col mobile, 3 col em sm, 4
+ * col em lg — cobre os 14 ângulos definidos no {@link RentalPhotoAngle}. Clicar
+ * em qualquer slot abre o picker; upload substitui a foto anterior do mesmo
+ * ângulo. Botão "Gerar PDF" fica destacado assim que existe pelo menos 1 foto
+ * — o backend valida se o kind é permitido pro status atual.
+ *
+ * Rentals criados antes da expansão para 14 ângulos mantêm apenas as 6 fotos
+ * originais preenchidas; os 8 slots novos aparecem vazios e continuam
+ * uploadáveis, sem migração retroativa.
  */
 @Component({
   selector: 'app-rental-inspection-card',
@@ -50,7 +56,7 @@ interface Slot {
           Tire uma foto de cada ângulo do veículo. O laudo em PDF é gerado a partir dessas fotos.
         </p>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           @for (slot of slots(); track slot.angle) {
             <button
               type="button"
@@ -126,7 +132,7 @@ interface Slot {
             @if (generating()) {
               Gerando PDF…
             } @else {
-              Gerar PDF do laudo ({{ completedCount() }}/6)
+              Gerar PDF do laudo ({{ completedCount() }}/14)
             }
           </button>
           @if (generatedDoc(); as doc) {
@@ -158,6 +164,7 @@ interface Slot {
 export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly rentalService = inject(RentalService);
   private readonly notifications = inject(NotificationService);
+  private readonly externalNav = inject(ExternalNavigationService);
 
   readonly rentalId = input.required<string>();
   readonly kind = input.required<RentalPhotoKind>();
@@ -165,33 +172,66 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
 
   protected pending: RentalPhotoAngle | null = null;
 
-  protected readonly photos = signal<RentalPhotoDto[]>([]);
+  /** Snapshot compartilhado — fotos e PDF do laudo vêm daqui, sem fetch próprio. */
+  private readonly snapshot = computed(() => this.rentalService.rentalState(this.rentalId())());
+  protected readonly photos = computed<RentalPhotoDto[]>(() => {
+    const snap = this.snapshot();
+    if (!snap) return [];
+    return this.kind() === 'CHECKIN' ? snap.checkinPhotos : snap.checkoutPhotos;
+  });
+  protected readonly generatedDoc = computed<RentalDocumentDto | null>(
+    () => this.snapshot()?.documents.find((d) => d.kind === this.kind()) ?? null,
+  );
+
   protected readonly slotStatus = signal<Record<RentalPhotoAngle, boolean>>({
     FRONT: false,
     BACK: false,
     LEFT: false,
     RIGHT: false,
+    FRONT_LEFT_PANEL: false,
+    FRONT_RIGHT_PANEL: false,
+    REAR_LEFT_PANEL: false,
+    REAR_RIGHT_PANEL: false,
+    ENGINE: false,
+    TRUNK: false,
     DASHBOARD: false,
     ODOMETER: false,
+    FRONT_SEAT: false,
+    REAR_SEAT: false,
   });
   protected readonly slotProgress = signal<Record<RentalPhotoAngle, number | null>>({
     FRONT: null,
     BACK: null,
     LEFT: null,
     RIGHT: null,
+    FRONT_LEFT_PANEL: null,
+    FRONT_RIGHT_PANEL: null,
+    REAR_LEFT_PANEL: null,
+    REAR_RIGHT_PANEL: null,
+    ENGINE: null,
+    TRUNK: null,
     DASHBOARD: null,
     ODOMETER: null,
+    FRONT_SEAT: null,
+    REAR_SEAT: null,
   });
   protected readonly slotPreview = signal<Record<RentalPhotoAngle, string | null>>({
     FRONT: null,
     BACK: null,
     LEFT: null,
     RIGHT: null,
+    FRONT_LEFT_PANEL: null,
+    FRONT_RIGHT_PANEL: null,
+    REAR_LEFT_PANEL: null,
+    REAR_RIGHT_PANEL: null,
+    ENGINE: null,
+    TRUNK: null,
     DASHBOARD: null,
     ODOMETER: null,
+    FRONT_SEAT: null,
+    REAR_SEAT: null,
   });
   private readonly uploadSubs = new Map<RentalPhotoAngle, Subscription>();
-  protected readonly generatedDoc = signal<RentalDocumentDto | null>(null);
   protected readonly generating = signal(false);
   protected readonly openingPdf = signal(false);
 
@@ -217,13 +257,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   protected readonly completedCount = computed(() => this.slots().filter((s) => s.photo).length);
 
   ngOnInit(): void {
-    this.reloadPhotos();
-    this.rentalService.listDocuments(this.rentalId()).subscribe({
-      next: (docs) => {
-        const match = docs.find((d) => d.kind === this.kind());
-        this.generatedDoc.set(match ?? null);
-      },
-    });
+    this.rentalService.loadRentalState(this.rentalId());
   }
 
   protected onFileSelected(event: Event): void {
@@ -258,13 +292,9 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
               : null;
             this.setSlotProgress(angle, pct);
           } else if (event.type === HttpEventType.Response && event.body) {
-            const photo = event.body;
             this.finishSlot(angle);
-            this.photos.update((list) => {
-              const withoutAngle = list.filter((p) => p.angle !== angle);
-              return [...withoutAngle, photo];
-            });
             this.notifications.push('success', 'Foto enviada.');
+            this.rentalService.refreshRentalState(this.rentalId());
             this.changed.emit();
           }
         },
@@ -302,10 +332,10 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     if (this.generating() || this.completedCount() === 0) return;
     this.generating.set(true);
     this.rentalService.generateInspectionPdf(this.rentalId(), this.kind()).subscribe({
-      next: (doc) => {
+      next: () => {
         this.generating.set(false);
-        this.generatedDoc.set(doc);
         this.notifications.push('success', 'PDF do laudo gerado.');
+        this.rentalService.refreshRentalState(this.rentalId());
         this.changed.emit();
       },
       error: (err: HttpErrorResponse) => {
@@ -324,7 +354,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     this.rentalService.documentSignedUrl(this.rentalId(), docId).subscribe({
       next: (res) => {
         this.openingPdf.set(false);
-        window.open(res.url, '_blank', 'noopener,noreferrer');
+        this.externalNav.openExternal(res.url);
       },
       error: (err: HttpErrorResponse) => {
         this.openingPdf.set(false);
@@ -333,13 +363,6 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
           this.extractError(err, 'Não foi possível abrir o PDF.'),
         );
       },
-    });
-  }
-
-  private reloadPhotos(): void {
-    this.rentalService.listPhotos(this.rentalId(), this.kind()).subscribe({
-      next: (list) => this.photos.set(list),
-      error: () => this.photos.set([]),
     });
   }
 

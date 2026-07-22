@@ -163,6 +163,18 @@ export class AdminHome implements OnInit {
     this.scope() === 'active' ? 'Apenas ativas' : 'Ativas + trial',
   );
 
+  protected readonly mrrActiveOnly = computed(() => {
+    const subs = this.overview()?.subscriptions;
+    if (!subs) return 0;
+    return subs.mrrActiveOnlyCents / 100;
+  });
+
+  protected readonly arr = computed(() => {
+    const subs = this.overview()?.subscriptions;
+    if (!subs) return 0;
+    return subs.arrCents / 100;
+  });
+
   protected readonly subscriptionBars = computed<StatusBar[]>(() => {
     const map = this.overview()?.subscriptions.byStatus ?? {};
     const total = Object.values(map).reduce((sum, n) => sum + n, 0);

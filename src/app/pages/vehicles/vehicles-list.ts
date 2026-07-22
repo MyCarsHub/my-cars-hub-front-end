@@ -14,6 +14,7 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
+import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
 import {
   VEHICLE_SORT_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
@@ -36,7 +37,7 @@ const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
 @Component({
   selector: 'app-vehicles-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, ClickOutsideDirective],
   templateUrl: './vehicles-list.html',
 })
 export class VehiclesList implements OnInit {

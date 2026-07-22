@@ -221,6 +221,7 @@
                     <div
                       role="menu"
                       (click)="$event.stopPropagation()"
+                      (appClickOutside)="closeMenu()"
                       class="absolute right-0 bottom-full mb-2 w-56 rounded-xl border border-neutral-200 bg-white shadow-lg overflow-hidden z-20">
                       <a
                         role="menuitem"
@@ -366,6 +367,7 @@
                           <div
                             role="menu"
                             (click)="$event.stopPropagation()"
+                            (appClickOutside)="closeMenu()"
                             class="absolute right-0 top-full mt-1 w-52 rounded-xl border border-neutral-200 bg-white shadow-lg overflow-hidden z-20">
                             @if (canGoMaintenance(vehicle)) {
                               <button

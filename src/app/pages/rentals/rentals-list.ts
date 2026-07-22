@@ -26,13 +26,14 @@ import {
 } from '../../types/rental.types';
 import { VehicleListItem } from '../../types/vehicle.types';
 import { DriverListItem } from '../../types/driver.types';
+import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
 
 type PendingAction = 'activate' | 'cancel' | 'complete' | 'delete';
 
 @Component({
   selector: 'app-rentals-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, ClickOutsideDirective],
   templateUrl: './rentals-list.html',
 })
 export class RentalsList implements OnInit {

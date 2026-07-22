@@ -9,6 +9,7 @@ import {
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { OnboardingData } from '../onboarding.types';
 import { stripDigits } from '../../../utils/format';
+import { cpfValidator } from '../../../utils/validators/cpf.validator';
 
 const CPF_PATTERN = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/;
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
@@ -107,7 +108,7 @@ export class StepPersonal implements OnInit {
 
   readonly form: FormGroup = this.fb.group({
     name: ['', Validators.required],
-    cpf: ['', [Validators.required, Validators.pattern(CPF_PATTERN)]],
+    cpf: ['', [Validators.required, Validators.pattern(CPF_PATTERN), cpfValidator()]],
     phoneNumber: ['', [Validators.required, Validators.pattern(PHONE_PATTERN)]],
   });
 
@@ -155,6 +156,7 @@ export class StepPersonal implements OnInit {
     const ctrl = this.form.get('cpf');
     if (ctrl?.hasError('required')) return 'CPF é obrigatório.';
     if (ctrl?.hasError('pattern')) return 'CPF inválido. Use o formato 000.000.000-00.';
+    if (ctrl?.hasError('cpfInvalid')) return 'CPF inválido.';
     return '';
   }
 

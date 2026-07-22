@@ -28,6 +28,7 @@ export interface SubscriptionsMetrics {
   byStatus: Record<string, number>;
   mrrCents: number;
   mrrActiveOnlyCents: number;
+  arrCents: number;
 }
 
 export interface FeedbackMetrics {

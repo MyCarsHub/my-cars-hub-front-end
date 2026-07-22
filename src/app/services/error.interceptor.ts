@@ -24,10 +24,11 @@ function isTokenExpired(error: HttpErrorResponse, body: BackendErrorBody): boole
 
 /**
  * Global HTTP error interceptor.
- * - 401: clears session and redirects to /login
- * - 403: shows "Acesso negado"
- * - 400/422: forwards backend message when present
- * - 5xx: shows generic server error
+ * - Token expired / 401: clears session and redirects to /login (except /auth/login itself).
+ * - 403: shows "Acesso negado".
+ * - 400/422: forwards backend message when present.
+ * - status 0 (network / CORS / offline): shows a toast, keeps the user where they are.
+ * - 5xx: shows the backend message (or a generic one), keeps the user where they are.
  * Always re-throws so component-level handlers still see the error.
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
@@ -47,10 +48,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         notifications.warning('Sua sessão expirou. Faça login novamente.');
         router.navigate(['/login'], { replaceUrl: true });
       } else if (status === 0) {
-        // Falha de rede/servidor inacessível → aviso único + volta pro login.
-        notifications.error('Sem conexão com o servidor. Faça login novamente.');
-        session.clear();
-        router.navigate(['/login'], { replaceUrl: true });
+        // Rede fora / CORS / servidor inacessível. Não faz logout — provavelmente é
+        // temporário e o usuário só precisa tentar de novo.
+        notifications.error('Sem conexão com o servidor.');
       } else if (status === 401) {
         if (!req.url.includes('/auth/login')) {
           notifications.warning('Sessão inválida. Faça login novamente.');
@@ -64,11 +64,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           notifications.error(backendMessage);
         }
       } else if (status >= 500 && status < 600) {
-        // Falha de servidor (5xx) → aviso único + volta pro login (pode ser
-        // token corrompido, DB fora, etc — mais seguro reautenticar).
-        notifications.error(backendMessage || 'Erro no servidor. Faça login novamente.');
-        session.clear();
-        router.navigate(['/login'], { replaceUrl: true });
+        // Falha do servidor. Mantém o usuário na tela pra ele poder tentar de novo
+        // sem perder o contexto (mark-paid, form em edição, etc).
+        notifications.error(backendMessage || 'Erro no servidor. Tente novamente.');
       }
 
       return throwError(() => error);

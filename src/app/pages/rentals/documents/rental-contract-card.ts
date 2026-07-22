@@ -6,6 +6,7 @@ import {
   OnDestroy,
   OnInit,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -14,11 +15,11 @@ import {
 import { FormsModule } from '@angular/forms';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
 import {
   RentalDocumentDto,
   SignatureStatus,
-  SignatureStatusDto,
   SignerRequest,
 } from '../../../types/rental.types';
 import { RentalService } from '../rental.service';
@@ -232,12 +233,26 @@ interface SignatureBadge {
 export class RentalContractCard implements OnInit, OnDestroy {
   private readonly rentalService = inject(RentalService);
   private readonly notifications = inject(NotificationService);
+  private readonly externalNav = inject(ExternalNavigationService);
 
   readonly rentalId = input.required<string>();
   readonly changed = output<void>();
 
-  protected readonly contract = signal<RentalDocumentDto | null>(null);
-  protected readonly loading = signal(false);
+  /** Snapshot compartilhado — evita fetch duplicado com checklist + inspection-card. */
+  private readonly snapshot = computed(() => this.rentalService.rentalState(this.rentalId())());
+
+  protected readonly contract = computed<RentalDocumentDto | null>(
+    () => this.snapshot()?.documents.find((d) => d.kind === 'CONTRACT') ?? null,
+  );
+  /** `null` enquanto snapshot inicial não carregou. */
+  protected readonly loading = computed(() => this.snapshot() === null);
+  protected readonly signatureStatus = computed<SignatureStatus | null>(() => {
+    const snap = this.snapshot();
+    if (!snap) return null;
+    if (!snap.documents.some((d) => d.kind === 'CONTRACT')) return null;
+    return snap.contractSignature?.status ?? 'NOT_REQUIRED';
+  });
+
   protected readonly uploading = signal(false);
   /** 0-100 durante upload; nulo quando o browser não reporta total (fallback determinado). */
   protected readonly uploadProgress = signal<number | null>(null);
@@ -246,7 +261,6 @@ export class RentalContractCard implements OnInit, OnDestroy {
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
 
-  protected readonly signatureStatus = signal<SignatureStatus | null>(null);
   protected readonly signatureModalOpen = signal(false);
   protected readonly requesting = signal(false);
   protected readonly signers = signal<SignerRequest[]>([]);
@@ -273,8 +287,40 @@ export class RentalContractCard implements OnInit, OnDestroy {
     return this.signers().every((s) => s.name.trim().length > 0 && /.+@.+\..+/.test(s.email.trim()));
   }
 
+  constructor() {
+    // Snapshot é fonte da verdade: quando o status vai pra PENDING (após upload ou
+    // solicitação de assinatura), habilita o polling; qualquer outro estado desliga.
+    effect(() => {
+      const status = this.signatureStatus();
+      if (status === 'PENDING') this.startPolling();
+      else this.stopPolling();
+    });
+
+    // Toast on signature transitions. Decoupled from the poll tick so the toast
+    // fires when the shared signal actually updates (async, after the HTTP round-trip),
+    // not on the microtask right after `refreshContractSignature` is dispatched.
+    // Skip the very first emission to avoid a toast on initial hydration.
+    let prev: SignatureStatus | null | undefined = undefined;
+    effect(() => {
+      const current = this.signatureStatus();
+      if (prev === undefined) {
+        prev = current;
+        return;
+      }
+      if (current === prev) return;
+      prev = current;
+      if (current === 'SIGNED') {
+        this.notifications.push('success', 'Contrato assinado por todos.');
+      } else if (current === 'REFUSED') {
+        this.notifications.push('warning', 'Assinatura recusada por um signatário.');
+      } else if (current === 'EXPIRED') {
+        this.notifications.push('warning', 'Link de assinatura expirou.');
+      }
+    });
+  }
+
   ngOnInit(): void {
-    this.reload();
+    this.rentalService.loadRentalState(this.rentalId());
   }
 
   ngOnDestroy(): void {
@@ -310,9 +356,8 @@ export class RentalContractCard implements OnInit, OnDestroy {
             this.uploadProgress.set(pct);
           } else if (event.type === HttpEventType.Response && event.body) {
             this.finishUpload();
-            this.contract.set(event.body);
-            this.signatureStatus.set('NOT_REQUIRED');
             this.notifications.push('success', 'Contrato enviado.');
+            this.rentalService.refreshRentalState(this.rentalId());
             this.changed.emit();
           }
         },
@@ -346,7 +391,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
     this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
       next: (res) => {
         this.opening.set(false);
-        window.open(res.url, '_blank', 'noopener,noreferrer');
+        this.externalNav.openExternal(res.url);
       },
       error: (err: HttpErrorResponse) => {
         this.opening.set(false);
@@ -365,10 +410,9 @@ export class RentalContractCard implements OnInit, OnDestroy {
       next: () => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.contract.set(null);
-        this.signatureStatus.set(null);
         this.stopPolling();
         this.notifications.push('success', 'Contrato removido.');
+        this.rentalService.refreshRentalState(this.rentalId());
         this.changed.emit();
       },
       error: (err: HttpErrorResponse) => {
@@ -399,12 +443,12 @@ export class RentalContractCard implements OnInit, OnDestroy {
     this.requesting.set(true);
     const payload = this.signers().map((s) => ({ name: s.name.trim(), email: s.email.trim() }));
     this.rentalService.requestContractSignature(this.rentalId(), payload).subscribe({
-      next: (res) => {
+      next: () => {
         this.requesting.set(false);
         this.signatureModalOpen.set(false);
-        this.signatureStatus.set(res.status);
         this.notifications.push('success', 'Solicitação enviada. Signatários receberão email.');
-        this.startPolling();
+        // Ajusta status compartilhado — effect() ligará o polling automaticamente.
+        this.rentalService.refreshContractSignature(this.rentalId());
       },
       error: (err: HttpErrorResponse) => {
         this.requesting.set(false);
@@ -413,54 +457,12 @@ export class RentalContractCard implements OnInit, OnDestroy {
     });
   }
 
-  private reload(): void {
-    this.loading.set(true);
-    this.rentalService.listDocuments(this.rentalId()).subscribe({
-      next: (docs) => {
-        const contract = docs.find((d) => d.kind === 'CONTRACT') ?? null;
-        this.contract.set(contract);
-        this.loading.set(false);
-        if (contract) this.loadSignatureStatus();
-        else this.signatureStatus.set(null);
-      },
-      error: () => {
-        this.contract.set(null);
-        this.loading.set(false);
-      },
-    });
-  }
-
-  private loadSignatureStatus(): void {
-    this.rentalService.getContractSignatureStatus(this.rentalId()).subscribe({
-      next: (res: SignatureStatusDto) => {
-        this.signatureStatus.set(res.status);
-        if (res.status === 'PENDING') this.startPolling();
-        else this.stopPolling();
-      },
-      error: () => this.signatureStatus.set('NOT_REQUIRED'),
-    });
-  }
-
   private startPolling(): void {
-    this.stopPolling();
+    if (this.pollHandle != null) return;
+    // Apenas dispara refresh a cada 30s; a UX de toast é tratada por um effect()
+    // que reage à atualização do signal compartilhado (assíncrona, após o HTTP).
     this.pollHandle = setInterval(() => {
-      this.rentalService.getContractSignatureStatus(this.rentalId()).subscribe({
-        next: (res) => {
-          const prev = this.signatureStatus();
-          this.signatureStatus.set(res.status);
-          if (res.status !== 'PENDING') {
-            this.stopPolling();
-            if (res.status === 'SIGNED' && prev === 'PENDING') {
-              this.notifications.push('success', 'Contrato assinado por todos.');
-              this.reload();
-            } else if (res.status === 'REFUSED' && prev === 'PENDING') {
-              this.notifications.push('warning', 'Assinatura recusada por um signatário.');
-            } else if (res.status === 'EXPIRED' && prev === 'PENDING') {
-              this.notifications.push('warning', 'Link de assinatura expirou.');
-            }
-          }
-        },
-      });
+      this.rentalService.refreshContractSignature(this.rentalId());
     }, 30_000);
   }
 

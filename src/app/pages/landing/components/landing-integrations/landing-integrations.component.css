@@ -1,0 +1,13 @@
+/* Monochrome by default; each logo returns to its original color on hover.
+   Uses CSS filter so it works uniformly across mixed SVG palettes without
+   touching the SVG source. */
+.landing-root section#integracoes .brand-logo {
+  filter: grayscale(100%) contrast(0.85);
+  opacity: 0.62;
+}
+
+.landing-root section#integracoes .brand-tile:hover .brand-logo,
+.landing-root section#integracoes .brand-tile:focus-within .brand-logo {
+  filter: grayscale(0%) contrast(1);
+  opacity: 1;
+}

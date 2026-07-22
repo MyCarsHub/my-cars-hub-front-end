@@ -195,7 +195,11 @@
               <p class="text-xs text-neutral-400 mt-1">Documento não pode ser alterado após a criação.</p>
             }
             @if (fieldInvalid(['document','value'])) {
-              <p class="text-xs text-rose-600 mt-1">CPF: 11 dígitos. CNPJ: 14 dígitos.</p>
+              @if (form.get('document.value')?.hasError('cpfInvalid')) {
+                <p class="text-xs text-rose-600 mt-1">CPF inválido.</p>
+              } @else {
+                <p class="text-xs text-rose-600 mt-1">CPF: 11 dígitos. CNPJ: 14 dígitos.</p>
+              }
             }
           </div>
 

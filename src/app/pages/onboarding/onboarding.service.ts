@@ -47,7 +47,14 @@ export class OnboardingService {
           this._state.set(state);
         }
       }),
-      catchError((err) => {
+      catchError((err: HttpErrorResponse) => {
+        // Fresh users have no onboarding row yet — backend returns 404.
+        // Treat as "no progress" (initial state), not an error to surface.
+        if (err.status === 404) {
+          const initial: OnboardingState = { ...INITIAL_STATE };
+          this._state.set(initial);
+          return of(initial);
+        }
         this.error.set('Não foi possível carregar o progresso. Tente novamente.');
         return throwError(() => err);
       }),

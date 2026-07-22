@@ -1,0 +1,74 @@
+<header
+  class="sticky top-0 z-50 border-b transition-[background,border-color] duration-300"
+  [class.bg-paper/72]="!scrolled()"
+  [class.bg-paper/95]="scrolled()"
+  [class.border-transparent]="!scrolled()"
+  [class.border-rule]="scrolled()"
+  style="backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px);"
+>
+  <div class="max-w-[1200px] mx-auto px-5 md:px-8 py-3 flex items-center gap-3 md:gap-6">
+    <a
+      routerLink="/"
+      class="inline-flex items-center shrink-0"
+      aria-label="MyCarsHub — início"
+    >
+      <img src="svg/logo-my-cars-hub-complete.svg" alt="MyCarsHub" class="h-6 md:h-[26px] w-auto block" />
+    </a>
+
+    <p class="hidden md:block mx-auto text-sm font-medium text-ink/60 tracking-[-0.005em] truncate">
+      {{ lang() === 'pt' ? pageTitlePt() : pageTitleEn() }}
+    </p>
+
+    <div class="ml-auto flex items-center gap-2 md:gap-3">
+      <div
+        class="inline-flex items-center gap-0.5 rounded-full border border-rule bg-white/70 p-0.5"
+        role="group"
+        [attr.aria-label]="lang() === 'pt' ? 'Selecionar idioma' : 'Select language'"
+      >
+        <button
+          type="button"
+          class="text-[12.5px] font-semibold px-2.5 py-1 rounded-full transition-colors duration-150"
+          [class.bg-brand]="lang() === 'pt'"
+          [class.text-white]="lang() === 'pt'"
+          [class.text-ink/60]="lang() !== 'pt'"
+          [class.hover:text-ink]="lang() !== 'pt'"
+          [attr.aria-pressed]="lang() === 'pt'"
+          (click)="setLang('pt')"
+        >PT</button>
+        <button
+          type="button"
+          class="text-[12.5px] font-semibold px-2.5 py-1 rounded-full transition-colors duration-150"
+          [class.bg-brand]="lang() === 'en'"
+          [class.text-white]="lang() === 'en'"
+          [class.text-ink/60]="lang() !== 'en'"
+          [class.hover:text-ink]="lang() !== 'en'"
+          [attr.aria-pressed]="lang() === 'en'"
+          (click)="setLang('en')"
+        >EN</button>
+      </div>
+
+      <a
+        routerLink="/login"
+        class="group relative isolate overflow-hidden inline-flex items-center gap-2 px-4 sm:px-[18px] py-2.5 rounded-full text-[13.5px] sm:text-sm font-semibold text-white min-h-[44px] shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_6px_18px_-6px_rgba(235,63,0,0.45)] hover:shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_10px_26px_-6px_rgba(235,63,0,0.55)] hover:-translate-y-px active:translate-y-0 transition-all duration-300"
+        style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); background-size: 200% 100%; background-position: 0% 50%; transition: background-position 300ms cubic-bezier(0.16,1,0.3,1), transform 180ms, box-shadow 300ms;"
+        onmouseover="this.style.backgroundPosition='100% 50%'"
+        onmouseout="this.style.backgroundPosition='0% 50%'"
+      >
+        <span class="hidden sm:inline">Acessar Plataforma</span>
+        <span class="sm:hidden">Acessar</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="transition-transform duration-200 group-hover:translate-x-0.5">
+          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span
+          aria-hidden="true"
+          class="absolute inset-0 -z-10 -translate-x-[120%] group-hover:translate-x-[120%] transition-transform duration-[700ms] pointer-events-none"
+          style="background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);"
+        ></span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<div class="md:hidden border-b border-rule bg-paper/95 py-2.5 px-5 text-center text-[13.5px] font-semibold text-ink">
+  {{ lang() === 'pt' ? pageTitlePt() : pageTitleEn() }}
+</div>

@@ -4,12 +4,15 @@ import {
   HttpEvent,
   HttpParams,
 } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
-import { Observable, catchError, finalize, tap, throwError } from 'rxjs';
+import { Injectable, Signal, WritableSignal, inject, signal } from '@angular/core';
+import { Observable, catchError, finalize, forkJoin, of, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { PagedResponse } from '../../types/paged.types';
 import {
+  CancelRentalPayload,
+  CompleteRentalPayload,
   CreateRentalRequest,
+  RentalChargeDto,
   RentalDocumentDto,
   RentalFilters,
   RentalListItemDto,
@@ -25,6 +28,18 @@ import {
 } from '../../types/rental.types';
 
 const BASE = `${environment.apiUrl}/rentals`;
+
+/**
+ * Consolidated per-rental snapshot cached by {@link RentalService}. Compiled
+ * from the documents + photos + signature endpoints so consumers
+ * (checklist / contract card / inspection card) share a single fetch.
+ */
+export interface RentalStateSnapshot {
+  documents: RentalDocumentDto[];
+  checkinPhotos: RentalPhotoDto[];
+  checkoutPhotos: RentalPhotoDto[];
+  contractSignature: SignatureStatusDto | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class RentalService {
@@ -43,6 +58,99 @@ export class RentalService {
   readonly total = this._total.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+
+  // ------- Per-rental shared state (source of truth for docs/photos/signature) -------
+  private readonly stateStore = new Map<string, WritableSignal<RentalStateSnapshot | null>>();
+  private readonly inFlight = new Map<string, boolean>();
+
+  private stateSlot(rentalId: string): WritableSignal<RentalStateSnapshot | null> {
+    let slot = this.stateStore.get(rentalId);
+    if (!slot) {
+      slot = signal<RentalStateSnapshot | null>(null);
+      this.stateStore.set(rentalId, slot);
+    }
+    return slot;
+  }
+
+  /**
+   * Read-only view of the shared snapshot. Returns `null` until the first
+   * {@link loadRentalState} completes for this id.
+   */
+  rentalState(rentalId: string): Signal<RentalStateSnapshot | null> {
+    return this.stateSlot(rentalId).asReadonly();
+  }
+
+  /**
+   * Fetch (or refetch) documents + photos + signature in parallel and populate
+   * the shared signal. Safe to call from every consumer's ngOnInit — repeated
+   * concurrent calls for the same id are coalesced.
+   */
+  loadRentalState(rentalId: string): void {
+    if (this.inFlight.get(rentalId)) return;
+    this.inFlight.set(rentalId, true);
+    const slot = this.stateSlot(rentalId);
+    forkJoin({
+      documents: this.listDocuments(rentalId).pipe(catchError(() => of([] as RentalDocumentDto[]))),
+      checkinPhotos: this.listPhotos(rentalId, 'CHECKIN').pipe(catchError(() => of([] as RentalPhotoDto[]))),
+      checkoutPhotos: this.listPhotos(rentalId, 'CHECKOUT').pipe(catchError(() => of([] as RentalPhotoDto[]))),
+    }).subscribe({
+      next: ({ documents, checkinPhotos, checkoutPhotos }) => {
+        const hasContract = documents.some((d) => d.kind === 'CONTRACT');
+        if (!hasContract) {
+          slot.set({ documents, checkinPhotos, checkoutPhotos, contractSignature: null });
+          this.inFlight.set(rentalId, false);
+          return;
+        }
+        this.getContractSignatureStatus(rentalId).subscribe({
+          next: (contractSignature) => {
+            slot.set({ documents, checkinPhotos, checkoutPhotos, contractSignature });
+            this.inFlight.set(rentalId, false);
+          },
+          error: () => {
+            // Preserva assinatura anterior em erros transitórios de rede — evita
+            // rebaixar um PENDING pra NOT_REQUIRED silenciosamente no UI.
+            const prev = slot();
+            slot.set({
+              documents,
+              checkinPhotos,
+              checkoutPhotos,
+              contractSignature: prev?.contractSignature ?? null,
+            });
+            this.inFlight.set(rentalId, false);
+          },
+        });
+      },
+      error: () => {
+        this.inFlight.set(rentalId, false);
+      },
+    });
+  }
+
+  /** Alias for {@link loadRentalState} — bypasses the in-flight guard by resetting it. */
+  refreshRentalState(rentalId: string): void {
+    this.inFlight.set(rentalId, false);
+    this.loadRentalState(rentalId);
+  }
+
+  /**
+   * Lighter refresh triggered by the contract card's 30s Autentique poll — only
+   * updates `contractSignature` on the shared snapshot, avoids re-fetching docs
+   * and photos.
+   */
+  refreshContractSignature(rentalId: string): void {
+    const slot = this.stateSlot(rentalId);
+    const current = slot();
+    if (!current) {
+      this.loadRentalState(rentalId);
+      return;
+    }
+    this.getContractSignatureStatus(rentalId).subscribe({
+      next: (contractSignature) => slot.set({ ...current, contractSignature }),
+      error: () => {
+        /* keep previous status — transient network failures shouldn't flip UI. */
+      },
+    });
+  }
 
   list(filters: RentalFilters = {}): Observable<PagedResponse<RentalListItemDto>> {
     this._loading.set(true);
@@ -86,8 +194,8 @@ export class RentalService {
     return this.http.put<RentalResponseDto>(`${BASE}/${id}`, payload);
   }
 
-  cancel(id: string): Observable<RentalResponseDto> {
-    return this.http.post<RentalResponseDto>(`${BASE}/${id}/cancel`, {});
+  cancel(id: string, payload?: CancelRentalPayload): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(`${BASE}/${id}/cancel`, payload ?? {});
   }
 
   /**
@@ -98,8 +206,8 @@ export class RentalService {
     return this.http.post<RentalResponseDto>(`${BASE}/${id}/activate`, {});
   }
 
-  complete(id: string): Observable<RentalResponseDto> {
-    return this.http.post<RentalResponseDto>(`${BASE}/${id}/complete`, {});
+  complete(id: string, payload?: CompleteRentalPayload): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(`${BASE}/${id}/complete`, payload ?? {});
   }
 
   remove(id: string): Observable<void> {
@@ -229,6 +337,42 @@ export class RentalService {
   ): Observable<RentalDocumentDto> {
     return this.http.post<RentalDocumentDto>(
       `${BASE}/${rentalId}/inspections/${kind}/generate-pdf`,
+      {},
+    );
+  }
+
+  /**
+   * Gera uma cobrança one-off do valor da caução (Asaas). Backend valida:
+   * `caucaoAmount > 0`, `caucaoPaid === false`, sem CAUCAO aberta.
+   */
+  createCaucaoCharge(rentalId: string): Observable<RentalChargeDto> {
+    return this.http.post<RentalChargeDto>(`${BASE}/${rentalId}/caucao-charge`, {});
+  }
+
+  /**
+   * Manual mark-as-paid for a rental charge — only allowed when the rental
+   * was created with `automaticCharge=false` (i.e. Asaas is not managing it).
+   * Backend rejects with 400 for automatic rentals or non-eligible statuses.
+   * `paidAt` is the yyyy-MM-dd date the operator confirms as the payment date.
+   */
+  markChargeAsPaid(
+    rentalId: string,
+    chargeId: string,
+    paidAt: string,
+  ): Observable<RentalChargeDto> {
+    return this.http.post<RentalChargeDto>(
+      `${BASE}/${rentalId}/charges/${chargeId}/mark-paid`,
+      { paidAt },
+    );
+  }
+
+  /**
+   * Undo a manual mark-as-paid. Only meaningful when the rental was created
+   * with `automaticCharge=false` — automatic (Asaas-managed) rentals reject.
+   */
+  unmarkChargeAsPaid(rentalId: string, chargeId: string): Observable<RentalChargeDto> {
+    return this.http.post<RentalChargeDto>(
+      `${BASE}/${rentalId}/charges/${chargeId}/unmark-paid`,
       {},
     );
   }

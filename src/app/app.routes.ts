@@ -48,6 +48,22 @@ export const routes: Routes = [
             import('./pages/blog/blog-detail').then((m) => m.BlogDetail),
     },
     {
+        path: 'politica-de-privacidade',
+        loadComponent: () =>
+            import('./pages/legal/privacy-policy/privacy-policy.component').then(
+                (m) => m.PrivacyPolicyComponent
+            ),
+        data: { pageTitle: 'Política de Privacidade — MyCarsHub' },
+    },
+    {
+        path: 'termos-de-uso',
+        loadComponent: () =>
+            import('./pages/legal/terms-of-use/terms-of-use.component').then(
+                (m) => m.TermsOfUseComponent
+            ),
+        data: { pageTitle: 'Termos de Uso — MyCarsHub' },
+    },
+    {
         path: '',
         component: AppShell,
         canActivate: [authGuard],
@@ -324,8 +340,11 @@ export const routes: Routes = [
                     },
                     {
                         path: 'relatorios',
-                        component: ConstructorPage,
-                        canActivate: [roleGuard(['OWNER'])],
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        loadComponent: () =>
+                            import('./pages/relatorios/relatorios').then(
+                                (m) => m.Relatorios
+                            ),
                         data: { pageTitle: 'Relatórios' },
                     },
                     {

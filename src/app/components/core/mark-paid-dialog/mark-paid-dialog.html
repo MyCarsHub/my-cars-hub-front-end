@@ -1,0 +1,102 @@
+@if (open()) {
+  <div
+    @backdrop
+    class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+    (click)="onBackdrop()"
+    aria-hidden="true"
+  ></div>
+
+  <div
+    @dialog
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="mark-paid-title"
+    aria-describedby="mark-paid-description"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
+  >
+    <div
+      class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-hidden"
+    >
+      <div class="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 pb-3 sm:pb-4">
+        <div
+          class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50"
+          aria-hidden="true"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-emerald-500"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h2 id="mark-paid-title" class="text-base font-semibold text-neutral-900 leading-snug">
+            {{ title() }}
+          </h2>
+          <p id="mark-paid-description" class="mt-1 text-sm text-neutral-500 leading-relaxed">
+            @if (entityLabel()) {
+              <span class="text-neutral-700 font-medium">{{ entityLabel() }}</span>
+              <span class="text-neutral-400"> · </span>
+            }
+            <span class="tabular-nums">{{ formattedAmount() }}</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="px-4 sm:px-6 pb-2">
+        <label
+          for="mark-paid-date"
+          class="block text-sm font-medium text-neutral-700 mb-1.5"
+        >
+          Data do pagamento
+        </label>
+        <input
+          id="mark-paid-date"
+          type="date"
+          [value]="selectedDate()"
+          (input)="onDateInput($event)"
+          [attr.min]="effectiveMin() || null"
+          [attr.max]="effectiveMax() || null"
+          [disabled]="busy()"
+          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400
+                 focus-visible:border-emerald-400 transition-colors disabled:opacity-60"
+        />
+      </div>
+
+      <div
+        class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-3 sm:pt-4"
+      >
+        <button
+          type="button"
+          (click)="onCancel()"
+          [disabled]="busy()"
+          class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-neutral-100
+                 hover:bg-neutral-200 rounded-xl transition-colors focus-visible:outline-none
+                 focus-visible:ring-2 focus-visible:ring-neutral-300 disabled:opacity-60 cursor-pointer"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="onConfirm()"
+          [disabled]="busy() || !selectedDate()"
+          class="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold rounded-xl transition-all shadow-sm
+                 bg-emerald-500 hover:bg-emerald-600 text-white focus-visible:outline-none
+                 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400
+                 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+        >
+          {{ busy() ? 'Salvando…' : 'Marcar como paga' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

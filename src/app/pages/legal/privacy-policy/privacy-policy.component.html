@@ -1,0 +1,707 @@
+<div class="legal-root">
+  <app-legal-nav
+    [pageTitlePt]="'Política de Privacidade'"
+    [pageTitleEn]="'Privacy Policy'"
+    [lang]="lang()"
+    (langChange)="setLang($event)"
+  />
+
+  <main class="legal-layout">
+    @if (lang() === 'pt') {
+      <nav class="legal-toc-desktop" aria-label="Índice">
+        <h2>Índice</h2>
+        <ol>
+          <li><a href="#introducao">Introdução</a></li>
+          <li><a href="#dados-coletados">Dados coletados</a></li>
+          <li><a href="#base-legal">Base legal</a></li>
+          <li><a href="#compartilhamento">Compartilhamento</a></li>
+          <li><a href="#transferencia-internacional">Transferência internacional</a></li>
+          <li><a href="#armazenamento-e-seguranca">Armazenamento e segurança</a></li>
+          <li><a href="#cookies-e-armazenamento-local">Cookies e armazenamento local</a></li>
+          <li><a href="#retencao">Retenção</a></li>
+          <li><a href="#seus-direitos">Seus direitos</a></li>
+          <li><a href="#como-exercer">Como exercer seus direitos</a></li>
+          <li><a href="#alteracoes">Alterações desta política</a></li>
+          <li><a href="#contato">Contato</a></li>
+        </ol>
+      </nav>
+
+      <div class="legal-content">
+        <details class="legal-toc-mobile">
+          <summary>Índice</summary>
+          <ol>
+            <li><a href="#introducao">Introdução</a></li>
+            <li><a href="#dados-coletados">Dados coletados</a></li>
+            <li><a href="#base-legal">Base legal</a></li>
+            <li><a href="#compartilhamento">Compartilhamento</a></li>
+            <li><a href="#transferencia-internacional">Transferência internacional</a></li>
+            <li><a href="#armazenamento-e-seguranca">Armazenamento e segurança</a></li>
+            <li><a href="#cookies-e-armazenamento-local">Cookies e armazenamento local</a></li>
+            <li><a href="#retencao">Retenção</a></li>
+            <li><a href="#seus-direitos">Seus direitos</a></li>
+            <li><a href="#como-exercer">Como exercer seus direitos</a></li>
+            <li><a href="#alteracoes">Alterações desta política</a></li>
+            <li><a href="#contato">Contato</a></li>
+          </ol>
+        </details>
+
+        <h1>Política de Privacidade</h1>
+        <p class="legal-content__meta">Última atualização: {{ lastUpdated }}</p>
+
+        <section id="introducao">
+          <h2>1. Introdução</h2>
+          <p>
+            O MyCarsHub é uma plataforma SaaS operada por <strong>MyCarsHub</strong>,
+            destinada a locadoras de veículos que precisam gerenciar contratos, motoristas,
+            cobranças, vistorias e financiamentos em um único lugar.
+          </p>
+          <p>
+            Esta Política de Privacidade explica <strong>quais dados coletamos</strong>,
+            <strong>por que coletamos</strong>, <strong>com quem compartilhamos</strong> e
+            <strong>quais direitos você tem</strong> sobre essas informações. Ela se aplica a
+            todos os usuários do MyCarsHub — donos e gestores de locadoras, e também aos
+            motoristas cujos dados são cadastrados por essas empresas na plataforma.
+          </p>
+          <p>
+            O tratamento de dados pessoais segue a
+            <strong>Lei Geral de Proteção de Dados (Lei 13.709/2018)</strong> e boas
+            práticas internacionais de segurança da informação. Se algum ponto não estiver
+            claro, escreva para <strong>mycarshubcompany&#64;gmail.com</strong> — a gente responde.
+          </p>
+        </section>
+
+        <section id="dados-coletados">
+          <h2>2. Dados que coletamos</h2>
+          <p>Coletamos apenas o necessário para operar o serviço. Os dados ficam agrupados assim:</p>
+
+          <h3>2.1 Cadastro do usuário</h3>
+          <ul>
+            <li>Nome completo, e-mail e telefone (11 dígitos, formato brasileiro).</li>
+            <li>CPF ou CNPJ.</li>
+            <li>Senha (armazenada apenas como hash BCrypt — nunca em texto puro).</li>
+            <li>
+              Identificador do Google (<code>provider_id</code>) quando o cadastro é feito
+              via login com Google.
+            </li>
+          </ul>
+
+          <h3>2.2 Motoristas</h3>
+          <ul>
+            <li>Nome completo, e-mail e telefone.</li>
+            <li>CNH: número, categoria e data de validade.</li>
+            <li>
+              Endereço completo: rua, número, complemento, bairro, cidade, CEP e UF.
+            </li>
+          </ul>
+
+          <h3>2.3 Empresa (locadora)</h3>
+          <ul>
+            <li>Razão social / nome fantasia.</li>
+            <li>CNPJ.</li>
+          </ul>
+
+          <h3>2.4 Contratos e vistorias</h3>
+          <ul>
+            <li>
+              PDFs de contratos de aluguel assinados eletronicamente via Autentique.
+            </li>
+            <li>
+              Fotos de vistoria do veículo em 14 ângulos padronizados (JPEG, PNG ou WEBP).
+            </li>
+            <li>
+              Identificador de cliente no gateway de pagamento
+              (<code>asaas_customer_id</code> e equivalentes).
+            </li>
+          </ul>
+          <p>
+            <strong>Não coletamos RG, dados biométricos, geolocalização em tempo real,
+            dados de dispositivos móveis nem informações sensíveis</strong> (origem racial,
+            religião, saúde, orientação sexual etc.).
+          </p>
+        </section>
+
+        <section id="base-legal">
+          <h2>3. Base legal do tratamento</h2>
+          <p>
+            Cada dado é tratado com base em uma das hipóteses do art. 7º da LGPD:
+          </p>
+          <ul>
+            <li>
+              <strong>Consentimento (inciso I)</strong> — quando você cria a conta e aceita
+              esta política e os Termos de Uso.
+            </li>
+            <li>
+              <strong>Execução de contrato (inciso V)</strong> — para prestar o serviço
+              contratado: emitir cobranças, gerar contratos, gerenciar motoristas e
+              vistorias.
+            </li>
+            <li>
+              <strong>Obrigação legal (inciso II)</strong> — para atender exigências fiscais
+              e regulatórias (guarda de contratos, notas, comprovantes).
+            </li>
+            <li>
+              <strong>Legítimo interesse (inciso IX)</strong> — para prevenir fraudes,
+              proteger a segurança da plataforma e melhorar o produto de forma agregada.
+            </li>
+          </ul>
+        </section>
+
+        <section id="compartilhamento">
+          <h2>4. Compartilhamento com terceiros</h2>
+          <p>
+            Não vendemos dados. Compartilhamos apenas o necessário com provedores que nos
+            ajudam a operar o serviço. Todos são obrigados por contrato a proteger suas
+            informações.
+          </p>
+          <div class="legal-table-wrap">
+            <table class="legal-table">
+              <thead>
+                <tr>
+                  <th>Provedor</th>
+                  <th>O que recebe</th>
+                  <th>Para quê</th>
+                  <th>País</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Supabase</td>
+                  <td>Todos os dados armazenados</td>
+                  <td>Banco de dados, autenticação e armazenamento de arquivos</td>
+                  <td>Brasil (sa-east-1)</td>
+                </tr>
+                <tr>
+                  <td>Asaas</td>
+                  <td>Nome, CPF/CNPJ, e-mail, telefone, valores e datas</td>
+                  <td>Gateway de cobrança padrão (Pix, boleto, cartão)</td>
+                  <td>Brasil</td>
+                </tr>
+                <tr>
+                  <td>AbacatePay</td>
+                  <td>Nome, CPF/CNPJ, e-mail, telefone, valores e datas</td>
+                  <td>Gateway alternativo de Pix</td>
+                  <td>Brasil</td>
+                </tr>
+                <tr>
+                  <td>Stripe</td>
+                  <td>Nome, e-mail e valores de pagamento</td>
+                  <td>Gateway condicional (quando habilitado)</td>
+                  <td>EUA</td>
+                </tr>
+                <tr>
+                  <td>Autentique</td>
+                  <td>PDF do contrato + nome, CPF e e-mail do signatário</td>
+                  <td>Assinatura eletrônica de contratos</td>
+                  <td>Brasil</td>
+                </tr>
+                <tr>
+                  <td>Google (Gmail SMTP + OAuth)</td>
+                  <td>Nome e e-mail</td>
+                  <td>Envio de e-mails transacionais e login social</td>
+                  <td>EUA</td>
+                </tr>
+                <tr>
+                  <td>Render</td>
+                  <td>Todos os dados em trânsito</td>
+                  <td>Hospedagem do backend da aplicação</td>
+                  <td>EUA</td>
+                </tr>
+                <tr>
+                  <td>Vercel</td>
+                  <td>Nenhum dado pessoal (apenas arquivos estáticos)</td>
+                  <td>Hospedagem do site (SPA)</td>
+                  <td>Global (edge)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="transferencia-internacional">
+          <h2>5. Transferência internacional</h2>
+          <p>
+            Alguns dos nossos provedores (Stripe, Google e Render) estão sediados nos
+            Estados Unidos. Quando dados pessoais são processados por eles, ocorre uma
+            <strong>transferência internacional</strong>.
+          </p>
+          <p>
+            Fazemos isso com base no <strong>art. 33 da LGPD</strong>, apoiados nas
+            cláusulas contratuais padrão desses provedores e nos seus programas próprios de
+            conformidade (Google/Stripe são certificados em frameworks reconhecidos como
+            SOC 2 e ISO 27001). A base principal de dados — cadastros, contratos e fotos —
+            fica armazenada no <strong>Brasil</strong> (Supabase, região sa-east-1).
+          </p>
+        </section>
+
+        <section id="armazenamento-e-seguranca">
+          <h2>6. Armazenamento e segurança</h2>
+          <p>
+            Aplicamos camadas de proteção proporcionais à sensibilidade de cada dado:
+          </p>
+          <ul>
+            <li>
+              <strong>CPF e CNPJ</strong> são criptografados em repouso com
+              <strong>AES-GCM</strong> e indexados por <strong>HMAC-SHA256</strong>
+              (blind index) para permitir buscas por igualdade sem expor o valor original.
+              O sistema suporta rotação de chaves via coluna <code>key_version</code>.
+            </li>
+            <li>
+              <strong>Senhas</strong> são armazenadas apenas como hash <strong>BCrypt</strong>,
+              nunca em texto puro.
+            </li>
+            <li>
+              <strong>Todo o tráfego</strong> entre app, backend e provedores usa
+              <strong>TLS</strong> (HTTPS).
+            </li>
+            <li>
+              O banco Supabase é protegido por <strong>Row Level Security (RLS)</strong>,
+              garantindo que cada empresa só enxerga os próprios dados.
+            </li>
+            <li>
+              Backups automáticos e logs de auditoria são mantidos pelos provedores de
+              hospedagem.
+            </li>
+          </ul>
+        </section>
+
+        <section id="cookies-e-armazenamento-local">
+          <h2>7. Cookies e armazenamento local</h2>
+          <p>
+            O MyCarsHub <strong>não usa cookies</strong> nem trackers de analytics
+            (não temos Google Analytics, Amplitude, PostHog, Hotjar, Sentry ou similares).
+          </p>
+          <p>
+            Para manter você logado, guardamos algumas informações no
+            <strong>sessionStorage</strong> do seu navegador — que é apagado quando você
+            fecha a aba. São elas: token de autenticação (<code>authToken</code>),
+            dados básicos do usuário, empresa selecionada
+            (<code>selectedCompanyId</code>), papel ativo
+            (<code>selectedRole</code>) e um marcador de onboarding concluído
+            (<code>onboardingCompleted</code>).
+          </p>
+          <p>
+            A ferramenta de build (Angular CLI) coleta telemetria anônima de
+            desenvolvimento, mas isso não envolve dados de usuários finais.
+          </p>
+        </section>
+
+        <section id="retencao">
+          <h2>8. Retenção dos dados</h2>
+          <p>
+            Enquanto sua conta estiver ativa, os dados são mantidos para operar o serviço.
+            Hoje, não temos rotinas automáticas de expiração — dados permanecem armazenados
+            até que você (ou o responsável pela empresa) peça exclusão.
+          </p>
+          <p>
+            Após pedido de exclusão, alguns dados podem ser retidos por mais tempo quando
+            houver <strong>obrigação legal ou fiscal</strong> (por exemplo, contratos,
+            notas e comprovantes de pagamento — geralmente <strong>5 anos</strong>,
+            conforme Código Civil e legislação tributária).
+          </p>
+        </section>
+
+        <section id="seus-direitos">
+          <h2>9. Seus direitos</h2>
+          <p>Como titular de dados, o art. 18 da LGPD garante a você:</p>
+          <ul>
+            <li><strong>Confirmação</strong> de que tratamos seus dados.</li>
+            <li><strong>Acesso</strong> aos dados que temos sobre você.</li>
+            <li><strong>Correção</strong> de dados incompletos, inexatos ou desatualizados.</li>
+            <li>
+              <strong>Anonimização, bloqueio ou eliminação</strong> de dados desnecessários
+              ou tratados em desconformidade com a lei.
+            </li>
+            <li><strong>Portabilidade</strong> para outro fornecedor.</li>
+            <li>
+              <strong>Informação</strong> sobre com quem seus dados são compartilhados.
+            </li>
+            <li><strong>Revogação do consentimento</strong> a qualquer momento.</li>
+          </ul>
+        </section>
+
+        <section id="como-exercer">
+          <h2>10. Como exercer seus direitos</h2>
+          <p>
+            Para exercer qualquer um dos direitos acima, escreva para
+            <strong>mycarshubcompany&#64;gmail.com</strong> ou fale no
+            <strong>WhatsApp de suporte (+55 11 98788-5083)</strong> — dentro do app, no
+            menu <em>Suporte</em>.
+          </p>
+          <p>
+            Respondemos em até <strong>15 dias úteis</strong>, conforme o padrão adotado
+            pela ANPD. Pode ser que a gente peça alguma informação para confirmar sua
+            identidade antes de agir sobre os dados — é só para proteger você.
+          </p>
+        </section>
+
+        <section id="alteracoes">
+          <h2>11. Alterações desta política</h2>
+          <p>
+            Podemos atualizar esta política quando mudarmos alguma prática relevante ou
+            quando a lei exigir. A data no topo (<em>última atualização</em>) sempre
+            reflete a versão vigente.
+          </p>
+          <p>
+            Se a mudança for material — por exemplo, novo provedor recebendo dados
+            pessoais ou nova base legal — vamos <strong>avisar por e-mail</strong> antes
+            de a mudança entrar em vigor.
+          </p>
+        </section>
+
+        <section id="contato">
+          <h2>12. Contato</h2>
+          <div class="legal-contact">
+            <p><strong>Controlador:</strong> MyCarsHub</p>
+            <p><strong>Contato para dados pessoais:</strong> mycarshubcompany&#64;gmail.com</p>
+            <p><strong>Suporte:</strong> WhatsApp +55 11 98788-5083</p>
+            <p><strong>E-mail transacional:</strong> noreply&#64;mycarshub.app.br</p>
+          </div>
+        </section>
+      </div>
+    } @else {
+      <nav class="legal-toc-desktop" aria-label="Table of contents">
+        <h2>Contents</h2>
+        <ol>
+          <li><a href="#introducao">Introduction</a></li>
+          <li><a href="#dados-coletados">Data we collect</a></li>
+          <li><a href="#base-legal">Legal basis</a></li>
+          <li><a href="#compartilhamento">Sharing with third parties</a></li>
+          <li><a href="#transferencia-internacional">International transfers</a></li>
+          <li><a href="#armazenamento-e-seguranca">Storage and security</a></li>
+          <li><a href="#cookies-e-armazenamento-local">Cookies and local storage</a></li>
+          <li><a href="#retencao">Data retention</a></li>
+          <li><a href="#seus-direitos">Your rights</a></li>
+          <li><a href="#como-exercer">Exercising your rights</a></li>
+          <li><a href="#alteracoes">Changes to this policy</a></li>
+          <li><a href="#contato">Contact</a></li>
+        </ol>
+      </nav>
+
+      <div class="legal-content">
+        <details class="legal-toc-mobile">
+          <summary>Contents</summary>
+          <ol>
+            <li><a href="#introducao">Introduction</a></li>
+            <li><a href="#dados-coletados">Data we collect</a></li>
+            <li><a href="#base-legal">Legal basis</a></li>
+            <li><a href="#compartilhamento">Sharing with third parties</a></li>
+            <li><a href="#transferencia-internacional">International transfers</a></li>
+            <li><a href="#armazenamento-e-seguranca">Storage and security</a></li>
+            <li><a href="#cookies-e-armazenamento-local">Cookies and local storage</a></li>
+            <li><a href="#retencao">Data retention</a></li>
+            <li><a href="#seus-direitos">Your rights</a></li>
+            <li><a href="#como-exercer">Exercising your rights</a></li>
+            <li><a href="#alteracoes">Changes to this policy</a></li>
+            <li><a href="#contato">Contact</a></li>
+          </ol>
+        </details>
+
+        <h1>Privacy Policy</h1>
+        <p class="legal-content__meta">Last updated: {{ lastUpdated }}</p>
+
+        <section id="introducao">
+          <h2>1. Introduction</h2>
+          <p>
+            MyCarsHub is a SaaS platform operated by <strong>MyCarsHub</strong>, built for
+            vehicle rental companies that need to manage contracts, drivers, billing,
+            inspections and vehicle financing in a single place.
+          </p>
+          <p>
+            This Privacy Policy explains <strong>what data we collect</strong>,
+            <strong>why we collect it</strong>, <strong>who we share it with</strong>, and
+            <strong>what rights you have</strong> over that information. It applies to all
+            users of MyCarsHub — rental company owners and managers, and also drivers
+            whose data is registered by those companies on the platform.
+          </p>
+          <p>
+            The processing of personal data follows the
+            <strong>Brazilian General Data Protection Law (LGPD — Law 13.709/2018)</strong>
+            and international information security best practices. If anything is unclear,
+            write to <strong>mycarshubcompany&#64;gmail.com</strong> — we will reply.
+          </p>
+        </section>
+
+        <section id="dados-coletados">
+          <h2>2. Data we collect</h2>
+          <p>We collect only what is necessary to run the service. The data is grouped as follows:</p>
+
+          <h3>2.1 User account</h3>
+          <ul>
+            <li>Full name, email and phone number (11-digit Brazilian format).</li>
+            <li>CPF (Brazilian tax ID for individuals) or CNPJ (for companies).</li>
+            <li>Password (stored only as a BCrypt hash — never in plain text).</li>
+            <li>
+              Google identifier (<code>provider_id</code>) when the account is created via
+              Google login.
+            </li>
+          </ul>
+
+          <h3>2.2 Drivers</h3>
+          <ul>
+            <li>Full name, email and phone.</li>
+            <li>Driver's license (CNH): number, category and expiration date.</li>
+            <li>
+              Full address: street, number, complement, neighborhood, city, ZIP code and state.
+            </li>
+          </ul>
+
+          <h3>2.3 Company (rental business)</h3>
+          <ul>
+            <li>Registered / trading name.</li>
+            <li>CNPJ.</li>
+          </ul>
+
+          <h3>2.4 Contracts and inspections</h3>
+          <ul>
+            <li>Rental contract PDFs, electronically signed via Autentique.</li>
+            <li>
+              Vehicle inspection photos in 14 standardized angles (JPEG, PNG or WEBP).
+            </li>
+            <li>
+              Customer identifier in the payment gateway
+              (<code>asaas_customer_id</code> and equivalents).
+            </li>
+          </ul>
+          <p>
+            <strong>We do not collect RG (Brazilian ID), biometric data, real-time
+            location, mobile device data, or sensitive data</strong> (racial origin,
+            religion, health, sexual orientation, etc.).
+          </p>
+        </section>
+
+        <section id="base-legal">
+          <h2>3. Legal basis</h2>
+          <p>Each data point is processed under one of the hypotheses in article 7 of the LGPD:</p>
+          <ul>
+            <li>
+              <strong>Consent (item I)</strong> — when you create your account and accept
+              this policy and the Terms of Use.
+            </li>
+            <li>
+              <strong>Contract performance (item V)</strong> — to deliver the contracted
+              service: issue charges, generate contracts, manage drivers and inspections.
+            </li>
+            <li>
+              <strong>Legal obligation (item II)</strong> — to comply with tax and
+              regulatory requirements (retention of contracts, invoices, receipts).
+            </li>
+            <li>
+              <strong>Legitimate interest (item IX)</strong> — to prevent fraud, protect
+              platform security, and improve the product in aggregate form.
+            </li>
+          </ul>
+        </section>
+
+        <section id="compartilhamento">
+          <h2>4. Sharing with third parties</h2>
+          <p>
+            We do not sell data. We share only what is necessary with providers that help
+            us run the service. All of them are contractually required to protect your
+            information.
+          </p>
+          <div class="legal-table-wrap">
+            <table class="legal-table">
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>What it receives</th>
+                  <th>Purpose</th>
+                  <th>Country</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Supabase</td>
+                  <td>All stored data</td>
+                  <td>Database, authentication and file storage</td>
+                  <td>Brazil (sa-east-1)</td>
+                </tr>
+                <tr>
+                  <td>Asaas</td>
+                  <td>Name, CPF/CNPJ, email, phone, amounts and dates</td>
+                  <td>Default payment gateway (Pix, boleto, card)</td>
+                  <td>Brazil</td>
+                </tr>
+                <tr>
+                  <td>AbacatePay</td>
+                  <td>Name, CPF/CNPJ, email, phone, amounts and dates</td>
+                  <td>Alternative Pix gateway</td>
+                  <td>Brazil</td>
+                </tr>
+                <tr>
+                  <td>Stripe</td>
+                  <td>Name, email and payment amounts</td>
+                  <td>Conditional gateway (when enabled)</td>
+                  <td>USA</td>
+                </tr>
+                <tr>
+                  <td>Autentique</td>
+                  <td>Contract PDF + signer's name, CPF and email</td>
+                  <td>Electronic contract signing</td>
+                  <td>Brazil</td>
+                </tr>
+                <tr>
+                  <td>Google (Gmail SMTP + OAuth)</td>
+                  <td>Name and email</td>
+                  <td>Transactional emails and social login</td>
+                  <td>USA</td>
+                </tr>
+                <tr>
+                  <td>Render</td>
+                  <td>All data in transit</td>
+                  <td>Backend hosting</td>
+                  <td>USA</td>
+                </tr>
+                <tr>
+                  <td>Vercel</td>
+                  <td>No personal data (static assets only)</td>
+                  <td>Frontend (SPA) hosting</td>
+                  <td>Global (edge)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="transferencia-internacional">
+          <h2>5. International transfers</h2>
+          <p>
+            Some of our providers (Stripe, Google and Render) are headquartered in the
+            United States. When personal data is processed by them, an
+            <strong>international transfer</strong> takes place.
+          </p>
+          <p>
+            We rely on <strong>article 33 of the LGPD</strong>, supported by these
+            providers' standard contractual clauses and their own compliance programs
+            (Google/Stripe are certified under recognized frameworks such as SOC 2 and
+            ISO 27001). The main database — accounts, contracts and photos — is stored
+            in <strong>Brazil</strong> (Supabase, sa-east-1 region).
+          </p>
+        </section>
+
+        <section id="armazenamento-e-seguranca">
+          <h2>6. Storage and security</h2>
+          <p>We apply protection layers proportional to the sensitivity of each data point:</p>
+          <ul>
+            <li>
+              <strong>CPF and CNPJ</strong> are encrypted at rest with
+              <strong>AES-GCM</strong> and indexed via <strong>HMAC-SHA256</strong>
+              (blind index) so we can perform equality lookups without exposing the
+              original value. The system supports key rotation via a
+              <code>key_version</code> column.
+            </li>
+            <li>
+              <strong>Passwords</strong> are stored only as <strong>BCrypt</strong> hashes,
+              never in plain text.
+            </li>
+            <li>
+              <strong>All traffic</strong> between app, backend and providers uses
+              <strong>TLS</strong> (HTTPS).
+            </li>
+            <li>
+              The Supabase database is protected by <strong>Row Level Security (RLS)</strong>,
+              ensuring each company only sees its own data.
+            </li>
+            <li>
+              Automatic backups and audit logs are maintained by the hosting providers.
+            </li>
+          </ul>
+        </section>
+
+        <section id="cookies-e-armazenamento-local">
+          <h2>7. Cookies and local storage</h2>
+          <p>
+            MyCarsHub <strong>does not use cookies</strong> or analytics trackers
+            (no Google Analytics, Amplitude, PostHog, Hotjar, Sentry or similar).
+          </p>
+          <p>
+            To keep you signed in, we store some information in your browser's
+            <strong>sessionStorage</strong> — which is cleared when you close the tab.
+            These are: authentication token (<code>authToken</code>), basic user data,
+            selected company (<code>selectedCompanyId</code>), active role
+            (<code>selectedRole</code>) and an onboarding-completed flag
+            (<code>onboardingCompleted</code>).
+          </p>
+          <p>
+            The build tool (Angular CLI) collects anonymous development telemetry, but
+            this does not involve end-user data.
+          </p>
+        </section>
+
+        <section id="retencao">
+          <h2>8. Data retention</h2>
+          <p>
+            While your account is active, data is kept to run the service. Today, we do
+            not have automatic expiration routines — data remains stored until you (or
+            the person responsible for the company) request deletion.
+          </p>
+          <p>
+            After a deletion request, some data may be retained for longer when there is
+            a <strong>legal or tax obligation</strong> (for example, contracts, invoices
+            and payment receipts — typically <strong>5 years</strong>, per the Brazilian
+            Civil Code and tax law).
+          </p>
+        </section>
+
+        <section id="seus-direitos">
+          <h2>9. Your rights</h2>
+          <p>As a data subject, article 18 of the LGPD grants you:</p>
+          <ul>
+            <li><strong>Confirmation</strong> that we process your data.</li>
+            <li><strong>Access</strong> to the data we hold about you.</li>
+            <li><strong>Correction</strong> of incomplete, inaccurate or outdated data.</li>
+            <li>
+              <strong>Anonymization, blocking or deletion</strong> of unnecessary data or
+              data processed in non-compliance with the law.
+            </li>
+            <li><strong>Portability</strong> to another provider.</li>
+            <li><strong>Information</strong> about who your data is shared with.</li>
+            <li><strong>Withdrawal of consent</strong> at any time.</li>
+          </ul>
+        </section>
+
+        <section id="como-exercer">
+          <h2>10. Exercising your rights</h2>
+          <p>
+            To exercise any of the rights above, write to
+            <strong>mycarshubcompany&#64;gmail.com</strong> or reach out via
+            <strong>support WhatsApp (+55 11 98788-5083)</strong> — inside the app,
+            under the <em>Support</em> menu.
+          </p>
+          <p>
+            We reply within <strong>15 business days</strong>, following the standard set
+            by the Brazilian Data Protection Authority (ANPD). We may ask for some
+            information to confirm your identity before acting on the data — this is only
+            to protect you.
+          </p>
+        </section>
+
+        <section id="alteracoes">
+          <h2>11. Changes to this policy</h2>
+          <p>
+            We may update this policy when we change a relevant practice or when the law
+            requires it. The date at the top (<em>last updated</em>) always reflects the
+            current version.
+          </p>
+          <p>
+            If the change is material — for example, a new provider receiving personal
+            data or a new legal basis — we will <strong>notify you by email</strong>
+            before the change takes effect.
+          </p>
+        </section>
+
+        <section id="contato">
+          <h2>12. Contact</h2>
+          <div class="legal-contact">
+            <p><strong>Controller:</strong> MyCarsHub</p>
+            <p><strong>Personal data contact:</strong> mycarshubcompany&#64;gmail.com</p>
+            <p><strong>Support:</strong> WhatsApp +55 11 98788-5083</p>
+            <p><strong>Transactional email:</strong> noreply&#64;mycarshub.app.br</p>
+          </div>
+        </section>
+      </div>
+    }
+  </main>
+
+  <app-landing-footer />
+</div>
