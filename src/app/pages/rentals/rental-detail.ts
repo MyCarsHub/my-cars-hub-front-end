@@ -12,9 +12,8 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
+import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
-import { RentalContractCard } from './documents/rental-contract-card';
-import { RentalInspectionCard } from './documents/rental-inspection-card';
 import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -41,8 +40,6 @@ import { RENTAL_STATUS_META } from '../../utils/status-maps';
     PageCard,
     ConfirmDialog,
     DetailActions,
-    RentalContractCard,
-    RentalInspectionCard,
     RentalProgressChecklist,
   ],
   templateUrl: './rental-detail.html',
@@ -52,6 +49,7 @@ export class RentalDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
   private readonly notifications = inject(NotificationService);
+  private readonly externalNav = inject(ExternalNavigationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -75,11 +73,6 @@ export class RentalDetail implements OnInit {
 
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
-
-  protected readonly docChanges = signal(0);
-  protected onDocsChanged(): void {
-    this.docChanges.update((n) => n + 1);
-  }
 
   protected readonly statusInfo = computed(() => {
     const r = this.rental();
@@ -246,7 +239,7 @@ export class RentalDetail implements OnInit {
 
   protected payCharge(charge: RentalChargeDto): void {
     if (!charge.checkoutUrl) return;
-    window.open(charge.checkoutUrl, '_blank', 'noopener,noreferrer');
+    this.externalNav.openExternal(charge.checkoutUrl);
   }
 
   protected chargeKindLabel(kind: RentalChargeDto['kind']): string {
@@ -257,7 +250,7 @@ export class RentalDetail implements OnInit {
     return billingFrequencyLabel(f);
   }
 
-  /** Dynamic label for the `dailyRate` field based on billing frequency. */
+  /** Dynamic label for the `periodRate` field based on billing frequency. */
   protected rateLabel(f: RentalResponseDto['billingFrequency']): string {
     return rentalRateLabel(f);
   }
@@ -275,6 +268,55 @@ export class RentalDetail implements OnInit {
   }
 
   protected readonly retrying = signal<string | null>(null);
+  protected readonly generatingCaucao = signal(false);
+
+  /**
+   * "Aberta" = qualquer status que ainda represente um ciclo de cobrança vivo.
+   * CANCELED/REFUNDED/RELEASED (todos terminais no backend) NÃO bloqueiam nova geração.
+   */
+  private readonly OPEN_CAUCAO_STATUSES: ReadonlyArray<RentalChargeDto['status']> = [
+    'PENDING',
+    'PAID',
+    'PAST_DUE',
+    'FAILED',
+  ];
+
+  protected readonly canGenerateCaucao = computed(() => {
+    const r = this.rental();
+    if (!r) return false;
+    if (r.caucaoAmount <= 0) return false;
+    if (r.caucaoPaid) return false;
+    const hasOpen = r.charges.some(
+      (c) => c.kind === 'CAUCAO' && this.OPEN_CAUCAO_STATUSES.includes(c.status),
+    );
+    return !hasOpen;
+  });
+
+  protected generateCaucaoCharge(): void {
+    const r = this.rental();
+    if (!r || this.generatingCaucao()) return;
+    this.generatingCaucao.set(true);
+    this.rentalService.createCaucaoCharge(r.id).subscribe({
+      next: (charge) => {
+        this.generatingCaucao.set(false);
+        if (charge.checkoutUrl) {
+          this.externalNav.openExternal(charge.checkoutUrl);
+        }
+        this.notifications.push('success', 'Cobrança da caução gerada com sucesso.');
+        // Refresh para incluir a nova charge no card de cobranças.
+        this.rentalService.getById(r.id).subscribe({
+          next: (fresh) => this.rental.set(fresh),
+        });
+      },
+      error: (err: HttpErrorResponse) => {
+        this.generatingCaucao.set(false);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível gerar a cobrança da caução.'),
+        );
+      },
+    });
+  }
 
   protected retryCharge(charge: RentalChargeDto): void {
     const r = this.rental();

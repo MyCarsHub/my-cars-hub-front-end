@@ -21,7 +21,7 @@
           Cada contrato, do início ao fim.
         </h3>
         <p class="text-[15px] leading-[1.6] text-ink/70 m-0">
-          Status em tempo real, vencimentos, devoluções e histórico do locatário. Vistoria digital com 6 fotos por veículo e contrato gerado a partir do seu template — sem digitar tudo de novo.
+          Status em tempo real, vencimentos, devoluções e histórico do locatário. Vistoria digital completa em 14 ângulos por veículo e contrato gerado a partir do seu template — sem digitar tudo de novo.
         </p>
       </div>
 
@@ -60,8 +60,8 @@
       </div>
     </article>
 
-    <!-- 3 feature-cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+    <!-- 4 feature-cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
       @for (f of features; track f.title) {
         <article class="reveal relative bg-paper border border-rule rounded-2xl p-6 flex flex-col gap-3 overflow-hidden shadow-[0_12px_30px_-22px_rgba(10,10,10,0.12)] hover:-translate-y-1.5 hover:border-brand/30 hover:shadow-[0_20px_42px_-22px_rgba(235,63,0,0.22)] transition-all duration-300 group before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300" style="--gradient-line: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);">
           <span class="inline-flex items-center gap-1.5 self-start bg-brand-tint text-brand-strong text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-brand/[0.14] transition-transform duration-300 group-hover:translate-x-1">
@@ -72,9 +72,9 @@
           <div class="mt-auto pt-3.5 border-t border-rule flex flex-col gap-2">
             @switch (f.viz) {
               @case ('chips') {
-                <div class="flex flex-wrap gap-1.5">
+                <div class="token-list">
                   @for (chip of f.chips; track chip) {
-                    <span class="text-[11.5px] font-bold px-[11px] py-[5px] rounded-lg bg-brand-tint text-brand-strong border border-brand/[0.14]">{{ chip }}</span>
+                    <span class="token-list__item">{{ chip }}</span>
                   }
                 </div>
               }
@@ -91,6 +91,26 @@
                   <span class="block h-full w-0 rounded-full transition-[width] duration-[1600ms] delay-[350ms]" [class.!w-[38%]]="revealed()" style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);"></span>
                 </div>
                 <small class="text-muted text-[11.5px]">{{ f.barLabel }}</small>
+              }
+              @case ('export') {
+                <div class="flex items-center gap-2 text-[12.5px] bg-paper-alt px-3 py-2 rounded-lg border border-rule">
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-brand-tint text-brand-strong border border-brand/[0.14] shrink-0" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                  </span>
+                  <strong class="text-ink font-semibold truncate">{{ f.exportDoc }}</strong>
+                  <span class="ml-auto text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted">baixar · copiar</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted shrink-0" aria-hidden="true">→</span>
+                  <div class="token-list">
+                    @for (target of f.exportTargets; track target) {
+                      <span class="token-list__item">{{ target }}</span>
+                    }
+                  </div>
+                </div>
               }
             }
           </div>

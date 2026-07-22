@@ -2,7 +2,14 @@ import { PagedResponse } from './paged.types';
 
 export type RentalStatus = 'RESERVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
 export type ChargeKind = 'RENTAL_TOTAL' | 'CAUCAO';
-export type ChargeStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'RELEASED';
+export type ChargeStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'PAST_DUE'
+  | 'FAILED'
+  | 'CANCELED'
+  | 'REFUNDED'
+  | 'RELEASED';
 export type RentalBillingFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 /** V29: fonte do PDF de contrato — AUTO (gera do template) ou MANUAL (upload). */
 export type RentalContractSource = 'AUTO' | 'MANUAL';
@@ -25,12 +32,10 @@ export function billingFrequencyLabel(f: RentalBillingFrequency): string {
 }
 
 /**
- * Label for the rental's `dailyRate` field, adapted to the billing frequency.
+ * Label for the rental's `periodRate` field, adapted to the billing frequency.
  *
- * IMPORTANT: `rentals.daily_rate` is a misnomer — the value stored is
- * semantically "amount per billing period" (per day if DAILY, per week if
- * WEEKLY, per month if MONTHLY). The DB column will be renamed in a future
- * migration (tracked in FIXES.md).
+ * The stored value is "amount per billing period" — per day if DAILY,
+ * per week if WEEKLY, per month if MONTHLY.
  */
 export function rentalRateLabel(f: RentalBillingFrequency): string {
   switch (f) {
@@ -62,14 +67,18 @@ export interface RentalResponseDto {
   startDate: string; // yyyy-MM-dd
   endDate: string;
   /**
-   * Amount per billing period (in cents). Despite the name, this is NOT
-   * always per-day: it's per-day if `billingFrequency === 'DAILY'`, per-week
-   * if 'WEEKLY', per-month if 'MONTHLY'. The DB column keeps the legacy name
-   * `daily_rate`; rename tracked in FIXES.md.
+   * Amount per billing period (in cents). Per-day if
+   * `billingFrequency === 'DAILY'`, per-week if 'WEEKLY',
+   * per-month if 'MONTHLY'.
    */
-  dailyRate: number; // cents
+  periodRate: number; // cents
   totalAmount: number; // cents
   caucaoAmount: number; // cents; 0 = sem caução
+  /**
+   * True quando o proprietário marcou a caução como recebida "por fora"
+   * (dinheiro / PIX manual) — impede geração de nova cobrança de caução.
+   */
+  caucaoPaid: boolean;
   status: RentalStatus;
   billingFrequency: RentalBillingFrequency;
   /**
@@ -117,9 +126,11 @@ export interface RentalUpdateRequest {
   driverId: string;
   startDate: string;
   endDate: string;
-  dailyRate: number;
+  periodRate: number;
   billingFrequency: RentalBillingFrequency;
   caucaoAmount?: number;
+  /** Marca a caução como recebida fora do sistema (dinheiro / PIX manual). */
+  caucaoPaid?: boolean;
   notes?: string;
   // V29: campos financeiros editáveis (contractSource é imutável após create)
   initialKm?: number | null;
@@ -138,9 +149,11 @@ export interface CreateRentalRequest {
   driverId: string;
   startDate: string;
   endDate: string;
-  dailyRate: number; // cents
+  periodRate: number; // cents
   billingFrequency: RentalBillingFrequency;
   caucaoAmount?: number; // cents, default 0
+  /** Marca a caução como recebida fora do sistema (dinheiro / PIX manual). */
+  caucaoPaid?: boolean;
   /**
    * When true, backend integrates with Asaas and generates charges.
    * When false (default), rental is just registered and owner activates manually.
@@ -203,7 +216,9 @@ export function chargeStatusInfo(status: ChargeStatus): { label: string; chip: s
   const map: Record<ChargeStatus, { label: string; chip: string }> = {
     PENDING: { label: 'Pendente', chip: 'bg-amber-100 text-amber-800' },
     PAID: { label: 'Pago', chip: 'bg-emerald-100 text-emerald-800' },
+    PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 text-amber-700' },
     FAILED: { label: 'Falhou', chip: 'bg-rose-100 text-rose-700' },
+    CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
     REFUNDED: { label: 'Reembolsado', chip: 'bg-blue-100 text-blue-800' },
     RELEASED: { label: 'Liberado', chip: 'bg-neutral-200 text-neutral-700' },
   };
@@ -275,17 +290,36 @@ export type RentalPhotoAngle =
   | 'BACK'
   | 'LEFT'
   | 'RIGHT'
+  | 'FRONT_LEFT_PANEL'
+  | 'FRONT_RIGHT_PANEL'
+  | 'REAR_LEFT_PANEL'
+  | 'REAR_RIGHT_PANEL'
+  | 'ENGINE'
+  | 'TRUNK'
   | 'DASHBOARD'
-  | 'ODOMETER';
+  | 'ODOMETER'
+  | 'FRONT_SEAT'
+  | 'REAR_SEAT';
 
-/** Ordem canônica de renderização dos 6 slots — casa com o PDF gerado. */
+/**
+ * Ordem canônica de renderização dos 14 slots — casa com o enum e o grid do PDF
+ * gerado pelo backend (RentalPhotoAngleEnum). Não reordenar sem sincronizar.
+ */
 export const RENTAL_PHOTO_ANGLES: Array<{ value: RentalPhotoAngle; label: string }> = [
   { value: 'FRONT', label: 'Frente' },
   { value: 'BACK', label: 'Traseira' },
   { value: 'LEFT', label: 'Lateral esquerda' },
   { value: 'RIGHT', label: 'Lateral direita' },
+  { value: 'FRONT_LEFT_PANEL', label: 'Painel dianteiro esquerdo' },
+  { value: 'FRONT_RIGHT_PANEL', label: 'Painel dianteiro direito' },
+  { value: 'REAR_LEFT_PANEL', label: 'Painel traseiro esquerdo' },
+  { value: 'REAR_RIGHT_PANEL', label: 'Painel traseiro direito' },
+  { value: 'ENGINE', label: 'Motor' },
+  { value: 'TRUNK', label: 'Porta-malas' },
   { value: 'DASHBOARD', label: 'Painel' },
   { value: 'ODOMETER', label: 'Hodômetro' },
+  { value: 'FRONT_SEAT', label: 'Banco dianteiro' },
+  { value: 'REAR_SEAT', label: 'Banco traseiro' },
 ];
 
 /**

@@ -248,6 +248,7 @@
                       <div class="fixed inset-0 z-20" (click)="closeMenu()"></div>
                       <div
                         role="menu"
+                        (appClickOutside)="closeMenu()"
                         class="absolute right-0 bottom-full mb-2 z-30 min-w-[200px] rounded-xl border
                                border-neutral-200 bg-white shadow-lg overflow-hidden">
                         @if (canEdit(r)) {

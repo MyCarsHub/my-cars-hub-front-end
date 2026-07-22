@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { DefaultLoginLayout } from '../../components/layout/default-login-layout/default-login-layout';
 import {
+  AbstractControl,
   FormControl,
   FormGroup,
   ReactiveFormsModule,
+  ValidationErrors,
   Validators,
 } from '@angular/forms';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { LoginService } from '../../services/loginService';
 
 @Component({
@@ -17,6 +19,7 @@ import { LoginService } from '../../services/loginService';
     DefaultLoginLayout,
     ReactiveFormsModule,
     PrimaryInput,
+    RouterModule,
   ],
   providers: [
     LoginService
@@ -31,12 +34,16 @@ export class Signup {
     private router: Router,
     private loginService: LoginService
   ) {
-    this.signupForm = new FormGroup({
-      name: new FormControl('', [Validators.required]),
-      email: new FormControl('', [Validators.required, Validators.email]),
-      password: new FormControl('', [Validators.required, Validators.minLength(8)]),
-      passwordConfirm: new FormControl('', [Validators.required, Validators.minLength(8)]),
-    });
+    this.signupForm = new FormGroup(
+      {
+        name: new FormControl('', [Validators.required]),
+        email: new FormControl('', [Validators.required, Validators.email]),
+        password: new FormControl('', [Validators.required, Validators.minLength(8)]),
+        passwordConfirm: new FormControl('', [Validators.required, Validators.minLength(8)]),
+        acceptedTerms: new FormControl<boolean>(false, [Validators.requiredTrue]),
+      },
+      { validators: passwordsMatchValidator },
+    );
   }
 
 
@@ -45,6 +52,9 @@ export class Signup {
   }
 
   submit() {
+    if (this.signupForm.invalid || !this.signupForm.controls['acceptedTerms'].value) {
+      return;
+    }
     this.loginService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password).subscribe({
       next: () => {
         this.clearForm();
@@ -63,4 +73,11 @@ export class Signup {
   clearForm() {
     this.signupForm.reset();
   }
+}
+
+function passwordsMatchValidator(group: AbstractControl): ValidationErrors | null {
+  const password = group.get('password')?.value;
+  const passwordConfirm = group.get('passwordConfirm')?.value;
+  if (!password || !passwordConfirm) return null;
+  return password === passwordConfirm ? null : { passwordMismatch: true };
 }

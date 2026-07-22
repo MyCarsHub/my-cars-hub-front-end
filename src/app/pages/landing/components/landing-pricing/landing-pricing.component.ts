@@ -7,11 +7,12 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
+import { PlanCardComponent } from '../../../../components/core/plan-card/plan-card';
 
 @Component({
   selector: 'app-landing-pricing',
-  imports: [RouterModule],
+  imports: [RouterModule, PlanCardComponent],
   templateUrl: './landing-pricing.component.html',
   styleUrls: ['./landing-pricing.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,6 +20,7 @@ import { RouterModule } from '@angular/router';
 })
 export class LandingPricingComponent implements AfterViewInit {
   private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly router = inject(Router);
 
   protected readonly cycle = signal<'monthly' | 'yearly'>('monthly');
 
@@ -32,6 +34,25 @@ export class LandingPricingComponent implements AfterViewInit {
   );
   protected readonly proYearlyTotal = computed(() => Math.round(this.proYearlyMonth * 12));
 
+  /** Gradiente do card Pro — laranja no Mensal, Hub Green no Anual. */
+  protected readonly proGradient = computed<string>(() =>
+    this.cycle() === 'yearly'
+      ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)'
+      : 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)',
+  );
+
+  /** Sombra colorida do card Pro casando com o gradient. */
+  protected readonly proShadow = computed<string>(() =>
+    this.cycle() === 'yearly'
+      ? '0 1px 0 0 rgba(255,255,255,0.22) inset, 0 32px 72px -22px rgba(16,185,129,0.5)'
+      : '0 1px 0 0 rgba(255,255,255,0.22) inset, 0 32px 72px -22px rgba(235,63,0,0.5)',
+  );
+
+  /** Cor do texto do botão branco + ícone do check dentro do círculo. */
+  protected readonly proAccentText = computed<string>(() =>
+    this.cycle() === 'yearly' ? 'text-emerald-700' : 'text-brand-strong',
+  );
+
   readonly trialItems = [
     'Até 2 veículos',
     'Até 3 motoristas',
@@ -44,7 +65,7 @@ export class LandingPricingComponent implements AfterViewInit {
     'Motoristas ilimitados',
     'Cobranças automáticas por Asaas e Stripe',
     'Assinatura eletrônica com validade jurídica',
-    'Vistoria digital com 6 fotos por veículo',
+    'Vistoria digital completa em 14 ângulos por veículo',
     'Multi-usuário com controle de acesso',
     'Suporte prioritário',
   ];
@@ -58,8 +79,19 @@ export class LandingPricingComponent implements AfterViewInit {
     'Suporte prioritário com SLA',
   ];
 
+  protected readonly proPriceLabel = computed<string>(() => `R$ ${this.formatBRL(this.proPrice())}`);
+  protected readonly proSubtitle = computed<string>(() =>
+    this.cycle() === 'yearly'
+      ? `Cobrado anualmente · R$ ${this.proYearlyTotal()}/ano`
+      : `ou R$ ${this.formatBRL(this.proPrice() * 0.8)}/mês no anual`,
+  );
+
   protected setCycle(c: 'monthly' | 'yearly'): void { this.cycle.set(c); }
   protected formatBRL(v: number): string { return v.toFixed(2).replace('.', ','); }
+
+  protected goToLogin(): void {
+    this.router.navigate(['/login']);
+  }
 
   ngAfterViewInit(): void {
     const obs = new IntersectionObserver(

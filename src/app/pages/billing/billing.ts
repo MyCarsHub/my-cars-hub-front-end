@@ -8,9 +8,11 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
-import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { PageCard } from '../../components/core/page-card/page-card';
+import { PlanCardComponent } from '../../components/core/plan-card/plan-card';
 import { BillingService } from '../../services/billing.service';
+import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { SessionService } from '../../services/session.service';
 import {
   BillingCycle,
@@ -26,7 +28,7 @@ interface CompareRow {
 
 @Component({
   selector: 'app-billing',
-  imports: [CommonModule, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [CommonModule, DefaultPageLayout, ConfirmDialog, PageCard, PlanCardComponent],
   templateUrl: './billing.html',
   styleUrl: './billing.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,6 +36,7 @@ interface CompareRow {
 export class Billing implements OnInit {
   private readonly billingService = inject(BillingService);
   private readonly session = inject(SessionService);
+  private readonly externalNav = inject(ExternalNavigationService);
 
   protected readonly isPlatformAdmin = this.session.isPlatformAdmin();
   protected readonly adminGateway = signal<GatewayOverride>('stripe');
@@ -47,8 +50,28 @@ export class Billing implements OnInit {
   protected readonly redirecting = signal(false);
   protected readonly showCancelDialog = signal(false);
   protected readonly expandedPlanId = signal<string | null>(null);
+  protected readonly showCompare = signal(false);
 
   protected readonly recommendedCode = 'PRO';
+
+  /** Gradient do card recomendado — orange no Mensal, Hub Green no Anual. */
+  protected readonly recommendedGradient = computed<string>(() =>
+    this.cycle() === 'YEARLY'
+      ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)'
+      : 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)',
+  );
+
+  /** Sombra colorida do card recomendado, casando com o gradient ativo. */
+  protected readonly recommendedShadow = computed<string>(() =>
+    this.cycle() === 'YEARLY'
+      ? '0 1px 0 0 rgba(255,255,255,0.22) inset, 0 32px 72px -22px rgba(16,185,129,0.45)'
+      : '0 1px 0 0 rgba(255,255,255,0.22) inset, 0 32px 72px -22px rgba(235,63,0,0.45)',
+  );
+
+  /** Cor do texto no botão branco do card recomendado (matching gradient). */
+  protected readonly recommendedAccentText = computed<string>(() =>
+    this.cycle() === 'YEARLY' ? 'text-emerald-700' : 'text-brand-strong',
+  );
 
   protected readonly currentPlanCode = computed(() => this.subscription()?.planCode ?? null);
 
@@ -166,6 +189,171 @@ export class Billing implements OnInit {
     return plan.code === this.recommendedCode;
   }
 
+  protected isBusinessPlan(plan: PlanResponse): boolean {
+    return plan.code === 'BUSINESS' || plan.code === 'ENTERPRISE';
+  }
+
+  protected planVariant(plan: PlanResponse): 'trial' | 'pro' | 'business' {
+    if (this.isRecommended(plan)) return 'pro';
+    if (this.isBusinessPlan(plan)) return 'business';
+    return 'trial';
+  }
+
+  /** Feature lists mirroring landing-pricing (hardcoded per tier). */
+  private readonly trialFeatures: readonly string[] = [
+    'Até 2 veículos',
+    'Até 3 motoristas',
+    'Contratos, cobranças, multas, manutenções',
+    'Suporte por email',
+  ];
+
+  private readonly proFeatures: readonly string[] = [
+    'Até 20 veículos',
+    'Motoristas ilimitados',
+    'Cobranças automáticas por Asaas e Stripe',
+    'Assinatura eletrônica com validade jurídica',
+    'Vistoria digital completa em 14 ângulos por veículo',
+    'Multi-usuário com controle de acesso',
+    'Suporte prioritário',
+  ];
+
+  private readonly businessFeatures: readonly string[] = [
+    'Veículos ilimitados',
+    'Multi-empresa ilimitado (cadastre suas filiais)',
+    'Usuários e papéis ilimitados',
+    'Relatórios avançados exportáveis',
+    'Onboarding assistido dedicado',
+    'Suporte prioritário com SLA',
+  ];
+
+  protected planFeatures(plan: PlanResponse): readonly string[] {
+    if (this.isRecommended(plan)) return this.proFeatures;
+    if (this.isBusinessPlan(plan)) return this.businessFeatures;
+    return this.trialFeatures;
+  }
+
+  protected planSubtitle(plan: PlanResponse): string | null {
+    if (this.cycle() === 'YEARLY' && plan.priceYearly > 0 && plan.priceMonthly > 0) {
+      const monthly = this.formatPrice(this.monthlyEquivalent(plan));
+      const savings = this.planYearlySavings(plan);
+      return savings > 0
+        ? `Equivale a ${monthly}/mês · economiza ${savings}%`
+        : `Equivale a ${monthly}/mês`;
+    }
+    if (
+      this.isRecommended(plan) &&
+      this.cycle() === 'MONTHLY' &&
+      plan.priceYearly > 0 &&
+      this.planYearlySavings(plan) > 0
+    ) {
+      return `ou ${this.formatPrice(this.monthlyEquivalent(plan))}/mês no anual`;
+    }
+    return null;
+  }
+
+  protected planDescription(plan: PlanResponse): string | null {
+    if (this.isRecommended(plan)) return 'Pra operações que precisam de mais capacidade.';
+    if (this.isBusinessPlan(plan))
+      return 'Pra frotas grandes, multi-filial, com integrações customizadas.';
+    return null;
+  }
+
+  protected planRibbon(plan: PlanResponse): string | null {
+    if (this.isRecommended(plan)) return 'Mais popular';
+    if (this.isBusinessPlan(plan)) return 'Sua frota cresceu?';
+    return null;
+  }
+
+  protected planCtaLabel(plan: PlanResponse): string {
+    if (this.isCurrent(plan)) return 'Plano atual';
+    if (this.redirecting()) return 'Redirecionando…';
+    if (this.subscription()) return `Alterar para ${plan.name}`;
+    return `Assinar ${plan.name}`;
+  }
+
+  protected planAccentClass(plan: PlanResponse): string {
+    return this.isRecommended(plan) ? this.recommendedAccentText() : 'text-brand-strong';
+  }
+
+  protected planBeforeFeaturesText(plan: PlanResponse): string | null {
+    return this.isBusinessPlan(plan) ? 'Tudo que o plano Pro tem +' : null;
+  }
+
+  protected planGradient(plan: PlanResponse): string | null {
+    return this.isRecommended(plan) ? this.recommendedGradient() : null;
+  }
+
+  protected planShadow(plan: PlanResponse): string | null {
+    return this.isRecommended(plan) ? this.recommendedShadow() : null;
+  }
+
+  protected planCycleSuffix(): string {
+    return this.cycle() === 'MONTHLY' ? 'mês' : 'ano';
+  }
+
+  protected planCtaDisabled(plan: PlanResponse): boolean {
+    return this.isCurrent(plan) || this.redirecting() || this.loading();
+  }
+
+  protected taglineFor(plan: PlanResponse): string {
+    switch (plan.code) {
+      case 'TRIAL':
+      case 'STARTER':
+        return 'Para começar';
+      case 'PRO':
+        return 'Para escalar';
+      case 'BUSINESS':
+      case 'ENTERPRISE':
+        return 'Para grandes frotas';
+      default:
+        return '';
+    }
+  }
+
+  protected readonly hasAnyTrial = computed<boolean>(() =>
+    this.plans().some((p) => p.trialDays > 0),
+  );
+
+  protected readonly maxTrialDays = computed<number>(() => {
+    let max = 0;
+    for (const p of this.plans()) {
+      if (p.trialDays > max) max = p.trialDays;
+    }
+    return max;
+  });
+
+  protected statusDotClass(status: SubscriptionResponse['status']): string {
+    switch (status) {
+      case 'ACTIVE':
+        return 'bg-emerald-500';
+      case 'TRIALING':
+        return 'bg-amber-500';
+      case 'PAST_DUE':
+        return 'bg-rose-500';
+      case 'CANCELED':
+      case 'EXPIRED':
+        return 'bg-gray-400';
+    }
+  }
+
+  protected statusPillClass(status: SubscriptionResponse['status']): string {
+    switch (status) {
+      case 'ACTIVE':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'TRIALING':
+        return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'PAST_DUE':
+        return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'CANCELED':
+      case 'EXPIRED':
+        return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  }
+
+  protected toggleCompare(): void {
+    this.showCompare.update((v) => !v);
+  }
+
   protected toggleExpanded(planId: string): void {
     this.expandedPlanId.update((cur) => (cur === planId ? null : planId));
   }
@@ -183,7 +371,8 @@ export class Billing implements OnInit {
     const override = this.isPlatformAdmin ? this.adminGateway() : undefined;
     this.billingService.startCheckout(plan.code, this.cycle(), override).subscribe({
       next: (res) => {
-        window.location.href = res.redirectUrl;
+        this.externalNav.openExternal(res.redirectUrl);
+        this.redirecting.set(false);
       },
       error: () => {
         this.redirecting.set(false);

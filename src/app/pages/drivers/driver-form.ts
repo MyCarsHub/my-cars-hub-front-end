@@ -9,6 +9,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
+  AbstractControl,
   FormBuilder,
   ReactiveFormsModule,
   Validators,
@@ -25,6 +26,7 @@ import {
   UpdateDriverRequest,
 } from '../../types/driver.types';
 import { DRIVER_STATUS_META } from '../../utils/status-maps';
+import { isValidCpf } from '../../utils/validators/cpf.validator';
 
 const CATEGORIES: LicenseCategory[] = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
 const STATUSES: Array<{ value: DriverStatus; label: string }> = (
@@ -66,7 +68,15 @@ export class DriverForm implements OnInit {
     userId: [''],
     document: this.fb.nonNullable.group({
       type: ['CPF' as 'CPF' | 'CNPJ', [Validators.required]],
-      value: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{11,14}$/)]],
+      value: ['', [
+        Validators.required,
+        Validators.pattern(/^[A-Z0-9]{11,14}$/),
+        (ctrl: AbstractControl) => {
+          const type = ctrl.parent?.get('type')?.value;
+          if (type !== 'CPF' || !ctrl.value) return null;
+          return isValidCpf(String(ctrl.value)) ? null : { cpfInvalid: true };
+        },
+      ]],
     }),
     contact: this.fb.nonNullable.group({
       email: ['', [Validators.required, Validators.email, Validators.maxLength(180)]],
@@ -88,6 +98,11 @@ export class DriverForm implements OnInit {
   });
 
   ngOnInit(): void {
+    // Re-run CPF validation on document.value when type flips between CPF/CNPJ.
+    this.form.controls.document.controls.type.valueChanges.subscribe(() => {
+      this.form.controls.document.controls.value.updateValueAndValidity();
+    });
+
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.editingId.set(id);

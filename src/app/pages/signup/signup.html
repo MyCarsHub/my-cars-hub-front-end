@@ -16,5 +16,29 @@
     <app-primary-input label="Confirmar sua Senha" type="password" formControlName="passwordConfirm"
       placeholder="********" iconSrc="svg/password-lock-icon.svg">
     </app-primary-input>
+    @if (
+      signupForm.hasError('passwordMismatch') &&
+      signupForm.get('passwordConfirm')?.dirty
+    ) {
+      <p class="text-xs text-red-600 mt-1" role="alert" aria-live="polite">
+        As senhas não coincidem.
+      </p>
+    }
+
+    <label class="flex items-start gap-3 py-2.5 min-h-[44px] cursor-pointer select-none text-sm text-neutral-700">
+      <input
+        type="checkbox"
+        formControlName="acceptedTerms"
+        class="mt-0.5 h-5 w-5 shrink-0 accent-brand cursor-pointer"
+        aria-describedby="acceptedTermsHint" />
+      <span id="acceptedTermsHint" class="leading-snug">
+        Li e concordo com a
+        <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener"
+          class="text-brand underline hover:text-brand-light">Política de Privacidade</a>
+        e os
+        <a routerLink="/termos-de-uso" target="_blank" rel="noopener"
+          class="text-brand underline hover:text-brand-light">Termos de Uso</a>.
+      </span>
+    </label>
   </form>
 </app-default-login-layout>

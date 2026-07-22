@@ -2,150 +2,246 @@
   title="Integração de cobranças"
   description="Conecte sua conta de pagamentos (Asaas ou AbacatePay) para cobrar seus clientes automaticamente.">
 
-  @if (connected() && status(); as s) {
-    <div class="mb-6">
-      <app-page-card title="Status da integração">
-        <div class="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          <div>
-            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Provedor</p>
-            <p class="text-lg font-semibold text-neutral-900">{{ providerDisplayName(s.provider) }}</p>
+  <div class="relative isolate">
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72"
+      style="background: var(--brand-gradient-radial-hero-soft);"
+    ></div>
+
+    @if (connected() && status(); as s) {
+      <article class="mb-8 rounded-[24px] border border-emerald-200 bg-emerald-50/40 p-6 sm:p-8"
+               style="box-shadow: 0 20px 48px -28px rgba(10,10,10,0.10);">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-emerald-300 bg-emerald-100 text-emerald-800">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                Conectado
+              </span>
+              @if (s.environment === 'SANDBOX') {
+                <span class="inline-flex items-center text-[10.5px] font-bold uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-amber-300 bg-amber-100 text-amber-900">
+                  Sandbox
+                </span>
+              }
+            </div>
+
+            <p class="text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted">Provedor de pagamentos</p>
+            <div class="mt-2 flex items-center gap-4">
+              @if (s.provider === 'asaas') {
+                <img src="logos/integrations/asaas.svg" alt="Logo Asaas" height="26" class="h-[26px] w-auto" />
+              } @else if (s.provider === 'abacatepay') {
+                <img src="logos/integrations/abacatepay.svg" alt="Logo AbacatePay" height="30" class="h-[30px] w-auto" />
+              } @else {
+                <h2 class="font-display font-bold text-[clamp(1.5rem,3vw,2rem)] tracking-[-0.028em] text-ink">
+                  {{ providerDisplayName(s.provider) }}
+                </h2>
+              }
+            </div>
           </div>
-          <div>
-            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Ambiente</p>
-            <p class="text-lg font-semibold text-neutral-900">{{ environmentLabel(s.environment) }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Conectado em</p>
-            <p class="text-sm text-neutral-800">{{ formatDateTime(s.connectedAt) }}</p>
+
+          <div class="lg:text-right lg:min-w-[220px] shrink-0 rounded-2xl bg-paper/70 border border-rule/60 p-4">
+            <p class="text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted">Conectado em</p>
+            <p class="mt-1 font-display font-semibold text-[15px] text-ink">{{ formatDateTime(s.connectedAt) }}</p>
           </div>
         </div>
+
         @if (!s.webhookAutoConfigured) {
-          <div class="mx-4 sm:mx-6 mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            Webhook não foi registrado automaticamente. Configure manualmente no painel do provedor.
+          <div class="mt-5 rounded-xl border border-amber-300 bg-amber-100/60 p-4 text-[13.5px] text-amber-900">
+            <p class="font-semibold mb-1 inline-flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+              Webhook não foi registrado automaticamente
+            </p>
+            Configure manualmente no painel do provedor pra receber atualizações de status.
           </div>
         }
-        <div class="px-4 sm:px-6 pb-4">
+
+        <div class="mt-6 pt-5 border-t border-emerald-200/70">
           <button
             type="button"
             (click)="askDisconnect()"
             [disabled]="saving()"
-            class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg border border-rose-200
-                   text-rose-600 hover:bg-rose-50 text-sm font-medium disabled:opacity-50">
+            class="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl border border-rose-200 hover:border-rose-300 text-rose-700 hover:bg-rose-50 text-[13.5px] font-semibold transition-colors disabled:opacity-50"
+          >
             Desconectar
           </button>
         </div>
-      </app-page-card>
-    </div>
-  }
+      </article>
+    }
 
-  @if (!connected()) {
-    <app-page-card title="Conectar integração">
-      <form [formGroup]="connectForm" (ngSubmit)="submit()" class="p-4 sm:p-6 space-y-5">
+    @if (!connected()) {
+      <form [formGroup]="connectForm" (ngSubmit)="submit()" class="space-y-8">
         <!-- Provider picker -->
-        <div>
-          <label class="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
-            Provedor de pagamentos
-          </label>
-          <div role="radiogroup" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button type="button" role="radio"
+        <app-page-card title="1. Escolha o gateway">
+          <div cardActions>
+            <span class="inline-flex items-center gap-1.5 bg-brand-tint text-brand-strong text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-brand/[0.14]">
+              Passo 1
+            </span>
+          </div>
+
+          <div class="p-4 sm:p-6 pt-0" role="radiogroup">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              type="button"
+              role="radio"
               [attr.aria-checked]="selectedProvider() === 'asaas'"
               (click)="selectProvider('asaas')"
-              class="min-h-[64px] text-left px-4 py-3 rounded-xl border transition-colors"
-              [class.border-primary-500]="selectedProvider() === 'asaas'"
-              [class.bg-primary-low]="selectedProvider() === 'asaas'"
-              [class.border-neutral-200]="selectedProvider() !== 'asaas'">
-              <span class="block font-semibold text-neutral-900">Asaas</span>
-              <span class="block text-xs text-neutral-500 mt-0.5">Boleto, PIX, cartão</span>
+              class="text-left rounded-2xl border p-5 transition-all bg-paper hover:-translate-y-0.5"
+              [class.border-brand]="selectedProvider() === 'asaas'"
+              [class.shadow-[0_18px_36px_-24px_rgba(235,63,0,0.30)]]="selectedProvider() === 'asaas'"
+              [class.border-rule]="selectedProvider() !== 'asaas'"
+              [class.hover:border-rule-strong]="selectedProvider() !== 'asaas'"
+            >
+              <div class="flex items-center gap-3 mb-3 min-h-[36px]">
+                <img src="logos/integrations/asaas.svg" alt="Logo Asaas" height="22" class="h-[22px] w-auto" />
+                @if (selectedProvider() === 'asaas') {
+                  <span class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-tint text-brand-strong">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                  </span>
+                }
+              </div>
+              <p class="text-[13px] text-ink/70 leading-relaxed">Boleto, PIX, cartão de crédito. Ideal pra frota nacional.</p>
             </button>
-            <button type="button" role="radio"
+
+            <button
+              type="button"
+              role="radio"
               [attr.aria-checked]="selectedProvider() === 'abacatepay'"
               (click)="selectProvider('abacatepay')"
-              class="min-h-[64px] text-left px-4 py-3 rounded-xl border transition-colors"
-              [class.border-primary-500]="selectedProvider() === 'abacatepay'"
-              [class.bg-primary-low]="selectedProvider() === 'abacatepay'"
-              [class.border-neutral-200]="selectedProvider() !== 'abacatepay'">
-              <span class="block font-semibold text-neutral-900">AbacatePay</span>
-              <span class="block text-xs text-neutral-500 mt-0.5">PIX + cartão (checkout hospedado)</span>
+              class="text-left rounded-2xl border p-5 transition-all bg-paper hover:-translate-y-0.5"
+              [class.border-brand]="selectedProvider() === 'abacatepay'"
+              [class.shadow-[0_18px_36px_-24px_rgba(235,63,0,0.30)]]="selectedProvider() === 'abacatepay'"
+              [class.border-rule]="selectedProvider() !== 'abacatepay'"
+              [class.hover:border-rule-strong]="selectedProvider() !== 'abacatepay'"
+            >
+              <div class="flex items-center gap-3 mb-3 min-h-[36px]">
+                <img src="logos/integrations/abacatepay.svg" alt="Logo AbacatePay" height="28" class="h-[28px] w-auto" />
+                @if (selectedProvider() === 'abacatepay') {
+                  <span class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-tint text-brand-strong">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                  </span>
+                }
+              </div>
+              <p class="text-[13px] text-ink/70 leading-relaxed">PIX + cartão via checkout hospedado. Simples de subir.</p>
             </button>
           </div>
-        </div>
+          </div>
+        </app-page-card>
 
         <!-- Access token -->
-        <div>
-          <label for="accessToken" class="block text-sm font-medium text-neutral-700 mb-1">
-            Chave da API {{ providerLabel() }}
-          </label>
-          <div class="relative">
-            <input
-              id="accessToken"
-              formControlName="accessToken"
-              [type]="showAccessToken() ? 'text' : 'password'"
-              autocomplete="off"
-              spellcheck="false"
-              class="w-full min-h-[44px] px-3 pr-11 rounded-lg border border-neutral-300 focus:border-primary-500
-                     focus:outline-none focus:ring-2 focus:ring-primary-200 text-sm font-mono"
-              [attr.aria-invalid]="fieldInvalid('accessToken')" />
-            <button type="button"
-              (click)="toggleAccessTokenVisibility()"
-              class="absolute right-1 top-1 h-[calc(100%-8px)] px-3 rounded-md text-xs text-neutral-500 hover:bg-neutral-100">
-              {{ showAccessToken() ? 'Ocultar' : 'Mostrar' }}
-            </button>
+        <app-page-card title="2. Cole a chave da API">
+          <div cardActions>
+            <span class="inline-flex items-center gap-1.5 bg-brand-tint text-brand-strong text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-brand/[0.14]">
+              Passo 2
+            </span>
           </div>
-          @if (fieldInvalid('accessToken')) {
-            <p class="text-xs text-rose-600 mt-1">Cole a chave completa da API {{ providerLabel() }}.</p>
-          }
-        </div>
 
-        <!-- Environment -->
-        @if (isPlatformAdmin()) {
-          <div>
-            <label class="block text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">
-              ADMIN — Ambiente
+          <div class="p-4 sm:p-6 pt-0 space-y-4">
+            <p class="text-[13.5px] text-ink/70">
+              Você encontra em <span class="font-semibold text-ink">{{ providerLabel() }} → Integrações → API Keys</span>.
+            </p>
+            <div>
+            <label for="accessToken" class="block text-[11px] font-bold uppercase tracking-[0.06em] text-muted mb-2">
+              Access Token
             </label>
-            <div role="radiogroup" class="flex flex-wrap gap-2">
-              <button type="button" role="radio"
-                [attr.aria-checked]="selectedEnv() === 'PRODUCTION'"
-                (click)="selectEnvironment('PRODUCTION')"
-                class="min-h-[44px] px-4 rounded-lg text-sm font-medium border transition-colors"
-                [class.bg-primary-500]="selectedEnv() === 'PRODUCTION'"
-                [class.text-white]="selectedEnv() === 'PRODUCTION'"
-                [class.border-primary-500]="selectedEnv() === 'PRODUCTION'"
-                [class.bg-white]="selectedEnv() !== 'PRODUCTION'"
-                [class.text-neutral-700]="selectedEnv() !== 'PRODUCTION'"
-                [class.border-neutral-300]="selectedEnv() !== 'PRODUCTION'">
-                Produção
-              </button>
-              <button type="button" role="radio"
-                [attr.aria-checked]="selectedEnv() === 'SANDBOX'"
-                (click)="selectEnvironment('SANDBOX')"
-                class="min-h-[44px] px-4 rounded-lg text-sm font-medium border transition-colors"
-                [class.bg-amber-600]="selectedEnv() === 'SANDBOX'"
-                [class.text-white]="selectedEnv() === 'SANDBOX'"
-                [class.border-amber-600]="selectedEnv() === 'SANDBOX'"
-                [class.bg-white]="selectedEnv() !== 'SANDBOX'"
-                [class.text-neutral-700]="selectedEnv() !== 'SANDBOX'"
-                [class.border-neutral-300]="selectedEnv() !== 'SANDBOX'">
-                Sandbox
+            <div class="relative">
+              <input
+                id="accessToken"
+                formControlName="accessToken"
+                [type]="showAccessToken() ? 'text' : 'password'"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="$aact_..."
+                class="w-full min-h-[48px] px-4 pr-24 rounded-xl border border-rule bg-paper-alt/60 focus:border-brand focus:bg-paper focus:outline-none focus:ring-4 focus:ring-brand/10 text-[13.5px] font-mono text-ink transition-all"
+                [attr.aria-invalid]="fieldInvalid('accessToken')"
+              />
+              <button
+                type="button"
+                (click)="toggleAccessTokenVisibility()"
+                class="absolute right-1.5 top-1.5 min-h-[36px] px-3 rounded-lg text-[11.5px] font-semibold text-ink/70 hover:text-ink hover:bg-paper-alt"
+              >
+                {{ showAccessToken() ? 'Ocultar' : 'Mostrar' }}
               </button>
             </div>
+            @if (fieldInvalid('accessToken')) {
+              <p class="mt-2 text-[12.5px] text-rose-700 font-medium">Cole a chave completa da API {{ providerLabel() }}.</p>
+            }
+            </div>
           </div>
+        </app-page-card>
+
+        <!-- Environment (admin) -->
+        @if (isPlatformAdmin()) {
+          <section>
+            <div class="rounded-2xl border border-amber-300 bg-amber-50/70 p-5">
+              <p class="text-[10.5px] font-bold uppercase tracking-[0.06em] text-amber-900 mb-3">
+                Admin — ambiente
+              </p>
+              <div role="radiogroup" class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  role="radio"
+                  [attr.aria-checked]="selectedEnv() === 'PRODUCTION'"
+                  (click)="selectEnvironment('PRODUCTION')"
+                  class="min-h-[44px] px-5 rounded-full text-[13px] font-semibold border transition-colors"
+                  [class.bg-amber-700]="selectedEnv() === 'PRODUCTION'"
+                  [class.text-white]="selectedEnv() === 'PRODUCTION'"
+                  [class.border-amber-700]="selectedEnv() === 'PRODUCTION'"
+                  [class.bg-paper]="selectedEnv() !== 'PRODUCTION'"
+                  [class.text-amber-900]="selectedEnv() !== 'PRODUCTION'"
+                  [class.border-amber-300]="selectedEnv() !== 'PRODUCTION'"
+                >
+                  Produção
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  [attr.aria-checked]="selectedEnv() === 'SANDBOX'"
+                  (click)="selectEnvironment('SANDBOX')"
+                  class="min-h-[44px] px-5 rounded-full text-[13px] font-semibold border transition-colors"
+                  [class.bg-amber-700]="selectedEnv() === 'SANDBOX'"
+                  [class.text-white]="selectedEnv() === 'SANDBOX'"
+                  [class.border-amber-700]="selectedEnv() === 'SANDBOX'"
+                  [class.bg-paper]="selectedEnv() !== 'SANDBOX'"
+                  [class.text-amber-900]="selectedEnv() !== 'SANDBOX'"
+                  [class.border-amber-300]="selectedEnv() !== 'SANDBOX'"
+                >
+                  Sandbox
+                </button>
+              </div>
+            </div>
+          </section>
         }
 
         @if (formError()) {
-          <div role="alert" class="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-sm">
+          <div role="alert" class="p-4 rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-[13.5px] font-medium">
             {{ formError() }}
           </div>
         }
 
-        <button type="submit"
-          [disabled]="saving()"
-          class="w-full sm:w-auto min-h-[48px] px-6 py-3 rounded-xl bg-primary-500 hover:bg-primary-600
-                 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed">
-          @if (saving()) { Conectando… } @else { Conectar {{ providerLabel() }} }
-        </button>
+        <div class="pt-2">
+          <button
+            type="submit"
+            [disabled]="saving()"
+            class="group relative isolate overflow-hidden inline-flex items-center justify-center gap-2 w-full sm:w-auto min-h-[52px] px-8 py-3 rounded-xl text-white text-[14px] font-semibold transition-all shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_10px_26px_-6px_rgba(235,63,0,0.45)] hover:shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_14px_32px_-6px_rgba(235,63,0,0.55)] hover:-translate-y-px active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed"
+            style="background: var(--brand-gradient);"
+          >
+            <span class="relative">
+              @if (saving()) { Conectando… } @else { Conectar {{ providerLabel() }} }
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="relative transition-transform duration-200 group-hover:translate-x-0.5">
+              <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span
+              aria-hidden="true"
+              class="absolute inset-0 -z-10 -translate-x-[120%] group-hover:translate-x-[120%] transition-transform duration-[700ms] pointer-events-none"
+              style="background: var(--brand-gradient-shine);"
+            ></span>
+          </button>
+        </div>
       </form>
-    </app-page-card>
-  }
+    }
+  </div>
 
   <app-confirm-dialog
     [open]="showDisconnectDialog()"

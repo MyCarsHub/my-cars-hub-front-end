@@ -31,114 +31,67 @@
           [class.text-white]="cycle() === 'yearly'"
           [class.text-ink/70]="cycle() !== 'yearly'"
           [class.hover:text-ink]="cycle() !== 'yearly'"
-          [style.background]="cycle() === 'yearly' ? 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)' : 'transparent'"
-          [style.box-shadow]="cycle() === 'yearly' ? '0 6px 18px -6px rgba(235,63,0,0.4)' : 'none'"
+          [style.background]="cycle() === 'yearly' ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)' : 'transparent'"
+          [style.box-shadow]="cycle() === 'yearly' ? '0 6px 18px -6px rgba(16,185,129,0.45)' : 'none'"
           [attr.aria-selected]="cycle() === 'yearly'"
           (click)="setCycle('yearly')"
         >
           Anual
           <span
-            class="text-[10.5px] font-bold px-2 py-0.5 rounded-full tracking-[0.04em]"
+            class="text-[10.5px] font-bold px-2 py-0.5 rounded-full tracking-[0.04em] text-white"
             [class.bg-white/[0.22]]="cycle() === 'yearly'"
-            [class.bg-brand]="cycle() !== 'yearly'"
-            [class.text-white]="true"
+            [class.bg-emerald-600]="cycle() !== 'yearly'"
           >-{{ proSavings() }}%</span>
         </button>
       </div>
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.15fr_0.9fr] gap-5 lg:gap-6 items-stretch lg:items-center">
-      <!-- Trial -->
-      <article class="reveal relative bg-paper border border-rule rounded-[18px] p-[22px] flex flex-col gap-4 shadow-[0_12px_30px_-20px_rgba(10,10,10,0.14)] hover:-translate-y-1.5 hover:border-rule-strong hover:shadow-[0_22px_44px_-22px_rgba(10,10,10,0.2)] transition-all duration-300">
-        <header class="flex flex-col gap-2">
-          <span class="inline-block self-start text-[11px] font-bold tracking-[0.12em] uppercase text-brand-strong px-2.5 py-1 rounded-full bg-brand-tint border border-brand/[0.14] mb-1">Trial gratuito</span>
-          <div class="flex items-baseline gap-1.5">
-            <strong class="font-display font-extrabold text-4xl tracking-[-0.03em] text-ink">R$ 0</strong>
-            <small class="text-muted text-[13.5px]">/ 14 dias</small>
-          </div>
-          <p class="text-ink/70 text-sm mt-2">Pra você testar tudo sem compromisso.</p>
-        </header>
-        <ul class="list-none p-0 m-0 flex-1 flex flex-col gap-2.5">
-          @for (item of trialItems; track item) {
-            <li class="flex items-start gap-2 text-sm text-ink/70 leading-[1.5]">
-              <span class="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-brand shrink-0 mt-0.5">
-                <svg viewBox="0 0 24 24" fill="none" class="w-3 h-3 text-white"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-              <span>{{ item }}</span>
-            </li>
-          }
-        </ul>
-        <a routerLink="/login" class="inline-flex justify-center items-center gap-1.5 no-underline font-bold text-[14.5px] rounded-full px-[22px] py-3.5 min-h-[46px] bg-paper-alt text-ink border-[1.5px] border-rule-strong hover:bg-brand-tint hover:border-brand hover:text-brand-strong hover:-translate-y-px transition-all duration-200">
-          Criar conta grátis
-        </a>
-      </article>
+      <div class="reveal">
+        <app-plan-card
+          variant="trial"
+          name="Trial gratuito"
+          price="R$ 0"
+          cycleSuffix="14 dias"
+          description="Pra você testar tudo sem compromisso."
+          [features]="trialItems"
+          ctaLabel="Criar conta grátis"
+          (ctaClick)="goToLogin()"
+        />
+      </div>
 
-      <!-- Pro (protagonista) — overflow-visible pra badge "Mais popular" não ser cortada -->
-      <article
-        class="reveal relative text-white rounded-[18px] p-[30px] px-[26px] flex flex-col gap-4 shadow-[0_1px_0_0_rgba(255,255,255,0.22)_inset,0_32px_72px_-22px_rgba(235,63,0,0.5)] lg:-translate-y-3.5 hover:lg:-translate-y-5 hover:shadow-[0_1px_0_0_rgba(255,255,255,0.22)_inset,0_40px_88px_-22px_rgba(235,63,0,0.6)] transition-all duration-300 group"
-        style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); background-size: 200% 200%; background-position: 0% 0%;"
-        onmouseover="this.style.backgroundPosition='100% 100%'"
-        onmouseout="this.style.backgroundPosition='0% 0%'"
-      >
-        <span class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-white text-brand-strong text-[11px] font-bold px-3.5 py-1.5 rounded-full tracking-[0.1em] uppercase shadow-[0_8px_18px_-4px_rgba(0,0,0,0.24)] z-[2] whitespace-nowrap">Mais popular</span>
+      <div class="reveal">
+        <app-plan-card
+          variant="pro"
+          name="Pro"
+          [price]="proPriceLabel()"
+          cycleSuffix="mês"
+          [subtitleText]="proSubtitle()"
+          description="Pra operações que precisam de mais capacidade."
+          [features]="proItems"
+          [gradientCss]="proGradient()"
+          [shadowCss]="proShadow()"
+          [accentTextClass]="proAccentText()"
+          ribbonText="Mais popular"
+          ctaLabel="Assinar Pro"
+          (ctaClick)="goToLogin()"
+        />
+      </div>
 
-        <div aria-hidden="true" class="absolute inset-0 z-0 pointer-events-none rounded-[18px] overflow-hidden" style="background: radial-gradient(circle at 18% 12%, rgba(255,255,255,0.18), transparent 55%), radial-gradient(circle at 92% 92%, rgba(0,0,0,0.16), transparent 60%);"></div>
-
-        <header class="relative z-[1] flex flex-col gap-2">
-          <span class="inline-block self-start text-[11px] font-bold tracking-[0.12em] uppercase text-white bg-white/[0.18] border border-white/[0.28] px-2.5 py-1 rounded-full mb-1">Pro</span>
-          <div class="flex items-baseline gap-1.5">
-            <strong class="font-display font-extrabold text-[44px] tracking-[-0.03em] text-white">R$ {{ formatBRL(proPrice()) }}</strong>
-            <small class="text-white/80 text-[13.5px]">/ mês</small>
-          </div>
-          @if (cycle() === 'yearly') {
-            <p class="text-white/75 text-xs font-medium m-0">Cobrado anualmente · R$ {{ proYearlyTotal() }}/ano</p>
-          } @else {
-            <p class="text-white/75 text-xs font-medium m-0">ou R$ {{ formatBRL(proPrice() * 0.8) }}/mês no anual</p>
-          }
-          <p class="text-white/90 text-sm mt-2">Pra operações que precisam de mais capacidade.</p>
-        </header>
-        <ul class="relative z-[1] list-none p-0 m-0 flex-1 flex flex-col gap-2.5">
-          @for (item of proItems; track item) {
-            <li class="flex items-start gap-2 text-sm text-white font-medium leading-[1.5]">
-              <span class="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-white shrink-0 mt-0.5">
-                <svg viewBox="0 0 24 24" fill="none" class="w-3 h-3 text-brand-strong"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-              <span>{{ item }}</span>
-            </li>
-          }
-        </ul>
-        <a routerLink="/login" class="relative z-[1] inline-flex justify-center items-center gap-1.5 no-underline font-bold text-[14.5px] rounded-full px-[22px] py-3.5 min-h-[46px] bg-white text-brand-strong shadow-[0_10px_24px_-8px_rgba(0,0,0,0.28)] hover:text-brand hover:-translate-y-px hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.38)] transition-all duration-200">
-          Assinar Pro
-        </a>
-      </article>
-
-      <!-- Business -->
-      <article class="reveal relative border-[1.5px] border-rule-strong rounded-[18px] p-[22px] flex flex-col gap-4 shadow-[0_12px_30px_-20px_rgba(10,10,10,0.14)] hover:-translate-y-1.5 hover:border-brand hover:shadow-[0_22px_44px_-22px_rgba(235,63,0,0.24)] transition-all duration-300" style="background: linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%);">
-        <span class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-ink text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full tracking-[0.06em] shadow-[0_6px_16px_-4px_rgba(10,10,10,0.28)] z-[2] whitespace-nowrap">Sua frota cresceu?</span>
-        <header class="flex flex-col gap-2">
-          <span class="inline-block self-start text-[11px] font-bold tracking-[0.12em] uppercase text-brand-strong px-2.5 py-1 rounded-full bg-brand-tint border border-brand/[0.14] mb-1">Business</span>
-          <div class="flex items-baseline gap-1.5">
-            <strong class="font-display font-extrabold text-4xl tracking-[-0.03em] text-ink">R$ 399</strong>
-            <small class="text-muted text-[13.5px]">/ mês</small>
-          </div>
-          <p class="text-muted text-xs font-medium m-0">Ou fale com a gente pra volume maior</p>
-          <p class="text-ink/70 text-sm mt-2">Pra frotas grandes, multi-filial, com integrações customizadas.</p>
-        </header>
-        <ul class="list-none p-0 m-0 flex-1 flex flex-col gap-2.5">
-          <li class="text-[13px] font-bold text-ink leading-[1.5] border-b border-rule pb-2 mb-1 tracking-[0.01em]">Tudo que o plano Pro tem +</li>
-          @for (item of businessItems; track item) {
-            <li class="flex items-start gap-2 text-sm text-ink/70 leading-[1.5]">
-              <span class="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-brand shrink-0 mt-0.5">
-                <svg viewBox="0 0 24 24" fill="none" class="w-3 h-3 text-white"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-              <span>{{ item }}</span>
-            </li>
-          }
-        </ul>
-        <a routerLink="/login" class="inline-flex justify-center items-center gap-1.5 no-underline font-bold text-[14.5px] rounded-full px-[22px] py-3.5 min-h-[46px] bg-paper-alt text-ink border-[1.5px] border-rule-strong hover:bg-brand-tint hover:border-brand hover:text-brand-strong hover:-translate-y-px transition-all duration-200">
-          Assinar Business
-        </a>
-      </article>
+      <div class="reveal">
+        <app-plan-card
+          variant="business"
+          name="Business"
+          price="R$ 399"
+          cycleSuffix="mês"
+          description="Pra frotas grandes, multi-filial, com integrações customizadas."
+          [features]="businessItems"
+          beforeFeaturesText="Tudo que o plano Pro tem +"
+          ribbonText="Sua frota cresceu?"
+          ctaLabel="Assinar Business"
+          (ctaClick)="goToLogin()"
+        />
+      </div>
     </div>
   </div>
 </section>

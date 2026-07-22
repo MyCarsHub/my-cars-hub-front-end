@@ -154,6 +154,16 @@ export interface VehicleFilters {
   sort?: string;
   page?: number;
   size?: number;
+  /**
+   * Filtro do picker de "novo aluguel": quando `true`, o backend exclui
+   * veículos já vinculados a rentals RESERVED/ACTIVE do tenant.
+   */
+  availableForRental?: boolean;
+  /**
+   * Modo edição do rental: inclui o veículo do rental sendo editado mesmo
+   * que ele esteja em uso (escape hatch para não sumir da lista).
+   */
+  includeCurrentRentalId?: string;
 }
 
 /**

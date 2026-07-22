@@ -34,7 +34,6 @@
         [rentalId]="r.id"
         [status]="r.status"
         [automaticCharge]="r.automaticCharge"
-        [refreshToken]="docChanges()"
         (activateRequested)="activate()"
       />
 
@@ -89,7 +88,7 @@
             </div>
             <div class="flex items-baseline justify-between">
               <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">{{ rateLabel(r.billingFrequency) }}</span>
-              <span class="tabular-nums text-neutral-800">{{ formatCurrency(r.dailyRate) }}</span>
+              <span class="tabular-nums text-neutral-800">{{ formatCurrency(r.periodRate) }}</span>
             </div>
             <div class="flex items-baseline justify-between">
               <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Caução</span>
@@ -111,30 +110,33 @@
         </app-page-card>
       </div>
 
-      <app-page-card title="Documentos (opcional)">
-        <div class="p-4 sm:p-6 space-y-4">
-          <p class="text-sm text-neutral-500">
-            Você pode anexar o contrato e as vistorias a qualquer momento — não é obrigatório
-            para ativar o aluguel. Recomendamos anexar antes do check-in.
-          </p>
-          <div class="space-y-4">
-            <div id="contract-card">
-              <app-rental-contract-card [rentalId]="r.id" (changed)="onDocsChanged()" />
-            </div>
-            <div id="checkin-card">
-              <app-rental-inspection-card [rentalId]="r.id" kind="CHECKIN" (changed)="onDocsChanged()" />
-            </div>
-            @if (r.status === 'ACTIVE' || r.status === 'COMPLETED') {
-              <div id="checkout-card">
-                <app-rental-inspection-card [rentalId]="r.id" kind="CHECKOUT" (changed)="onDocsChanged()" />
-              </div>
-            }
-          </div>
-        </div>
-      </app-page-card>
-
       <app-page-card title="Cobranças">
-        <div class="p-4 sm:p-6">
+        <div class="p-4 sm:p-6 space-y-4">
+          @if (canGenerateCaucao()) {
+            <div class="rounded-xl border border-primary-100 bg-primary-50/40 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-neutral-900">Caução</p>
+                <p class="text-xs text-neutral-500 mt-0.5">
+                  Gere uma cobrança avulsa via Asaas de {{ formatCurrency(r.caucaoAmount) }}.
+                </p>
+              </div>
+              <button
+                type="button"
+                (click)="generateCaucaoCharge()"
+                [disabled]="generatingCaucao()"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
+                       rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
+                       shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" aria-hidden="true">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança do caução }
+              </button>
+            </div>
+          }
           @if (r.charges.length === 0) {
             <p class="text-sm text-neutral-500 text-center py-6">
               Nenhuma cobrança gerada ainda.
