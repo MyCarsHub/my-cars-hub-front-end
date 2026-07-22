@@ -45,15 +45,17 @@
                 {{ sub.planName }}
               </h2>
             </div>
-            <span
-              class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider"
-              [class]="statusPillClass(sub.status)">
+            @if (sub.status !== 'TRIALING') {
               <span
-                class="w-1.5 h-1.5 rounded-full"
-                [class]="statusDotClass(sub.status)"
-                aria-hidden="true"></span>
-              {{ statusLabel(sub.status) }}
-            </span>
+                class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider"
+                [class]="statusPillClass(sub.status)">
+                <span
+                  class="w-1.5 h-1.5 rounded-full"
+                  [class]="statusDotClass(sub.status)"
+                  aria-hidden="true"></span>
+                {{ statusLabel(sub.status) }}
+              </span>
+            }
           </div>
 
           <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
@@ -62,7 +64,7 @@
                 <dt class="text-[11px] font-semibold uppercase tracking-widest"
                 [class]="currentHeroMutedClass()">Valor</dt>
                 <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white tabular-nums">
-                  {{ formatPrice(sub.billingCycle === 'MONTHLY' ? cp.priceMonthly : cp.priceYearly) }}
+                  {{ formatPrice(cp.price) }}
                   <span class="text-sm font-medium" [class]="currentHeroMutedClass()">/{{ sub.billingCycle === 'MONTHLY' ? 'mês' : 'ano' }}</span>
                 </dd>
               </div>
@@ -214,11 +216,11 @@
 
         <!-- Plans grid -->
         <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.15fr_0.9fr] gap-6 lg:gap-6 items-stretch lg:items-center pt-4">
-          @for (plan of plans(); track plan.id) {
+          @for (plan of visiblePlans(); track plan.id) {
             <app-plan-card
               [variant]="planVariant(plan)"
               [name]="plan.name"
-              [price]="formatPrice(priceFor(plan))"
+              [price]="formatPrice(plan.price)"
               [cycleSuffix]="planCycleSuffix()"
               [subtitleText]="planSubtitle(plan)"
               [description]="planDescription(plan)"
@@ -249,7 +251,7 @@
     </app-page-card>
 
     <!-- Section 3 — Comparar recursos (collapsible) -->
-    @if (plans().length > 0) {
+    @if (visiblePlans().length > 0) {
       <app-page-card title="Comparar recursos">
         <div cardIcon class="p-2 bg-blue-50 rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -288,7 +290,7 @@
                 <thead class="bg-neutral-50">
                   <tr class="border-b border-neutral-200">
                     <th class="text-left text-[11px] font-semibold text-neutral-500 uppercase tracking-wide px-4 py-3.5">Recurso</th>
-                    @for (plan of plans(); track plan.id) {
+                    @for (plan of visiblePlans(); track plan.id) {
                       <th class="text-center px-3 py-3.5">
                         <div class="flex flex-col items-center gap-1.5">
                           <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ plan.code }}</span>
@@ -306,19 +308,19 @@
                 <tbody class="divide-y divide-neutral-100 bg-white">
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Veículos</td>
-                    @for (plan of plans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ plan.vehicleLimit }}</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.vehicleLimit) }}</td>
                     }
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Motoristas</td>
-                    @for (plan of plans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ plan.driverLimit }}</td>
+                    @for (plan of visiblePlans(); track plan.id) {
+                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.driverLimit) }}</td>
                     }
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Dias de teste grátis</td>
-                    @for (plan of plans(); track plan.id) {
+                    @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center text-neutral-900 tabular-nums">
                         @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-neutral-400">—</span> }
                       </td>
@@ -326,7 +328,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Cobrança automática</td>
-                    @for (plan of plans(); track plan.id) {
+                    @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                       </td>
@@ -334,7 +336,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Dashboard completo</td>
-                    @for (plan of plans(); track plan.id) {
+                    @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                       </td>
@@ -342,7 +344,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Relatórios avançados</td>
-                    @for (plan of plans(); track plan.id) {
+                    @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         @if (isRecommended(plan)) {
                           <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
@@ -354,7 +356,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Suporte prioritário</td>
-                    @for (plan of plans(); track plan.id) {
+                    @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         @if (isRecommended(plan)) {
                           <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
@@ -370,7 +372,7 @@
 
             <!-- Mobile: accordion per plan -->
             <div class="lg:hidden space-y-3">
-              @for (plan of plans(); track plan.id) {
+              @for (plan of visiblePlans(); track plan.id) {
                 <div class="border border-neutral-200 rounded-2xl overflow-hidden bg-white">
                   <button
                     type="button"
@@ -402,11 +404,11 @@
                     <ul class="p-4 pt-3 space-y-3 text-sm text-neutral-700 border-t border-neutral-100 bg-neutral-50">
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Veículos</span>
-                        <span class="font-semibold text-neutral-900 tabular-nums">{{ plan.vehicleLimit }}</span>
+                        <span class="font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.vehicleLimit) }}</span>
                       </li>
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Motoristas</span>
-                        <span class="font-semibold text-neutral-900 tabular-nums">{{ plan.driverLimit }}</span>
+                        <span class="font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.driverLimit) }}</span>
                       </li>
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Dias de teste</span>

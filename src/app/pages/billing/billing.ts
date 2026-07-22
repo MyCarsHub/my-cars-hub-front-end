@@ -17,14 +17,11 @@ import { SessionService } from '../../services/session.service';
 import {
   BillingCycle,
   GatewayOverride,
+  PlanGateway,
+  PlanPeriod,
   PlanResponse,
   SubscriptionResponse,
 } from '../../types/billing.types';
-
-interface CompareRow {
-  label: string;
-  values: (plan: PlanResponse) => string;
-}
 
 @Component({
   selector: 'app-billing',
@@ -52,7 +49,17 @@ export class Billing implements OnInit {
   protected readonly expandedPlanId = signal<string | null>(null);
   protected readonly showCompare = signal(false);
 
-  protected readonly recommendedCode = 'PRO';
+  protected readonly recommendedName = 'PRO';
+
+  /**
+   * Which gateway to render. PLATFORM_ADMIN can switch; everyone else sees
+   * `stripe` (default). See gotchas — the company gateway isn't currently
+   * exposed on `access-status` / `subscription`, so we hardcode stripe as
+   * the customer-facing default.
+   */
+  protected readonly activeGateway = computed<PlanGateway>(() =>
+    this.isPlatformAdmin ? this.adminGateway() : 'stripe',
+  );
 
   /** Gradient do card recomendado — orange no Mensal, Hub Green no Anual. */
   protected readonly recommendedGradient = computed<string>(() =>
@@ -76,64 +83,94 @@ export class Billing implements OnInit {
   protected readonly currentPlanCode = computed(() => this.subscription()?.planCode ?? null);
 
   /**
-   * Maior % de economia anual entre todos os planos (arredondado).
-   * Formula: 100 * (1 - priceYearly / (priceMonthly * 12)).
+   * Rows filtered by current gateway + selected period, one row per `name`.
+   * When multiple codes exist for the same (name, period, gateway) we keep
+   * the first — backend should already dedupe, but this stays defensive.
    */
+  protected readonly visiblePlans = computed<PlanResponse[]>(() => {
+    const gw = this.activeGateway();
+    const period: PlanPeriod = this.cycle();
+    const seen = new Set<string>();
+    const out: PlanResponse[] = [];
+    for (const p of this.plans()) {
+      if (p.gateway !== gw) continue;
+      if (p.period !== period) continue;
+      if (seen.has(p.name)) continue;
+      seen.add(p.name);
+      out.push(p);
+    }
+    return out;
+  });
+
+  /**
+   * Percent savings for a given `name`, based on YEARLY vs MONTHLY row of
+   * the same name + active gateway. Returns 0 when either side is missing.
+   */
+  protected planYearlySavingsByName(name: string): number {
+    const gw = this.activeGateway();
+    let monthly = 0;
+    let yearly = 0;
+    for (const p of this.plans()) {
+      if (p.gateway !== gw) continue;
+      if (p.name !== name) continue;
+      if (p.period === 'MONTHLY') monthly = p.price;
+      else if (p.period === 'YEARLY') yearly = p.price;
+    }
+    if (monthly <= 0 || yearly <= 0) return 0;
+    return Math.round(100 * (1 - yearly / (monthly * 12)));
+  }
+
+  /** Best yearly savings across all plan groups (for the cycle-toggle badge). */
   protected readonly yearlySavingsBadge = computed<number>(() => {
-    const list = this.plans();
+    const gw = this.activeGateway();
+    const monthly = new Map<string, number>();
+    const yearly = new Map<string, number>();
+    for (const p of this.plans()) {
+      if (p.gateway !== gw) continue;
+      if (p.period === 'MONTHLY') monthly.set(p.name, p.price);
+      else if (p.period === 'YEARLY') yearly.set(p.name, p.price);
+    }
     let best = 0;
-    for (const p of list) {
-      if (p.priceMonthly > 0 && p.priceYearly > 0) {
-        const pct = 100 * (1 - p.priceYearly / (p.priceMonthly * 12));
-        if (pct > best) best = pct;
-      }
+    for (const [name, m] of monthly) {
+      const y = yearly.get(name);
+      if (!y || m <= 0 || y <= 0) continue;
+      const pct = 100 * (1 - y / (m * 12));
+      if (pct > best) best = pct;
     }
     return Math.round(best);
   });
 
   /**
-   * Percentual de economia anual de um plano específico (para exibir no card de assinatura atual).
+   * The exact row that matches the customer's current subscription
+   * (same code). This is a single (name, period, gateway) row already.
    */
-  protected planYearlySavings(plan: PlanResponse): number {
-    if (plan.priceMonthly <= 0 || plan.priceYearly <= 0) return 0;
-    return Math.round(100 * (1 - plan.priceYearly / (plan.priceMonthly * 12)));
-  }
-
   protected currentPlan = computed<PlanResponse | null>(() => {
     const code = this.currentPlanCode();
     if (!code) return null;
     return this.plans().find((p) => p.code === code) ?? null;
   });
 
-  /**
-   * Hero background CSS for the "Plano atual" section.
-   * - TRIAL / no paid plan → null (falls back to dark bg-neutral-900).
-   * - PRO / ENTERPRISE + MONTHLY → orange brand gradient.
-   * - PRO / ENTERPRISE + YEARLY → emerald "Hub Green" gradient.
-   */
   protected readonly currentHeroBackground = computed<string | null>(() => {
     const sub = this.subscription();
     if (!sub) return null;
-    const code = sub.planCode?.toUpperCase() ?? '';
-    if (code !== 'PRO' && code !== 'ENTERPRISE' && code !== 'BUSINESS') return null;
+    const name = (sub.planName ?? '').toUpperCase();
+    if (name !== 'PRO' && name !== 'ENTERPRISE' && name !== 'BUSINESS') return null;
     return sub.billingCycle === 'YEARLY'
       ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)'
       : 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)';
   });
 
-  /** Tailwind classes for muted labels inside the hero (adapts to bg). */
   protected readonly currentHeroMutedClass = computed<string>(() =>
     this.currentHeroBackground() ? 'text-white/80' : 'text-neutral-400',
   );
 
-  /** Glow color for the top-right blur on the hero, matching the plan background. */
   protected readonly currentHeroGlow = computed<string>(() => {
     const sub = this.subscription();
     if (!sub) return 'rgba(235,63,0,0.25)';
-    const code = sub.planCode?.toUpperCase() ?? '';
-    const isPaid = code === 'PRO' || code === 'ENTERPRISE' || code === 'BUSINESS';
+    const name = (sub.planName ?? '').toUpperCase();
+    const isPaid = name === 'PRO' || name === 'ENTERPRISE' || name === 'BUSINESS';
     if (!isPaid) return 'rgba(235,63,0,0.25)';
-    return sub.billingCycle === 'YEARLY' ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.20)';
+    return 'rgba(255,255,255,0.20)';
   });
 
   ngOnInit(): void {
@@ -149,16 +186,16 @@ export class Billing implements OnInit {
     this.adminGateway.set(g);
   }
 
-  protected priceFor(plan: PlanResponse): number {
-    return this.cycle() === 'MONTHLY' ? plan.priceMonthly : plan.priceYearly;
-  }
-
   /**
-   * Preço equivalente MENSAL quando o ciclo é anual (para mostrar "R$ X /mês" no card).
+   * Monthly-equivalent price for a plan row. For yearly rows returns price/12.
    */
   protected monthlyEquivalent(plan: PlanResponse): number {
-    if (this.cycle() === 'MONTHLY') return plan.priceMonthly;
-    return plan.priceYearly / 12;
+    return plan.period === 'MONTHLY' ? plan.price : plan.price / 12;
+  }
+
+  /** Display a plan limit — `null` (unlimited) renders as the infinity sign. */
+  protected formatLimit(value: number | null): string {
+    return value === null ? '∞' : String(value);
   }
 
   protected formatPrice(value: number): string {
@@ -217,11 +254,11 @@ export class Billing implements OnInit {
   }
 
   protected isRecommended(plan: PlanResponse): boolean {
-    return plan.code === this.recommendedCode;
+    return plan.name === this.recommendedName;
   }
 
   protected isBusinessPlan(plan: PlanResponse): boolean {
-    return plan.code === 'BUSINESS' || plan.code === 'ENTERPRISE';
+    return plan.name === 'BUSINESS' || plan.name === 'ENTERPRISE';
   }
 
   protected planVariant(plan: PlanResponse): 'trial' | 'pro' | 'business' {
@@ -268,33 +305,39 @@ export class Billing implements OnInit {
 
   protected planFeatures(plan: PlanResponse): readonly string[] {
     if (this.isRecommended(plan)) return this.proFeatures;
-    if (plan.code === 'ENTERPRISE') return this.enterpriseFeatures;
+    if (plan.name === 'ENTERPRISE') return this.enterpriseFeatures;
     if (this.isBusinessPlan(plan)) return this.businessFeatures;
     return this.trialFeatures;
   }
 
   protected planSubtitle(plan: PlanResponse): string | null {
-    if (this.cycle() === 'YEARLY' && plan.priceYearly > 0 && plan.priceMonthly > 0) {
+    if (this.cycle() === 'YEARLY') {
       const monthly = this.formatPrice(this.monthlyEquivalent(plan));
-      const savings = this.planYearlySavings(plan);
+      const savings = this.planYearlySavingsByName(plan.name);
       return savings > 0
         ? `Equivale a ${monthly}/mês · economiza ${savings}%`
         : `Equivale a ${monthly}/mês`;
     }
-    if (
-      this.isRecommended(plan) &&
-      this.cycle() === 'MONTHLY' &&
-      plan.priceYearly > 0 &&
-      this.planYearlySavings(plan) > 0
-    ) {
-      return `ou ${this.formatPrice(this.monthlyEquivalent(plan))}/mês no anual`;
+    if (this.isRecommended(plan)) {
+      const savings = this.planYearlySavingsByName(plan.name);
+      if (savings > 0) {
+        // Preview the effective monthly if user switched to yearly.
+        // Look up the yearly row of the same name/gateway.
+        const gw = this.activeGateway();
+        const yearlyRow = this.plans().find(
+          (p) => p.name === plan.name && p.gateway === gw && p.period === 'YEARLY',
+        );
+        if (yearlyRow) {
+          return `ou ${this.formatPrice(yearlyRow.price / 12)}/mês no anual`;
+        }
+      }
     }
     return null;
   }
 
   protected planDescription(plan: PlanResponse): string | null {
     if (this.isRecommended(plan)) return 'Pra operações que precisam de mais capacidade.';
-    if (plan.code === 'ENTERPRISE')
+    if (plan.name === 'ENTERPRISE')
       return 'Frota grande, integrações premium, suporte dedicado.';
     if (this.isBusinessPlan(plan))
       return 'Pra frotas grandes, multi-filial, com integrações customizadas.';
@@ -339,7 +382,7 @@ export class Billing implements OnInit {
   }
 
   protected taglineFor(plan: PlanResponse): string {
-    switch (plan.code) {
+    switch (plan.name) {
       case 'TRIAL':
       case 'STARTER':
         return 'Para começar';
@@ -354,12 +397,12 @@ export class Billing implements OnInit {
   }
 
   protected readonly hasAnyTrial = computed<boolean>(() =>
-    this.plans().some((p) => p.trialDays > 0),
+    this.visiblePlans().some((p) => p.trialDays > 0),
   );
 
   protected readonly maxTrialDays = computed<number>(() => {
     let max = 0;
-    for (const p of this.plans()) {
+    for (const p of this.visiblePlans()) {
       if (p.trialDays > max) max = p.trialDays;
     }
     return max;
@@ -406,13 +449,14 @@ export class Billing implements OnInit {
   }
 
   /**
-   * Clicar em "Assinar" (subscribe) vai DIRETO para o checkout do gateway.
+   * Kick off checkout. The row already encodes gateway + period + name,
+   * so we forward `plan.code` (e.g. `PRO_MONTHLY_STRIPE`) verbatim.
    */
   protected subscribe(plan: PlanResponse): void {
     if (this.redirecting() || this.isCurrent(plan)) return;
     this.redirecting.set(true);
     const override = this.isPlatformAdmin ? this.adminGateway() : undefined;
-    this.billingService.startCheckout(plan.code, this.cycle(), override).subscribe({
+    this.billingService.startCheckout(plan.code, override).subscribe({
       next: (res) => {
         this.externalNav.openExternal(res.redirectUrl);
         this.redirecting.set(false);
