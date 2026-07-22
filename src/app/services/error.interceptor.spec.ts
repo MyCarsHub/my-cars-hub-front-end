@@ -100,11 +100,25 @@ describe('errorInterceptor', () => {
     expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
   });
 
-  it('shows generic message and forces reauth on 500', async () => {
+  it('shows generic message on 500 without clearing session or redirecting', async () => {
     await runAndCatch(500);
-    expect(notifyError).toHaveBeenCalledWith('Erro no servidor. Faça login novamente.');
-    expect(sessionClear).toHaveBeenCalledTimes(1);
-    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    expect(notifyError).toHaveBeenCalledWith('Erro no servidor. Tente novamente.');
+    expect(sessionClear).not.toHaveBeenCalled();
+    expect(routerNavigate).not.toHaveBeenCalled();
+  });
+
+  it('forwards backend message on 500 when present', async () => {
+    await runAndCatch(500, { message: 'Falha ao registrar pagamento.' });
+    expect(notifyError).toHaveBeenCalledWith('Falha ao registrar pagamento.');
+    expect(sessionClear).not.toHaveBeenCalled();
+    expect(routerNavigate).not.toHaveBeenCalled();
+  });
+
+  it('shows offline toast on status 0 without clearing session or redirecting', async () => {
+    await runAndCatch(0);
+    expect(notifyError).toHaveBeenCalledWith('Sem conexão com o servidor.');
+    expect(sessionClear).not.toHaveBeenCalled();
+    expect(routerNavigate).not.toHaveBeenCalled();
   });
 
   it('forwards backend message on 422', async () => {

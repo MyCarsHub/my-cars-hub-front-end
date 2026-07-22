@@ -139,6 +139,54 @@ describe('RentalService shared rentalState', () => {
   });
 });
 
+describe('RentalService.markChargeAsPaid', () => {
+  it('POSTs to /v1/rentals/{rid}/charges/{cid}/mark-paid with { paidAt }', () => {
+    const httpPost = vi
+      .fn()
+      .mockReturnValue(of({ id: 'ch-9', kind: 'RENTAL_PERIOD', status: 'PAID' }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        RentalService,
+        {
+          provide: HttpClient,
+          useValue: { get: vi.fn(), post: httpPost, delete: vi.fn(), put: vi.fn() },
+        },
+      ],
+    });
+    const service = TestBed.inject(RentalService);
+    service.markChargeAsPaid('rid-7', 'ch-9', '2026-07-22').subscribe();
+    expect(httpPost).toHaveBeenCalledWith(
+      `${environment.apiUrl}/rentals/rid-7/charges/ch-9/mark-paid`,
+      { paidAt: '2026-07-22' },
+    );
+  });
+});
+
+describe('RentalService.unmarkChargeAsPaid', () => {
+  it('POSTs to /v1/rentals/{rid}/charges/{cid}/unmark-paid with empty body', () => {
+    const httpPost = vi
+      .fn()
+      .mockReturnValue(of({ id: 'ch-9', kind: 'RENTAL_PERIOD', status: 'PENDING' }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        RentalService,
+        {
+          provide: HttpClient,
+          useValue: { get: vi.fn(), post: httpPost, delete: vi.fn(), put: vi.fn() },
+        },
+      ],
+    });
+    const service = TestBed.inject(RentalService);
+    service.unmarkChargeAsPaid('rid-7', 'ch-9').subscribe();
+    expect(httpPost).toHaveBeenCalledWith(
+      `${environment.apiUrl}/rentals/rid-7/charges/ch-9/unmark-paid`,
+      {},
+    );
+  });
+});
+
 describe('RentalService.createCaucaoCharge', () => {
   it('POSTs to /v1/rentals/{id}/caucao-charge with empty body', () => {
     const httpPost = vi.fn().mockReturnValue(of({ id: 'ch-1', kind: 'CAUCAO' }));

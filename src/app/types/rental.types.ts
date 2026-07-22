@@ -1,7 +1,7 @@
 import { PagedResponse } from './paged.types';
 
 export type RentalStatus = 'RESERVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
-export type ChargeKind = 'RENTAL_TOTAL' | 'CAUCAO';
+export type ChargeKind = 'RENTAL_TOTAL' | 'RENTAL_PERIOD' | 'CAUCAO';
 export type ChargeStatus =
   | 'PENDING'
   | 'PAID'
@@ -11,6 +11,45 @@ export type ChargeStatus =
   | 'REFUNDED'
   | 'RELEASED';
 export type RentalBillingFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+/** Método de devolução da caução no fechamento (complete/cancel). */
+export type CaucaoRefundMethod = 'AUTOMATIC' | 'MANUAL' | 'NONE';
+
+/** Payload opcional de devolução da caução enviado em complete/cancel. */
+export interface CaucaoRefundPayload {
+  amount: number; // cents (long)
+  method: CaucaoRefundMethod;
+}
+
+/**
+ * Payload opcional do POST /rentals/{id}/complete. Todos os campos são
+ * opcionais — endpoint aceita body vazio.
+ */
+export interface CompleteRentalPayload {
+  completedAt?: string; // yyyy-MM-dd
+  endReason?: string; // <= 500
+  caucaoRefund?: CaucaoRefundPayload;
+}
+
+/**
+ * Payload opcional do POST /rentals/{id}/cancel. Mesma shape do complete,
+ * porém com `canceledAt` em vez de `completedAt`.
+ */
+export interface CancelRentalPayload {
+  canceledAt?: string; // yyyy-MM-dd
+  endReason?: string; // <= 500
+  caucaoRefund?: CaucaoRefundPayload;
+}
+
+export function caucaoRefundMethodLabel(m: CaucaoRefundMethod): string {
+  switch (m) {
+    case 'AUTOMATIC':
+      return 'Automática';
+    case 'MANUAL':
+      return 'Manual';
+    case 'NONE':
+      return 'Não devolvida';
+  }
+}
 /** V29: fonte do PDF de contrato — AUTO (gera do template) ou MANUAL (upload). */
 export type RentalContractSource = 'AUTO' | 'MANUAL';
 /** V29: unidade da multa de atraso — PERCENT (basis-points 0-10000) ou FIXED (centavos). */
@@ -58,6 +97,9 @@ export interface RentalChargeDto {
   externalId: string | null;
   checkoutUrl: string | null;
   paidAt: string | null; // ISO
+  /** V29+/#46 — per-period bookkeeping. Null for legacy RENTAL_TOTAL/CAUCAO. */
+  dueDate: string | null; // yyyy-MM-dd
+  periodIndex: number | null;
 }
 
 export interface RentalResponseDto {
@@ -102,6 +144,21 @@ export interface RentalResponseDto {
   charges: RentalChargeDto[];
   createdAt: string;
   modifiedAt: string;
+  // Encerramento (COMPLETED / CANCELED).
+  /** True quando o encerramento ocorreu antes do endDate programado. */
+  endedEarly?: boolean;
+  /** Motivo livre (<=500) informado ao concluir/cancelar. */
+  endReason?: string | null;
+  /** Valor da caução efetivamente devolvido (cents). */
+  caucaoRefundedAmount?: number | null;
+  /** Timestamp ISO da devolução da caução. */
+  caucaoRefundedAt?: string | null;
+  /** Método de devolução escolhido no encerramento. */
+  caucaoRefundMethod?: CaucaoRefundMethod | null;
+  /** Data de conclusão (yyyy-MM-dd). Presente quando status=COMPLETED. */
+  completedAt?: string | null;
+  /** Data de cancelamento (yyyy-MM-dd). Presente quando status=CANCELED. */
+  canceledAt?: string | null;
 }
 
 export interface RentalListItemDto {
@@ -226,7 +283,12 @@ export function chargeStatusInfo(status: ChargeStatus): { label: string; chip: s
 }
 
 export function chargeKindLabel(kind: ChargeKind): string {
-  return kind === 'RENTAL_TOTAL' ? 'Aluguel' : 'Caução';
+  const map: Record<ChargeKind, string> = {
+    RENTAL_TOTAL: 'Aluguel',
+    RENTAL_PERIOD: 'Aluguel — período',
+    CAUCAO: 'Caução',
+  };
+  return map[kind];
 }
 
 /**

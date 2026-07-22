@@ -58,6 +58,46 @@
             }
           </div>
         </div>
+
+        @if (isTerminal()) {
+          <div class="border-t border-neutral-100 px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-2 text-xs">
+            <div class="flex items-baseline gap-1.5">
+              <span class="uppercase tracking-wide text-neutral-400 font-semibold">
+                {{ r.status === 'CANCELED' ? 'Cancelado em' : 'Concluído em' }}
+              </span>
+              <span class="tabular-nums text-neutral-700">{{ endDateLabel() }}</span>
+            </div>
+
+            @if (r.endedEarly) {
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
+                Encerrado antes do prazo
+              </span>
+            }
+
+            @if (r.caucaoAmount > 0) {
+              <div class="flex items-baseline gap-1.5">
+                <span class="uppercase tracking-wide text-neutral-400 font-semibold">Caução</span>
+                @if (r.caucaoRefundMethod === 'NONE') {
+                  <span class="text-neutral-700">Retida pelo locador</span>
+                } @else if (r.caucaoRefundedAmount != null && r.caucaoRefundedAmount > 0) {
+                  <span class="tabular-nums text-neutral-700">
+                    {{ formatCurrency(r.caucaoRefundedAmount) }}
+                    <span class="text-neutral-400">· {{ refundMethodLabel() }}</span>
+                  </span>
+                } @else {
+                  <span class="text-neutral-500">—</span>
+                }
+              </div>
+            }
+
+            @if (r.endReason) {
+              <div class="basis-full sm:basis-auto sm:flex-1 min-w-0">
+                <span class="uppercase tracking-wide text-neutral-400 font-semibold">Motivo</span>
+                <span class="ml-1.5 text-neutral-700">{{ r.endReason }}</span>
+              </div>
+            }
+          </div>
+        }
       </app-page-card>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -110,14 +150,215 @@
         </app-page-card>
       </div>
 
-      <app-page-card title="Cobranças">
-        <div class="p-4 sm:p-6 space-y-4">
-          @if (canGenerateCaucao()) {
-            <div class="rounded-xl border border-primary-100 bg-primary-50/40 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+      <!-- KPI cards — mesmo shell/estilo do financing-detail -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor recebido</p>
+          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+            {{ formatCurrency(paidCents()) }}
+          </p>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor restante</p>
+          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+            {{ formatCurrency(remainingCents()) }}
+          </p>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Próximo recebimento</p>
+          @if (nextCharge(); as n) {
+            <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+              {{ formatDate(n.dueDate) }}
+            </p>
+            <p class="text-xs text-neutral-500 tabular-nums mt-0.5">
+              {{ formatCurrency(n.amount) }}
+            </p>
+          } @else {
+            <p class="mt-1 text-lg font-semibold text-neutral-400 tabular-nums">—</p>
+          }
+        </div>
+        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p class="text-xs uppercase tracking-wide text-neutral-400">Progresso</p>
+          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">{{ progressPct() }}%</p>
+          <div class="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+            <div
+              class="h-full bg-primary-500"
+              [style.width.%]="progressPct()"
+              aria-hidden="true"
+            ></div>
+          </div>
+          <p class="mt-1 text-xs text-neutral-500 tabular-nums">
+            {{ paidCount() }} / {{ totalCount() }} períodos
+          </p>
+        </div>
+      </div>
+
+      <!-- Caução — card dedicado ACIMA do cronograma. -->
+      <app-page-card title="Caução">
+        <div class="p-3 sm:p-4 space-y-3">
+          @if (caucaoCharge(); as cc) {
+            <!-- Timeline de uma linha, mesmo shape do cronograma. -->
+            <!-- Mobile -->
+            <ul class="space-y-2 lg:hidden" role="list">
+              <li
+                class="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-600 font-semibold">C</span>
+                  <div class="min-w-0">
+                    <p class="text-sm text-neutral-800 tabular-nums">
+                      @if (cc.dueDate) {
+                        {{ formatDate(cc.dueDate) }}
+                      } @else {
+                        <span class="text-neutral-400">—</span>
+                      }
+                    </p>
+                    <p class="text-xs text-neutral-500 tabular-nums">
+                      {{ formatCurrency(cc.amount) }}
+                      <span class="text-neutral-400"> · Caução</span>
+                    </p>
+                    @if (cc.paidAt) {
+                      <p class="text-[11px] text-neutral-400 tabular-nums">
+                        Pago em {{ formatDateTime(cc.paidAt) }}
+                      </p>
+                    }
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    [class]="chargeStatusInfo(cc.status).chip"
+                  >
+                    {{ chargeStatusInfo(cc.status).label }}
+                  </span>
+                  @if (canPayCharge(cc)) {
+                    <button type="button" (click)="payCharge(cc)"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                             hover:bg-primary-600 active:scale-95 transition"
+                      aria-label="Pagar cobrança da caução">
+                      Pagar
+                    </button>
+                  }
+                  @if (canRetryCharge(cc)) {
+                    <button type="button" (click)="retryCharge(cc)" [disabled]="retrying() === cc.id"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-amber-600 text-white
+                             hover:bg-amber-700 active:scale-95 transition disabled:opacity-60"
+                      aria-label="Regerar cobrança da caução">
+                      {{ retrying() === cc.id ? '…' : 'Regerar' }}
+                    </button>
+                  }
+                  @if (canMarkAsPaid(cc)) {
+                    <button type="button" (click)="askMarkPaid(cc)"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Marcar caução como paga">
+                      Marcar como paga
+                    </button>
+                  }
+                  @if (canUnmarkAsPaid(cc)) {
+                    <button type="button" (click)="askUnmarkPaid(cc)"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                             hover:bg-primary-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      aria-label="Desmarcar caução como paga">
+                      Desmarcar
+                    </button>
+                  }
+                </div>
+              </li>
+            </ul>
+
+            <!-- Desktop -->
+            <div class="hidden lg:block overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                    <th class="py-2 pr-4 font-medium">#</th>
+                    <th class="py-2 pr-4 font-medium">Vencimento</th>
+                    <th class="py-2 pr-4 font-medium">Tipo</th>
+                    <th class="py-2 pr-4 font-medium">Valor</th>
+                    <th class="py-2 pr-4 font-medium">Pago em</th>
+                    <th class="py-2 pr-4 font-medium">Situação</th>
+                    <th class="py-2 pr-4 font-medium text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-b border-neutral-50">
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-600 font-semibold">C</td>
+                    <td class="py-2.5 pr-4 tabular-nums">
+                      @if (cc.dueDate) {
+                        {{ formatDate(cc.dueDate) }}
+                      } @else {
+                        <span class="text-neutral-400">—</span>
+                      }
+                    </td>
+                    <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
+                    <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(cc.amount) }}</td>
+                    <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
+                      @if (cc.paidAt) {
+                        {{ formatDateTime(cc.paidAt) }}
+                      } @else {
+                        <span class="text-neutral-400">—</span>
+                      }
+                    </td>
+                    <td class="py-2.5 pr-4">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                        [class]="chargeStatusInfo(cc.status).chip">
+                        {{ chargeStatusInfo(cc.status).label }}
+                      </span>
+                    </td>
+                    <td class="py-2.5 pr-4 text-right">
+                      <div class="inline-flex items-center gap-2 justify-end">
+                        @if (canPayCharge(cc)) {
+                          <button type="button" (click)="payCharge(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   hover:bg-primary-600 transition">
+                            Pagar
+                          </button>
+                        }
+                        @if (canRetryCharge(cc)) {
+                          <button type="button" (click)="retryCharge(cc)" [disabled]="retrying() === cc.id"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 text-white
+                                   hover:bg-amber-700 transition disabled:opacity-60">
+                            {{ retrying() === cc.id ? 'Regerando…' : 'Regerar' }}
+                          </button>
+                        }
+                        @if (canMarkAsPaid(cc)) {
+                          <button type="button" (click)="askMarkPaid(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   hover:bg-emerald-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+                            Marcar como paga
+                          </button>
+                        }
+                        @if (canUnmarkAsPaid(cc)) {
+                          <button type="button" (click)="askUnmarkPaid(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   hover:bg-primary-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                            Desmarcar
+                          </button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          } @else if (r.caucaoAmount > 0 && canGenerateCaucao()) {
+            <!-- Empty state: gerar cobrança de caução via Asaas. -->
+            <div
+              class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl
+                     border border-dashed border-primary-300 bg-primary-50/40 px-3 py-3"
+            >
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-neutral-900">Caução</p>
+                <p class="text-sm font-semibold text-neutral-900">
+                  Caução — {{ formatCurrency(r.caucaoAmount) }}
+                </p>
                 <p class="text-xs text-neutral-500 mt-0.5">
-                  Gere uma cobrança avulsa via Asaas de {{ formatCurrency(r.caucaoAmount) }}.
+                  Gere a cobrança avulsa da caução via Asaas.
                 </p>
               </div>
               <button
@@ -126,83 +367,249 @@
                 [disabled]="generatingCaucao()"
                 class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
                        rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
-                       shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
+                       shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                   stroke-linejoin="round" aria-hidden="true">
                   <line x1="12" y1="5" x2="12" y2="19"/>
                   <line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
-                @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança do caução }
+                @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança }
               </button>
             </div>
+          } @else {
+            <p class="text-sm text-neutral-500 text-center py-6">
+              @if (r.caucaoAmount > 0) {
+                Sem cobrança de caução gerada.
+              } @else {
+                Sem caução configurada para este aluguel.
+              }
+            </p>
           }
-          @if (r.charges.length === 0) {
+        </div>
+      </app-page-card>
+
+      <!-- Cronograma de cobrança (RENTAL_PERIOD + RENTAL_TOTAL, sem CAUCAO) -->
+      <app-page-card title="Cronograma de cobrança">
+        <div class="p-3 sm:p-4 space-y-3">
+          @if (!hasSchedule()) {
             <p class="text-sm text-neutral-500 text-center py-6">
               Nenhuma cobrança gerada ainda.
             </p>
           } @else {
-            <ul class="space-y-3">
-              @for (charge of r.charges; track charge.id) {
-                <li class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
-                  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div class="text-xs text-neutral-500 flex items-center justify-between">
+              <span>
+                <strong class="text-neutral-800 tabular-nums">{{ paidCount() }}</strong>
+                de
+                <strong class="text-neutral-800 tabular-nums">{{ totalCount() }}</strong>
+                períodos pagos
+              </span>
+              @if (overdueCount() > 0) {
+                <span class="text-rose-700 font-medium">
+                  {{ overdueCount() }} atrasada(s)
+                </span>
+              }
+            </div>
+
+            <!-- Mobile: linhas em card -->
+            <ul class="space-y-2 lg:hidden" role="list">
+              @for (charge of scheduleCharges(); track trackCharge($index, charge); let i = $index) {
+                <li
+                  class="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+                >
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span
+                      class="text-xs tabular-nums w-6 text-right shrink-0"
+                      [class.text-primary-600]="charge.kind === 'CAUCAO'"
+                      [class.font-semibold]="charge.kind === 'CAUCAO'"
+                      [class.text-neutral-400]="charge.kind !== 'CAUCAO'"
+                    >
+                      {{ rowBadge(charge, i) }}
+                    </span>
                     <div class="min-w-0">
-                      <p class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">
-                        {{ chargeKindLabel(charge.kind) }}
+                      <p class="text-sm text-neutral-800 tabular-nums">
+                        @if (charge.dueDate) {
+                          {{ formatDate(charge.dueDate) }}
+                        } @else {
+                          <span class="text-neutral-400">—</span>
+                        }
                       </p>
-                      <p class="text-lg font-semibold text-neutral-900 tabular-nums">
+                      <p class="text-xs text-neutral-500 tabular-nums">
                         {{ formatCurrency(charge.amount) }}
+                        <span class="text-neutral-400"> · {{ chargeKindLabel(charge.kind) }}</span>
                       </p>
                       @if (charge.paidAt) {
-                        <p class="text-xs text-neutral-500 mt-0.5">
+                        <p class="text-[11px] text-neutral-400 tabular-nums">
                           Pago em {{ formatDateTime(charge.paidAt) }}
                         </p>
                       }
                     </div>
-                    <span class="inline-flex shrink-0 items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      [class]="chargeStatusInfo(charge.status).chip">
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      [class]="chargeStatusInfo(charge.status).chip"
+                    >
                       {{ chargeStatusInfo(charge.status).label }}
                     </span>
+                    @if (canPayCharge(charge)) {
+                      <button
+                        type="button"
+                        (click)="payCharge(charge)"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                               hover:bg-primary-600 active:scale-95 transition"
+                        [attr.aria-label]="'Pagar cobrança ' + periodNumber(charge, i)"
+                      >
+                        Pagar
+                      </button>
+                    }
+                    @if (canRetryCharge(charge)) {
+                      <button
+                        type="button"
+                        (click)="retryCharge(charge)"
+                        [disabled]="retrying() === charge.id"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-amber-600 text-white
+                               hover:bg-amber-700 active:scale-95 transition disabled:opacity-60"
+                        [attr.aria-label]="'Regerar cobrança ' + periodNumber(charge, i)"
+                      >
+                        {{ retrying() === charge.id ? '…' : 'Regerar' }}
+                      </button>
+                    }
+                    @if (canMarkAsPaid(charge)) {
+                      <button
+                        type="button"
+                        (click)="askMarkPaid(charge)"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                               hover:bg-emerald-600 active:scale-95 transition
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                        [attr.aria-label]="'Marcar cobrança ' + rowBadge(charge, i) + ' como paga'"
+                      >
+                        Marcar como paga
+                      </button>
+                    }
+                    @if (canUnmarkAsPaid(charge)) {
+                      <button
+                        type="button"
+                        (click)="askUnmarkPaid(charge)"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                               hover:bg-primary-600 active:scale-95 transition
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                        [attr.aria-label]="'Desmarcar cobrança ' + rowBadge(charge, i) + ' como paga'"
+                      >
+                        Desmarcar
+                      </button>
+                    }
                   </div>
-
-                  @if (canPayCharge(charge)) {
-                    <button
-                      type="button"
-                      (click)="payCharge(charge)"
-                      class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
-                             rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
-                             shadow-sm transition-colors min-h-[44px]">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/>
-                        <line x1="10" y1="14" x2="21" y2="3"/>
-                      </svg>
-                      Pagar
-                    </button>
-                  }
-
-                  @if (canRetryCharge(charge)) {
-                    <button
-                      type="button"
-                      (click)="retryCharge(charge)"
-                      [disabled]="retrying() === charge.id"
-                      class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
-                             rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold
-                             shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="23 4 23 10 17 10"/>
-                        <path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10"/>
-                      </svg>
-                      @if (retrying() === charge.id) { Regerando… } @else { Regerar cobrança }
-                    </button>
-                  }
                 </li>
               }
             </ul>
+
+            <!-- Desktop: tabela -->
+            <div class="hidden lg:block overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                    <th class="py-2 pr-4 font-medium">#</th>
+                    <th class="py-2 pr-4 font-medium">Vencimento</th>
+                    <th class="py-2 pr-4 font-medium">Tipo</th>
+                    <th class="py-2 pr-4 font-medium">Valor</th>
+                    <th class="py-2 pr-4 font-medium">Pago em</th>
+                    <th class="py-2 pr-4 font-medium">Situação</th>
+                    <th class="py-2 pr-4 font-medium text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (charge of scheduleCharges(); track trackCharge($index, charge); let i = $index) {
+                    <tr class="border-b border-neutral-50">
+                      <td
+                        class="py-2.5 pr-4 tabular-nums"
+                        [class.text-primary-600]="charge.kind === 'CAUCAO'"
+                        [class.font-semibold]="charge.kind === 'CAUCAO'"
+                        [class.text-neutral-500]="charge.kind !== 'CAUCAO'"
+                      >
+                        {{ rowBadge(charge, i) }}
+                      </td>
+                      <td class="py-2.5 pr-4 tabular-nums">
+                        @if (charge.dueDate) {
+                          {{ formatDate(charge.dueDate) }}
+                        } @else {
+                          <span class="text-neutral-400">—</span>
+                        }
+                      </td>
+                      <td class="py-2.5 pr-4 text-neutral-600">
+                        {{ chargeKindLabel(charge.kind) }}
+                      </td>
+                      <td class="py-2.5 pr-4 tabular-nums font-medium">
+                        {{ formatCurrency(charge.amount) }}
+                      </td>
+                      <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
+                        @if (charge.paidAt) {
+                          {{ formatDateTime(charge.paidAt) }}
+                        } @else {
+                          <span class="text-neutral-400">—</span>
+                        }
+                      </td>
+                      <td class="py-2.5 pr-4">
+                        <span
+                          class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                          [class]="chargeStatusInfo(charge.status).chip"
+                        >
+                          {{ chargeStatusInfo(charge.status).label }}
+                        </span>
+                      </td>
+                      <td class="py-2.5 pr-4 text-right">
+                        <div class="inline-flex items-center gap-2 justify-end">
+                          @if (canPayCharge(charge)) {
+                            <button
+                              type="button"
+                              (click)="payCharge(charge)"
+                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                     hover:bg-primary-600 transition"
+                            >
+                              Pagar
+                            </button>
+                          }
+                          @if (canRetryCharge(charge)) {
+                            <button
+                              type="button"
+                              (click)="retryCharge(charge)"
+                              [disabled]="retrying() === charge.id"
+                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 text-white
+                                     hover:bg-amber-700 transition disabled:opacity-60"
+                            >
+                              {{ retrying() === charge.id ? 'Regerando…' : 'Regerar' }}
+                            </button>
+                          }
+                          @if (canMarkAsPaid(charge)) {
+                            <button
+                              type="button"
+                              (click)="askMarkPaid(charge)"
+                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                     hover:bg-emerald-600 transition
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                            >
+                              Marcar como paga
+                            </button>
+                          }
+                          @if (canUnmarkAsPaid(charge)) {
+                            <button
+                              type="button"
+                              (click)="askUnmarkPaid(charge)"
+                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                     hover:bg-primary-600 transition
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                            >
+                              Desmarcar
+                            </button>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           }
         </div>
       </app-page-card>
@@ -309,7 +716,7 @@
               (click)="askCancel()"
               class="w-full sm:w-auto px-4 py-3 rounded-xl border border-rose-200 text-rose-700
                      hover:bg-rose-50 text-sm font-semibold">
-              Cancelar reserva
+              Cancelar aluguel
             </button>
           }
           @if (canActivate()) {
@@ -362,27 +769,25 @@
   }
 </app-default-page-layout>
 
-<app-confirm-dialog
-  [open]="cancelOpen()"
-  title="Cancelar reserva"
-  message="Tem certeza que deseja cancelar esta reserva? As cobranças pendentes serão canceladas."
-  confirmLabel="Cancelar reserva"
-  cancelLabel="Voltar"
-  variant="danger"
-  (confirmed)="confirmCancel()"
-  (cancelled)="cancelCancel()"
-/>
+@if (rental(); as r) {
+  <app-end-rental-dialog
+    [open]="cancelOpen()"
+    [rental]="r"
+    [busy]="cancelBusy()"
+    intent="cancel"
+    (confirmed)="confirmCancel($event)"
+    (cancelled)="cancelCancel()"
+  />
 
-<app-confirm-dialog
-  [open]="completeOpen()"
-  title="Concluir aluguel"
-  message="Marcar aluguel como concluído? Isso dispara o reembolso da caução, quando houver."
-  confirmLabel="Concluir aluguel"
-  cancelLabel="Voltar"
-  variant="warning"
-  (confirmed)="confirmComplete()"
-  (cancelled)="cancelComplete()"
-/>
+  <app-end-rental-dialog
+    [open]="completeOpen()"
+    [rental]="r"
+    [busy]="completeBusy()"
+    intent="complete"
+    (confirmed)="confirmComplete($event)"
+    (cancelled)="cancelComplete()"
+  />
+}
 
 <app-confirm-dialog
   [open]="deleteOpen()"
@@ -392,4 +797,28 @@
   variant="danger"
   (confirmed)="confirmDelete()"
   (cancelled)="cancelDelete()"
+/>
+
+<app-mark-paid-dialog
+  [open]="markPaidTarget() !== null"
+  title="Marcar como paga"
+  [amountCents]="markPaidTarget()?.amount ?? 0"
+  [entityLabel]="markPaidEntityLabel()"
+  [minDate]="markPaidMinDate()"
+  [maxDate]="markPaidMaxDate()"
+  [defaultDate]="markPaidDefaultDate()"
+  [busy]="markPaidBusy()"
+  (confirmed)="confirmMarkPaid($event)"
+  (cancelled)="cancelMarkPaid()"
+/>
+
+<app-confirm-dialog
+  [open]="unmarkPaidTarget() !== null"
+  title="Desmarcar pagamento?"
+  [message]="unmarkPaidMessage()"
+  confirmLabel="Desmarcar"
+  cancelLabel="Cancelar"
+  variant="warning"
+  (confirmed)="confirmUnmarkPaid()"
+  (cancelled)="cancelUnmarkPaid()"
 />

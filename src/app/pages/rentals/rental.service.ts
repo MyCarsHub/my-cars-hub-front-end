@@ -9,6 +9,8 @@ import { Observable, catchError, finalize, forkJoin, of, tap, throwError } from 
 import { environment } from '../../../environments/environment';
 import { PagedResponse } from '../../types/paged.types';
 import {
+  CancelRentalPayload,
+  CompleteRentalPayload,
   CreateRentalRequest,
   RentalChargeDto,
   RentalDocumentDto,
@@ -192,8 +194,8 @@ export class RentalService {
     return this.http.put<RentalResponseDto>(`${BASE}/${id}`, payload);
   }
 
-  cancel(id: string): Observable<RentalResponseDto> {
-    return this.http.post<RentalResponseDto>(`${BASE}/${id}/cancel`, {});
+  cancel(id: string, payload?: CancelRentalPayload): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(`${BASE}/${id}/cancel`, payload ?? {});
   }
 
   /**
@@ -204,8 +206,8 @@ export class RentalService {
     return this.http.post<RentalResponseDto>(`${BASE}/${id}/activate`, {});
   }
 
-  complete(id: string): Observable<RentalResponseDto> {
-    return this.http.post<RentalResponseDto>(`${BASE}/${id}/complete`, {});
+  complete(id: string, payload?: CompleteRentalPayload): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(`${BASE}/${id}/complete`, payload ?? {});
   }
 
   remove(id: string): Observable<void> {
@@ -345,6 +347,34 @@ export class RentalService {
    */
   createCaucaoCharge(rentalId: string): Observable<RentalChargeDto> {
     return this.http.post<RentalChargeDto>(`${BASE}/${rentalId}/caucao-charge`, {});
+  }
+
+  /**
+   * Manual mark-as-paid for a rental charge — only allowed when the rental
+   * was created with `automaticCharge=false` (i.e. Asaas is not managing it).
+   * Backend rejects with 400 for automatic rentals or non-eligible statuses.
+   * `paidAt` is the yyyy-MM-dd date the operator confirms as the payment date.
+   */
+  markChargeAsPaid(
+    rentalId: string,
+    chargeId: string,
+    paidAt: string,
+  ): Observable<RentalChargeDto> {
+    return this.http.post<RentalChargeDto>(
+      `${BASE}/${rentalId}/charges/${chargeId}/mark-paid`,
+      { paidAt },
+    );
+  }
+
+  /**
+   * Undo a manual mark-as-paid. Only meaningful when the rental was created
+   * with `automaticCharge=false` — automatic (Asaas-managed) rentals reject.
+   */
+  unmarkChargeAsPaid(rentalId: string, chargeId: string): Observable<RentalChargeDto> {
+    return this.http.post<RentalChargeDto>(
+      `${BASE}/${rentalId}/charges/${chargeId}/unmark-paid`,
+      {},
+    );
   }
 
   retryCharge(rentalId: string, chargeId: string): Observable<{

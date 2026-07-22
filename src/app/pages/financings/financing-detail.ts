@@ -10,6 +10,9 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid-dialog';
+import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
   FinancingDetail as FinancingDetailDto,
@@ -19,11 +22,12 @@ import {
 @Component({
   selector: 'app-financing-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard],
+  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, MarkPaidDialog],
   templateUrl: './financing-detail.html',
 })
 export class FinancingDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly notifications = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
 
   protected readonly financing = signal<FinancingDetailDto | null>(null);
@@ -126,23 +130,116 @@ export class FinancingDetail implements OnInit {
     });
   }
 
+  // ------- Marcar como paga com data escolhida -------
+  protected readonly markPaidTarget = signal<FinancingInstallment | null>(null);
+  protected readonly markPaidBusy = signal(false);
+
+  protected askMarkPaid(row: FinancingInstallment): void {
+    if (row.status === 'PAID') return;
+    this.markPaidTarget.set(row);
+  }
+
+  protected cancelMarkPaid(): void {
+    if (this.markPaidBusy()) return;
+    this.markPaidTarget.set(null);
+  }
+
+  protected readonly markPaidEntityLabel = computed<string>(() => {
+    const row = this.markPaidTarget();
+    const total = this.financing()?.installments ?? this.totalCount();
+    if (!row) return '';
+    return `Parcela ${row.number}/${total}`;
+  });
+
+  private todayIso(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   /**
-   * Marca a parcela como paga. Otimizado pra 1 click — o backend usa hoje
-   * como data e o valor da própria linha como amount. O detail é
-   * atualizado com a resposta pra refletir o novo progresso.
+   * minDate = contractDate quando disponível (é o mais folgado — parcelas
+   * começam a partir do contrato). Undefined = sem lower bound.
    */
-  protected markPaid(row: FinancingInstallment): void {
+  protected readonly markPaidMinDate = computed<string | undefined>(
+    () => this.financing()?.contractDate ?? undefined,
+  );
+  protected readonly markPaidMaxDate = computed<string>(() => this.todayIso());
+  protected readonly markPaidDefaultDate = computed<string>(() => this.todayIso());
+
+  protected confirmMarkPaid(paidAt: string): void {
     const f = this.financing();
-    if (!f || row.status === 'PAID') return;
-    this.paying.set(row.id);
-    this.vehiclesService.payFinancingInstallment(f.id, row.id).subscribe({
+    const target = this.markPaidTarget();
+    if (!f || !target || this.markPaidBusy()) return;
+    this.markPaidBusy.set(true);
+    this.paying.set(target.id);
+    this.vehiclesService
+      .payFinancingInstallment(f.id, target.id, { paidAt })
+      .subscribe({
+        next: (updated) => {
+          this.financing.set(updated);
+          this.markPaidBusy.set(false);
+          this.markPaidTarget.set(null);
+          this.paying.set(null);
+          this.notifications.push('success', 'Parcela marcada como paga.');
+        },
+        error: (err: HttpErrorResponse) => {
+          this.markPaidBusy.set(false);
+          this.markPaidTarget.set(null);
+          this.paying.set(null);
+          this.notifications.push(
+            'error',
+            this.extractError(err, 'Não foi possível marcar a parcela.'),
+          );
+        },
+      });
+  }
+
+  // ------- Desmarcar pagamento -------
+  protected readonly unmarkPaidTarget = signal<FinancingInstallment | null>(null);
+  protected readonly unmarkPaidBusy = signal(false);
+
+  protected askUnmarkPaid(row: FinancingInstallment): void {
+    if (row.status !== 'PAID') return;
+    this.unmarkPaidTarget.set(row);
+  }
+
+  protected cancelUnmarkPaid(): void {
+    if (this.unmarkPaidBusy()) return;
+    this.unmarkPaidTarget.set(null);
+  }
+
+  protected readonly unmarkPaidMessage = computed<string>(() => {
+    const row = this.unmarkPaidTarget();
+    const total = this.financing()?.installments ?? this.totalCount();
+    if (!row) return '';
+    return `Desmarcar a parcela ${row.number}/${total} como paga? O status voltará para pendente e a data de pagamento será limpa.`;
+  });
+
+  protected confirmUnmarkPaid(): void {
+    const f = this.financing();
+    const target = this.unmarkPaidTarget();
+    if (!f || !target || this.unmarkPaidBusy()) return;
+    this.unmarkPaidBusy.set(true);
+    this.paying.set(target.id);
+    this.vehiclesService.unpayFinancingInstallment(f.id, target.id).subscribe({
       next: (updated) => {
         this.financing.set(updated);
+        this.unmarkPaidBusy.set(false);
+        this.unmarkPaidTarget.set(null);
         this.paying.set(null);
+        this.notifications.push('success', 'Pagamento desmarcado.');
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Não foi possível marcar a parcela.'));
+        this.unmarkPaidBusy.set(false);
+        this.unmarkPaidTarget.set(null);
         this.paying.set(null);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível desmarcar o pagamento.'),
+        );
       },
     });
   }

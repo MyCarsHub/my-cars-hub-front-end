@@ -105,6 +105,37 @@ export class Billing implements OnInit {
     return this.plans().find((p) => p.code === code) ?? null;
   });
 
+  /**
+   * Hero background CSS for the "Plano atual" section.
+   * - TRIAL / no paid plan → null (falls back to dark bg-neutral-900).
+   * - PRO / ENTERPRISE + MONTHLY → orange brand gradient.
+   * - PRO / ENTERPRISE + YEARLY → emerald "Hub Green" gradient.
+   */
+  protected readonly currentHeroBackground = computed<string | null>(() => {
+    const sub = this.subscription();
+    if (!sub) return null;
+    const code = sub.planCode?.toUpperCase() ?? '';
+    if (code !== 'PRO' && code !== 'ENTERPRISE' && code !== 'BUSINESS') return null;
+    return sub.billingCycle === 'YEARLY'
+      ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)'
+      : 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)';
+  });
+
+  /** Tailwind classes for muted labels inside the hero (adapts to bg). */
+  protected readonly currentHeroMutedClass = computed<string>(() =>
+    this.currentHeroBackground() ? 'text-white/80' : 'text-neutral-400',
+  );
+
+  /** Glow color for the top-right blur on the hero, matching the plan background. */
+  protected readonly currentHeroGlow = computed<string>(() => {
+    const sub = this.subscription();
+    if (!sub) return 'rgba(235,63,0,0.25)';
+    const code = sub.planCode?.toUpperCase() ?? '';
+    const isPaid = code === 'PRO' || code === 'ENTERPRISE' || code === 'BUSINESS';
+    if (!isPaid) return 'rgba(235,63,0,0.25)';
+    return sub.billingCycle === 'YEARLY' ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.20)';
+  });
+
   ngOnInit(): void {
     this.billingService.loadPlans().subscribe({ error: () => void 0 });
     this.billingService.loadSubscription().subscribe({ error: () => void 0 });
@@ -226,8 +257,18 @@ export class Billing implements OnInit {
     'Suporte prioritário com SLA',
   ];
 
+  private readonly enterpriseFeatures: readonly string[] = [
+    'Veículos ilimitados',
+    'Multi-marca / multi-filial',
+    'Usuários e papéis ilimitados',
+    'Integrações premium (ERP, telemetria)',
+    'Suporte dedicado com SLA',
+    'Gerente de conta',
+  ];
+
   protected planFeatures(plan: PlanResponse): readonly string[] {
     if (this.isRecommended(plan)) return this.proFeatures;
+    if (plan.code === 'ENTERPRISE') return this.enterpriseFeatures;
     if (this.isBusinessPlan(plan)) return this.businessFeatures;
     return this.trialFeatures;
   }
@@ -253,6 +294,8 @@ export class Billing implements OnInit {
 
   protected planDescription(plan: PlanResponse): string | null {
     if (this.isRecommended(plan)) return 'Pra operações que precisam de mais capacidade.';
+    if (plan.code === 'ENTERPRISE')
+      return 'Frota grande, integrações premium, suporte dedicado.';
     if (this.isBusinessPlan(plan))
       return 'Pra frotas grandes, multi-filial, com integrações customizadas.';
     return null;

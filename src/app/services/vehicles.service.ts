@@ -162,11 +162,26 @@ export class VehiclesService {
   payFinancingInstallment(
     financingId: string,
     installmentId: string,
-    payload: { paidDate?: string; paidAmountCents?: number } = {},
+    payload: { paidAt?: string; paidAmountCents?: number } = {},
   ): Observable<FinancingDetail> {
     return this.http.post<FinancingDetail>(
       `${FLEET_FINANCINGS_BASE}/${financingId}/installments/${installmentId}/pay`,
       payload,
+    );
+  }
+
+  /**
+   * Undo a previous mark-as-paid on a financing installment. Backend clears
+   * the paidDate/paidAmount + reverts status to PENDING/OVERDUE based on the
+   * dueDate. Returns the refreshed detail.
+   */
+  unpayFinancingInstallment(
+    financingId: string,
+    installmentId: string,
+  ): Observable<FinancingDetail> {
+    return this.http.post<FinancingDetail>(
+      `${FLEET_FINANCINGS_BASE}/${financingId}/installments/${installmentId}/unpay`,
+      {},
     );
   }
 

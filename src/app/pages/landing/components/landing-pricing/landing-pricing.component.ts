@@ -25,14 +25,23 @@ export class LandingPricingComponent implements AfterViewInit {
   protected readonly cycle = signal<'monthly' | 'yearly'>('monthly');
 
   private readonly proMonthly = 79.9;
-  private readonly proYearlyMonth = 63.9;
+  /** PRO yearly total. Matches billing spec target R$ 795,80/ano (~17% off). */
+  private readonly proYearlyTotal = 795.8;
+  private readonly enterpriseMonthly = 299;
+  /** ENTERPRISE yearly total = 12 × monthly × (1 - 0.15) = 3049.80 (15% off). */
+  private readonly enterpriseYearlyTotal = this.enterpriseMonthly * 12 * 0.85;
+
+  /** Price shown on PRO card: monthly value on Mensal, YEARLY TOTAL on Anual. */
   protected readonly proPrice = computed(() =>
-    this.cycle() === 'monthly' ? this.proMonthly : this.proYearlyMonth,
+    this.cycle() === 'monthly' ? this.proMonthly : this.proYearlyTotal,
+  );
+  protected readonly enterprisePrice = computed(() =>
+    this.cycle() === 'monthly' ? this.enterpriseMonthly : this.enterpriseYearlyTotal,
   );
   protected readonly proSavings = computed(() =>
-    Math.round((1 - this.proYearlyMonth / this.proMonthly) * 100),
+    Math.round((1 - this.proYearlyTotal / (this.proMonthly * 12)) * 100),
   );
-  protected readonly proYearlyTotal = computed(() => Math.round(this.proYearlyMonth * 12));
+  protected readonly proCycleSuffix = computed(() => (this.cycle() === 'monthly' ? 'mês' : 'ano'));
 
   /** Gradiente do card Pro — laranja no Mensal, Hub Green no Anual. */
   protected readonly proGradient = computed<string>(() =>
@@ -70,21 +79,33 @@ export class LandingPricingComponent implements AfterViewInit {
     'Suporte prioritário',
   ];
 
-  readonly businessItems = [
+  readonly enterpriseItems = [
     'Veículos ilimitados',
-    'Multi-empresa ilimitado (cadastre suas filiais)',
+    'Multi-marca / multi-filial',
     'Usuários e papéis ilimitados',
-    'Relatórios avançados exportáveis',
-    'Onboarding assistido dedicado',
-    'Suporte prioritário com SLA',
+    'Integrações premium (ERP, telemetria)',
+    'Suporte dedicado com SLA',
+    'Gerente de conta',
   ];
 
   protected readonly proPriceLabel = computed<string>(() => `R$ ${this.formatBRL(this.proPrice())}`);
-  protected readonly proSubtitle = computed<string>(() =>
-    this.cycle() === 'yearly'
-      ? `Cobrado anualmente · R$ ${this.proYearlyTotal()}/ano`
-      : `ou R$ ${this.formatBRL(this.proPrice() * 0.8)}/mês no anual`,
+  protected readonly enterprisePriceLabel = computed<string>(
+    () => `R$ ${this.formatBRL(this.enterprisePrice())}`,
   );
+  protected readonly proSubtitle = computed<string>(() => {
+    if (this.cycle() === 'yearly') {
+      const monthlyEq = this.proYearlyTotal / 12;
+      return `Equivale a R$ ${this.formatBRL(monthlyEq)}/mês · economiza ${this.proSavings()}%`;
+    }
+    return `ou R$ ${this.formatBRL(this.proMonthly * 0.8)}/mês no anual`;
+  });
+  protected readonly enterpriseSubtitle = computed<string>(() => {
+    if (this.cycle() === 'yearly') {
+      const monthlyEq = this.enterpriseYearlyTotal / 12;
+      return `Equivale a R$ ${this.formatBRL(monthlyEq)}/mês · economiza 15%`;
+    }
+    return `ou R$ ${this.formatBRL(this.enterpriseMonthly * 0.85)}/mês no anual`;
+  });
 
   protected setCycle(c: 'monthly' | 'yearly'): void { this.cycle.set(c); }
   protected formatBRL(v: number): string { return v.toFixed(2).replace('.', ','); }

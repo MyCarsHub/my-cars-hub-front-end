@@ -86,6 +86,18 @@ export class Relatorios implements OnInit {
     return !!r && r.financial.netProfitCents >= 0;
   });
 
+  /** Nenhuma atividade financeira no período: sem receita paga, sem custos, sem receita a receber. */
+  protected readonly hasNoFinancialActivity = computed<boolean>(() => {
+    const r = this.report();
+    if (!r) return false;
+    const f = r.financial;
+    return (
+      (f.grossRevenueCents ?? 0) === 0 &&
+      (f.operatingCostCents ?? 0) === 0 &&
+      (f.accruedRevenueCents ?? 0) === 0
+    );
+  });
+
   ngOnInit(): void {
     // Default: último mês
     const now = new Date();

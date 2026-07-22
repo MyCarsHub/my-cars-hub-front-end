@@ -12,6 +12,8 @@ export interface MonthlyPoint {
 
 export interface FinancialSummary {
   grossRevenueCents: number;
+  /** SUM of PENDING charges with due_date in the current window (money owed / expected). */
+  accruedRevenueCents: number;
   revenueByGateway: GatewayRevenue[];
   operatingCostCents: number;
   netProfitCents: number;

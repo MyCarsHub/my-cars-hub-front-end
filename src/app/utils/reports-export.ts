@@ -58,7 +58,8 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
     startY: 90,
     head: [['Financeiro', 'Valor']],
     body: [
-      ['Receita bruta', centsToBRL(report.financial.grossRevenueCents)],
+      ['Receita recebida', centsToBRL(report.financial.grossRevenueCents)],
+      ['Receita a receber (previsto)', centsToBRL(report.financial.accruedRevenueCents)],
       ['Custo operacional', centsToBRL(report.financial.operatingCostCents)],
       ['Lucro líquido', centsToBRL(report.financial.netProfitCents)],
     ],
@@ -173,7 +174,8 @@ export function exportReportExcel(report: ReportsOverviewResponse): void {
     ['Período', `${fmtDate(report.from)} — ${fmtDate(report.to)}`],
     [],
     ['Financeiro', 'Valor (R$)'],
-    ['Receita bruta', (report.financial.grossRevenueCents ?? 0) / 100],
+    ['Receita recebida', (report.financial.grossRevenueCents ?? 0) / 100],
+    ['Receita a receber (previsto)', (report.financial.accruedRevenueCents ?? 0) / 100],
     ['Custo operacional', (report.financial.operatingCostCents ?? 0) / 100],
     ['Lucro líquido', (report.financial.netProfitCents ?? 0) / 100],
     [],
@@ -246,7 +248,8 @@ export function reportToMarkdown(report: ReportsOverviewResponse): string {
   lines.push('');
   lines.push(`## Financeiro`);
   lines.push('');
-  lines.push(`- **Receita bruta:** ${centsToBRL(report.financial.grossRevenueCents)}`);
+  lines.push(`- **Receita recebida:** ${centsToBRL(report.financial.grossRevenueCents)}`);
+  lines.push(`- **Receita a receber (previsto):** ${centsToBRL(report.financial.accruedRevenueCents)}`);
   lines.push(`- **Custo operacional:** ${centsToBRL(report.financial.operatingCostCents)}`);
   lines.push(`- **Lucro líquido:** ${centsToBRL(report.financial.netProfitCents)}`);
   lines.push('');

@@ -106,41 +106,84 @@
   </section>
 
   @if (report(); as r) {
-    <!-- KPIs -->
-    <section class="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-4">
-      <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
-        <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Receita bruta</p>
-        <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
-          {{ formatBRL(r.financial.grossRevenueCents) }}
-        </p>
-      </div>
-      <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
-        <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Custo operacional</p>
-        <p class="text-xl sm:text-2xl font-semibold text-rose-700 mt-1 tabular-nums truncate">
-          {{ formatBRL(r.financial.operatingCostCents) }}
-        </p>
-      </div>
-      <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
-        <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Lucro líquido</p>
-        <p
-          class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-          [class.text-emerald-700]="netIsPositive()"
-          [class.text-rose-700]="!netIsPositive()"
-        >
-          {{ formatBRL(r.financial.netProfitCents) }}
-        </p>
-      </div>
-      <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
-        <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Taxa de ocupação</p>
-        <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
-          {{ formatPct(r.operations.fleetOccupancyRate) }}
-        </p>
-        <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
-          <div class="h-full rounded-full transition-all bg-white"
-               [style.width.%]="r.operations.fleetOccupancyRate * 100"></div>
+    @if (hasNoFinancialActivity()) {
+      <!-- Empty-state financeiro: sem receita paga + sem custo + sem receita a receber -->
+      <section
+        class="rounded-2xl bg-white border border-gray-200 p-6 sm:p-8 mb-4 text-center"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="mx-auto w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
         </div>
-      </div>
-    </section>
+        <h2 class="text-base sm:text-lg font-semibold text-gray-900">Sem cobranças quitadas no período</h2>
+        <p class="mt-2 text-sm text-gray-600 max-w-md mx-auto">
+          As cobranças pendentes aparecem em <span class="font-medium text-gray-800">Receita a receber</span> quando existirem.
+        </p>
+        <p class="mt-3 text-xs text-gray-500">
+          Veja os aluguéis ativos em <a href="#operacao" class="text-primary-600 hover:text-primary-700 underline underline-offset-2">Operações</a> abaixo.
+        </p>
+
+        <!-- KPI de ocupação continua visível — não é dado financeiro -->
+        <div class="mt-6 max-w-xs mx-auto rounded-2xl bg-primary-500 text-white p-4">
+          <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Taxa de ocupação</p>
+          <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
+            {{ formatPct(r.operations.fleetOccupancyRate) }}
+          </p>
+          <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all bg-white"
+                 [style.width.%]="r.operations.fleetOccupancyRate * 100"></div>
+          </div>
+        </div>
+      </section>
+    } @else {
+      <!-- KPIs -->
+      <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Receita recebida</p>
+          <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
+            {{ formatBRL(r.financial.grossRevenueCents) }}
+          </p>
+        </div>
+        <div class="rounded-2xl bg-gray-50 border border-dashed border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Receita a receber</p>
+          <p class="text-xl sm:text-2xl font-semibold text-gray-600 mt-1 tabular-nums truncate">
+            {{ formatBRL(r.financial.accruedRevenueCents) }}
+          </p>
+          <p class="text-[10px] sm:text-[11px] text-gray-400 mt-1 truncate">(previsto)</p>
+        </div>
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Custo operacional</p>
+          <p class="text-xl sm:text-2xl font-semibold text-rose-700 mt-1 tabular-nums truncate">
+            {{ formatBRL(r.financial.operatingCostCents) }}
+          </p>
+        </div>
+        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Lucro líquido</p>
+          <p
+            class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
+            [class.text-emerald-700]="netIsPositive()"
+            [class.text-rose-700]="!netIsPositive()"
+          >
+            {{ formatBRL(r.financial.netProfitCents) }}
+          </p>
+        </div>
+        <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
+          <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Taxa de ocupação</p>
+          <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
+            {{ formatPct(r.operations.fleetOccupancyRate) }}
+          </p>
+          <div class="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all bg-white"
+                 [style.width.%]="r.operations.fleetOccupancyRate * 100"></div>
+          </div>
+        </div>
+      </section>
+    }
 
     <!-- Receita mensal -->
     @if (r.financial.monthlyRevenue.length > 0) {
@@ -393,7 +436,7 @@
     </section>
 
     <!-- Operação -->
-    <div class="mb-4">
+    <div id="operacao" class="mb-4">
       <app-page-card title="Aluguéis no período">
         <div class="px-6 pb-6">
           <div class="grid grid-cols-3 gap-3">

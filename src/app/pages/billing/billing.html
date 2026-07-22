@@ -22,18 +22,24 @@
     <!-- Section 1 — Current subscription hero (dark, on-brand) -->
     @if (subscription(); as sub) {
       <section
-        class="relative overflow-hidden bg-neutral-900 rounded-2xl shadow-xl border border-neutral-800"
+        class="relative overflow-hidden rounded-2xl shadow-xl border"
+        [class.bg-neutral-900]="!currentHeroBackground()"
+        [class.border-neutral-800]="!currentHeroBackground()"
+        [class.border-white/10]="!!currentHeroBackground()"
+        [style.background]="currentHeroBackground()"
         aria-labelledby="assinatura-atual-title">
         <div aria-hidden="true"
-          class="pointer-events-none absolute -top-24 -right-24 w-56 h-56 bg-primary-500/25 blur-[90px] rounded-full"></div>
+          class="pointer-events-none absolute -top-24 -right-24 w-56 h-56 blur-[90px] rounded-full"
+          [style.background]="currentHeroGlow()"></div>
         <div aria-hidden="true"
-          class="pointer-events-none absolute -bottom-28 -left-24 w-56 h-56 bg-blue-500/10 blur-[90px] rounded-full"></div>
+          class="pointer-events-none absolute -bottom-28 -left-24 w-56 h-56 bg-white/5 blur-[90px] rounded-full"></div>
 
         <div class="relative p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
 
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="text-[11px] font-semibold text-neutral-400 uppercase tracking-widest">Plano atual</p>
+              <p class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">Plano atual</p>
               <h2 id="assinatura-atual-title"
                 class="mt-1 text-2xl sm:text-3xl font-black text-white italic tracking-tight break-words">
                 {{ sub.planName }}
@@ -53,15 +59,17 @@
           <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             @if (currentPlan(); as cp) {
               <div class="min-w-0">
-                <dt class="text-[11px] font-semibold text-neutral-400 uppercase tracking-widest">Valor</dt>
+                <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">Valor</dt>
                 <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white tabular-nums">
                   {{ formatPrice(sub.billingCycle === 'MONTHLY' ? cp.priceMonthly : cp.priceYearly) }}
-                  <span class="text-sm font-medium text-neutral-400">/{{ sub.billingCycle === 'MONTHLY' ? 'mês' : 'ano' }}</span>
+                  <span class="text-sm font-medium" [class]="currentHeroMutedClass()">/{{ sub.billingCycle === 'MONTHLY' ? 'mês' : 'ano' }}</span>
                 </dd>
               </div>
             }
             <div class="min-w-0">
-              <dt class="text-[11px] font-semibold text-neutral-400 uppercase tracking-widest">
+              <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">
                 @if (sub.status === 'TRIALING') { Fim do teste } @else { Próxima cobrança }
               </dt>
               <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
@@ -73,7 +81,8 @@
               </dd>
             </div>
             <div class="min-w-0">
-              <dt class="text-[11px] font-semibold text-neutral-400 uppercase tracking-widest">Ciclo</dt>
+              <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                [class]="currentHeroMutedClass()">Ciclo</dt>
               <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
                 {{ sub.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual' }}
               </dd>

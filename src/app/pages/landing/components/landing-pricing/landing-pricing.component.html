@@ -65,7 +65,7 @@
           variant="pro"
           name="Pro"
           [price]="proPriceLabel()"
-          cycleSuffix="mês"
+          [cycleSuffix]="proCycleSuffix()"
           [subtitleText]="proSubtitle()"
           description="Pra operações que precisam de mais capacidade."
           [features]="proItems"
@@ -81,14 +81,15 @@
       <div class="reveal">
         <app-plan-card
           variant="business"
-          name="Business"
-          price="R$ 399"
-          cycleSuffix="mês"
-          description="Pra frotas grandes, multi-filial, com integrações customizadas."
-          [features]="businessItems"
+          name="Enterprise"
+          [price]="enterprisePriceLabel()"
+          [cycleSuffix]="proCycleSuffix()"
+          [subtitleText]="enterpriseSubtitle()"
+          description="Frota grande, integrações premium, suporte dedicado."
+          [features]="enterpriseItems"
           beforeFeaturesText="Tudo que o plano Pro tem +"
           ribbonText="Sua frota cresceu?"
-          ctaLabel="Assinar Business"
+          ctaLabel="Assinar Enterprise"
           (ctaClick)="goToLogin()"
         />
       </div>
