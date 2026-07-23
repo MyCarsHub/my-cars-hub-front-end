@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, tap, catchError, finalize, throwError, timeout, map, of } from 'rxjs';
 import { OnboardingData, OnboardingState, OnboardingStepPayload } from './onboarding.types';
 import { SessionService } from '../../services/session.service';
+import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 
 export interface OnboardingFinishResponse {
@@ -17,19 +18,28 @@ const API_BASE = `${environment.apiUrl}/onboarding`;
 
 const INITIAL_STATE: OnboardingState = {
   step: 1,
+  // Load-bearing: onboardingGuard fails closed on !isCompleted — do not flip to true here.
   isCompleted: false,
   data: {},
 };
+
+function isInitialState(s: OnboardingState): boolean {
+  return s.step === 1 && s.isCompleted === false && Object.keys(s.data).length === 0;
+}
 
 @Injectable({ providedIn: 'root' })
 export class OnboardingService {
   private readonly http = inject(HttpClient);
   private readonly sessionService = inject(SessionService);
+  private readonly notify = inject(NotificationService);
 
   /** Local cache of backend state — backend is source of truth */
   private readonly _state = signal<OnboardingState>({ ...INITIAL_STATE });
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+
+  /** Debounces error toasts across concurrent loadState() subscribers. */
+  private errorNotified = false;
 
   // ── Derived signals ──────────────────────────────────────────────────────
   readonly state = this._state.asReadonly();
@@ -53,18 +63,29 @@ export class OnboardingService {
       tap((state) => {
         if (state) {
           this._state.set(state);
+          this.errorNotified = false;
         }
       }),
       catchError((err: HttpErrorResponse) => {
-        // Fresh users have no onboarding row yet — backend returns 404.
-        // Treat as "no progress" (initial state), not an error to surface.
-        if (err.status === 404) {
-          const initial: OnboardingState = { ...INITIAL_STATE };
-          this._state.set(initial);
-          return of(initial);
+        // Never trap the user on an empty card. On first-load failure fall back
+        // to INITIAL_STATE so the page can render step 1. If state was ALREADY
+        // populated by a prior successful load, DO NOT overwrite it — a transient
+        // 500 on a Back click must not yank the user back to step 1.
+        // 404 = fresh user (no onboarding row yet) — expected, silent.
+        const current = this._state();
+        const preservePopulated = !isInitialState(current);
+        if (err.status !== 404 && !this.errorNotified) {
+          this.errorNotified = true;
+          this.notify.error(
+            'Não conseguimos carregar seu progresso — começando do zero. Tente novamente se precisar.',
+          );
         }
-        this.error.set('Não foi possível carregar o progresso. Tente novamente.');
-        return throwError(() => err);
+        if (preservePopulated) {
+          return of(current);
+        }
+        const initial: OnboardingState = { ...INITIAL_STATE };
+        this._state.set(initial);
+        return of(initial);
       }),
       finalize(() => this.loading.set(false)),
     );
