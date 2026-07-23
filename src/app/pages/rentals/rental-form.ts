@@ -18,6 +18,7 @@ import {
 } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -38,7 +39,7 @@ import { DriverListItem } from '../../types/driver.types';
 @Component({
   selector: 'app-rental-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard],
+  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
   templateUrl: './rental-form.html',
 })
 export class RentalForm implements OnInit {
@@ -203,6 +204,41 @@ export class RentalForm implements OnInit {
     () => this.formValue()?.automaticCharge === true,
   );
 
+  /**
+   * Contract-template toggle state — mirrors `automaticChargeOn` so the
+   * template can render an inline warning + config CTA when the tenant
+   * doesn't have a contract template configured yet.
+   */
+  protected readonly useContractTemplateOn = computed(
+    () => this.formValue()?.useContractTemplate === true,
+  );
+
+  /**
+   * Confirm-dialog visibility for the "integration not configured" guard.
+   * `missingIntegrationTarget` records which card triggered the warning so
+   * the CTA can navigate to the right settings route.
+   */
+  protected readonly missingIntegrationTarget = signal<'asaas' | 'contract' | null>(null);
+
+  protected readonly missingIntegrationTitle = computed(() =>
+    this.missingIntegrationTarget() === null ? '' : 'Integração não configurada',
+  );
+
+  protected readonly missingIntegrationMessage = computed(() => {
+    switch (this.missingIntegrationTarget()) {
+      case 'asaas':
+        return 'Configure a integração Asaas antes de habilitar cobrança automática neste aluguel.';
+      case 'contract':
+        return 'Configure o template de contrato antes de habilitar a geração automática neste aluguel.';
+      default:
+        return '';
+    }
+  });
+
+  protected readonly missingIntegrationConfirmLabel = computed(() =>
+    this.missingIntegrationTarget() === 'asaas' ? 'Configurar Asaas' : 'Configurar contrato',
+  );
+
   /** Só mostra o toggle "caução recebida por fora" quando há caução. */
   protected readonly caucaoAmountPositive = computed(
     () => Number(this.formValue()?.caucaoReais ?? 0) > 0,
@@ -333,6 +369,20 @@ export class RentalForm implements OnInit {
       this.error.set('Verifique os campos destacados.');
       return;
     }
+    // Integration guards — mirror Asaas/Cobrança guard for the Contrato card.
+    // Only relevant on create; edit locks these controls (contractSource
+    // and automaticCharge are immutable post-create).
+    if (!this.isEdit()) {
+      const raw = this.form.getRawValue();
+      if (raw.automaticCharge === true && !this.asaasConnected()) {
+        this.missingIntegrationTarget.set('asaas');
+        return;
+      }
+      if (raw.useContractTemplate === true && !this.hasContractTemplate()) {
+        this.missingIntegrationTarget.set('contract');
+        return;
+      }
+    }
     this.saving.set(true);
     this.error.set(null);
     const raw = this.form.getRawValue();
@@ -410,6 +460,25 @@ export class RentalForm implements OnInit {
         this.error.set(this.extractError(err, 'Não foi possível criar o aluguel.'));
       },
     });
+  }
+
+  /**
+   * User confirmed the "not configured" dialog — navigate to the appropriate
+   * settings page so they can fix it before returning. Mirrors the inline
+   * "Configure agora" link on both cards.
+   */
+  protected confirmMissingIntegration(): void {
+    const target = this.missingIntegrationTarget();
+    this.missingIntegrationTarget.set(null);
+    if (target === 'asaas') {
+      this.router.navigate(['/configuracoes/integracoes/asaas']);
+    } else if (target === 'contract') {
+      this.router.navigate(['/configuracoes/contratos']);
+    }
+  }
+
+  protected cancelMissingIntegration(): void {
+    this.missingIntegrationTarget.set(null);
   }
 
   protected cancel(): void {

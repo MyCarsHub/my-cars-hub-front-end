@@ -16,7 +16,9 @@ import {
   exportReportPdf,
   reportToMarkdown,
 } from '../../utils/reports-export';
-import { MonthlyPoint } from '../../types/reports.types';
+import { BarChart, BarDatum } from '../../pages/dashboard/components/bar-chart';
+import { MonthlyBillingChart } from '../../pages/dashboard/components/monthly-billing-chart';
+import { MonthlyPointDto } from '../../types/dashboard.types';
 
 function toIso(d: Date): string {
   const y = d.getFullYear();
@@ -28,7 +30,7 @@ function toIso(d: Date): string {
 @Component({
   selector: 'app-relatorios',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, PageCard, FormsModule],
+  imports: [DefaultPageLayout, PageCard, FormsModule, BarChart, MonthlyBillingChart],
   templateUrl: './relatorios.html',
 })
 export class Relatorios implements OnInit {
@@ -60,25 +62,62 @@ export class Relatorios implements OnInit {
     return `${names[parseInt(m, 10) - 1]}/${y.slice(2)}`;
   };
 
-  /** Escala 0-100 pra bar chart de receita mensal. */
-  protected readonly monthlyMax = computed<number>(() => {
+  /** Adapts reports MonthlyPoint[] to the dashboard MonthlyPointDto[] shape. */
+  protected readonly monthlyRevenueSeries = computed<MonthlyPointDto[]>(() => {
     const r = this.report();
-    if (!r || r.financial.monthlyRevenue.length === 0) return 1;
-    return Math.max(1, ...r.financial.monthlyRevenue.map((m) => m.revenueCents));
+    if (!r) return [];
+    return r.financial.monthlyRevenue.map((m) => ({
+      month: m.yearMonth,
+      amountCents: m.revenueCents,
+    }));
   });
-
-  protected monthlyBarPct(cents: number): number {
-    return (cents / this.monthlyMax()) * 100;
-  }
-
-  protected monthlyBarTitle(m: MonthlyPoint): string {
-    const base = `${this.fmtYearMonth(m.yearMonth)}: ${this.formatBRL(m.revenueCents)}`;
-    return m.isPartial ? `${base} (parcial — período não cobre o mês inteiro)` : base;
-  }
 
   protected readonly hasPartialMonth = computed<boolean>(() => {
     const r = this.report();
     return !!r && r.financial.monthlyRevenue.some((m) => m.isPartial);
+  });
+
+  /** Top vehicles by net profit — rendered as horizontal bar chart. */
+  protected readonly topProfitableBars = computed<BarDatum[]>(() => {
+    const r = this.report();
+    if (!r) return [];
+    return r.vehicleRanking.topProfitable.map((v) => ({
+      label: v.plate,
+      value: v.netCents,
+      hint: `Receita ${this.formatBRL(v.revenueCents)} · Custo ${this.formatBRL(v.costCents)}`,
+    }));
+  });
+
+  /** Vehicles with cost > revenue — rendered as horizontal bar chart. */
+  protected readonly topUnprofitableBars = computed<BarDatum[]>(() => {
+    const r = this.report();
+    if (!r) return [];
+    return r.vehicleRanking.topUnprofitable.map((v) => ({
+      label: v.plate,
+      value: Math.abs(v.netCents),
+      hint: `Receita ${this.formatBRL(v.revenueCents)} · Custo ${this.formatBRL(v.costCents)}`,
+    }));
+  });
+
+  /** Top drivers by revenue — rendered as horizontal bar chart. */
+  protected readonly topDriverRevenueBars = computed<BarDatum[]>(() => {
+    const r = this.report();
+    if (!r) return [];
+    return r.driverRanking.topRevenue.map((d) => ({
+      label: d.name,
+      value: d.revenueCents,
+    }));
+  });
+
+  /** Problematic drivers — total owed (fines + charges) rendered as horizontal bar chart. */
+  protected readonly topProblematicDriverBars = computed<BarDatum[]>(() => {
+    const r = this.report();
+    if (!r) return [];
+    return r.driverRanking.topProblematic.map((d) => ({
+      label: d.name,
+      value: d.totalProblematicCents,
+      hint: `Multas ${this.formatBRL(d.unpaidFinesCents)} · Cobranças ${this.formatBRL(d.unpaidChargesCents)}`,
+    }));
   });
 
   protected readonly netIsPositive = computed<boolean>(() => {
