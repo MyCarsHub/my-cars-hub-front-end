@@ -4,6 +4,10 @@
     {
       "source": "/api/v1/:path*",
       "destination": "https://my-cars-hub-back-end.onrender.com/v1/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
