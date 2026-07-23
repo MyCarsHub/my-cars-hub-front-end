@@ -186,16 +186,19 @@ export class OnboardingContainer implements OnInit {
   /**
    * Chama /auth/me após finish() e navega pro dashboard. Se o getMe voltar
    * SEM companies (race com o commit da tx do finish — visibility no pooler
-   * / read replica), retenta com backoff curto até MAX_ATTEMPTS. Só mostra o
-   * erro se realmente não conseguiu vincular após as tentativas.
+   * / read replica), retenta com backoff. Log detalhado ajuda diagnosticar
+   * em prod caso ainda falhe.
    */
-  private static readonly MAX_LINK_ATTEMPTS = 3;
-  private static readonly LINK_RETRY_DELAY_MS = 800;
+  private static readonly MAX_LINK_ATTEMPTS = 6;
+  private static readonly LINK_RETRY_DELAY_MS = 1500;
 
   private fetchMeAndProceed(attempt: number): void {
+    console.log(`[onboarding] fetchMeAndProceed attempt=${attempt}/${OnboardingContainer.MAX_LINK_ATTEMPTS}`);
     this.authService.getMe().subscribe({
       next: () => {
-        if (this.session.getItem('selectedCompanyId')) {
+        const selectedId = this.session.getItem('selectedCompanyId');
+        console.log(`[onboarding] getMe done, selectedCompanyId=${selectedId}`);
+        if (selectedId) {
           this.layoutStore.refreshTenants();
           this.router.navigate(['/dashboard']);
           return;
@@ -203,17 +206,24 @@ export class OnboardingContainer implements OnInit {
         // Race: finish commitou, getMe leu de connection sem visibility.
         // Retenta com backoff antes de desistir.
         if (attempt + 1 < OnboardingContainer.MAX_LINK_ATTEMPTS) {
-          setTimeout(
-            () => this.fetchMeAndProceed(attempt + 1),
-            OnboardingContainer.LINK_RETRY_DELAY_MS * (attempt + 1),
-          );
+          const delay = OnboardingContainer.LINK_RETRY_DELAY_MS;
+          console.log(`[onboarding] no company yet — retrying in ${delay}ms`);
+          setTimeout(() => this.fetchMeAndProceed(attempt + 1), delay);
           return;
         }
+        console.error('[onboarding] exhausted retries, session=', {
+          selectedCompanyId: this.session.getItem('selectedCompanyId'),
+          userCompanies: this.session.getItem('userCompanies'),
+          onboardingCompleted: this.session.getItem('onboardingCompleted'),
+        });
         this.notify.error(
           'Não conseguimos vincular sua empresa. Tente novamente ou faça logout e login.',
         );
       },
-      error: (err: HttpErrorResponse) => this.handleFinishError(err),
+      error: (err: HttpErrorResponse) => {
+        console.error('[onboarding] getMe error', err);
+        this.handleFinishError(err);
+      },
     });
   }
 
