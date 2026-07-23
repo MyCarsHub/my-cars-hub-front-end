@@ -5,6 +5,14 @@ import { OnboardingData, OnboardingState, OnboardingStepPayload } from './onboar
 import { SessionService } from '../../services/session.service';
 import { environment } from '../../../environments/environment';
 
+export interface OnboardingFinishResponse {
+  message: string;
+  token: string;
+  companyId: string;
+  companyName: string;
+  role: string;
+}
+
 const API_BASE = `${environment.apiUrl}/onboarding`;
 
 const INITIAL_STATE: OnboardingState = {
@@ -104,27 +112,34 @@ export class OnboardingService {
     );
   }
 
-  finish(): Observable<void> {
+  finish(): Observable<OnboardingFinishResponse | null> {
     this.loading.set(true);
     this.error.set(null);
-    return this.http.post(`${API_BASE}/finish`, {}, { responseType: 'text' }).pipe(
-      map(() => void 0),
-      tap(() => {
+    return this.http.post<OnboardingFinishResponse>(`${API_BASE}/finish`, {}).pipe(
+      tap((response) => {
         this._state.update((s) => ({ ...s, isCompleted: true }));
         this.sessionService.setOnboardingCompleted(true);
+        // Backend agora retorna JWT já com companyId — elimina race com /auth/me.
+        if (response?.token) {
+          this.sessionService.setToken(response.token);
+        }
+        if (response?.companyId) {
+          this.sessionService.setItem('selectedCompanyId', response.companyId);
+          this.sessionService.setItem('selectedCompanyName', response.companyName ?? '');
+          this.sessionService.setItem('selectedRole', response.role ?? 'OWNER');
+        }
       }),
       catchError((err: HttpErrorResponse) => {
         const errorText = typeof err.error === 'string' ? err.error : JSON.stringify(err.error || {});
         if (err.status === 409 || errorText.includes('já finalizado')) {
           this._state.update((s) => ({ ...s, isCompleted: true }));
           this.sessionService.setOnboardingCompleted(true);
-          return of(void 0);
+          return of(null);
         }
         this.error.set('Não foi possível finalizar o cadastro. Tente novamente.');
         return throwError(() => err);
       }),
       finalize(() => this.loading.set(false)),
-
     );
   }
 
