@@ -157,26 +157,31 @@ export class OnboardingContainer implements OnInit {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (response) => {
-            // Backend retorna JWT já scoped na company recém-criada (sem race),
-            // mas ainda precisamos chamar /auth/me para hidratar `userCompanies`
-            // em sessionStorage — do contrário, a sidebar renderiza FALLBACK_TENANT.
-            // Usa hydrateSession() (não getMe) porque já temos JWT scoped:
-            // re-swappar via select-company descartaria esse token e poderia
-            // trocar de tenant se o usuário tivesse múltiplas companies.
+            // Happy path: /onboarding/finish já retorna JWT scoped + companyId
+            // + companyName + role. Persistimos sessionStorage IMEDIATAMENTE
+            // (síncrono) a partir desse payload — assim `userCompanies` e
+            // `selectedCompanyId/Name/Role` estão populados ANTES da navegação,
+            // sem depender do /auth/me (que pode retornar companies=[] devido
+            // à latência de read-your-writes do Supabase session pooler).
+            // hydrateSession() roda em fire-and-forget só pra enriquecer perfil
+            // (id/name/email/systemRole); se falhar, o essencial já está no
+            // storage e a sidebar renderiza corretamente.
             if (response?.token) {
+              this.authService.applyFinishResponse(response);
+              this.layoutStore.refreshTenants();
+
               this.authService.hydrateSession()
                 .pipe(takeUntilDestroyed(this.destroyRef))
                 .subscribe({
-                  next: () => {
-                    this.layoutStore.refreshTenants();
-                    this.router.navigate(['/dashboard']);
-                  },
+                  next: () => this.layoutStore.refreshTenants(),
                   error: () => {
-                    this.notify.error(
-                      'Cadastro concluído, mas não foi possível carregar sua sessão. Recarregue a página.',
-                    );
+                    // Não bloqueia navegação: dados essenciais já persistidos
+                    // via applyFinishResponse. Perfil ficará sem name/email
+                    // enriquecidos até o próximo /auth/me — aceitável.
                   },
                 });
+
+              this.router.navigate(['/dashboard']);
               return;
             }
             // Fallback (409 "já finalizado" ou response sem token): tenta getMe
