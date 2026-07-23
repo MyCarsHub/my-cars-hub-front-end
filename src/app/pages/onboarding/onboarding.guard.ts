@@ -24,7 +24,11 @@ export const onboardingGuard: CanActivateFn = () => {
       }
       return true;
     }),
-    catchError(() => of(true)),
+    // Fail-closed: se não conseguimos confirmar que onboarding foi concluído
+    // (ex: /v1/onboarding retorna 404 pra user sem row em `onboardings`, ou
+    // rede falha), redireciona pra /onboarding. Deixar passar aqui manda o
+    // user pra dashboard mudo com 400/403 em cada endpoint.
+    catchError(() => of(router.createUrlTree(['/onboarding']))),
   );
 };
 
@@ -49,6 +53,9 @@ export const onboardingCompleteGuard: CanActivateFn = () => {
       }
       return true;
     }),
+    // Aqui manter fail-open é OK: rota é /onboarding, deixar passar quando
+    // /v1/onboarding falhar significa "vamos deixar o user tentar o
+    // onboarding". O oposto (redirecionar pra /dashboard mudo) é pior.
     catchError(() => of(true)),
   );
 };
