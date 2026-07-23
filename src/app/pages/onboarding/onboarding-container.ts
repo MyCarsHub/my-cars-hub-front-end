@@ -151,25 +151,7 @@ export class OnboardingContainer implements OnInit {
 
     if (step === 4) {
       this.svc.finish().subscribe({
-        next: () => {
-          // Only refresh session + navigate on real success. On error we stay
-          // on /onboarding so the user can retry.
-          this.authService.getMe().subscribe({
-            next: () => {
-              // Guarda: se o getMe pós-finish veio SEM companies, algo quebrou
-              // (rollback silencioso backend, transaction visibility no pooler,
-              // etc). Navegar pra /dashboard aqui joga o user num 403 mudo.
-              // Melhor mostrar erro e deixar ele retentar.
-              if (!this.session.getItem('selectedCompanyId')) {
-                this.notify.error('Não conseguimos vincular sua empresa. Tente novamente.');
-                return;
-              }
-              this.layoutStore.refreshTenants();
-              this.router.navigate(['/dashboard']);
-            },
-            error: (err: HttpErrorResponse) => this.handleFinishError(err),
-          });
-        },
+        next: () => this.fetchMeAndProceed(0),
         error: (err: HttpErrorResponse) => this.handleFinishError(err),
       });
       return;
@@ -199,6 +181,40 @@ export class OnboardingContainer implements OnInit {
       err?.error?.message ??
         'Não foi possível finalizar seu cadastro. Verifique os dados e tente novamente.',
     );
+  }
+
+  /**
+   * Chama /auth/me após finish() e navega pro dashboard. Se o getMe voltar
+   * SEM companies (race com o commit da tx do finish — visibility no pooler
+   * / read replica), retenta com backoff curto até MAX_ATTEMPTS. Só mostra o
+   * erro se realmente não conseguiu vincular após as tentativas.
+   */
+  private static readonly MAX_LINK_ATTEMPTS = 3;
+  private static readonly LINK_RETRY_DELAY_MS = 800;
+
+  private fetchMeAndProceed(attempt: number): void {
+    this.authService.getMe().subscribe({
+      next: () => {
+        if (this.session.getItem('selectedCompanyId')) {
+          this.layoutStore.refreshTenants();
+          this.router.navigate(['/dashboard']);
+          return;
+        }
+        // Race: finish commitou, getMe leu de connection sem visibility.
+        // Retenta com backoff antes de desistir.
+        if (attempt + 1 < OnboardingContainer.MAX_LINK_ATTEMPTS) {
+          setTimeout(
+            () => this.fetchMeAndProceed(attempt + 1),
+            OnboardingContainer.LINK_RETRY_DELAY_MS * (attempt + 1),
+          );
+          return;
+        }
+        this.notify.error(
+          'Não conseguimos vincular sua empresa. Tente novamente ou faça logout e login.',
+        );
+      },
+      error: (err: HttpErrorResponse) => this.handleFinishError(err),
+    });
   }
 
   protected onBack(): void {
