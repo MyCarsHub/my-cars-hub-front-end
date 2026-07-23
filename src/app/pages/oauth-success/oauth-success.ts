@@ -72,9 +72,13 @@ export class OauthSuccess implements OnInit {
     this.sessionService.clear();
     this.sessionService.setToken(token);
     this.authService.getMe().subscribe({
-      next: () => {
-        const onboardingCompleted = this.sessionService.isOnboardingCompleted();
-        this.router.navigate([onboardingCompleted ? '/dashboard' : '/onboarding']);
+      next: (user) => {
+        // Derive onboarding state DIRECTLY from the emitted /auth/me response,
+        // not from sessionStorage. Guarantees no race between writeSession()
+        // side-effects and this read, and mirrors the BE-driven policy: a
+        // fresh signup has no companies → always route to /onboarding.
+        const hasCompany = (user.companies?.length ?? 0) > 0;
+        this.router.navigate([hasCompany ? '/dashboard' : '/onboarding']);
       },
       error: () => {
         this.sessionService.clear();
