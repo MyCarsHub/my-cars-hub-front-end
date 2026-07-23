@@ -135,6 +135,27 @@ describe('AuthService', () => {
       expect(store['onboardingCompleted']).toBe('true');
     });
 
+    it('forces onboardingCompleted=true when systemRole is PLATFORM_ADMIN, even with companies=[]', () => {
+      httpGet.mockReturnValue(
+        of({
+          id: 'admin-1',
+          name: 'Admin',
+          email: 'admin@x.com',
+          document: null,
+          onboardingCompleted: false,
+          systemRole: 'PLATFORM_ADMIN',
+          companies: [],
+        } as MeResponse),
+      );
+
+      let emitted = false;
+      service.hydrateSession().subscribe(() => (emitted = true));
+
+      expect(emitted).toBe(true);
+      expect(store['systemRole']).toBe('PLATFORM_ADMIN');
+      expect(store['onboardingCompleted']).toBe('true');
+    });
+
     it('uses /me companies when non-empty (source of truth)', () => {
       service.applyFinishResponse({
         token: 't',

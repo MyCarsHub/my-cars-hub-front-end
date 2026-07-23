@@ -9,6 +9,13 @@ export const onboardingGuard: CanActivateFn = () => {
   const router = inject(Router);
   const sessionService = inject(SessionService);
 
+  // PLATFORM_ADMIN operates above the tenant model — never gated by
+  // onboarding, even if companies=[]. Short-circuit before touching
+  // onboardingService.loadState() to avoid a needless HTTP round-trip.
+  if (sessionService.isPlatformAdmin()) {
+    return true;
+  }
+
   if (sessionService.isOnboardingCompleted()) {
     return true;
   }
@@ -37,6 +44,12 @@ export const onboardingCompleteGuard: CanActivateFn = () => {
   const onboardingService = inject(OnboardingService);
   const router = inject(Router);
   const sessionService = inject(SessionService);
+
+  // PLATFORM_ADMIN must never render the onboarding page — kick them to
+  // /dashboard immediately.
+  if (sessionService.isPlatformAdmin()) {
+    return router.createUrlTree(['/dashboard']);
+  }
 
   if (sessionService.isOnboardingCompleted()) {
     return router.createUrlTree(['/dashboard']);
