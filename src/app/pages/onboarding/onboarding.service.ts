@@ -27,6 +27,25 @@ function isInitialState(s: OnboardingState): boolean {
   return s.step === 1 && s.isCompleted === false && Object.keys(s.data).length === 0;
 }
 
+const MIN_STEP = 1;
+const MAX_STEP = 4;
+
+/**
+ * Clamp the step returned by the backend into the valid range [1, MAX_STEP].
+ * Defensive against legacy backends that may return step=0 (no-record default)
+ * or any out-of-range value: without this, @switch (currentStep()) in the
+ * container wouldn't match any case and the step body would render blank.
+ */
+function normalizeState(s: OnboardingState): OnboardingState {
+  const raw = Number(s?.step);
+  const step = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw) || MIN_STEP, MIN_STEP), MAX_STEP) : MIN_STEP;
+  return {
+    step,
+    isCompleted: !!s?.isCompleted,
+    data: s?.data ?? {},
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class OnboardingService {
   private readonly http = inject(HttpClient);
@@ -62,7 +81,7 @@ export class OnboardingService {
     return this.http.get<OnboardingState>(API_BASE).pipe(
       tap((state) => {
         if (state) {
-          this._state.set(state);
+          this._state.set(normalizeState(state));
           this.errorNotified = false;
         }
       }),
@@ -116,10 +135,11 @@ export class OnboardingService {
           return;
         }
 
-        const currentStepNumber = Number(state.step);
+        const normalized = normalizeState(state);
+        const currentStepNumber = normalized.step;
         const previousStepNumber = Number(payload.step);
 
-        this._state.set(state);
+        this._state.set(normalized);
 
         if (currentStepNumber === previousStepNumber) {
           this.advanceStep();
