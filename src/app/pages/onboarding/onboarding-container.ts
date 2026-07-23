@@ -151,7 +151,18 @@ export class OnboardingContainer implements OnInit {
 
     if (step === 4) {
       this.svc.finish().subscribe({
-        next: () => this.fetchMeAndProceed(0),
+        next: (response) => {
+          // Backend agora retorna JWT já scoped na company recém-criada, então
+          // não precisamos chamar /auth/me — sem race, sem retry.
+          if (response?.token) {
+            this.layoutStore.refreshTenants();
+            this.router.navigate(['/dashboard']);
+            return;
+          }
+          // Fallback (409 "já finalizado" ou response sem token): tenta getMe
+          // com retry porque não temos o token direto.
+          this.fetchMeAndProceed(0);
+        },
         error: (err: HttpErrorResponse) => this.handleFinishError(err),
       });
       return;
