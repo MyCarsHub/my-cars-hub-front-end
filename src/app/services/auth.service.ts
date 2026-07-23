@@ -10,6 +10,18 @@ interface TokenResponse {
     token: string;
 }
 
+/**
+ * Shape of POST /onboarding/finish success response. Duplicated here to avoid
+ * a circular import with the onboarding feature module — the actual interface
+ * lives in `pages/onboarding/onboarding.service.ts`.
+ */
+export interface OnboardingFinishSessionPayload {
+    token?: string;
+    companyId?: string;
+    companyName?: string;
+    role?: string;
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -54,13 +66,62 @@ export class AuthService {
             .pipe(tap((user) => this.writeSession(user)));
     }
 
+    /**
+     * Persist session state directly from the /onboarding/finish response,
+     * skipping the /auth/me round trip. Called BEFORE hydrateSession() so
+     * that the layout store can read a populated `userCompanies` even if
+     * /auth/me later returns companies=[] due to Supabase session-pooler
+     * read-your-writes lag (the finish commit may not be visible to the
+     * connection that serves /me). Idempotent, synchronous, no HTTP.
+     */
+    applyFinishResponse(response: OnboardingFinishSessionPayload | null | undefined): void {
+        if (!response) return;
+
+        if (response.token) {
+            this.sessionService.setToken(response.token);
+        }
+
+        if (response.companyId) {
+            const role = (response.role as UserCompanies['role']) ?? 'OWNER';
+            const company: UserCompanies = {
+                companyId: response.companyId,
+                companyName: response.companyName ?? '',
+                role,
+            };
+            this.sessionService.setItem('userCompanies', JSON.stringify([company]));
+            this.sessionService.setItem('selectedCompanyId', company.companyId);
+            this.sessionService.setItem('selectedCompanyName', company.companyName);
+            this.sessionService.setItem('selectedRole', company.role);
+            this.sessionService.setOnboardingCompleted(true);
+        }
+    }
+
     private writeSession(user: MeResponse): void {
-        const companies: UserCompanies[] = user.companies ?? [];
+        const companiesFromMe: UserCompanies[] = user.companies ?? [];
 
         this.sessionService.setItem('id', user.id ?? '');
         this.sessionService.setItem('name', user.name ?? '');
         this.sessionService.setItem('email', user.email ?? '');
         this.sessionService.setItem('systemRole', user.systemRole ?? 'USER');
+
+        // Defensive: if /auth/me returns companies=[] but session already has
+        // entries (typically written by applyFinishResponse right after
+        // /onboarding/finish), preserve them. This guards against Supabase
+        // session-pooler read-your-writes lag where /me is served from a
+        // connection that hasn't yet observed the finish transaction.
+        const existingRaw = this.sessionService.getItem('userCompanies');
+        let existing: UserCompanies[] = [];
+        if (existingRaw) {
+            try {
+                const parsed = JSON.parse(existingRaw) as unknown;
+                if (Array.isArray(parsed)) existing = parsed as UserCompanies[];
+            } catch {
+                existing = [];
+            }
+        }
+        const companies =
+            companiesFromMe.length === 0 && existing.length > 0 ? existing : companiesFromMe;
+
         // TODO(BUG-15): backend should expose an explicit `hasCompletedOnboarding`
         // (or `onboardingCompleted`) flag on /auth/me. Deriving it from
         // `companies.length > 0` breaks the "user left every org" case: they'll
@@ -75,7 +136,10 @@ export class AuthService {
             companies.find((company) => company.role === 'OWNER') ??
             companies[0];
 
-        if (defaultCompany) {
+        // Preserve any selection already made by applyFinishResponse if /me
+        // couldn't offer a fresh default.
+        const hasExistingSelection = !!this.sessionService.getItem('selectedCompanyId');
+        if (defaultCompany && (!hasExistingSelection || companiesFromMe.length > 0)) {
             this.sessionService.setItem('selectedCompanyId', defaultCompany.companyId);
             this.sessionService.setItem('selectedCompanyName', defaultCompany.companyName);
             this.sessionService.setItem('selectedRole', defaultCompany.role);
