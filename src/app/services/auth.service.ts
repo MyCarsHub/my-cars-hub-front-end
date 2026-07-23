@@ -122,12 +122,17 @@ export class AuthService {
         const companies =
             companiesFromMe.length === 0 && existing.length > 0 ? existing : companiesFromMe;
 
+        // PLATFORM_ADMIN never goes through onboarding — they operate above
+        // the tenant model. Force the flag true regardless of companies list
+        // so guards / oauth-success never bounce them to /onboarding.
+        //
         // TODO(BUG-15): backend should expose an explicit `hasCompletedOnboarding`
         // (or `onboardingCompleted`) flag on /auth/me. Deriving it from
         // `companies.length > 0` breaks the "user left every org" case: they'll
         // be looped back into the onboarding flow even though they already
         // completed it once. Waiting on backend contract change.
-        this.sessionService.setOnboardingCompleted(companies.length > 0);
+        const isPlatformAdmin = user.systemRole === 'PLATFORM_ADMIN';
+        this.sessionService.setOnboardingCompleted(isPlatformAdmin || companies.length > 0);
         this.sessionService.setItem('userCompanies', JSON.stringify(companies));
         // Do NOT persist `user.document` — CPF/CNPJ is PII. Any consumer that
         // needs it must fetch /auth/me on demand and hold it in component memory.
