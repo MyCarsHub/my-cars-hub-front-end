@@ -29,7 +29,7 @@
 
 <!-- ==================== SIDEBAR (MOBILE DRAWER) ==================== -->
 @if (layout.isMobile() && layout.isMobileOpen()) {
-<aside class="fixed top-0 left-0 z-50 h-screen w-[260px] bg-white border-r border-gray-200
+<aside class="fixed top-0 left-0 z-50 h-dvh w-[260px] bg-white border-r border-gray-200
            flex flex-col shadow-2xl" @mobileSlide role="navigation" aria-label="Menu principal">
   <!-- Close button -->
   <button class="absolute top-4 right-3 flex items-center justify-center w-8 h-8
@@ -111,7 +111,7 @@
   </div>
 
   <!-- ===== NAVIGATION ===== -->
-  <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-1" aria-label="Navegação principal">
+  <nav class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1" aria-label="Navegação principal">
     @for (item of navItems(); track trackByKey($index, item)) {
       @if (item.children) {
         <button type="button" (click)="onParentClick(item)"
@@ -164,7 +164,7 @@
 
   <!-- ===== BOTTOM-PINNED NAV (Perfil etc.) ===== -->
   @if (bottomNavItems().length > 0) {
-  <div class="px-3 pt-3 pb-1 shrink-0 space-y-1">
+  <div class="px-3 pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0 space-y-1">
     @for (item of bottomNavItems(); track trackByKey($index, item)) {
     <a [routerLink]="item.route" routerLinkActive="active-link" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl
                text-gray-600 hover:bg-gray-100 hover:text-gray-900
