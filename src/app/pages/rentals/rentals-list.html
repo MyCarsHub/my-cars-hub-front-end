@@ -207,7 +207,7 @@
               </div>
 
               <!-- Actions row (mobile 3-dot menu) -->
-              @if (canEdit(r) || canDelete(r) || canCancel(r) || canComplete(r) || canActivate(r) || isAwaitingPayment(r)) {
+              @if (canEdit(r) || canDelete(r) || canCancel(r) || canActivate(r) || isAwaitingPayment(r)) {
                 <div class="flex justify-end items-center gap-2 pt-2 border-t border-neutral-100">
                   @if (isAwaitingPayment(r)) {
                     <span
@@ -227,7 +227,7 @@
                     </span>
                   }
                   <div class="relative">
-                    @if (canEdit(r) || canDelete(r) || canCancel(r) || canComplete(r) || canActivate(r)) {
+                    @if (canEdit(r) || canDelete(r) || canCancel(r) || canActivate(r)) {
                     <button type="button"
                       (click)="toggleMenu(r.id, $event)"
                       [attr.aria-expanded]="openMenuId() === r.id"
@@ -264,13 +264,6 @@
                             (click)="askAction('activate', r, $event)"
                             class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-blue-700 hover:bg-blue-50">
                             Iniciar aluguel
-                          </button>
-                        }
-                        @if (canComplete(r)) {
-                          <button role="menuitem" type="button"
-                            (click)="askAction('complete', r, $event)"
-                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-emerald-700 hover:bg-emerald-50">
-                            Finalizar
                           </button>
                         }
                         @if (canCancel(r)) {
@@ -397,20 +390,6 @@
                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round" aria-hidden="true">
                             <polygon points="5 3 19 12 5 21 5 3"/>
-                          </svg>
-                        </button>
-                      }
-                      @if (canComplete(r)) {
-                        <button type="button"
-                          (click)="askAction('complete', r, $event)"
-                          title="Finalizar aluguel"
-                          aria-label="Finalizar aluguel"
-                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-emerald-600
-                                 hover:bg-emerald-50">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" aria-hidden="true">
-                            <polyline points="20 6 9 17 4 12"/>
                           </svg>
                         </button>
                       }

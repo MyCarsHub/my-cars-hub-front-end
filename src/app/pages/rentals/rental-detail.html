@@ -347,44 +347,101 @@
                 </tbody>
               </table>
             </div>
-          } @else if (r.caucaoAmount > 0 && canGenerateCaucao()) {
-            <!-- Empty state: gerar cobrança de caução via Asaas. -->
-            <div
-              class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl
-                     border border-dashed border-primary-300 bg-primary-50/40 px-3 py-3"
-            >
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-neutral-900">
-                  Caução — {{ formatCurrency(r.caucaoAmount) }}
-                </p>
-                <p class="text-xs text-neutral-500 mt-0.5">
-                  Gere a cobrança avulsa da caução via Asaas.
-                </p>
-              </div>
-              <button
-                type="button"
-                (click)="generateCaucaoCharge()"
-                [disabled]="generatingCaucao()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
-                       rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
-                       shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+          } @else if (r.caucaoAmount > 0) {
+            <!-- Placeholder row: caução configurada no rental, mas sem charge ainda. -->
+            <!-- Mobile -->
+            <ul class="space-y-2 lg:hidden" role="list">
+              <li
+                class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-primary-300 bg-primary-50/40 px-3 py-2.5"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança }
-              </button>
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-600 font-semibold">C</span>
+                  <div class="min-w-0">
+                    <p class="text-sm text-neutral-800 tabular-nums">
+                      <span class="text-neutral-400">—</span>
+                    </p>
+                    <p class="text-xs text-neutral-500 tabular-nums">
+                      {{ formatCurrency(r.caucaoAmount) }}
+                      <span class="text-neutral-400"> · Caução</span>
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600"
+                  >
+                    Não gerada
+                  </span>
+                  @if (canGenerateCaucao()) {
+                    <button
+                      type="button"
+                      (click)="generateCaucaoCharge()"
+                      [disabled]="generatingCaucao()"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition disabled:opacity-60
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Gerar cobrança da caução"
+                    >
+                      @if (generatingCaucao()) { … } @else { Gerar }
+                    </button>
+                  }
+                </div>
+              </li>
+            </ul>
+
+            <!-- Desktop -->
+            <div class="hidden lg:block overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                    <th class="py-2 pr-4 font-medium">#</th>
+                    <th class="py-2 pr-4 font-medium">Vencimento</th>
+                    <th class="py-2 pr-4 font-medium">Tipo</th>
+                    <th class="py-2 pr-4 font-medium">Valor</th>
+                    <th class="py-2 pr-4 font-medium">Pago em</th>
+                    <th class="py-2 pr-4 font-medium">Situação</th>
+                    <th class="py-2 pr-4 font-medium text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-b border-neutral-50">
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-600 font-semibold">C</td>
+                    <td class="py-2.5 pr-4 tabular-nums"><span class="text-neutral-400">—</span></td>
+                    <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
+                    <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(r.caucaoAmount) }}</td>
+                    <td class="py-2.5 pr-4 tabular-nums text-neutral-500"><span class="text-neutral-400">—</span></td>
+                    <td class="py-2.5 pr-4">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-neutral-100 text-neutral-600">
+                        Não gerada
+                      </span>
+                    </td>
+                    <td class="py-2.5 pr-4 text-right">
+                      <div class="inline-flex items-center gap-2 justify-end">
+                        @if (canGenerateCaucao()) {
+                          <button
+                            type="button"
+                            (click)="generateCaucaoCharge()"
+                            [disabled]="generatingCaucao()"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   hover:bg-emerald-600 transition disabled:opacity-60
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                          >
+                            @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança }
+                          </button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+
+            <p class="text-[11px] text-neutral-500 mt-1">
+              Ou receba por fora e marque como paga assim que a charge for gerada.
+            </p>
           } @else {
             <p class="text-sm text-neutral-500 text-center py-6">
-              @if (r.caucaoAmount > 0) {
-                Sem cobrança de caução gerada.
-              } @else {
-                Sem caução configurada para este aluguel.
-              }
+              Sem caução configurada para este aluguel.
             </p>
           }
         </div>

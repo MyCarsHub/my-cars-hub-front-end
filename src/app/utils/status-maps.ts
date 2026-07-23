@@ -80,8 +80,8 @@ export const RENTAL_STATUS_META: Record<RentalStatus, StatusMeta> = {
   },
   CANCELED: {
     label: 'Cancelado',
-    chip: 'bg-neutral-200 text-neutral-700',
-    color: '#6b7280',
+    chip: 'bg-red-100 text-red-800',
+    color: '#ef4444',
   },
 };
 
