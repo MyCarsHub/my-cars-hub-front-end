@@ -229,11 +229,9 @@ export class OnboardingContainer implements OnInit {
   private static readonly LINK_RETRY_DELAY_MS = 1500;
 
   private fetchMeAndProceed(attempt: number): void {
-    console.log(`[onboarding] fetchMeAndProceed attempt=${attempt}/${OnboardingContainer.MAX_LINK_ATTEMPTS}`);
     this.authService.getMe().subscribe({
       next: () => {
         const selectedId = this.session.getItem('selectedCompanyId');
-        console.log(`[onboarding] getMe done, selectedCompanyId=${selectedId}`);
         if (selectedId) {
           this.layoutStore.refreshTenants();
           this.router.navigate(['/dashboard']);
@@ -243,7 +241,6 @@ export class OnboardingContainer implements OnInit {
         // Retenta com backoff antes de desistir.
         if (attempt + 1 < OnboardingContainer.MAX_LINK_ATTEMPTS) {
           const delay = OnboardingContainer.LINK_RETRY_DELAY_MS;
-          console.log(`[onboarding] no company yet — retrying in ${delay}ms`);
           setTimeout(() => this.fetchMeAndProceed(attempt + 1), delay);
           return;
         }
