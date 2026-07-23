@@ -2,11 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnInit,
   signal,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { OnboardingService } from './onboarding.service';
@@ -60,6 +62,7 @@ export class OnboardingContainer implements OnInit {
   private readonly layoutStore = inject(LayoutStore);
   private readonly notify = inject(NotificationService);
   private readonly session = inject(SessionService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** True once the initial GET /onboarding call has resolved */
   protected readonly loaded = signal(false);
@@ -150,21 +153,38 @@ export class OnboardingContainer implements OnInit {
     const step = this.svc.currentStep();
 
     if (step === 4) {
-      this.svc.finish().subscribe({
-        next: (response) => {
-          // Backend agora retorna JWT já scoped na company recém-criada, então
-          // não precisamos chamar /auth/me — sem race, sem retry.
-          if (response?.token) {
-            this.layoutStore.refreshTenants();
-            this.router.navigate(['/dashboard']);
-            return;
-          }
-          // Fallback (409 "já finalizado" ou response sem token): tenta getMe
-          // com retry porque não temos o token direto.
-          this.fetchMeAndProceed(0);
-        },
-        error: (err: HttpErrorResponse) => this.handleFinishError(err),
-      });
+      this.svc.finish()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (response) => {
+            // Backend retorna JWT já scoped na company recém-criada (sem race),
+            // mas ainda precisamos chamar /auth/me para hidratar `userCompanies`
+            // em sessionStorage — do contrário, a sidebar renderiza FALLBACK_TENANT.
+            // Usa hydrateSession() (não getMe) porque já temos JWT scoped:
+            // re-swappar via select-company descartaria esse token e poderia
+            // trocar de tenant se o usuário tivesse múltiplas companies.
+            if (response?.token) {
+              this.authService.hydrateSession()
+                .pipe(takeUntilDestroyed(this.destroyRef))
+                .subscribe({
+                  next: () => {
+                    this.layoutStore.refreshTenants();
+                    this.router.navigate(['/dashboard']);
+                  },
+                  error: () => {
+                    this.notify.error(
+                      'Cadastro concluído, mas não foi possível carregar sua sessão. Recarregue a página.',
+                    );
+                  },
+                });
+              return;
+            }
+            // Fallback (409 "já finalizado" ou response sem token): tenta getMe
+            // com retry porque não temos o token direto.
+            this.fetchMeAndProceed(0);
+          },
+          error: (err: HttpErrorResponse) => this.handleFinishError(err),
+        });
       return;
     }
 
