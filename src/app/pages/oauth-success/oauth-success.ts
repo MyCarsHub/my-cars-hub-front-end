@@ -73,6 +73,13 @@ export class OauthSuccess implements OnInit {
     this.sessionService.setToken(token);
     this.authService.getMe().subscribe({
       next: (user) => {
+        // PLATFORM_ADMIN operates above the tenant model — bypass onboarding
+        // entirely even if companies=[]. Keeps admins out of the tenant setup
+        // flow that would otherwise 400/403 on every step.
+        if (user.systemRole === 'PLATFORM_ADMIN') {
+          this.router.navigate(['/dashboard']);
+          return;
+        }
         // Derive onboarding state DIRECTLY from the emitted /auth/me response,
         // not from sessionStorage. Guarantees no race between writeSession()
         // side-effects and this read, and mirrors the BE-driven policy: a
