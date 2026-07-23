@@ -28,7 +28,7 @@ import { VehicleListItem } from '../../types/vehicle.types';
 import { DriverListItem } from '../../types/driver.types';
 import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
 
-type PendingAction = 'activate' | 'cancel' | 'complete' | 'delete';
+type PendingAction = 'activate' | 'cancel' | 'delete';
 
 @Component({
   selector: 'app-rentals-list',
@@ -124,8 +124,6 @@ export class RentalsList implements OnInit {
         return 'Iniciar aluguel';
       case 'cancel':
         return 'Cancelar aluguel';
-      case 'complete':
-        return 'Finalizar aluguel';
       case 'delete':
         return 'Excluir aluguel';
       default:
@@ -139,8 +137,6 @@ export class RentalsList implements OnInit {
         return 'Deseja marcar este aluguel como ativo agora?';
       case 'cancel':
         return 'Tem certeza que deseja cancelar este aluguel? As cobranças pendentes serão canceladas.';
-      case 'complete':
-        return 'Marcar aluguel como concluído? Isso dispara o reembolso da caução, quando houver.';
       case 'delete':
         return 'Tem certeza que deseja excluir este aluguel? Esta ação não pode ser desfeita.';
       default:
@@ -153,8 +149,6 @@ export class RentalsList implements OnInit {
       case 'delete':
       case 'cancel':
         return 'danger';
-      case 'complete':
-        return 'warning';
       default:
         return 'info';
     }
@@ -166,8 +160,6 @@ export class RentalsList implements OnInit {
         return 'Iniciar';
       case 'cancel':
         return 'Cancelar aluguel';
-      case 'complete':
-        return 'Finalizar';
       case 'delete':
         return 'Excluir';
       default:
@@ -372,10 +364,6 @@ export class RentalsList implements OnInit {
     return r.status === 'RESERVED';
   }
 
-  protected canComplete(r: RentalListItemDto): boolean {
-    return r.status === 'ACTIVE';
-  }
-
   /**
    * Manual activation only for rentals created without automatic Asaas charge.
    * Aligns with backend `RentalService.activate` guard (isAutomaticCharge ⇒ 409).
@@ -450,12 +438,6 @@ export class RentalsList implements OnInit {
         this.rentalService.cancel(r.id).subscribe({
           next: () => onSuccess('Aluguel cancelado.'),
           error: (err) => onError(err, 'Não foi possível cancelar o aluguel.'),
-        });
-        break;
-      case 'complete':
-        this.rentalService.complete(r.id).subscribe({
-          next: () => onSuccess('Aluguel finalizado.'),
-          error: (err) => onError(err, 'Não foi possível finalizar o aluguel.'),
         });
         break;
       case 'delete':

@@ -132,14 +132,27 @@ export class RentalDetail implements OnInit {
   });
 
   /**
-   * Charge da caução (se existir alguma). Prioriza a mais recente (última no
-   * array — backend ordena por createdAt asc).
+   * Charge da caução exibida no card dedicado.
+   *
+   * Regra:
+   *  1. Se existir alguma CAUCAO em status "vivo" (PENDING/PAID/PAST_DUE/FAILED),
+   *     retorna a mais recente delas — é o ciclo em andamento e deve dominar
+   *     a UI (mostra status + ações).
+   *  2. Senão, se existir alguma CAUCAO terminal (CANCELED/REFUNDED/RELEASED),
+   *     retorna a mais recente para preservar histórico visível.
+   *  3. Senão, `null` — o template mostra CTA ou empty state.
+   *
+   * Backend ordena `charges` por `createdAt asc`, então "mais recente" = último
+   * elemento da lista filtrada.
    */
   protected readonly caucaoCharge = computed<RentalChargeDto | null>(() => {
     const r = this.rental();
     if (!r) return null;
-    const list = r.charges.filter((c) => c.kind === 'CAUCAO');
-    return list.length > 0 ? list[list.length - 1] : null;
+    const all = r.charges.filter((c) => c.kind === 'CAUCAO');
+    if (all.length === 0) return null;
+    const open = all.filter((c) => this.OPEN_CAUCAO_STATUSES.includes(c.status));
+    if (open.length > 0) return open[open.length - 1];
+    return all[all.length - 1];
   });
 
   /** True quando já existe uma linha CAUCAO (usado no card de caução). */
