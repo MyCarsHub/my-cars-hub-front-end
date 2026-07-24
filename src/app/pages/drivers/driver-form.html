@@ -19,7 +19,7 @@
       <app-page-card title="Informações pessoais">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <div class="md:col-span-2">
-            <app-primary-input label="Nome completo" placeholder="Ex: João da Silva" formControlName="name" />
+            <app-primary-input label="Nome completo" [required]="true" placeholder="Ex: João da Silva" formControlName="name" />
             @if (fieldInvalid(['name'])) {
               <p class="text-xs text-rose-600 mt-1">Informe o nome do motorista.</p>
             }
@@ -31,19 +31,20 @@
       <app-page-card title="Contato">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6" formGroupName="contact">
           <div>
-            <app-primary-input label="E-mail" type="email" placeholder="motorista@empresa.com" formControlName="email" />
+            <app-primary-input label="E-mail" [required]="true" type="email" placeholder="motorista@empresa.com" formControlName="email" />
             @if (fieldInvalid(['contact','email'])) {
               <p class="text-xs text-rose-600 mt-1">Informe um e-mail válido.</p>
             }
           </div>
           <div>
-            <label class="text-sm text-neutral-600" for="motorista-phone">Telefone</label>
+            <label class="text-sm text-neutral-600" for="motorista-phone">Telefone <span class="text-primary-500" aria-hidden="true">*</span></label>
             <input
               id="motorista-phone"
               type="tel"
               inputmode="numeric"
               placeholder="(11) 98765-4321"
               maxlength="15"
+              aria-required="true"
               [value]="phoneDisplay()"
               (beforeinput)="onPhoneBeforeInput($event)"
               (input)="onPhoneInput($event)"
@@ -60,12 +61,13 @@
       <app-page-card title="Endereço">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-6 gap-4 sm:gap-6" formGroupName="address">
           <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">CEP</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">CEP <span class="text-primary-500" aria-hidden="true">*</span></label>
             <input
               type="text"
               formControlName="cep"
               placeholder="00000-000"
               maxlength="9"
+              aria-required="true"
               (blur)="onCepBlur()"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
@@ -78,7 +80,7 @@
           </div>
 
           <div class="md:col-span-4">
-            <app-primary-input label="Rua" placeholder="Rua das Flores" formControlName="street" />
+            <app-primary-input label="Rua" [required]="true" placeholder="Rua das Flores" formControlName="street" />
             @if (fieldInvalid(['address','street'])) {
               <p class="text-xs text-rose-600 mt-1">Informe a rua.</p>
             }
@@ -93,23 +95,24 @@
           </div>
 
           <div class="md:col-span-3">
-            <app-primary-input label="Bairro" placeholder="Centro" formControlName="district" />
+            <app-primary-input label="Bairro" [required]="true" placeholder="Centro" formControlName="district" />
             @if (fieldInvalid(['address','district'])) {
               <p class="text-xs text-rose-600 mt-1">Informe o bairro.</p>
             }
           </div>
 
           <div class="md:col-span-2">
-            <app-primary-input label="Cidade" placeholder="São Paulo" formControlName="city" />
+            <app-primary-input label="Cidade" [required]="true" placeholder="São Paulo" formControlName="city" />
             @if (fieldInvalid(['address','city'])) {
               <p class="text-xs text-rose-600 mt-1">Informe a cidade.</p>
             }
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">UF</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">UF <span class="text-primary-500" aria-hidden="true">*</span></label>
             <select
               formControlName="uf"
+              aria-required="true"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               <option value="">—</option>
@@ -128,13 +131,14 @@
       <app-page-card title="Carteira de habilitação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <div>
-            <label class="text-sm text-neutral-600" for="motorista-cnh">Número da CNH</label>
+            <label class="text-sm text-neutral-600" for="motorista-cnh">Número da CNH <span class="text-primary-500" aria-hidden="true">*</span></label>
             <input
               id="motorista-cnh"
               type="text"
               placeholder="Ex: A1B2C3D4E5F"
               maxlength="11"
               autocapitalize="characters"
+              aria-required="true"
               [value]="licenseDisplay()"
               (input)="onLicenseInput($event)"
               class="w-full mt-1 bg-white rounded-xl border border-neutral-200 px-4 py-3 tracking-wider
@@ -144,9 +148,10 @@
             }
           </div>
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Categoria</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Categoria <span class="text-primary-500" aria-hidden="true">*</span></label>
             <select
               formControlName="licenseCategory"
+              aria-required="true"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (cat of categories; track cat) {
@@ -155,10 +160,11 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Vencimento</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Vencimento <span class="text-primary-500" aria-hidden="true">*</span></label>
             <input
               type="date"
               formControlName="licenseExpiry"
+              aria-required="true"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
             @if (fieldInvalid(['licenseExpiry'])) {
@@ -172,20 +178,22 @@
       <app-page-card title="Associações">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <div formGroupName="document">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo de documento</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo de documento <span class="text-primary-500" aria-hidden="true">*</span></label>
             <select
               formControlName="type"
+              aria-required="true"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60">
               <option value="CPF">CPF</option>
               <option value="CNPJ">CNPJ</option>
             </select>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5 mt-4">Número do documento</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5 mt-4">Número do documento <span class="text-primary-500" aria-hidden="true">*</span></label>
             <input
               type="text"
               placeholder="11 - 14 dígitos"
               maxlength="14"
               autocapitalize="characters"
+              aria-required="true"
               [value]="documentDisplay()"
               (input)="onDocumentInput($event)"
               [disabled]="isEdit()"
@@ -223,9 +231,10 @@
       <!-- ====== Status ====== -->
       <app-page-card title="Status">
         <div class="p-4 sm:p-6">
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5">Situação atual</label>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5">Situação atual <span class="text-primary-500" aria-hidden="true">*</span></label>
           <select
             formControlName="status"
+            aria-required="true"
             class="w-full md:w-72 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
             @for (s of statuses; track s.value) {
