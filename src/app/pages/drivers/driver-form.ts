@@ -62,10 +62,11 @@ export class DriverForm implements OnInit {
   protected readonly phoneDisplay = signal('');
   protected readonly licenseDisplay = signal('');
   protected readonly documentDisplay = signal('');
+  protected readonly rgDisplay = signal('');
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(180)]],
-    rg: ['', [Validators.required, Validators.maxLength(20)]],
+    rg: ['', [Validators.required, Validators.maxLength(10)]],
     userId: [''],
     document: this.fb.nonNullable.group({
       type: ['CPF' as 'CPF' | 'CNPJ', [Validators.required]],
@@ -137,6 +138,22 @@ export class DriverForm implements OnInit {
     this.licenseDisplay.set(raw);
   }
 
+  protected onRgInput(event: Event): void {
+    const raw = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 10);
+    this.form.controls.rg.setValue(raw);
+    this.form.controls.rg.markAsTouched();
+    this.rgDisplay.set(this.formatRg(raw));
+  }
+
+  private formatRg(digits: string): string {
+    const d = digits.slice(0, 10);
+    if (d.length === 0) return '';
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+    if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+    return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}-${d.slice(8)}`;
+  }
+
   protected onDocumentInput(event: Event): void {
     const raw = (event.target as HTMLInputElement).value
       .replace(/[^A-Za-z0-9]/g, '')
@@ -164,12 +181,14 @@ export class DriverForm implements OnInit {
         const phoneDigits = (driver.contact.phone ?? '').replace(/\D/g, '').slice(0, 11);
         const licenseRaw = (driver.licenseNumber ?? '').toUpperCase().slice(0, 11);
         const documentRaw = (driver.document.value ?? '').toUpperCase().slice(0, 14);
+        const rgDigits = (driver.rg ?? '').replace(/\D/g, '').slice(0, 10);
         this.phoneDisplay.set(this.formatPhone(phoneDigits));
         this.licenseDisplay.set(licenseRaw);
         this.documentDisplay.set(documentRaw);
+        this.rgDisplay.set(this.formatRg(rgDigits));
         this.form.patchValue({
           name: driver.name,
-          rg: driver.rg ?? '',
+          rg: rgDigits,
           userId: driver.userId ?? '',
           document: {
             type: driver.document.type ?? 'CPF',
@@ -248,7 +267,7 @@ export class DriverForm implements OnInit {
     };
     const commonPayload = {
       name: raw.name.trim(),
-      rg: raw.rg?.trim() ? raw.rg.trim() : null,
+      rg: raw.rg ? raw.rg.replace(/\D/g, '') || null : null,
       userId: raw.userId?.trim() ? raw.userId.trim() : null,
       address: addressPayload,
       contact: contactPayload,
