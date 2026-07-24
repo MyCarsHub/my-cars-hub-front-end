@@ -43,6 +43,7 @@ export interface DriverResponse {
   companyId: string;
   userId: string | null;
   name: string;
+  rg: string | null;
   document: { type: DocumentType | null; value: string | null };
   address: AddressPayload;
   contact: ContactPayload;
@@ -55,6 +56,7 @@ export interface DriverResponse {
 export interface CreateDriverRequest {
   name: string;
   userId: string | null;
+  rg?: string | null;
   document: DocumentInputPayload;
   address: AddressPayload;
   contact: ContactPayload;
@@ -67,6 +69,7 @@ export interface CreateDriverRequest {
 export interface UpdateDriverRequest {
   name: string;
   userId: string | null;
+  rg?: string | null;
   address: AddressPayload;
   contact: ContactPayload;
   licenseNumber: string;
