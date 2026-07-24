@@ -108,4 +108,36 @@ describe('OauthSuccess routing (systemRole aware)', () => {
     );
     expect(navigate).toHaveBeenCalledWith(['/dashboard']);
   });
+
+  it('routes to /dashboard when hasCompletedOnboarding=true even if companies=[]', async () => {
+    const { navigate } = await setup(
+      buildMe({
+        systemRole: 'USER',
+        companies: [],
+        hasCompletedOnboarding: true,
+      }),
+    );
+    expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
+
+  it('routes to /onboarding when hasCompletedOnboarding=false even if companies has entries', async () => {
+    const { navigate } = await setup(
+      buildMe({
+        systemRole: 'USER',
+        companies: [{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }],
+        hasCompletedOnboarding: false,
+      }),
+    );
+    expect(navigate).toHaveBeenCalledWith(['/onboarding']);
+  });
+
+  it('falls back to companies-length derivation when hasCompletedOnboarding is missing (deploy skew)', async () => {
+    const { navigate } = await setup(
+      buildMe({
+        systemRole: 'USER',
+        companies: [{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }],
+      }),
+    );
+    expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
 });

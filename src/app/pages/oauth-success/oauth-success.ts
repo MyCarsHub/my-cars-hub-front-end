@@ -82,10 +82,15 @@ export class OauthSuccess implements OnInit {
         }
         // Derive onboarding state DIRECTLY from the emitted /auth/me response,
         // not from sessionStorage. Guarantees no race between writeSession()
-        // side-effects and this read, and mirrors the BE-driven policy: a
-        // fresh signup has no companies → always route to /onboarding.
-        const hasCompany = (user.companies?.length ?? 0) > 0;
-        this.router.navigate([hasCompany ? '/dashboard' : '/onboarding']);
+        // side-effects and this read.
+        //
+        // Prefer the explicit BE flag (BE PR #30, BUG-15 fix). Fall back to
+        // the legacy `companies.length > 0` derivation if the field is
+        // missing (deploy skew: FE ahead of BE).
+        const explicitFlag = user.hasCompletedOnboarding;
+        const derivedFlag = (user.companies?.length ?? 0) > 0;
+        const isCompleted = explicitFlag ?? derivedFlag;
+        this.router.navigate([isCompleted ? '/dashboard' : '/onboarding']);
       },
       error: () => {
         this.sessionService.clear();
