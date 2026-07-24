@@ -23,6 +23,7 @@ import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import { HttpErrorResponse } from '@angular/common/http';
+import * as Sentry from '@sentry/angular';
 
 @Component({
   selector: 'app-onboarding-container',
@@ -174,10 +175,15 @@ export class OnboardingContainer implements OnInit {
                 .pipe(takeUntilDestroyed(this.destroyRef))
                 .subscribe({
                   next: () => this.layoutStore.refreshTenants(),
-                  error: () => {
+                  error: (err: HttpErrorResponse) => {
                     // Não bloqueia navegação: dados essenciais já persistidos
                     // via applyFinishResponse. Perfil ficará sem name/email
                     // enriquecidos até o próximo /auth/me — aceitável.
+                    // Captura em Sentry pra ter visibilidade da taxa dessa
+                    // falha silenciosa em prod.
+                    Sentry.captureException(err, {
+                      tags: { source: 'onboarding.finish.hydrateSession' },
+                    });
                   },
                 });
 
