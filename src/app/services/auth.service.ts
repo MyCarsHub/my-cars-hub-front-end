@@ -126,13 +126,23 @@ export class AuthService {
         // the tenant model. Force the flag true regardless of companies list
         // so guards / oauth-success never bounce them to /onboarding.
         //
-        // TODO(BUG-15): backend should expose an explicit `hasCompletedOnboarding`
-        // (or `onboardingCompleted`) flag on /auth/me. Deriving it from
-        // `companies.length > 0` breaks the "user left every org" case: they'll
-        // be looped back into the onboarding flow even though they already
-        // completed it once. Waiting on backend contract change.
+        // BUG-15 resolved by BE PR #30: /auth/me now exposes the explicit
+        // `hasCompletedOnboarding` flag. We use it as source of truth when
+        // present. The legacy `companies.length > 0` derivation is kept as a
+        // defensive fallback so a deploy skew (FE ahead of BE) doesn't loop
+        // returning users into onboarding. Remove the fallback once BE #30
+        // is guaranteed live in every environment.
         const isPlatformAdmin = user.systemRole === 'PLATFORM_ADMIN';
-        this.sessionService.setOnboardingCompleted(isPlatformAdmin || companies.length > 0);
+        const explicitFlag = user.hasCompletedOnboarding;
+        const derivedFlag = companies.length > 0;
+        if (explicitFlag === undefined || explicitFlag === null) {
+            // eslint-disable-next-line no-console
+            console.warn(
+                '[auth] /auth/me did not return `hasCompletedOnboarding`; falling back to companies-length derivation. Likely FE/BE deploy skew.',
+            );
+        }
+        const isCompleted = isPlatformAdmin || (explicitFlag ?? derivedFlag);
+        this.sessionService.setOnboardingCompleted(isCompleted);
         this.sessionService.setItem('userCompanies', JSON.stringify(companies));
         // Do NOT persist `user.document` — CPF/CNPJ is PII. Any consumer that
         // needs it must fetch /auth/me on demand and hold it in component memory.

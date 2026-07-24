@@ -156,6 +156,72 @@ describe('AuthService', () => {
       expect(store['onboardingCompleted']).toBe('true');
     });
 
+    it('uses explicit hasCompletedOnboarding=true from /me even when companies=[]', () => {
+      httpGet.mockReturnValue(
+        of({
+          ...buildMe([]),
+          hasCompletedOnboarding: true,
+        } as MeResponse),
+      );
+
+      let emitted = false;
+      service.hydrateSession().subscribe(() => (emitted = true));
+
+      expect(emitted).toBe(true);
+      expect(store['onboardingCompleted']).toBe('true');
+    });
+
+    it('uses explicit hasCompletedOnboarding=false from /me even when companies has entries', () => {
+      httpGet.mockReturnValue(
+        of({
+          ...buildMe([{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }]),
+          hasCompletedOnboarding: false,
+        } as MeResponse),
+      );
+
+      let emitted = false;
+      service.hydrateSession().subscribe(() => (emitted = true));
+
+      expect(emitted).toBe(true);
+      expect(store['onboardingCompleted']).toBe('false');
+    });
+
+    it('falls back to companies-length derivation when hasCompletedOnboarding is missing (deploy skew)', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      httpGet.mockReturnValue(
+        of(buildMe([{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }])),
+      );
+
+      let emitted = false;
+      service.hydrateSession().subscribe(() => (emitted = true));
+
+      expect(emitted).toBe(true);
+      expect(store['onboardingCompleted']).toBe('true');
+      expect(warnSpy).toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('PLATFORM_ADMIN bypass wins even when hasCompletedOnboarding=false and companies=[]', () => {
+      httpGet.mockReturnValue(
+        of({
+          id: 'admin-1',
+          name: 'Admin',
+          email: 'admin@x.com',
+          document: null,
+          onboardingCompleted: false,
+          hasCompletedOnboarding: false,
+          systemRole: 'PLATFORM_ADMIN',
+          companies: [],
+        } as MeResponse),
+      );
+
+      let emitted = false;
+      service.hydrateSession().subscribe(() => (emitted = true));
+
+      expect(emitted).toBe(true);
+      expect(store['onboardingCompleted']).toBe('true');
+    });
+
     it('uses /me companies when non-empty (source of truth)', () => {
       service.applyFinishResponse({
         token: 't',
