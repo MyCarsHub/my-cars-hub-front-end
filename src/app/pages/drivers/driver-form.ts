@@ -65,6 +65,7 @@ export class DriverForm implements OnInit {
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(180)]],
+    rg: ['', [Validators.required, Validators.maxLength(20)]],
     userId: [''],
     document: this.fb.nonNullable.group({
       type: ['CPF' as 'CPF' | 'CNPJ', [Validators.required]],
@@ -168,6 +169,7 @@ export class DriverForm implements OnInit {
         this.documentDisplay.set(documentRaw);
         this.form.patchValue({
           name: driver.name,
+          rg: driver.rg ?? '',
           userId: driver.userId ?? '',
           document: {
             type: driver.document.type ?? 'CPF',
@@ -246,6 +248,7 @@ export class DriverForm implements OnInit {
     };
     const commonPayload = {
       name: raw.name.trim(),
+      rg: raw.rg?.trim() ? raw.rg.trim() : null,
       userId: raw.userId?.trim() ? raw.userId.trim() : null,
       address: addressPayload,
       contact: contactPayload,
