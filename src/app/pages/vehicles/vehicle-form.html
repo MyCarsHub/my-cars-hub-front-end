@@ -19,13 +19,14 @@
       <app-page-card title="Identificação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-plate">Placa</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-plate">Placa <span class="text-primary-500" aria-hidden="true">*</span></label>
             <input
               id="veiculo-plate"
               type="text"
               placeholder="ABC1D23"
               maxlength="7"
               autocapitalize="characters"
+              aria-required="true"
               [value]="plateDisplay()"
               (input)="onPlateInput($event)"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tracking-widest tabular-nums
@@ -37,9 +38,10 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo <span class="text-primary-500" aria-hidden="true">*</span></label>
             <select
               formControlName="type"
+              aria-required="true"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (opt of typeOptions; track opt.value) {
@@ -87,14 +89,14 @@
           </div>
 
           <div>
-            <app-primary-input label="Marca" placeholder="Ex: Fiat" formControlName="brand" />
+            <app-primary-input label="Marca" [required]="true" placeholder="Ex: Fiat" formControlName="brand" />
             @if (fieldInvalid(['brand'])) {
               <p class="text-xs text-rose-600 mt-1">Informe a marca.</p>
             }
           </div>
 
           <div>
-            <app-primary-input label="Modelo" placeholder="Ex: Uno" formControlName="model" />
+            <app-primary-input label="Modelo" [required]="true" placeholder="Ex: Uno" formControlName="model" />
             @if (fieldInvalid(['model'])) {
               <p class="text-xs text-rose-600 mt-1">Informe o modelo.</p>
             }
@@ -102,22 +104,24 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5">Ano fabricação</label>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5">Ano fabricação <span class="text-primary-500" aria-hidden="true">*</span></label>
               <input
                 type="number"
                 formControlName="yearManufacture"
                 min="1900"
                 max="2100"
+                aria-required="true"
                 class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-3 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5">Ano modelo</label>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5">Ano modelo <span class="text-primary-500" aria-hidden="true">*</span></label>
               <input
                 type="number"
                 formControlName="yearModel"
                 min="1900"
                 max="2100"
+                aria-required="true"
                 class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-3 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
             </div>
@@ -178,11 +182,12 @@
       <app-page-card title="Operacional">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Hodômetro (km)</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Hodômetro (km) <span class="text-primary-500" aria-hidden="true">*</span></label>
             <input
               type="number"
               formControlName="hodometer"
               min="0"
+              aria-required="true"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
             @if (fieldInvalid(['hodometer'])) {

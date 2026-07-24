@@ -1,5 +1,7 @@
 <div>
-    <label class="text-sm text-neutral-600">{{ label() }}</label>
+    <label class="text-sm text-neutral-600">
+        {{ label() }}@if (required()) {<span class="text-primary-500" aria-hidden="true">*</span>}
+    </label>
     <div class="relative">
         @if (iconSrc()) {
         <div class="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none flex items-center">
@@ -8,6 +10,7 @@
         }
         <input [type]="type()" [placeholder]="placeholder()" [value]="internalValue()" [disabled]="isDisabled()"
             [attr.maxlength]="maxLength()"
+            [attr.aria-required]="required() ? 'true' : null"
             (input)="onInput($event)" class="w-full mt-1 bg-white rounded-xl border border-neutral-200 pr-4 py-3
                     focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors
                     disabled:opacity-60 disabled:bg-neutral-50 disabled:cursor-not-allowed" [class.pl-12]="iconSrc()"
