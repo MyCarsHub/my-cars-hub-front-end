@@ -24,6 +24,20 @@
               <p class="text-xs text-rose-600 mt-1">Informe o nome do motorista.</p>
             }
           </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="motorista-rg">
+              RG <span class="text-primary-500" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="motorista-rg"
+              type="text"
+              formControlName="rg"
+              placeholder="Ex: 12.345.678-9"
+              maxlength="20"
+              aria-required="true"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          </div>
         </div>
       </app-page-card>
 
