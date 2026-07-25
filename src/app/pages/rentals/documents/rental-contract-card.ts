@@ -108,7 +108,7 @@ interface SignatureBadge {
 
           @if (signatureStatus() === 'PENDING') {
             <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
-              Aguardando signatários assinarem. Verificando a cada 30 segundos…
+              Aguardando signatários assinarem.
             </p>
           }
 
