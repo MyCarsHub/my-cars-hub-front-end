@@ -13,6 +13,7 @@ import {
 import { Subscription, forkJoin, of, switchMap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { PageCard } from '../../../components/core/page-card/page-card';
+import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
 import { DriverService } from '../../../services/driver.service';
@@ -52,10 +53,52 @@ interface Slot {
 @Component({
   selector: 'app-rental-inspection-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageCard],
+  imports: [PageCard, ConfirmDialog],
   template: `
     <app-page-card [title]="title()">
       <div class="p-4 sm:p-6 space-y-4">
+        @if (generatedDoc(); as doc) {
+          <div
+            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3"
+          >
+            <div class="min-w-0 flex items-center gap-3">
+              <span
+                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-600 shrink-0"
+                aria-hidden="true"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </span>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-neutral-900 truncate">{{ pdfFileName() }}</p>
+                <p class="text-xs text-neutral-500 tabular-nums">
+                  {{ formatSize(doc.sizeBytes) }} · Enviado {{ formatDate(doc.createdDate) }}
+                </p>
+              </div>
+            </div>
+            <div class="flex flex-col sm:flex-row flex-wrap gap-2 shrink-0">
+              <button type="button" (click)="downloadPdf()" [disabled]="downloading()"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                @if (downloading()) { Baixando… } @else { {{ downloadLabel() }} }
+              </button>
+              <button type="button" (click)="openPdf(doc.id)" [disabled]="openingPdf()"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                @if (openingPdf()) { Abrindo… } @else { Abrir PDF }
+              </button>
+              <button type="button" (click)="askDelete()"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]"
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+        }
+
         <p class="text-sm text-neutral-600">
           Tire uma foto de cada ângulo do veículo. O laudo em PDF é gerado a partir dessas fotos.
         </p>
@@ -124,31 +167,37 @@ interface Slot {
           }
         </div>
 
-        <div class="flex flex-col sm:flex-row gap-2 pt-2">
-          <button
-            type="button"
-            (click)="generate()"
-            [disabled]="generating() || completedCount() === 0"
-            class="w-full sm:w-auto sm:flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5
-                   rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
-                   shadow-sm transition-colors min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            @if (generating()) {
-              {{ pdfProgress().message || 'Gerando PDF…' }}
-            } @else {
-              Gerar PDF do laudo ({{ completedCount() }}/14)
-            }
-          </button>
-          @if (generatedDoc(); as doc) {
+        <div class="pt-2">
+          @if (generatedDoc()) {
             <button
               type="button"
-              (click)="openPdf(doc.id)"
-              [disabled]="openingPdf()"
-              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
-                     rounded-xl border border-primary-200 hover:bg-primary-50 text-primary-700 text-sm font-semibold
-                     transition-colors min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
+              (click)="generate()"
+              [disabled]="generating() || completedCount() === 0"
+              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5
+                     rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400
+                     text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors
+                     min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              @if (openingPdf()) { Abrindo… } @else { Abrir PDF gerado }
+              @if (generating()) {
+                {{ pdfProgress().message || 'Gerando PDF…' }}
+              } @else {
+                Gerar novamente ({{ completedCount() }}/14)
+              }
+            </button>
+          } @else {
+            <button
+              type="button"
+              (click)="generate()"
+              [disabled]="generating() || completedCount() === 0"
+              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5
+                     rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold
+                     shadow-sm transition-colors min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              @if (generating()) {
+                {{ pdfProgress().message || 'Gerando PDF…' }}
+              } @else {
+                Gerar PDF do laudo ({{ completedCount() }}/14)
+              }
             </button>
           }
         </div>
@@ -163,6 +212,16 @@ interface Slot {
         />
       </div>
     </app-page-card>
+
+    <app-confirm-dialog
+      [open]="deleteOpen()"
+      [title]="deleteDialogTitle()"
+      message="O PDF do laudo será apagado do storage e não poderá ser recuperado. Tem certeza?"
+      confirmLabel="Remover"
+      variant="danger"
+      (confirmed)="confirmDelete()"
+      (cancelled)="closeDelete()"
+    />
   `,
 })
 export class RentalInspectionCard implements OnInit, OnDestroy {
@@ -243,9 +302,24 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly uploadSubs = new Map<RentalPhotoAngle, Subscription>();
   protected readonly generating = signal(false);
   protected readonly openingPdf = signal(false);
+  protected readonly downloading = signal(false);
+  protected readonly deleteOpen = signal(false);
+  protected readonly deleting = signal(false);
 
   protected readonly title = computed(() =>
     this.kind() === 'CHECKIN' ? 'Check-in (vistoria de entrada)' : 'Check-out (vistoria de saída)',
+  );
+
+  protected readonly downloadLabel = computed(() =>
+    this.kind() === 'CHECKIN' ? 'Baixar Check-in' : 'Baixar Check-out',
+  );
+
+  protected readonly pdfFileName = computed(() =>
+    this.kind() === 'CHECKIN' ? 'checkin.pdf' : 'checkout.pdf',
+  );
+
+  protected readonly deleteDialogTitle = computed(() =>
+    this.kind() === 'CHECKIN' ? 'Remover PDF do check-in?' : 'Remover PDF do check-out?',
   );
 
   protected readonly slots = computed<Slot[]>(() => {
@@ -408,6 +482,88 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
         );
       },
     });
+  }
+
+  /**
+   * Baixa o PDF do laudo como arquivo local. Segue o mesmo padrão do contrato:
+   * fetch da signed URL → blob → anchor download com filename amigável, evitando
+   * expor a URL temporária do Supabase na barra de endereços.
+   */
+  protected downloadPdf(): void {
+    const doc = this.generatedDoc();
+    if (!doc || this.downloading()) return;
+    this.downloading.set(true);
+    this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
+      next: async (res) => {
+        try {
+          const resp = await fetch(res.url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const blob = await resp.blob();
+          const prefix = this.kind() === 'CHECKIN' ? 'Checkin' : 'Checkout';
+          const filename = `${prefix}-${this.rentalId()}.pdf`;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (err) {
+          this.notifications.push('error', 'Falha ao baixar o PDF do laudo.');
+          console.error('inspection download failed', err);
+        } finally {
+          this.downloading.set(false);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.downloading.set(false);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível baixar o PDF.'),
+        );
+      },
+    });
+  }
+
+  protected askDelete(): void {
+    this.deleteOpen.set(true);
+  }
+  protected closeDelete(): void {
+    if (!this.deleting()) this.deleteOpen.set(false);
+  }
+  protected confirmDelete(): void {
+    const doc = this.generatedDoc();
+    if (!doc) return;
+    this.deleting.set(true);
+    this.rentalService.deleteDocument(this.rentalId(), doc.id).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        this.deleteOpen.set(false);
+        this.notifications.push('success', 'PDF do laudo removido.');
+        this.rentalService.refreshRentalState(this.rentalId());
+        this.changed.emit();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.deleting.set(false);
+        this.deleteOpen.set(false);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível remover o PDF.'),
+        );
+      },
+    });
+  }
+
+  protected formatSize(bytes: number | null): string {
+    if (bytes == null) return '—';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  protected formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('pt-BR');
   }
 
   private setSlotUploading(angle: RentalPhotoAngle, value: boolean): void {
