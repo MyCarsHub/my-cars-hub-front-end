@@ -10,10 +10,13 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin, of, switchMap } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
+import { DriverService } from '../../../services/driver.service';
+import { VehiclesService } from '../../../services/vehicles.service';
 import {
   RENTAL_PHOTO_ANGLES,
   RentalDocumentDto,
@@ -21,6 +24,7 @@ import {
   RentalPhotoDto,
   RentalPhotoKind,
 } from '../../../types/rental.types';
+import { InspectionPdfService } from '../inspection-pdf.service';
 import { RentalService } from '../rental.service';
 
 interface Slot {
@@ -130,7 +134,7 @@ interface Slot {
                    shadow-sm transition-colors min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
           >
             @if (generating()) {
-              Gerando PDF…
+              {{ pdfProgress().message || 'Gerando PDF…' }}
             } @else {
               Gerar PDF do laudo ({{ completedCount() }}/14)
             }
@@ -163,8 +167,13 @@ interface Slot {
 })
 export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly rentalService = inject(RentalService);
+  private readonly vehiclesService = inject(VehiclesService);
+  private readonly driverService = inject(DriverService);
+  private readonly inspectionPdfService = inject(InspectionPdfService);
   private readonly notifications = inject(NotificationService);
   private readonly externalNav = inject(ExternalNavigationService);
+  /** Live progress from the client-side PDF pipeline — bound to the UX label. */
+  protected readonly pdfProgress = this.inspectionPdfService.progress;
 
   readonly rentalId = input.required<string>();
   readonly kind = input.required<RentalPhotoKind>();
@@ -328,24 +337,59 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     this.uploadSubs.delete(angle);
   }
 
+  /**
+   * Client-side PDF generation: fetch rental+vehicle+driver metadata, render
+   * the PDF locally via `pdf-lib`, then multipart-upload to the backend's
+   * new `/upload-pdf` endpoint. Replaces the legacy server-side render that
+   * was OOM-crashing the Render heap. Photos come from the shared snapshot
+   * (already have inline signedUrl), so no extra list request is needed.
+   */
   protected generate(): void {
     if (this.generating() || this.completedCount() === 0) return;
     this.generating.set(true);
-    this.rentalService.generateInspectionPdf(this.rentalId(), this.kind()).subscribe({
-      next: () => {
-        this.generating.set(false);
-        this.notifications.push('success', 'PDF do laudo gerado.');
-        this.rentalService.refreshRentalState(this.rentalId());
-        this.changed.emit();
-      },
-      error: (err: HttpErrorResponse) => {
-        this.generating.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível gerar o PDF.'),
-        );
-      },
-    });
+    const rentalId = this.rentalId();
+    const kind = this.kind();
+    const photos = this.photos();
+
+    forkJoin({
+      rental: this.rentalService.getById(rentalId),
+    })
+      .pipe(
+        switchMap(({ rental }) =>
+          forkJoin({
+            rental: of(rental),
+            vehicle: this.vehiclesService
+              .getOne(rental.vehicleId)
+              .pipe(catchError(() => of(null))),
+            driver: this.driverService
+              .getOne(rental.driverId)
+              .pipe(catchError(() => of(null))),
+          }),
+        ),
+        switchMap(({ rental, vehicle, driver }) =>
+          this.inspectionPdfService.generateAndUpload(rentalId, kind, { rental, vehicle, driver }, photos),
+        ),
+      )
+      .subscribe({
+        next: () => {
+          this.generating.set(false);
+          this.inspectionPdfService.reset();
+          this.notifications.push('success', 'PDF do laudo gerado.');
+          this.rentalService.refreshRentalState(this.rentalId());
+          this.changed.emit();
+        },
+        error: (err: HttpErrorResponse | Error) => {
+          this.generating.set(false);
+          this.inspectionPdfService.reset();
+          const fallback =
+            'Não foi possível gerar o PDF. Tente novamente ou fale com suporte.';
+          if (err instanceof HttpErrorResponse) {
+            this.notifications.push('error', this.extractError(err, fallback));
+          } else {
+            this.notifications.push('error', err?.message || fallback);
+          }
+        },
+      });
   }
 
   protected openPdf(docId: string): void {

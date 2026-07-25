@@ -328,20 +328,6 @@ export class RentalService {
   }
 
   /**
-   * Gera o PDF do laudo a partir das fotos já enviadas. Substitui o PDF
-   * anterior se existir. Backend valida status do rental (CHECKOUT exige ACTIVE).
-   */
-  generateInspectionPdf(
-    rentalId: string,
-    kind: RentalPhotoKind,
-  ): Observable<RentalDocumentDto> {
-    return this.http.post<RentalDocumentDto>(
-      `${BASE}/${rentalId}/inspections/${kind.toLowerCase()}/generate-pdf`,
-      {},
-    );
-  }
-
-  /**
    * Gera uma cobrança one-off do valor da caução (Asaas). Backend valida:
    * `caucaoAmount > 0`, `caucaoPaid === false`, sem CAUCAO aberta.
    */

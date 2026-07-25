@@ -1,0 +1,194 @@
+import { TestBed } from '@angular/core/testing';
+import { HttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { InspectionPdfService } from './inspection-pdf.service';
+import { environment } from '../../../environments/environment';
+import { RentalPhotoDto, RentalResponseDto } from '../../types/rental.types';
+
+// pdf-lib is heavy + browser-only; stub it out so the spec exercises the
+// download + upload orchestration without pulling the real library into
+// the vitest JSDOM env.
+vi.mock('pdf-lib', () => {
+  const image = { width: 100, height: 100 };
+  const page = {
+    getSize: () => ({ width: 595.28, height: 841.89 }),
+    drawText: vi.fn(),
+    drawImage: vi.fn(),
+  };
+  const doc = {
+    addPage: vi.fn(() => page),
+    embedFont: vi.fn(async () => ({})),
+    embedJpg: vi.fn(async () => image),
+    embedPng: vi.fn(async () => image),
+    save: vi.fn(async () => new Uint8Array([1, 2, 3])),
+  };
+  return {
+    PDFDocument: { create: vi.fn(async () => doc) },
+    StandardFonts: { Helvetica: 'Helvetica', HelveticaBold: 'HelveticaBold' },
+    rgb: (r: number, g: number, b: number) => ({ r, g, b }),
+  };
+});
+
+describe('InspectionPdfService.generateAndUpload', () => {
+  const RID = 'rid-1';
+  let httpPost: ReturnType<typeof vi.fn>;
+  let service: InspectionPdfService;
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    httpPost = vi.fn().mockReturnValue(
+      of({
+        id: 'doc-1',
+        storagePath: 'rentals/rid-1/inspection.pdf',
+        signedUrl: 'https://example/signed',
+        ttlSeconds: 300,
+        sizeBytes: 3,
+      }),
+    );
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        InspectionPdfService,
+        {
+          provide: HttpClient,
+          useValue: { post: httpPost, get: vi.fn(), delete: vi.fn(), put: vi.fn() },
+        },
+      ],
+    });
+    service = TestBed.inject(InspectionPdfService);
+
+    // Stub fetch — each photo download returns an empty ArrayBuffer.
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(4),
+    })) as unknown as typeof fetch;
+  });
+
+  function rental(): RentalResponseDto {
+    return {
+      id: RID,
+      vehicleId: 'v-1',
+      driverId: 'd-1',
+      startDate: '2026-07-01',
+      endDate: '2026-07-10',
+      periodRate: 10000,
+      totalAmount: 100000,
+      caucaoAmount: 0,
+      caucaoPaid: false,
+      status: 'ACTIVE',
+      billingFrequency: 'DAILY',
+      notes: null,
+      initialKm: 12345,
+      pickupDate: null,
+      firstPaymentDate: null,
+      dailyInterestAmount: null,
+      lateFineType: null,
+      lateFineValue: null,
+      contractSource: 'MANUAL',
+      franchiseKm: null,
+      returnFuelPolicy: null,
+      charges: [],
+      createdAt: '2026-07-01T00:00:00Z',
+      modifiedAt: '2026-07-01T00:00:00Z',
+    };
+  }
+
+  function photo(angle: RentalPhotoDto['angle'], id: string): RentalPhotoDto {
+    return {
+      id,
+      rentalId: RID,
+      kind: 'CHECKIN',
+      angle,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      signedUrl: `https://signed/${id}`,
+      createdDate: '2026-07-01T00:00:00Z',
+    };
+  }
+
+  afterAll(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('downloads every photo with a signedUrl and POSTs the PDF blob to /upload-pdf', async () => {
+    const photos = [photo('FRONT', 'p1'), photo('BACK', 'p2')];
+    const done = new Promise<void>((resolve, reject) => {
+      service
+        .generateAndUpload(RID, 'CHECKIN', { rental: rental(), vehicle: null, driver: null }, photos)
+        .subscribe({
+          next: (res) => {
+            try {
+              expect(res.id).toBe('doc-1');
+              expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+              expect(httpPost).toHaveBeenCalledTimes(1);
+              const [url, body] = httpPost.mock.calls[0];
+              expect(url).toBe(
+                `${environment.apiUrl}/rentals/${RID}/inspections/checkin/upload-pdf`,
+              );
+              expect(body).toBeInstanceOf(FormData);
+              const file = (body as FormData).get('file');
+              expect(file).toBeInstanceOf(Blob);
+              expect((file as Blob).type).toBe('application/pdf');
+              resolve();
+            } catch (e) {
+              reject(e as Error);
+            }
+          },
+          error: reject,
+        });
+    });
+    await done;
+  });
+
+  it('reports progress steps: downloading -> rendering -> uploading -> done', async () => {
+    const steps: string[] = [];
+    const photos = [photo('FRONT', 'p1')];
+    await new Promise<void>((resolve, reject) => {
+      // Sample the progress signal on each microtask by hooking into fetch.
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async (...args) => {
+        steps.push(service.progress().step);
+        return (origFetch as typeof fetch).call(globalThis, ...(args as Parameters<typeof fetch>));
+      }) as unknown as typeof fetch;
+
+      service
+        .generateAndUpload(RID, 'CHECKOUT', { rental: rental(), vehicle: null, driver: null }, photos)
+        .subscribe({
+          next: () => {
+            steps.push(service.progress().step);
+            try {
+              expect(steps[0]).toBe('downloading');
+              expect(steps).toContain('done');
+              resolve();
+            } catch (e) {
+              reject(e as Error);
+            }
+          },
+          error: reject,
+        });
+    });
+  });
+
+  it('lowercases kind in the upload URL (CHECKOUT -> checkout)', async () => {
+    await new Promise<void>((resolve, reject) => {
+      service
+        .generateAndUpload(RID, 'CHECKOUT', { rental: rental(), vehicle: null, driver: null }, [])
+        .subscribe({
+          next: () => {
+            try {
+              expect(httpPost.mock.calls[0][0]).toBe(
+                `${environment.apiUrl}/rentals/${RID}/inspections/checkout/upload-pdf`,
+              );
+              resolve();
+            } catch (e) {
+              reject(e as Error);
+            }
+          },
+          error: reject,
+        });
+    });
+  });
+});
