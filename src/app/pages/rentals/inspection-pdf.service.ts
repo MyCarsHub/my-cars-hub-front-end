@@ -94,6 +94,87 @@ const WIN_ANSI_REPLACEMENTS: Record<string, string> = {
  * never throws. Unknown codepoints above 0xFF fall back to `?`.
  * Exported for unit testing.
  */
+/**
+ * Downscales + re-encodes an image blob to JPEG so pdf-lib embeds stay small.
+ *
+ * The PDF has one page per photo × up to 14 photos. Raw camera JPEGs from
+ * modern phones easily reach 3–5 MB each, which produced ~40 MB PDFs that
+ * hit the backend's multipart 502 body-size limit. Compressing every photo
+ * to max `maxDim` px on the longest side + `quality` JPEG keeps individual
+ * assets around 200–400 KB and the final PDF comfortably under 5 MB.
+ *
+ * Prefers `createImageBitmap` (fast off-thread decode on modern browsers),
+ * falls back to `<img>` + `img.decode()`. Returns the original blob if the
+ * pipeline throws or the environment is missing canvas support — callers
+ * should still succeed, just with larger output.
+ *
+ * Exported for unit testing.
+ */
+export async function compressImage(
+  blob: Blob,
+  maxDim = 1600,
+  quality = 0.75,
+): Promise<Blob> {
+  try {
+    // Decode → dimensions
+    let width: number;
+    let height: number;
+    let source: CanvasImageSource;
+    let bitmapToClose: ImageBitmap | null = null;
+    let objectUrl: string | null = null;
+
+    if (typeof createImageBitmap === 'function') {
+      const bitmap = await createImageBitmap(blob);
+      bitmapToClose = bitmap;
+      width = bitmap.width;
+      height = bitmap.height;
+      source = bitmap;
+    } else {
+      objectUrl = URL.createObjectURL(blob);
+      const img = new Image();
+      img.src = objectUrl;
+      await img.decode();
+      width = img.naturalWidth;
+      height = img.naturalHeight;
+      source = img;
+    }
+
+    if (!width || !height) {
+      if (bitmapToClose) bitmapToClose.close();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      return blob;
+    }
+
+    const scale = Math.min(1, maxDim / Math.max(width, height));
+    const scaledW = Math.max(1, Math.round(width * scale));
+    const scaledH = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = scaledW;
+    canvas.height = scaledH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      if (bitmapToClose) bitmapToClose.close();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      return blob;
+    }
+    ctx.drawImage(source, 0, 0, scaledW, scaledH);
+
+    if (bitmapToClose) bitmapToClose.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+
+    const encoded = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', quality);
+    });
+    if (!encoded) return blob;
+    // If compression somehow inflated the payload (already-tiny thumbnail),
+    // keep the original.
+    return encoded.size < blob.size ? encoded : blob;
+  } catch {
+    return blob;
+  }
+}
+
 export function sanitizeForWinAnsi(text: string): string {
   if (!text) return text;
   let out = '';
@@ -194,7 +275,18 @@ export class InspectionPdfService {
       if (!photo.signedUrl) continue;
       const res = await fetch(photo.signedUrl);
       if (!res.ok) throw new Error(`Falha ao baixar a foto ${label} (${res.status}).`);
-      const bytes = await res.arrayBuffer();
+      let blob = await res.blob();
+      this._progress.set({
+        step: 'downloading',
+        current: i + 1,
+        total,
+        message: `Comprimindo foto ${i + 1} de ${total}…`,
+      });
+      // Downscale + re-encode to JPEG to keep the final PDF under the
+      // backend's multipart body-size limit. Falls back to the original
+      // blob if the compression pipeline is unavailable.
+      blob = await compressImage(blob);
+      const bytes = await blob.arrayBuffer();
       photoBytes.push({ photo, label, bytes });
       this._progress.set({
         step: 'downloading',
@@ -269,9 +361,9 @@ export class InspectionPdfService {
         message: `Renderizando página ${i + 1} de ${total}…`,
       });
 
-      // Try JPG first — most iOS/Android camera outputs are JPEG. Fallback
-      // to PNG. pdf-lib does not support WebP, so if the user uploaded WebP
-      // via the picker the embed will fail — surfaced as a caught error.
+      // Post-`compressImage` the bytes are always JPEG. If compression
+      // fell back to the original blob (rare: canvas unavailable), try
+      // PNG as a last resort; otherwise skip the page.
       let image;
       try {
         image = await doc.embedJpg(bytes);
@@ -279,9 +371,6 @@ export class InspectionPdfService {
         try {
           image = await doc.embedPng(bytes);
         } catch {
-          // Skip this photo — WebP or unsupported format. The remaining
-          // pages still render. Log-only; user is informed via the toast
-          // from the caller.
           continue;
         }
       }
