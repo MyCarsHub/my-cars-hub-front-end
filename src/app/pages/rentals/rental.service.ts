@@ -339,13 +339,14 @@ export class RentalService {
    * Marca a caução como paga (fluxo manual, `automaticCharge=false`).
    * Backend cria uma CAUCAO charge inline com status PAID caso ainda não
    * exista OU marca a PENDING existente como PAID. Side effect: seta
-   * `rental.caucaoPaid=true`. `paidAt` é definido pelo BE como
+   * `rental.caucaoPaid=true`. Quando `paidAt` é omitido o BE cai em
    * `rental.startDate`.
    */
-  markCaucaoAsPaid(rentalId: string): Observable<RentalResponseDto> {
+  markCaucaoAsPaid(rentalId: string, paidAt?: string): Observable<RentalResponseDto> {
+    const body = paidAt ? { paidAt } : {};
     return this.http.post<RentalResponseDto>(
       `${BASE}/${rentalId}/caucao-charge/mark-paid`,
-      {},
+      body,
     );
   }
 

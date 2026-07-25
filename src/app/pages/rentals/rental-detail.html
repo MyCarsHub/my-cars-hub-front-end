@@ -377,19 +377,7 @@
                   >
                     Não gerada
                   </span>
-                  @if (canGenerateCaucao()) {
-                    <button
-                      type="button"
-                      (click)="generateCaucaoCharge()"
-                      [disabled]="generatingCaucao()"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition disabled:opacity-60"
-                      aria-label="Gerar cobrança da caução"
-                    >
-                      {{ generatingCaucao() ? '…' : 'Gerar' }}
-                    </button>
-                  }
-                  @if (canMarkCaucaoAsPaidPlaceholder()) {
+                    @if (canMarkCaucaoAsPaidPlaceholder()) {
                     <button
                       type="button"
                       (click)="askMarkCaucaoAsPaid()"
@@ -447,18 +435,6 @@
                     </td>
                     <td class="py-2.5 pr-4 text-right">
                       <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canGenerateCaucao()) {
-                          <button
-                            type="button"
-                            (click)="generateCaucaoCharge()"
-                            [disabled]="generatingCaucao()"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition disabled:opacity-60
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                          >
-                            @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança }
-                          </button>
-                        }
                         @if (canMarkCaucaoAsPaidPlaceholder()) {
                           <button
                             type="button"
@@ -491,7 +467,7 @@
             </div>
 
             <p class="text-[11px] text-neutral-500 mt-1">
-              Gere cobrança Asaas ou marque como pago manualmente — os dois fluxos são independentes.
+              Marque como paga quando receber o valor da caução por fora (dinheiro, PIX, transferência).
             </p>
           } @else {
             <p class="text-sm text-neutral-500 text-center py-6">
@@ -922,14 +898,16 @@
   (cancelled)="cancelUnmarkPaid()"
 />
 
-<app-confirm-dialog
+<app-mark-paid-dialog
   [open]="markCaucaoOpen()"
-  title="Marcar caução como paga?"
-  [message]="markCaucaoMessage()"
-  confirmLabel="Marcar como pago"
-  cancelLabel="Cancelar"
-  variant="info"
-  (confirmed)="confirmMarkCaucaoAsPaid()"
+  title="Marcar caução como paga"
+  entityLabel="Caução"
+  [amountCents]="caucaoAmountCents()"
+  [minDate]="markPaidMinDate()"
+  [maxDate]="markPaidMaxDate()"
+  [defaultDate]="markPaidDefaultDate()"
+  [busy]="caucaoBusy()"
+  (confirmed)="confirmMarkCaucaoAsPaid($event)"
   (cancelled)="cancelMarkCaucaoAsPaid()"
 />
 
