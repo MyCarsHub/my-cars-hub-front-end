@@ -415,6 +415,63 @@ export class RentalDetail implements OnInit {
 
   protected readonly retrying = signal<string | null>(null);
   protected readonly generatingCaucao = signal(false);
+  protected readonly markingReceived = signal(false);
+  protected readonly markReceivedOpen = signal(false);
+
+  /**
+   * "Marcar como recebido" flips `caucaoPaid` no rental — sinaliza recebimento
+   * por fora (cash/PIX/transferência). É INDEPENDENTE de existir charge Asaas
+   * (não afeta charges). Habilitado quando o rental é manual, tem caução
+   * configurada e ainda não está marcada como recebida.
+   */
+  protected readonly canMarkCaucaoAsReceived = computed<boolean>(() => {
+    const r = this.rental();
+    if (!r) return false;
+    return (
+      r.automaticCharge === false &&
+      r.caucaoAmount > 0 &&
+      !r.caucaoPaid
+    );
+  });
+
+  /** Mensagem do dialog de confirmação de recebimento. */
+  protected readonly markReceivedMessage = computed<string>(() => {
+    const r = this.rental();
+    if (!r) return '';
+    return `Confirma que recebeu ${this.formatCurrency(r.caucaoAmount)} de caução por fora (cash/PIX/transferência). Isso NÃO afeta cobrança Asaas se houver.`;
+  });
+
+  protected askMarkCaucaoReceived(): void {
+    if (!this.canMarkCaucaoAsReceived()) return;
+    this.markReceivedOpen.set(true);
+  }
+
+  protected cancelMarkCaucaoReceived(): void {
+    if (this.markingReceived()) return;
+    this.markReceivedOpen.set(false);
+  }
+
+  protected confirmMarkCaucaoReceived(): void {
+    const r = this.rental();
+    if (!r || this.markingReceived()) return;
+    this.markingReceived.set(true);
+    this.rentalService.markCaucaoReceived(r.id).subscribe({
+      next: (updated) => {
+        this.rental.set(updated);
+        this.markingReceived.set(false);
+        this.markReceivedOpen.set(false);
+        this.notifications.push('success', 'Caução marcada como recebida.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.markingReceived.set(false);
+        this.markReceivedOpen.set(false);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível marcar a caução como recebida.'),
+        );
+      },
+    });
+  }
 
   // ------- Marcar como paga (manual, apenas quando automaticCharge=false) -------
   protected readonly markPaidTarget = signal<RentalChargeDto | null>(null);

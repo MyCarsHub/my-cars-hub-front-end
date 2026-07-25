@@ -350,6 +350,20 @@ export class RentalService {
   }
 
   /**
+   * Flip the rental's `caucaoPaid` flag to true — signals the operator
+   * received the caução out-of-band (cash/PIX/transfer). Does NOT create
+   * or affect any Asaas charge; a separate `createCaucaoCharge` flow
+   * remains available for issuing a real charge. Idempotent when already
+   * received. Backend requires `automaticCharge=false` and `caucaoAmount>0`.
+   */
+  markCaucaoReceived(rentalId: string): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(
+      `${BASE}/${rentalId}/caucao/mark-received`,
+      {},
+    );
+  }
+
+  /**
    * Manual mark-as-paid for a rental charge — only allowed when the rental
    * was created with `automaticCharge=false` (i.e. Asaas is not managing it).
    * Backend rejects with 400 for automatic rentals or non-eligible statuses.

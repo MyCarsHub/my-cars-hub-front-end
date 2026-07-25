@@ -208,3 +208,27 @@ describe('RentalService.createCaucaoCharge', () => {
     );
   });
 });
+
+describe('RentalService.markCaucaoReceived', () => {
+  it('POSTs to /v1/rentals/{id}/caucao/mark-received with empty body', () => {
+    const httpPost = vi
+      .fn()
+      .mockReturnValue(of({ id: 'rid-77', caucaoPaid: true }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        RentalService,
+        {
+          provide: HttpClient,
+          useValue: { get: vi.fn(), post: httpPost, delete: vi.fn(), put: vi.fn() },
+        },
+      ],
+    });
+    const service = TestBed.inject(RentalService);
+    service.markCaucaoReceived('rid-77').subscribe();
+    expect(httpPost).toHaveBeenCalledWith(
+      `${environment.apiUrl}/rentals/rid-77/caucao/mark-received`,
+      {},
+    );
+  });
+});
