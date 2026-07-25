@@ -15,8 +15,10 @@ import {
 import { FormsModule } from '@angular/forms';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { DriverService } from '../../../services/driver.service';
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
+import { SessionService } from '../../../services/session.service';
 import {
   RentalDocumentDto,
   SignatureStatus,
@@ -192,9 +194,11 @@ interface SignatureBadge {
               <div class="flex gap-2 items-start">
                 <div class="flex-1 space-y-2">
                   <input type="text" [(ngModel)]="s.name" placeholder="Nome do signatário"
-                    class="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm min-h-[44px]" />
+                    [attr.aria-invalid]="s.name.trim().length === 0 ? 'true' : null"
+                    [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (s.name.trim().length === 0 ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
                   <input type="email" [(ngModel)]="s.email" placeholder="email@exemplo.com"
-                    class="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm min-h-[44px]" />
+                    [attr.aria-invalid]="isEmailInvalid(s.email) ? 'true' : null"
+                    [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
                 </div>
                 @if (signers().length > 1) {
                   <button type="button" (click)="removeSigner(i)"
@@ -232,6 +236,8 @@ interface SignatureBadge {
 })
 export class RentalContractCard implements OnInit, OnDestroy {
   private readonly rentalService = inject(RentalService);
+  private readonly driverService = inject(DriverService);
+  private readonly session = inject(SessionService);
   private readonly notifications = inject(NotificationService);
   private readonly externalNav = inject(ExternalNavigationService);
 
@@ -263,6 +269,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
 
   protected readonly signatureModalOpen = signal(false);
   protected readonly requesting = signal(false);
+  protected readonly prefilling = signal(false);
   protected readonly signers = signal<SignerRequest[]>([]);
 
   private pollHandle: ReturnType<typeof setInterval> | null = null;
@@ -285,6 +292,11 @@ export class RentalContractCard implements OnInit, OnDestroy {
 
   protected canSubmit(): boolean {
     return this.signers().every((s) => s.name.trim().length > 0 && /.+@.+\..+/.test(s.email.trim()));
+  }
+
+  /** True quando o campo está vazio ou não bate com o formato básico de email. */
+  protected isEmailInvalid(email: string): boolean {
+    return !/.+@.+\..+/.test(email.trim());
   }
 
   constructor() {
@@ -424,8 +436,54 @@ export class RentalContractCard implements OnInit, OnDestroy {
   }
 
   protected openSignatureModal(): void {
-    this.signers.set([{ name: '', email: '' }]);
+    // Seed defensively (driver empty + operator from session) so the modal
+    // is usable even se o fetch do driver falhar. O fetch abaixo sobrescreve
+    // apenas o signer 1 quando resolve.
+    this.signers.set(this.buildInitialSigners(null));
     this.signatureModalOpen.set(true);
+    this.prefilling.set(true);
+
+    this.rentalService.getById(this.rentalId()).subscribe({
+      next: (rental) => {
+        if (!rental.driverId) {
+          this.prefilling.set(false);
+          return;
+        }
+        this.driverService.getOne(rental.driverId).subscribe({
+          next: (driver) => {
+            const email = driver.contact?.email?.trim() ?? '';
+            this.signers.update((list) => {
+              const next = [...list];
+              next[0] = { name: driver.name ?? '', email };
+              return next;
+            });
+            this.prefilling.set(false);
+          },
+          error: () => this.prefilling.set(false),
+        });
+      },
+      error: () => this.prefilling.set(false),
+    });
+  }
+
+  /**
+   * Base seed: signer 1 = driver (preenchido depois pelo fetch, começa vazio),
+   * signer 2 = operador logado (owner na maioria dos casos; para PLATFORM_ADMIN
+   * operando outra company, é o próprio admin — a assinatura é de quem opera).
+   * Owner sem email → não adiciona o signer 2 pra evitar linha inválida.
+   */
+  private buildInitialSigners(
+    driver: { name: string; email: string } | null,
+  ): SignerRequest[] {
+    const list: SignerRequest[] = [
+      { name: driver?.name ?? '', email: driver?.email ?? '' },
+    ];
+    const ownerName = this.session.getItem('name')?.trim() ?? '';
+    const ownerEmail = this.session.getItem('email')?.trim() ?? '';
+    if (ownerEmail) {
+      list.push({ name: ownerName, email: ownerEmail });
+    }
+    return list;
   }
   protected closeSignatureModal(): void {
     if (this.requesting()) return;

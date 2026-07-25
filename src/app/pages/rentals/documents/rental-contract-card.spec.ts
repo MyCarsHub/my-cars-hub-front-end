@@ -1,11 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { RentalContractCard } from './rental-contract-card';
 import { RentalService, RentalStateSnapshot } from '../rental.service';
+import { DriverService } from '../../../services/driver.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
+import { SessionService } from '../../../services/session.service';
 
 /**
  * Regression: toast on Autentique signature polling. Ensures the transition
@@ -20,6 +23,16 @@ describe('RentalContractCard signature transition toasts', () => {
     loadRentalState: vi.fn(),
     refreshRentalState: vi.fn(),
     refreshContractSignature: vi.fn(),
+    getById: vi.fn(() => of({ driverId: 'drv1' } as any)),
+  };
+  const driverService = {
+    getOne: vi.fn(() =>
+      of({ name: 'Alice Driver', contact: { email: 'alice@example.com' } } as any),
+    ),
+  };
+  const sessionValues = new Map<string, string>();
+  const session = {
+    getItem: vi.fn((k: string) => sessionValues.get(k) ?? null),
   };
   const notifications = { push: vi.fn() };
   const externalNav = { openExternal: vi.fn() };
@@ -43,6 +56,8 @@ describe('RentalContractCard signature transition toasts', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: RentalService, useValue: rentalService },
+        { provide: DriverService, useValue: driverService },
+        { provide: SessionService, useValue: session },
         { provide: NotificationService, useValue: notifications },
         { provide: ExternalNavigationService, useValue: externalNav },
       ],
@@ -95,5 +110,83 @@ describe('RentalContractCard signature transition toasts', () => {
     fixture.detectChanges();
 
     expect(notifications.push).not.toHaveBeenCalled();
+  });
+
+  describe('signature modal prefill', () => {
+    beforeEach(() => {
+      sessionValues.clear();
+      rentalService.getById.mockReset();
+      driverService.getOne.mockReset();
+      rentalService.getById.mockReturnValue(of({ driverId: 'drv1' } as any));
+      driverService.getOne.mockReturnValue(
+        of({ name: 'Alice Driver', contact: { email: 'alice@example.com' } } as any),
+      );
+    });
+
+    it('prefills driver + owner signers when modal opens', () => {
+      sessionValues.set('name', 'Bob Owner');
+      sessionValues.set('email', 'bob@example.com');
+      const fixture = makeFixture();
+      const cmp = fixture.componentInstance as unknown as {
+        openSignatureModal: () => void;
+        signers: () => Array<{ name: string; email: string }>;
+      };
+
+      cmp.openSignatureModal();
+      const signers = cmp.signers();
+      expect(signers).toHaveLength(2);
+      expect(signers[0]).toEqual({ name: 'Alice Driver', email: 'alice@example.com' });
+      expect(signers[1]).toEqual({ name: 'Bob Owner', email: 'bob@example.com' });
+    });
+
+    it('leaves signer 1 empty and marks it invalid when driver has no email', () => {
+      sessionValues.set('name', 'Bob Owner');
+      sessionValues.set('email', 'bob@example.com');
+      driverService.getOne.mockReturnValue(
+        of({ name: 'No Email Driver', contact: { email: null } } as any),
+      );
+      const fixture = makeFixture();
+      const cmp = fixture.componentInstance as unknown as {
+        openSignatureModal: () => void;
+        signers: () => Array<{ name: string; email: string }>;
+        isEmailInvalid: (e: string) => boolean;
+      };
+
+      cmp.openSignatureModal();
+      const signers = cmp.signers();
+      expect(signers[0].email).toBe('');
+      expect(cmp.isEmailInvalid(signers[0].email)).toBe(true);
+    });
+
+    it('omits owner signer when session has no email', () => {
+      // no session values set
+      const fixture = makeFixture();
+      const cmp = fixture.componentInstance as unknown as {
+        openSignatureModal: () => void;
+        signers: () => Array<{ name: string; email: string }>;
+      };
+
+      cmp.openSignatureModal();
+      expect(cmp.signers()).toHaveLength(1);
+      expect(cmp.signers()[0].email).toBe('alice@example.com');
+    });
+
+    it('keeps owner-only seed when rental fetch fails', () => {
+      sessionValues.set('name', 'Bob Owner');
+      sessionValues.set('email', 'bob@example.com');
+      rentalService.getById.mockReturnValue(throwError(() => new Error('boom')));
+      const fixture = makeFixture();
+      const cmp = fixture.componentInstance as unknown as {
+        openSignatureModal: () => void;
+        signers: () => Array<{ name: string; email: string }>;
+      };
+
+      cmp.openSignatureModal();
+      const signers = cmp.signers();
+      expect(signers).toHaveLength(2);
+      expect(signers[0]).toEqual({ name: '', email: '' });
+      expect(signers[1].email).toBe('bob@example.com');
+      expect(driverService.getOne).not.toHaveBeenCalled();
+    });
   });
 });
