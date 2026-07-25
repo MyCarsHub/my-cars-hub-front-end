@@ -382,12 +382,11 @@
                       type="button"
                       (click)="generateCaucaoCharge()"
                       [disabled]="generatingCaucao()"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
-                             hover:bg-emerald-600 active:scale-95 transition disabled:opacity-60
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                             hover:bg-primary-600 active:scale-95 transition disabled:opacity-60"
                       aria-label="Gerar cobrança da caução"
                     >
-                      @if (generatingCaucao()) { … } @else { Gerar }
+                      {{ generatingCaucao() ? '…' : 'Gerar' }}
                     </button>
                   }
                   @if (canMarkCaucaoAsPaidPlaceholder()) {
@@ -400,7 +399,7 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                       aria-label="Marcar caução como paga"
                     >
-                      @if (caucaoBusy()) { … } @else { Marcar como pago }
+                      Marcar como paga
                     </button>
                   }
                   @if (canUnmarkCaucaoPlaceholder()) {
@@ -469,7 +468,7 @@
                                    hover:bg-emerald-600 transition disabled:opacity-60
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                           >
-                            @if (caucaoBusy()) { Marcando… } @else { Marcar como pago }
+                            @if (caucaoBusy()) { Marcando… } @else { Marcar como paga }
                           </button>
                         }
                         @if (canUnmarkCaucaoPlaceholder()) {
