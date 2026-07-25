@@ -60,7 +60,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: ICON_SETTINGS,
     children: [
       { route: '/configuracoes', label: 'Empresa', icon: ICON_COMPANY, roles: ['OWNER'], exactMatch: true },
-      { route: '/configuracoes/integracoes/asaas', label: 'Integrações', icon: ICON_INTEGRATIONS, roles: ['OWNER', 'MANAGER'] },
+      { route: '/configuracoes/integracoes', label: 'Integrações', icon: ICON_INTEGRATIONS, roles: ['OWNER', 'MANAGER'] },
       { route: '/configuracoes/contratos', label: 'Contratos', icon: ICON_COMPANY, roles: ['OWNER', 'MANAGER'] },
     ],
   },
