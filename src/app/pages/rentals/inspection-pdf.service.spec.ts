@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InspectionPdfService, sanitizeForWinAnsi } from './inspection-pdf.service';
+import { InspectionPdfService, compressImage, sanitizeForWinAnsi } from './inspection-pdf.service';
 import { environment } from '../../../environments/environment';
 import { RentalPhotoDto, RentalResponseDto } from '../../types/rental.types';
 
@@ -59,11 +59,12 @@ describe('InspectionPdfService.generateAndUpload', () => {
     });
     service = TestBed.inject(InspectionPdfService);
 
-    // Stub fetch — each photo download returns an empty ArrayBuffer.
+    // Stub fetch — each photo download returns an empty ArrayBuffer/Blob.
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       arrayBuffer: async () => new ArrayBuffer(4),
+      blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/jpeg' }),
     })) as unknown as typeof fetch;
   });
 
@@ -191,6 +192,25 @@ it('lowercases kind in the upload URL (CHECKOUT -> checkout)', async () => {
         });
     });
   });
+});
+
+describe('compressImage', () => {
+  it('returns the original blob when the canvas pipeline is unavailable (JSDOM)', async () => {
+    const original = new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/jpeg' });
+    const result = await compressImage(original);
+    // In JSDOM neither createImageBitmap nor canvas.toBlob produce a usable
+    // encoded image, so the fallback path must return the original blob
+    // unchanged instead of throwing.
+    expect(result).toBeInstanceOf(Blob);
+    expect(result.size).toBeGreaterThan(0);
+  });
+
+  it('returns a Blob (never rejects) even for malformed input', async () => {
+    const garbage = new Blob([new Uint8Array([0, 1, 2])], { type: 'image/png' });
+    const result = await compressImage(garbage, 800, 0.6);
+    expect(result).toBeInstanceOf(Blob);
+  });
+
 });
 
 describe('sanitizeForWinAnsi', () => {

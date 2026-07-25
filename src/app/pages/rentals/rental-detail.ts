@@ -449,11 +449,8 @@ export class RentalDetail implements OnInit {
     );
   });
 
-  protected readonly markCaucaoMessage = computed<string>(() => {
-    const r = this.rental();
-    if (!r) return '';
-    return `Confirma o pagamento de ${this.formatCurrency(r.caucaoAmount)} de caução? Será criada uma cobrança PAGA com data ${this.formatDate(r.startDate)}.`;
-  });
+  /** Valor da caução para o dialog (em centavos). */
+  protected readonly caucaoAmountCents = computed<number>(() => this.rental()?.caucaoAmount ?? 0);
 
   protected askMarkCaucaoAsPaid(): void {
     if (!this.canMarkCaucaoAsPaidPlaceholder()) return;
@@ -465,11 +462,11 @@ export class RentalDetail implements OnInit {
     this.markCaucaoOpen.set(false);
   }
 
-  protected confirmMarkCaucaoAsPaid(): void {
+  protected confirmMarkCaucaoAsPaid(paidAt: string): void {
     const r = this.rental();
     if (!r || this.caucaoBusy()) return;
     this.caucaoBusy.set(true);
-    this.rentalService.markCaucaoAsPaid(r.id).subscribe({
+    this.rentalService.markCaucaoAsPaid(r.id, paidAt).subscribe({
       next: (updated) => {
         this.rental.set(updated);
         this.caucaoBusy.set(false);
