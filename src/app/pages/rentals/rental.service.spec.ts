@@ -209,8 +209,8 @@ describe('RentalService.createCaucaoCharge', () => {
   });
 });
 
-describe('RentalService.markCaucaoReceived', () => {
-  it('POSTs to /v1/rentals/{id}/caucao/mark-received with empty body', () => {
+describe('RentalService.markCaucaoAsPaid', () => {
+  it('POSTs to /v1/rentals/{id}/caucao-charge/mark-paid with empty body', () => {
     const httpPost = vi
       .fn()
       .mockReturnValue(of({ id: 'rid-77', caucaoPaid: true }));
@@ -225,9 +225,33 @@ describe('RentalService.markCaucaoReceived', () => {
       ],
     });
     const service = TestBed.inject(RentalService);
-    service.markCaucaoReceived('rid-77').subscribe();
+    service.markCaucaoAsPaid('rid-77').subscribe();
     expect(httpPost).toHaveBeenCalledWith(
-      `${environment.apiUrl}/rentals/rid-77/caucao/mark-received`,
+      `${environment.apiUrl}/rentals/rid-77/caucao-charge/mark-paid`,
+      {},
+    );
+  });
+});
+
+describe('RentalService.unmarkCaucaoAsPaid', () => {
+  it('POSTs to /v1/rentals/{id}/caucao-charge/unmark-paid with empty body', () => {
+    const httpPost = vi
+      .fn()
+      .mockReturnValue(of({ id: 'rid-88', caucaoPaid: false }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        RentalService,
+        {
+          provide: HttpClient,
+          useValue: { get: vi.fn(), post: httpPost, delete: vi.fn(), put: vi.fn() },
+        },
+      ],
+    });
+    const service = TestBed.inject(RentalService);
+    service.unmarkCaucaoAsPaid('rid-88').subscribe();
+    expect(httpPost).toHaveBeenCalledWith(
+      `${environment.apiUrl}/rentals/rid-88/caucao-charge/unmark-paid`,
       {},
     );
   });
