@@ -15,7 +15,6 @@ import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
-import { SessionService } from '../../services/session.service';
 import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -57,10 +56,7 @@ export class RentalDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
   private readonly notifications = inject(NotificationService);
-  private readonly session = inject(SessionService);
 
-  /** sessionStorage key para persistir preferência do toggle do cronograma. */
-  private static readonly SHOW_SCHEDULE_KEY = 'rental-detail:show-schedule';
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -75,7 +71,6 @@ export class RentalDetail implements OnInit {
 
   protected readonly history = signal<RentalStatusHistoryDto[]>([]);
   protected readonly historyLoading = signal(false);
-  protected readonly historyOpen = signal(false);
 
   protected readonly cancelOpen = signal(false);
   protected readonly cancelBusy = signal(false);
@@ -214,28 +209,6 @@ export class RentalDetail implements OnInit {
   });
 
   protected readonly hasSchedule = computed<boolean>(() => this.totalCount() > 0);
-
-  /**
-   * Toggle mostrar/ocultar o conteúdo do card "Cronograma de cobrança".
-   * Default aberto (retro-compat). Preferência persistida em sessionStorage
-   * pra manter entre navegações dentro da mesma sessão.
-   */
-  protected readonly showSchedule = signal<boolean>(this.readShowSchedulePref());
-
-  private readShowSchedulePref(): boolean {
-    const raw = this.session.getItem(RentalDetail.SHOW_SCHEDULE_KEY);
-    // ausente => default true (aberto)
-    if (raw === null) return true;
-    return raw !== 'false';
-  }
-
-  protected toggleSchedule(): void {
-    this.showSchedule.update((v) => {
-      const next = !v;
-      this.session.setItem(RentalDetail.SHOW_SCHEDULE_KEY, String(next));
-      return next;
-    });
-  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -442,59 +415,105 @@ export class RentalDetail implements OnInit {
 
   protected readonly retrying = signal<string | null>(null);
   protected readonly generatingCaucao = signal(false);
-  protected readonly markingReceived = signal(false);
-  protected readonly markReceivedOpen = signal(false);
 
-  /**
-   * "Marcar como recebido" flips `caucaoPaid` no rental — sinaliza recebimento
-   * por fora (cash/PIX/transferência). É INDEPENDENTE de existir charge Asaas
-   * (não afeta charges). Habilitado quando o rental é manual, tem caução
-   * configurada e ainda não está marcada como recebida.
-   */
-  protected readonly canMarkCaucaoAsReceived = computed<boolean>(() => {
+  // ------- Caução: marcar/desmarcar como paga (placeholder, sem charge) -------
+  //
+  // Quando o rental é manual (`automaticCharge=false`), tem `caucaoAmount>0`
+  // e ainda NÃO existe charge CAUCAO, o operador pode marcar a caução como
+  // paga direto — o backend cria a charge inline com status PAID e flipa
+  // `rental.caucaoPaid=true`. Se já existe uma CAUCAO charge, o fluxo padrão
+  // (`canMarkAsPaid` / `askMarkPaid`) é usado.
+  protected readonly markCaucaoOpen = signal(false);
+  protected readonly unmarkCaucaoOpen = signal(false);
+  protected readonly caucaoBusy = signal(false);
+
+  /** Habilita "Marcar como pago" no placeholder (sem charge existente). */
+  protected readonly canMarkCaucaoAsPaidPlaceholder = computed<boolean>(() => {
     const r = this.rental();
     if (!r) return false;
     return (
       r.automaticCharge === false &&
       r.caucaoAmount > 0 &&
-      !r.caucaoPaid
+      !this.caucaoCharge()
     );
   });
 
-  /** Mensagem do dialog de confirmação de recebimento. */
-  protected readonly markReceivedMessage = computed<string>(() => {
+  /** Habilita "Desmarcar" no placeholder quando não há charge mas caucaoPaid=true. */
+  protected readonly canUnmarkCaucaoPlaceholder = computed<boolean>(() => {
     const r = this.rental();
-    if (!r) return '';
-    return `Confirma que recebeu ${this.formatCurrency(r.caucaoAmount)} de caução por fora (cash/PIX/transferência). Isso NÃO afeta cobrança Asaas se houver.`;
+    if (!r) return false;
+    return (
+      r.automaticCharge === false &&
+      r.caucaoPaid &&
+      !this.caucaoCharge()
+    );
   });
 
-  protected askMarkCaucaoReceived(): void {
-    if (!this.canMarkCaucaoAsReceived()) return;
-    this.markReceivedOpen.set(true);
-  }
-
-  protected cancelMarkCaucaoReceived(): void {
-    if (this.markingReceived()) return;
-    this.markReceivedOpen.set(false);
-  }
-
-  protected confirmMarkCaucaoReceived(): void {
+  protected readonly markCaucaoMessage = computed<string>(() => {
     const r = this.rental();
-    if (!r || this.markingReceived()) return;
-    this.markingReceived.set(true);
-    this.rentalService.markCaucaoReceived(r.id).subscribe({
+    if (!r) return '';
+    return `Confirma o pagamento de ${this.formatCurrency(r.caucaoAmount)} de caução? Será criada uma cobrança PAGA com data ${this.formatDate(r.startDate)}.`;
+  });
+
+  protected askMarkCaucaoAsPaid(): void {
+    if (!this.canMarkCaucaoAsPaidPlaceholder()) return;
+    this.markCaucaoOpen.set(true);
+  }
+
+  protected cancelMarkCaucaoAsPaid(): void {
+    if (this.caucaoBusy()) return;
+    this.markCaucaoOpen.set(false);
+  }
+
+  protected confirmMarkCaucaoAsPaid(): void {
+    const r = this.rental();
+    if (!r || this.caucaoBusy()) return;
+    this.caucaoBusy.set(true);
+    this.rentalService.markCaucaoAsPaid(r.id).subscribe({
       next: (updated) => {
         this.rental.set(updated);
-        this.markingReceived.set(false);
-        this.markReceivedOpen.set(false);
-        this.notifications.push('success', 'Caução marcada como recebida.');
+        this.caucaoBusy.set(false);
+        this.markCaucaoOpen.set(false);
+        this.notifications.push('success', 'Caução marcada como paga.');
       },
       error: (err: HttpErrorResponse) => {
-        this.markingReceived.set(false);
-        this.markReceivedOpen.set(false);
+        this.caucaoBusy.set(false);
+        this.markCaucaoOpen.set(false);
         this.notifications.push(
           'error',
-          this.extractError(err, 'Não foi possível marcar a caução como recebida.'),
+          this.extractError(err, 'Não foi possível marcar a caução como paga.'),
+        );
+      },
+    });
+  }
+
+  protected askUnmarkCaucaoAsPaid(): void {
+    if (!this.canUnmarkCaucaoPlaceholder()) return;
+    this.unmarkCaucaoOpen.set(true);
+  }
+
+  protected cancelUnmarkCaucaoAsPaid(): void {
+    if (this.caucaoBusy()) return;
+    this.unmarkCaucaoOpen.set(false);
+  }
+
+  protected confirmUnmarkCaucaoAsPaid(): void {
+    const r = this.rental();
+    if (!r || this.caucaoBusy()) return;
+    this.caucaoBusy.set(true);
+    this.rentalService.unmarkCaucaoAsPaid(r.id).subscribe({
+      next: (updated) => {
+        this.rental.set(updated);
+        this.caucaoBusy.set(false);
+        this.unmarkCaucaoOpen.set(false);
+        this.notifications.push('success', 'Pagamento da caução desmarcado.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.caucaoBusy.set(false);
+        this.unmarkCaucaoOpen.set(false);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível desmarcar o pagamento da caução.'),
         );
       },
     });
@@ -731,10 +750,6 @@ export class RentalDetail implements OnInit {
         this.historyLoading.set(false);
       },
     });
-  }
-
-  protected toggleHistory(): void {
-    this.historyOpen.update((v) => !v);
   }
 
   /**

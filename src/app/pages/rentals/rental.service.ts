@@ -328,20 +328,6 @@ export class RentalService {
   }
 
   /**
-   * Gera o PDF do laudo a partir das fotos já enviadas. Substitui o PDF
-   * anterior se existir. Backend valida status do rental (CHECKOUT exige ACTIVE).
-   */
-  generateInspectionPdf(
-    rentalId: string,
-    kind: RentalPhotoKind,
-  ): Observable<RentalDocumentDto> {
-    return this.http.post<RentalDocumentDto>(
-      `${BASE}/${rentalId}/inspections/${kind.toLowerCase()}/generate-pdf`,
-      {},
-    );
-  }
-
-  /**
    * Gera uma cobrança one-off do valor da caução (Asaas). Backend valida:
    * `caucaoAmount > 0`, `caucaoPaid === false`, sem CAUCAO aberta.
    */
@@ -350,15 +336,26 @@ export class RentalService {
   }
 
   /**
-   * Flip the rental's `caucaoPaid` flag to true — signals the operator
-   * received the caução out-of-band (cash/PIX/transfer). Does NOT create
-   * or affect any Asaas charge; a separate `createCaucaoCharge` flow
-   * remains available for issuing a real charge. Idempotent when already
-   * received. Backend requires `automaticCharge=false` and `caucaoAmount>0`.
+   * Marca a caução como paga (fluxo manual, `automaticCharge=false`).
+   * Backend cria uma CAUCAO charge inline com status PAID caso ainda não
+   * exista OU marca a PENDING existente como PAID. Side effect: seta
+   * `rental.caucaoPaid=true`. `paidAt` é definido pelo BE como
+   * `rental.startDate`.
    */
-  markCaucaoReceived(rentalId: string): Observable<RentalResponseDto> {
+  markCaucaoAsPaid(rentalId: string): Observable<RentalResponseDto> {
     return this.http.post<RentalResponseDto>(
-      `${BASE}/${rentalId}/caucao/mark-received`,
+      `${BASE}/${rentalId}/caucao-charge/mark-paid`,
+      {},
+    );
+  }
+
+  /**
+   * Desmarca a caução como paga — reverte a CAUCAO charge para PENDING e
+   * `rental.caucaoPaid=false`. Apenas para `automaticCharge=false`.
+   */
+  unmarkCaucaoAsPaid(rentalId: string): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(
+      `${BASE}/${rentalId}/caucao-charge/unmark-paid`,
       {},
     );
   }
