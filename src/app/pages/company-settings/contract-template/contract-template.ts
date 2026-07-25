@@ -45,7 +45,7 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
             @if (loading()) {
               <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
             } @else if (template(); as t) {
-              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3">
+              <div class="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3">
                 <div class="min-w-0 flex items-center gap-3">
                   <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -61,24 +61,24 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
                     </p>
                   </div>
                 </div>
-                <div class="flex flex-col sm:flex-row flex-wrap gap-2 shrink-0">
-                  <button type="button" (click)="openTemplateAsHtml()" [disabled]="opening()"
-                    class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-primary-200 hover:bg-primary-50 text-primary-700 text-sm font-semibold min-h-[44px] disabled:opacity-60">
-                    @if (opening()) { Abrindo… } @else { Abrir template }
-                  </button>
+                <div class="flex flex-col sm:flex-row flex-wrap gap-2">
                   <button type="button" (click)="downloadTemplate()" [disabled]="downloading()"
-                    class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium min-h-[44px] disabled:opacity-60">
-                    @if (downloading()) { Baixando… } @else { Baixar arquivo }
+                    class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm min-h-[44px] disabled:opacity-60">
+                    @if (downloading()) { Baixando… } @else { Baixar Contrato }
                   </button>
-                  <button type="button" (click)="picker.click()" [disabled]="uploading()"
+                  <button type="button" (click)="openTemplateAsHtml()" [disabled]="opening()"
                     class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm min-h-[44px] disabled:opacity-60">
-                    Substituir
+                    @if (opening()) { Abrindo… } @else { Abrir PDF }
                   </button>
                   <button type="button" (click)="askDelete()"
                     class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium min-h-[44px]">
                     Remover
                   </button>
                 </div>
+                <button type="button" (click)="picker.click()" [disabled]="uploading()"
+                  class="w-full sm:w-auto sm:self-start inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-neutral-300 hover:border-primary-400 hover:bg-neutral-50 text-neutral-700 text-sm font-medium min-h-[44px] disabled:opacity-60">
+                  @if (uploading()) { Enviando… } @else { Substituir }
+                </button>
               </div>
             } @else {
               <button type="button" (click)="picker.click()" [disabled]="uploading()"
