@@ -237,31 +237,6 @@
                   >
                     {{ chargeStatusInfo(cc.status).label }}
                   </span>
-                  @if (canPayCharge(cc)) {
-                    <button type="button" (click)="payCharge(cc)"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition"
-                      aria-label="Pagar cobrança da caução">
-                      Pagar
-                    </button>
-                  }
-                  @if (canRetryCharge(cc)) {
-                    <button type="button" (click)="retryCharge(cc)" [disabled]="retrying() === cc.id"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-amber-600 text-white
-                             hover:bg-amber-700 active:scale-95 transition disabled:opacity-60"
-                      aria-label="Regerar cobrança da caução">
-                      {{ retrying() === cc.id ? '…' : 'Regerar' }}
-                    </button>
-                  }
-                  @if (canMarkAsPaid(cc)) {
-                    <button type="button" (click)="askMarkPaid(cc)"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
-                             hover:bg-emerald-600 active:scale-95 transition
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                      aria-label="Marcar caução como paga">
-                      Marcar como paga
-                    </button>
-                  }
                   @if (canUnmarkAsPaid(cc)) {
                     <button type="button" (click)="askUnmarkPaid(cc)"
                       class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
@@ -269,6 +244,14 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                       aria-label="Desmarcar caução como paga">
                       Desmarcar
+                    </button>
+                  } @else if (canMarkAsPaid(cc)) {
+                    <button type="button" (click)="askMarkPaid(cc)"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Marcar caução como paga">
+                      Marcar como paga
                     </button>
                   }
                 </div>
@@ -316,34 +299,19 @@
                     </td>
                     <td class="py-2.5 pr-4 text-right">
                       <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canPayCharge(cc)) {
-                          <button type="button" (click)="payCharge(cc)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition">
-                            Pagar
-                          </button>
-                        }
-                        @if (canRetryCharge(cc)) {
-                          <button type="button" (click)="retryCharge(cc)" [disabled]="retrying() === cc.id"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 text-white
-                                   hover:bg-amber-700 transition disabled:opacity-60">
-                            {{ retrying() === cc.id ? 'Regerando…' : 'Regerar' }}
-                          </button>
-                        }
-                        @if (canMarkAsPaid(cc)) {
-                          <button type="button" (click)="askMarkPaid(cc)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
-                                   hover:bg-emerald-600 transition
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
-                            Marcar como paga
-                          </button>
-                        }
                         @if (canUnmarkAsPaid(cc)) {
                           <button type="button" (click)="askUnmarkPaid(cc)"
                             class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
                                    hover:bg-primary-600 transition
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
                             Desmarcar
+                          </button>
+                        } @else if (canMarkAsPaid(cc)) {
+                          <button type="button" (click)="askMarkPaid(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   hover:bg-emerald-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+                            Marcar como paga
                           </button>
                         }
                       </div>
