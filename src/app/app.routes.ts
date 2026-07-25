@@ -363,9 +363,9 @@ export const routes: Routes = [
                                 canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
-                                        './pages/company-settings/integrations/charge-integration'
-                                    ).then((m) => m.ChargeIntegration),
-                                data: { pageTitle: 'Integração de cobranças' },
+                                        './pages/company-settings/integrations/integrations-hub'
+                                    ).then((m) => m.IntegrationsHub),
+                                data: { pageTitle: 'Integração' },
                             },
                             {
                                 path: 'integracoes/asaas',
@@ -374,7 +374,7 @@ export const routes: Routes = [
                                     import(
                                         './pages/company-settings/integrations/asaas-integration'
                                     ).then((m) => m.AsaasIntegration),
-                                data: { pageTitle: 'Integração Asaas (legado)' },
+                                data: { pageTitle: 'Integração Asaas' },
                             },
                             {
                                 path: 'contratos',
