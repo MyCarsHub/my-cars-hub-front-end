@@ -40,6 +40,14 @@ export class ContractTemplateService {
   }
 
   /**
+   * Baixa os bytes crus do template DOCX (com placeholders literais). Usado
+   * pra pré-visualização in-browser via docx-preview e pra download direto.
+   */
+  downloadTemplate(): Observable<Blob> {
+    return this.http.get(`${BASE}/download`, { responseType: 'blob' });
+  }
+
+  /**
    * Baixa o markdown com instruções pra colar em ChatGPT/Claude. Content-Type
    * é `text/markdown` — pedimos como texto puro pra manipular no cliente
    * (copiar pro clipboard ou salvar como .md).
