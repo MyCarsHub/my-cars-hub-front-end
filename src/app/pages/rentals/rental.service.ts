@@ -336,7 +336,7 @@ export class RentalService {
     kind: RentalPhotoKind,
   ): Observable<RentalDocumentDto> {
     return this.http.post<RentalDocumentDto>(
-      `${BASE}/${rentalId}/inspections/${kind}/generate-pdf`,
+      `${BASE}/${rentalId}/inspections/${kind.toLowerCase()}/generate-pdf`,
       {},
     );
   }
