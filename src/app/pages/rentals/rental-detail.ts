@@ -15,6 +15,7 @@ import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
+import { SessionService } from '../../services/session.service';
 import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -56,6 +57,10 @@ export class RentalDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
   private readonly notifications = inject(NotificationService);
+  private readonly session = inject(SessionService);
+
+  /** sessionStorage key para persistir preferência do toggle do cronograma. */
+  private static readonly SHOW_SCHEDULE_KEY = 'rental-detail:show-schedule';
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -209,6 +214,28 @@ export class RentalDetail implements OnInit {
   });
 
   protected readonly hasSchedule = computed<boolean>(() => this.totalCount() > 0);
+
+  /**
+   * Toggle mostrar/ocultar o conteúdo do card "Cronograma de cobrança".
+   * Default aberto (retro-compat). Preferência persistida em sessionStorage
+   * pra manter entre navegações dentro da mesma sessão.
+   */
+  protected readonly showSchedule = signal<boolean>(this.readShowSchedulePref());
+
+  private readShowSchedulePref(): boolean {
+    const raw = this.session.getItem(RentalDetail.SHOW_SCHEDULE_KEY);
+    // ausente => default true (aberto)
+    if (raw === null) return true;
+    return raw !== 'false';
+  }
+
+  protected toggleSchedule(): void {
+    this.showSchedule.update((v) => {
+      const next = !v;
+      this.session.setItem(RentalDetail.SHOW_SCHEDULE_KEY, String(next));
+      return next;
+    });
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -415,6 +442,63 @@ export class RentalDetail implements OnInit {
 
   protected readonly retrying = signal<string | null>(null);
   protected readonly generatingCaucao = signal(false);
+  protected readonly markingReceived = signal(false);
+  protected readonly markReceivedOpen = signal(false);
+
+  /**
+   * "Marcar como recebido" flips `caucaoPaid` no rental — sinaliza recebimento
+   * por fora (cash/PIX/transferência). É INDEPENDENTE de existir charge Asaas
+   * (não afeta charges). Habilitado quando o rental é manual, tem caução
+   * configurada e ainda não está marcada como recebida.
+   */
+  protected readonly canMarkCaucaoAsReceived = computed<boolean>(() => {
+    const r = this.rental();
+    if (!r) return false;
+    return (
+      r.automaticCharge === false &&
+      r.caucaoAmount > 0 &&
+      !r.caucaoPaid
+    );
+  });
+
+  /** Mensagem do dialog de confirmação de recebimento. */
+  protected readonly markReceivedMessage = computed<string>(() => {
+    const r = this.rental();
+    if (!r) return '';
+    return `Confirma que recebeu ${this.formatCurrency(r.caucaoAmount)} de caução por fora (cash/PIX/transferência). Isso NÃO afeta cobrança Asaas se houver.`;
+  });
+
+  protected askMarkCaucaoReceived(): void {
+    if (!this.canMarkCaucaoAsReceived()) return;
+    this.markReceivedOpen.set(true);
+  }
+
+  protected cancelMarkCaucaoReceived(): void {
+    if (this.markingReceived()) return;
+    this.markReceivedOpen.set(false);
+  }
+
+  protected confirmMarkCaucaoReceived(): void {
+    const r = this.rental();
+    if (!r || this.markingReceived()) return;
+    this.markingReceived.set(true);
+    this.rentalService.markCaucaoReceived(r.id).subscribe({
+      next: (updated) => {
+        this.rental.set(updated);
+        this.markingReceived.set(false);
+        this.markReceivedOpen.set(false);
+        this.notifications.push('success', 'Caução marcada como recebida.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.markingReceived.set(false);
+        this.markReceivedOpen.set(false);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível marcar a caução como recebida.'),
+        );
+      },
+    });
+  }
 
   // ------- Marcar como paga (manual, apenas quando automaticCharge=false) -------
   protected readonly markPaidTarget = signal<RentalChargeDto | null>(null);

@@ -336,7 +336,7 @@ export class RentalService {
     kind: RentalPhotoKind,
   ): Observable<RentalDocumentDto> {
     return this.http.post<RentalDocumentDto>(
-      `${BASE}/${rentalId}/inspections/${kind}/generate-pdf`,
+      `${BASE}/${rentalId}/inspections/${kind.toLowerCase()}/generate-pdf`,
       {},
     );
   }
@@ -347,6 +347,20 @@ export class RentalService {
    */
   createCaucaoCharge(rentalId: string): Observable<RentalChargeDto> {
     return this.http.post<RentalChargeDto>(`${BASE}/${rentalId}/caucao-charge`, {});
+  }
+
+  /**
+   * Flip the rental's `caucaoPaid` flag to true — signals the operator
+   * received the caução out-of-band (cash/PIX/transfer). Does NOT create
+   * or affect any Asaas charge; a separate `createCaucaoCharge` flow
+   * remains available for issuing a real charge. Idempotent when already
+   * received. Backend requires `automaticCharge=false` and `caucaoAmount>0`.
+   */
+  markCaucaoReceived(rentalId: string): Observable<RentalResponseDto> {
+    return this.http.post<RentalResponseDto>(
+      `${BASE}/${rentalId}/caucao/mark-received`,
+      {},
+    );
   }
 
   /**
