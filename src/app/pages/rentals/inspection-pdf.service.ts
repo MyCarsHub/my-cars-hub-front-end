@@ -1,5 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Signal, inject, signal } from '@angular/core';
+// Type-only import — erased at runtime, so pdf-lib remains lazy-loaded.
+import type { PDFPage, PDFPageDrawTextOptions } from 'pdf-lib';
 import { Observable, from, of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
@@ -44,6 +46,74 @@ export interface InspectionPdfContext {
 }
 
 const IDLE: InspectionPdfProgress = { step: 'idle', current: 0, total: 0, message: '' };
+
+/**
+ * pdf-lib's Helvetica StandardFont is WinAnsi-encoded (Latin-1, 0x00-0xFF),
+ * so any codepoint above 0xFF (arrows, curly quotes, emoji, math symbols…)
+ * crashes `drawText` with `WinAnsi cannot encode …`. Embedding a Unicode
+ * font would add ~500KB to the bundle for an edge case, so we transliterate
+ * to ASCII/Latin-1 instead. Latin-1 accents used in PT (à á â ã ç é ê í ó ô õ ú)
+ * are all < 0xFF and pass through untouched.
+ */
+const WIN_ANSI_REPLACEMENTS: Record<string, string> = {
+  '→': '->', // →
+  '←': '<-', // ←
+  '↑': '^', // ↑
+  '↓': 'v', // ↓
+  '•': '*', // •
+  '·': '-', // ·
+  '…': '...', // …
+  '©': '(c)', // ©
+  '®': '(R)', // ®
+  '™': '(TM)', // ™
+  '“': '"', // “
+  '”': '"', // ”
+  '‘': "'", // ‘
+  '’': "'", // ’
+  '–': '-', // –
+  '—': '-', // —
+  '‐': '-', // ‐
+  '«': '"', // «
+  '»': '"', // »
+  '‹': '<', // ‹
+  '›': '>', // ›
+  '×': 'x', // ×
+  '÷': '/', // ÷
+  '±': '+/-', // ±
+  '≥': '>=', // ≥
+  '≤': '<=', // ≤
+  '≠': '!=', // ≠
+  '≈': '~', // ≈
+  '°': '', // °
+  '§': 'S', // §
+  '¶': 'P', // ¶
+};
+
+/**
+ * Replaces non-WinAnsi characters with ASCII equivalents so `drawText`
+ * never throws. Unknown codepoints above 0xFF fall back to `?`.
+ * Exported for unit testing.
+ */
+export function sanitizeForWinAnsi(text: string): string {
+  if (!text) return text;
+  let out = '';
+  for (const ch of text) {
+    const mapped = WIN_ANSI_REPLACEMENTS[ch];
+    if (mapped !== undefined) {
+      out += mapped;
+      continue;
+    }
+    // Codepoints > 0xFF cannot be encoded by WinAnsi.
+    // `charCodeAt(0)` is sufficient here because surrogate pairs (emoji, etc.)
+    // start with a high surrogate in the range 0xD800-0xDBFF which is > 0xFF.
+    if (ch.charCodeAt(0) > 0xff) {
+      out += '?';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
 
 /**
  * Renders the inspection PDF entirely in the browser via `pdf-lib`, then
@@ -153,9 +223,9 @@ export class InspectionPdfService {
 
     const title =
       kind === 'CHECKIN' ? 'Laudo de vistoria — CHECK-IN' : 'Laudo de vistoria — CHECK-OUT';
-    cover.drawText(title, { x: margin, y, size: 18, font: fontBold, color: rgb(0, 0, 0) });
+    this.drawSafeText(cover, title, { x: margin, y, size: 18, font: fontBold, color: rgb(0, 0, 0) });
     y -= 28;
-    cover.drawText(`Gerado em ${new Date().toLocaleString('pt-BR')}`, {
+    this.drawSafeText(cover, `Gerado em ${new Date().toLocaleString('pt-BR')}`, {
       x: margin,
       y,
       size: 10,
@@ -183,8 +253,8 @@ export class InspectionPdfService {
     }
 
     for (const [label, value] of lines) {
-      cover.drawText(`${label}:`, { x: margin, y, size: 11, font: fontBold });
-      cover.drawText(value, { x: margin + 170, y, size: 11, font });
+      this.drawSafeText(cover, `${label}:`, { x: margin, y, size: 11, font: fontBold });
+      this.drawSafeText(cover, value, { x: margin + 170, y, size: 11, font });
       y -= 18;
       if (y < margin) break;
     }
@@ -219,7 +289,7 @@ export class InspectionPdfService {
       const page = doc.addPage([595.28, 841.89]);
       const pw = page.getSize().width;
       const ph = page.getSize().height;
-      page.drawText(label, {
+      this.drawSafeText(page, label, {
         x: margin,
         y: ph - margin,
         size: 14,
@@ -268,6 +338,16 @@ export class InspectionPdfService {
         return of(res);
       }),
     );
+  }
+
+  /**
+   * Sanitizes `text` via {@link sanitizeForWinAnsi} before delegating to
+   * `page.drawText`. Every call site in this service goes through here so
+   * unicode characters (arrows, curly quotes, emoji) never crash pdf-lib's
+   * WinAnsi-encoded Helvetica.
+   */
+  private drawSafeText(page: PDFPage, text: string, opts: PDFPageDrawTextOptions): void {
+    page.drawText(sanitizeForWinAnsi(text), opts);
   }
 
   /**
