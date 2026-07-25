@@ -15,6 +15,7 @@ import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
+import { SessionService } from '../../services/session.service';
 import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -56,6 +57,10 @@ export class RentalDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
   private readonly notifications = inject(NotificationService);
+  private readonly session = inject(SessionService);
+
+  /** sessionStorage key para persistir preferência do toggle do cronograma. */
+  private static readonly SHOW_SCHEDULE_KEY = 'rental-detail:show-schedule';
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -209,6 +214,28 @@ export class RentalDetail implements OnInit {
   });
 
   protected readonly hasSchedule = computed<boolean>(() => this.totalCount() > 0);
+
+  /**
+   * Toggle mostrar/ocultar o conteúdo do card "Cronograma de cobrança".
+   * Default aberto (retro-compat). Preferência persistida em sessionStorage
+   * pra manter entre navegações dentro da mesma sessão.
+   */
+  protected readonly showSchedule = signal<boolean>(this.readShowSchedulePref());
+
+  private readShowSchedulePref(): boolean {
+    const raw = this.session.getItem(RentalDetail.SHOW_SCHEDULE_KEY);
+    // ausente => default true (aberto)
+    if (raw === null) return true;
+    return raw !== 'false';
+  }
+
+  protected toggleSchedule(): void {
+    this.showSchedule.update((v) => {
+      const next = !v;
+      this.session.setItem(RentalDetail.SHOW_SCHEDULE_KEY, String(next));
+      return next;
+    });
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
