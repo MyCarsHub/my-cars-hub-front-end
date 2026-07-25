@@ -197,6 +197,23 @@
       <!-- Caução — card dedicado ACIMA do cronograma. -->
       <app-page-card title="Caução">
         <div class="p-3 sm:p-4 space-y-3">
+          @if (r.caucaoPaid) {
+            <div class="flex items-center gap-2">
+              <span
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                  stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Recebido
+              </span>
+              <span class="text-xs text-neutral-500">
+                Caução marcada como recebida por fora.
+              </span>
+            </div>
+          }
           @if (caucaoCharge(); as cc) {
             <!-- Timeline de uma linha, mesmo shape do cronograma. -->
             <!-- Mobile -->
@@ -264,6 +281,19 @@
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                       aria-label="Desmarcar caução como paga">
                       Desmarcar
+                    </button>
+                  }
+                  @if (canMarkCaucaoAsReceived()) {
+                    <button
+                      type="button"
+                      (click)="askMarkCaucaoReceived()"
+                      [disabled]="markingReceived()"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition disabled:opacity-60
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Marcar caução como recebida por fora"
+                    >
+                      @if (markingReceived()) { … } @else { Marcar como recebido }
                     </button>
                   }
                 </div>
@@ -341,6 +371,18 @@
                             Desmarcar
                           </button>
                         }
+                        @if (canMarkCaucaoAsReceived()) {
+                          <button
+                            type="button"
+                            (click)="askMarkCaucaoReceived()"
+                            [disabled]="markingReceived()"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   hover:bg-emerald-600 transition disabled:opacity-60
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                          >
+                            @if (markingReceived()) { Marcando… } @else { Marcar como recebido }
+                          </button>
+                        }
                       </div>
                     </td>
                   </tr>
@@ -385,6 +427,19 @@
                       @if (generatingCaucao()) { … } @else { Gerar }
                     </button>
                   }
+                  @if (canMarkCaucaoAsReceived()) {
+                    <button
+                      type="button"
+                      (click)="askMarkCaucaoReceived()"
+                      [disabled]="markingReceived()"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition disabled:opacity-60
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Marcar caução como recebida por fora"
+                    >
+                      @if (markingReceived()) { … } @else { Marcar como recebido }
+                    </button>
+                  }
                 </div>
               </li>
             </ul>
@@ -422,11 +477,23 @@
                             type="button"
                             (click)="generateCaucaoCharge()"
                             [disabled]="generatingCaucao()"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   hover:bg-primary-600 transition disabled:opacity-60
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                          >
+                            @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança }
+                          </button>
+                        }
+                        @if (canMarkCaucaoAsReceived()) {
+                          <button
+                            type="button"
+                            (click)="askMarkCaucaoReceived()"
+                            [disabled]="markingReceived()"
                             class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
                                    hover:bg-emerald-600 transition disabled:opacity-60
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                           >
-                            @if (generatingCaucao()) { Gerando… } @else { Gerar cobrança }
+                            @if (markingReceived()) { Marcando… } @else { Marcar como recebido }
                           </button>
                         }
                       </div>
@@ -437,7 +504,7 @@
             </div>
 
             <p class="text-[11px] text-neutral-500 mt-1">
-              Ou receba por fora e marque como paga assim que a charge for gerada.
+              Gere cobrança Asaas ou marque como recebido por fora — os dois fluxos são independentes.
             </p>
           } @else {
             <p class="text-sm text-neutral-500 text-center py-6">
@@ -878,4 +945,15 @@
   variant="warning"
   (confirmed)="confirmUnmarkPaid()"
   (cancelled)="cancelUnmarkPaid()"
+/>
+
+<app-confirm-dialog
+  [open]="markReceivedOpen()"
+  title="Marcar caução como recebida?"
+  [message]="markReceivedMessage()"
+  confirmLabel="Marcar como recebido"
+  cancelLabel="Cancelar"
+  variant="info"
+  (confirmed)="confirmMarkCaucaoReceived()"
+  (cancelled)="cancelMarkCaucaoReceived()"
 />
