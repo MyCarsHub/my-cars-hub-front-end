@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InspectionPdfService } from './inspection-pdf.service';
+import { InspectionPdfService, sanitizeForWinAnsi } from './inspection-pdf.service';
 import { environment } from '../../../environments/environment';
 import { RentalPhotoDto, RentalResponseDto } from '../../types/rental.types';
 
@@ -172,7 +172,7 @@ describe('InspectionPdfService.generateAndUpload', () => {
     });
   });
 
-  it('lowercases kind in the upload URL (CHECKOUT -> checkout)', async () => {
+it('lowercases kind in the upload URL (CHECKOUT -> checkout)', async () => {
     await new Promise<void>((resolve, reject) => {
       service
         .generateAndUpload(RID, 'CHECKOUT', { rental: rental(), vehicle: null, driver: null }, [])
@@ -190,5 +190,38 @@ describe('InspectionPdfService.generateAndUpload', () => {
           error: reject,
         });
     });
+  });
+});
+
+describe('sanitizeForWinAnsi', () => {
+  it('transliterates arrows and common punctuation to ASCII equivalents', () => {
+    expect(sanitizeForWinAnsi('a → b')).toBe('a -> b');
+    expect(sanitizeForWinAnsi('x ← y')).toBe('x <- y');
+    expect(sanitizeForWinAnsi('one • two')).toBe('one * two');
+    expect(sanitizeForWinAnsi('loading…')).toBe('loading...');
+    expect(sanitizeForWinAnsi('“hello”')).toBe('"hello"');
+    expect(sanitizeForWinAnsi('a — b')).toBe('a - b');
+    expect(sanitizeForWinAnsi('3 × 4 ≥ 10')).toBe('3 x 4 >= 10');
+  });
+
+  it('replaces unknown codepoints above 0xFF (including emoji surrogate pairs) with `?`', () => {
+    // U+2603 SNOWMAN — no explicit mapping, > 0xFF → `?`
+    expect(sanitizeForWinAnsi('cold ☃ day')).toBe('cold ? day');
+    // Emoji is a surrogate pair; each iterated unit starts with a high surrogate > 0xFF
+    expect(sanitizeForWinAnsi('hi 🚗')).toBe('hi ?');
+  });
+
+  it('preserves Latin-1 characters used in Portuguese accents (all < 0xFF)', () => {
+    const pt = 'Veículo à ção — não é só café: piauí, coração, mãe';
+    // After sanitize: em-dash becomes `-`, all accented letters preserved.
+    expect(sanitizeForWinAnsi(pt)).toBe('Veículo à ção - não é só café: piauí, coração, mãe');
+    // Explicit codepoint check on the OUTPUT — every char must be <= 0xFF.
+    for (const ch of sanitizeForWinAnsi(pt)) {
+      expect(ch.charCodeAt(0)).toBeLessThanOrEqual(0xff);
+    }
+  });
+
+  it('returns empty/undefined-safe inputs unchanged', () => {
+    expect(sanitizeForWinAnsi('')).toBe('');
   });
 });
