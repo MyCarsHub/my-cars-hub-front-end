@@ -61,7 +61,15 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
                     </p>
                   </div>
                 </div>
-                <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+                <div class="flex flex-col sm:flex-row flex-wrap gap-2 shrink-0">
+                  <button type="button" (click)="openTemplateAsHtml()" [disabled]="opening()"
+                    class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-primary-200 hover:bg-primary-50 text-primary-700 text-sm font-semibold min-h-[44px] disabled:opacity-60">
+                    @if (opening()) { Abrindo… } @else { Abrir template }
+                  </button>
+                  <button type="button" (click)="downloadTemplate()" [disabled]="downloading()"
+                    class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium min-h-[44px] disabled:opacity-60">
+                    @if (downloading()) { Baixando… } @else { Baixar arquivo }
+                  </button>
                   <button type="button" (click)="picker.click()" [disabled]="uploading()"
                     class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm min-h-[44px] disabled:opacity-60">
                     Substituir
@@ -219,6 +227,8 @@ export class ContractTemplate implements OnInit {
   protected readonly deleting = signal(false);
   protected readonly aiLoading = signal(false);
   protected readonly exampleLoading = signal(false);
+  protected readonly opening = signal(false);
+  protected readonly downloading = signal(false);
 
   protected readonly supportedVars = computed(
     () => this.template()?.supportedVariables ?? ContractTemplate.DEFAULT_SUPPORTED,
@@ -374,6 +384,95 @@ export class ContractTemplate implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.exampleLoading.set(false);
         this.notifications.push('error', this.extractError(err, 'Falha ao baixar exemplo.'));
+      },
+    });
+  }
+
+  /**
+   * Baixa o DOCX cru e renderiza em nova aba via docx-preview. Fiel o
+   * suficiente pra o usuário conferir formatação sem precisar do Word;
+   * Ctrl+P salva como PDF. docx-preview é lazy-loaded pra não pesar
+   * ~150KB no bundle inicial.
+   */
+  protected openTemplateAsHtml(): void {
+    if (this.opening()) return;
+    this.opening.set(true);
+    // Nova aba é aberta ANTES do await pra evitar pop-up blocker —
+    // browsers só permitem window.open dentro de gesture handler síncrono.
+    const win = window.open('', '_blank');
+    if (!win) {
+      this.opening.set(false);
+      this.notifications.push('error', 'Permita pop-ups pra abrir o template.');
+      return;
+    }
+    win.document.write(
+      '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
+        '<title>Template de contrato</title>' +
+        '<style>body{margin:0;padding:24px;background:#f5f5f5;font-family:sans-serif;}' +
+        '.docx-wrapper{background:transparent!important;padding:0!important;}' +
+        '.docx{background:#fff!important;margin:0 auto 16px;box-shadow:0 2px 8px rgba(0,0,0,.08);}' +
+        '.mch-loading{color:#666;text-align:center;padding:40px;}</style>' +
+        '</head><body><div class="mch-loading">Carregando template…</div></body></html>',
+    );
+    win.document.close();
+
+    this.service.downloadTemplate().subscribe({
+      next: async (blob) => {
+        try {
+          const { renderAsync } = await import('docx-preview');
+          const loading = win.document.querySelector('.mch-loading');
+          if (loading) loading.remove();
+          await renderAsync(blob, win.document.body, undefined, {
+            className: 'docx',
+            inWrapper: true,
+            ignoreWidth: false,
+            ignoreHeight: false,
+          });
+        } catch (err) {
+          win.document.body.innerHTML =
+            '<p style="color:#b91c1c;padding:24px;">Falha ao renderizar o template.</p>';
+          this.notifications.push('error', 'Falha ao renderizar template no browser.');
+          // Log local só; não expor URL/token em console.
+          console.error('docx-preview render failed', err);
+        } finally {
+          this.opening.set(false);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.opening.set(false);
+        try {
+          win.close();
+        } catch {
+          /* noop — algumas policies bloqueiam close cross-context */
+        }
+        this.notifications.push('error', this.extractError(err, 'Falha ao baixar template.'));
+      },
+    });
+  }
+
+  /**
+   * Baixa o DOCX cru como arquivo. Fallback pra quem prefere abrir no Word
+   * ou não pode usar a pré-visualização (pop-up bloqueado etc.).
+   */
+  protected downloadTemplate(): void {
+    if (this.downloading()) return;
+    this.downloading.set(true);
+    this.service.downloadTemplate().subscribe({
+      next: (blob) => {
+        this.downloading.set(false);
+        const filename = this.template()?.filename ?? 'contract.docx';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.downloading.set(false);
+        this.notifications.push('error', this.extractError(err, 'Falha ao baixar template.'));
       },
     });
   }
