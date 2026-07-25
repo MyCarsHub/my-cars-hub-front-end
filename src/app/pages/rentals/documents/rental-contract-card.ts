@@ -16,7 +16,6 @@ import { FormsModule } from '@angular/forms';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { DriverService } from '../../../services/driver.service';
-import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import {
@@ -76,11 +75,16 @@ interface SignatureBadge {
                 </p>
               </div>
             </div>
-            <div class="flex flex-col sm:flex-row gap-2 shrink-0">
-              <button type="button" (click)="openContract()" [disabled]="opening()"
+            <div class="flex flex-col sm:flex-row flex-wrap gap-2 shrink-0">
+              <button type="button" (click)="downloadContract()" [disabled]="downloading()"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                @if (downloading()) { Baixando… } @else { Baixar Contrato }
+              </button>
+              <button type="button" (click)="openContractAsPdf()" [disabled]="openingPdf()"
                 class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                @if (opening()) { Abrindo… } @else { Abrir PDF }
+                @if (openingPdf()) { Abrindo… } @else { Abrir PDF }
               </button>
               <button type="button" (click)="askDelete()"
                 class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]"
@@ -239,7 +243,6 @@ export class RentalContractCard implements OnInit, OnDestroy {
   private readonly driverService = inject(DriverService);
   private readonly session = inject(SessionService);
   private readonly notifications = inject(NotificationService);
-  private readonly externalNav = inject(ExternalNavigationService);
 
   readonly rentalId = input.required<string>();
   readonly changed = output<void>();
@@ -263,7 +266,8 @@ export class RentalContractCard implements OnInit, OnDestroy {
   /** 0-100 durante upload; nulo quando o browser não reporta total (fallback determinado). */
   protected readonly uploadProgress = signal<number | null>(null);
   private uploadSub: Subscription | null = null;
-  protected readonly opening = signal(false);
+  protected readonly downloading = signal(false);
+  protected readonly openingPdf = signal(false);
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
 
@@ -396,18 +400,109 @@ export class RentalContractCard implements OnInit, OnDestroy {
     this.uploadSub = null;
   }
 
-  protected openContract(): void {
+  /**
+   * Baixa o DOCX cru como arquivo. A signed URL do Supabase é de curta duração
+   * (TTL do backend) e privada; usamos `fetch` → Blob → anchor pra forçar o
+   * download com filename amigável em vez de deixar o browser navegar pra URL.
+   */
+  protected downloadContract(): void {
     const doc = this.contract();
-    if (!doc || this.opening()) return;
-    this.opening.set(true);
+    if (!doc || this.downloading()) return;
+    this.downloading.set(true);
     this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
-      next: (res) => {
-        this.opening.set(false);
-        this.externalNav.openExternal(res.url);
+      next: async (res) => {
+        try {
+          const resp = await fetch(res.url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const blob = await resp.blob();
+          const filename = `Contrato-${this.rentalId()}.docx`;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (err) {
+          this.notifications.push('error', 'Falha ao baixar o contrato.');
+          console.error('contract download failed', err);
+        } finally {
+          this.downloading.set(false);
+        }
       },
       error: (err: HttpErrorResponse) => {
-        this.opening.set(false);
-        this.notifications.push('error', this.extractError(err, 'Não foi possível abrir o contrato.'));
+        this.downloading.set(false);
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível baixar o contrato.'),
+        );
+      },
+    });
+  }
+
+  /**
+   * Abre o DOCX renderizado como HTML em nova aba via docx-preview (lazy).
+   * A nova aba é aberta ANTES do await pra evitar pop-up blocker — browsers
+   * só permitem window.open dentro de gesture handler síncrono. Mesmo pattern
+   * de company-settings/contract-template.
+   */
+  protected openContractAsPdf(): void {
+    const doc = this.contract();
+    if (!doc || this.openingPdf()) return;
+    this.openingPdf.set(true);
+    const win = window.open('', '_blank');
+    if (!win) {
+      this.openingPdf.set(false);
+      this.notifications.push('error', 'Permita pop-ups pra abrir o contrato.');
+      return;
+    }
+    win.document.write(
+      '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
+        '<title>Contrato</title>' +
+        '<style>body{margin:0;padding:24px;background:#f5f5f5;font-family:sans-serif;}' +
+        '.docx-wrapper{background:transparent!important;padding:0!important;}' +
+        '.docx{background:#fff!important;margin:0 auto 16px;box-shadow:0 2px 8px rgba(0,0,0,.08);}' +
+        '.mch-loading{color:#666;text-align:center;padding:40px;}</style>' +
+        '</head><body><div class="mch-loading">Carregando contrato…</div></body></html>',
+    );
+    win.document.close();
+
+    this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
+      next: async (res) => {
+        try {
+          const resp = await fetch(res.url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const blob = await resp.blob();
+          const { renderAsync } = await import('docx-preview');
+          const loading = win.document.querySelector('.mch-loading');
+          if (loading) loading.remove();
+          await renderAsync(blob, win.document.body, undefined, {
+            className: 'docx',
+            inWrapper: true,
+            ignoreWidth: false,
+            ignoreHeight: false,
+          });
+        } catch (err) {
+          win.document.body.innerHTML =
+            '<p style="color:#b91c1c;padding:24px;">Falha ao renderizar o contrato.</p>';
+          this.notifications.push('error', 'Falha ao renderizar contrato no browser.');
+          console.error('docx-preview render failed', err);
+        } finally {
+          this.openingPdf.set(false);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.openingPdf.set(false);
+        try {
+          win.close();
+        } catch {
+          /* noop — algumas policies bloqueiam close cross-context */
+        }
+        this.notifications.push(
+          'error',
+          this.extractError(err, 'Não foi possível abrir o contrato.'),
+        );
       },
     });
   }
