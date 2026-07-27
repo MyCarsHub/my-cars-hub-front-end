@@ -20,14 +20,14 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
   imports: [ReactiveFormsModule],
   template: `
     <h2 class="text-xl font-bold text-gray-900 mb-1">Seus dados pessoais</h2>
-    <p class="text-sm text-primary-500 mb-6">
+    <p class="text-sm text-primary-700 mb-6">
       Precisamos de algumas informações para configurar sua conta.
     </p>
 
     <form [formGroup]="form" class="space-y-4" (ngSubmit)="$event.preventDefault()">
       <div>
         <label for="ob-name" class="block text-sm font-medium text-gray-700 mb-1">
-          Nome completo <span class="text-primary-500" aria-hidden="true">*</span>
+          Nome completo <span class="text-primary-700" aria-hidden="true">*</span>
         </label>
         <input
           id="ob-name"
@@ -49,7 +49,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
       <div>
         <label for="ob-cpf" class="block text-sm font-medium text-gray-700 mb-1">
-          CPF <span class="text-primary-500" aria-hidden="true">*</span>
+          CPF <span class="text-primary-700" aria-hidden="true">*</span>
         </label>
         <input
           id="ob-cpf"
@@ -74,7 +74,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
       <div>
         <label for="ob-phone" class="block text-sm font-medium text-gray-700 mb-1">
-          Telefone <span class="text-primary-500" aria-hidden="true">*</span>
+          Telefone <span class="text-primary-700" aria-hidden="true">*</span>
         </label>
         <input
           id="ob-phone"

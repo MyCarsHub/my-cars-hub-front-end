@@ -338,7 +338,7 @@
               [class.text-white]="cycle() === 'MONTHLY'"
               [class.text-neutral-500]="cycle() !== 'MONTHLY'"
               [class.hover:text-neutral-900]="cycle() !== 'MONTHLY'"
-              [style.background]="cycle() === 'MONTHLY' ? 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)' : 'transparent'"
+              [style.background]="cycle() === 'MONTHLY' ? 'linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%)' : 'transparent'"
               [style.box-shadow]="cycle() === 'MONTHLY' ? '0 6px 18px -6px rgba(235,63,0,0.4)' : 'none'">
               Mensal
             </button>
@@ -427,7 +427,7 @@
           type="button"
           (click)="toggleCompare()"
           [attr.aria-expanded]="showCompare()"
-          class="min-h-[36px] px-3 rounded-lg text-xs font-semibold text-primary-500 hover:text-primary-600 hover:bg-primary-low inline-flex items-center gap-1.5 transition-colors
+          class="min-h-[36px] px-3 rounded-lg text-xs font-semibold text-primary-700 hover:text-primary-800 hover:bg-primary-low inline-flex items-center gap-1.5 transition-colors
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
           @if (showCompare()) { Ocultar } @else { Mostrar comparação }
           <svg
@@ -453,7 +453,7 @@
                           <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
                           <span class="font-semibold text-base text-neutral-900">{{ plan.name }}</span>
                           @if (isRecommended(plan)) {
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-500 border border-primary-low">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-700 border border-primary-low">
                               Recomendado
                             </span>
                           }
@@ -543,7 +543,7 @@
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                       @if (isRecommended(plan)) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-500 border border-primary-low">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-700 border border-primary-low">
                           Popular
                         </span>
                       }

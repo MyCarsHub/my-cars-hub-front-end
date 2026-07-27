@@ -148,13 +148,13 @@ interface Slot {
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="text-neutral-400 group-hover:text-primary-500 transition-colors"
+                    class="text-neutral-400 group-hover:text-primary-700 transition-colors"
                     aria-hidden="true"
                   >
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                     <circle cx="12" cy="13" r="4" />
                   </svg>
-                  <span class="text-[11px] font-medium text-neutral-500 group-hover:text-primary-600 transition-colors">
+                  <span class="text-[11px] font-medium text-neutral-500 group-hover:text-primary-700 transition-colors">
                     {{ slot.label }}
                   </span>
                 </div>
@@ -186,7 +186,7 @@ interface Slot {
               [disabled]="generating() || completedCount() === 0"
               class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5
                      rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400
-                     text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors
+                     text-sm font-medium text-neutral-600 hover:text-primary-700 transition-colors
                      min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               @if (generating()) {

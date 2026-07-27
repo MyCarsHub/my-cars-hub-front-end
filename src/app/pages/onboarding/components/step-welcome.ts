@@ -16,7 +16,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 
       <div class="p-4 bg-gray-50 rounded-xl border border-gray-100 text-left mb-8">
         <p class="text-sm text-gray-600">
-          <span class="font-bold text-primary-500">Próximos passos:</span><br>
+          <span class="font-bold text-primary-700">Próximos passos:</span><br>
           • Adicione seus primeiros veículos<br>
           • Cadastre seus motoristas<br>
           • Configure seus planos de manutenção

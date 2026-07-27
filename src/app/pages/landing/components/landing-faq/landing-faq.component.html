@@ -6,14 +6,14 @@
       </h2>
       <p class="text-[15px] text-ink/70 leading-[1.6] max-w-[42ch] m-0">
         Selecionamos as perguntas que a gente mais recebe. Se ainda ficar dúvida, escreva pra
-        <a href="mailto:mycarshubcompany@gmail.com" class="text-brand font-semibold no-underline hover:text-brand-hover hover:underline underline-offset-[3px] transition-colors duration-200">mycarshubcompany&#64;gmail.com</a> — respondemos rápido.
+        <a href="mailto:mycarshubcompany@gmail.com" class="text-brand-strong font-semibold no-underline hover:text-brand-strong hover:underline underline-offset-[3px] transition-colors duration-200">mycarshubcompany&#64;gmail.com</a> — respondemos rápido.
       </p>
     </aside>
 
     <div class="reveal flex flex-col bg-paper border border-rule rounded-2xl overflow-hidden shadow-[0_12px_30px_-22px_rgba(10,10,10,0.12)]">
       @for (item of faqs; track item.q) {
         <details class="border-b border-rule last:border-b-0 open:bg-paper-alt transition-colors duration-200 group">
-          <summary class="flex items-center justify-between gap-4 px-6 py-5 font-display font-semibold text-[15.5px] text-ink cursor-pointer tracking-[-0.015em] hover:text-brand transition-colors duration-200 list-none [&::-webkit-details-marker]:hidden">
+          <summary class="flex items-center justify-between gap-4 px-6 py-5 font-display font-semibold text-[15.5px] text-ink cursor-pointer tracking-[-0.015em] hover:text-brand-strong transition-colors duration-200 list-none [&::-webkit-details-marker]:hidden">
             <span>{{ item.q }}</span>
             <span
               class="w-7 h-7 shrink-0 rounded-full bg-paper border border-rule inline-flex items-center justify-center transition-all duration-300 group-open:bg-brand group-open:border-brand group-open:rotate-180"

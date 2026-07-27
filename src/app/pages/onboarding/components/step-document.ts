@@ -18,7 +18,7 @@ const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/;
   imports: [ReactiveFormsModule],
   template: `
     <h2 class="text-xl font-bold text-gray-900 mb-1">CNPJ da empresa</h2>
-    <p class="text-sm text-primary-500 mb-6">
+    <p class="text-sm text-primary-700 mb-6">
       Caso sua empresa possua CNPJ, informe abaixo. Não é obrigatório.
     </p>
 

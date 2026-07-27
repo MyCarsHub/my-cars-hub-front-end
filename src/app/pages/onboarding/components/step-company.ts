@@ -15,12 +15,12 @@ import { OnboardingData } from '../onboarding.types';
   imports: [ReactiveFormsModule],
   template: `
     <h2 class="text-xl font-bold text-gray-900 mb-1">Sua empresa</h2>
-    <p class="text-sm text-primary-500 mb-6">Informe o nome da organização que será criada.</p>
+    <p class="text-sm text-primary-700 mb-6">Informe o nome da organização que será criada.</p>
 
     <form [formGroup]="form" class="space-y-4" (ngSubmit)="$event.preventDefault()">
       <div>
         <label for="ob-company-name" class="block text-sm font-medium text-gray-700 mb-1">
-          Nome da empresa <span class="text-primary-500" aria-hidden="true">*</span>
+          Nome da empresa <span class="text-primary-700" aria-hidden="true">*</span>
         </label>
         <input
           id="ob-company-name"

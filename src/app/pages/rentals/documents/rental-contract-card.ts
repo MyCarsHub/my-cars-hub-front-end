@@ -134,7 +134,7 @@ interface SignatureBadge {
             </div>
           } @else {
             <button type="button" (click)="picker.click()"
-              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors min-h-[48px]">
+              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-700 transition-colors min-h-[48px]">
               Substituir contrato
             </button>
           }
@@ -218,7 +218,7 @@ interface SignatureBadge {
             }
             @if (signers().length < 6) {
               <button type="button" (click)="addSigner()"
-                class="w-full py-2 rounded-lg border border-dashed border-neutral-300 hover:border-primary-400 text-sm text-neutral-600 hover:text-primary-600 min-h-[44px]">
+                class="w-full py-2 rounded-lg border border-dashed border-neutral-300 hover:border-primary-400 text-sm text-neutral-600 hover:text-primary-700 min-h-[44px]">
                 + Adicionar signatário
               </button>
             }

@@ -308,7 +308,8 @@
   gap: 4px;
 }
 .hero__chip--money .hero__chip-value {
-  color: var(--brand);
+  /* 17px bold nao qualifica como large text (>=18,66px); brand-strong = 5,68:1. */
+  color: var(--brand-strong);
   font-size: 17px;
 }
 .hero__chip-dot {

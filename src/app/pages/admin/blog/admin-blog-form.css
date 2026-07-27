@@ -11,11 +11,11 @@
 .prose h1 { font-size: 1.75rem; }
 .prose h2 { font-size: 1.4rem; }
 .prose h3 { font-size: 1.15rem; }
-.prose a { color: #EB3F00; text-decoration: underline; }
+.prose a { color: #C22F00; text-decoration: underline; }
 .prose strong { color: #0a0a0a; }
 .prose ul, .prose ol { padding-left: 1.5em; }
 .prose li { margin: 0.4em 0; }
-.prose blockquote { border-left: 3px solid #EB3F00; padding-left: 16px; color: #555; font-style: italic; }
+.prose blockquote { border-left: 3px solid #F63B04; padding-left: 16px; color: #555; font-style: italic; }
 .prose code { background: #f2f2f2; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
 .prose pre { background: #0a0a0a; color: #fff; padding: 16px; border-radius: 8px; overflow-x: auto; }
 .prose pre code { background: none; color: inherit; padding: 0; }

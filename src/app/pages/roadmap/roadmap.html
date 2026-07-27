@@ -68,7 +68,7 @@
 
         <div cardActions>
           <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-[11px] font-bold
-                       text-primary-500 bg-primary-low border border-primary-low rounded-full tracking-wider uppercase">
+                       text-primary-700 bg-primary-low border border-primary-low rounded-full tracking-wider uppercase">
             {{ columnTasksFor(column.key).length }}
           </span>
         </div>
@@ -94,7 +94,7 @@
                     <div class="flex items-center gap-1 shrink-0">
                       @if (canEdit(task)) {
                         <button type="button" (click)="openEdit(task)" aria-label="Editar sugestão"
-                          class="p-1.5 rounded-lg text-neutral-400 hover:text-primary-500 hover:bg-primary-low transition-colors">
+                          class="p-1.5 rounded-lg text-neutral-400 hover:text-primary-700 hover:bg-primary-low transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9"></path>
@@ -162,13 +162,13 @@
                     [attr.aria-label]="task.hasVoted ? 'Remover combustível' : 'Dar combustível'"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     [class.bg-primary-low]="task.hasVoted"
-                    [class.text-primary-500]="task.hasVoted"
+                    [class.text-primary-700]="task.hasVoted"
                     [class.border-primary-low]="task.hasVoted"
                     [class.bg-neutral-50]="!task.hasVoted"
                     [class.text-neutral-500]="!task.hasVoted"
                     [class.border-neutral-200]="!task.hasVoted"
                     [class.hover:bg-primary-low]="!task.hasVoted"
-                    [class.hover:text-primary-500]="!task.hasVoted"
+                    [class.hover:text-primary-700]="!task.hasVoted"
                     [class.hover:border-primary-low]="!task.hasVoted">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                       [attr.fill]="task.hasVoted ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"

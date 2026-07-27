@@ -210,7 +210,7 @@
                 class="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
               >
                 <div class="flex items-center gap-3 min-w-0">
-                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-600 font-semibold">C</span>
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 font-semibold">C</span>
                   <div class="min-w-0">
                     <p class="text-sm text-neutral-800 tabular-nums">
                       @if (cc.dueDate) {
@@ -281,7 +281,7 @@
                 </thead>
                 <tbody>
                   <tr class="border-b border-neutral-50">
-                    <td class="py-2.5 pr-4 tabular-nums text-primary-600 font-semibold">C</td>
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 font-semibold">C</td>
                     <td class="py-2.5 pr-4 tabular-nums">
                       @if (cc.dueDate) {
                         {{ formatDate(cc.dueDate) }}
@@ -342,7 +342,7 @@
                 class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-primary-300 bg-primary-50/40 px-3 py-2.5"
               >
                 <div class="flex items-center gap-3 min-w-0">
-                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-600 font-semibold">C</span>
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 font-semibold">C</span>
                   <div class="min-w-0">
                     <p class="text-sm text-neutral-800 tabular-nums">
                       <span class="text-neutral-400">—</span>
@@ -403,7 +403,7 @@
                 </thead>
                 <tbody>
                   <tr class="border-b border-neutral-50">
-                    <td class="py-2.5 pr-4 tabular-nums text-primary-600 font-semibold">C</td>
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 font-semibold">C</td>
                     <td class="py-2.5 pr-4 tabular-nums"><span class="text-neutral-400">—</span></td>
                     <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
                     <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(r.caucaoAmount) }}</td>
@@ -491,7 +491,7 @@
                   <div class="flex items-center gap-3 min-w-0">
                     <span
                       class="text-xs tabular-nums w-6 text-right shrink-0"
-                      [class.text-primary-600]="charge.kind === 'CAUCAO'"
+                      [class.text-primary-700]="charge.kind === 'CAUCAO'"
                       [class.font-semibold]="charge.kind === 'CAUCAO'"
                       [class.text-neutral-400]="charge.kind !== 'CAUCAO'"
                     >
@@ -594,7 +594,7 @@
                     <tr class="border-b border-neutral-50">
                       <td
                         class="py-2.5 pr-4 tabular-nums"
-                        [class.text-primary-600]="charge.kind === 'CAUCAO'"
+                        [class.text-primary-700]="charge.kind === 'CAUCAO'"
                         [class.font-semibold]="charge.kind === 'CAUCAO'"
                         [class.text-neutral-500]="charge.kind !== 'CAUCAO'"
                       >
@@ -814,7 +814,7 @@
       </div>
 
       <div class="pt-2">
-        <a routerLink="/alugueis" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+        <a routerLink="/alugueis" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
           ← Voltar para a lista
         </a>
       </div>
