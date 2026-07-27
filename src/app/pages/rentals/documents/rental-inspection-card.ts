@@ -1,14 +1,19 @@
 import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
+import { isPlatformBrowser } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnDestroy,
   OnInit,
+  PLATFORM_ID,
   computed,
+  effect,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { Subscription, forkJoin, of, switchMap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -25,8 +30,12 @@ import {
   RentalPhotoDto,
   RentalPhotoKind,
 } from '../../../types/rental.types';
+import { ImageCompressionService } from '../../../services/image-compression.service';
 import { InspectionPdfService } from '../inspection-pdf.service';
 import { RentalService } from '../rental.service';
+
+/** Espelha `RentalInspectionService.MAX_PHOTO_BYTES` no backend. */
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
 interface Slot {
   angle: RentalPhotoAngle;
@@ -55,7 +64,9 @@ interface Slot {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PageCard, ConfirmDialog],
   template: `
-    <app-page-card [title]="title()">
+    <!-- Enquanto a folha está aberta ela é a única região alcançável: 'inert'
+         tira o card inteiro do tab order e do cursor virtual do leitor de tela. -->
+    <app-page-card [title]="title()" [attr.inert]="sourceSheetOpen() ? '' : null">
       <div class="p-4 sm:p-6 space-y-4">
         @if (generatedDoc(); as doc) {
           <div
@@ -107,7 +118,7 @@ interface Slot {
           @for (slot of slots(); track slot.angle) {
             <button
               type="button"
-              (click)="picker.click(); pending = slot.angle"
+              (click)="openPicker(slot.angle, $event)"
               [disabled]="slot.uploading"
               class="group relative aspect-square rounded-xl border-2 border-dashed border-neutral-300
                      hover:border-primary-400 bg-neutral-50 overflow-hidden text-left
@@ -202,15 +213,69 @@ interface Slot {
           }
         </div>
 
-        <input
-          #picker
-          type="file"
-          accept="image/*,image/heic,image/heif"
-          hidden
-          (change)="onFileSelected($event)"
-        />
       </div>
     </app-page-card>
+
+    <!-- Dois inputs: 'capture' força a câmera traseira; sem 'capture' o
+         browser abre a galeria/arquivos. Um só input não cobre os dois.
+         Ficam FORA do card porque ele vira 'inert' com a folha aberta, e
+         pickFromCamera/Gallery precisam clicá-los nesse exato instante. -->
+    <input
+      #cameraPicker
+      type="file"
+      accept="image/*,image/heic,image/heif"
+      capture="environment"
+      hidden
+      (change)="onFileSelected($event)"
+    />
+    <input
+      #galleryPicker
+      type="file"
+      accept="image/*,image/heic,image/heif"
+      hidden
+      (change)="onFileSelected($event)"
+    />
+
+    @if (sourceSheetOpen()) {
+      <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" (click)="closeSourceSheet()" aria-hidden="true"></div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-label]="sourceSheetLabel()"
+          tabindex="-1"
+          (keydown.escape)="closeSourceSheet()"
+          class="relative w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl bg-white p-4 shadow-xl space-y-2"
+        >
+          <p class="text-sm font-semibold text-neutral-900 pb-1">{{ sourceSheetLabel() }}</p>
+          <button
+            #sourceSheetFirst
+            type="button"
+            (click)="pickFromCamera()"
+            (keydown.shift.tab)="focusSheetLast($event)"
+            class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold transition-colors min-h-[48px]"
+          >
+            Tirar foto
+          </button>
+          <button
+            type="button"
+            (click)="pickFromGallery()"
+            class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-800 text-sm font-semibold transition-colors min-h-[48px]"
+          >
+            Escolher da galeria
+          </button>
+          <button
+            #sourceSheetLast
+            type="button"
+            (click)="closeSourceSheet()"
+            (keydown.tab)="focusSheetFirst($event)"
+            class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl text-neutral-500 hover:text-neutral-700 text-sm font-medium transition-colors min-h-[48px]"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    }
 
     <app-confirm-dialog
       [open]="deleteOpen()"
@@ -230,6 +295,8 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly inspectionPdfService = inject(InspectionPdfService);
   private readonly notifications = inject(NotificationService);
   private readonly externalNav = inject(ExternalNavigationService);
+  private readonly imageCompression = inject(ImageCompressionService);
+  private readonly platformId = inject(PLATFORM_ID);
   /** Live progress from the client-side PDF pipeline — bound to the UX label. */
   protected readonly pdfProgress = this.inspectionPdfService.progress;
 
@@ -238,6 +305,16 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   readonly changed = output<void>();
 
   protected pending: RentalPhotoAngle | null = null;
+
+  private readonly cameraPicker = viewChild<ElementRef<HTMLInputElement>>('cameraPicker');
+  private readonly galleryPicker = viewChild<ElementRef<HTMLInputElement>>('galleryPicker');
+  private readonly sourceSheetFirst = viewChild<ElementRef<HTMLButtonElement>>('sourceSheetFirst');
+  private readonly sourceSheetLast = viewChild<ElementRef<HTMLButtonElement>>('sourceSheetLast');
+  /** Slot que abriu a folha — recebe o foco de volta ao fechar (WCAG 2.4.3). */
+  private sheetTrigger: HTMLElement | null = null;
+
+  protected readonly sourceSheetOpen = signal(false);
+  protected readonly sourceSheetLabel = signal('Enviar foto');
 
   /** Snapshot compartilhado — fotos e PDF do laudo vêm daqui, sem fetch próprio. */
   private readonly snapshot = computed(() => this.rentalService.rentalState(this.rentalId())());
@@ -299,6 +376,14 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     REAR_SEAT: null,
   });
   private readonly uploadSubs = new Map<RentalPhotoAngle, Subscription>();
+  /**
+   * Token de tentativa por ângulo. Incrementa a cada seleção de arquivo e a
+   * cada `finishSlot()`, então uma promise de compressão que resolve tarde
+   * (usuário cancelou e re-selecionou o mesmo slot) enxerga um token diferente
+   * do seu e aborta — sem isso ela dispararia um segundo `startUpload()` cuja
+   * subscription sobrescreveria a viva em `uploadSubs`.
+   */
+  private readonly slotAttempt = new Map<RentalPhotoAngle, number>();
   protected readonly generating = signal(false);
   protected readonly openingPdf = signal(false);
   protected readonly downloading = signal(false);
@@ -338,8 +423,74 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
 
   protected readonly completedCount = computed(() => this.slots().filter((s) => s.photo).length);
 
+  constructor() {
+    // Move o foco pro primeiro botão assim que a folha renderiza.
+    effect(() => {
+      const first = this.sourceSheetFirst();
+      if (this.sourceSheetOpen() && first) first.nativeElement.focus();
+    });
+  }
+
   ngOnInit(): void {
     this.rentalService.loadRentalState(this.rentalId());
+  }
+
+  /**
+   * Em telas de toque abre a folha "Tirar foto / Escolher da galeria"; no
+   * desktop não existe câmera útil, então vai direto pro seletor de arquivos.
+   */
+  protected openPicker(angle: RentalPhotoAngle, event: Event): void {
+    this.pending = angle;
+    if (!this.isTouchDevice()) {
+      this.galleryPicker()?.nativeElement.click();
+      return;
+    }
+    this.sheetTrigger = (event.currentTarget as HTMLElement | null) ?? null;
+    const slot = this.slots().find((s) => s.angle === angle);
+    this.sourceSheetLabel.set(slot ? `Enviar foto: ${slot.label}` : 'Enviar foto');
+    this.sourceSheetOpen.set(true);
+  }
+
+  /**
+   * Fechar a folha destrói o botão focado (`@if`), então o foco volta pro slot
+   * ANTES de abrir o diálogo nativo — se o usuário dispensá-lo sem escolher
+   * arquivo, o foco continua no slot em vez de cair no `<body>` (WCAG 2.4.3).
+   */
+  protected pickFromCamera(): void {
+    this.sourceSheetOpen.set(false);
+    this.sheetTrigger?.focus();
+    this.cameraPicker()?.nativeElement.click();
+  }
+
+  protected pickFromGallery(): void {
+    this.sourceSheetOpen.set(false);
+    this.sheetTrigger?.focus();
+    this.galleryPicker()?.nativeElement.click();
+  }
+
+  /** Fecha o ciclo do Tab dentro da folha (último → primeiro). */
+  protected focusSheetFirst(event: Event): void {
+    event.preventDefault();
+    this.sourceSheetFirst()?.nativeElement.focus();
+  }
+
+  /** Fecha o ciclo do Shift+Tab dentro da folha (primeiro → último). */
+  protected focusSheetLast(event: Event): void {
+    event.preventDefault();
+    this.sourceSheetLast()?.nativeElement.focus();
+  }
+
+  protected closeSourceSheet(): void {
+    this.sourceSheetOpen.set(false);
+    this.pending = null;
+    this.sheetTrigger?.focus();
+    this.sheetTrigger = null;
+  }
+
+  private isTouchDevice(): boolean {
+    if (!isPlatformBrowser(this.platformId)) return false;
+    if (typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(pointer: coarse)').matches;
   }
 
   protected onFileSelected(event: Event): void {
@@ -348,6 +499,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     input.value = '';
     const angle = this.pending;
     this.pending = null;
+    this.sheetTrigger = null;
     if (!file || !angle) return;
 
     // iOS Safari envia HEIC/HEIF em fotos default; Android e desktop mandam JPG/PNG/WebP.
@@ -360,16 +512,45 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
       this.notifications.push('error', 'Formato inválido. Use JPG, PNG, WebP ou HEIC.');
       return;
     }
-    if (file.size > 8 * 1024 * 1024) {
-      this.notifications.push('error', 'Imagem excede 8MB.');
-      return;
-    }
 
+    // Preview + spinner sobem antes da compressão (pode levar ~1s numa foto de
+    // 12MP); o upload só começa depois que o arquivo final está pronto.
     this.setSlotUploading(angle, true);
     this.setSlotProgress(angle, 0);
-    // Preview local imediato — usuário confirma que escolheu o arquivo certo
-    // enquanto o upload roda. objectURL é liberado em finishSlot().
     this.setSlotPreview(angle, URL.createObjectURL(file));
+    const attempt = this.bumpAttempt(angle);
+    void this.imageCompression
+      .compress(file)
+      .then((compressed) => {
+        // Tentativa obsoleta (cancelada e/ou substituída por uma nova seleção
+        // no mesmo slot) — abortar antes de criar uma subscription órfã.
+        if (this.slotAttempt.get(angle) !== attempt) return;
+        // Quando a compressão falha ela devolve o original (HEIC não
+        // decodificável, canvas indisponível). Aí o cap de 8MB do cliente pode
+        // barrar: o backend aplica o mesmo limite, então bloqueamos aqui pra
+        // não gastar o upload inteiro antes do 413.
+        if (compressed.size > MAX_PHOTO_BYTES) {
+          this.finishSlot(angle);
+          this.notifications.push('error', 'Imagem excede 8MB.');
+          return;
+        }
+        this.startUpload(angle, compressed);
+      })
+      .catch(() => {
+        if (this.slotAttempt.get(angle) !== attempt) return;
+        this.finishSlot(angle);
+        this.notifications.push('error', 'Não foi possível preparar a foto. Tente novamente.');
+      });
+  }
+
+  /** Invalida a tentativa anterior do slot e devolve o token da nova. */
+  private bumpAttempt(angle: RentalPhotoAngle): number {
+    const next = (this.slotAttempt.get(angle) ?? 0) + 1;
+    this.slotAttempt.set(angle, next);
+    return next;
+  }
+
+  private startUpload(angle: RentalPhotoAngle, file: File): void {
     const sub = this.rentalService
       .uploadPhotoWithProgress(this.rentalId(), this.kind(), angle, file)
       .subscribe({
@@ -398,15 +579,18 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   }
 
   protected cancelUpload(angle: RentalPhotoAngle): void {
-    const sub = this.uploadSubs.get(angle);
-    if (sub) {
-      sub.unsubscribe();
-      this.finishSlot(angle);
-      this.notifications.push('info', 'Envio cancelado.');
-    }
+    // Sem subscription ainda = cancelado durante a compressão; o slot precisa
+    // ser limpo do mesmo jeito.
+    if (!this.slotStatus()[angle]) return;
+    this.uploadSubs.get(angle)?.unsubscribe();
+    this.finishSlot(angle);
+    this.notifications.push('info', 'Envio cancelado.');
   }
 
   private finishSlot(angle: RentalPhotoAngle): void {
+    // Encerra a tentativa corrente: qualquer compressão ainda em voo pro mesmo
+    // ângulo passa a ser obsoleta e não dispara upload.
+    this.bumpAttempt(angle);
     this.setSlotUploading(angle, false);
     this.setSlotProgress(angle, null);
     // Libera o objectURL do preview local — evita memory leak.
