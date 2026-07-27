@@ -5,6 +5,7 @@ import { LandingProblemComponent } from '../components/landing-problem/landing-p
 import { LandingSolutionComponent } from '../components/landing-solution/landing-solution.component';
 import { LandingFeaturesComponent } from '../components/landing-features/landing-features.component';
 import { LandingMultitenantComponent } from '../components/landing-multitenant/landing-multitenant.component';
+import { LandingIntegrationsComponent } from '../components/landing-integrations/landing-integrations.component';
 import { LandingTestimonialsComponent } from '../components/landing-testimonials/landing-testimonials.component';
 import { LandingStatsComponent } from '../components/landing-stats/landing-stats.component';
 import { LandingPricingComponent } from '../components/landing-pricing/landing-pricing.component';
@@ -21,6 +22,7 @@ import { LandingFooterComponent } from '../components/landing-footer/landing-foo
     LandingSolutionComponent,
     LandingFeaturesComponent,
     LandingMultitenantComponent,
+    LandingIntegrationsComponent,
     LandingTestimonialsComponent,
     LandingStatsComponent,
     LandingPricingComponent,
