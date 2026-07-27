@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { RentalForm } from './rental-form';
 import { RentalService } from './rental.service';
+import { SessionService } from '../../services/session.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
 import { BillingAccessService } from '../../services/billing-access.service';
@@ -126,5 +127,151 @@ describe('RentalForm picker filters', () => {
     cmp.form.patchValue({ caucaoReais: 500 });
     fixture.detectChanges();
     expect(cmp.caucaoAmountPositive()).toBe(true);
+  });
+});
+
+/**
+ * Regressão: clicar em "Configure agora" nos cards de Contrato/Cobrança navega
+ * pra `/configuracoes/...`, destrói o RentalForm e antes zerava tudo que o
+ * usuário tinha preenchido. O rascunho em sessionStorage cobre a ida-e-volta.
+ */
+describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
+  /** Storage compartilhado entre as duas "visitas" à página. */
+  let store: Map<string, string>;
+  let createSpy: ReturnType<typeof vi.fn>;
+
+  const fakeSession = (): unknown => ({
+    setItem: (k: string, v: string) => store.set(k, v),
+    getItem: (k: string) => store.get(k) ?? null,
+    removeItem: (k: string) => store.delete(k),
+  });
+
+  function visitNewRentalPage(): ReturnType<typeof TestBed.createComponent<RentalForm>> {
+    TestBed.resetTestingModule();
+    createSpy = vi.fn().mockReturnValue(of({ id: 'rental-novo' }));
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        { provide: SessionService, useValue: fakeSession() },
+        {
+          provide: VehiclesService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        { provide: RentalService, useValue: { getById: () => EMPTY, create: createSpy } },
+        { provide: BillingAccessService, useValue: { status: signal(null), load: () => of(null) } },
+        { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalForm);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  /** Campos obrigatórios mínimos pra um create válido. */
+  const validValues = {
+    vehicleId: 'veh-1',
+    driverId: 'drv-1',
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    billingFrequency: 'MONTHLY',
+    periodRateReais: 2500,
+    caucaoReais: 800,
+    notes: 'entrega na garagem',
+    initialKm: 42000,
+    pickupDate: '2026-08-01T09:00',
+    firstPaymentDate: '2026-08-05',
+    dailyInterestReais: 3,
+    lateFineType: 'PERCENT',
+    lateFineValueInput: 2,
+  };
+
+  type FormLike = {
+    form: {
+      patchValue: (v: Record<string, unknown>) => void;
+      getRawValue: () => Record<string, unknown>;
+    };
+    draftRestored: () => boolean;
+    submit: () => void;
+    cancel: () => void;
+  };
+
+  beforeEach(() => {
+    store = new Map<string, string>();
+    // Sessão autenticada: o rascunho é chaveado por usuário + empresa.
+    store.set('id', 'user-1');
+    store.set('selectedCompanyId', 'company-1');
+  });
+
+  it('preserva o preenchimento ao sair pra configurar a integração e voltar', () => {
+    const first = visitNewRentalPage();
+    const before = first.componentInstance as unknown as FormLike;
+    before.form.patchValue(validValues);
+    first.detectChanges();
+
+    // "Configure agora" → o componente é destruído pela navegação.
+    first.destroy();
+
+    const second = visitNewRentalPage();
+    const after = second.componentInstance as unknown as FormLike;
+
+    expect(after.draftRestored()).toBe(true);
+    expect(after.form.getRawValue()).toMatchObject(validValues);
+  });
+
+  it('limpa o rascunho após criar o aluguel com sucesso', () => {
+    const first = visitNewRentalPage();
+    const cmp = first.componentInstance as unknown as FormLike;
+    cmp.form.patchValue(validValues);
+    first.detectChanges();
+
+    cmp.submit();
+    first.detectChanges();
+
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    expect([...store.keys()].some((k) => k.startsWith('rentalDraft:'))).toBe(false);
+
+    first.destroy();
+    const second = visitNewRentalPage();
+    const after = second.componentInstance as unknown as FormLike;
+    expect(after.draftRestored()).toBe(false);
+    expect(after.form.getRawValue()['vehicleId']).toBe('');
+  });
+
+  it('limpa o rascunho ao cancelar (saída intencional do fluxo)', () => {
+    const first = visitNewRentalPage();
+    const cmp = first.componentInstance as unknown as FormLike;
+    cmp.form.patchValue(validValues);
+    first.detectChanges();
+
+    cmp.cancel();
+    first.detectChanges();
+
+    expect([...store.keys()].some((k) => k.startsWith('rentalDraft:'))).toBe(false);
+  });
+
+  it('não restaura rascunho de outra empresa', () => {
+    const first = visitNewRentalPage();
+    const cmp = first.componentInstance as unknown as FormLike;
+    cmp.form.patchValue(validValues);
+    first.detectChanges();
+    first.destroy();
+
+    // Usuário troca de empresa ativa antes de voltar ao formulário.
+    store.set('selectedCompanyId', 'company-2');
+
+    const second = visitNewRentalPage();
+    const after = second.componentInstance as unknown as FormLike;
+    expect(after.draftRestored()).toBe(false);
+    expect(after.form.getRawValue()['vehicleId']).toBe('');
   });
 });

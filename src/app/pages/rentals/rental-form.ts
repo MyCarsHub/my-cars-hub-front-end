@@ -3,6 +3,7 @@ import {
   Component,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -26,6 +27,7 @@ import { DriverService } from '../../services/driver.service';
 import { BillingAccessService } from '../../services/billing-access.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../company-settings/contract-template/contract-template-service';
+import { RentalDraftService } from './rental-draft.service';
 import {
   BILLING_FREQUENCY_OPTIONS,
   CreateRentalRequest,
@@ -49,6 +51,7 @@ export class RentalForm implements OnInit {
   private readonly billingAccess = inject(BillingAccessService);
   private readonly asaasService = inject(AsaasIntegrationService);
   private readonly contractTemplateService = inject(ContractTemplateService);
+  private readonly draftService = inject(RentalDraftService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -244,12 +247,40 @@ export class RentalForm implements OnInit {
     () => Number(this.formValue()?.caucaoReais ?? 0) > 0,
   );
 
+  /**
+   * Rascunho (create-only).
+   *
+   * Os cards de Contrato/Cobrança levam o usuário pra `/configuracoes/...` via
+   * router — o componente é destruído e o preenchimento se perdia. Gravamos o
+   * valor bruto do form em sessionStorage a cada mudança e restauramos ao voltar.
+   *
+   * `draftRestored` alimenta o aviso na UI e impede que o default de
+   * `useContractTemplate` sobrescreva a escolha do usuário quando o GET do
+   * template responde depois da restauração.
+   * `draftSuspended` desliga o autosave depois de um clear intencional
+   * (submit bem-sucedido / cancelamento), evitando regravar o que acabou de sair.
+   */
+  protected readonly draftRestored = signal(false);
+  private readonly draftSuspended = signal(false);
+
+  private readonly draftAutosave = effect(() => {
+    // `formValue()` é só o gatilho; gravamos o raw value pra não perder
+    // controles desabilitados (ex.: automaticCharge no plano TRIAL).
+    this.formValue();
+    if (this.editingId() !== null || this.draftSuspended()) return;
+    this.draftService.save(this.form.getRawValue());
+  });
+
   ngOnInit(): void {
     // Determine mode up-front so the picker filters know whether to include
     // the current rental's vehicle/driver (edit escape hatch).
     const id = this.route.snapshot.paramMap.get('id');
     if (id) this.editingId.set(id);
     this.loadPickers(id);
+
+    // Create-only: recupera o que o usuário já tinha digitado antes de sair pra
+    // configurar uma integração. Em edição o backend é a fonte da verdade.
+    if (!id) this.restoreDraft();
 
     // Prime billing access (cached — no-op if already loaded elsewhere).
     this.billingAccess.load().subscribe();
@@ -263,8 +294,9 @@ export class RentalForm implements OnInit {
     this.contractTemplateService.get().subscribe({
       next: () => {
         this.hasContractTemplate.set(true);
-        // Só liga o default em criação; edição preserva o valor gravado.
-        if (!this.editingId()) {
+        // Só liga o default em criação; edição preserva o valor gravado e um
+        // rascunho restaurado preserva a escolha explícita do usuário.
+        if (!this.editingId() && !this.draftRestored()) {
           this.form.controls.useContractTemplate.setValue(true);
         }
       },
@@ -362,6 +394,41 @@ export class RentalForm implements OnInit {
       });
   }
 
+  /**
+   * Aplica o rascunho controle a controle: chaves desconhecidas (rascunho de uma
+   * versão antiga do form) são ignoradas em vez de estourar no `patchValue`.
+   * Emitimos eventos de propósito — os totais derivados vêm de `form.valueChanges`.
+   */
+  private restoreDraft(): void {
+    const draft = this.draftService.load();
+    if (!draft) return;
+    let applied = false;
+    for (const [key, value] of Object.entries(draft)) {
+      const control = this.form.get(key);
+      if (!control) continue;
+      control.setValue(value);
+      applied = true;
+    }
+    if (applied) this.draftRestored.set(true);
+  }
+
+  /** Descarta o rascunho e volta ao formulário em branco. */
+  protected discardDraft(): void {
+    this.draftService.clear();
+    this.draftRestored.set(false);
+    this.form.reset();
+    if (this.hasContractTemplate()) {
+      this.form.controls.useContractTemplate.setValue(true);
+    }
+  }
+
+  /** Saída intencional do fluxo — o rascunho não deve sobreviver. */
+  private dropDraft(): void {
+    this.draftSuspended.set(true);
+    this.draftService.clear();
+    this.draftRestored.set(false);
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -454,7 +521,11 @@ export class RentalForm implements OnInit {
     };
 
     this.rentalService.create(payload).subscribe({
-      next: (r) => this.router.navigate(['/alugueis', r.id]),
+      next: (r) => {
+        // Aluguel criado: o rascunho cumpriu sua função e some.
+        this.dropDraft();
+        this.router.navigate(['/alugueis', r.id]);
+      },
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);
         this.error.set(this.extractError(err, 'Não foi possível criar o aluguel.'));
@@ -482,6 +553,7 @@ export class RentalForm implements OnInit {
   }
 
   protected cancel(): void {
+    this.dropDraft();
     if (this.isEdit()) {
       this.router.navigate(['/alugueis', this.editingId()]);
     } else {

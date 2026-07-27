@@ -3,6 +3,24 @@
   [description]="isEdit() ? 'Edite os campos permitidos. Rentais concluídos/cancelados são somente leitura.' : 'Reserve um veículo para um motorista. Você escolhe se registra manualmente ou já dispara cobrança via Asaas.'"
 >
   <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3 sm:space-y-4">
+    <!-- 0: rascunho recuperado (ex.: voltou de "Configure agora" nas integrações) -->
+    @if (draftRestored()) {
+      <div role="status"
+        class="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm p-3
+               flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p class="min-w-0">
+          Recuperamos os dados que você já havia preenchido neste aluguel.
+        </p>
+        <button type="button"
+          (click)="discardDraft()"
+          class="self-start sm:self-auto shrink-0 underline font-medium rounded
+                 hover:text-emerald-950 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-emerald-600 focus-visible:ring-offset-2">
+          Começar do zero
+        </button>
+      </div>
+    }
+
     <!-- 1-4: veículo, motorista, datas, frequência -->
     <app-page-card title="Contrato">
       <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
