@@ -427,33 +427,93 @@ export class RentalDetail implements OnInit {
   protected readonly unmarkCaucaoOpen = signal(false);
   protected readonly caucaoBusy = signal(false);
 
-  /** Habilita "Marcar como pago" no placeholder (sem charge existente). */
-  protected readonly canMarkCaucaoAsPaidPlaceholder = computed<boolean>(() => {
+  /**
+   * Estado unificado "caução está paga?" — considera tanto o flag do rental
+   * (placeholder, sem charge) quanto o status PAID da charge CAUCAO ativa.
+   */
+  protected readonly caucaoIsPaid = computed<boolean>(() => {
     const r = this.rental();
     if (!r) return false;
-    return (
-      r.automaticCharge === false &&
-      r.caucaoAmount > 0 &&
-      !this.caucaoCharge()
-    );
+    const cc = this.caucaoCharge();
+    if (cc) return cc.status === 'PAID';
+    return r.caucaoPaid;
   });
 
-  /** Habilita "Desmarcar" no placeholder quando não há charge mas caucaoPaid=true. */
-  protected readonly canUnmarkCaucaoPlaceholder = computed<boolean>(() => {
+  /**
+   * Habilita o botão toggle único (mobile+desktop, placeholder+charge). Só
+   * disponível em rentals manuais com caução configurada, e no branch de
+   * charge respeita os mesmos gates de status usados nas linhas do cronograma.
+   */
+  protected readonly canToggleCaucaoPaid = computed<boolean>(() => {
     const r = this.rental();
     if (!r) return false;
-    return (
-      r.automaticCharge === false &&
-      r.caucaoPaid &&
-      !this.caucaoCharge()
-    );
+    if (r.automaticCharge !== false) return false;
+    if (r.caucaoAmount <= 0) return false;
+    const cc = this.caucaoCharge();
+    if (cc) return this.canMarkAsPaid(cc) || this.canUnmarkAsPaid(cc);
+    return true;
+  });
+
+  /** Label do botão toggle — flipa conforme `caucaoIsPaid`. */
+  protected readonly caucaoToggleLabel = computed<string>(() => {
+    if (this.caucaoIsPaidBusy()) {
+      return this.caucaoIsPaid() ? 'Desmarcando…' : 'Marcando…';
+    }
+    return this.caucaoIsPaid() ? 'Desmarcar' : 'Marcar como paga';
+  });
+
+  /** Aria-label acessível pro botão toggle (icon-less mas descritivo). */
+  protected readonly caucaoToggleAriaLabel = computed<string>(() =>
+    this.caucaoIsPaid() ? 'Desmarcar caução como paga' : 'Marcar caução como paga',
+  );
+
+  /**
+   * True enquanto qualquer operação relacionada à caução está in-flight.
+   * Cobre placeholder (`caucaoBusy`) + charge (mark/unmark quando o target
+   * é justamente a charge CAUCAO).
+   */
+  protected readonly caucaoIsPaidBusy = computed<boolean>(() => {
+    if (this.caucaoBusy()) return true;
+    const cc = this.caucaoCharge();
+    if (!cc) return false;
+    const markTarget = this.markPaidTarget();
+    if (markTarget?.id === cc.id && this.markPaidBusy()) return true;
+    const unmarkTarget = this.unmarkPaidTarget();
+    if (unmarkTarget?.id === cc.id && this.unmarkPaidBusy()) return true;
+    return false;
   });
 
   /** Valor da caução para o dialog (em centavos). */
   protected readonly caucaoAmountCents = computed<number>(() => this.rental()?.caucaoAmount ?? 0);
 
+  /**
+   * Handler unificado do botão toggle de caução. Despacha pro fluxo correto:
+   *  - Com charge CAUCAO existente: reusa mark/unmark de charge (dialog data
+   *    ou confirmDialog, conforme sentido).
+   *  - Sem charge (placeholder): abre dialog de data pra marcar, ou confirm
+   *    pra desmarcar (backend cria/atualiza a charge inline).
+   */
+  protected toggleCaucaoPaid(): void {
+    if (!this.canToggleCaucaoPaid() || this.caucaoIsPaidBusy()) return;
+    const cc = this.caucaoCharge();
+    if (cc) {
+      if (this.caucaoIsPaid()) {
+        this.askUnmarkPaid(cc);
+      } else {
+        this.askMarkPaid(cc);
+      }
+      return;
+    }
+    if (this.caucaoIsPaid()) {
+      this.askUnmarkCaucaoAsPaid();
+    } else {
+      this.askMarkCaucaoAsPaid();
+    }
+  }
+
   protected askMarkCaucaoAsPaid(): void {
-    if (!this.canMarkCaucaoAsPaidPlaceholder()) return;
+    const r = this.rental();
+    if (!r || r.automaticCharge !== false || r.caucaoAmount <= 0 || this.caucaoCharge()) return;
     this.markCaucaoOpen.set(true);
   }
 
@@ -485,7 +545,8 @@ export class RentalDetail implements OnInit {
   }
 
   protected askUnmarkCaucaoAsPaid(): void {
-    if (!this.canUnmarkCaucaoPlaceholder()) return;
+    const r = this.rental();
+    if (!r || r.automaticCharge !== false || !r.caucaoPaid || this.caucaoCharge()) return;
     this.unmarkCaucaoOpen.set(true);
   }
 
