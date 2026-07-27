@@ -205,8 +205,7 @@ interface Slot {
         <input
           #picker
           type="file"
-          accept="image/jpeg,image/png,image/webp"
-          capture="environment"
+          accept="image/*,image/heic,image/heif"
           hidden
           (change)="onFileSelected($event)"
         />
@@ -351,8 +350,14 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     this.pending = null;
     if (!file || !angle) return;
 
-    if (!/^image\/(jpeg|jpg|png|webp)$/i.test(file.type)) {
-      this.notifications.push('error', 'Formato inválido. Use JPG, PNG ou WebP.');
+    // iOS Safari envia HEIC/HEIF em fotos default; Android e desktop mandam JPG/PNG/WebP.
+    // Alguns navegadores enviam file.type vazio pra HEIC — deixamos passar e o backend valida.
+    const type = file.type.toLowerCase();
+    const isAllowed =
+      type === '' ||
+      /^image\/(jpeg|jpg|png|webp|heic|heif|heic-sequence|heif-sequence)$/i.test(type);
+    if (!isAllowed) {
+      this.notifications.push('error', 'Formato inválido. Use JPG, PNG, WebP ou HEIC.');
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
