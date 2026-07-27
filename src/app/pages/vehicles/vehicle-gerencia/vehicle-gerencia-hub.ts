@@ -160,26 +160,31 @@ export class VehicleGerenciaHub implements OnInit {
     return rentalStatusInfo(status);
   }
 
-  /** Sign-aware currency: negative results shown in red, positive in green. */
+  /**
+   * Sign-aware currency. Verde (`success-700`) só entra como "boa notícia
+   * confirmada" — lucro positivo; prejuízo fica em rose e o neutro em Carbon.
+   * Regra do guia de identidade: "Green appears only when something is
+   * confirmed, verified or good news."
+   */
   protected resultClass(cents: number): string {
-    if (cents > 0) return 'text-emerald-700';
+    if (cents > 0) return 'text-success-700';
     if (cents < 0) return 'text-rose-700';
     return 'text-neutral-900';
   }
 
   /**
    * Color for the "Recebido" amount vs contracted revenue:
-   * - equal (fully paid) → emerald
+   * - equal (fully paid) → verde `success-700` (confirmado — único caso de verde)
    * - < revenue but > 0 (partial) → amber
-   * - 0 with revenue > 0 → neutral gray (hint shown separately)
-   * - both zero → neutral
+   * - 0 with revenue > 0 → Smoke (hint shown separately)
+   * - both zero → Carbon
    */
   protected receivedClass(finance: GerenciaFinanceChunk): string {
     const rev = finance.totalRentalRevenueCents;
     const recv = finance.totalRentalReceivedCents;
     if (rev === 0 && recv === 0) return 'text-neutral-900';
     if (recv === 0) return 'text-neutral-500';
-    if (recv >= rev) return 'text-emerald-700';
+    if (recv >= rev) return 'text-success-700';
     return 'text-amber-700';
   }
 

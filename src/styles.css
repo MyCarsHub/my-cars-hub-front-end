@@ -6,13 +6,30 @@
   --color-primary-400: #FF5722;
   --color-primary-low: #FFE6DD;
   --color-primary-50: #FFF5F0;
+  /* Shades abaixo faltavam no @theme — Tailwind v4 só gera utility para o que
+     está declarado aqui, então `text-primary-700`, `hover:bg-primary-700`,
+     `hover:border-primary-300` etc. não emitiam CSS nenhum e simplesmente não
+     pintavam. Valores vindos da rampa canônica do guia de identidade visual
+     (documentation/docs/07-development-guides/frontend-guidelines-visual-indentify.md,
+     apêndice `--orange-050..900`); 200 e 800 são interpolações da mesma rampa. */
+  --color-primary-100: #FFD9C9;
+  --color-primary-200: #FFB699;
+  --color-primary-300: #FF8558;
+  --color-primary-700: #C22F00;
+  --color-primary-800: #982500;
+  --color-primary-900: #6E1B00;
 
   --color-black: #0F0F0F;
   --color-white: #FFFFFF;
   --color-gray-50: #F2F2F2;
 
+  /* Line — borda/divisor canônico de card (#DDDDDD no guia de identidade). */
+  --color-line: #DDDDDD;
+
   --color-success-500: #22C55E;
   --color-success-50: #F0FDF4;
+  /* Verde "confirmado" do guia (green-700) — usado em valor/texto sobre branco. */
+  --color-success-700: #0B8A61;
 
   /* Landing/Blog tokens expostos como utilities Tailwind.
      bg-brand, text-ink, border-rule, font-display etc funcionam automático. */
