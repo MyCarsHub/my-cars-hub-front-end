@@ -237,18 +237,28 @@
                   >
                     {{ chargeStatusInfo(cc.status).label }}
                   </span>
-                  @if (canToggleCaucaoPaid()) {
+                  @if (canMarkAsPaid(cc)) {
                     <button
                       type="button"
-                      (click)="toggleCaucaoPaid()"
-                      [disabled]="caucaoIsPaidBusy()"
-                      class="min-h-11 px-3 py-2 rounded-lg text-xs font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition disabled:opacity-60
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                      [attr.aria-label]="caucaoToggleAriaLabel()"
-                      [attr.aria-pressed]="caucaoIsPaid()"
+                      (click)="askMarkPaid(cc)"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Marcar caução como paga"
                     >
-                      {{ caucaoToggleLabel() }}
+                      Marcar como paga
+                    </button>
+                  }
+                  @if (canUnmarkAsPaid(cc)) {
+                    <button
+                      type="button"
+                      (click)="askUnmarkPaid(cc)"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                             hover:bg-primary-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      aria-label="Desmarcar caução como paga"
+                    >
+                      Desmarcar
                     </button>
                   }
                 </div>
@@ -296,18 +306,26 @@
                     </td>
                     <td class="py-2.5 pr-4 text-right">
                       <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canToggleCaucaoPaid()) {
+                        @if (canMarkAsPaid(cc)) {
                           <button
                             type="button"
-                            (click)="toggleCaucaoPaid()"
-                            [disabled]="caucaoIsPaidBusy()"
-                            class="min-h-11 px-3 py-2 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition disabled:opacity-60
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                            [attr.aria-label]="caucaoToggleAriaLabel()"
-                            [attr.aria-pressed]="caucaoIsPaid()"
+                            (click)="askMarkPaid(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   hover:bg-emerald-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                           >
-                            {{ caucaoToggleLabel() }}
+                            Marcar como paga
+                          </button>
+                        }
+                        @if (canUnmarkAsPaid(cc)) {
+                          <button
+                            type="button"
+                            (click)="askUnmarkPaid(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   hover:bg-primary-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                          >
+                            Desmarcar
                           </button>
                         }
                       </div>
@@ -341,18 +359,28 @@
                   >
                     Não gerada
                   </span>
-                  @if (canToggleCaucaoPaid()) {
+                  @if (canMarkCaucaoAsPaidPlaceholder()) {
                     <button
                       type="button"
-                      (click)="toggleCaucaoPaid()"
-                      [disabled]="caucaoIsPaidBusy()"
-                      class="min-h-11 px-3 py-2 rounded-lg text-xs font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition disabled:opacity-60
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                      [attr.aria-label]="caucaoToggleAriaLabel()"
-                      [attr.aria-pressed]="caucaoIsPaid()"
+                      (click)="askMarkCaucaoAsPaid()"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Marcar caução como paga"
                     >
-                      {{ caucaoToggleLabel() }}
+                      Marcar como paga
+                    </button>
+                  }
+                  @if (canUnmarkCaucaoPlaceholder()) {
+                    <button
+                      type="button"
+                      (click)="askUnmarkCaucaoAsPaid()"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                             hover:bg-primary-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      aria-label="Desmarcar caução como paga"
+                    >
+                      Desmarcar
                     </button>
                   }
                 </div>
@@ -387,18 +415,26 @@
                     </td>
                     <td class="py-2.5 pr-4 text-right">
                       <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canToggleCaucaoPaid()) {
+                        @if (canMarkCaucaoAsPaidPlaceholder()) {
                           <button
                             type="button"
-                            (click)="toggleCaucaoPaid()"
-                            [disabled]="caucaoIsPaidBusy()"
-                            class="min-h-11 px-3 py-2 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition disabled:opacity-60
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                            [attr.aria-label]="caucaoToggleAriaLabel()"
-                            [attr.aria-pressed]="caucaoIsPaid()"
+                            (click)="askMarkCaucaoAsPaid()"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   hover:bg-emerald-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                           >
-                            {{ caucaoToggleLabel() }}
+                            Marcar como paga
+                          </button>
+                        }
+                        @if (canUnmarkCaucaoPlaceholder()) {
+                          <button
+                            type="button"
+                            (click)="askUnmarkCaucaoAsPaid()"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   hover:bg-primary-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                          >
+                            Desmarcar
                           </button>
                         }
                       </div>
