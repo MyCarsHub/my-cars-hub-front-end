@@ -1,18 +1,29 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DOCUMENT,
+  OnDestroy,
   OnInit,
+  PLATFORM_ID,
   computed,
   inject,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PlanCardComponent } from '../../components/core/plan-card/plan-card';
-import { BillingService } from '../../services/billing.service';
+import {
+  BillingService,
+  CHECKOUT_PENDING_KEY,
+  CHECKOUT_PLAN_CODE_KEY,
+  isFreePlanInForce,
+} from '../../services/billing.service';
+import { BillingAccessService } from '../../services/billing-access.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import {
   BillingCycle,
@@ -20,8 +31,45 @@ import {
   PlanGateway,
   PlanPeriod,
   PlanResponse,
-  SubscriptionResponse,
+  SubscriptionChangeOutcome,
+  SubscriptionStatus,
 } from '../../types/billing.types';
+
+/**
+ * What the CTA of a given plan card means for THIS customer. Derived from
+ * (subscription status × current plan × target plan) — never from the plan
+ * code alone, which is what let an unpaid checkout render as "Plano atual".
+ */
+export type PlanIntent =
+  | 'CURRENT'
+  | 'PENDING_PAYMENT'
+  | 'SUBSCRIBE'
+  | 'UPGRADE'
+  /** Target is the FREE plan — the only thing `/downgrade` accepts. */
+  | 'DOWNGRADE'
+  /**
+   * Cheaper PAID plan, same period. The backend answers 400 on `/downgrade`
+   * for a paid target, so this is a brand new checkout, not a schedule.
+   */
+  | 'PLAN_SWITCH'
+  | 'SCHEDULED'
+  /** Mensal → Anual. New paid commitment, no proration on the month left. */
+  | 'PERIOD_UPGRADE'
+  /** Anual → Mensal. Burns the remainder of an already-paid year. */
+  | 'PERIOD_DOWNGRADE';
+
+/** `visibilitychange` + `focus` fire together; don't double-fetch. */
+const REVALIDATE_THROTTLE_MS = 2000;
+
+/** While waiting for the webhook, re-read `/subscription` on this cadence. */
+const AWAIT_PAYMENT_POLL_MS = 2500;
+
+/**
+ * Hard bound on "verificando pagamento". The webhook may never land (abandoned
+ * checkout); after this the page goes back to a fully interactive state so the
+ * user can retry instead of staring at disabled buttons forever.
+ */
+const AWAIT_PAYMENT_TIMEOUT_MS = 30000;
 
 @Component({
   selector: 'app-billing',
@@ -30,10 +78,15 @@ import {
   styleUrl: './billing.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Billing implements OnInit {
+export class Billing implements OnInit, OnDestroy {
   private readonly billingService = inject(BillingService);
+  private readonly access = inject(BillingAccessService);
   private readonly session = inject(SessionService);
   private readonly externalNav = inject(ExternalNavigationService);
+  private readonly notifications = inject(NotificationService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly document = inject(DOCUMENT);
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   protected readonly isPlatformAdmin = this.session.isPlatformAdmin();
   protected readonly adminGateway = signal<GatewayOverride>('stripe');
@@ -44,12 +97,30 @@ export class Billing implements OnInit {
   protected readonly error = this.billingService.error;
 
   protected readonly cycle = signal<BillingCycle>('MONTHLY');
-  protected readonly redirecting = signal(false);
-  protected readonly showCancelDialog = signal(false);
   protected readonly expandedPlanId = signal<string | null>(null);
   protected readonly showCompare = signal(false);
 
+  /** Plan whose CTA is currently in flight (per-card spinner + per-card error). */
+  protected readonly busyPlanId = signal<string | null>(null);
+  /** Error scoped to the card the user just clicked, not a banner off-screen. */
+  protected readonly ctaError = signal<{ planId: string; message: string } | null>(null);
+  /** True from "checkout started" until we have revalidated after the return. */
+  protected readonly awaitingPayment = signal(false);
+  protected readonly accountActionBusy = signal(false);
+
+  protected readonly showCancelDialog = signal(false);
+  protected readonly downgradeTarget = signal<PlanResponse | null>(null);
+  /** Mensal↔Anual target awaiting an explicit, informed confirmation. */
+  protected readonly periodSwitchTarget = signal<PlanResponse | null>(null);
+
   protected readonly recommendedName = 'PRO';
+
+  private visibilityListener: (() => void) | null = null;
+  private focusListener: (() => void) | null = null;
+  private lastRevalidateAt = 0;
+  /** Poll handle + hard deadline for the post-gateway "verificando" window. */
+  private awaitPollHandle: ReturnType<typeof setInterval> | null = null;
+  private awaitDeadline = 0;
 
   /**
    * Which gateway to render. PLATFORM_ADMIN can switch; everyone else sees
@@ -80,7 +151,192 @@ export class Billing implements OnInit {
     this.cycle() === 'YEARLY' ? 'text-emerald-700' : 'text-brand-strong',
   );
 
-  protected readonly currentPlanCode = computed(() => this.subscription()?.planCode ?? null);
+  // ---------------------------------------------------------------------------
+  // Subscription truth — status FIRST, plan second.
+  // ---------------------------------------------------------------------------
+
+  protected readonly status = computed<SubscriptionStatus | null>(
+    () => this.subscription()?.status ?? null,
+  );
+
+  /** A subscription row is in force (free or paid). */
+  protected readonly isActive = computed(() => this.status() === 'ACTIVE');
+
+  /**
+   * ACTIVE on the FREE plan. After an applied downgrade the backend keeps the
+   * subscription ACTIVE with `currentPeriodEnd: null`, so status alone can no
+   * longer be read as "assinatura paga vigente".
+   */
+  protected readonly isFreeActive = computed(() =>
+    isFreePlanInForce(this.subscription(), this.plans()),
+  );
+
+  /** The subscription is PAID and in force — the only "assinatura vigente". */
+  protected readonly isPaidActive = computed(() => this.isActive() && !this.isFreeActive());
+
+  protected readonly isTrialing = computed(() => this.status() === 'TRIALING');
+
+  /**
+   * The plan actually in force — free plans included, since a free ACTIVE plan
+   * genuinely IS the current plan. `null` unless the subscription is ACTIVE: an
+   * abandoned checkout must never mark a card as the current plan (that both
+   * lied to the user and disabled the button they needed to retry).
+   */
+  protected readonly currentPlanCode = computed<string | null>(() =>
+    this.isActive() ? (this.subscription()?.planCode ?? null) : null,
+  );
+
+  /** Checkout started, payment NOT confirmed. */
+  protected readonly pendingPlanCode = computed<string | null>(() => {
+    const sub = this.subscription();
+    if (!sub) return null;
+    if (sub.pendingPlanCode) return sub.pendingPlanCode;
+    // Fallback for backends that don't send `pendingPlanCode` yet: a
+    // non-active, non-trial subscription pointing at a paid plan is pending.
+    const status = sub.status;
+    if (status === 'PENDING' || status === 'INCOMPLETE') return sub.planCode;
+    return null;
+  });
+
+  protected readonly pendingPlan = computed<PlanResponse | null>(() => {
+    const code = this.pendingPlanCode();
+    if (!code) return null;
+    return this.plans().find((p) => p.code === code) ?? null;
+  });
+
+  protected readonly pendingPlanName = computed<string | null>(
+    () => this.pendingPlan()?.name ?? this.pendingPlanCode(),
+  );
+
+  protected readonly scheduledDowngradeCode = computed<string | null>(
+    () => this.subscription()?.scheduledDowngradePlanCode ?? null,
+  );
+
+  protected readonly scheduledDowngradeName = computed<string | null>(() => {
+    const code = this.scheduledDowngradeCode();
+    if (!code) return null;
+    return this.plans().find((p) => p.code === code)?.name ?? code;
+  });
+
+  protected readonly scheduledDowngradeAt = computed<string | null>(
+    () => this.subscription()?.scheduledDowngradeAt ?? null,
+  );
+
+  /** Eyebrow above the hero title. Only a PAID ACTIVE plan earns "Plano atual". */
+  protected readonly heroEyebrow = computed<string>(() => {
+    if (this.isFreeActive()) return 'Plano gratuito';
+    switch (this.status()) {
+      case 'ACTIVE':
+        return 'Plano atual';
+      case 'TRIALING':
+        return 'Período de teste';
+      case 'CANCELED':
+      case 'EXPIRED':
+        return 'Assinatura encerrada';
+      default:
+        return 'Assinatura';
+    }
+  });
+
+  protected readonly heroPlanTitle = computed<string>(() => {
+    const sub = this.subscription();
+    if (!sub) return 'Sem plano ativo';
+    switch (sub.status) {
+      case 'PENDING':
+      case 'INCOMPLETE':
+        return 'Nenhum plano ativo';
+      default:
+        return sub.planName || 'Sem plano ativo';
+    }
+  });
+
+  /** Honest one-liner explaining a non-ACTIVE state. */
+  protected readonly heroNotice = computed<string | null>(() => {
+    const sub = this.subscription();
+    if (!sub) return null;
+    if (this.isFreeActive()) {
+      return 'Você está no plano gratuito, sem cobranças. Escolha um plano pago para liberar todos os recursos.';
+    }
+    switch (sub.status) {
+      case 'ACTIVE':
+        return null;
+      case 'TRIALING':
+        return 'Você está no período de teste — nenhum pagamento foi confirmado ainda.';
+      case 'PENDING':
+      case 'INCOMPLETE':
+        return 'Seu pagamento ainda não foi confirmado. Conclua o pagamento para liberar o plano.';
+      case 'PAST_DUE':
+      case 'UNPAID':
+        return 'Não conseguimos confirmar a última cobrança. Regularize o pagamento para manter o acesso.';
+      case 'PAUSED':
+        return 'Sua assinatura está pausada.';
+      case 'CANCELED':
+      case 'EXPIRED':
+        return 'Sua assinatura não está mais ativa. Escolha um plano para voltar a usar tudo.';
+      default:
+        return 'Não reconhecemos o status desta assinatura. Se algo parecer errado, fale com o suporte.';
+    }
+  });
+
+  /**
+   * Reactivate is the way out of the "cancel scheduled" dead end — but the
+   * backend only accepts it on an ACTIVE subscription whose paid period has NOT
+   * run out yet. Showing the button to a TRIALING user who cancelled — or to an
+   * ACTIVE one whose `currentPeriodEnd` is already in the past — guaranteed a
+   * 400 + error toast every time.
+   */
+  protected readonly canReactivate = computed<boolean>(() => {
+    const sub = this.subscription();
+    // Nothing to reactivate on a free plan: there is no paid commitment and no
+    // scheduled cancellation to undo.
+    if (this.isFreeActive()) return false;
+    if (sub?.status !== 'ACTIVE' || sub.cancelAtPeriodEnd !== true) return false;
+    // Expired period → the only way back is a new payment, not /reactivate.
+    // A NULL `currentPeriodEnd` is "we don't know", not "expired": hiding the
+    // button there would strand a paid subscriber whose period end is
+    // momentarily absent. The backend still arbitrates, and a 400 already
+    // routes the user to the plans with an explanation.
+    if (sub.currentPeriodEnd === null) return true;
+    return this.daysLeftInPaidPeriod() > 0;
+  });
+
+  protected readonly canCancel = computed<boolean>(() => {
+    const sub = this.subscription();
+    if (!sub) return false;
+    if (sub.cancelAtPeriodEnd) return false;
+    // A free ACTIVE plan is the floor — "Cancelar assinatura" would be a 400
+    // and means nothing to the user.
+    if (this.isFreeActive()) return false;
+    return sub.status === 'ACTIVE' || sub.status === 'TRIALING' || sub.status === 'PAST_DUE';
+  });
+
+  // ---------------------------------------------------------------------------
+  // Blocked-access reason (arrives as `?reason=` from the guard / paywall).
+  // ---------------------------------------------------------------------------
+
+  protected readonly blockedReason = signal<string | null>(null);
+
+  protected readonly blockedMessage = computed<string | null>(() => {
+    switch (this.blockedReason()) {
+      case 'TRIAL_EXPIRED':
+        return 'Seu período de teste terminou. Escolha um plano para voltar a usar a plataforma.';
+      case 'PAYMENT_FAILED':
+      case 'PAST_DUE':
+        return 'Não conseguimos confirmar seu pagamento. Regularize para reabrir o acesso.';
+      case 'CANCELED':
+        return 'Sua assinatura foi cancelada. Escolha um plano para retomar o acesso.';
+      case 'NO_SUBSCRIPTION':
+        return 'Você precisa de um plano ativo para acessar o restante da plataforma.';
+      case null:
+        return null;
+      default:
+        return 'O acesso à plataforma está bloqueado até você ter um plano ativo.';
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Plan rows
+  // ---------------------------------------------------------------------------
 
   /**
    * Rows filtered by current gateway + selected period, one row per `name`.
@@ -141,8 +397,8 @@ export class Billing implements OnInit {
   });
 
   /**
-   * The exact row that matches the customer's current subscription
-   * (same code). This is a single (name, period, gateway) row already.
+   * The exact row backing the subscription in force. `null` while the
+   * subscription is not ACTIVE.
    */
   protected currentPlan = computed<PlanResponse | null>(() => {
     const code = this.currentPlanCode();
@@ -150,7 +406,9 @@ export class Billing implements OnInit {
     return this.plans().find((p) => p.code === code) ?? null;
   });
 
+  /** Paid gradient only when the plan is really paid and active. */
   protected readonly currentHeroBackground = computed<string | null>(() => {
+    if (!this.isPaidActive()) return null;
     const sub = this.subscription();
     if (!sub) return null;
     const name = (sub.planName ?? '').toUpperCase();
@@ -164,19 +422,115 @@ export class Billing implements OnInit {
     this.currentHeroBackground() ? 'text-white/80' : 'text-neutral-400',
   );
 
-  protected readonly currentHeroGlow = computed<string>(() => {
-    const sub = this.subscription();
-    if (!sub) return 'rgba(235,63,0,0.25)';
-    const name = (sub.planName ?? '').toUpperCase();
-    const isPaid = name === 'PRO' || name === 'ENTERPRISE' || name === 'BUSINESS';
-    if (!isPaid) return 'rgba(235,63,0,0.25)';
-    return 'rgba(255,255,255,0.20)';
-  });
+  protected readonly currentHeroGlow = computed<string>(() =>
+    this.currentHeroBackground() ? 'rgba(255,255,255,0.20)' : 'rgba(235,63,0,0.25)',
+  );
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngOnInit(): void {
+    this.blockedReason.set(this.route.snapshot.queryParamMap.get('reason'));
+
+    if (this.isBrowser && this.session.getItem(CHECKOUT_PENDING_KEY) === 'true') {
+      // We came back from the gateway in the same tab: keep the "verificando"
+      // state up until the PAID plan actually lands (the webhook is async, so
+      // the very first `/subscription` read almost never shows it yet).
+      this.awaitingPayment.set(true);
+      this.awaitDeadline = Date.now() + AWAIT_PAYMENT_TIMEOUT_MS;
+      this.awaitPollHandle = setInterval(
+        () => this.refreshSubscription(),
+        AWAIT_PAYMENT_POLL_MS,
+      );
+    }
+
     this.billingService.loadPlans().subscribe({ error: () => void 0 });
-    this.billingService.loadSubscription().subscribe({ error: () => void 0 });
+    this.refreshSubscription();
+
+    if (!this.isBrowser) return;
+    this.visibilityListener = () => {
+      if (this.document.visibilityState === 'visible') this.revalidate();
+    };
+    this.focusListener = () => this.revalidate();
+    this.document.addEventListener('visibilitychange', this.visibilityListener);
+    window.addEventListener('focus', this.focusListener);
   }
+
+  ngOnDestroy(): void {
+    this.stopAwaitPolling();
+    if (!this.isBrowser) return;
+    if (this.visibilityListener) {
+      this.document.removeEventListener('visibilitychange', this.visibilityListener);
+      this.visibilityListener = null;
+    }
+    if (this.focusListener) {
+      window.removeEventListener('focus', this.focusListener);
+      this.focusListener = null;
+    }
+  }
+
+  /**
+   * Re-read subscription + access status when the user comes back to the app
+   * (gateway tab closed, app switched back). Without this the page keeps
+   * showing whatever it rendered before the user left for the checkout.
+   */
+  protected revalidate(): void {
+    // `visibilitychange` and `focus` both fire on return from the gateway;
+    // collapse the burst into a single round-trip.
+    const now = Date.now();
+    if (now - this.lastRevalidateAt < REVALIDATE_THROTTLE_MS) return;
+    this.lastRevalidateAt = now;
+
+    this.access.invalidate();
+    this.access.load().subscribe({ error: () => void 0 });
+    this.refreshSubscription();
+  }
+
+  private refreshSubscription(): void {
+    this.billingService.loadSubscription().subscribe({
+      next: () => this.settlePendingPayment(),
+      error: () => this.settlePendingPayment(),
+    });
+  }
+
+  /**
+   * Leave the "processando pagamento" state only when the wait is genuinely
+   * over. Fresh backend DATA is not enough: the very first `/subscription` read
+   * after the gateway round-trip happens before the webhook lands, and dropping
+   * the flag there announced "nada aconteceu" for a payment still in flight.
+   *
+   * We settle when the paid plan is actually in force, when the backend no
+   * longer reports a pending checkout (abandoned / cancelled), or when the hard
+   * deadline expires — never leaving every CTA disabled with no way out.
+   */
+  private settlePendingPayment(): void {
+    if (this.awaitingPayment()) {
+      const settled =
+        this.isPaidActive() || this.pendingPlanCode() === null || Date.now() >= this.awaitDeadline;
+      if (!settled) return;
+      this.awaitingPayment.set(false);
+    }
+    this.stopAwaitPolling();
+    this.clearCheckoutMarkers();
+  }
+
+  private stopAwaitPolling(): void {
+    if (this.awaitPollHandle) {
+      clearInterval(this.awaitPollHandle);
+      this.awaitPollHandle = null;
+    }
+  }
+
+  private clearCheckoutMarkers(): void {
+    if (!this.isBrowser) return;
+    this.session.removeItem(CHECKOUT_PENDING_KEY);
+    this.session.removeItem(CHECKOUT_PLAN_CODE_KEY);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Formatting helpers
+  // ---------------------------------------------------------------------------
 
   protected setCycle(cycle: BillingCycle): void {
     this.cycle.set(cycle);
@@ -186,9 +540,7 @@ export class Billing implements OnInit {
     this.adminGateway.set(g);
   }
 
-  /**
-   * Monthly-equivalent price for a plan row. For yearly rows returns price/12.
-   */
+  /** Monthly-equivalent price for a plan row. Yearly rows return price/12. */
   protected monthlyEquivalent(plan: PlanResponse): number {
     return plan.period === 'MONTHLY' ? plan.price : plan.price / 12;
   }
@@ -217,40 +569,108 @@ export class Billing implements OnInit {
     }).format(date);
   }
 
-  protected statusLabel(status: SubscriptionResponse['status']): string {
+  protected statusLabel(status: SubscriptionStatus): string {
     switch (status) {
+      case 'PENDING':
+      case 'INCOMPLETE':
+        return 'Aguardando pagamento';
       case 'TRIALING':
-        return 'Período de Teste';
+        return 'Período de teste';
       case 'ACTIVE':
         return 'Ativa';
       case 'PAST_DUE':
-        return 'Pagamento Pendente';
+      case 'UNPAID':
+        return 'Pagamento pendente';
+      case 'PAUSED':
+        return 'Pausada';
       case 'CANCELED':
         return 'Cancelada';
       case 'EXPIRED':
         return 'Expirada';
+      default:
+        return 'Status desconhecido';
     }
   }
 
-  protected statusBadgeClass(status: SubscriptionResponse['status']): string {
+  protected statusBadgeClass(status: SubscriptionStatus): string {
     switch (status) {
       case 'ACTIVE':
-      case 'TRIALING':
         return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'TRIALING':
+      case 'PENDING':
+      case 'INCOMPLETE':
       case 'PAST_DUE':
+      case 'UNPAID':
+      case 'PAUSED':
         return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'CANCELED':
       case 'EXPIRED':
         return 'bg-rose-100 text-rose-800 border-rose-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   }
+
+  protected statusDotClass(status: SubscriptionStatus): string {
+    switch (status) {
+      case 'ACTIVE':
+        return 'bg-emerald-500';
+      case 'TRIALING':
+      case 'PENDING':
+      case 'INCOMPLETE':
+      case 'PAUSED':
+        return 'bg-amber-500';
+      case 'PAST_DUE':
+      case 'UNPAID':
+        return 'bg-rose-500';
+      case 'CANCELED':
+      case 'EXPIRED':
+        return 'bg-gray-400';
+      default:
+        return 'bg-gray-400';
+    }
+  }
+
+  protected statusPillClass(status: SubscriptionStatus): string {
+    switch (status) {
+      case 'ACTIVE':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'TRIALING':
+      case 'PENDING':
+      case 'INCOMPLETE':
+      case 'PAUSED':
+        return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'PAST_DUE':
+      case 'UNPAID':
+        return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'CANCELED':
+      case 'EXPIRED':
+        return 'bg-gray-50 text-gray-700 border-gray-200';
+      default:
+        return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plan card presentation
+  // ---------------------------------------------------------------------------
 
   protected trackByPlanId(_i: number, plan: PlanResponse): string {
     return plan.id;
   }
 
+  /** True only when the plan is paid, active and in force. */
   protected isCurrent(plan: PlanResponse): boolean {
     return this.currentPlanCode() === plan.code;
+  }
+
+  protected isPending(plan: PlanResponse): boolean {
+    return this.pendingPlanCode() === plan.code;
+  }
+
+  /** Mobile ordering: the card that matters to this user comes first. */
+  protected isPrioritized(plan: PlanResponse): boolean {
+    return this.isPending(plan) || this.isCurrent(plan);
   }
 
   protected isRecommended(plan: PlanResponse): boolean {
@@ -267,17 +687,13 @@ export class Billing implements OnInit {
     return 'trial';
   }
 
-  /** Feature lists mirroring landing-pricing (hardcoded per tier). */
+  /** Fallback feature lists, used only when the API carries no limits. */
   private readonly trialFeatures: readonly string[] = [
-    'Até 2 veículos',
-    'Até 3 motoristas',
     'Contratos, cobranças, multas, manutenções',
     'Suporte por email',
   ];
 
   private readonly proFeatures: readonly string[] = [
-    'Até 20 veículos',
-    'Motoristas ilimitados',
     'Cobranças automáticas por Asaas e Stripe',
     'Assinatura eletrônica com validade jurídica',
     'Vistoria digital completa em 14 ângulos por veículo',
@@ -286,7 +702,6 @@ export class Billing implements OnInit {
   ];
 
   private readonly businessFeatures: readonly string[] = [
-    'Veículos ilimitados',
     'Multi-empresa ilimitado (cadastre suas filiais)',
     'Usuários e papéis ilimitados',
     'Relatórios avançados exportáveis',
@@ -295,7 +710,6 @@ export class Billing implements OnInit {
   ];
 
   private readonly enterpriseFeatures: readonly string[] = [
-    'Veículos ilimitados',
     'Multi-marca / multi-filial',
     'Usuários e papéis ilimitados',
     'Integrações premium (ERP, telemetria)',
@@ -303,11 +717,30 @@ export class Billing implements OnInit {
     'Gerente de conta',
   ];
 
+  /** Human label for a plan limit — `null` from the API means unlimited. */
+  private limitLabel(value: number | null | undefined, singular: string, plural: string): string {
+    if (value === null) return `${plural} ilimitados`;
+    if (value === undefined) return '';
+    return value === 1 ? `1 ${singular}` : `Até ${value} ${plural}`;
+  }
+
+  /**
+   * Feature bullets. The capacity lines come from the API row (so the card
+   * can't contradict the plan the backend actually sells); the qualitative
+   * lines stay curated per tier.
+   */
   protected planFeatures(plan: PlanResponse): readonly string[] {
-    if (this.isRecommended(plan)) return this.proFeatures;
-    if (plan.name === 'ENTERPRISE') return this.enterpriseFeatures;
-    if (this.isBusinessPlan(plan)) return this.businessFeatures;
-    return this.trialFeatures;
+    const out: string[] = [];
+    const vehicles = this.limitLabel(plan.vehicleLimit, 'veículo', 'veículos');
+    if (vehicles) out.push(vehicles);
+    const drivers = this.limitLabel(plan.driverLimit, 'motorista', 'motoristas');
+    if (drivers) out.push(drivers);
+    if (plan.trialDays > 0) out.push(`${plan.trialDays} dias de teste grátis`);
+
+    if (this.isRecommended(plan)) return [...out, ...this.proFeatures];
+    if (plan.name === 'ENTERPRISE') return [...out, ...this.enterpriseFeatures];
+    if (this.isBusinessPlan(plan)) return [...out, ...this.businessFeatures];
+    return [...out, ...this.trialFeatures];
   }
 
   protected planSubtitle(plan: PlanResponse): string | null {
@@ -322,7 +755,6 @@ export class Billing implements OnInit {
       const savings = this.planYearlySavingsByName(plan.name);
       if (savings > 0) {
         // Preview the effective monthly if user switched to yearly.
-        // Look up the yearly row of the same name/gateway.
         const gw = this.activeGateway();
         const yearlyRow = this.plans().find(
           (p) => p.name === plan.name && p.gateway === gw && p.period === 'YEARLY',
@@ -337,24 +769,177 @@ export class Billing implements OnInit {
 
   protected planDescription(plan: PlanResponse): string | null {
     if (this.isRecommended(plan)) return 'Pra operações que precisam de mais capacidade.';
-    if (plan.name === 'ENTERPRISE')
-      return 'Frota grande, integrações premium, suporte dedicado.';
+    if (plan.name === 'ENTERPRISE') return 'Frota grande, integrações premium, suporte dedicado.';
     if (this.isBusinessPlan(plan))
       return 'Pra frotas grandes, multi-filial, com integrações customizadas.';
     return null;
   }
 
   protected planRibbon(plan: PlanResponse): string | null {
+    if (this.isPending(plan)) return 'Aguardando pagamento';
+    if (this.scheduledDowngradeCode() === plan.code) return 'Mudança agendada';
     if (this.isRecommended(plan)) return 'Mais popular';
     if (this.isBusinessPlan(plan)) return 'Sua frota cresceu?';
     return null;
   }
 
+  /**
+   * The core branch: what does clicking this card mean? Compares the TARGET
+   * plan against the plan actually in force, so a downgrade can never be
+   * routed into `/checkout`.
+   */
+  protected planIntent(plan: PlanResponse): PlanIntent {
+    if (this.isPending(plan)) return 'PENDING_PAYMENT';
+    if (this.isCurrent(plan)) return 'CURRENT';
+    if (this.scheduledDowngradeCode() === plan.code) return 'SCHEDULED';
+
+    // The FREE row is never something you buy. It is either the plan already in
+    // force, or a `/downgrade` destination — never a `/checkout`. Classified
+    // BEFORE everything else: the free row is MONTHLY, so a YEARLY subscriber
+    // would otherwise fall into the period branch and be sent to /checkout for
+    // a R$ 0,00 plan, which the backend answers with a 400.
+    if (this.isFreePlan(plan)) return this.freePlanIntent();
+
+    const current = this.currentPlan();
+    if (!current) return 'SUBSCRIBE';
+
+    // Nothing paid is in force: every paid target is a plain first checkout,
+    // and there is no paid period a period switch could burn.
+    if (current.price <= 0) return 'UPGRADE';
+
+    // A PERIOD change is its own thing and must be classified BEFORE the price
+    // comparison. Comparing monthly-equivalents made PRO_YEARLY → PRO_MONTHLY
+    // look like an UPGRADE (or a DOWNGRADE), and either verdict routed the
+    // user somewhere that silently burns the year they already paid for:
+    // the backend charges the new cycle immediately and cancels the old one
+    // with NO proration and NO refund.
+    if (plan.period !== current.period) {
+      return current.period === 'YEARLY' ? 'PERIOD_DOWNGRADE' : 'PERIOD_UPGRADE';
+    }
+
+    // Same period, cheaper, but PAID: `/downgrade` answers 400 for a paid
+    // target ("…exige um novo checkout"), so this is a checkout, not a
+    // scheduled change.
+    const target = this.monthlyEquivalent(plan);
+    const currentValue = this.monthlyEquivalent(current);
+    return target > currentValue ? 'UPGRADE' : 'PLAN_SWITCH';
+  }
+
+  protected isFreePlan(plan: PlanResponse): boolean {
+    return plan.price <= 0;
+  }
+
+  /**
+   * What the FREE card means. Only two answers are ever allowed — `CURRENT`
+   * (non-actionable) or `DOWNGRADE` (goes to `/downgrade`); a R$ 0,00 plan must
+   * never reach `/checkout`.
+   *
+   * Labelling it CURRENT for every non-paid status was a dead end: a
+   * PAST_DUE / CANCELED / EXPIRED user is BLOCKED by `BillingAccessService`
+   * while this card told them the free plan was already theirs, leaving paying
+   * again as the only exit.
+   */
+  private freePlanIntent(): PlanIntent {
+    // The backend confirms a free plan actually in force.
+    if (this.isFreeActive()) return 'CURRENT';
+    if (this.canReturnToFree()) return 'DOWNGRADE';
+    // No subscription row at all, or a trial still running: free is already the
+    // floor this account falls back to, so there is nothing to downgrade to.
+    return 'CURRENT';
+  }
+
+  /**
+   * Statuses from which "voltar ao plano gratuito" is a real, useful action.
+   * An unknown status stays out: we do not fire a state-changing request on a
+   * state we cannot reason about.
+   */
+  private canReturnToFree(): boolean {
+    if (this.isPaidActive()) return true;
+    switch (this.status()) {
+      case 'PAST_DUE':
+      case 'UNPAID':
+      case 'PAUSED':
+      case 'CANCELED':
+      case 'EXPIRED':
+        return true;
+      default:
+        return false;
+    }
+  }
+
   protected planCtaLabel(plan: PlanResponse): string {
-    if (this.isCurrent(plan)) return 'Plano atual';
-    if (this.redirecting()) return 'Redirecionando…';
-    if (this.subscription()) return `Alterar para ${plan.name}`;
-    return `Assinar ${plan.name}`;
+    if (this.busyPlanId() === plan.id) return 'Processando…';
+    switch (this.planIntent(plan)) {
+      case 'CURRENT':
+        return 'Plano atual';
+      case 'PENDING_PAYMENT':
+        return 'Concluir pagamento';
+      case 'SCHEDULED':
+        return 'Mudança agendada';
+      case 'UPGRADE':
+        return `Fazer upgrade para ${plan.name}`;
+      case 'PERIOD_UPGRADE':
+        return `Mudar ${plan.name} para o plano anual`;
+      case 'PERIOD_DOWNGRADE':
+        return `Mudar ${plan.name} para o plano mensal`;
+      case 'DOWNGRADE':
+        return 'Voltar ao plano gratuito';
+      case 'PLAN_SWITCH':
+        return `Mudar para ${plan.name}`;
+      case 'SUBSCRIBE':
+      default:
+        return `Assinar ${plan.name}`;
+    }
+  }
+
+  protected planCtaNote(plan: PlanResponse): string | null {
+    switch (this.planIntent(plan)) {
+      case 'UPGRADE':
+        // Only when there is a paid period to lose — a first checkout from the
+        // free plan costs the user nothing extra.
+        return this.burnsPaidPeriod()
+          ? 'Cobrança imediata do novo plano; o restante do período pago não vira crédito.'
+          : null;
+      case 'PENDING_PAYMENT':
+        // Must read as "resume", never as "pay again": the CTA reopens the
+        // SAME charge that was already started, it does not create a second.
+        return 'Retoma a mesma cobrança já iniciada — nada é cobrado duas vezes.';
+      case 'PERIOD_UPGRADE':
+        return 'Cobrança anual imediata, sem proporcional do mês em curso.';
+      case 'PERIOD_DOWNGRADE':
+        return 'Cancela sua anual na hora, sem reembolso do período restante.';
+      case 'DOWNGRADE':
+        // `burnsPaidPeriod()` is the ONLY proof there is a paid period left to
+        // honour. Without it (PAST_DUE / CANCELED / EXPIRED) the promise would
+        // be a statement about money the UI cannot back.
+        return this.burnsPaidPeriod()
+          ? 'Vale a partir do fim do período já pago.'
+          : 'Sem cobranças. Você volta para o plano gratuito.';
+      case 'PLAN_SWITCH':
+        // Paid → paid is a new charge, NOT a scheduled change: say so before
+        // the click, not after the card is billed.
+        return 'Cobrança imediata do novo plano; o restante do período pago não vira crédito.';
+      case 'SCHEDULED': {
+        const at = this.scheduledDowngradeAt();
+        return at ? `Entra em vigor em ${this.formatDate(at)}.` : 'Já agendado.';
+      }
+      default:
+        return null;
+    }
+  }
+
+  protected planCtaDisabled(plan: PlanResponse): boolean {
+    const intent = this.planIntent(plan);
+    if (intent === 'CURRENT' || intent === 'SCHEDULED') return true;
+    // NOTE: PENDING_PAYMENT is deliberately NOT a disabling intent — that is
+    // exactly the button a user who abandoned the checkout needs. It only
+    // greys out while another request is genuinely in flight.
+    return this.busyPlanId() !== null || this.awaitingPayment();
+  }
+
+  protected planCardError(plan: PlanResponse): string | null {
+    const err = this.ctaError();
+    return err && err.planId === plan.id ? err.message : null;
   }
 
   protected planAccentClass(plan: PlanResponse): string {
@@ -373,12 +958,13 @@ export class Billing implements OnInit {
     return this.isRecommended(plan) ? this.recommendedShadow() : null;
   }
 
-  protected planCycleSuffix(): string {
-    return this.cycle() === 'MONTHLY' ? 'mês' : 'ano';
+  /** Human period label for the comparison tables — never the raw plan code. */
+  protected planPeriodLabel(plan: PlanResponse): string {
+    return plan.period === 'YEARLY' ? 'Cobrança anual' : 'Cobrança mensal';
   }
 
-  protected planCtaDisabled(plan: PlanResponse): boolean {
-    return this.isCurrent(plan) || this.redirecting() || this.loading();
+  protected planCycleSuffix(): string {
+    return this.cycle() === 'MONTHLY' ? 'mês' : 'ano';
   }
 
   protected taglineFor(plan: PlanResponse): string {
@@ -408,34 +994,6 @@ export class Billing implements OnInit {
     return max;
   });
 
-  protected statusDotClass(status: SubscriptionResponse['status']): string {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-emerald-500';
-      case 'TRIALING':
-        return 'bg-amber-500';
-      case 'PAST_DUE':
-        return 'bg-rose-500';
-      case 'CANCELED':
-      case 'EXPIRED':
-        return 'bg-gray-400';
-    }
-  }
-
-  protected statusPillClass(status: SubscriptionResponse['status']): string {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'TRIALING':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'PAST_DUE':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
-      case 'CANCELED':
-      case 'EXPIRED':
-        return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
-  }
-
   protected toggleCompare(): void {
     this.showCompare.update((v) => !v);
   }
@@ -448,23 +1006,335 @@ export class Billing implements OnInit {
     return this.expandedPlanId() === planId;
   }
 
+  // ---------------------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------------------
+
+  /** Single entry point for every plan CTA. Branches by intent, not by code. */
+  protected onPlanCta(plan: PlanResponse): void {
+    if (this.planCtaDisabled(plan)) return;
+    this.ctaError.set(null);
+    // A stale page-level banner from a previous failure must not outlive the
+    // action the user just took.
+    this.billingService.clearError();
+    switch (this.planIntent(plan)) {
+      case 'SUBSCRIBE':
+        this.startCheckout(plan);
+        return;
+      case 'UPGRADE':
+        // An upgrade takes the same server path as PLAN_SWITCH: immediate
+        // charge, old subscription cancelled on the spot, no proration and no
+        // refund. If there is a paid period left to burn, the user must be told
+        // in numbers first — the cheaper direction already was.
+        if (this.burnsPaidPeriod()) {
+          this.periodSwitchTarget.set(plan);
+          return;
+        }
+        this.startCheckout(plan);
+        return;
+      case 'PENDING_PAYMENT':
+        // Resume, do NOT re-open. Same plan code, no gateway override, so the
+        // backend can match the pending session instead of minting a second.
+        this.startCheckout(plan, { resumePending: true });
+        return;
+      case 'PERIOD_UPGRADE':
+      case 'PERIOD_DOWNGRADE':
+      case 'PLAN_SWITCH':
+        // Never straight to /checkout: the user must first be told, in words,
+        // exactly what the immediate charge costs them.
+        this.periodSwitchTarget.set(plan);
+        return;
+      case 'DOWNGRADE':
+        this.downgradeTarget.set(plan);
+        return;
+      default:
+        return;
+    }
+  }
+
   /**
-   * Kick off checkout. The row already encodes gateway + period + name,
-   * so we forward `plan.code` (e.g. `PRO_MONTHLY_STRIPE`) verbatim.
+   * Plan codes this page already POSTed a checkout for and got an `externalId`
+   * back. In-memory on purpose: it only has to survive until the redirect
+   * leaves the page, and a genuinely new page load re-reads the pending state
+   * from `/subscription`.
    */
-  protected subscribe(plan: PlanResponse): void {
-    if (this.redirecting() || this.isCurrent(plan)) return;
-    this.redirecting.set(true);
-    const override = this.isPlatformAdmin ? this.adminGateway() : undefined;
+  private readonly startedCheckoutCodes = new Set<string>();
+
+  /**
+   * Paid transitions only. Downgrades must never reach this method, and a
+   * period switch only reaches it after `confirmPeriodSwitch()`.
+   *
+   * `resumePending` means "the user is finishing a checkout already started":
+   * we deliberately drop the admin gateway override so the request is byte-for-
+   * byte the one that created the pending session, letting the backend hand
+   * back the SAME session instead of opening a second charge.
+   */
+  private startCheckout(plan: PlanResponse, opts?: { resumePending: boolean }): void {
+    if (this.busyPlanId() !== null) return;
+    // A R$ 0,00 plan has nothing to charge: `/checkout` answers 400 and the
+    // user gets a dead button. The free plan is reached via `/downgrade`.
+    if (plan.price <= 0) {
+      this.ctaError.set({
+        planId: plan.id,
+        message: 'O plano gratuito não passa por pagamento.',
+      });
+      return;
+    }
+    this.busyPlanId.set(plan.id);
+    // A previous POST for this plan already answered with an `externalId`: a
+    // gateway session EXISTS even though we never reached it (empty
+    // `redirectUrl`). Retrying as a plain new checkout minted a SECOND Stripe
+    // session — and a second chance to be charged. Resume instead.
+    const resume = opts?.resumePending === true || this.startedCheckoutCodes.has(plan.code);
+    const override = this.isPlatformAdmin && !resume ? this.adminGateway() : undefined;
     this.billingService.startCheckout(plan.code, override).subscribe({
       next: (res) => {
-        this.externalNav.openExternal(res.redirectUrl);
-        this.redirecting.set(false);
+        // Record BEFORE the redirect branch: the session exists regardless of
+        // whether this response was usable.
+        if (res.externalId) this.startedCheckoutCodes.add(plan.code);
+        const redirectUrl = res.redirectUrl?.trim() ?? '';
+        if (!redirectUrl) {
+          // `redirectSameTab` no-ops on an empty URL: without this branch the
+          // CTA stayed "Processando…" forever, with no error and no retry.
+          this.failCheckout(
+            plan,
+            res.externalId
+              ? 'Não recebemos o link de pagamento. Tente novamente — a mesma cobrança será retomada, nada é cobrado duas vezes.'
+              : 'Não recebemos o link de pagamento. Tente novamente.',
+          );
+          return;
+        }
+        // Keep the "processando" state alive across the redirect: the spinner
+        // must not die at the exact moment the real wait begins.
+        this.awaitingPayment.set(true);
+        if (this.isBrowser) {
+          this.session.setItem(CHECKOUT_PENDING_KEY, 'true');
+          // `/billing/success` needs to know WHICH plan was being paid for:
+          // Stripe returns to the same URL whether the user paid or bailed.
+          this.session.setItem(CHECKOUT_PLAN_CODE_KEY, plan.code);
+        }
+        // Same tab: a popup is blocked on mobile, and a second tab leaves this
+        // page showing stale data forever.
+        this.externalNav.redirectSameTab(redirectUrl);
+      },
+      error: () =>
+        this.failCheckout(plan, 'Não foi possível iniciar o pagamento. Tente novamente.'),
+    });
+  }
+
+  /** Release every busy flag and surface the failure on the clicked card. */
+  private failCheckout(plan: PlanResponse, fallback: string): void {
+    this.busyPlanId.set(null);
+    this.awaitingPayment.set(false);
+    this.stopAwaitPolling();
+    this.clearCheckoutMarkers();
+    this.ctaError.set({ planId: plan.id, message: this.error() ?? fallback });
+  }
+
+  protected confirmDowngrade(): void {
+    const plan = this.downgradeTarget();
+    if (!plan) return;
+    this.downgradeTarget.set(null);
+    this.busyPlanId.set(plan.id);
+    this.billingService.downgrade(plan.code).subscribe({
+      next: (res) => {
+        this.busyPlanId.set(null);
+        // The backend ships a ready pt-BR sentence; ours is the fallback.
+        this.notifications.success(res.message ?? this.downgradeOutcomeFallback(res.outcome, plan));
+        if (res.outcome === 'APPLIED') {
+          // The change is already in force: the account is ACTIVE on the free
+          // plan and no longer blocked. Re-read both sources so the paywall and
+          // the guard let the user through without a reload.
+          this.revalidateAfterImmediateChange();
+        }
       },
       error: () => {
-        this.redirecting.set(false);
+        this.busyPlanId.set(null);
+        // `/downgrade` may still refuse a CANCELED / EXPIRED account. The
+        // backend `{message}` wins; the fallback must say what to do next
+        // instead of inviting a pointless retry of the same request.
+        const fallback = this.isPaidActive()
+          ? 'Não foi possível alterar o plano. Tente novamente.'
+          : 'Não foi possível voltar ao plano gratuito nesta situação. Escolha um plano ou fale com o suporte.';
+        this.ctaError.set({ planId: plan.id, message: this.error() ?? fallback });
       },
     });
+  }
+
+  /**
+   * Statuses where `/downgrade` takes effect on the spot (backend contract:
+   * outcome `APPLIED`, `effectiveAt: null`) instead of being scheduled.
+   */
+  private isImmediateDowngrade(): boolean {
+    const status = this.status();
+    return status === 'CANCELED' || status === 'EXPIRED';
+  }
+
+  /**
+   * Fallback copy per outcome. `APPLIED` must never carry a future date — the
+   * backend sends `effectiveAt: null` precisely because it already happened.
+   */
+  private downgradeOutcomeFallback(outcome: SubscriptionChangeOutcome, plan: PlanResponse): string {
+    switch (outcome) {
+      case 'APPLIED':
+        return `Sua conta já está liberada no plano ${plan.name}.`;
+      case 'SCHEDULED':
+        return `Mudança para ${plan.name} agendada.`;
+      case 'NO_OP':
+        return 'Nenhuma alteração necessária.';
+      default:
+        return 'Plano atualizado.';
+    }
+  }
+
+  /**
+   * After a change that is already in force: the cached access decision and the
+   * subscription snapshot are both stale, and the user is very likely sitting
+   * on a blocked page. Refresh both, bypassing the revalidate throttle.
+   */
+  private revalidateAfterImmediateChange(): void {
+    this.lastRevalidateAt = 0;
+    this.revalidate();
+  }
+
+  protected dismissDowngrade(): void {
+    this.downgradeTarget.set(null);
+  }
+
+  /** Only the FREE plan reaches this dialog — see `planIntent()`. */
+  protected readonly downgradeDialogMessage = computed<string>(() => {
+    if (!this.downgradeTarget()) return '';
+    // Two genuinely different situations, and the paid-period sentence is only
+    // true in the first: a PAST_DUE / CANCELED / EXPIRED account has no paid
+    // access left to keep, so promising it would be a lie about money.
+    if (this.burnsPaidPeriod()) {
+      const until = this.formatDate(this.subscription()?.currentPeriodEnd ?? null);
+      return `Você continua com o acesso pago até ${until}. A partir dessa data sua conta passa para o plano gratuito. Nenhuma cobrança nova é feita agora.`;
+    }
+    // CANCELED / EXPIRED: the backend applies the change IMMEDIATELY (outcome
+    // `APPLIED`, `effectiveAt: null`). No paid period exists, so no date is
+    // promised — and the wording matches what actually happens on confirm.
+    if (this.isImmediateDowngrade()) {
+      return 'Sua conta é liberada agora no plano gratuito, com os limites desse plano. Nenhuma cobrança nova é feita, e você pode assinar um plano pago quando quiser.';
+    }
+    return 'Sua conta passa para o plano gratuito, com os limites do plano gratuito. Nenhuma cobrança nova é feita agora, e você pode assinar um plano pago quando quiser.';
+  });
+
+  protected readonly downgradeDialogTitle = computed<string>(() =>
+    this.downgradeTarget() ? 'Voltar ao plano gratuito' : 'Alterar plano',
+  );
+
+  // ---------------------------------------------------------------------------
+  // Immediate plan change (Mensal ↔ Anual, or paid → cheaper paid) — always
+  // charged on the spot, so explicit, informed consent is required.
+  // ---------------------------------------------------------------------------
+
+  /** Whole days left in the period the customer already paid for. */
+  private daysLeftInPaidPeriod(): number {
+    const end = this.subscription()?.currentPeriodEnd;
+    if (!end) return 0;
+    const endMs = new Date(end).getTime();
+    if (Number.isNaN(endMs)) return 0;
+    const diff = Math.ceil((endMs - Date.now()) / 86_400_000);
+    return diff > 0 ? diff : 0;
+  }
+
+  /**
+   * True when an immediate plan change would throw away days the customer has
+   * already paid for. The gate for requiring an explicit consent dialog.
+   */
+  protected burnsPaidPeriod(): boolean {
+    return this.isPaidActive() && this.daysLeftInPaidPeriod() > 0;
+  }
+
+  /** Which of the immediate changes the dialog is confirming. */
+  private readonly periodSwitchIntent = computed<PlanIntent | null>(() => {
+    const plan = this.periodSwitchTarget();
+    return plan ? this.planIntent(plan) : null;
+  });
+
+  /** The confirmation burns money the user already paid for. */
+  protected readonly periodSwitchIsLoss = computed<boolean>(() => {
+    const intent = this.periodSwitchIntent();
+    if (intent === 'PERIOD_DOWNGRADE' || intent === 'PLAN_SWITCH') return true;
+    // An UPGRADE only reaches this dialog when there IS a paid period to burn.
+    return intent === 'UPGRADE';
+  });
+
+  protected readonly periodSwitchDialogTitle = computed<string>(() => {
+    const plan = this.periodSwitchTarget();
+    if (!plan) return 'Mudar período de cobrança';
+    const intent = this.periodSwitchIntent();
+    if (intent === 'UPGRADE') return `Fazer upgrade para ${plan.name} agora`;
+    if (intent === 'PLAN_SWITCH') return `Mudar para ${plan.name} agora`;
+    return this.periodSwitchIsLoss()
+      ? 'Você vai perder o restante do ano já pago'
+      : `Mudar ${plan.name} para o plano anual`;
+  });
+
+  /**
+   * Spells out the loss in numbers. Stripe is charged immediately and the old
+   * subscription is cancelled with no proration and no refund — if the user
+   * confirms, they eat the remainder. Nothing here may be softened.
+   */
+  protected readonly periodSwitchDialogMessage = computed<string>(() => {
+    const plan = this.periodSwitchTarget();
+    if (!plan) return '';
+    const price = this.formatPrice(plan.price);
+    const until = this.formatDate(this.subscription()?.currentPeriodEnd ?? null);
+    const days = this.daysLeftInPaidPeriod();
+
+    const intent = this.periodSwitchIntent();
+    if (intent === 'PLAN_SWITCH' || intent === 'UPGRADE') {
+      // Paid → other paid (cheaper OR pricier) is NOT schedulable: the backend
+      // rejects it on `/downgrade`, so the only route is a new charge today —
+      // and the old subscription dies on the spot, in both directions.
+      const left =
+        days > 0
+          ? `Você ainda tem ${days} dia(s) pagos, válidos até ${until}, e vai perder todos eles.`
+          : `Você perde o que restar do período pago (até ${until}).`;
+      return (
+        `${price} do plano ${plan.name} são cobrados agora e sua assinatura atual é encerrada na hora. ` +
+        `${left} Não há reembolso, crédito nem cálculo proporcional. ` +
+        `Se quiser trocar sem perder nada, espere ${until} e mude depois dessa data.`
+      );
+    }
+
+    if (this.periodSwitchIsLoss()) {
+      const left =
+        days > 0
+          ? `Você ainda tem ${days} dia(s) pagos, válidos até ${until}, e vai perder todos eles.`
+          : `Você perde o que restar do período pago (até ${until}).`;
+      return (
+        `Sua assinatura anual é cancelada na hora e ${price} do plano mensal são cobrados agora. ` +
+        `${left} Não há reembolso, crédito nem cálculo proporcional. ` +
+        `Se quiser o plano mensal sem perder nada, espere ${until} e mude depois dessa data.`
+      );
+    }
+
+    return (
+      `${price} do plano anual são cobrados agora e sua assinatura mensal é encerrada na hora. ` +
+      `Os dias que restam do mês já pago (até ${until}) não viram desconto nem crédito.`
+    );
+  });
+
+  protected readonly periodSwitchConfirmLabel = computed<string>(() =>
+    this.periodSwitchIsLoss() ? 'Sim, perder o restante e mudar' : 'Confirmar e pagar agora',
+  );
+
+  protected readonly periodSwitchVariant = computed<'warning' | 'danger'>(() =>
+    this.periodSwitchIsLoss() ? 'danger' : 'warning',
+  );
+
+  protected confirmPeriodSwitch(): void {
+    const plan = this.periodSwitchTarget();
+    if (!plan) return;
+    this.periodSwitchTarget.set(null);
+    this.startCheckout(plan);
+  }
+
+  protected dismissPeriodSwitch(): void {
+    this.periodSwitchTarget.set(null);
   }
 
   protected openCancel(): void {
@@ -473,13 +1343,61 @@ export class Billing implements OnInit {
 
   protected onCancelConfirmed(): void {
     this.showCancelDialog.set(false);
+    this.accountActionBusy.set(true);
     this.billingService.cancel().subscribe({
-      next: () => this.billingService.loadSubscription().subscribe({ error: () => void 0 }),
-      error: () => void 0,
+      next: () => {
+        // `/cancel` also drops the pending checkout server-side, so the local
+        // "voltando do gateway" marker would otherwise strand the page in
+        // "verificando pagamento" for a charge that no longer exists.
+        this.settlePendingPayment();
+        this.billingService.loadSubscription().subscribe({
+          next: () => this.accountActionBusy.set(false),
+          error: () => this.accountActionBusy.set(false),
+        });
+        this.notifications.success('Cancelamento agendado para o fim do período atual.');
+      },
+      error: () => {
+        this.accountActionBusy.set(false);
+        this.notifications.error(
+          this.error() ?? 'Não foi possível cancelar a assinatura. Tente novamente.',
+        );
+      },
     });
   }
 
   protected onCancelDismissed(): void {
     this.showCancelDialog.set(false);
+  }
+
+  /**
+   * Undo a scheduled cancellation. A 400 means the paid period already ran
+   * out — the only way back is a new payment, so we send the user there.
+   */
+  protected reactivate(): void {
+    if (this.accountActionBusy()) return;
+    this.accountActionBusy.set(true);
+    this.billingService.reactivate().subscribe({
+      next: (res) => {
+        this.accountActionBusy.set(false);
+        this.notifications.success(res.message ?? 'Assinatura reativada.');
+      },
+      error: () => {
+        this.accountActionBusy.set(false);
+        this.notifications.error(
+          this.error() ?? 'Não foi possível reativar. Escolha um plano para retomar o acesso.',
+        );
+        this.scrollToPlans();
+      },
+    });
+  }
+
+  /** Send the user to the plans section (used when reactivate is impossible). */
+  private scrollToPlans(): void {
+    if (!this.isBrowser) return;
+    this.document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  protected dismissBlockedMessage(): void {
+    this.blockedReason.set(null);
   }
 }

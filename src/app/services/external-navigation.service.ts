@@ -15,8 +15,18 @@ export class ExternalNavigationService {
     const opened = window.open(url, '_blank', 'noopener,noreferrer');
     if (!opened) {
       this.notifications.warning(
-        'Ative pop-ups para este site para abrir o link em nova aba.'
+        'Ative pop-ups para este site para abrir o link em nova aba.',
       );
     }
+  }
+
+  /**
+   * Leaves the SPA in the SAME tab. Use for payment checkouts: on mobile a
+   * `window.open` is either popup-blocked or lands in a tab the user closes,
+   * leaving the original page showing stale subscription data forever.
+   */
+  redirectSameTab(url: string): void {
+    if (typeof window === 'undefined' || !url) return;
+    window.location.assign(url);
   }
 }

@@ -2,6 +2,44 @@
   title="Assinatura"
   description="Gerencie seu plano, forma de cobrança e status da assinatura.">
 
+  <!-- Why the user was pushed here by the paywall guard (?reason=) -->
+  @if (blockedMessage(); as blocked) {
+    <div
+      role="status"
+      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 text-sm font-medium">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        class="mt-0.5 shrink-0" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+      <span class="min-w-0 flex-1">{{ blocked }}</span>
+      <button
+        type="button"
+        (click)="dismissBlockedMessage()"
+        aria-label="Fechar aviso de bloqueio"
+        class="shrink-0 -m-1 p-1 rounded-lg text-amber-700 hover:bg-amber-100
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+  }
+
+  <!-- Payment in flight / returning from the gateway -->
+  @if (awaitingPayment()) {
+    <div
+      role="status"
+      aria-live="polite"
+      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-blue-200 bg-blue-50 text-blue-900 text-sm font-medium">
+      <span
+        class="mt-0.5 shrink-0 inline-block w-4 h-4 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"
+        aria-hidden="true"></span>
+      <span>Estamos confirmando seu pagamento. Isso pode levar alguns instantes.</span>
+    </div>
+  }
+
   @if (error()) {
     <div
       role="alert"
@@ -36,27 +74,33 @@
 
         <div class="relative p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
 
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col-reverse sm:flex-row sm:items-start sm:justify-between gap-3">
             <div class="min-w-0">
               <p class="text-[11px] font-semibold uppercase tracking-widest"
-                [class]="currentHeroMutedClass()">Plano atual</p>
+                [class]="currentHeroMutedClass()">{{ heroEyebrow() }}</p>
               <h2 id="assinatura-atual-title"
                 class="mt-1 text-2xl sm:text-3xl font-black text-white italic tracking-tight break-words">
-                {{ sub.planName }}
+                {{ heroPlanTitle() }}
               </h2>
             </div>
-            @if (sub.status !== 'TRIALING') {
+            <!-- Status pill is ALWAYS rendered, TRIALING included: the state of
+                 someone who has not paid is exactly the one that must show. -->
+            <span
+              class="self-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider"
+              [class]="statusPillClass(sub.status)">
               <span
-                class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider"
-                [class]="statusPillClass(sub.status)">
-                <span
-                  class="w-1.5 h-1.5 rounded-full"
-                  [class]="statusDotClass(sub.status)"
-                  aria-hidden="true"></span>
-                {{ statusLabel(sub.status) }}
-              </span>
-            }
+                class="w-1.5 h-1.5 rounded-full"
+                [class]="statusDotClass(sub.status)"
+                aria-hidden="true"></span>
+              {{ statusLabel(sub.status) }}
+            </span>
           </div>
+
+          @if (heroNotice(); as notice) {
+            <p class="text-xs sm:text-sm leading-relaxed" [class]="currentHeroMutedClass()">
+              {{ notice }}
+            </p>
+          }
 
           <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             @if (currentPlan(); as cp) {
@@ -69,54 +113,129 @@
                 </dd>
               </div>
             }
-            <div class="min-w-0">
-              <dt class="text-[11px] font-semibold uppercase tracking-widest"
-                [class]="currentHeroMutedClass()">
-                @if (sub.status === 'TRIALING') { Fim do teste } @else { Próxima cobrança }
-              </dt>
-              <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
-                @if (sub.status === 'TRIALING') {
-                  {{ formatDate(sub.trialEndsAt) }}
-                } @else {
-                  {{ formatDate(sub.currentPeriodEnd) }}
-                }
-              </dd>
-            </div>
-            <div class="min-w-0">
-              <dt class="text-[11px] font-semibold uppercase tracking-widest"
-                [class]="currentHeroMutedClass()">Ciclo</dt>
-              <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
-                {{ sub.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual' }}
-              </dd>
-            </div>
+            <!-- A free ACTIVE plan has no next charge and no billing cycle
+                 (currentPeriodEnd is null): showing "Próxima cobrança: —"
+                 reads as a broken paid subscription. -->
+            @if (!isFreeActive()) {
+              <div class="min-w-0">
+                <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                  [class]="currentHeroMutedClass()">
+                  @if (sub.status === 'TRIALING') { Fim do teste } @else { Próxima cobrança }
+                </dt>
+                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
+                  @if (sub.status === 'TRIALING') {
+                    {{ formatDate(sub.trialEndsAt) }}
+                  } @else {
+                    {{ formatDate(sub.currentPeriodEnd) }}
+                  }
+                </dd>
+              </div>
+              <div class="min-w-0">
+                <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                  [class]="currentHeroMutedClass()">Ciclo</dt>
+                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
+                  {{ sub.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual' }}
+                </dd>
+              </div>
+            } @else {
+              <div class="min-w-0">
+                <dt class="text-[11px] font-semibold uppercase tracking-widest"
+                  [class]="currentHeroMutedClass()">Cobrança</dt>
+                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">Sem cobrança</dd>
+              </div>
+            }
           </dl>
 
-          @if (sub.cancelAtPeriodEnd) {
+          <!-- Checkout started but never paid — the plan is NOT in force. -->
+          @if (pendingPlanName(); as pendingName) {
             <div
-              class="flex items-start gap-2.5 text-xs sm:text-sm bg-amber-500/10 border border-amber-400/30 text-amber-100 rounded-xl px-4 py-3">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="mt-0.5 shrink-0" aria-hidden="true">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <span>Cancelamento agendado para {{ formatDate(sub.currentPeriodEnd) }}. Você mantém acesso até essa data.</span>
+              class="flex flex-col gap-3 text-xs sm:text-sm bg-amber-500/10 border border-amber-400/30 text-amber-100 rounded-xl px-4 py-3">
+              <div class="flex items-start gap-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="mt-0.5 shrink-0" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>
+                  Aguardando confirmação do pagamento do plano <strong>{{ pendingName }}</strong>.
+                  Ele só passa a valer depois que o pagamento for confirmado.
+                </span>
+              </div>
+              @if (pendingPlan(); as pp) {
+                <button
+                  type="button"
+                  (click)="onPlanCta(pp)"
+                  [disabled]="planCtaDisabled(pp)"
+                  class="w-full sm:w-auto sm:self-start min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
+                         bg-white text-neutral-900 hover:bg-neutral-100 transition-colors
+                         disabled:opacity-60 disabled:cursor-not-allowed
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                  {{ planCtaLabel(pp) }}
+                </button>
+              }
             </div>
           }
 
-          @if (!sub.cancelAtPeriodEnd && sub.status !== 'CANCELED' && sub.status !== 'EXPIRED') {
+          @if (scheduledDowngradeName(); as downgradeName) {
+            <div
+              class="flex items-start gap-2.5 text-xs sm:text-sm bg-blue-500/10 border border-blue-400/30 text-blue-100 rounded-xl px-4 py-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="mt-0.5 shrink-0" aria-hidden="true">
+                <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="10" />
+              </svg>
+              <span>Mudança para o plano <strong>{{ downgradeName }}</strong> agendada para {{ formatDate(scheduledDowngradeAt()) }}. Até lá nada muda.</span>
+            </div>
+          }
+
+          <!-- A scheduled downgrade ALSO sets `cancelAtPeriodEnd` server-side.
+               Showing both banners told two contradictory stories, so the
+               downgrade notice (which already states what happens) wins. -->
+          @if (sub.cancelAtPeriodEnd && !scheduledDowngradeName()) {
+            <div
+              class="flex flex-col gap-3 text-xs sm:text-sm bg-amber-500/10 border border-amber-400/30 text-amber-100 rounded-xl px-4 py-3">
+              <div class="flex items-start gap-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="mt-0.5 shrink-0" aria-hidden="true">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <span>Cancelamento agendado para {{ formatDate(sub.currentPeriodEnd) }}. Você mantém acesso até essa data.</span>
+              </div>
+            </div>
+          }
+
+          <!-- Account actions: cancel and reactivate are distinct and never
+               share a code path with the plan-change CTAs. -->
+          @if (canCancel() || canReactivate()) {
             <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-white/10">
-              <button
-                type="button"
-                (click)="openCancel()"
-                [disabled]="loading()"
-                class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white/90
-                       bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-colors
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
-                Cancelar assinatura
-              </button>
+              @if (canReactivate()) {
+                <button
+                  type="button"
+                  (click)="reactivate()"
+                  [disabled]="accountActionBusy()"
+                  class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
+                         bg-white text-neutral-900 hover:bg-neutral-100 transition-colors
+                         disabled:opacity-60 disabled:cursor-not-allowed
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                  @if (accountActionBusy()) { Reativando… } @else { Reativar assinatura }
+                </button>
+              }
+              @if (canCancel()) {
+                <button
+                  type="button"
+                  (click)="openCancel()"
+                  [disabled]="accountActionBusy() || loading()"
+                  class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white/90
+                         bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                  Cancelar assinatura
+                </button>
+              }
             </div>
           }
         </div>
@@ -180,7 +299,7 @@
               role="tab"
               [attr.aria-selected]="cycle() === 'MONTHLY'"
               (click)="setCycle('MONTHLY')"
-              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[40px] transition-colors duration-200
+              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[44px] transition-colors duration-200
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
               [class.text-white]="cycle() === 'MONTHLY'"
               [class.text-neutral-500]="cycle() !== 'MONTHLY'"
@@ -194,7 +313,7 @@
               role="tab"
               [attr.aria-selected]="cycle() === 'YEARLY'"
               (click)="setCycle('YEARLY')"
-              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[40px] transition-colors duration-200
+              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[44px] transition-colors duration-200
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
               [class.text-white]="cycle() === 'YEARLY'"
               [class.text-neutral-500]="cycle() !== 'YEARLY'"
@@ -218,6 +337,8 @@
         <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.15fr_0.9fr] gap-6 lg:gap-6 items-stretch lg:items-center pt-4">
           @for (plan of visiblePlans(); track plan.id) {
             <app-plan-card
+              class="lg:order-none"
+              [class.order-first]="isPrioritized(plan)"
               [variant]="planVariant(plan)"
               [name]="plan.name"
               [price]="formatPrice(plan.price)"
@@ -232,8 +353,10 @@
               [accentTextClass]="planAccentClass(plan)"
               [isCurrent]="isCurrent(plan)"
               [ctaLabel]="planCtaLabel(plan)"
+              [ctaNote]="planCtaNote(plan)"
+              [errorText]="planCardError(plan)"
               [ctaDisabled]="planCtaDisabled(plan)"
-              (ctaClick)="subscribe(plan)" />
+              (ctaClick)="onPlanCta(plan)" />
           } @empty {
             @if (loading()) {
               <div class="col-span-full flex flex-col items-center justify-center gap-3 py-10 text-center">
@@ -293,7 +416,7 @@
                     @for (plan of visiblePlans(); track plan.id) {
                       <th class="text-center px-3 py-3.5">
                         <div class="flex flex-col items-center gap-1.5">
-                          <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ plan.code }}</span>
+                          <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
                           <span class="font-semibold text-base text-neutral-900">{{ plan.name }}</span>
                           @if (isRecommended(plan)) {
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-500 border border-primary-low">
@@ -381,7 +504,7 @@
                     class="w-full min-h-[56px] flex items-center justify-between p-4 text-left hover:bg-neutral-50 transition-colors
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset">
                     <div class="flex flex-col min-w-0">
-                      <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ plan.code }}</span>
+                      <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
                       <span class="font-semibold text-base text-neutral-900 mt-0.5 truncate">{{ plan.name }}</span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
@@ -514,5 +637,30 @@
     variant="danger"
     (confirmed)="onCancelConfirmed()"
     (cancelled)="onCancelDismissed()" />
+
+  <!-- Downgrade / voltar ao gratuito — NUNCA passa pelo checkout. -->
+  <app-confirm-dialog
+    [open]="downgradeTarget() !== null"
+    [title]="downgradeDialogTitle()"
+    [message]="downgradeDialogMessage()"
+    confirmLabel="Confirmar mudança"
+    cancelLabel="Manter plano atual"
+    variant="warning"
+    (confirmed)="confirmDowngrade()"
+    (cancelled)="dismissDowngrade()" />
+
+  <!--
+    Troca de período (Mensal ↔ Anual). Passa pelo checkout, mas NUNCA em
+    silêncio: o diálogo diz, em números, o que a cobrança imediata custa.
+  -->
+  <app-confirm-dialog
+    [open]="periodSwitchTarget() !== null"
+    [title]="periodSwitchDialogTitle()"
+    [message]="periodSwitchDialogMessage()"
+    [confirmLabel]="periodSwitchConfirmLabel()"
+    cancelLabel="Manter meu plano atual"
+    [variant]="periodSwitchVariant()"
+    (confirmed)="confirmPeriodSwitch()"
+    (cancelled)="dismissPeriodSwitch()" />
 
 </app-default-page-layout>

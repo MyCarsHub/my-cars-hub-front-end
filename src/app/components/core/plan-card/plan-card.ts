@@ -20,6 +20,13 @@ export class PlanCardComponent {
   readonly ctaLabel = input.required<string>();
   readonly ctaDisabled = input<boolean>(false);
   readonly isCurrent = input<boolean>(false);
+  /** Short note rendered right under the CTA (e.g. "Muda no fim do período"). */
+  readonly ctaNote = input<string | null>(null);
+  /**
+   * Error for THIS card, rendered next to the button the user just clicked —
+   * a banner at the top of the page is off-screen on mobile.
+   */
+  readonly errorText = input<string | null>(null);
   readonly ribbonText = input<string | null>(null);
   readonly gradientCss = input<string | null>(null);
   readonly shadowCss = input<string | null>(null);
