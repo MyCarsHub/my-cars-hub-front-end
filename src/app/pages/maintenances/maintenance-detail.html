@@ -59,7 +59,13 @@
             </div>
             <div>
               <p class="text-xs uppercase tracking-wide text-neutral-400">Hodômetro</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatNumber(m.hodometerReading) }} km</p>
+              <p class="font-medium text-neutral-800 tabular-nums">
+                @if (m.hodometerReading != null) {
+                  {{ formatNumber(m.hodometerReading) }} km
+                } @else {
+                  Não informado
+                }
+              </p>
             </div>
             <div>
               <p class="text-xs uppercase tracking-wide text-neutral-400">Custo</p>

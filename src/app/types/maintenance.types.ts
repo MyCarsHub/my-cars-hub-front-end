@@ -46,7 +46,8 @@ export interface MaintenanceListItem {
   description: string;
   /** ISO date */
   serviceDate: string;
-  hodometerReading: number;
+  /** Null quando a manutenção não foi realizada (agendada/em andamento/cancelada). */
+  hodometerReading: number | null;
   costCents: number;
   /** ISO date */
   nextServiceDate: string | null;
@@ -64,7 +65,8 @@ export interface Maintenance {
   type: MaintenanceType;
   description: string;
   serviceDate: string;
-  hodometerReading: number;
+  /** Null quando a manutenção não foi realizada (agendada/em andamento/cancelada). */
+  hodometerReading: number | null;
   costCents: number;
   provider: string | null;
   invoiceNumber: string | null;
@@ -79,13 +81,18 @@ export interface CreateMaintenanceRequest {
   type: MaintenanceType;
   description: string;
   serviceDate: string;
-  hodometerReading: number;
+  /** Obrigatório apenas quando `status === 'DONE'` (o backend rejeita com 400). */
+  hodometerReading?: number | null;
   costCents: number;
   provider?: string | null;
   invoiceNumber?: string | null;
   nextServiceDate?: string | null;
   nextServiceHodometer?: number | null;
-  status?: MaintenanceStatus | null;
+  /**
+   * Sempre envie explicitamente: quando omitido o backend assume `DONE`
+   * e volta a exigir `hodometerReading`.
+   */
+  status: MaintenanceStatus;
   notes?: string | null;
 }
 
@@ -93,7 +100,8 @@ export interface UpdateMaintenanceRequest {
   type: MaintenanceType;
   description: string;
   serviceDate: string;
-  hodometerReading: number;
+  /** Obrigatório apenas quando `status === 'DONE'` (o backend rejeita com 400). */
+  hodometerReading?: number | null;
   costCents: number;
   provider?: string | null;
   invoiceNumber?: string | null;
