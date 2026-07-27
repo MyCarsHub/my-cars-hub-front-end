@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import {
   BillingService,
@@ -23,8 +23,13 @@ import { SubscriptionResponse } from '../../../types/billing.types';
  * never prove a charge did not happen (the backend clears the pending marker on
  * cancel AND on a webhook that has not promoted the plan yet). It is a
  * RECOVERABLE state — `checkAgain()` resumes polling.
+ *
+ * `unknown` is the honest verdict when we have NO target plan at all (no
+ * `?plan=`, no per-tab marker). Stripe's `cancel_url` also lands here, so this
+ * state must claim neither a charge nor an abandonment — it only points the
+ * user at `/billing`, which reads the backend truth.
  */
-type State = 'polling' | 'active' | 'unconfirmed' | 'timeout';
+type State = 'polling' | 'active' | 'unconfirmed' | 'timeout' | 'unknown';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
@@ -45,10 +50,16 @@ const UNCONFIRMED_CONFIRMATIONS = 3;
 const UNCONFIRMED_MIN_ELAPSED_MS = 15000;
 
 /**
- * How fresh `currentPeriodStart` must be to read as "this checkout just paid".
- * Only used as a FALLBACK when the per-tab checkout marker is gone.
+ * Query parameter the backend appends to Stripe's `success_url` — e.g.
+ * `/billing/success?plan=PRO_MONTHLY_STRIPE`. It is the PRIMARY proof-of-target
+ * because, unlike sessionStorage, it survives the external-browser hop and the
+ * `noopener` fallback link that our mobile cohort actually goes through.
+ *
+ * It is client-supplied and therefore FORGEABLE. It is a UI hint only: it says
+ * WHICH plan to compare against, never that the plan was paid for. Entitlement
+ * still comes from the backend subscription read below.
  */
-const RECENT_PERIOD_START_MS = 15 * 60 * 1000;
+const PLAN_QUERY_PARAM = 'plan';
 
 @Component({
   selector: 'app-billing-success',
@@ -62,6 +73,7 @@ export class BillingSuccess implements OnInit, OnDestroy {
   private readonly access = inject(BillingAccessService);
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly state = signal<State>('polling');
   protected readonly subscription = this.billingService.subscription;
@@ -73,13 +85,16 @@ export class BillingSuccess implements OnInit, OnDestroy {
    * Plan the checkout was opened for. Stripe sends the customer BACK HERE for
    * both success and cancel, so without it a user who was already ACTIVE and
    * abandoned the checkout was congratulated for a payment that never happened.
+   *
+   * Sources, in order: `?plan=` (survives everything) → the per-tab marker →
+   * nothing, which is `unknown` and never a success.
    */
   private checkoutPlanCode: string | null = null;
   private unconfirmedReads = 0;
   private firstUnconfirmedAt: number | null = null;
 
   ngOnInit(): void {
-    this.checkoutPlanCode = this.session.getItem(CHECKOUT_PLAN_CODE_KEY);
+    this.checkoutPlanCode = this.resolveTargetPlanCode();
     // The gateway always returns to this page, so this page owns the cleanup.
     // Leaving the marker behind made a later visit to /billing re-enter
     // "verificando pagamento" for a round-trip that is already over.
@@ -88,7 +103,27 @@ export class BillingSuccess implements OnInit, OnDestroy {
     // recognise the payment. Only a CONFIRMED payment retires it.
     this.session.removeItem(CHECKOUT_PENDING_KEY);
 
+    // No target plan means we cannot compare anything, so no read of the
+    // subscription could ever prove this round-trip paid. Polling for 30s would
+    // only end in "ainda processando", which implies a payment we cannot see.
+    if (!this.checkoutPlanCode) {
+      this.state.set('unknown');
+      return;
+    }
+
     this.startPolling();
+  }
+
+  /**
+   * `?plan=` first: it is the only source that survives Stripe opening the
+   * external browser on mobile and the `noopener` manual fallback link, both of
+   * which lose sessionStorage entirely. The per-tab marker is the fallback for
+   * checkouts started before the backend began appending the parameter.
+   */
+  private resolveTargetPlanCode(): string | null {
+    const fromQuery = this.route.snapshot.queryParamMap.get(PLAN_QUERY_PARAM)?.trim();
+    if (fromQuery) return fromQuery;
+    return this.session.getItem(CHECKOUT_PLAN_CODE_KEY)?.trim() || null;
   }
 
   ngOnDestroy(): void {
@@ -106,6 +141,9 @@ export class BillingSuccess implements OnInit, OnDestroy {
    */
   protected checkAgain(): void {
     if (this.state() === 'active') return;
+    // Without a target plan there is nothing to compare a fresh read against —
+    // re-polling would spin and land on the same non-answer.
+    if (!this.checkoutPlanCode) return;
     this.startPolling();
   }
 
@@ -131,24 +169,12 @@ export class BillingSuccess implements OnInit, OnDestroy {
    * alone was true for everyone who already had a subscription.
    */
   private isPaymentConfirmed(sub: SubscriptionResponse): boolean {
+    // Unreachable without a target (ngOnInit short-circuits to `unknown`), but
+    // stated explicitly: no target, no success claim. Ever.
+    if (!this.checkoutPlanCode) return false;
     if (sub.status !== 'ACTIVE') return false;
     if (sub.pendingPlanCode) return false;
-    if (this.checkoutPlanCode) return sub.planCode === this.checkoutPlanCode;
-    // No recorded target. sessionStorage is PER TAB and Stripe routinely returns
-    // through an external browser / a new tab on mobile — our main cohort. A
-    // paid subscription that just started its period is the strongest signal we
-    // have left; without it these users sat 30s in polling with an ACTIVE, paid
-    // subscription and were then told we could not confirm anything.
-    return this.startedRecently(sub.currentPeriodStart);
-  }
-
-  /** `currentPeriodStart` within minutes of now — i.e. this period just opened. */
-  private startedRecently(iso: string | null): boolean {
-    if (!iso) return false;
-    const ms = new Date(iso).getTime();
-    if (Number.isNaN(ms)) return false;
-    // Absolute delta: the backend clock can sit slightly ahead of the browser's.
-    return Math.abs(Date.now() - ms) <= RECENT_PERIOD_START_MS;
+    return sub.planCode === this.checkoutPlanCode;
   }
 
   /**

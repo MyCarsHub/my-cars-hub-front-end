@@ -45,6 +45,8 @@ describe('BillingSuccess', () => {
     isBlocked: () => boolean;
   };
   let router: { navigate: ReturnType<typeof vi.fn> };
+  /** Mutable per test — read lazily by the ActivatedRoute stub below. */
+  let queryParams: Record<string, string>;
 
   const build = (): Probe =>
     TestBed.createComponent(BillingSuccess).componentInstance as unknown as Probe;
@@ -52,6 +54,7 @@ describe('BillingSuccess', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     store = {};
+    queryParams = {};
     subscriptionSignal = signal<SubscriptionResponse | null>(null);
     billing = {
       subscription: subscriptionSignal.asReadonly(),
@@ -74,7 +77,13 @@ describe('BillingSuccess', () => {
         { provide: Router, useValue: router },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { queryParamMap: convertToParamMap({}) } },
+          useValue: {
+            snapshot: {
+              get queryParamMap() {
+                return convertToParamMap(queryParams);
+              },
+            },
+          },
         },
         {
           provide: SessionService,
@@ -166,18 +175,13 @@ describe('BillingSuccess', () => {
 
   // ---------------------------------------------------------------------------
   // R4/H2 — sessionStorage is PER TAB, and mobile Stripe often returns in
-  // another tab / an external browser. That cohort must not be stranded.
+  // another tab / an external browser. `?plan=` is what reaches that cohort.
   // ---------------------------------------------------------------------------
 
-  it('confirms a fresh paid period when the per-tab checkout marker is gone', () => {
-    // No `billingCheckoutPlanCode`: different tab, or storage cleared.
+  it('uses ?plan= as the primary proof-of-target, with no sessionStorage at all', () => {
+    queryParams['plan'] = 'BUSINESS_MONTHLY_STRIPE';
     subscriptionSignal.set(
-      sub({
-        status: 'ACTIVE',
-        planCode: 'BUSINESS_MONTHLY_STRIPE',
-        planName: 'BUSINESS',
-        currentPeriodStart: new Date().toISOString(),
-      }),
+      sub({ status: 'ACTIVE', planCode: 'BUSINESS_MONTHLY_STRIPE', planName: 'BUSINESS' }),
     );
 
     const c = build();
@@ -189,21 +193,90 @@ describe('BillingSuccess', () => {
     c.ngOnDestroy();
   });
 
-  it('does NOT confirm an old subscription just because the marker is gone', () => {
-    // ACTIVE for months, no marker: nothing here proves a payment just happened.
+  it('prefers ?plan= over a stale per-tab marker', () => {
+    // A previous, abandoned checkout left PRO behind; this round-trip is for
+    // BUSINESS. The query string is the newer, authoritative hint.
+    store['billingCheckoutPlanCode'] = 'PRO_MONTHLY_STRIPE';
+    queryParams['plan'] = 'BUSINESS_MONTHLY_STRIPE';
+    subscriptionSignal.set(sub({ status: 'ACTIVE', planCode: 'PRO_MONTHLY_STRIPE' }));
+
+    const c = build();
+    c.ngOnInit();
+
+    // Would have been a false "active" had the stale marker won.
+    expect(c.state()).not.toBe('active');
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    c.ngOnDestroy();
+  });
+
+  it('falls back to the sessionStorage marker when ?plan= is absent', () => {
+    // Checkout started before the backend appended the parameter.
+    store['billingCheckoutPlanCode'] = 'BUSINESS_MONTHLY_STRIPE';
     subscriptionSignal.set(
-      sub({ status: 'ACTIVE', currentPeriodStart: '2020-01-01T00:00:00Z' }),
+      sub({ status: 'ACTIVE', planCode: 'BUSINESS_MONTHLY_STRIPE', planName: 'BUSINESS' }),
     );
 
     const c = build();
     c.ngOnInit();
 
-    expect(c.state()).toBe('polling');
+    expect(c.state()).toBe('active');
+
+    c.ngOnDestroy();
+  });
+
+  it('says "unknown" — not success, not cancel — with neither ?plan= nor marker', () => {
+    subscriptionSignal.set(sub({ status: 'ACTIVE', planCode: 'PRO_MONTHLY_STRIPE' }));
+
+    const c = build();
+    c.ngOnInit();
+
+    expect(c.state()).toBe('unknown');
+    expect(router.navigate).not.toHaveBeenCalled();
+    // No point spinning: it never hardens into a claim about the money either.
+    vi.advanceTimersByTime(31000);
+    expect(c.state()).toBe('unknown');
+
+    c.ngOnDestroy();
+  });
+
+  it('does NOT congratulate a recent renewer who abandoned an upgrade', () => {
+    // THE case the 15-minute `currentPeriodStart` heuristic got wrong: renewed
+    // moments ago on PRO, opened a BUSINESS checkout, backed out. Stripe's
+    // cancel_url returns HERE, without `?plan=`.
+    subscriptionSignal.set(
+      sub({
+        status: 'ACTIVE',
+        planCode: 'PRO_MONTHLY_STRIPE',
+        planName: 'PRO',
+        currentPeriodStart: new Date().toISOString(),
+      }),
+    );
+
+    const c = build();
+    c.ngOnInit();
+
+    expect(c.state()).toBe('unknown');
+    expect(c.state()).not.toBe('active');
     expect(router.navigate).not.toHaveBeenCalled();
 
-    // …and it never hardens into a claim about the money either.
-    vi.advanceTimersByTime(31000);
-    expect(c.state()).toBe('timeout');
+    c.ngOnDestroy();
+  });
+
+  it('never claims success from ?plan= alone when the plan in force differs', () => {
+    // `?plan=` is client-supplied and forgeable — it selects what to COMPARE,
+    // it never grants anything.
+    queryParams['plan'] = 'BUSINESS_MONTHLY_STRIPE';
+    subscriptionSignal.set(
+      sub({ status: 'ACTIVE', planCode: 'FREE_STRIPE', planName: 'FREE' }),
+    );
+
+    const c = build();
+    c.ngOnInit();
+
+    expect(c.state()).not.toBe('active');
+    vi.advanceTimersByTime(16000);
+    expect(c.state()).toBe('unconfirmed');
 
     c.ngOnDestroy();
   });
