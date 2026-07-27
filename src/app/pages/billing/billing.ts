@@ -221,6 +221,10 @@ export class Billing implements OnInit, OnDestroy {
    * ACTIVE on the FREE plan. After an applied downgrade the backend keeps the
    * subscription ACTIVE with `currentPeriodEnd: null`, so status alone can no
    * longer be read as "assinatura paga vigente".
+   *
+   * Requires the `/plans` row as positive evidence — while `plans()` is empty
+   * (still loading, or `/plans` failed) an ACTIVE subscription counts as PAID,
+   * which is what keeps "Cancelar assinatura" on screen for a real customer.
    */
   protected readonly isFreeActive = computed(() =>
     isFreePlanInForce(this.subscription(), this.plans()),
@@ -350,7 +354,9 @@ export class Billing implements OnInit, OnDestroy {
     // A NULL `currentPeriodEnd` is "we don't know", not "expired": hiding the
     // button there would strand a paid subscriber whose period end is
     // momentarily absent. The backend still arbitrates, and a 400 already
-    // routes the user to the plans with an explanation.
+    // routes the user to the plans with an explanation. `isFreePlanInForce()`
+    // reads the same null the same way — neither rule treats a missing value
+    // as evidence against the customer.
     if (sub.currentPeriodEnd === null) return true;
     return this.daysLeftInPaidPeriod() > 0;
   });
@@ -495,7 +501,14 @@ export class Billing implements OnInit, OnDestroy {
       this.beginAwaitPaymentWindow('returned');
     }
 
-    this.billingService.loadPlans().subscribe({ error: () => void 0 });
+    // The page still renders without `/plans` (the banner from the service
+    // explains the empty plan grid), but the failure must leave a trace: this
+    // is the call that turns "gratuito vs pago" into a fact. Losing it degrades
+    // the classification to "unknown", and `isFreePlanInForce` deliberately
+    // resolves unknown as PAID rather than hiding the cancel button.
+    this.billingService.loadPlans().subscribe({
+      error: (err: unknown) => console.error('[billing] loadPlans failed', err),
+    });
     this.refreshSubscription();
 
     if (!this.isBrowser) return;

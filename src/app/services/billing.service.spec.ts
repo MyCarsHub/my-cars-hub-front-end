@@ -4,9 +4,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BillingService } from './billing.service';
+import { BillingService, isFreePlanInForce } from './billing.service';
 import { BillingAccessService } from './billing-access.service';
-import { SubscriptionChangeResponse, SubscriptionResponse } from '../types/billing.types';
+import {
+  PlanResponse,
+  SubscriptionChangeResponse,
+  SubscriptionResponse,
+} from '../types/billing.types';
 
 const subscription: SubscriptionResponse = {
   id: 'sub-1',
@@ -31,6 +35,52 @@ const change: SubscriptionChangeResponse = {
   effectiveAt: '2026-08-01T00:00:00Z',
   message: 'Mudança agendada.',
 };
+
+const planRow = (over: Partial<PlanResponse>): PlanResponse => ({
+  id: 'id-free',
+  code: 'FREE_MONTHLY_STRIPE',
+  name: 'TRIAL',
+  period: 'MONTHLY',
+  price: 0,
+  vehicleLimit: 2,
+  driverLimit: 3,
+  trialDays: 7,
+  productExternalId: null,
+  gateway: 'stripe',
+  ...over,
+});
+
+const FREE_ROW = planRow({});
+const PRO_ROW = planRow({ id: 'id-pro', code: 'PRO_MONTHLY_STRIPE', name: 'PRO', price: 199 });
+
+/**
+ * The rule that decides whether a customer sees "Cancelar assinatura". Only a
+ * plan row that EXISTS and costs zero may classify a subscription as free —
+ * absence of data must always resolve to PAID.
+ */
+describe('isFreePlanInForce', () => {
+  it('classifies as free only with a zero-priced row (positive evidence)', () => {
+    const freeSub = { ...subscription, planCode: 'FREE_MONTHLY_STRIPE', planName: 'TRIAL' };
+    expect(isFreePlanInForce(freeSub, [FREE_ROW, PRO_ROW])).toBe(true);
+    expect(isFreePlanInForce(subscription, [FREE_ROW, PRO_ROW])).toBe(false);
+  });
+
+  it('never infers "free" from a missing plan row, whatever the period end', () => {
+    // `/plans` empty or still in flight. Both period-end shapes must resolve to
+    // PAID: a null one is what used to hide the cancel button.
+    expect(isFreePlanInForce({ ...subscription, currentPeriodEnd: null }, [])).toBe(false);
+    expect(isFreePlanInForce(subscription, [])).toBe(false);
+    // Even the free plan CODE is not enough without its row — the price is.
+    const freeSub = { ...subscription, planCode: 'FREE_MONTHLY_STRIPE', currentPeriodEnd: null };
+    expect(isFreePlanInForce(freeSub, [])).toBe(false);
+  });
+
+  it('is false for anything that is not ACTIVE', () => {
+    const trialing: SubscriptionResponse = { ...subscription, status: 'TRIALING' };
+    expect(isFreePlanInForce(trialing, [FREE_ROW, PRO_ROW])).toBe(false);
+    expect(isFreePlanInForce(null, [FREE_ROW])).toBe(false);
+  });
+});
 
 describe('BillingService', () => {
   let httpPost: ReturnType<typeof vi.fn>;

@@ -132,6 +132,12 @@ type Probe = {
 
 describe('Billing', () => {
   let subscriptionSignal: ReturnType<typeof signal<SubscriptionResponse | null>>;
+  /**
+   * Writable on purpose: `/plans` can fail or land late, and the free-vs-paid
+   * classification must be exercised with an EMPTY plan list, not only with the
+   * happy-path catalogue.
+   */
+  let plansSignal: ReturnType<typeof signal<PlanResponse[]>>;
   let errorSignal: ReturnType<typeof signal<string | null>>;
   let billing: {
     plans: unknown;
@@ -187,11 +193,12 @@ describe('Billing', () => {
 
   beforeEach(() => {
     subscriptionSignal = signal<SubscriptionResponse | null>(null);
+    plansSignal = signal<PlanResponse[]>([...PLANS]);
     errorSignal = signal<string | null>(null);
     queryParams = {};
 
     billing = {
-      plans: signal(PLANS).asReadonly(),
+      plans: plansSignal.asReadonly(),
       subscription: subscriptionSignal.asReadonly(),
       loading: signal(false).asReadonly(),
       error: errorSignal.asReadonly(),
@@ -691,6 +698,66 @@ describe('Billing', () => {
 
     expect(c.canCancel()).toBe(false);
     expect(c.canReactivate()).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // C3b — a MISSING plan row is "unknown", never proof of a free plan
+  // ---------------------------------------------------------------------------
+
+  it('keeps "Cancelar assinatura" for a paid subscription when /plans never loaded', () => {
+    // The exact shape that used to hide the button from a paying customer:
+    // `/plans` empty (failed or still in flight) + a null period end. Reading
+    // that null as "gratuito" made `canCancel()` false for a PRO subscriber.
+    plansSignal.set([]);
+    subscriptionSignal.set(sub({ status: 'ACTIVE', currentPeriodEnd: null }));
+    const c = build();
+
+    expect(c.isFreeActive()).toBe(false);
+    expect(c.canCancel()).toBe(true);
+  });
+
+  it('keeps "Cancelar assinatura" when /plans fails outright', () => {
+    plansSignal.set([]);
+    billing.loadPlans = vi.fn(() =>
+      throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
+    );
+    subscriptionSignal.set(sub({ status: 'ACTIVE', currentPeriodEnd: null }));
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => void 0);
+    const c = build();
+
+    // The failure must not take the page down with it…
+    c.ngOnInit();
+    // …it must leave a trace instead of vanishing…
+    expect(logged).toHaveBeenCalled();
+    // …and it must not demote a paying customer to the free plan.
+    expect(c.isFreeActive()).toBe(false);
+    expect(c.canCancel()).toBe(true);
+    expect(c.heroEyebrow()).toBe('Plano atual');
+    logged.mockRestore();
+  });
+
+  it('agrees with canReactivate about what a NULL period end means', () => {
+    plansSignal.set([]);
+    subscriptionSignal.set(
+      sub({ status: 'ACTIVE', cancelAtPeriodEnd: true, currentPeriodEnd: null }),
+    );
+    const c = build();
+
+    // Both rules read the same null as "we do not know", not as evidence
+    // against the customer — so the escape hatch stays reachable.
+    expect(c.isFreeActive()).toBe(false);
+    expect(c.canReactivate()).toBe(true);
+  });
+
+  it('still classifies the real free plan as free once its row is known', () => {
+    // Positive evidence: the row exists and costs zero. Nothing changes here.
+    subscriptionSignal.set(freeActive());
+    const c = build();
+
+    expect(c.isFreeActive()).toBe(true);
+    expect(c.canCancel()).toBe(false);
+    expect(c.canReactivate()).toBe(false);
+    expect(c.heroEyebrow()).toBe('Plano gratuito');
   });
 
   it('treats every paid plan as a plain checkout from an ACTIVE free plan', () => {

@@ -45,9 +45,10 @@ export class Profile implements OnInit, OnDestroy {
 
   /**
    * ACTIVE on the free plan, decided by the PLAN PRICE. This page loads
-   * `/plans` on entry precisely so the rule never has to fall back to the
-   * `currentPeriodEnd === null` heuristic, which labelled a paid subscription
-   * with a momentarily null period as "Plano gratuito / Sem cobrança".
+   * `/plans` on entry precisely so the rule has the row it needs; without it
+   * the subscription counts as PAID, never as free. Guessing from a
+   * momentarily null `currentPeriodEnd` used to label a paid subscription
+   * "Plano gratuito / Sem cobrança".
    */
   protected readonly isFreeActive = computed(() =>
     isFreePlanInForce(this.subscription(), this.billingService.plans()),
@@ -115,11 +116,11 @@ export class Profile implements OnInit, OnDestroy {
       },
       error: () => void 0,
     });
-    // `/plans` is what turns `isFreeActive` from a heuristic into a fact.
+    // `/plans` is what turns `isFreeActive` from "unknown" into a fact.
     this.billingService
       .loadPlans()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ error: () => void 0 });
+      .subscribe({ error: (err: unknown) => console.error('[profile] loadPlans failed', err) });
     this.billingService
       .loadSubscription()
       .pipe(takeUntilDestroyed(this.destroyRef))

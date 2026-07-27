@@ -45,9 +45,18 @@ const backendMessage = (err: HttpErrorResponse, fallback: string): string => {
  * After an applied downgrade the backend leaves the subscription `ACTIVE` on
  * the free plan with `currentPeriodEnd: null` (it used to be `TRIALING`), so
  * `status === 'ACTIVE'` alone no longer means "paid subscription in force".
- * The plan PRICE is the discriminator; `currentPeriodEnd === null` is the
- * fallback for callers that never loaded `/plans` (e.g. the profile page),
- * because a paid, active subscription always carries a period end.
+ * The plan PRICE is the ONLY discriminator, and it requires POSITIVE evidence:
+ * the `/plans` row backing `sub.planCode` must exist and cost zero.
+ *
+ * Absence of data is never proof of a free plan. A missing row means `/plans`
+ * failed or has not landed yet, and the previous `currentPeriodEnd === null`
+ * fallback turned that gap into "gratuito" — which hid "Cancelar assinatura"
+ * from a PAYING customer whose period end was momentarily null, for the whole
+ * session if `/plans` stayed down. This also aligns the rule with
+ * `canReactivate()`, which already reads a null period end as "unknown, not
+ * expired". When in doubt we classify as PAID: offering a cancel button that
+ * the backend may refuse is strictly better than withholding it from someone
+ * being charged.
  */
 export const isFreePlanInForce = (
   sub: SubscriptionResponse | null,
@@ -55,8 +64,7 @@ export const isFreePlanInForce = (
 ): boolean => {
   if (!sub || sub.status !== 'ACTIVE') return false;
   const row = plans.find((p) => p.code === sub.planCode);
-  if (row) return row.price <= 0;
-  return sub.currentPeriodEnd === null;
+  return row ? row.price <= 0 : false;
 };
 
 @Injectable({ providedIn: 'root' })
