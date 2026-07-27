@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -112,6 +112,9 @@ type Probe = {
   canCancel(): boolean;
   downgradeTarget(): PlanResponse | null;
   planCardError(p: PlanResponse): string | null;
+  manualCheckout(): { planCode: string; planName: string; url: string } | null;
+  onManualCheckoutOpened(): void;
+  awaitingPayment(): boolean;
   planCtaNote(p: PlanResponse): string | null;
   periodSwitchTarget(): PlanResponse | null;
   periodSwitchDialogTitle(): string;
@@ -143,7 +146,27 @@ describe('Billing', () => {
     cancel: ReturnType<typeof vi.fn>;
     clearError: ReturnType<typeof vi.fn>;
   };
-  let externalNav: { openExternal: ReturnType<typeof vi.fn>; redirectSameTab: ReturnType<typeof vi.fn> };
+  /**
+   * A tab handed out by the stubbed `openPendingTab()`. `snapshot` models the
+   * real browser rule the ordering bug hid behind: the new tab receives a COPY
+   * of sessionStorage taken at `window.open` time, and later writes in the
+   * opener never reach it.
+   */
+  type FakeTab = {
+    blocked: boolean;
+    snapshot: Map<string, string>;
+    navigate: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  };
+  let externalNav: {
+    openExternal: ReturnType<typeof vi.fn>;
+    openPendingTab: ReturnType<typeof vi.fn>;
+  };
+  /** Every tab reserved during the test, in order. */
+  let tabs: FakeTab[];
+  /** Flip to simulate an aggressive popup blocker. */
+  let popupBlocked: boolean;
+  const lastTab = (): FakeTab => tabs[tabs.length - 1];
   let access: { invalidate: ReturnType<typeof vi.fn>; load: ReturnType<typeof vi.fn> };
   let notifications: {
     success: ReturnType<typeof vi.fn>;
@@ -157,6 +180,8 @@ describe('Billing', () => {
     removeItem: ReturnType<typeof vi.fn>;
   };
   let queryParams: Record<string, string>;
+  /** The tab's sessionStorage, as the component really sees it. */
+  let sessionStore: Map<string, string>;
 
   const build = (): Probe => TestBed.createComponent(Billing).componentInstance as unknown as Probe;
 
@@ -194,14 +219,31 @@ describe('Billing', () => {
       cancel: vi.fn(() => of(void 0)),
       clearError: vi.fn(() => errorSignal.set(null)),
     };
-    externalNav = { openExternal: vi.fn(), redirectSameTab: vi.fn() };
+    tabs = [];
+    popupBlocked = false;
+    sessionStore = new Map<string, string>();
+    externalNav = {
+      openExternal: vi.fn(),
+      openPendingTab: vi.fn(() => {
+        const tab: FakeTab = {
+          blocked: popupBlocked,
+          snapshot: new Map(sessionStore),
+          navigate: vi.fn(),
+          close: vi.fn(),
+        };
+        tabs.push(tab);
+        return tab;
+      }),
+    };
     access = { invalidate: vi.fn(), load: vi.fn(() => of(null)) };
     notifications = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
+    // Backed by a real store so the spec can observe WHEN a marker exists, not
+    // merely that `setItem` was called at some point.
     session = {
       isPlatformAdmin: () => false,
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
+      getItem: vi.fn((key: string) => sessionStore.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => void sessionStore.set(key, value)),
+      removeItem: vi.fn((key: string) => void sessionStore.delete(key)),
     };
 
     TestBed.configureTestingModule({
@@ -314,7 +356,7 @@ describe('Billing', () => {
     expect(billing.startCheckout).not.toHaveBeenCalled();
   });
 
-  it('routes upgrades through /checkout with a same-tab redirect', () => {
+  it('routes upgrades through /checkout into a new tab', () => {
     // No paid days left to burn → nothing to warn about, straight to checkout.
     subscriptionSignal.set(sub({ status: 'ACTIVE', currentPeriodEnd: PAST }));
     const c = build();
@@ -322,7 +364,8 @@ describe('Billing', () => {
     c.onPlanCta(BUSINESS);
 
     expect(billing.startCheckout).toHaveBeenCalledWith('BUSINESS_MONTHLY_STRIPE', undefined);
-    expect(externalNav.redirectSameTab).toHaveBeenCalledWith('https://pay.example/x');
+    expect(lastTab().navigate).toHaveBeenCalledWith('https://pay.example/x');
+    // `openExternal` would be a post-response `window.open` — the blocked path.
     expect(externalNav.openExternal).not.toHaveBeenCalled();
   });
 
@@ -715,7 +758,7 @@ describe('Billing', () => {
 
     // Nothing keys off a NEW externalId: the same session id is the expected
     // answer when a pending checkout is resumed.
-    expect(externalNav.redirectSameTab).toHaveBeenCalledWith('https://pay.example/sess_1');
+    expect(lastTab().navigate).toHaveBeenCalledWith('https://pay.example/sess_1');
     expect(c.planCardError(PRO)).toBeNull();
     expect(c.planCtaNote(PRO)).toContain('mesma cobrança');
   });
@@ -956,7 +999,9 @@ describe('Billing', () => {
 
     c.onPlanCta(PRO);
 
-    expect(externalNav.redirectSameTab).not.toHaveBeenCalled();
+    expect(lastTab().navigate).not.toHaveBeenCalled();
+    // …and the blank tab we reserved is not left orphaned on screen.
+    expect(lastTab().close).toHaveBeenCalledTimes(1);
     expect(c.planCardError(PRO)).not.toBeNull();
     // Not stuck: the CTA is enabled again and a second click really retries.
     expect(c.planCtaDisabled(PRO)).toBe(false);
@@ -1047,5 +1092,182 @@ describe('Billing', () => {
     c.onPlanCta(PRO);
 
     expect(billing.clearError).toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // N1 — the checkout ALWAYS opens a new tab, and never as a post-response
+  //      `window.open` (which is what mobile blocks as a pop-up)
+  // ---------------------------------------------------------------------------
+
+  it('reserves the checkout tab synchronously, before the request answers', () => {
+    subscriptionSignal.set(null);
+    const pending = new Subject<{ redirectUrl: string; externalId: string }>();
+    billing.startCheckout = vi.fn(() => pending.asObservable());
+    const c = build();
+
+    c.onPlanCta(PRO);
+
+    // Still inside the click gesture: the tab already exists, nothing navigated.
+    expect(externalNav.openPendingTab).toHaveBeenCalledTimes(1);
+    expect(lastTab().navigate).not.toHaveBeenCalled();
+
+    pending.next({ redirectUrl: 'https://pay.example/x', externalId: 'e' });
+    pending.complete();
+
+    expect(lastTab().navigate).toHaveBeenCalledWith('https://pay.example/x');
+    // Exactly one tab: no second `window.open` after the response.
+    expect(externalNav.openPendingTab).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reserve a tab for a request that never happens', () => {
+    subscriptionSignal.set(null);
+    const c = build();
+
+    // Free plan → no checkout at all, so no orphan blank tab.
+    c.onPlanCta(FREE);
+
+    expect(externalNav.openPendingTab).not.toHaveBeenCalled();
+  });
+
+  it('closes the reserved tab and offers a retry when the request fails', () => {
+    subscriptionSignal.set(null);
+    billing.startCheckout = vi.fn(() =>
+      throwError(() => new HttpErrorResponse({ status: 500 })),
+    );
+    const c = build();
+
+    c.onPlanCta(PRO);
+
+    expect(lastTab().close).toHaveBeenCalledTimes(1);
+    expect(c.planCardError(PRO)).not.toBeNull();
+    expect(c.manualCheckout()).toBeNull();
+    // Markers written before the tab was reserved must not outlive the failure.
+    expect(sessionStore.has('billingCheckoutPending')).toBe(false);
+    expect(sessionStore.has('billingCheckoutPlanCode')).toBe(false);
+    // Not stuck: the CTA is live again and a second click really retries.
+    expect(c.planCtaDisabled(PRO)).toBe(false);
+    c.onPlanCta(PRO);
+    expect(billing.startCheckout).toHaveBeenCalledTimes(2);
+  });
+
+  it('recovers when the checkout request hangs without answering', () => {
+    vi.useFakeTimers();
+    try {
+      subscriptionSignal.set(null);
+      // No HTTP timeout interceptor exists in the app: without the operator the
+      // reserved tab stayed blank forever and the CTA never left "Processando…".
+      billing.startCheckout = vi.fn(() =>
+        new Subject<{ redirectUrl: string; externalId: string }>().asObservable(),
+      );
+      const c = build();
+
+      c.onPlanCta(PRO);
+      expect(c.planCtaLabel(PRO)).toBe('Processando…');
+
+      vi.advanceTimersByTime(20001);
+
+      expect(lastTab().close).toHaveBeenCalledTimes(1);
+      expect(c.planCardError(PRO)).not.toBeNull();
+      expect(c.planCtaDisabled(PRO)).toBe(false);
+      expect(sessionStore.has('billingCheckoutPending')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('degrades to a clickable link when the popup blocker refuses the tab', () => {
+    subscriptionSignal.set(null);
+    popupBlocked = true;
+    const c = build();
+
+    c.onPlanCta(PRO);
+
+    const manual = c.manualCheckout();
+    expect(manual?.url).toBe('https://pay.example/x');
+    expect(manual?.planName).toBe('PRO');
+    expect(c.planCardError(PRO)).toContain('bloqueou');
+    // Nothing is claimed to be in progress until the user actually clicks — a
+    // reload here must not wait for a checkout that was never opened.
+    expect(c.awaitingPayment()).toBe(false);
+    expect(sessionStore.has('billingCheckoutPending')).toBe(false);
+    expect(c.planCtaDisabled(PRO)).toBe(false);
+
+    // The user's own click on the link IS a gesture no blocker refuses.
+    c.onManualCheckoutOpened();
+
+    expect(c.awaitingPayment()).toBe(true);
+    expect(sessionStore.get('billingCheckoutPending')).toBe('true');
+    expect(sessionStore.get('billingCheckoutPlanCode')).toBe('PRO_MONTHLY_STRIPE');
+  });
+
+  it('drops a stale manual-checkout link when another plan is clicked', () => {
+    subscriptionSignal.set(null);
+    popupBlocked = true;
+    const c = build();
+
+    c.onPlanCta(PRO);
+    expect(c.manualCheckout()?.planCode).toBe('PRO_MONTHLY_STRIPE');
+
+    popupBlocked = false;
+    c.onPlanCta(BUSINESS);
+
+    expect(c.manualCheckout()).toBeNull();
+  });
+
+  it('gives the checkout tab a sessionStorage snapshot that ALREADY has the plan code', () => {
+    subscriptionSignal.set(null);
+    const c = build();
+
+    c.onPlanCta(PRO);
+
+    // The bug this pins: writing the marker after the POST resolved produced a
+    // snapshot without it, silently demoting `/billing/success` to a heuristic
+    // that can congratulate an abandoned checkout.
+    expect(lastTab().snapshot.get('billingCheckoutPlanCode')).toBe('PRO_MONTHLY_STRIPE');
+    expect(lastTab().snapshot.get('billingCheckoutPending')).toBe('true');
+  });
+
+  it('waits for confirmation in the ORIGINAL tab once the checkout tab opens', () => {
+    subscriptionSignal.set(null);
+    const c = build();
+
+    c.onPlanCta(PRO);
+
+    // The gateway runs elsewhere: this tab keeps a bounded waiting window and
+    // records the plan so the return page can recognise the payment.
+    expect(c.awaitingPayment()).toBe(true);
+    expect(sessionStore.get('billingCheckoutPlanCode')).toBe('PRO_MONTHLY_STRIPE');
+
+    // …and the wait ends by itself once the paid plan is in force.
+    subscriptionSignal.set(sub({ status: 'ACTIVE', planCode: 'PRO_MONTHLY_STRIPE' }));
+    c.revalidate();
+
+    expect(c.awaitingPayment()).toBe(false);
+    expect(sessionStore.has('billingCheckoutPending')).toBe(false);
+  });
+
+  it('does not keep the CTAs disabled once the user is back on this tab', () => {
+    vi.useFakeTimers();
+    try {
+      subscriptionSignal.set(
+        sub({ status: 'TRIALING', planCode: 'FREE_MONTHLY_STRIPE', planName: 'TRIAL' }),
+      );
+      const c = build();
+
+      c.onPlanCta(PRO);
+      expect(c.awaitingPayment()).toBe(true);
+
+      // Coming back to this tab means the long "still paying elsewhere" window
+      // no longer applies — an abandoned checkout must not disable every CTA
+      // for the full fifteen minutes.
+      vi.advanceTimersByTime(3000);
+      c.revalidate();
+      vi.advanceTimersByTime(31000);
+
+      expect(c.awaitingPayment()).toBe(false);
+      expect(c.planCtaDisabled(PRO)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -36,7 +36,41 @@
       <span
         class="mt-0.5 shrink-0 inline-block w-4 h-4 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"
         aria-hidden="true"></span>
-      <span>Estamos confirmando seu pagamento. Isso pode levar alguns instantes.</span>
+      <span>
+        Aguardando a confirmação do seu pagamento. Esta página se atualiza sozinha assim que ele
+        for confirmado.
+      </span>
+    </div>
+  }
+
+  <!-- Pop-up blocked: the user opens the checkout with their own click -->
+  @if (manualCheckout(); as manual) {
+    <div
+      role="alert"
+      class="mb-4 flex flex-col gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50
+             text-amber-900 text-sm font-medium">
+      <p class="min-w-0">
+        Seu navegador bloqueou a aba de pagamento do plano {{ manual.planName }}. Toque no botão
+        abaixo para abrir o checkout — nada foi cobrado ainda e a mesma cobrança será retomada.
+      </p>
+      <a
+        #manualCheckoutLink
+        [href]="manual.url"
+        target="_blank"
+        rel="noreferrer"
+        (click)="onManualCheckoutOpened()"
+        class="inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:self-start
+               min-h-11 px-4 py-2.5 rounded-xl bg-amber-600 text-white font-semibold
+               hover:bg-amber-700 focus:outline-none focus-visible:ring-2
+               focus-visible:ring-amber-700 focus-visible:ring-offset-2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+        Abrir pagamento em nova aba
+      </a>
     </div>
   }
 

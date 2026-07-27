@@ -2,15 +2,19 @@ import {
   ChangeDetectionStrategy,
   Component,
   DOCUMENT,
+  ElementRef,
   OnDestroy,
   OnInit,
   PLATFORM_ID,
   computed,
+  effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
+import { timeout } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -65,11 +69,37 @@ const REVALIDATE_THROTTLE_MS = 2000;
 const AWAIT_PAYMENT_POLL_MS = 2500;
 
 /**
- * Hard bound on "verificando pagamento". The webhook may never land (abandoned
+ * Hard bound on "verificando pagamento" when the gateway round-trip is already
+ * OVER (we came back to this page). The webhook may never land (abandoned
  * checkout); after this the page goes back to a fully interactive state so the
  * user can retry instead of staring at disabled buttons forever.
  */
 const AWAIT_PAYMENT_TIMEOUT_MS = 30000;
+
+/**
+ * Same bound, but for a checkout still OPEN in another tab: the user has not
+ * even finished typing the card yet. A real payment with 3-D Secure routinely
+ * takes minutes, and expiring at 30s dropped the banner — and the promise that
+ * this page updates itself — right in the middle of the payment.
+ */
+const CHECKOUT_TAB_TIMEOUT_MS = 15 * 60 * 1000;
+
+/** Slower cadence for that long window: this tab is in the background. */
+const CHECKOUT_TAB_POLL_MS = 5000;
+
+/**
+ * Ceiling on `POST /billing/checkout`. There is no HTTP timeout interceptor in
+ * the app, so a request that neither answers nor errors left the reserved tab
+ * orphaned and the CTA stuck on "Processando…" with no error and no retry.
+ */
+const CHECKOUT_REQUEST_TIMEOUT_MS = 20000;
+
+/**
+ * `checkout-open`: the gateway is live in another tab and we may be waiting a
+ * long time. `returned`: the user is back on this page, so the wait must be
+ * short and end in a fully interactive page.
+ */
+type AwaitMode = 'returned' | 'checkout-open';
 
 @Component({
   selector: 'app-billing',
@@ -106,6 +136,29 @@ export class Billing implements OnInit, OnDestroy {
   protected readonly ctaError = signal<{ planId: string; message: string } | null>(null);
   /** True from "checkout started" until we have revalidated after the return. */
   protected readonly awaitingPayment = signal(false);
+  /**
+   * Set only when the browser refused the checkout tab. Carries the URL the
+   * user can click themselves — never auto-navigated, or we would be back to
+   * the blocked pop-up.
+   */
+  protected readonly manualCheckout = signal<{
+    planCode: string;
+    planName: string;
+    url: string;
+  } | null>(null);
+
+  private readonly manualCheckoutLink =
+    viewChild<ElementRef<HTMLAnchorElement>>('manualCheckoutLink');
+
+  /**
+   * The banner is at the top of the page while the failure is reported on the
+   * card the user clicked — on a phone the two are rarely on screen together.
+   * Focusing the link moves the keyboard and the viewport to the only action
+   * that unblocks the checkout.
+   */
+  private readonly focusManualCheckoutLink = effect(() => {
+    this.manualCheckoutLink()?.nativeElement.focus();
+  });
   protected readonly accountActionBusy = signal(false);
 
   protected readonly showCancelDialog = signal(false);
@@ -121,6 +174,8 @@ export class Billing implements OnInit, OnDestroy {
   /** Poll handle + hard deadline for the post-gateway "verificando" window. */
   private awaitPollHandle: ReturnType<typeof setInterval> | null = null;
   private awaitDeadline = 0;
+  /** Which waiting window is running — they have very different bounds. */
+  private awaitMode: AwaitMode = 'returned';
 
   /**
    * Which gateway to render. PLATFORM_ADMIN can switch; everyone else sees
@@ -434,15 +489,10 @@ export class Billing implements OnInit, OnDestroy {
     this.blockedReason.set(this.route.snapshot.queryParamMap.get('reason'));
 
     if (this.isBrowser && this.session.getItem(CHECKOUT_PENDING_KEY) === 'true') {
-      // We came back from the gateway in the same tab: keep the "verificando"
-      // state up until the PAID plan actually lands (the webhook is async, so
-      // the very first `/subscription` read almost never shows it yet).
-      this.awaitingPayment.set(true);
-      this.awaitDeadline = Date.now() + AWAIT_PAYMENT_TIMEOUT_MS;
-      this.awaitPollHandle = setInterval(
-        () => this.refreshSubscription(),
-        AWAIT_PAYMENT_POLL_MS,
-      );
+      // A checkout round-trip was already in progress when this page loaded:
+      // keep the "verificando" state up until the PAID plan actually lands (the
+      // webhook is async, so the very first `/subscription` read rarely shows it).
+      this.beginAwaitPaymentWindow('returned');
     }
 
     this.billingService.loadPlans().subscribe({ error: () => void 0 });
@@ -482,6 +532,14 @@ export class Billing implements OnInit, OnDestroy {
     if (now - this.lastRevalidateAt < REVALIDATE_THROTTLE_MS) return;
     this.lastRevalidateAt = now;
 
+    // The user is looking at THIS tab again, so the long "they are still typing
+    // a card somewhere else" window no longer applies: fall back to the short
+    // bounded one, or an abandoned checkout would keep every CTA disabled for
+    // fifteen minutes.
+    if (this.awaitingPayment() && this.awaitMode === 'checkout-open') {
+      this.beginAwaitPaymentWindow('returned');
+    }
+
     this.access.invalidate();
     this.access.load().subscribe({ error: () => void 0 });
     this.refreshSubscription();
@@ -513,6 +571,26 @@ export class Billing implements OnInit, OnDestroy {
     }
     this.stopAwaitPolling();
     this.clearCheckoutMarkers();
+  }
+
+  /**
+   * Enter the bounded "verificando pagamento" window. The checkout now runs in
+   * ANOTHER tab, so this tab has no navigation of its own to wait for: polling
+   * is what turns it into the paid plan the moment the webhook lands, and the
+   * hard deadline is what keeps it from sitting on disabled CTAs forever if the
+   * user abandons the gateway tab and never comes back to it.
+   */
+  private beginAwaitPaymentWindow(mode: AwaitMode): void {
+    const returned = mode === 'returned';
+    this.awaitMode = mode;
+    this.awaitingPayment.set(true);
+    this.awaitDeadline =
+      Date.now() + (returned ? AWAIT_PAYMENT_TIMEOUT_MS : CHECKOUT_TAB_TIMEOUT_MS);
+    this.stopAwaitPolling();
+    this.awaitPollHandle = setInterval(
+      () => this.refreshSubscription(),
+      returned ? AWAIT_PAYMENT_POLL_MS : CHECKOUT_TAB_POLL_MS,
+    );
   }
 
   private stopAwaitPolling(): void {
@@ -1014,6 +1092,9 @@ export class Billing implements OnInit, OnDestroy {
   protected onPlanCta(plan: PlanResponse): void {
     if (this.planCtaDisabled(plan)) return;
     this.ctaError.set(null);
+    // A leftover "abra o checkout manualmente" link points at the PREVIOUS
+    // plan's session; it must not survive the click on another card.
+    this.manualCheckout.set(null);
     // A stale page-level banner from a previous failure must not outlive the
     // action the user just took.
     this.billingService.clearError();
@@ -1081,45 +1162,120 @@ export class Billing implements OnInit, OnDestroy {
       return;
     }
     this.busyPlanId.set(plan.id);
+    // ORDER IS LOAD-BEARING. The new tab receives a SNAPSHOT of this tab's
+    // sessionStorage taken at `window.open` time; later writes never propagate.
+    // Writing the plan code after the POST resolved meant the gateway tab got a
+    // snapshot WITHOUT it, which silently demoted `/billing/success` to its
+    // ±15min heuristic and could congratulate an abandoned checkout.
+    this.writeCheckoutMarkers(plan.code);
+    // THE tab, reserved right here — still inside the click gesture. Opening it
+    // after the POST resolves is what made mobile browsers treat the checkout as
+    // an unsolicited pop-up and block it.
+    const tab = this.externalNav.openPendingTab();
     // A previous POST for this plan already answered with an `externalId`: a
     // gateway session EXISTS even though we never reached it (empty
     // `redirectUrl`). Retrying as a plain new checkout minted a SECOND Stripe
     // session — and a second chance to be charged. Resume instead.
     const resume = opts?.resumePending === true || this.startedCheckoutCodes.has(plan.code);
     const override = this.isPlatformAdmin && !resume ? this.adminGateway() : undefined;
-    this.billingService.startCheckout(plan.code, override).subscribe({
-      next: (res) => {
-        // Record BEFORE the redirect branch: the session exists regardless of
-        // whether this response was usable.
-        if (res.externalId) this.startedCheckoutCodes.add(plan.code);
-        const redirectUrl = res.redirectUrl?.trim() ?? '';
-        if (!redirectUrl) {
-          // `redirectSameTab` no-ops on an empty URL: without this branch the
-          // CTA stayed "Processando…" forever, with no error and no retry.
-          this.failCheckout(
-            plan,
-            res.externalId
-              ? 'Não recebemos o link de pagamento. Tente novamente — a mesma cobrança será retomada, nada é cobrado duas vezes.'
-              : 'Não recebemos o link de pagamento. Tente novamente.',
-          );
-          return;
-        }
-        // Keep the "processando" state alive across the redirect: the spinner
-        // must not die at the exact moment the real wait begins.
-        this.awaitingPayment.set(true);
-        if (this.isBrowser) {
-          this.session.setItem(CHECKOUT_PENDING_KEY, 'true');
-          // `/billing/success` needs to know WHICH plan was being paid for:
-          // Stripe returns to the same URL whether the user paid or bailed.
-          this.session.setItem(CHECKOUT_PLAN_CODE_KEY, plan.code);
-        }
-        // Same tab: a popup is blocked on mobile, and a second tab leaves this
-        // page showing stale data forever.
-        this.externalNav.redirectSameTab(redirectUrl);
-      },
-      error: () =>
-        this.failCheckout(plan, 'Não foi possível iniciar o pagamento. Tente novamente.'),
+    this.billingService
+      .startCheckout(plan.code, override)
+      .pipe(timeout(CHECKOUT_REQUEST_TIMEOUT_MS))
+      .subscribe({
+        next: (res) => {
+          // Record BEFORE the redirect branch: the session exists regardless of
+          // whether this response was usable.
+          if (res.externalId) this.startedCheckoutCodes.add(plan.code);
+          const redirectUrl = res.redirectUrl?.trim() ?? '';
+          if (!redirectUrl) {
+            // No URL to navigate to: the reserved tab would sit there blank
+            // forever. Without this branch the CTA also stayed "Processando…"
+            // with no error and no retry.
+            tab.close();
+            this.failCheckout(
+              plan,
+              res.externalId
+                ? 'Não recebemos o link de pagamento. Tente novamente — a mesma cobrança será retomada, nada é cobrado duas vezes.'
+                : 'Não recebemos o link de pagamento. Tente novamente.',
+            );
+            return;
+          }
+          if (tab.blocked) {
+            // Honest degradation: we cannot open the tab for them, so we hand
+            // over a link they can click themselves — that click IS a gesture no
+            // blocker refuses. Nothing is marked as "in progress" until they do.
+            this.offerManualCheckout(plan, redirectUrl);
+            return;
+          }
+          this.markCheckoutStarted();
+          tab.navigate(redirectUrl);
+        },
+        // Covers the `timeout()` above too: a request that never answers takes
+        // the exact same recovery path as an outright failure.
+        error: () => {
+          tab.close();
+          this.failCheckout(plan, 'Não foi possível iniciar o pagamento. Tente novamente.');
+        },
+      });
+  }
+
+  /**
+   * Tell the gateway tab — and a later reload of THIS tab — which checkout is in
+   * flight. Must run BEFORE `openPendingTab()`: the new tab only ever sees the
+   * sessionStorage snapshot taken at open time. `/billing/success` reads
+   * `CHECKOUT_PLAN_CODE_KEY` to prove the payment landed on the plan that was
+   * actually being bought; without it, it can only fall back to weaker evidence.
+   */
+  private writeCheckoutMarkers(planCode: string): void {
+    if (!this.isBrowser) return;
+    this.session.setItem(CHECKOUT_PENDING_KEY, 'true');
+    this.session.setItem(CHECKOUT_PLAN_CODE_KEY, planCode);
+  }
+
+  /**
+   * The checkout is now live in ANOTHER tab. This tab keeps the bounded
+   * "verificando" window so it converts to the paid plan on its own, and drops
+   * the per-card spinner: the button is not what the user is waiting on.
+   * The markers are already written — see `writeCheckoutMarkers()`.
+   */
+  private markCheckoutStarted(): void {
+    this.busyPlanId.set(null);
+    this.manualCheckout.set(null);
+    this.beginAwaitPaymentWindow('checkout-open');
+  }
+
+  /** Pop-up blocked: surface a real, clickable link instead of a dead end. */
+  private offerManualCheckout(plan: PlanResponse, url: string): void {
+    this.busyPlanId.set(null);
+    this.awaitingPayment.set(false);
+    this.stopAwaitPolling();
+    // Nothing is in flight until the user clicks the link: the markers written
+    // before the (refused) tab would otherwise make a reload of this page wait
+    // for a checkout that was never opened.
+    this.clearCheckoutMarkers();
+    this.manualCheckout.set({ planCode: plan.code, planName: plan.name, url });
+    this.ctaError.set({
+      planId: plan.id,
+      message:
+        'Seu navegador bloqueou a abertura da aba de pagamento. Use o botão acima para abrir o checkout.',
     });
+  }
+
+  /**
+   * The user clicked the manual link — the gateway is opening in a new tab
+   * right now, so this tab enters the same waiting window a normal checkout
+   * would. The anchor's own navigation is left untouched.
+   */
+  protected onManualCheckoutOpened(): void {
+    const manual = this.manualCheckout();
+    if (!manual) return;
+    this.ctaError.set(null);
+    // `target="_blank"` on an anchor is implicitly `noopener`, so this tab's
+    // sessionStorage is NOT cloned into the gateway tab. The markers are still
+    // written for THIS tab (a reload must resume the wait); `/billing/success`
+    // falls back to its own evidence and never assumes a payment happened.
+    this.writeCheckoutMarkers(manual.planCode);
+    this.markCheckoutStarted();
   }
 
   /** Release every busy flag and surface the failure on the clicked card. */
