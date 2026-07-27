@@ -74,6 +74,16 @@ export class VehiclesList implements OnInit {
 
   protected readonly pageNumber = computed(() => this.page() + 1);
 
+  /** Texto do diálogo destrutivo: identifica o veículo e avisa que é irreversível. */
+  protected readonly deleteMessage = computed(() => {
+    const vehicle = this.deletingVehicle();
+    if (!vehicle) return '';
+    return (
+      `Tem certeza que deseja remover o veículo «${this.formatPlate(vehicle.plate)}» ` +
+      `(${vehicle.brand} ${vehicle.model})? Esta ação não pode ser desfeita.`
+    );
+  });
+
   ngOnInit(): void {
     this.reload(0);
   }
@@ -190,13 +200,13 @@ export class VehiclesList implements OnInit {
       next: () => {
         this.deleting.set(false);
         this.deletingVehicle.set(null);
-        this.notify.success(`Veículo «${this.formatPlate(vehicle.plate)}» excluído.`);
+        this.notify.success(`Veículo «${this.formatPlate(vehicle.plate)}» removido.`);
         this.reload(this.page());
       },
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deletingVehicle.set(null);
-        this.notify.error(this.extractError(err, 'Não foi possível excluir o veículo.'));
+        this.notify.error(this.extractError(err, 'Não foi possível remover o veículo.'));
       },
     });
   }
@@ -207,7 +217,7 @@ export class VehiclesList implements OnInit {
    */
   protected deleteDisabledReason(vehicle: VehicleListItem): string | null {
     if (vehicle.status === 'RENTED') {
-      return 'Veículo está alugado. Finalize o aluguel para excluir.';
+      return 'Veículo está alugado. Finalize o aluguel para remover.';
     }
     return null;
   }
