@@ -14,7 +14,7 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
-import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import {
   VEHICLE_SORT_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
@@ -37,7 +37,7 @@ const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
 @Component({
   selector: 'app-vehicles-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, ClickOutsideDirective],
+  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, ActionsMenu],
   templateUrl: './vehicles-list.html',
 })
 export class VehiclesList implements OnInit {
@@ -64,7 +64,6 @@ export class VehiclesList implements OnInit {
 
   protected readonly deletingVehicle = signal<VehicleListItem | null>(null);
   protected readonly deleting = signal(false);
-  protected readonly openMenuId = signal<string | null>(null);
   protected readonly transitioningId = signal<string | null>(null);
 
   protected readonly totalPages = computed(() => {
@@ -213,15 +212,6 @@ export class VehiclesList implements OnInit {
     return null;
   }
 
-  protected toggleMenu(id: string, event?: Event): void {
-    event?.stopPropagation();
-    this.openMenuId.update((cur) => (cur === id ? null : id));
-  }
-
-  protected closeMenu(): void {
-    this.openMenuId.set(null);
-  }
-
   protected canGoMaintenance(vehicle: VehicleListItem): boolean {
     return vehicle.status === 'AVAILABLE' || vehicle.status === 'INACTIVE';
   }
@@ -240,7 +230,6 @@ export class VehiclesList implements OnInit {
     event?: Event,
   ): void {
     event?.stopPropagation();
-    this.closeMenu();
     if (this.transitioningId() === vehicle.id) return;
     this.transitioningId.set(vehicle.id);
     this.vehiclesService.updateStatus(vehicle.id, target).subscribe({
