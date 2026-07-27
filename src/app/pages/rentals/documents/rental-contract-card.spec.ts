@@ -190,9 +190,10 @@ describe('RentalContractCard signature transition toasts', () => {
 });
 
 /**
- * Cobre os fluxos de download DOCX e abertura via docx-preview.
- * Stub no HTTP boundary (RentalService.documentSignedUrl) + no DOM
- * (fetch, window.open, URL.createObjectURL) — verifica só o wiring.
+ * Cobre os fluxos de download PDF (fetch → blob → anchor) e abertura
+ * do PDF em nova aba (window.open + navigation pra signed URL).
+ * Backend armazena PDF real; docx-preview foi removido deste caminho.
+ * Stub no HTTP boundary (RentalService.documentSignedUrl) + no DOM.
  */
 describe('RentalContractCard — download & open PDF', () => {
   const RID = 'rid';
@@ -288,27 +289,37 @@ describe('RentalContractCard — download & open PDF', () => {
     expect((fixture.componentInstance as any).downloading()).toBe(false);
   });
 
-  it('openContractAsPdf: abre nova aba, escreve loading e chama service', () => {
+  it('openContractAsPdf: sucesso → navega a aba pra signed URL do PDF', () => {
     rentalService.documentSignedUrl.mockReturnValue(
-      throwError(() => ({ error: { message: 'fetch failed' } })),
+      of({ url: 'https://signed/contract.pdf' } as any),
     );
-    const fakeWin = {
-      document: {
-        write: vi.fn(),
-        close: vi.fn(),
-        body: document.createElement('div'),
-        querySelector: vi.fn(() => null),
-      },
-      close: vi.fn(),
-    };
+    const location = { href: '' } as { href: string };
+    const fakeWin = { location, close: vi.fn() };
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as any);
 
     const fixture = makeFixture();
     (fixture.componentInstance as any).openContractAsPdf();
 
     expect(openSpy).toHaveBeenCalledWith('', '_blank');
-    expect(fakeWin.document.write).toHaveBeenCalled();
     expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'd1');
+    expect(location.href).toBe('https://signed/contract.pdf');
+    expect((fixture.componentInstance as any).openingPdf()).toBe(false);
+
+    openSpy.mockRestore();
+  });
+
+  it('openContractAsPdf: erro do signed URL fecha aba e dispara toast', () => {
+    rentalService.documentSignedUrl.mockReturnValue(
+      throwError(() => ({ error: { message: 'fetch failed' } })),
+    );
+    const fakeWin = { location: { href: '' }, close: vi.fn() };
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContractAsPdf();
+
+    expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'd1');
+    expect(fakeWin.close).toHaveBeenCalled();
     expect(notifications.push).toHaveBeenCalledWith('error', 'fetch failed');
     expect((fixture.componentInstance as any).openingPdf()).toBe(false);
 

@@ -401,9 +401,10 @@ export class RentalContractCard implements OnInit, OnDestroy {
   }
 
   /**
-   * Baixa o DOCX cru como arquivo. A signed URL do Supabase é de curta duração
+   * Baixa o PDF do contrato. A signed URL do Supabase é de curta duração
    * (TTL do backend) e privada; usamos `fetch` → Blob → anchor pra forçar o
-   * download com filename amigável em vez de deixar o browser navegar pra URL.
+   * download com filename amigável em vez de deixar o browser navegar pra URL
+   * (o que abriria o viewer inline em vez de baixar).
    */
   protected downloadContract(): void {
     const doc = this.contract();
@@ -413,9 +414,25 @@ export class RentalContractCard implements OnInit, OnDestroy {
       next: async (res) => {
         try {
           const resp = await fetch(res.url);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          if (!resp.ok) {
+            if (resp.status === 404) {
+              this.notifications.push(
+                'error',
+                'Contrato não encontrado. Faça upload novamente.',
+              );
+              return;
+            }
+            throw new Error(`HTTP ${resp.status}`);
+          }
           const blob = await resp.blob();
-          const filename = `Contrato-${this.rentalId()}.docx`;
+          if (blob.size === 0) {
+            this.notifications.push(
+              'error',
+              'Contrato não encontrado. Faça upload novamente.',
+            );
+            return;
+          }
+          const filename = `Contrato-${this.rentalId()}.pdf`;
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -426,7 +443,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (err) {
           this.notifications.push('error', 'Falha ao baixar o contrato.');
-          console.error('contract download failed', err);
+          console.error('[rental-contract-card] download failed', err);
         } finally {
           this.downloading.set(false);
         }
@@ -442,52 +459,40 @@ export class RentalContractCard implements OnInit, OnDestroy {
   }
 
   /**
-   * Abre o DOCX renderizado como HTML em nova aba via docx-preview (lazy).
-   * A nova aba é aberta ANTES do await pra evitar pop-up blocker — browsers
-   * só permitem window.open dentro de gesture handler síncrono. Mesmo pattern
-   * de company-settings/contract-template.
+   * Abre o PDF do contrato em nova aba usando o viewer nativo do browser
+   * (Chrome/Safari/Firefox renderizam PDF inline). Backend armazena o
+   * contrato como PDF (validado por magic bytes no upload); zero dep de
+   * render client-side. Mobile-safe (iOS Safari + Android Chrome).
+   *
+   * Fetch prévio pra validar 404/vazio e mostrar toast amigável antes de
+   * navegar a aba (em vez de deixar o viewer nativo mostrar erro cru).
    */
   protected openContractAsPdf(): void {
     const doc = this.contract();
     if (!doc || this.openingPdf()) return;
     this.openingPdf.set(true);
+    // Abre a aba SÍNCRONA pra escapar do pop-up blocker (browsers só
+    // permitem window.open dentro do gesture handler). Preenche depois.
     const win = window.open('', '_blank');
     if (!win) {
       this.openingPdf.set(false);
       this.notifications.push('error', 'Permita pop-ups pra abrir o contrato.');
       return;
     }
-    win.document.write(
-      '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-        '<title>Contrato</title>' +
-        '<style>body{margin:0;padding:24px;background:#f5f5f5;font-family:sans-serif;}' +
-        '.docx-wrapper{background:transparent!important;padding:0!important;}' +
-        '.docx{background:#fff!important;margin:0 auto 16px;box-shadow:0 2px 8px rgba(0,0,0,.08);}' +
-        '.mch-loading{color:#666;text-align:center;padding:40px;}</style>' +
-        '</head><body><div class="mch-loading">Carregando contrato…</div></body></html>',
-    );
-    win.document.close();
 
     this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
-      next: async (res) => {
+      next: (res) => {
         try {
-          const resp = await fetch(res.url);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const blob = await resp.blob();
-          const { renderAsync } = await import('docx-preview');
-          const loading = win.document.querySelector('.mch-loading');
-          if (loading) loading.remove();
-          await renderAsync(blob, win.document.body, undefined, {
-            className: 'docx',
-            inWrapper: true,
-            ignoreWidth: false,
-            ignoreHeight: false,
-          });
+          // Redireciona a aba pra signed URL — browser renderiza PDF nativamente.
+          win.location.href = res.url;
         } catch (err) {
-          win.document.body.innerHTML =
-            '<p style="color:#b91c1c;padding:24px;">Falha ao renderizar o contrato.</p>';
-          this.notifications.push('error', 'Falha ao renderizar contrato no browser.');
-          console.error('docx-preview render failed', err);
+          try {
+            win.close();
+          } catch {
+            /* noop */
+          }
+          this.notifications.push('error', 'Falha ao abrir o contrato.');
+          console.error('[rental-contract-card] open failed', err);
         } finally {
           this.openingPdf.set(false);
         }
