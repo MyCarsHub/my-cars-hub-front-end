@@ -131,6 +131,178 @@ describe('RentalForm picker filters', () => {
 });
 
 /**
+ * Espelho da regra do backend: `pickupDate` tem que cair dentro de
+ * `[startDate, endDate]`, inclusivo nas duas pontas e comparado por dia.
+ * O backend responde 400 quando isso é violado — o form não pode deixar chegar lá.
+ */
+describe('RentalForm retirada dentro do período', () => {
+  let createSpy: ReturnType<typeof vi.fn>;
+
+  type PickupFormLike = {
+    form: {
+      patchValue: (v: Record<string, unknown>) => void;
+      invalid: boolean;
+      errors: Record<string, unknown> | null;
+    };
+    submit: () => void;
+    pickupMin: () => string | null;
+    pickupMax: () => string | null;
+    pickupOutsidePeriod: () => boolean;
+  };
+
+  /** Campos obrigatórios mínimos, sem as datas — cada caso escolhe as suas. */
+  const baseValues = {
+    vehicleId: 'veh-1',
+    driverId: 'drv-1',
+    billingFrequency: 'MONTHLY',
+    periodRateReais: 2500,
+    initialKm: 42000,
+    firstPaymentDate: '2026-08-05',
+    dailyInterestReais: 3,
+    lateFineType: 'PERCENT',
+    lateFineValueInput: 2,
+  };
+
+  function mount(): {
+    fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>;
+    cmp: PickupFormLike;
+  } {
+    TestBed.resetTestingModule();
+    createSpy = vi.fn().mockReturnValue(of({ id: 'rental-novo' }));
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        { provide: RentalService, useValue: { getById: () => EMPTY, create: createSpy } },
+        { provide: BillingAccessService, useValue: { status: signal(null), load: () => of(null) } },
+        { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalForm);
+    fixture.detectChanges();
+    return { fixture, cmp: fixture.componentInstance as unknown as PickupFormLike };
+  }
+
+  it('sem período preenchido não impõe limites nem acusa erro', () => {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({ ...baseValues, pickupDate: '2026-08-10T09:00' });
+    fixture.detectChanges();
+
+    expect(cmp.pickupMin()).toBeNull();
+    expect(cmp.pickupMax()).toBeNull();
+    expect(cmp.pickupOutsidePeriod()).toBe(false);
+  });
+
+  it('expõe min/max derivados do período, cobrindo o dia inteiro das duas pontas', () => {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({ ...baseValues, startDate: '2026-08-01', endDate: '2026-08-31' });
+    fixture.detectChanges();
+
+    expect(cmp.pickupMin()).toBe('2026-08-01T00:00');
+    expect(cmp.pickupMax()).toBe('2026-08-31T23:59');
+  });
+
+  it('retirada antes do início bloqueia o submit', () => {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({
+      ...baseValues,
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      pickupDate: '2026-07-31T23:59',
+    });
+    fixture.detectChanges();
+
+    expect(cmp.pickupOutsidePeriod()).toBe(true);
+    expect(cmp.form.errors?.['pickupOutsidePeriod']).toBe(true);
+    expect(cmp.form.invalid).toBe(true);
+
+    cmp.submit();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it('retirada depois do fim bloqueia o submit', () => {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({
+      ...baseValues,
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      pickupDate: '2026-09-01T00:00',
+    });
+    fixture.detectChanges();
+
+    expect(cmp.pickupOutsidePeriod()).toBe(true);
+    cmp.submit();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it('limite inclusivo: retirada no primeiro dia do período é válida', () => {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({
+      ...baseValues,
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      pickupDate: '2026-08-01T00:00',
+    });
+    fixture.detectChanges();
+
+    expect(cmp.pickupOutsidePeriod()).toBe(false);
+    cmp.submit();
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('limite inclusivo: retirada no último dia, em qualquer hora, é válida', () => {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({
+      ...baseValues,
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      pickupDate: '2026-08-31T23:45',
+    });
+    fixture.detectChanges();
+
+    expect(cmp.pickupOutsidePeriod()).toBe(false);
+    cmp.submit();
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('mudar o período invalida na hora uma retirada que era válida', () => {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({
+      ...baseValues,
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      pickupDate: '2026-08-20T10:00',
+    });
+    fixture.detectChanges();
+    expect(cmp.pickupOutsidePeriod()).toBe(false);
+
+    // Usuário encurta o aluguel — a retirada já digitada fica fora do período.
+    cmp.form.patchValue({ endDate: '2026-08-10' });
+    fixture.detectChanges();
+
+    expect(cmp.pickupOutsidePeriod()).toBe(true);
+    expect(cmp.form.invalid).toBe(true);
+
+    const errorEl = fixture.nativeElement.querySelector('#rental-pickup-date-error');
+    expect(errorEl).not.toBeNull();
+    expect(errorEl?.getAttribute('role')).toBe('alert');
+  });
+});
+
+/**
  * Regressão: clicar em "Configure agora" nos cards de Contrato/Cobrança navega
  * pra `/configuracoes/...`, destrói o RentalForm e antes zerava tudo que o
  * usuário tinha preenchido. O rascunho em sessionStorage cobre a ida-e-volta.
@@ -257,6 +429,26 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
     first.detectChanges();
 
     expect([...store.keys()].some((k) => k.startsWith('rentalDraft:'))).toBe(false);
+  });
+
+  it('a restauração (controle a controle) reavalia a retirada contra o período', () => {
+    const first = visitNewRentalPage();
+    const cmp = first.componentInstance as unknown as FormLike;
+    // Rascunho gravado com uma retirada fora do período (ex.: período encurtado
+    // logo antes de sair da página).
+    cmp.form.patchValue({ ...validValues, endDate: '2026-08-10', pickupDate: '2026-08-20T09:00' });
+    first.detectChanges();
+    first.destroy();
+
+    const second = visitNewRentalPage();
+    const after = second.componentInstance as unknown as FormLike & {
+      form: { invalid: boolean };
+      pickupOutsidePeriod: () => boolean;
+    };
+
+    expect(after.draftRestored()).toBe(true);
+    expect(after.pickupOutsidePeriod()).toBe(true);
+    expect(after.form.invalid).toBe(true);
   });
 
   it('não restaura rascunho de outra empresa', () => {

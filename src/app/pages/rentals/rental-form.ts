@@ -115,7 +115,7 @@ export class RentalForm implements OnInit {
       // V29: gerar contrato do template (só ativa se hasContractTemplate).
       useContractTemplate: [false],
     },
-    { validators: endAfterStartValidator },
+    { validators: [endAfterStartValidator, pickupWithinPeriodValidator] },
   );
 
   /**
@@ -246,6 +246,59 @@ export class RentalForm implements OnInit {
   protected readonly caucaoAmountPositive = computed(
     () => Number(this.formValue()?.caucaoReais ?? 0) > 0,
   );
+
+  /**
+   * Retirada dentro do período (regra espelhada do backend).
+   *
+   * O backend rejeita `pickupDate` fora de `[startDate 00:00, endDate 23:59]`,
+   * inclusivo nas duas pontas e comparado por DIA — a hora é livre. Aqui isso
+   * vira duas camadas: `min`/`max` no `datetime-local` (impede a seleção) e o
+   * validador de grupo `pickupWithinPeriodValidator` (barra o submit, porque
+   * `min`/`max` nativo não segura digitação/colagem).
+   *
+   * Os limites saem de `formValue()`, então mexer em início/fim recalcula os
+   * bounds e reavalia a retirada no mesmo ciclo. Sem período preenchido não há
+   * limite — cada ponta é independente da outra.
+   */
+  protected readonly pickupMin = computed(() => {
+    const start = asDay(this.formValue()?.startDate);
+    return start ? `${start}T00:00` : null;
+  });
+
+  protected readonly pickupMax = computed(() => {
+    const end = asDay(this.formValue()?.endDate);
+    return end ? `${end}T23:59` : null;
+  });
+
+  protected readonly pickupOutsidePeriod = computed(() => {
+    const v = this.formValue();
+    return isPickupOutsidePeriod(v?.startDate, v?.endDate, v?.pickupDate);
+  });
+
+  /** Texto auxiliar sob o campo; `null` quando não há período pra anunciar. */
+  protected readonly pickupPeriodHint = computed(() => {
+    const start = toBrDate(this.formValue()?.startDate);
+    const end = toBrDate(this.formValue()?.endDate);
+    if (start && end) return `Deve estar entre ${start} e ${end}.`;
+    if (start) return `Deve ser em ${start} ou depois.`;
+    if (end) return `Deve ser até ${end}.`;
+    return null;
+  });
+
+  protected readonly pickupPeriodError = computed(() => {
+    const start = toBrDate(this.formValue()?.startDate);
+    const end = toBrDate(this.formValue()?.endDate);
+    if (start && end) return `A retirada deve estar entre ${start} e ${end}.`;
+    if (start) return `A retirada não pode ser antes de ${start}.`;
+    if (end) return `A retirada não pode ser depois de ${end}.`;
+    return 'A retirada deve estar dentro do período do aluguel.';
+  });
+
+  /** Aponta o leitor de tela pra mensagem que estiver visível no momento. */
+  protected readonly pickupDescribedBy = computed(() => {
+    if (this.pickupOutsidePeriod()) return 'rental-pickup-date-error';
+    return this.pickupPeriodHint() ? 'rental-pickup-date-hint' : null;
+  });
 
   /**
    * Rascunho (create-only).
@@ -591,6 +644,49 @@ function endAfterStartValidator(group: AbstractControl): ValidationErrors | null
   if (!start || !end) return null;
   if (end < start) return { endBeforeStart: true };
   return null;
+}
+
+/**
+ * Espelha a regra do backend: `pickupDate` tem que cair dentro do período do
+ * aluguel. Fica no grupo (e não no controle) porque depende de três controles;
+ * qualquer `setValue`/`patchValue` em um deles reexecuta o grupo, então a
+ * restauração do rascunho — que aplica controle a controle — também é coberta.
+ */
+function pickupWithinPeriodValidator(group: AbstractControl): ValidationErrors | null {
+  const start = group.get('startDate')?.value as unknown;
+  const end = group.get('endDate')?.value as unknown;
+  const pickup = group.get('pickupDate')?.value as unknown;
+  return isPickupOutsidePeriod(start, end, pickup) ? { pickupOutsidePeriod: true } : null;
+}
+
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `yyyy-MM-dd` normalizado, ou `null` se o valor não for uma data utilizável. */
+function asDay(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length < 10) return null;
+  const day = value.slice(0, 10);
+  return DAY_PATTERN.test(day) ? day : null;
+}
+
+/** `dd/MM/yyyy` a partir de `yyyy-MM-dd` — sem `Date`, sem surpresa de fuso. */
+function toBrDate(value: unknown): string | null {
+  const day = asDay(value);
+  if (!day) return null;
+  return `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
+}
+
+/**
+ * Comparação por DIA (a hora da retirada é livre) e INCLUSIVA nas duas pontas:
+ * retirada no primeiro e no último dia do período é válida. Cada ponta só
+ * restringe se estiver preenchida — período em branco não inventa limite.
+ */
+function isPickupOutsidePeriod(start: unknown, end: unknown, pickup: unknown): boolean {
+  const pickupDay = asDay(pickup);
+  if (!pickupDay) return false;
+  const startDay = asDay(start);
+  if (startDay && pickupDay < startDay) return true;
+  const endDay = asDay(end);
+  return !!endDay && pickupDay > endDay;
 }
 
 /**
