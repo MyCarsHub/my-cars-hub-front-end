@@ -5,7 +5,8 @@
   @if (loading()) {
     <div class="space-y-3">
       <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
         <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
         <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
         <div class="h-24 rounded-2xl bg-neutral-100 animate-pulse"></div>
@@ -24,29 +25,19 @@
       </button>
     </div>
   } @else if (summary(); as s) {
-    <!-- Back link -->
-    <div class="mb-3">
-      <a
-        [routerLink]="['/veiculos', vehicleId()]"
-        class="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-800 font-medium"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Voltar ao veículo
-      </a>
-    </div>
-
     <!-- Sticky vehicle chip -->
     @if (chipVehicle(); as v) {
-      <div class="sticky top-0 z-10 -mx-3 sm:-mx-4 lg:mx-0 px-3 sm:px-4 lg:px-0 py-2 bg-neutral-50/95 backdrop-blur border-b border-neutral-100 lg:border-0 lg:bg-transparent lg:backdrop-blur-0 lg:py-0 lg:mb-4">
+      <div
+        class="sticky top-0 z-10 -mx-3 sm:-mx-4 lg:mx-0 px-3 sm:px-4 lg:px-0 py-2 bg-neutral-50/95 backdrop-blur border-b border-neutral-100 lg:border-0 lg:bg-transparent lg:backdrop-blur-0 lg:py-0 lg:mb-4"
+      >
         <app-vehicle-summary-chip [vehicle]="v" linkTo="none" />
       </div>
     }
 
-    <!-- Top KPI trio: Investido / Receita / Resultado -->
-    <section class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <!-- Painel financeiro fixo: Investido / Receita / Recebido / Resultado.
+         2 colunas já no mobile — 4 tiles empilhados custariam ~420px e
+         empurrariam as abas para muito longe do primeiro scroll. -->
+    <section class="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Resumo financeiro">
       <app-stat-tile
         label="Total investido"
         [value]="formatMoney(s.finance.totalInvestedCents)"
@@ -55,8 +46,21 @@
       <app-stat-tile
         label="Receita contratada"
         [value]="formatMoney(s.finance.totalRentalRevenueCents)"
-        hint="Soma dos contratos (reservados, ativos e concluídos)"
+        hint="Soma dos contratos assinados (aluguéis reservados, ativos e concluídos)."
       />
+      <app-stat-tile
+        label="Recebido"
+        [value]="formatMoney(s.finance.totalRentalReceivedCents)"
+        [tone]="receivedTone(s.finance)"
+        hint="Cobranças pagas via boleto/Pix automático."
+      >
+        @if (s.finance.totalRentalReceivedCents === 0 && s.finance.totalRentalRevenueCents > 0) {
+          <p class="mt-2 text-xs text-amber-700">
+            {{ formatMoney(s.finance.totalRentalRevenueCents) }} ainda a receber via cobrança
+            automática.
+          </p>
+        }
+      </app-stat-tile>
       <app-stat-tile
         label="Resultado"
         [value]="formatMoney(s.finance.resultCents)"
@@ -74,7 +78,9 @@
           class="inline-flex items-center gap-2 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium px-3 py-2 min-h-[44px]"
         >
           <span aria-hidden="true">●</span>
-          {{ s.fines.openCount }} multa{{ s.fines.openCount > 1 ? 's' : '' }} pendente{{ s.fines.openCount > 1 ? 's' : '' }}
+          {{ s.fines.openCount }} multa{{ s.fines.openCount > 1 ? 's' : '' }} pendente{{
+            s.fines.openCount > 1 ? 's' : ''
+          }}
           <span class="tabular-nums">({{ formatMoney(s.fines.openAmountCents) }})</span>
         </a>
       }
@@ -85,7 +91,10 @@
           class="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium px-3 py-2 min-h-[44px]"
         >
           <span aria-hidden="true">●</span>
-          {{ s.maintenances.openCount }} manutenção{{ s.maintenances.openCount > 1 ? 'ões' : '' }} em aberto
+          {{ s.maintenances.openCount }} manutenção{{
+            s.maintenances.openCount > 1 ? 'ões' : ''
+          }}
+          em aberto
         </button>
       }
       @if (licensingChipLabel(); as chip) {
@@ -97,6 +106,62 @@
         </span>
       }
     </section>
+
+    <!-- Composição do investimento — bloco fixo, fora das abas.
+         Colapsável (aberto por padrão, estado persistido) para dar folga no
+         mobile sem esconder informação de quem não colapsar. -->
+    <div class="mt-3">
+      <app-page-card
+        title="Composição do investimento"
+        [collapsible]="true"
+        storageKey="vehicle-gerencia:composicao"
+      >
+        <div class="p-4">
+          <!-- Mobile: linhas label→valor (zero risco de estouro em 375px).
+               sm+: as três caixas lado a lado. -->
+          <dl class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3 sm:gap-3">
+            <div
+              class="flex items-baseline justify-between gap-3 rounded-xl border border-line bg-neutral-50 px-3 py-2.5 sm:block sm:p-3"
+            >
+              <dt class="text-xs uppercase tracking-wider text-neutral-500">Compra</dt>
+              <dd class="tabular-nums font-semibold text-neutral-900 sm:mt-1">
+                {{ formatMoney(s.finance.purchaseCostCents) }}
+              </dd>
+            </div>
+            <div
+              class="flex items-baseline justify-between gap-3 rounded-xl border border-line bg-neutral-50 px-3 py-2.5 sm:block sm:p-3"
+            >
+              <dt class="text-xs uppercase tracking-wider text-neutral-500">Manutenções</dt>
+              <dd class="tabular-nums font-semibold text-neutral-900 sm:mt-1">
+                {{ formatMoney(s.finance.totalMaintenanceExpenseCents) }}
+              </dd>
+            </div>
+            @if (!s.finance.financingDataIncomplete) {
+              <div
+                class="flex items-baseline justify-between gap-3 rounded-xl border border-line bg-neutral-50 px-3 py-2.5 sm:block sm:p-3"
+              >
+                <dt class="text-xs uppercase tracking-wider text-neutral-500">Parcelas financ.</dt>
+                <dd class="tabular-nums font-semibold text-neutral-900 sm:mt-1">
+                  {{ formatMoney(s.finance.totalFinancingPaidCents) }}
+                </dd>
+              </div>
+            }
+          </dl>
+          @if (s.finance.purchaseCostCents == null && !s.finance.totalFinancingPaidCents) {
+            <p class="mt-3 text-xs text-neutral-500">
+              Sem financiamento cadastrado — o valor de compra é estimado a partir do financiamento
+              vinculado.
+              <a
+                class="text-primary-700 hover:underline"
+                [routerLink]="['/veiculos', vehicleId(), 'gerencia', 'financiamentos']"
+              >
+                Cadastrar financiamento </a
+              >.
+            </p>
+          }
+        </div>
+      </app-page-card>
+    </div>
 
     <!-- Tabs -->
     <nav
@@ -113,9 +178,11 @@
               [attr.aria-selected]="activeTab() === tab.key"
               (click)="selectTab(tab.key)"
               class="relative inline-flex items-center px-3 sm:px-4 py-2 text-sm font-medium min-h-[44px] whitespace-nowrap border-b-2 -mb-px transition-colors"
-              [class]="activeTab() === tab.key
-                ? 'text-primary-700 border-primary-600'
-                : 'text-neutral-500 border-transparent hover:text-neutral-800'"
+              [class]="
+                activeTab() === tab.key
+                  ? 'text-primary-700 border-primary-600'
+                  : 'text-neutral-500 border-transparent hover:text-neutral-800'
+              "
             >
               {{ tab.label }}
             </button>
@@ -135,12 +202,24 @@
                 class="rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 p-4 space-y-3"
               >
                 <div class="flex items-start gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" class="flex-none mt-0.5" aria-hidden="true">
-                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="flex-none mt-0.5"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                    />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
                   <p class="text-sm">
                     Dados de financiamento incompletos — inclua valor de parcela e número de
@@ -155,64 +234,6 @@
                 </a>
               </div>
             }
-            <!-- Rental revenue vs received -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <app-stat-tile
-                label="Receita contratada"
-                [value]="formatMoney(s.finance.totalRentalRevenueCents)"
-                hint="Soma dos contratos assinados (aluguéis reservados, ativos e concluídos)."
-              />
-              <app-stat-tile
-                label="Recebido"
-                [value]="formatMoney(s.finance.totalRentalReceivedCents)"
-                [tone]="receivedTone(s.finance)"
-                hint="Cobranças pagas via boleto/Pix automático."
-              >
-                @if (s.finance.totalRentalReceivedCents === 0 && s.finance.totalRentalRevenueCents > 0) {
-                  <p class="mt-2 text-xs text-amber-700">
-                    {{ formatMoney(s.finance.totalRentalRevenueCents) }} ainda a receber via cobrança automática.
-                  </p>
-                }
-              </app-stat-tile>
-            </div>
-
-            <!-- Finance breakdown -->
-            <app-page-card title="Composição do investimento">
-              <div class="p-4">
-                <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                  <div class="rounded-xl bg-neutral-50 border border-neutral-100 p-3">
-                    <dt class="text-xs uppercase tracking-wider text-neutral-500">Compra</dt>
-                    <dd class="mt-1 tabular-nums font-semibold text-neutral-900">
-                      {{ formatMoney(s.finance.purchaseCostCents) }}
-                    </dd>
-                  </div>
-                  <div class="rounded-xl bg-neutral-50 border border-neutral-100 p-3">
-                    <dt class="text-xs uppercase tracking-wider text-neutral-500">Manutenções</dt>
-                    <dd class="mt-1 tabular-nums font-semibold text-neutral-900">
-                      {{ formatMoney(s.finance.totalMaintenanceExpenseCents) }}
-                    </dd>
-                  </div>
-                  @if (!s.finance.financingDataIncomplete) {
-                    <div class="rounded-xl bg-neutral-50 border border-neutral-100 p-3">
-                      <dt class="text-xs uppercase tracking-wider text-neutral-500">Parcelas financ.</dt>
-                      <dd class="mt-1 tabular-nums font-semibold text-neutral-900">
-                        {{ formatMoney(s.finance.totalFinancingPaidCents) }}
-                      </dd>
-                    </div>
-                  }
-                </dl>
-                @if (s.finance.purchaseCostCents == null && !s.finance.totalFinancingPaidCents) {
-                  <p class="mt-3 text-xs text-neutral-500">
-                    Sem financiamento cadastrado — o valor de compra é estimado a partir do financiamento
-                    vinculado. <a class="text-primary-700 hover:underline"
-                      [routerLink]="['/veiculos', vehicleId(), 'gerencia', 'financiamentos']">
-                      Cadastrar financiamento
-                    </a>.
-                  </p>
-                }
-              </div>
-            </app-page-card>
-
             <!-- Financings list scoped to vehicle -->
             <app-financings-list [vehicleIdPrefilter]="vehicleId()" />
           </section>
@@ -232,7 +253,9 @@
                   <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
                   <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
                 } @else if (rentalsError()) {
-                  <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-4 space-y-3">
+                  <div
+                    class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-4 space-y-3"
+                  >
                     <p>{{ rentalsError() }}</p>
                     <button
                       type="button"
@@ -244,7 +267,9 @@
                   </div>
                 } @else if (rentals().length === 0) {
                   <div class="rounded-xl border border-dashed border-line p-6 text-center">
-                    <p class="text-sm text-neutral-600">Nenhum aluguel encontrado para este veículo.</p>
+                    <p class="text-sm text-neutral-600">
+                      Nenhum aluguel encontrado para este veículo.
+                    </p>
                     <a
                       [routerLink]="['/alugueis/novo']"
                       [queryParams]="{ vehicleId: vehicleId() }"
@@ -282,11 +307,20 @@
                               </p>
                             }
                           </div>
-                          <svg class="flex-none text-neutral-300"
-                            xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" aria-hidden="true">
-                            <polyline points="9 18 15 12 9 6"/>
+                          <svg
+                            class="flex-none text-neutral-300"
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                          >
+                            <polyline points="9 18 15 12 9 6" />
                           </svg>
                         </a>
                       </li>
@@ -313,7 +347,9 @@
                 [value]="formatDate(s.dates.lastMaintenanceDate)"
               >
                 @if (!s.dates.lastMaintenanceDate) {
-                  <p class="mt-1 text-xs text-amber-700">Nenhuma manutenção concluída registrada.</p>
+                  <p class="mt-1 text-xs text-amber-700">
+                    Nenhuma manutenção concluída registrada.
+                  </p>
                 }
               </app-stat-tile>
               <app-stat-tile
@@ -357,6 +393,17 @@
           </section>
         }
       }
+    </div>
+
+    <!-- Mesma composição de "voltar" das telas de detalhe (veículo, motorista,
+         aluguel, multa, manutenção): âncora simples no fim do conteúdo. -->
+    <div class="mt-6">
+      <a
+        [routerLink]="['/veiculos', vehicleId()]"
+        class="text-sm text-primary-700 hover:text-primary-800 font-medium"
+      >
+        ← Voltar ao veículo
+      </a>
     </div>
   }
 </app-default-page-layout>
