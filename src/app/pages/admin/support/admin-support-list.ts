@@ -4,6 +4,7 @@ import { DatePipe } from '@angular/common';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SupportTicketService } from '../../../services/support-ticket.service';
@@ -21,7 +22,7 @@ import {
 @Component({
   selector: 'app-admin-support-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, DefaultPageLayout, PageCard, AlertBanner],
+  imports: [DatePipe, DefaultPageLayout, PageCard, AlertBanner, ActionsMenu],
   templateUrl: './admin-support-list.html',
 })
 export class AdminSupportList implements OnInit {

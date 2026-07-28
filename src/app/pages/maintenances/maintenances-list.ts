@@ -17,6 +17,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import {
   MAINTENANCE_SORT_OPTIONS,
   MAINTENANCE_STATUS_OPTIONS,
@@ -30,7 +31,15 @@ import { VehicleListItem } from '../../types/vehicle.types';
 @Component({
   selector: 'app-maintenances-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    ActionsMenu,
+    AlertBanner,
+  ],
   templateUrl: './maintenances-list.html',
 })
 export class MaintenancesList implements OnInit {

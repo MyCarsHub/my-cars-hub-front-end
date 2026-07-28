@@ -16,6 +16,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
@@ -42,6 +43,7 @@ const PAGE_SIZE = 20;
     PageCard,
     ConfirmDialog,
     AlertBanner,
+    ActionsMenu,
   ],
   templateUrl: './admin-users.html',
 })
@@ -72,7 +74,6 @@ export class AdminUsers implements OnInit, OnDestroy {
   protected readonly roleFilter = signal<AdminUserRoleFilter>('ALL');
   protected readonly currentPage = signal(0);
 
-  protected readonly openActionMenuId = signal<string | null>(null);
   protected readonly pendingAction = signal<PendingAction | null>(null);
   protected readonly rowPending = signal<Record<string, boolean>>({});
 
@@ -185,22 +186,11 @@ export class AdminUsers implements OnInit, OnDestroy {
     if (this.canNext()) this.currentPage.update((p) => p + 1);
   }
 
-  protected toggleMenu(user: AdminUserListItem, event?: Event): void {
-    event?.stopPropagation();
-    this.openActionMenuId.update((cur) => (cur === user.id ? null : user.id));
-  }
-
-  protected closeMenu(): void {
-    this.openActionMenuId.set(null);
-  }
-
   protected openDetail(user: AdminUserListItem): void {
-    this.closeMenu();
     this.router.navigate(['/admin/users', user.id]);
   }
 
   protected requestToggleStatus(user: AdminUserListItem): void {
-    this.closeMenu();
     if (user.active) {
       // desativar → confirma
       this.pendingAction.set({ kind: 'DEACTIVATE', user });
@@ -211,7 +201,6 @@ export class AdminUsers implements OnInit, OnDestroy {
   }
 
   protected requestToggleRole(user: AdminUserListItem): void {
-    this.closeMenu();
     if (user.systemRole === 'PLATFORM_ADMIN') {
       // rebaixar
       this.pendingAction.set({ kind: 'DEMOTE', user });

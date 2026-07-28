@@ -13,6 +13,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { FeedbackService } from '../../../services/feedback.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -58,6 +59,7 @@ const FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
     PageCard,
     ConfirmDialog,
     AlertBanner,
+    ActionsMenu,
     FormField,
     FieldControl,
   ],
@@ -150,6 +152,19 @@ export class AdminFeedback implements OnInit {
 
   protected isRowPending(id: string): boolean {
     return !!this.rowPending()[id];
+  }
+
+  /**
+   * Transições de status oferecidas no menu de ações — o status atual é omitido.
+   * "Rejeitado" vira "Rejeitar…" porque abre o diálogo que pede a nota.
+   */
+  protected statusActions(
+    current: FeedbackStatus,
+  ): ReadonlyArray<{ value: FeedbackStatus; label: string }> {
+    return STATUS_OPTIONS.filter((o) => o.value !== current).map((o) => ({
+      value: o.value,
+      label: o.value === 'REJECTED' ? 'Rejeitar…' : `Mover para ${o.label}`,
+    }));
   }
 
   protected onStatusChange(task: FeedbackTaskResponse, next: FeedbackStatus): void {

@@ -15,6 +15,7 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import {
   DriverFilters,
   DriverListItem,
@@ -48,7 +49,15 @@ const SORT_OPTIONS = [
 @Component({
   selector: 'app-drivers-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    ActionsMenu,
+    AlertBanner,
+  ],
   templateUrl: './drivers-list.html',
 })
 export class DriversList implements OnInit {

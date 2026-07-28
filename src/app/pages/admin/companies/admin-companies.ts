@@ -17,6 +17,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCompaniesService } from '../admin-companies.service';
@@ -65,6 +66,7 @@ const PAGE_SIZE = 20;
     PageCard,
     ConfirmDialog,
     AlertBanner,
+    ActionsMenu,
   ],
   templateUrl: './admin-companies.html',
 })
@@ -92,7 +94,6 @@ export class AdminCompanies implements OnInit, OnDestroy {
   protected readonly planFilter = signal<PlanFilter>('ALL');
   protected readonly currentPage = signal(0);
 
-  protected readonly openActionMenuId = signal<string | null>(null);
   protected readonly pendingAction = signal<PendingAction | null>(null);
   protected readonly rowPending = signal<Record<string, boolean>>({});
 
@@ -191,22 +192,11 @@ export class AdminCompanies implements OnInit, OnDestroy {
     if (this.canNext()) this.currentPage.update((p) => p + 1);
   }
 
-  protected toggleMenu(company: AdminCompanyListItem, event?: Event): void {
-    event?.stopPropagation();
-    this.openActionMenuId.update((cur) => (cur === company.id ? null : company.id));
-  }
-
-  protected closeMenu(): void {
-    this.openActionMenuId.set(null);
-  }
-
   protected openDetail(company: AdminCompanyListItem): void {
-    this.closeMenu();
     this.router.navigate(['/admin/companies', company.id]);
   }
 
   protected requestToggleStatus(company: AdminCompanyListItem): void {
-    this.closeMenu();
     if (company.active) {
       this.pendingAction.set({ kind: 'SUSPEND', company });
     } else {

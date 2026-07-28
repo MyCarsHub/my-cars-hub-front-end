@@ -12,6 +12,7 @@ import { DefaultPageLayout } from '../../../components/layout/default-page-layou
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { BlogService } from '../../blog/blog.service';
@@ -24,7 +25,7 @@ import { BlogPostListItem, blogCategoryLabel } from '../../../types/blog.types';
   selector: 'app-admin-blog-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [RouterModule, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
+  imports: [RouterModule, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, ActionsMenu],
   templateUrl: './admin-blog-list.html',
   styleUrl: './admin-blog-list.css',
 })

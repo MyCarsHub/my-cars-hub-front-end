@@ -28,7 +28,7 @@ import {
 } from '../../types/rental.types';
 import { VehicleListItem } from '../../types/vehicle.types';
 import { DriverListItem } from '../../types/driver.types';
-import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 
 type PendingAction = 'activate' | 'cancel' | 'delete';
 
@@ -41,7 +41,7 @@ type PendingAction = 'activate' | 'cancel' | 'delete';
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
-    ClickOutsideDirective,
+    ActionsMenu,
     AlertBanner,
   ],
   templateUrl: './rentals-list.html',
@@ -116,9 +116,6 @@ export class RentalsList implements OnInit {
     if (this.fromFilter() || this.toFilter()) n++;
     return n;
   });
-
-  // Per-row open dropdown (mobile 3-dot menu). Only one open at a time.
-  protected readonly openMenuId = signal<string | null>(null);
 
   // Confirm dialog + pending action state.
   protected readonly pendingAction = signal<PendingAction | null>(null);
@@ -397,18 +394,8 @@ export class RentalsList implements OnInit {
     return r.status === 'RESERVED' && r.automaticCharge === true;
   }
 
-  protected toggleMenu(id: string, ev: Event): void {
-    ev.stopPropagation();
-    this.openMenuId.update((cur) => (cur === id ? null : id));
-  }
-
-  protected closeMenu(): void {
-    this.openMenuId.set(null);
-  }
-
   protected askAction(action: PendingAction, r: RentalListItemDto, ev: Event): void {
     ev.stopPropagation();
-    this.closeMenu();
     this.pendingAction.set(action);
     this.pendingRental.set(r);
   }

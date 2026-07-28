@@ -80,33 +80,38 @@
                   </div>
 
                   <div class="w-full sm:w-auto shrink-0 space-y-2">
-                    <div class="flex flex-wrap gap-2">
-                      @if (t.status !== 'IN_PROGRESS' && t.status !== 'RESOLVED') {
-                        <button
-                          type="button"
-                          (click)="changeStatus(t, 'IN_PROGRESS')"
-                          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white"
-                        >
-                          Em atendimento
-                        </button>
-                      }
-                      @if (t.status !== 'RESOLVED') {
-                        <button
-                          type="button"
-                          (click)="changeStatus(t, 'RESOLVED')"
-                          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white"
-                        >
-                          Resolver
-                        </button>
-                      } @else {
-                        <button
-                          type="button"
-                          (click)="changeStatus(t, 'OPEN')"
-                          class="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Reabrir
-                        </button>
-                      }
+                    <div class="flex items-center justify-end">
+                      <app-actions-menu [label]="'Ações para o ticket ' + t.id.slice(0, 8)">
+                        @if (t.status !== 'IN_PROGRESS' && t.status !== 'RESOLVED') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="changeStatus(t, 'IN_PROGRESS')"
+                            class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                          >
+                            Marcar em atendimento
+                          </button>
+                        }
+                        @if (t.status !== 'RESOLVED') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="changeStatus(t, 'RESOLVED')"
+                            class="w-full text-left px-4 py-3 text-sm text-emerald-700 hover:bg-emerald-50 min-h-[44px]"
+                          >
+                            Resolver
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="changeStatus(t, 'OPEN')"
+                            class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                          >
+                            Reabrir
+                          </button>
+                        }
+                      </app-actions-menu>
                     </div>
 
                     <!-- Erro da operação, ancorado na linha que o causou. -->

@@ -184,19 +184,22 @@
                 </div>
               </div>
 
-              <div class="flex justify-end gap-2 pt-1 border-t border-neutral-50">
-                <a
-                  [routerLink]="['/manutencoes', m.id, 'editar']"
-                  (click)="$event.stopPropagation()"
-                  class="text-xs font-medium text-primary-700 hover:bg-primary-low px-3 py-2 rounded-lg">
-                  Editar
-                </a>
-                <button
-                  type="button"
-                  (click)="askDelete(m, $event)"
-                  class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-lg">
-                  Excluir
-                </button>
+              <div class="flex items-center justify-end gap-2 pt-1 border-t border-neutral-50">
+                <app-actions-menu label="Ações da manutenção">
+                  <a
+                    role="menuitem"
+                    [routerLink]="['/manutencoes', m.id, 'editar']"
+                    class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                    Editar
+                  </a>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    (click)="askDelete(m, $event)"
+                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] text-left border-t border-neutral-100">
+                    Excluir
+                  </button>
+                </app-actions-menu>
               </div>
             </article>
           }
@@ -255,19 +258,22 @@
                     </span>
                   </td>
                   <td class="py-3 pr-4">
-                    <div class="flex items-center justify-end gap-2">
-                      <a
-                        [routerLink]="['/manutencoes', m.id, 'editar']"
-                        (click)="$event.stopPropagation()"
-                        class="text-xs font-medium text-primary-700 hover:bg-primary-low px-2 py-1 rounded-md">
-                        Editar
-                      </a>
-                      <button
-                        type="button"
-                        (click)="askDelete(m, $event)"
-                        class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-md">
-                        Excluir
-                      </button>
+                    <div class="flex items-center justify-end gap-1">
+                      <app-actions-menu label="Ações da manutenção" [menuWidth]="208">
+                        <a
+                          role="menuitem"
+                          [routerLink]="['/manutencoes', m.id, 'editar']"
+                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                          Editar
+                        </a>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          (click)="askDelete(m, $event)"
+                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 hover:bg-rose-50 text-left border-t border-neutral-100">
+                          Excluir
+                        </button>
+                      </app-actions-menu>
                     </div>
                   </td>
                 </tr>

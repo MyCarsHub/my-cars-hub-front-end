@@ -17,6 +17,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { FinesService } from '../../services/fines.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import {
   FINE_SEVERITY_OPTIONS,
   FINE_SORT_OPTIONS,
@@ -30,7 +31,15 @@ import { VehicleListItem } from '../../types/vehicle.types';
 @Component({
   selector: 'app-fines-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    ActionsMenu,
+    AlertBanner,
+  ],
   templateUrl: './fines-list.html',
 })
 export class FinesList implements OnInit {
