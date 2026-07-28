@@ -19,6 +19,8 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PlanCardComponent } from '../../components/core/plan-card/plan-card';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import {
   BillingService,
   CHECKOUT_PENDING_KEY,
@@ -103,7 +105,14 @@ type AwaitMode = 'returned' | 'checkout-open';
 
 @Component({
   selector: 'app-billing',
-  imports: [CommonModule, DefaultPageLayout, ConfirmDialog, PageCard, PlanCardComponent],
+  imports: [
+    CommonModule,
+    DefaultPageLayout,
+    ConfirmDialog,
+    PageCard,
+    PlanCardComponent,
+    AlertBanner,
+  ],
   templateUrl: './billing.html',
   styleUrl: './billing.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -114,6 +123,7 @@ export class Billing implements OnInit, OnDestroy {
   private readonly session = inject(SessionService);
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly route = inject(ActivatedRoute);
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
@@ -134,6 +144,12 @@ export class Billing implements OnInit, OnDestroy {
   protected readonly busyPlanId = signal<string | null>(null);
   /** Error scoped to the card the user just clicked, not a banner off-screen. */
   protected readonly ctaError = signal<{ planId: string; message: string } | null>(null);
+  /**
+   * Failure of an ACCOUNT-level action (cancelar / reativar). These have no plan
+   * card to attach to, so they get their own inline banner next to the buttons —
+   * never a toast, which is what used to duplicate the page-level banner.
+   */
+  protected readonly accountActionError = signal<string | null>(null);
   /** True from "checkout started" until we have revalidated after the return. */
   protected readonly awaitingPayment = signal(false);
   /**
@@ -507,7 +523,12 @@ export class Billing implements OnInit, OnDestroy {
     // the classification to "unknown", and `isFreePlanInForce` deliberately
     // resolves unknown as PAID rather than hiding the cancel button.
     this.billingService.loadPlans().subscribe({
-      error: (err: unknown) => console.error('[billing] loadPlans failed', err),
+      error: (err: unknown) => {
+        // The service already put the message in the page-level banner; claiming
+        // it here stops the interceptor safety net from saying the same thing again.
+        this.apiErrors.claim(err);
+        console.error('[billing] loadPlans failed', err);
+      },
     });
     this.refreshSubscription();
 
@@ -554,14 +575,20 @@ export class Billing implements OnInit, OnDestroy {
     }
 
     this.access.invalidate();
-    this.access.load().subscribe({ error: () => void 0 });
+    // Background revalidation on tab focus — the user did not ask for it, so a
+    // failure must stay silent rather than pop a toast they cannot act on.
+    this.access.load().subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
     this.refreshSubscription();
   }
 
   private refreshSubscription(): void {
     this.billingService.loadSubscription().subscribe({
       next: () => this.settlePendingPayment(),
-      error: () => this.settlePendingPayment(),
+      error: (err: unknown) => {
+        // Same deal as `loadPlans`: the banner already carries this message.
+        this.apiErrors.claim(err);
+        this.settlePendingPayment();
+      },
     });
   }
 
@@ -1225,9 +1252,9 @@ export class Billing implements OnInit, OnDestroy {
         },
         // Covers the `timeout()` above too: a request that never answers takes
         // the exact same recovery path as an outright failure.
-        error: () => {
+        error: (err: unknown) => {
           tab.close();
-          this.failCheckout(plan, 'Não foi possível iniciar o pagamento. Tente novamente.');
+          this.failCheckout(plan, 'Não foi possível iniciar o pagamento. Tente novamente.', err);
         },
       });
   }
@@ -1291,13 +1318,25 @@ export class Billing implements OnInit, OnDestroy {
     this.markCheckoutStarted();
   }
 
-  /** Release every busy flag and surface the failure on the clicked card. */
-  private failCheckout(plan: PlanResponse, fallback: string): void {
+  /**
+   * Release every busy flag and surface the failure on the clicked card.
+   *
+   * ONE surface: the card. `messageFor` resolves the same backend `{message}`
+   * the service would have put in the page-level banner, and claims the error so
+   * the interceptor safety net stays quiet; `clearError()` then drops the
+   * service's copy so the banner does not repeat what the card already says.
+   *
+   * `err` is absent when the request SUCCEEDED but carried no usable redirect
+   * URL — there is nothing to claim in that case.
+   */
+  private failCheckout(plan: PlanResponse, fallback: string, err?: unknown): void {
     this.busyPlanId.set(null);
     this.awaitingPayment.set(false);
     this.stopAwaitPolling();
     this.clearCheckoutMarkers();
-    this.ctaError.set({ planId: plan.id, message: this.error() ?? fallback });
+    const message = err === undefined ? fallback : this.apiErrors.messageFor(err, fallback);
+    this.ctaError.set({ planId: plan.id, message });
+    this.billingService.clearError();
   }
 
   protected confirmDowngrade(): void {
@@ -1317,7 +1356,7 @@ export class Billing implements OnInit, OnDestroy {
           this.revalidateAfterImmediateChange();
         }
       },
-      error: () => {
+      error: (err: unknown) => {
         this.busyPlanId.set(null);
         // `/downgrade` may still refuse a CANCELED / EXPIRED account. The
         // backend `{message}` wins; the fallback must say what to do next
@@ -1325,7 +1364,8 @@ export class Billing implements OnInit, OnDestroy {
         const fallback = this.isPaidActive()
           ? 'Não foi possível alterar o plano. Tente novamente.'
           : 'Não foi possível voltar ao plano gratuito nesta situação. Escolha um plano ou fale com o suporte.';
-        this.ctaError.set({ planId: plan.id, message: this.error() ?? fallback });
+        this.ctaError.set({ planId: plan.id, message: this.apiErrors.messageFor(err, fallback) });
+        this.billingService.clearError();
       },
     });
   }
@@ -1512,6 +1552,7 @@ export class Billing implements OnInit, OnDestroy {
 
   protected onCancelConfirmed(): void {
     this.showCancelDialog.set(false);
+    this.accountActionError.set(null);
     this.accountActionBusy.set(true);
     this.billingService.cancel().subscribe({
       next: () => {
@@ -1525,11 +1566,12 @@ export class Billing implements OnInit, OnDestroy {
         });
         this.notifications.success('Cancelamento agendado para o fim do período atual.');
       },
-      error: () => {
+      error: (err: unknown) => {
         this.accountActionBusy.set(false);
-        this.notifications.error(
-          this.error() ?? 'Não foi possível cancelar a assinatura. Tente novamente.',
+        this.accountActionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível cancelar a assinatura. Tente novamente.'),
         );
+        this.billingService.clearError();
       },
     });
   }
@@ -1544,17 +1586,22 @@ export class Billing implements OnInit, OnDestroy {
    */
   protected reactivate(): void {
     if (this.accountActionBusy()) return;
+    this.accountActionError.set(null);
     this.accountActionBusy.set(true);
     this.billingService.reactivate().subscribe({
       next: (res) => {
         this.accountActionBusy.set(false);
         this.notifications.success(res.message ?? 'Assinatura reativada.');
       },
-      error: () => {
+      error: (err: unknown) => {
         this.accountActionBusy.set(false);
-        this.notifications.error(
-          this.error() ?? 'Não foi possível reativar. Escolha um plano para retomar o acesso.',
+        this.accountActionError.set(
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível reativar. Escolha um plano para retomar o acesso.',
+          ),
         );
+        this.billingService.clearError();
         this.scrollToPlans();
       },
     });

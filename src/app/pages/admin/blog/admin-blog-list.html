@@ -3,6 +3,10 @@
   description="Gerenciar posts públicos exibidos em /blog."
 >
   <div class="space-y-4 sm:space-y-6">
+    @if (error(); as msg) {
+      <app-alert-banner variant="error" [message]="msg" />
+    }
+
     <div class="flex justify-end">
       <a routerLink="/admin/blog/novo"
         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]">

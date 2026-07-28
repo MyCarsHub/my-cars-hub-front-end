@@ -15,7 +15,7 @@ import type { VehicleListItem } from '../../types/vehicle.types';
  * Cobre as ações do menu "Ações" da listagem de veículos:
  *  - Gerenciar / Editar / Remover presentes no menu (mobile e desktop);
  *  - "Remover" só chama o service depois da confirmação no diálogo;
- *  - erro do servidor mantém o item na lista e notifica a mensagem do backend.
+ *  - erro do servidor mantém o item na lista e mostra a mensagem do backend inline.
  */
 describe('VehiclesList — menu de ações', () => {
   const vehicle: VehicleListItem = {
@@ -137,7 +137,7 @@ describe('VehiclesList — menu de ações', () => {
     expect(removeSpy).toHaveBeenCalledWith('v-1');
   });
 
-  it('erro do servidor mantém o veículo na lista e mostra a mensagem do backend', () => {
+  it('erro do servidor mantém o veículo na lista e mostra a mensagem inline, sem toast', () => {
     removeSpy.mockReturnValue(
       throwError(
         () =>
@@ -158,9 +158,16 @@ describe('VehiclesList — menu de ações', () => {
 
     component.askDelete(vehicle);
     component.confirmDelete();
+    fixture.detectChanges();
 
     expect(removeSpy).toHaveBeenCalledWith('v-1');
     expect(items()).toHaveLength(1);
-    expect(errorSpy).toHaveBeenCalledWith('Veículo possui aluguel ativo.');
+
+    // Feedback standard: banner inline, nunca toast.
+    const banner = (fixture.nativeElement as HTMLElement).querySelector('app-alert-banner');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('Veículo possui aluguel ativo.');
+    expect(banner?.querySelector('[role="alert"]')).not.toBeNull();
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

@@ -47,11 +47,14 @@
         </div>
       </div>
 
-      <!-- Error -->
-      @if (error()) {
-        <div class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100">
-          {{ error() }}
-        </div>
+      <!-- Falha ao carregar a lista -->
+      @if (loadError(); as msg) {
+        <app-alert-banner variant="error" [message]="msg" />
+      }
+
+      <!-- Falha de uma operação (status / exclusão) -->
+      @if (actionError(); as msg) {
+        <app-alert-banner variant="error" [message]="msg" />
       }
 
       <!-- Loading -->
@@ -109,18 +112,6 @@
               @if (task.adminNote) {
                 <div class="text-xs text-gray-600 bg-gray-50 rounded-lg p-2 italic">
                   {{ task.adminNote }}
-                </div>
-              }
-
-              @if (getRowError(task.id); as msg) {
-                <div class="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg p-2">
-                  <span class="flex-1 break-words">{{ msg }}</span>
-                  <button
-                    type="button"
-                    class="text-red-500 hover:text-red-700 shrink-0"
-                    (click)="dismissRowError(task.id)"
-                    aria-label="Descartar erro"
-                  >×</button>
                 </div>
               }
 
@@ -195,17 +186,6 @@
                     } @else {
                       <span class="text-gray-300">—</span>
                     }
-                    @if (getRowError(task.id); as msg) {
-                      <div class="mt-1 flex items-start gap-1 text-red-700">
-                        <span class="flex-1">{{ msg }}</span>
-                        <button
-                          type="button"
-                          class="text-red-500 hover:text-red-700"
-                          (click)="dismissRowError(task.id)"
-                          aria-label="Descartar erro"
-                        >×</button>
-                      </div>
-                    }
                   </td>
                   <td class="py-3 pr-4 align-top">
                     <div class="flex items-center justify-end gap-2">
@@ -269,19 +249,25 @@
       <p class="mt-3 text-sm text-gray-700 font-medium break-words">{{ task.title }}</p>
 
       <form [formGroup]="rejectForm" (ngSubmit)="submitReject()" class="mt-4 space-y-3">
-        <textarea
-          formControlName="adminNote"
-          rows="4"
-          maxlength="500"
-          class="w-full text-sm border border-gray-200 rounded-lg p-3
-                 focus:outline-none focus:ring-2 focus:ring-red-400"
-          placeholder="Motivo da rejeição"
-        ></textarea>
-        @if (rejectForm.controls.adminNote.invalid && rejectForm.controls.adminNote.touched) {
-          <p class="text-xs text-red-600">Informe o motivo da rejeição.</p>
-        }
-        @if (rejectError()) {
-          <p class="text-xs text-red-600">{{ rejectError() }}</p>
+        <app-form-field
+          label="Motivo"
+          controlId="reject-admin-note"
+          [required]="true"
+          [control]="rejectForm.controls.adminNote"
+          [messages]="adminNoteMessages"
+        >
+          <textarea
+            appFieldControl
+            formControlName="adminNote"
+            rows="4"
+            maxlength="500"
+            class="w-full text-sm border rounded-lg p-3
+                   focus:outline-none focus:ring-2 focus:ring-red-400"
+            placeholder="Motivo da rejeição"
+          ></textarea>
+        </app-form-field>
+        @if (rejectError(); as msg) {
+          <app-alert-banner variant="error" [message]="msg" />
         }
 
         <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">

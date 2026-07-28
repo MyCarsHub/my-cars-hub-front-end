@@ -2,16 +2,27 @@
   title="Detalhes do usuário"
   description="Papel de sistema, status e empresas vinculadas."
 >
-  @if (error()) {
-    <div class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100 mb-4">
-      {{ error() }}
-      <button
-        type="button"
-        class="ml-2 underline hover:no-underline min-h-11 px-2"
-        (click)="reload()"
-      >
-        Tentar novamente
-      </button>
+  <!-- Falha ao carregar o usuário -->
+  @if (error(); as err) {
+    <div class="mb-4">
+      <app-alert-banner variant="error">
+        {{ err }}
+        <button
+          type="button"
+          class="ml-2 underline hover:no-underline min-h-11 px-2
+                 focus:outline-none focus:ring-2 focus:ring-rose-400 rounded"
+          (click)="reload()"
+        >
+          Tentar novamente
+        </button>
+      </app-alert-banner>
+    </div>
+  }
+
+  <!-- Falha de uma ação (ativar/desativar, promover/rebaixar) -->
+  @if (actionError(); as err) {
+    <div class="mb-4">
+      <app-alert-banner variant="error" [message]="err" />
     </div>
   }
 

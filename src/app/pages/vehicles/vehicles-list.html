@@ -98,11 +98,14 @@
         </div>
       </div>
 
-      <!-- Error -->
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      <!-- Falha de CARREGAMENTO da lista. -->
+      @if (error(); as loadError) {
+        <app-alert-banner variant="error" [message]="loadError" />
+      }
+
+      <!-- Falha de OPERAÇÃO (remover / transição de status). Inline, nunca toast. -->
+      @if (actionError(); as opError) {
+        <app-alert-banner variant="error" [message]="opError" />
       }
 
       <!-- Loading skeleton -->

@@ -12,6 +12,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
 import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
@@ -37,13 +39,22 @@ const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
 @Component({
   selector: 'app-vehicles-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, ActionsMenu],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    ActionsMenu,
+    AlertBanner,
+  ],
   templateUrl: './vehicles-list.html',
 })
 export class VehiclesList implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly router = inject(Router);
   private readonly notify = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly typeOptions = TYPE_OPTIONS;
   protected readonly statusOptions = VEHICLE_STATUS_FILTER_OPTIONS;
@@ -65,6 +76,13 @@ export class VehiclesList implements OnInit {
   protected readonly deletingVehicle = signal<VehicleListItem | null>(null);
   protected readonly deleting = signal(false);
   protected readonly transitioningId = signal<string | null>(null);
+
+  /**
+   * Falha de uma OPERAÇÃO da lista (remover, transição de status). Banner inline,
+   * nunca toast: o interceptor não toasta 4xx e `messageFor()` reivindica o erro.
+   * A falha de CARREGAMENTO fica em `error()`, que vem do `VehiclesService`.
+   */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -113,6 +131,7 @@ export class VehiclesList implements OnInit {
   }
 
   private reload(page: number): void {
+    this.actionError.set(null);
     this.vehiclesService
       .list({
         q: this.search().trim() || undefined,
@@ -122,7 +141,9 @@ export class VehiclesList implements OnInit {
         page,
         size: this.pageSize(),
       })
-      .subscribe({ error: () => {} });
+      // `VehiclesService` já expõe a mensagem em `error()` (banner inline);
+      // aqui só reivindicamos o erro pra o safety net do interceptor não toastar.
+      .subscribe({ error: (err: HttpErrorResponse) => this.apiErrors.claim(err) });
   }
 
   protected statusLabel(status: VehicleStatus): string {
@@ -195,6 +216,7 @@ export class VehiclesList implements OnInit {
   protected confirmDelete(): void {
     const vehicle = this.deletingVehicle();
     if (!vehicle) return;
+    this.actionError.set(null);
     this.deleting.set(true);
     this.vehiclesService.remove(vehicle.id).subscribe({
       next: () => {
@@ -206,7 +228,9 @@ export class VehiclesList implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deletingVehicle.set(null);
-        this.notify.error(this.extractError(err, 'Não foi possível remover o veículo.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível remover o veículo.'),
+        );
       },
     });
   }
@@ -241,6 +265,7 @@ export class VehiclesList implements OnInit {
   ): void {
     event?.stopPropagation();
     if (this.transitioningId() === vehicle.id) return;
+    this.actionError.set(null);
     this.transitioningId.set(vehicle.id);
     this.vehiclesService.updateStatus(vehicle.id, target).subscribe({
       next: (v) => {
@@ -251,16 +276,10 @@ export class VehiclesList implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.transitioningId.set(null);
-        this.notify.error(this.extractError(err, 'Não foi possível alterar o status.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível alterar o status.'),
+        );
       },
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

@@ -6,11 +6,24 @@
     <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
       Carregando…
     </div>
-  } @else if (error()) {
-    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-      {{ error() }}
-    </div>
+  } @else if (error(); as loadError) {
+    <!-- Falha de CARREGAMENTO: o veículo não abriu, então oferece a saída. -->
+    <app-alert-banner variant="error">
+      {{ loadError }}
+      <a routerLink="/veiculos"
+        class="ml-2 underline font-medium text-rose-800 rounded
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2">
+        Voltar para a lista
+      </a>
+    </app-alert-banner>
   } @else if (vehicle(); as v) {
+    <!-- Falha de OPERAÇÃO (excluir / transição de status). Inline, nunca toast. -->
+    @if (actionError(); as opError) {
+      <div class="mb-4">
+        <app-alert-banner variant="error" [message]="opError" />
+      </div>
+    }
+
     <!-- Header -->
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
       <div class="flex items-center gap-3 min-w-0">

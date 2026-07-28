@@ -67,11 +67,14 @@
         </div>
       </div>
 
-      <!-- Error banner -->
-      @if (error()) {
-        <div class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100">
-          {{ error() }}
-        </div>
+      <!-- Falha ao carregar a lista -->
+      @if (error(); as err) {
+        <app-alert-banner variant="error" [message]="err" />
+      }
+
+      <!-- Falha de uma ação (suspender/reativar) -->
+      @if (actionError(); as err) {
+        <app-alert-banner variant="error" [message]="err" />
       }
 
       <!-- Loading skeleton -->

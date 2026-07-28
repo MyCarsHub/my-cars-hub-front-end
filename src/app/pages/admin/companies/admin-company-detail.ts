@@ -15,7 +15,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCompaniesService } from '../admin-companies.service';
 import {
   AdminCompanyMember,
@@ -52,6 +54,7 @@ const CONFIRMATION_WORD = 'SUSPENDER';
     RouterLink,
     DefaultPageLayout,
     PageCard,
+    AlertBanner,
   ],
   templateUrl: './admin-company-detail.html',
 })
@@ -60,13 +63,15 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly destroyRef = inject(DestroyRef);
 
   private companyId: string | null = null;
 
   protected readonly detail = this.companiesService.detail;
   protected readonly loading = this.companiesService.detailLoading;
-  protected readonly error = this.companiesService.detailError;
+  /** Falha ao CARREGAR a empresa — banner com CTA de "tentar novamente". */
+  protected readonly error = signal<string | null>(null);
   protected readonly updating = this.companiesService.statusUpdating;
 
   protected readonly confirmDialogOpen = signal(false);
@@ -74,7 +79,11 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     nonNullable: true,
     validators: [Validators.required],
   });
-  protected readonly confirmError = signal<string | null>(null);
+  /**
+   * Falha da OPERACAO de suspender/reativar (ou da validação da palavra de
+   * confirmação). Banner inline dentro do diálogo, nunca toast.
+   */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly targetActive = computed(() => !(this.detail()?.active ?? false));
 
@@ -100,7 +109,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
           return;
         }
         this.companyId = id;
-        this.companiesService.loadDetail(id).subscribe({ error: () => {} });
+        this.loadDetail(id);
       });
   }
 
@@ -109,20 +118,27 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   }
 
   protected reload(): void {
-    if (this.companyId) {
-      this.companiesService.loadDetail(this.companyId).subscribe({ error: () => {} });
-    }
+    if (this.companyId) this.loadDetail(this.companyId);
+  }
+
+  private loadDetail(id: string): void {
+    this.error.set(null);
+    this.companiesService.loadDetail(id).subscribe({
+      error: (err: HttpErrorResponse) => {
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar a empresa.'));
+      },
+    });
   }
 
   protected openStatusDialog(): void {
     this.confirmControl.reset('');
-    this.confirmError.set(null);
+    this.actionError.set(null);
     this.confirmDialogOpen.set(true);
   }
 
   protected closeStatusDialog(): void {
     this.confirmDialogOpen.set(false);
-    this.confirmError.set(null);
+    this.actionError.set(null);
   }
 
   protected confirmStatusChange(): void {
@@ -130,12 +146,13 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     if (!current || !this.companyId) return;
 
     const nextActive = !current.active;
+    this.actionError.set(null);
 
     // Only require the typed confirmation when suspending — reactivating is safe.
     if (!nextActive) {
       const typed = (this.confirmControl.value ?? '').trim().toUpperCase();
       if (typed !== CONFIRMATION_WORD) {
-        this.confirmError.set(`Digite "${CONFIRMATION_WORD}" para confirmar.`);
+        this.actionError.set(`Digite "${CONFIRMATION_WORD}" para confirmar.`);
         return;
       }
     }
@@ -143,15 +160,15 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     this.companiesService.updateStatus(this.companyId, nextActive).subscribe({
       next: (res) => {
         this.confirmDialogOpen.set(false);
-        this.confirmError.set(null);
+        this.actionError.set(null);
         this.notifications.success(
           res.active ? 'Empresa reativada com sucesso.' : 'Empresa suspensa com sucesso.',
         );
       },
       error: (err: HttpErrorResponse) => {
-        const message = this.extractError(err, 'Falha ao atualizar o status da empresa.');
-        this.confirmError.set(message);
-        this.notifications.error(message);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar o status da empresa.'),
+        );
       },
     });
   }
@@ -207,13 +224,5 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
       YEARLY: 'Anual',
     };
     return map[value] ?? value;
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

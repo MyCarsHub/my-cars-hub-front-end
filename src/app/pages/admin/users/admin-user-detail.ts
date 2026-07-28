@@ -15,7 +15,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
 import { AdminUserCompanyLink } from '../../../types/admin-user.types';
 
@@ -26,7 +28,7 @@ interface PendingAction {
 @Component({
   selector: 'app-admin-user-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
   templateUrl: './admin-user-detail.html',
 })
 export class AdminUserDetail implements OnInit, OnDestroy {
@@ -34,13 +36,20 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notify = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly destroyRef = inject(DestroyRef);
 
   private userId: string | null = null;
 
   protected readonly detail = this.usersService.detail;
   protected readonly loading = this.usersService.detailLoading;
-  protected readonly error = this.usersService.detailError;
+  /** Falha ao CARREGAR o usuário — banner com CTA de "tentar novamente". */
+  protected readonly error = signal<string | null>(null);
+  /**
+   * Falha de uma OPERACAO da tela (ativar/desativar, promover/rebaixar). Banner
+   * inline, nunca toast: `messageFor()` reivindica o erro e desarma o safety net.
+   */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly openActionMenu = signal(false);
   protected readonly pendingAction = signal<PendingAction | null>(null);
@@ -101,7 +110,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
           return;
         }
         this.userId = id;
-        this.usersService.getDetail(id).subscribe({ error: () => {} });
+        this.loadDetail(id);
       });
   }
 
@@ -110,9 +119,17 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   }
 
   protected reload(): void {
-    if (this.userId) {
-      this.usersService.getDetail(this.userId).subscribe({ error: () => {} });
-    }
+    if (this.userId) this.loadDetail(this.userId);
+  }
+
+  private loadDetail(id: string): void {
+    this.error.set(null);
+    this.actionError.set(null);
+    this.usersService.getDetail(id).subscribe({
+      error: (err: HttpErrorResponse) => {
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar o usuário.'));
+      },
+    });
   }
 
   protected toggleActionMenu(event?: Event): void {
@@ -212,6 +229,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
 
   private applyStatus(active: boolean): void {
     if (!this.userId) return;
+    this.actionError.set(null);
     this.updating.set(true);
     this.usersService.updateStatus(this.userId, active).subscribe({
       next: () => {
@@ -220,13 +238,16 @@ export class AdminUserDetail implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.updating.set(false);
-        this.notify.error(this.extractError(err, 'Falha ao atualizar status.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar o status do usuário.'),
+        );
       },
     });
   }
 
   private applyRole(role: 'USER' | 'PLATFORM_ADMIN'): void {
     if (!this.userId) return;
+    this.actionError.set(null);
     this.updating.set(true);
     this.usersService.updateSystemRole(this.userId, role).subscribe({
       next: () => {
@@ -237,16 +258,10 @@ export class AdminUserDetail implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.updating.set(false);
-        this.notify.error(this.extractError(err, 'Falha ao atualizar papel.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar o papel do usuário.'),
+        );
       },
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

@@ -8,7 +8,12 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../../components/form-field/form-field';
+import { ApiErrorService } from '../../../services/api-error.service';
+import { clearServerErrors } from '../../../services/api-error';
 import { SessionService } from '../../../services/session.service';
 import { NotificationService } from '../../../services/notification.service';
 import { AdminService } from '../admin.service';
@@ -16,7 +21,7 @@ import { AdminService } from '../admin.service';
 @Component({
   selector: 'app-admin-email-test-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [ReactiveFormsModule, FormField, FieldControl, AlertBanner],
   animations: [
     trigger('backdrop', [
       transition(':enter', [
@@ -100,28 +105,31 @@ import { AdminService } from '../admin.service';
           </div>
 
           <form
+            [formGroup]="form"
             (ngSubmit)="onSubmit()"
             class="px-4 sm:px-6 pb-4 sm:pb-6"
             novalidate
           >
-            <label
-              for="admin-email-test-input"
-              class="block text-sm font-medium text-neutral-700 mb-1"
+            <app-form-field
+              label="Email de destino"
+              controlId="admin-email-test-input"
+              [required]="true"
+              [control]="form.controls.email"
+              [messages]="emailMessages"
             >
-              Email de destino
-            </label>
-            <input
-              id="admin-email-test-input"
-              name="email"
-              type="email"
-              required
-              autocomplete="email"
-              [disabled]="loading()"
-              [ngModel]="email()"
-              (ngModelChange)="email.set($event)"
-              placeholder="voce@exemplo.com"
-              class="w-full min-h-[48px] px-3 py-2 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:bg-neutral-50 disabled:text-neutral-500"
-            />
+              <input
+                appFieldControl
+                formControlName="email"
+                type="email"
+                autocomplete="email"
+                placeholder="voce@exemplo.com"
+                class="w-full min-h-[48px] px-3 py-2 rounded-xl border bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:bg-neutral-50 disabled:text-neutral-500"
+              />
+            </app-form-field>
+
+            @if (error(); as formError) {
+              <app-alert-banner variant="error" [message]="formError" class="mt-3" />
+            }
 
             <div
               class="mt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3"
@@ -136,7 +144,7 @@ import { AdminService } from '../admin.service';
               </button>
               <button
                 type="submit"
-                [disabled]="loading() || !isValidEmail()"
+                [disabled]="loading()"
                 class="w-full sm:w-auto min-h-[48px] px-4 py-2.5 text-sm font-semibold rounded-xl bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-400 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
               >
                 @if (loading()) {
@@ -177,28 +185,34 @@ export class AdminEmailTestDialog {
   private readonly session = inject(SessionService);
   private readonly adminService = inject(AdminService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   open = input.required<boolean>();
   cancelled = output<void>();
   sent = output<void>();
 
-  protected readonly email = signal<string>('');
+  protected readonly form = new FormGroup({
+    email: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.email],
+    }),
+  });
+
+  protected readonly emailMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o e-mail de destino.',
+    email: 'E-mail inválido. Use o formato voce@exemplo.com.',
+  };
+
   protected readonly loading = signal(false);
+  /** Falha do envio. Banner inline dentro do diálogo — nunca toast. */
+  protected readonly error = signal<string | null>(null);
 
   constructor() {
     effect(() => {
-      if (this.open()) {
-        const current = this.email();
-        if (!current) {
-          this.email.set(this.session.getItem('email') ?? '');
-        }
+      if (this.open() && !this.form.controls.email.value) {
+        this.form.controls.email.setValue(this.session.getItem('email') ?? '');
       }
     });
-  }
-
-  protected isValidEmail(): boolean {
-    const value = this.email().trim();
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
   protected onCancel(): void {
@@ -207,8 +221,17 @@ export class AdminEmailTestDialog {
   }
 
   protected onSubmit(): void {
-    if (this.loading() || !this.isValidEmail()) return;
-    const target = this.email().trim();
+    if (this.loading()) return;
+
+    this.error.set(null);
+    clearServerErrors(this.form);
+
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    const target = this.form.controls.email.value.trim();
     this.loading.set(true);
     this.adminService.testNotifications(target).subscribe({
       next: () => {
@@ -218,11 +241,14 @@ export class AdminEmailTestDialog {
         );
         this.sent.emit();
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        this.notifications.error(
+        const { formMessage } = this.apiErrors.handleForm(
+          err,
+          this.form,
           'Não foi possível enviar. Verifique se o SMTP está configurado.',
         );
+        this.error.set(formMessage);
       },
     });
   }

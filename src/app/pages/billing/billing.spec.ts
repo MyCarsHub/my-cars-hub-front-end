@@ -11,6 +11,7 @@ import { BillingAccessService } from '../../services/billing-access.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { PlanResponse, SubscriptionResponse } from '../../types/billing.types';
 
 const plan = (over: Partial<PlanResponse>): PlanResponse => ({
@@ -128,6 +129,8 @@ type Probe = {
   downgradeDialogTitle(): string;
   downgradeDialogMessage(): string;
   ngOnInit(): void;
+  error(): string | null;
+  accountActionError(): string | null;
 };
 
 describe('Billing', () => {
@@ -1333,6 +1336,129 @@ describe('Billing', () => {
 
       expect(c.awaitingPayment()).toBe(false);
       expect(c.planCtaDisabled(PRO)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // P — feedback standard (phase 3): billing was the worst offender in the app,
+  //     showing the SAME failure four times (plan card + page banner + its own
+  //     toast + the interceptor safety net). Each failure must now appear ONCE.
+  // ---------------------------------------------------------------------------
+
+  /** Drives the safety net the way `errorInterceptor` does for an unclaimed 4xx. */
+  const runSafetyNet = (err: HttpErrorResponse): void => {
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(err);
+    vi.runAllTimers();
+  };
+
+  it('shows a failed plan CTA only on the card — no page banner, no toast', () => {
+    vi.useFakeTimers();
+    try {
+      subscriptionSignal.set(null);
+      const err = new HttpErrorResponse({
+        status: 400,
+        error: { message: 'Plano indisponível no momento.' },
+      });
+      billing.startCheckout = vi.fn(() => {
+        // The service writes its banner copy before the caller sees the error.
+        errorSignal.set('Plano indisponível no momento.');
+        return throwError(() => err);
+      });
+      const c = build();
+
+      c.onPlanCta(PRO);
+
+      // 1st surface — the card the user actually clicked. The only one.
+      expect(c.planCardError(PRO)).toBe('Plano indisponível no momento.');
+      // 2nd surface gone: the page-level banner was cleared by the action.
+      expect(c.error()).toBeNull();
+      // 3rd + 4th surfaces gone: no toast from the screen, none from the net.
+      runSafetyNet(err);
+      expect(notifications.error).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a failed cancel inline next to the button instead of a toast', () => {
+    vi.useFakeTimers();
+    try {
+      subscriptionSignal.set(sub({ status: 'ACTIVE' }));
+      const err = new HttpErrorResponse({
+        status: 409,
+        error: { message: 'Assinatura já cancelada.' },
+      });
+      billing.cancel = vi.fn(() => {
+        errorSignal.set('Assinatura já cancelada.');
+        return throwError(() => err);
+      });
+      const c = build();
+
+      c.onCancelConfirmed();
+
+      expect(c.accountActionError()).toBe('Assinatura já cancelada.');
+      expect(c.error()).toBeNull();
+      runSafetyNet(err);
+      expect(notifications.error).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a failed reactivate inline, and still sends the user to the plans', () => {
+    vi.useFakeTimers();
+    // jsdom implements no layout, so `scrollIntoView` is simply absent from the
+    // prototype. Stub it so the failure path can be observed rather than crash.
+    const scrollIntoView = vi.fn();
+    const proto = Element.prototype as unknown as { scrollIntoView?: () => void };
+    const original = proto.scrollIntoView;
+    proto.scrollIntoView = scrollIntoView;
+    try {
+      subscriptionSignal.set(sub({ status: 'ACTIVE', cancelAtPeriodEnd: true }));
+      const err = new HttpErrorResponse({
+        status: 400,
+        error: { message: 'O período pago já terminou.' },
+      });
+      billing.reactivate = vi.fn(() => {
+        errorSignal.set('O período pago já terminou.');
+        return throwError(() => err);
+      });
+      const c = build();
+
+      c.reactivate();
+
+      // The backend sentence wins over our fallback, and it is shown once.
+      expect(c.accountActionError()).toBe('O período pago já terminou.');
+      expect(c.error()).toBeNull();
+      runSafetyNet(err);
+      expect(notifications.error).not.toHaveBeenCalled();
+      // The recovery intent is unchanged by the feedback migration.
+      expect(scrollIntoView).toHaveBeenCalled();
+    } finally {
+      proto.scrollIntoView = original;
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the load banner as the single surface when /plans fails', () => {
+    vi.useFakeTimers();
+    try {
+      const err = new HttpErrorResponse({ status: 422, error: { message: 'Catálogo indisponível.' } });
+      billing.loadPlans = vi.fn(() => {
+        errorSignal.set('Catálogo indisponível.');
+        return throwError(() => err);
+      });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => void 0);
+      const c = build();
+      c.ngOnInit();
+
+      // A LOAD failure legitimately belongs in the page banner — and nowhere else.
+      expect(c.error()).toBe('Catálogo indisponível.');
+      runSafetyNet(err);
+      expect(notifications.error).not.toHaveBeenCalled();
+      logged.mockRestore();
     } finally {
       vi.useRealTimers();
     }

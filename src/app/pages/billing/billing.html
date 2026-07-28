@@ -74,19 +74,14 @@
     </div>
   }
 
-  @if (error()) {
-    <div
-      role="alert"
-      class="mb-6 flex items-start gap-3 p-4 rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-sm font-medium">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        class="mt-0.5 shrink-0" aria-hidden="true">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-      <span>{{ error() }}</span>
-    </div>
+  <!--
+    Page-level banner: LOAD failures only (`/plans`, `/subscription`). Failures of
+    an ACTION are shown where the action is — on the plan card (`ctaError`) or next
+    to the account buttons (`accountActionError`) — and clear this one, so the same
+    message never appears twice.
+  -->
+  @if (error(); as loadError) {
+    <app-alert-banner variant="error" [message]="loadError" class="mb-6" />
   }
 
   <div class="space-y-4 sm:space-y-6 lg:space-y-8">
@@ -240,6 +235,16 @@
                 <span>Cancelamento agendado para {{ formatDate(sub.currentPeriodEnd) }}. Você mantém acesso até essa data.</span>
               </div>
             </div>
+          }
+
+          <!--
+            Failure of cancelar / reativar, shown right where the button is.
+            Deliberately OUTSIDE the button block below: a failed action can flip
+            `canCancel()` / `canReactivate()`, and the explanation must not vanish
+            with the button it belongs to.
+          -->
+          @if (accountActionError(); as actionError) {
+            <app-alert-banner variant="error" [message]="actionError" class="pt-2" />
           }
 
           <!-- Account actions: cancel and reactivate are distinct and never

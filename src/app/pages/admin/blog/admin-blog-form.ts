@@ -1,18 +1,15 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
+import { clearServerErrors } from '../../../services/api-error';
 import { BlogService } from '../../blog/blog.service';
 import {
   BLOG_CATEGORIES,
@@ -20,6 +17,8 @@ import {
   BlogPostDetail,
   BlogPostRequest,
 } from '../../../types/blog.types';
+
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * Editor de post. Cria (/admin/blog/novo) OU edita (/admin/blog/:id/editar).
@@ -30,13 +29,23 @@ import {
   selector: 'app-admin-blog-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [FormsModule, RouterModule, DefaultPageLayout, PageCard],
+  imports: [
+    ReactiveFormsModule,
+    RouterModule,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    FormField,
+    FieldControl,
+  ],
   templateUrl: './admin-blog-form.html',
   styleUrl: './admin-blog-form.css',
 })
 export class AdminBlogForm implements OnInit {
   private readonly service = inject(BlogService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly sanitizer = inject(DomSanitizer);
@@ -49,22 +58,45 @@ export class AdminBlogForm implements OnInit {
 
   protected readonly id = signal<string | null>(null);
   protected readonly status = signal<'DRAFT' | 'PUBLISHED'>('DRAFT');
-  protected readonly slug = signal('');
-  protected readonly title = signal('');
-  protected readonly excerpt = signal('');
-  protected readonly coverUrl = signal('');
-  protected readonly category = signal<BlogPostCategory>('PRODUTO');
-  protected readonly bodyMarkdown = signal('');
-  protected readonly metaDescription = signal('');
   protected readonly bodyHtmlPreview = signal<SafeHtml>('');
 
-  protected readonly canSubmit = computed(() =>
-    this.slug().trim().length >= 3 &&
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(this.slug().trim()) &&
-    this.title().trim().length >= 5 &&
-    this.bodyMarkdown().trim().length >= 50 &&
-    !this.saving() && !this.publishing()
-  );
+  /** Falha ao CARREGAR o post — o formulário não pode ser usado. */
+  protected readonly loadError = signal<string | null>(null);
+  /** Falha de uma OPERAÇÃO (salvar/publicar) que sobrou depois do inline. */
+  protected readonly error = signal<string | null>(null);
+
+  protected readonly form = this.fb.nonNullable.group({
+    title: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(200)]],
+    slug: [
+      '',
+      [
+        Validators.required,
+        Validators.minLength(3),
+        Validators.maxLength(200),
+        Validators.pattern(SLUG_PATTERN),
+      ],
+    ],
+    category: ['PRODUTO' as BlogPostCategory, [Validators.required]],
+    excerpt: ['', [Validators.maxLength(400)]],
+    coverUrl: ['', [Validators.maxLength(500)]],
+    bodyMarkdown: ['', [Validators.required, Validators.minLength(50)]],
+    metaDescription: ['', [Validators.maxLength(300)]],
+  });
+
+  /** Copy por chave de validador para o resolver do `app-form-field`. */
+  protected readonly titleMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o título do post.',
+    minlength: 'O título precisa de pelo menos 5 caracteres.',
+  };
+  protected readonly slugMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o slug da URL.',
+    minlength: 'O slug precisa de pelo menos 3 caracteres.',
+    pattern: 'Use apenas letras minúsculas, números e hífens (ex.: meu-post).',
+  };
+  protected readonly bodyMessages: Readonly<Record<string, string>> = {
+    required: 'Escreva o conteúdo do post.',
+    minlength: 'O conteúdo precisa de pelo menos 50 caracteres.',
+  };
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -75,29 +107,45 @@ export class AdminBlogForm implements OnInit {
     }
   }
 
-  protected onTitleInput(v: string): void {
-    this.title.set(v);
-    if (!this.editing() && this.slug().trim() === '') {
-      this.slug.set(this.slugify(v));
-    }
+  /**
+   * Deriva o slug do título enquanto o autor digita, mas só na criação e
+   * enquanto o slug ainda estiver vazio — nunca sobrescreve edição manual.
+   */
+  protected onTitleInput(event: Event): void {
+    if (this.editing()) return;
+    const value = (event.target as HTMLInputElement).value;
+    if (this.form.controls.slug.value.trim() !== '') return;
+    this.form.controls.slug.setValue(this.slugify(value));
   }
 
   protected save(publish = false): void {
-    if (!this.canSubmit()) return;
+    if (this.saving() || this.publishing()) return;
+
+    this.error.set(null);
+    clearServerErrors(this.form);
+
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.error.set('Verifique os campos destacados e tente novamente.');
+      return;
+    }
+
+    const raw = this.form.getRawValue();
     const req: BlogPostRequest = {
-      slug: this.slug().trim(),
-      title: this.title().trim(),
-      excerpt: this.excerpt().trim() || undefined,
-      coverUrl: this.coverUrl().trim() || undefined,
-      category: this.category(),
-      bodyMarkdown: this.bodyMarkdown(),
-      metaDescription: this.metaDescription().trim() || undefined,
+      slug: raw.slug.trim(),
+      title: raw.title.trim(),
+      excerpt: raw.excerpt.trim() || undefined,
+      coverUrl: raw.coverUrl.trim() || undefined,
+      category: raw.category,
+      bodyMarkdown: raw.bodyMarkdown,
+      metaDescription: raw.metaDescription.trim() || undefined,
     };
     const busy = publish ? this.publishing : this.saving;
     busy.set(true);
-    const op = this.editing() && this.id()
-      ? this.service.update(this.id()!, req)
-      : this.service.create(req);
+    // `id()` só é lido dentro do ramo em que `editing()` garante que ele existe.
+    const currentId = this.id();
+    const op =
+      this.editing() && currentId ? this.service.update(currentId, req) : this.service.create(req);
     op.subscribe({
       next: (post) => {
         // Se pediu publicar, dispara o publish depois de salvar.
@@ -105,18 +153,18 @@ export class AdminBlogForm implements OnInit {
           this.service.publish(post.id).subscribe({
             next: () => {
               busy.set(false);
-              this.notifications.push('success', 'Post publicado.');
+              this.notifications.success('Post publicado.');
               this.router.navigate(['/admin/blog']);
             },
             error: (err: HttpErrorResponse) => {
               busy.set(false);
-              this.notifications.push('error', this.extractError(err, 'Falha ao publicar.'));
+              this.error.set(this.apiErrors.messageFor(err, 'Não foi possível publicar o post.'));
             },
           });
         } else {
           busy.set(false);
           this.hydrate(post);
-          this.notifications.push('success', this.editing() ? 'Post atualizado.' : 'Rascunho salvo.');
+          this.notifications.success(this.editing() ? 'Post atualizado.' : 'Rascunho salvo.');
           if (!this.editing()) {
             // Redireciona para o modo edit após criar
             this.router.navigate(['/admin/blog', post.id, 'editar']);
@@ -125,13 +173,28 @@ export class AdminBlogForm implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         busy.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao salvar.'));
+        this.handleSaveError(err);
       },
     });
   }
 
+  /**
+   * `fieldErrors` do backend (ex.: `slug` já em uso) caem no controle de mesmo
+   * nome e aparecem embaixo do campo; só o que sobra vai para o banner.
+   * Nunca vira toast — `handleForm` reivindica o erro.
+   */
+  private handleSaveError(err: HttpErrorResponse): void {
+    const { formMessage } = this.apiErrors.handleForm(
+      err,
+      this.form,
+      'Não foi possível salvar o post.',
+    );
+    this.error.set(formMessage);
+  }
+
   private load(id: string): void {
     this.loading.set(true);
+    this.loadError.set(null);
     this.service.findByIdAdmin(id).subscribe({
       next: (post) => {
         this.hydrate(post);
@@ -139,8 +202,7 @@ export class AdminBlogForm implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        this.notifications.push('error', this.extractError(err, 'Post não encontrado.'));
-        this.router.navigate(['/admin/blog']);
+        this.loadError.set(this.apiErrors.messageFor(err, 'Post não encontrado.'));
       },
     });
   }
@@ -148,13 +210,15 @@ export class AdminBlogForm implements OnInit {
   private hydrate(p: BlogPostDetail): void {
     this.id.set(p.id);
     this.status.set(p.status);
-    this.slug.set(p.slug);
-    this.title.set(p.title);
-    this.excerpt.set(p.excerpt ?? '');
-    this.coverUrl.set(p.coverUrl ?? '');
-    this.category.set(p.category);
-    this.bodyMarkdown.set(p.bodyMarkdown);
-    this.metaDescription.set(p.metaDescription ?? '');
+    this.form.patchValue({
+      slug: p.slug,
+      title: p.title,
+      excerpt: p.excerpt ?? '',
+      coverUrl: p.coverUrl ?? '',
+      category: p.category,
+      bodyMarkdown: p.bodyMarkdown,
+      metaDescription: p.metaDescription ?? '',
+    });
     this.bodyHtmlPreview.set(this.sanitizer.bypassSecurityTrustHtml(p.bodyHtml));
   }
 
@@ -166,11 +230,5 @@ export class AdminBlogForm implements OnInit {
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .slice(0, 200);
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') return body.message;
-    return fallback;
   }
 }
