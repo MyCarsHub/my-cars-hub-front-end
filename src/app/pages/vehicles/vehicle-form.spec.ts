@@ -298,7 +298,9 @@ describe('VehicleForm — financiamento na edição', () => {
 
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).not.toContain('Adicionar financiamento');
-    expect(html).toContain('Este veículo já possui um financiamento ativo.');
+    expect(html).toContain('Contrato');
+    expect(html).toContain('04/03/2025');
+    expect(html).toContain('36');
     expect(fixture.nativeElement.querySelector('a[href="/financiamentos/fin-1"]')).not.toBeNull();
 
     api().submit();
