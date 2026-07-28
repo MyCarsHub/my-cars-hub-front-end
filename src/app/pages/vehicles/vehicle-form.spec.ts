@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
-import { throwError } from 'rxjs';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { VehicleForm } from './vehicle-form';
@@ -148,5 +148,183 @@ describe('VehicleForm — server field errors', () => {
     fixture.detectChanges();
 
     expect(plateError()).toBeNull();
+  });
+});
+
+/**
+ * FEATURE: adicionar financiamento a um veículo JÁ EXISTENTE pela tela de edição.
+ *
+ * Regra de negócio confirmada no backend (`VehicleService.createFinancing`):
+ * `POST /v1/vehicles/{id}/financings` aceita veículo existente, mas responde 409
+ * quando já há um financiamento ACTIVE — e não existe endpoint de atualização.
+ * Logo: a edição ADICIONA quando não há nenhum ativo, e apenas EXIBE (somente
+ * leitura, com link) quando já há.
+ */
+describe('VehicleForm — financiamento na edição', () => {
+  const VEHICLE_ID = 'veh-1';
+
+  let getOne: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let createFinancing: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.spyOn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  interface FormApi {
+    form: { patchValue: (v: unknown) => void };
+    financingForm: { patchValue: (v: unknown) => void };
+    toggleFinancing: () => void;
+    submit: () => void;
+  }
+
+  function api(): FormApi {
+    return fixture.componentInstance as unknown as FormApi;
+  }
+
+  function vehicle(activeFinancing: unknown) {
+    return {
+      id: VEHICLE_ID,
+      plate: 'ABC1D23',
+      type: 'CAR',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      chassis: null,
+      hodometer: 1000,
+      licensingExpiration: null,
+      renavam: null,
+      color: null,
+      purchaseDate: null,
+      ipvaAmount: null,
+      ipvaDueDate: null,
+      ipvaStatus: null,
+      fuel: null,
+      activeFinancing,
+    };
+  }
+
+  async function setup(activeFinancing: unknown): Promise<void> {
+    getOne = vi.fn().mockReturnValue(of(vehicle(activeFinancing)));
+    update = vi.fn().mockReturnValue(of({ id: VEHICLE_ID }));
+    createFinancing = vi.fn().mockReturnValue(of({ id: 'fin-new' }));
+
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: { getOne, update, createFinancing, create: vi.fn() },
+        },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('cria o financiamento a partir da edição quando o veículo não tem nenhum ativo', async () => {
+    await setup(null);
+
+    api().toggleFinancing();
+    api().financingForm.patchValue({
+      contractDate: '2026-01-10',
+      purchasePrice: 50000,
+      downPayment: 10000,
+      installments: 24,
+      installmentAmount: 1800.5,
+    });
+    api().submit();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(createFinancing).toHaveBeenCalledTimes(1);
+
+    const [vehicleId, payload] = createFinancing.mock.calls[0];
+    expect(vehicleId).toBe(VEHICLE_ID);
+    expect(payload).toMatchObject({
+      contractDate: '2026-01-10',
+      purchasePrice: 5_000_000,
+      downPayment: 1_000_000,
+      installments: 24,
+      installmentAmount: 180_050,
+    });
+
+    expect(TestBed.inject(NotificationService).success).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', VEHICLE_ID]);
+  });
+
+  it('valida o bloco de financiamento na edição — não salva nada com o bloco incompleto', async () => {
+    await setup(null);
+
+    api().toggleFinancing();
+    // contractDate vazio e purchasePrice 0 → grupo inválido.
+    api().submit();
+    fixture.detectChanges();
+
+    expect(update).not.toHaveBeenCalled();
+    expect(createFinancing).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.innerHTML).toContain('Verifique os campos do financiamento.');
+  });
+
+  it('não oferece adicionar quando já existe financiamento ativo — mostra resumo e link', async () => {
+    await setup({
+      id: 'fin-1',
+      vehicleId: VEHICLE_ID,
+      contractDate: '2025-03-04',
+      purchasePrice: 4_000_000,
+      downPayment: null,
+      totalFinanced: null,
+      installments: 36,
+      installmentAmount: 120_000,
+      status: 'ACTIVE',
+      paidOffDate: null,
+      createdDate: '2025-03-04T00:00:00Z',
+      modifyDate: null,
+    });
+
+    const html = fixture.nativeElement.innerHTML as string;
+    expect(html).not.toContain('Adicionar financiamento');
+    expect(html).toContain('Este veículo já possui um financiamento ativo.');
+    expect(fixture.nativeElement.querySelector('a[href="/financiamentos/fin-1"]')).not.toBeNull();
+
+    api().submit();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(createFinancing).not.toHaveBeenCalled();
+  });
+
+  it('mostra no banner o 409 de financiamento ativo vindo do servidor', async () => {
+    await setup(null);
+    createFinancing.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { message: 'Veículo já possui financiamento ativo.' },
+          }),
+      ),
+    );
+
+    api().toggleFinancing();
+    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: 50000 });
+    api().submit();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.innerHTML).toContain('Veículo já possui financiamento ativo.');
+    expect(TestBed.inject(NotificationService).error).not.toHaveBeenCalled();
   });
 });

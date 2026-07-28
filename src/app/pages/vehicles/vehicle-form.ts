@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   AbstractControl,
@@ -23,12 +23,14 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
+import { NotificationService } from '../../services/notification.service';
 import { FinancingFormFields } from '../../components/vehicles/financing-form-fields/financing-form-fields';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
+  Financing,
   IPVA_STATUS_OPTIONS,
   IpvaStatus,
   UpdateVehicleRequest,
@@ -61,12 +63,14 @@ function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
     AlertBanner,
     FormField,
     FieldControl,
+    RouterLink,
   ],
   templateUrl: './vehicle-form.html',
 })
 export class VehicleForm implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -95,6 +99,19 @@ export class VehicleForm implements OnInit {
 
   protected readonly plateDisplay = signal('');
   protected readonly showFinancing = signal(false);
+
+  /**
+   * Financiamento ATIVO já vinculado ao veículo (vem em `GET /vehicles/{id}`).
+   * O backend só admite um ativo por veículo — `createFinancing` responde 409
+   * quando já existe — e não expõe endpoint de atualização (apenas quitar e
+   * excluir). Por isso a edição do veículo só oferece ADICIONAR quando este
+   * signal está `null`; havendo um ativo, mostramos o resumo somente-leitura
+   * com link para a tela do financiamento.
+   */
+  protected readonly existingFinancing = signal<Financing | null>(null);
+  protected readonly canAddFinancing = computed(
+    () => !this.isEdit() || this.existingFinancing() === null,
+  );
 
   protected readonly form = this.fb.nonNullable.group(
     {
@@ -173,6 +190,7 @@ export class VehicleForm implements OnInit {
     this.vehiclesService.getOne(id).subscribe({
       next: (v) => {
         this.plateDisplay.set(v.plate ?? '');
+        this.existingFinancing.set(v.activeFinancing ?? null);
         this.form.patchValue({
           plate: v.plate,
           type: v.type,
@@ -211,7 +229,8 @@ export class VehicleForm implements OnInit {
       this.error.set('Verifique os campos destacados e tente novamente.');
       return;
     }
-    if (this.showFinancing() && !this.isEdit() && this.financingForm.invalid) {
+    // Vale tanto na criação quanto na edição: se o usuário abriu o bloco, ele é validado.
+    if (this.willSubmitFinancing() && this.financingForm.invalid) {
       this.financingForm.markAllAsTouched();
       this.error.set('Verifique os campos do financiamento.');
       return;
@@ -220,6 +239,7 @@ export class VehicleForm implements OnInit {
     this.saving.set(true);
     this.error.set(null);
     clearServerErrors(this.form);
+    clearServerErrors(this.financingForm);
 
     const raw = this.form.getRawValue();
     const ipvaAmountCents =
@@ -245,7 +265,32 @@ export class VehicleForm implements OnInit {
 
     if (this.isEdit()) {
       const payload: UpdateVehicleRequest = commonPayload;
-      this.vehiclesService.update(this.editingId()!, payload).subscribe({
+      const vehicleId = this.editingId()!; // isEdit() === true garante o id.
+
+      if (this.willSubmitFinancing()) {
+        const financingPayload = this.buildFinancingPayload();
+        this.vehiclesService
+          .update(vehicleId, payload)
+          .pipe(
+            switchMap((v) =>
+              this.vehiclesService
+                .createFinancing(v.id, financingPayload)
+                .pipe(switchMap(() => [v])),
+            ),
+          )
+          .subscribe({
+            next: (v) => {
+              this.notifications.success('Financiamento adicionado ao veículo.');
+              this.router.navigate(['/veiculos', v.id]);
+            },
+            // O PUT do veículo já pode ter passado — avisamos que só o
+            // financiamento falhou para o usuário não repetir a edição às cegas.
+            error: (err: HttpErrorResponse) => this.handleFinancingError(err),
+          });
+        return;
+      }
+
+      this.vehiclesService.update(vehicleId, payload).subscribe({
         next: (v) => this.router.navigate(['/veiculos', v.id]),
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
@@ -257,17 +302,7 @@ export class VehicleForm implements OnInit {
       };
 
       if (this.showFinancing()) {
-        const fRaw = this.financingForm.getRawValue();
-        const financingPayload: CreateFinancingRequest = {
-          contractDate: fRaw.contractDate,
-          purchasePrice: toCents(Number(fRaw.purchasePrice)) ?? 0,
-          downPayment: fRaw.downPayment ? toCents(Number(fRaw.downPayment)) : null,
-          installments: fRaw.installments ? Number(fRaw.installments) : null,
-          installmentAmount: fRaw.installmentAmount
-            ? toCents(Number(fRaw.installmentAmount))
-            : null,
-          totalFinanced: null,
-        };
+        const financingPayload = this.buildFinancingPayload();
         this.vehiclesService
           .create(createPayload)
           .pipe(
@@ -291,6 +326,26 @@ export class VehicleForm implements OnInit {
   }
 
   /**
+   * O bloco de financiamento só é enviado quando o usuário o abriu E o veículo
+   * ainda não tem um financiamento ativo (na criação `canAddFinancing()` é sempre true).
+   */
+  protected willSubmitFinancing(): boolean {
+    return this.showFinancing() && this.canAddFinancing();
+  }
+
+  private buildFinancingPayload(): CreateFinancingRequest {
+    const fRaw = this.financingForm.getRawValue();
+    return {
+      contractDate: fRaw.contractDate,
+      purchasePrice: toCents(Number(fRaw.purchasePrice)) ?? 0,
+      downPayment: fRaw.downPayment ? toCents(Number(fRaw.downPayment)) : null,
+      installments: fRaw.installments ? Number(fRaw.installments) : null,
+      installmentAmount: fRaw.installmentAmount ? toCents(Number(fRaw.installmentAmount)) : null,
+      totalFinanced: null,
+    };
+  }
+
+  /**
    * Backend `fieldErrors` land on the matching controls (inline, under the field);
    * only what is left over goes to the form banner. Never a toast — the interceptor
    * skips 4xx and `ApiErrorService.handleForm` claims the error so the safety net
@@ -304,6 +359,26 @@ export class VehicleForm implements OnInit {
       'Não foi possível salvar o veículo.',
     );
     this.error.set(formMessage);
+  }
+
+  /**
+   * Falha do POST do financiamento durante a EDIÇÃO. `fieldErrors` de
+   * `contractDate` / `purchasePrice` / … caem inline no `financingForm`; o que
+   * sobrar (ex.: 409 "já existe financiamento ativo") vai para o banner.
+   */
+  private handleFinancingError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    const { formMessage, applied } = this.apiErrors.handleForm(
+      err,
+      this.financingForm,
+      'Não foi possível adicionar o financiamento.',
+    );
+    this.error.set(
+      formMessage ??
+        (applied.length > 0
+          ? 'Verifique os campos do financiamento destacados e tente novamente.'
+          : 'Não foi possível adicionar o financiamento.'),
+    );
   }
 
   protected cancel(): void {
@@ -323,6 +398,18 @@ export class VehicleForm implements OnInit {
   protected financingFieldInvalid(name: string): boolean {
     const ctrl = this.financingForm.get(name);
     return !!ctrl && ctrl.invalid && ctrl.touched;
+  }
+
+  protected formatCurrency(cents: number | null | undefined): string {
+    if (cents == null) return '—';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+      cents / 100,
+    );
+  }
+
+  protected formatDate(iso: string | null): string {
+    if (!iso) return '—';
+    return new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('pt-BR');
   }
 
   protected hasYearRangeError(): boolean {

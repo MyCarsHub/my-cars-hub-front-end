@@ -266,17 +266,50 @@
         </div>
       </app-page-card>
 
-      <!-- ====== Financiamento (create only) ====== -->
-      @if (!isEdit()) {
-        <app-page-card title="Financiamento (opcional)">
-          <div class="p-4 sm:p-6 space-y-4">
+      <!-- ====== Financiamento (opcional) — disponível na criação E na edição ====== -->
+      <app-page-card title="Financiamento (opcional)">
+        <div class="p-4 sm:p-6 space-y-4">
+          @if (existingFinancing(); as fin) {
+            <!-- Já existe um ativo: o backend não aceita um segundo nem expõe edição aqui. -->
+            <p class="text-sm text-neutral-600">
+              Este veículo já possui um financiamento ativo. Para alterar, quitar ou excluir,
+              use a tela do financiamento.
+            </p>
+            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-sm">
+              <div>
+                <dt class="text-neutral-500">Contrato</dt>
+                <dd class="text-neutral-800 tabular-nums">{{ formatDate(fin.contractDate) }}</dd>
+              </div>
+              <div>
+                <dt class="text-neutral-500">Valor de compra</dt>
+                <dd class="text-neutral-800 tabular-nums">{{ formatCurrency(fin.purchasePrice) }}</dd>
+              </div>
+              <div>
+                <dt class="text-neutral-500">Parcelas</dt>
+                <dd class="text-neutral-800 tabular-nums">
+                  {{ fin.installments ?? '—' }}
+                  @if (fin.installmentAmount) {
+                    <span class="text-neutral-500">× {{ formatCurrency(fin.installmentAmount) }}</span>
+                  }
+                </dd>
+              </div>
+            </dl>
+            <a
+              [routerLink]="['/financiamentos', fin.id]"
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                     border border-neutral-200 text-sm font-medium text-neutral-700 hover:bg-neutral-50
+                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500">
+              Ver financiamento
+            </a>
+          } @else {
             <button
               type="button"
               (click)="toggleFinancing()"
+              [attr.aria-expanded]="showFinancing()"
               class="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200
                      text-sm font-medium text-neutral-700 hover:bg-neutral-50">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 @if (showFinancing()) {
                   <line x1="5" y1="12" x2="19" y2="12"/>
                 } @else {
@@ -289,9 +322,9 @@
             @if (showFinancing()) {
               <app-financing-form-fields [formGroup]="financingForm" />
             }
-          </div>
-        </app-page-card>
-      }
+          }
+        </div>
+      </app-page-card>
 
       <!-- ====== Ações ====== -->
       <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
