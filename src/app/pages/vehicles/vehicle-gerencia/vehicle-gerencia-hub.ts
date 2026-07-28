@@ -9,6 +9,8 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
+import { PageCard } from '../../../components/core/page-card/page-card';
+import { StatTile, StatTileTone } from '../../../components/core/stat-tile/stat-tile';
 import {
   VehicleSummaryChip,
   VehicleSummary,
@@ -34,6 +36,8 @@ interface TabDef {
   imports: [
     RouterLink,
     DefaultPageLayout,
+    PageCard,
+    StatTile,
     VehicleSummaryChip,
     FinancingsList,
     MaintenancesList,
@@ -166,10 +170,10 @@ export class VehicleGerenciaHub implements OnInit {
    * Regra do guia de identidade: "Green appears only when something is
    * confirmed, verified or good news."
    */
-  protected resultClass(cents: number): string {
-    if (cents > 0) return 'text-success-700';
-    if (cents < 0) return 'text-rose-700';
-    return 'text-neutral-900';
+  protected resultTone(cents: number): StatTileTone {
+    if (cents > 0) return 'positive';
+    if (cents < 0) return 'negative';
+    return 'neutral';
   }
 
   /**
@@ -179,13 +183,13 @@ export class VehicleGerenciaHub implements OnInit {
    * - 0 with revenue > 0 → Smoke (hint shown separately)
    * - both zero → Carbon
    */
-  protected receivedClass(finance: GerenciaFinanceChunk): string {
+  protected receivedTone(finance: GerenciaFinanceChunk): StatTileTone {
     const rev = finance.totalRentalRevenueCents;
     const recv = finance.totalRentalReceivedCents;
-    if (rev === 0 && recv === 0) return 'text-neutral-900';
-    if (recv === 0) return 'text-neutral-500';
-    if (recv >= rev) return 'text-success-700';
-    return 'text-amber-700';
+    if (rev === 0 && recv === 0) return 'neutral';
+    if (recv === 0) return 'muted';
+    if (recv >= rev) return 'positive';
+    return 'warning';
   }
 
   protected licensingChipLabel(): { label: string; chip: string } | null {
