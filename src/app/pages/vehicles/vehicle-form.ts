@@ -19,6 +19,10 @@ import { switchMap } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { ApiErrorService } from '../../services/api-error.service';
+import { clearServerErrors } from '../../services/api-error';
 import { FinancingFormFields } from '../../components/vehicles/financing-form-fields/financing-form-fields';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -48,11 +52,21 @@ function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-vehicle-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, PrimaryInput, FinancingFormFields],
+  imports: [
+    ReactiveFormsModule,
+    DefaultPageLayout,
+    PageCard,
+    PrimaryInput,
+    FinancingFormFields,
+    AlertBanner,
+    FormField,
+    FieldControl,
+  ],
   templateUrl: './vehicle-form.html',
 })
 export class VehicleForm implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -66,6 +80,18 @@ export class VehicleForm implements OnInit {
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly plateMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a placa.',
+    pattern: 'Placa inválida. Use ABC1234 ou ABC1D23.',
+  };
+  protected readonly chassisMessages: Readonly<Record<string, string>> = {
+    pattern: 'Chassi deve ter 17 caracteres (sem I, O, Q).',
+  };
+  protected readonly renavamMessages: Readonly<Record<string, string>> = {
+    pattern: 'RENAVAM deve ter entre 9 e 11 dígitos.',
+  };
 
   protected readonly plateDisplay = signal('');
   protected readonly showFinancing = signal(false);
@@ -168,7 +194,7 @@ export class VehicleForm implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Veículo não encontrado.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Veículo não encontrado.'));
         this.loading.set(false);
       },
     });
@@ -193,6 +219,7 @@ export class VehicleForm implements OnInit {
 
     this.saving.set(true);
     this.error.set(null);
+    clearServerErrors(this.form);
 
     const raw = this.form.getRawValue();
     const ipvaAmountCents =
@@ -263,17 +290,20 @@ export class VehicleForm implements OnInit {
     }
   }
 
+  /**
+   * Backend `fieldErrors` land on the matching controls (inline, under the field);
+   * only what is left over goes to the form banner. Never a toast — the interceptor
+   * skips 4xx and `ApiErrorService.handleForm` claims the error so the safety net
+   * stays quiet.
+   */
   private handleError(err: HttpErrorResponse): void {
     this.saving.set(false);
-    this.error.set(this.extractError(err, 'Não foi possível salvar o veículo.'));
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
+    const { formMessage } = this.apiErrors.handleForm(
+      err,
+      this.form,
+      'Não foi possível salvar o veículo.',
+    );
+    this.error.set(formMessage);
   }
 
   protected cancel(): void {

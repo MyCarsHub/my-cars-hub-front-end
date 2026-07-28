@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { errorInterceptor } from './error.interceptor';
 import { SessionService } from './session.service';
 import { NotificationService } from './notification.service';
+import { ApiErrorService } from './api-error.service';
 
 function makeError(status: number, body?: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error: body, url: 'http://localhost/v1/x' });
@@ -24,18 +25,21 @@ describe('errorInterceptor', () => {
   let routerNavigate: ReturnType<typeof vi.fn>;
   let notifyError: ReturnType<typeof vi.fn>;
   let notifyWarning: ReturnType<typeof vi.fn>;
+  let scheduleSafetyNet: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     sessionClear = vi.fn();
     routerNavigate = vi.fn();
     notifyError = vi.fn();
     notifyWarning = vi.fn();
+    scheduleSafetyNet = vi.fn();
 
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([errorInterceptor])),
         { provide: SessionService, useValue: { clear: sessionClear } },
         { provide: Router, useValue: { navigate: routerNavigate } },
+        { provide: ApiErrorService, useValue: { scheduleSafetyNet, claim: vi.fn() } },
         {
           provide: NotificationService,
           useValue: {
@@ -78,8 +82,7 @@ describe('errorInterceptor', () => {
 
   it('clears session and redirects to /login when the backend reports TokenExpiredException', async () => {
     const err = await runAndCatch(401, {
-      code: 'TOKEN_EXPIRED',
-      message: 'Sessão expirada. Faça login novamente.',
+      message: 'TokenExpiredException: JWT expired',
     });
 
     expect(sessionClear).toHaveBeenCalledTimes(1);
@@ -121,9 +124,22 @@ describe('errorInterceptor', () => {
     expect(routerNavigate).not.toHaveBeenCalled();
   });
 
-  it('forwards backend message on 422', async () => {
-    await runAndCatch(422, { message: 'CPF inválido' });
-    expect(notifyError).toHaveBeenCalledWith('CPF inválido');
+  // 4xx belongs to the screen (inline). The interceptor only arms the safety net.
+  it.each([400, 404, 409, 422, 429])('does not toast on %i, arms the safety net', async (status) => {
+    await runAndCatch(status, { message: 'Placa já cadastrada.' });
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifyWarning).not.toHaveBeenCalled();
+    expect(scheduleSafetyNet).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not arm the safety net for 401/403 (already toasted here)', async () => {
+    await runAndCatch(403);
+    expect(scheduleSafetyNet).not.toHaveBeenCalled();
+  });
+
+  it('does not arm the safety net for 5xx (already toasted here)', async () => {
+    await runAndCatch(503);
+    expect(scheduleSafetyNet).not.toHaveBeenCalled();
   });
 
   it('re-throws the original error', async () => {

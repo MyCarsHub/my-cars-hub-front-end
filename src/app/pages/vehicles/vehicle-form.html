@@ -9,33 +9,32 @@
   } @else {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
 
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as formError) {
+        <app-alert-banner variant="error" [message]="formError" />
       }
 
       <!-- ====== Identificação ====== -->
       <app-page-card title="Identificação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-plate">Placa <span class="text-primary-700" aria-hidden="true">*</span></label>
+          <app-form-field
+            label="Placa"
+            controlId="veiculo-plate"
+            hint="Formato: ABC1234 ou ABC1D23 (Mercosul)."
+            [required]="true"
+            [control]="form.controls.plate"
+            [messages]="plateMessages"
+          >
             <input
-              id="veiculo-plate"
+              appFieldControl
               type="text"
               placeholder="ABC1D23"
               maxlength="7"
               autocapitalize="characters"
-              aria-required="true"
               [value]="plateDisplay()"
               (input)="onPlateInput($event)"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tracking-widest tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-widest tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            <p class="text-xs text-neutral-400 mt-1">Formato: ABC1234 ou ABC1D23 (Mercosul).</p>
-            @if (fieldInvalid(['plate'])) {
-              <p class="text-xs text-rose-600 mt-1">Placa inválida.</p>
-            }
-          </div>
+          </app-form-field>
 
           <div>
             <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo <span class="text-primary-700" aria-hidden="true">*</span></label>
@@ -138,9 +137,15 @@
       <!-- ====== Documentação ====== -->
       <app-page-card title="Documentação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Chassi</label>
+          <app-form-field
+            label="Chassi"
+            controlId="veiculo-chassis"
+            [hint]="isEdit() ? 'Chassi não pode ser alterado após a criação.' : ''"
+            [control]="form.controls.chassis"
+            [messages]="chassisMessages"
+          >
             <input
+              appFieldControl
               type="text"
               maxlength="17"
               autocapitalize="characters"
@@ -148,18 +153,19 @@
               [value]="form.controls.chassis.value"
               (input)="onChassisInput($event)"
               [disabled]="isEdit()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tracking-wider tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-wider tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60" />
-            @if (isEdit()) {
-              <p class="text-xs text-neutral-400 mt-1">Chassi não pode ser alterado após a criação.</p>
-            } @else if (fieldInvalid(['chassis'])) {
-              <p class="text-xs text-rose-600 mt-1">Chassi deve ter 17 caracteres (sem I, O, Q).</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">RENAVAM</label>
+          <app-form-field
+            label="RENAVAM"
+            controlId="veiculo-renavam"
+            [hint]="isEdit() ? 'RENAVAM não pode ser alterado após a criação.' : ''"
+            [control]="form.controls.renavam"
+            [messages]="renavamMessages"
+          >
             <input
+              appFieldControl
               type="text"
               inputmode="numeric"
               maxlength="11"
@@ -167,14 +173,9 @@
               [value]="form.controls.renavam.value"
               (input)="onRenavamInput($event)"
               [disabled]="isEdit()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60" />
-            @if (isEdit()) {
-              <p class="text-xs text-neutral-400 mt-1">RENAVAM não pode ser alterado após a criação.</p>
-            } @else if (fieldInvalid(['renavam'])) {
-              <p class="text-xs text-rose-600 mt-1">RENAVAM deve ter entre 9 e 11 dígitos.</p>
-            }
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
