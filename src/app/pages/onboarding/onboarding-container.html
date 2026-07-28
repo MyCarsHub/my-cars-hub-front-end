@@ -40,10 +40,8 @@
       }
 
       <!-- Error banner -->
-      @if (error()) {
-      <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700" role="alert">
-        {{ error() }}
-      </div>
+      @if (error(); as wizardError) {
+      <app-alert-banner class="mb-4" variant="error" [message]="wizardError" />
       }
 
       <!-- Initial loading skeleton (while GET /onboarding is in flight) -->

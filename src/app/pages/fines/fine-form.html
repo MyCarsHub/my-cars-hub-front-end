@@ -8,22 +8,24 @@
     </div>
   } @else {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as formError) {
+        <app-alert-banner variant="error" [message]="formError" />
       }
 
       <app-page-card title="Veículo e motorista">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-vehicle">
-              Veículo <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Veículo"
+            controlId="fine-vehicle"
+            [required]="true"
+            [hint]="isEdit() ? 'Veículo não pode ser alterado.' : ''"
+            [control]="form.controls.vehicleId"
+            [messages]="vehicleMessages"
+          >
             <select
-              id="fine-vehicle"
+              appFieldControl
               formControlName="vehicleId"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors
                      disabled:opacity-60"
             >
@@ -32,21 +34,17 @@
                 <option [value]="v.id">{{ v.plate }} · {{ v.brand }} {{ v.model }}</option>
               }
             </select>
-            @if (isEdit()) {
-              <p class="text-xs text-neutral-400 mt-1">Veículo não pode ser alterado.</p>
-            } @else if (fieldInvalid('vehicleId')) {
-              <p class="text-xs text-rose-600 mt-1">Selecione um veículo.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-driver">
-              Motorista
-            </label>
+          <app-form-field
+            label="Motorista"
+            controlId="fine-driver"
+            [control]="form.controls.driverId"
+          >
             <select
-              id="fine-driver"
+              appFieldControl
               formControlName="driverId"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"
             >
               <option value="">Não informado</option>
@@ -54,166 +52,183 @@
                 <option [value]="d.id">{{ d.name }}</option>
               }
             </select>
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <app-page-card title="Infração">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-desc">
-              Descrição <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            class="md:col-span-2"
+            label="Descrição"
+            controlId="fine-desc"
+            [required]="true"
+            [control]="form.controls.description"
+            [messages]="descriptionMessages"
+          >
             <input
-              id="fine-desc"
+              appFieldControl
               type="text"
               maxlength="300"
               formControlName="description"
               placeholder="Ex: Excesso de velocidade em rodovia"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('description')) {
-              <p class="text-xs text-rose-600 mt-1">Informe a descrição da infração.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-code">Código</label>
+          <app-form-field label="Código" controlId="fine-code" [control]="form.controls.infractionCode">
             <input
-              id="fine-code"
+              appFieldControl
               type="text"
               maxlength="20"
               formControlName="infractionCode"
               placeholder="Ex: 745-50"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-date">
-              Data/hora da infração <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Data/hora da infração"
+            controlId="fine-date"
+            [required]="true"
+            [control]="form.controls.infractionDate"
+            [messages]="infractionDateMessages"
+          >
             <input
-              id="fine-date"
+              appFieldControl
               type="datetime-local"
               formControlName="infractionDate"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('infractionDate')) {
-              <p class="text-xs text-rose-600 mt-1">Informe a data/hora da infração.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-location">Local</label>
+          <app-form-field
+            class="md:col-span-2"
+            label="Local"
+            controlId="fine-location"
+            [control]="form.controls.location"
+          >
             <input
-              id="fine-location"
+              appFieldControl
               type="text"
               maxlength="200"
               formControlName="location"
               placeholder="Ex: Av. Paulista, km 5"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <app-page-card title="Valor e gravidade">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-amount">
-              Valor (R$) <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Valor (R$)"
+            controlId="fine-amount"
+            [required]="true"
+            [control]="form.controls.amountReais"
+            [messages]="amountMessages"
+          >
             <input
-              id="fine-amount"
+              appFieldControl
               type="number"
               step="0.01"
               min="0.01"
               inputmode="decimal"
               formControlName="amountReais"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('amountReais')) {
-              <p class="text-xs text-rose-600 mt-1">Informe um valor maior que zero.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-severity">
-              Gravidade <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Gravidade"
+            controlId="fine-severity"
+            [required]="true"
+            [control]="form.controls.severity"
+          >
             <select
-              id="fine-severity"
+              appFieldControl
               formControlName="severity"
               (change)="onSeverityChange()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (opt of severityOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }} ({{ opt.defaultPoints }} pts)</option>
               }
             </select>
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-points">Pontos</label>
+          <app-form-field
+            label="Pontos"
+            controlId="fine-points"
+            hint="Preenchido pela gravidade se vazio."
+            [control]="form.controls.points"
+          >
             <input
-              id="fine-points"
+              appFieldControl
               type="number"
               min="0"
               formControlName="points"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            <p class="text-xs text-neutral-400 mt-1">Preenchido pela gravidade se vazio.</p>
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <app-page-card title="Pagamento">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-due">Vencimento</label>
+          <app-form-field label="Vencimento" controlId="fine-due" [control]="form.controls.dueDate">
             <input
-              id="fine-due"
+              appFieldControl
               type="date"
               formControlName="dueDate"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-status">
-              Status <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Status"
+            controlId="fine-status"
+            [required]="true"
+            [control]="form.controls.status"
+          >
             <select
-              id="fine-status"
+              appFieldControl
               formControlName="status"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (opt of statusOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
             </select>
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-paid">Data do pagamento</label>
+          <app-form-field
+            label="Data do pagamento"
+            controlId="fine-paid"
+            [control]="form.controls.paidDate"
+          >
             <input
-              id="fine-paid"
+              appFieldControl
               type="date"
               formControlName="paidDate"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
+          </app-form-field>
 
-          <div class="md:col-span-3">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="fine-notes">Observações</label>
+          <app-form-field
+            class="md:col-span-3"
+            label="Observações"
+            controlId="fine-notes"
+            [control]="form.controls.notes"
+          >
             <textarea
-              id="fine-notes"
+              appFieldControl
               rows="3"
               formControlName="notes"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 

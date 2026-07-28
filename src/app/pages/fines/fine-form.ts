@@ -8,14 +8,14 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import {
-  AbstractControl,
-  FormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { ApiErrorService } from '../../services/api-error.service';
+import { clearServerErrors } from '../../services/api-error';
+import { NotificationService } from '../../services/notification.service';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { FinesService } from '../../services/fines.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -37,13 +37,15 @@ const STATUS_VALUES: FineStatus[] = ['PENDING', 'PAID', 'CONTESTED', 'CANCELED']
 @Component({
   selector: 'app-fine-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard],
+  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
   templateUrl: './fine-form.html',
 })
 export class FineForm implements OnInit {
   private readonly finesService = inject(FinesService);
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -59,6 +61,21 @@ export class FineForm implements OnInit {
 
   protected readonly vehicles = signal<VehicleListItem[]>([]);
   protected readonly drivers = signal<DriverListItem[]>([]);
+
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly vehicleMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione um veículo.',
+  };
+  protected readonly descriptionMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a descrição da infração.',
+  };
+  protected readonly infractionDateMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a data/hora da infração.',
+  };
+  protected readonly amountMessages: Readonly<Record<string, string>> = {
+    required: 'Informe um valor maior que zero.',
+    min: 'Informe um valor maior que zero.',
+  };
 
   protected readonly form = this.fb.nonNullable.group({
     vehicleId: ['', [Validators.required]],
@@ -117,7 +134,7 @@ export class FineForm implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Multa não encontrada.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Multa não encontrada.'));
         this.loading.set(false);
       },
     });
@@ -144,6 +161,7 @@ export class FineForm implements OnInit {
     }
     this.saving.set(true);
     this.error.set(null);
+    clearServerErrors(this.form);
     const raw = this.form.getRawValue();
     const amountCents = toCents(Number(raw.amountReais)) ?? 0;
 
@@ -163,7 +181,7 @@ export class FineForm implements OnInit {
         notes: raw.notes?.trim() || null,
       };
       this.finesService.update(this.editingId()!, payload).subscribe({
-        next: (f) => this.router.navigate(['/multas', f.id]),
+        next: (f) => this.onSaved(f.id),
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
     } else {
@@ -183,23 +201,29 @@ export class FineForm implements OnInit {
         notes: raw.notes?.trim() || null,
       };
       this.finesService.create(payload).subscribe({
-        next: (f) => this.router.navigate(['/multas', f.id]),
+        next: (f) => this.onSaved(f.id),
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
     }
   }
 
-  private handleError(err: HttpErrorResponse): void {
-    this.saving.set(false);
-    this.error.set(this.extractError(err, 'Não foi possível salvar a multa.'));
+  private onSaved(id: string): void {
+    this.notifications.success('Multa salva.');
+    this.router.navigate(['/multas', id]);
   }
 
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
+  /**
+   * Backend `fieldErrors` land inline under the matching control; only the leftover
+   * goes to the form banner. Never a toast — `handleForm` claims the error.
+   */
+  private handleError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    const { formMessage } = this.apiErrors.handleForm(
+      err,
+      this.form,
+      'Não foi possível salvar a multa.',
+    );
+    this.error.set(formMessage);
   }
 
   /** Converts backend LocalDateTime (yyyy-MM-ddTHH:mm:ss[.SSS]) to <input type="datetime-local"> value. */
@@ -221,10 +245,5 @@ export class FineForm implements OnInit {
     } else {
       this.router.navigate(['/multas']);
     }
-  }
-
-  protected fieldInvalid(name: string): boolean {
-    const ctrl: AbstractControl | null = this.form.get(name);
-    return !!ctrl && ctrl.invalid && ctrl.touched;
   }
 }

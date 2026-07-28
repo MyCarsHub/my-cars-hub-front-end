@@ -64,10 +64,8 @@
         </div>
       </div>
 
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as listError) {
+        <app-alert-banner variant="error" [message]="listError" />
       }
 
       @if (loading() && items().length === 0) {

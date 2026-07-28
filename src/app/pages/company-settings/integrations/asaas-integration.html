@@ -17,9 +17,7 @@
   }
 
   @if (loadError() && !hasLoaded()) {
-    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-      {{ loadError() }}
-    </div>
+    <app-alert-banner variant="error" [message]="loadError() ?? ''" />
   }
 
   @if (hasLoaded()) {
@@ -307,19 +305,21 @@
                 </li>
               </ol>
 
-              <div>
-                <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="asaas-access-token">
-                  Chave da API <span class="text-rose-600">*</span>
-                </label>
+              <app-form-field
+                label="Chave da API"
+                controlId="asaas-access-token"
+                [required]="true"
+                [control]="connectForm.controls.accessToken"
+                [messages]="accessTokenMessages">
                 <div class="relative">
                   <input
-                    id="asaas-access-token"
+                    appFieldControl
                     [type]="showAccessToken() ? 'text' : 'password'"
                     formControlName="accessToken"
                     autocomplete="off"
                     spellcheck="false"
                     placeholder="$aact_YT..."
-                    class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 pr-11
+                    class="w-full bg-neutral-50 border rounded-xl px-4 py-3 pr-11
                            text-neutral-800 font-mono text-sm
                            focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
                   <button
@@ -343,15 +343,10 @@
                     }
                   </button>
                 </div>
-                @if (fieldInvalid('accessToken')) {
-                  <p class="text-xs text-rose-600 mt-1">Informe a chave da API Asaas.</p>
-                }
-              </div>
+              </app-form-field>
 
-              @if (formError()) {
-                <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-                  {{ formError() }}
-                </div>
+              @if (formError(); as connectError) {
+                <app-alert-banner variant="error" [message]="connectError" />
               }
 
               <div class="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2">
@@ -414,10 +409,8 @@
                 </p>
               </div>
 
-              @if (formError()) {
-                <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-                  {{ formError() }}
-                </div>
+              @if (formError(); as connectError) {
+                <app-alert-banner variant="error" [message]="connectError" />
               }
 
               @if (saving()) {

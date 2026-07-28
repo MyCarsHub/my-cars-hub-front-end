@@ -10,14 +10,14 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import {
-  AbstractControl,
-  FormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { ApiErrorService } from '../../services/api-error.service';
+import { clearServerErrors } from '../../services/api-error';
+import { NotificationService } from '../../services/notification.service';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -34,12 +34,14 @@ import { VehicleListItem } from '../../types/vehicle.types';
 @Component({
   selector: 'app-maintenance-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard],
+  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
   templateUrl: './maintenance-form.html',
 })
 export class MaintenanceForm implements OnInit {
   private readonly maintenancesService = inject(MaintenancesService);
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -79,6 +81,37 @@ export class MaintenanceForm implements OnInit {
    * (`status = DONE`); agendada/em andamento/cancelada aceitam null.
    */
   protected readonly hodometerRequired = computed(() => this.currentStatus() === 'DONE');
+
+  protected readonly hodometerHint = computed(() =>
+    this.hodometerRequired()
+      ? 'Leitura no momento do serviço.'
+      : 'Só é exigido quando o status for “Realizada”. Deixe em branco se ainda não sabe.',
+  );
+
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly vehicleMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione um veículo.',
+  };
+  protected readonly typeMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione o tipo de manutenção.',
+  };
+  protected readonly descriptionMessages: Readonly<Record<string, string>> = {
+    required: 'Descreva o serviço.',
+  };
+  protected readonly serviceDateMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a data do serviço.',
+  };
+  protected readonly statusMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione o status da manutenção.',
+  };
+  protected readonly hodometerMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o hodômetro atual para registrar uma manutenção já realizada.',
+    min: 'Informe um valor válido (≥ 0).',
+  };
+  protected readonly costMessages: Readonly<Record<string, string>> = {
+    required: 'Informe um valor válido.',
+    min: 'Informe um valor válido.',
+  };
 
   /** Leitura vinda do backend na edição — usada para não apagar valor sem intenção. */
   private readonly loadedHodometer = signal<number | null>(null);
@@ -126,7 +159,7 @@ export class MaintenanceForm implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Manutenção não encontrada.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Manutenção não encontrada.'));
         this.loading.set(false);
       },
     });
@@ -141,6 +174,7 @@ export class MaintenanceForm implements OnInit {
     }
     this.saving.set(true);
     this.error.set(null);
+    clearServerErrors(this.form);
     const raw = this.form.getRawValue();
     const costCents = toCents(Number(raw.costReais)) ?? 0;
 
@@ -159,7 +193,7 @@ export class MaintenanceForm implements OnInit {
         notes: raw.notes?.trim() || null,
       };
       this.maintenancesService.update(this.editingId()!, payload).subscribe({
-        next: (m) => this.router.navigate(['/manutencoes', m.id]),
+        next: (m) => this.onSaved(m.id),
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
     } else {
@@ -179,7 +213,7 @@ export class MaintenanceForm implements OnInit {
         notes: raw.notes?.trim() || null,
       };
       this.maintenancesService.create(payload).subscribe({
-        next: (m) => this.router.navigate(['/manutencoes', m.id]),
+        next: (m) => this.onSaved(m.id),
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
     }
@@ -217,17 +251,23 @@ export class MaintenanceForm implements OnInit {
     return null;
   }
 
-  private handleError(err: HttpErrorResponse): void {
-    this.saving.set(false);
-    this.error.set(this.extractError(err, 'Não foi possível salvar a manutenção.'));
+  private onSaved(id: string): void {
+    this.notifications.success('Manutenção salva.');
+    this.router.navigate(['/manutencoes', id]);
   }
 
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
+  /**
+   * Backend `fieldErrors` land inline under the matching control; only the leftover
+   * goes to the form banner. Never a toast — `handleForm` claims the error.
+   */
+  private handleError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    const { formMessage } = this.apiErrors.handleForm(
+      err,
+      this.form,
+      'Não foi possível salvar a manutenção.',
+    );
+    this.error.set(formMessage);
   }
 
   protected cancel(): void {
@@ -236,14 +276,5 @@ export class MaintenanceForm implements OnInit {
     } else {
       this.router.navigate(['/manutencoes']);
     }
-  }
-
-  protected hodometerMissing(): boolean {
-    return this.form.controls.hodometerReading.hasError('required');
-  }
-
-  protected fieldInvalid(name: string): boolean {
-    const ctrl: AbstractControl | null = this.form.get(name);
-    return !!ctrl && ctrl.invalid && ctrl.touched;
   }
 }

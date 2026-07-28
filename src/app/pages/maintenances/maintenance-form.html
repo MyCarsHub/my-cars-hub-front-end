@@ -8,26 +8,24 @@
     </div>
   } @else {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
-      @if (error()) {
-        <div
-          role="alert"
-          aria-live="assertive"
-          class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3"
-        >
-          {{ error() }}
-        </div>
+      @if (error(); as formError) {
+        <app-alert-banner variant="error" [message]="formError" />
       }
 
       <app-page-card title="Veículo e serviço">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-vehicle">
-              Veículo <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Veículo"
+            controlId="maint-vehicle"
+            [required]="true"
+            [hint]="isEdit() ? 'Veículo não pode ser alterado.' : ''"
+            [control]="form.controls.vehicleId"
+            [messages]="vehicleMessages"
+          >
             <select
-              id="maint-vehicle"
+              appFieldControl
               formControlName="vehicleId"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors
                      disabled:opacity-60">
               <option value="">Selecione…</option>
@@ -35,195 +33,192 @@
                 <option [value]="v.id">{{ v.plate }} · {{ v.brand }} {{ v.model }}</option>
               }
             </select>
-            @if (isEdit()) {
-              <p class="text-xs text-neutral-400 mt-1">Veículo não pode ser alterado.</p>
-            } @else if (fieldInvalid('vehicleId')) {
-              <p class="text-xs text-rose-600 mt-1">Selecione um veículo.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-type">
-              Tipo <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Tipo"
+            controlId="maint-type"
+            [required]="true"
+            [control]="form.controls.type"
+            [messages]="typeMessages"
+          >
             <select
-              id="maint-type"
+              appFieldControl
               formControlName="type"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (opt of typeOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
             </select>
-          </div>
+          </app-form-field>
 
-          <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-desc">
-              Descrição <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            class="md:col-span-2"
+            label="Descrição"
+            controlId="maint-desc"
+            [required]="true"
+            [control]="form.controls.description"
+            [messages]="descriptionMessages"
+          >
             <input
-              id="maint-desc"
+              appFieldControl
               type="text"
               maxlength="300"
               formControlName="description"
               placeholder="Ex: Troca de óleo e filtros"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('description')) {
-              <p class="text-xs text-rose-600 mt-1">Descreva o serviço.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-date">
-              Data do serviço <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Data do serviço"
+            controlId="maint-date"
+            [required]="true"
+            [control]="form.controls.serviceDate"
+            [messages]="serviceDateMessages"
+          >
             <input
-              id="maint-date"
+              appFieldControl
               type="date"
               formControlName="serviceDate"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('serviceDate')) {
-              <p class="text-xs text-rose-600 mt-1">Informe a data do serviço.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-status">
-              Status <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Status"
+            controlId="maint-status"
+            [required]="true"
+            [control]="form.controls.status"
+            [messages]="statusMessages"
+          >
             <select
-              id="maint-status"
+              appFieldControl
               formControlName="status"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (opt of statusOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
             </select>
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <app-page-card title="Medições e custo">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-hodo">
-              Hodômetro (km)
-              @if (hodometerRequired()) {
-                <span class="text-rose-600">*</span>
-              } @else {
-                <span class="font-normal text-neutral-400">(opcional)</span>
-              }
-            </label>
+          <app-form-field
+            label="Hodômetro (km)"
+            controlId="maint-hodo"
+            [required]="hodometerRequired()"
+            [hint]="hodometerHint()"
+            [control]="form.controls.hodometerReading"
+            [messages]="hodometerMessages"
+          >
             <input
-              id="maint-hodo"
+              appFieldControl
               type="number"
               min="0"
               inputmode="numeric"
               formControlName="hodometerReading"
-              aria-describedby="maint-hodo-hint"
-              [attr.aria-required]="hodometerRequired()"
-              [attr.aria-invalid]="fieldInvalid('hodometerReading')"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            <p id="maint-hodo-hint" class="text-xs text-neutral-500 mt-1">
-              @if (hodometerRequired()) {
-                Leitura no momento do serviço.
-              } @else {
-                Só é exigido quando o status for “Realizada”. Deixe em branco se ainda não sabe.
-              }
-            </p>
-            @if (fieldInvalid('hodometerReading')) {
-              <p class="text-xs text-rose-600 mt-1">
-                @if (hodometerMissing()) {
-                  Informe o hodômetro atual para registrar uma manutenção já realizada.
-                } @else {
-                  Informe um valor válido (≥ 0).
-                }
-              </p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-cost">
-              Custo (R$) <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Custo (R$)"
+            controlId="maint-cost"
+            [required]="true"
+            [control]="form.controls.costReais"
+            [messages]="costMessages"
+          >
             <input
-              id="maint-cost"
+              appFieldControl
               type="number"
               step="0.01"
               min="0"
               inputmode="decimal"
               formControlName="costReais"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('costReais')) {
-              <p class="text-xs text-rose-600 mt-1">Informe um valor válido.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-provider">Fornecedor</label>
+          <app-form-field
+            label="Fornecedor"
+            controlId="maint-provider"
+            [control]="form.controls.provider"
+          >
             <input
-              id="maint-provider"
+              appFieldControl
               type="text"
               maxlength="120"
               formControlName="provider"
               placeholder="Ex: Oficina do Zé"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-invoice">Nota fiscal</label>
+          <app-form-field
+            label="Nota fiscal"
+            controlId="maint-invoice"
+            [control]="form.controls.invoiceNumber"
+          >
             <input
-              id="maint-invoice"
+              appFieldControl
               type="text"
               maxlength="60"
               formControlName="invoiceNumber"
               placeholder="Ex: NF-12345"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <app-page-card title="Próxima manutenção (opcional)">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-next-date">Data prevista</label>
+          <app-form-field
+            label="Data prevista"
+            controlId="maint-next-date"
+            [control]="form.controls.nextServiceDate"
+          >
             <input
-              id="maint-next-date"
+              appFieldControl
               type="date"
               formControlName="nextServiceDate"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-next-hodo">
-              Hodômetro previsto (km)
-            </label>
+          </app-form-field>
+
+          <app-form-field
+            label="Hodômetro previsto (km)"
+            controlId="maint-next-hodo"
+            [control]="form.controls.nextServiceHodometer"
+          >
             <input
-              id="maint-next-hodo"
+              appFieldControl
               type="number"
               min="0"
               inputmode="numeric"
               formControlName="nextServiceHodometer"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          </div>
+          </app-form-field>
 
-          <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="maint-notes">Observações</label>
+          <app-form-field
+            class="md:col-span-2"
+            label="Observações"
+            controlId="maint-notes"
+            [control]="form.controls.notes"
+          >
             <textarea
-              id="maint-notes"
+              appFieldControl
               rows="3"
               formControlName="notes"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 

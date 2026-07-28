@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { OnboardingData } from '../onboarding.types';
+import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { stripDigits } from '../../../utils/format';
 
 const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/;
@@ -15,7 +16,7 @@ const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/;
 @Component({
   selector: 'app-step-document',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
     <h2 class="text-xl font-bold text-gray-900 mb-1">CNPJ da empresa</h2>
     <p class="text-sm text-primary-700 mb-6">
@@ -43,27 +44,26 @@ const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/;
 
       <!-- Conditional CNPJ field -->
       @if (form.get('hasCnpj')?.value) {
-        <div>
-          <label for="ob-cnpj" class="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
+        <app-form-field
+          label="CNPJ"
+          controlId="ob-cnpj"
+          [required]="true"
+          [control]="form.get('cnpj')"
+          [messages]="cnpjMessages"
+        >
           <input
-            id="ob-cnpj"
+            appFieldControl
             formControlName="cnpj"
             type="text"
             inputmode="numeric"
             autocomplete="off"
-            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm transition-shadow
+            class="w-full px-4 py-2.5 border rounded-lg text-sm transition-shadow
                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             placeholder="00.000.000/0000-00"
             maxlength="18"
-            [attr.aria-invalid]="cnpjInvalid()"
             (input)="onCnpjInput($event)"
           />
-          @if (cnpjInvalid()) {
-            <p class="mt-1 text-xs text-red-500" role="alert">
-              CNPJ inválido. Use o formato 00.000.000/0000-00.
-            </p>
-          }
-        </div>
+        </app-form-field>
       }
     </form>
   `,
@@ -74,6 +74,12 @@ export class StepDocument implements OnInit {
   readonly isValid = output<boolean>();
 
   private readonly fb = inject(FormBuilder);
+
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly cnpjMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o CNPJ.',
+    pattern: 'CNPJ inválido. Use o formato 00.000.000/0000-00.',
+  };
 
   readonly form: FormGroup = this.fb.group({
     hasCnpj: [false],
@@ -115,11 +121,6 @@ export class StepDocument implements OnInit {
       ctrl.clearValidators();
     }
     ctrl.updateValueAndValidity({ emitEvent: false });
-  }
-
-  protected cnpjInvalid(): boolean {
-    const ctrl = this.form.get('cnpj');
-    return !!(ctrl?.invalid && ctrl.touched);
   }
 
   protected onCnpjInput(event: Event): void {

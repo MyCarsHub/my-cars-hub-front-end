@@ -11,6 +11,8 @@ import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
   FinancingListItem,
@@ -31,11 +33,12 @@ const SORT_OPTIONS = [
 @Component({
   selector: 'app-financings-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DefaultPageLayout, PageCard],
+  imports: [FormsModule, DefaultPageLayout, PageCard, AlertBanner],
   templateUrl: './financings-list.html',
 })
 export class FinancingsList implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
 
   /**
@@ -108,7 +111,9 @@ export class FinancingsList implements OnInit {
         page,
         size: this.pageSize(),
       })
-      .subscribe({ error: () => {} });
+      // `VehiclesService` already writes the failure into its `financingsError` signal,
+      // rendered as a banner — claim it so the safety net doesn't toast it too.
+      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
   }
 
   protected statusInfo(s: FinancingStatus): { label: string; chip: string } {

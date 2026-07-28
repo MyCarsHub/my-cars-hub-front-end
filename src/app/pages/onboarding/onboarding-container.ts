@@ -20,9 +20,13 @@ import { StepDocument } from './components/step-document';
 import { StepWelcome } from './components/step-welcome';
 import { AuthService } from '../../services/auth.service';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import { HttpErrorResponse } from '@angular/common/http';
+import { AbstractControl } from '@angular/forms';
+import { clearServerErrors } from '../../services/api-error';
 import * as Sentry from '@sentry/angular';
 
 @Component({
@@ -34,6 +38,7 @@ import * as Sentry from '@sentry/angular';
     StepCompany,
     StepDocument,
     StepWelcome,
+    AlertBanner,
   ],
   templateUrl: './onboarding-container.html',
   styleUrl: './onboarding-container.css',
@@ -61,7 +66,8 @@ export class OnboardingContainer implements OnInit {
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly layoutStore = inject(LayoutStore);
-  private readonly notify = inject(NotificationService);
+  private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly session = inject(SessionService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -88,7 +94,15 @@ export class OnboardingContainer implements OnInit {
   protected readonly currentStep = this.svc.currentStep;
   protected readonly totalSteps = this.svc.totalSteps;
   protected readonly loading = this.svc.loading;
-  protected readonly error = this.svc.error;
+
+  /**
+   * Single banner slot for the whole wizard. Save / finish failures are claimed here
+   * (after their `fieldErrors` were pushed onto the step form); load failures come from
+   * the service. Previously the same error surfaced three times: service banner,
+   * component toast and interceptor toast.
+   */
+  private readonly actionError = signal<string | null>(null);
+  protected readonly error = computed(() => this.actionError() ?? this.svc.loadError());
 
   protected readonly isFirstStep = this.svc.isFirstStep;
   protected readonly isLastStep = this.svc.isLastStep;
@@ -120,16 +134,15 @@ export class OnboardingContainer implements OnInit {
         this.loaded.set(true);
       },
       error: (err: HttpErrorResponse) => {
-        // Even on error, show the form (fields will be empty), but toast
-        // so the user understands why the form is blank.
+        // Even on error, show the form (fields will be empty). The message is inline —
+        // `OnboardingService.loadState` already claimed and formatted it.
         this.loaded.set(true);
-        // 404 on first entry is expected (no onboarding row yet) — do not toast.
-        if (err?.status !== 404) {
-          this.notify.error(
-            err?.error?.message ??
-              'Não foi possível carregar seu progresso. Você pode continuar mesmo assim.',
-          );
-        }
+        this.actionError.set(
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível carregar seu progresso. Você pode continuar mesmo assim.',
+          ),
+        );
       },
     });
   }
@@ -142,6 +155,18 @@ export class OnboardingContainer implements OnInit {
     this.stepValid.set(valid);
   }
 
+  /** The reactive form of the step currently on screen, when it has one. */
+  private currentStepForm(): AbstractControl | null {
+    switch (this.svc.currentStep()) {
+      case 1:
+        return this.stepPersonalRef()?.form ?? null;
+      case 2:
+        return this.stepCompanyRef()?.form ?? null;
+      default:
+        return null;
+    }
+  }
+
   protected onNext(): void {
     if (this.svc.loading()) return;
 
@@ -150,6 +175,10 @@ export class OnboardingContainer implements OnInit {
       this.stepCompanyRef()?.markAllTouched();
       return;
     }
+
+    this.actionError.set(null);
+    const stepForm = this.currentStepForm();
+    if (stepForm) clearServerErrors(stepForm);
 
     const step = this.svc.currentStep();
 
@@ -187,6 +216,7 @@ export class OnboardingContainer implements OnInit {
                   },
                 });
 
+              this.notifications.success('Cadastro concluído. Bem-vindo ao MyCarsHub!');
               this.router.navigate(['/dashboard']);
               return;
             }
@@ -210,18 +240,29 @@ export class OnboardingContainer implements OnInit {
         this.pendingData.set({});
         this.direction.set('forward');
       },
-      error: (err: HttpErrorResponse) => {
-        this.notify.error(
-          err?.error?.message ?? 'Não foi possível salvar esta etapa. Tente novamente.',
-        );
-      },
+      error: (err: HttpErrorResponse) =>
+        this.claimStepError(err, 'Não foi possível salvar esta etapa. Tente novamente.'),
     });
   }
 
+  /**
+   * Backend `fieldErrors` land on the matching control of the visible step (inline, under
+   * the field); only what is left over reaches the wizard banner. Never a toast.
+   */
+  private claimStepError(err: HttpErrorResponse, fallback: string): void {
+    const stepForm = this.currentStepForm();
+    if (!stepForm) {
+      this.actionError.set(this.apiErrors.messageFor(err, fallback));
+      return;
+    }
+    const { formMessage } = this.apiErrors.handleForm(err, stepForm, fallback);
+    this.actionError.set(formMessage);
+  }
+
   private handleFinishError(err: HttpErrorResponse): void {
-    this.notify.error(
-      err?.error?.message ??
-        'Não foi possível finalizar seu cadastro. Verifique os dados e tente novamente.',
+    this.claimStepError(
+      err,
+      'Não foi possível finalizar seu cadastro. Verifique os dados e tente novamente.',
     );
   }
 
@@ -240,6 +281,7 @@ export class OnboardingContainer implements OnInit {
         const selectedId = this.session.getItem('selectedCompanyId');
         if (selectedId) {
           this.layoutStore.refreshTenants();
+          this.notifications.success('Cadastro concluído. Bem-vindo ao MyCarsHub!');
           this.router.navigate(['/dashboard']);
           return;
         }
@@ -255,7 +297,7 @@ export class OnboardingContainer implements OnInit {
           userCompanies: this.session.getItem('userCompanies'),
           onboardingCompleted: this.session.getItem('onboardingCompleted'),
         });
-        this.notify.error(
+        this.actionError.set(
           'Não conseguimos vincular sua empresa. Tente novamente ou faça logout e login.',
         );
       },
@@ -269,6 +311,7 @@ export class OnboardingContainer implements OnInit {
   protected onBack(): void {
     if (this.svc.loading() || this.svc.isFirstStep()) return;
 
+    this.actionError.set(null);
     this.svc.loadState().subscribe({
       next: () => {
         this.stepValid.set(false);
@@ -277,11 +320,10 @@ export class OnboardingContainer implements OnInit {
         // Always decrement locally after re-syncing current backend state
         this.svc.goBackStep();
       },
-      error: (err: HttpErrorResponse) => {
-        this.notify.error(
-          err?.error?.message ?? 'Não foi possível voltar. Tente novamente.',
-        );
-      },
+      error: (err: HttpErrorResponse) =>
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível voltar. Tente novamente.'),
+        ),
     });
   }
 }

@@ -12,6 +12,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -33,7 +35,15 @@ type PendingAction = 'activate' | 'cancel' | 'delete';
 @Component({
   selector: 'app-rentals-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, ClickOutsideDirective],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    ClickOutsideDirective,
+    AlertBanner,
+  ],
   templateUrl: './rentals-list.html',
 })
 export class RentalsList implements OnInit {
@@ -41,6 +51,7 @@ export class RentalsList implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -51,7 +62,13 @@ export class RentalsList implements OnInit {
 
   protected readonly items = this.rentalService.items;
   protected readonly loading = this.rentalService.loading;
+  /** Falha ao CARREGAR a lista (owned by RentalService). */
   protected readonly error = this.rentalService.error;
+  /**
+   * Falha de uma AÇÃO da lista (iniciar / cancelar / excluir). Banner inline —
+   * o interceptor não toasta 4xx e `messageFor()` reivindica o erro.
+   */
+  protected readonly actionError = signal<string | null>(null);
   protected readonly page = this.rentalService.page;
   protected readonly size = this.rentalService.size;
   protected readonly total = this.rentalService.total;
@@ -407,6 +424,7 @@ export class RentalsList implements OnInit {
     const r = this.pendingRental();
     if (!action || !r || this.actionBusy()) return;
     this.actionBusy.set(true);
+    this.actionError.set(null);
 
     const onSuccess = (successMsg: string): void => {
       this.actionBusy.set(false);
@@ -419,12 +437,7 @@ export class RentalsList implements OnInit {
       this.actionBusy.set(false);
       this.pendingAction.set(null);
       this.pendingRental.set(null);
-      const body = err.error;
-      const msg =
-        body && typeof body === 'object' && typeof body.message === 'string'
-          ? body.message
-          : fallback;
-      this.notifications.push('error', msg);
+      this.actionError.set(this.apiErrors.messageFor(err, fallback));
     };
 
     switch (action) {

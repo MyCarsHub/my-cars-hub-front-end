@@ -1,11 +1,14 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import { EMPTY, of } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { EMPTY, of, throwError } from 'rxjs';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { MaintenanceForm } from './maintenance-form';
 import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { NotificationService } from '../../services/notification.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import type {
   CreateMaintenanceRequest,
   Maintenance,
@@ -168,5 +171,101 @@ describe('MaintenanceForm — hodômetro condicional ao status', () => {
     const payload = update.mock.calls[0][1] as UpdateMaintenanceRequest;
     expect(payload.hodometerReading).toBeNull();
     expect(payload.status).toBe('SCHEDULED');
+  });
+});
+
+/**
+ * Feedback standard (phase 3): backend `fieldErrors` land inline under the field,
+ * are not repeated in the banner, and never fire a toast.
+ */
+describe('MaintenanceForm — erros de campo vindos do backend', () => {
+  let create: ReturnType<typeof vi.fn>;
+  let notifyError: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<MaintenanceForm>>;
+
+  function hodometerError(): HTMLElement | null {
+    return fixture.nativeElement.querySelector('#maint-hodo-error');
+  }
+
+  function submit(): void {
+    (fixture.componentInstance as unknown as { submit: () => void }).submit();
+    fixture.detectChanges();
+  }
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    TestBed.resetTestingModule();
+    create = vi.fn();
+    notifyError = vi.fn();
+
+    await TestBed.configureTestingModule({
+      imports: [MaintenanceForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
+        { provide: MaintenancesService, useValue: { getOne: vi.fn(), create, update: vi.fn() } },
+        {
+          provide: VehiclesService,
+          useValue: {
+            list: vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 })),
+          },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: notifyError, warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(MaintenanceForm);
+    fixture.detectChanges();
+    (
+      fixture.componentInstance as unknown as { form: { patchValue: (v: unknown) => void } }
+    ).form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('mostra o fieldError do hodômetro embaixo do campo, sem banner e sem toast', () => {
+    const error = new HttpErrorResponse({
+      status: 400,
+      error: {
+        message: 'Hodômetro menor que a última leitura do veículo.',
+        fieldErrors: { hodometerReading: 'Hodômetro menor que a última leitura do veículo.' },
+      },
+    });
+    create.mockReturnValue(throwError(() => error));
+
+    submit();
+
+    const inline = hodometerError();
+    expect(inline).not.toBeNull();
+    expect(inline?.textContent?.trim()).toBe('Hodômetro menor que a última leitura do veículo.');
+    expect(inline?.getAttribute('role')).toBe('alert');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
+    vi.runAllTimers();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it('mostra erro de negócio sem campo no banner do formulário', () => {
+    const error = new HttpErrorResponse({
+      status: 409,
+      error: { message: 'Veículo já possui manutenção em andamento.' },
+    });
+    create.mockReturnValue(throwError(() => error));
+
+    submit();
+
+    expect(fixture.nativeElement.innerHTML).toContain(
+      'Veículo já possui manutenção em andamento.',
+    );
+    expect(hodometerError()).toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });

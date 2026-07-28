@@ -20,6 +20,11 @@ import {
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { ApiErrorService } from '../../services/api-error.service';
+import { clearServerErrors } from '../../services/api-error';
+import { NotificationService } from '../../services/notification.service';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -41,7 +46,16 @@ import { DriverListItem } from '../../types/driver.types';
 @Component({
   selector: 'app-rental-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    AlertBanner,
+    FormField,
+    FieldControl,
+  ],
   templateUrl: './rental-form.html',
 })
 export class RentalForm implements OnInit {
@@ -52,6 +66,8 @@ export class RentalForm implements OnInit {
   private readonly asaasService = inject(AsaasIntegrationService);
   private readonly contractTemplateService = inject(ContractTemplateService);
   private readonly draftService = inject(RentalDraftService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -65,6 +81,46 @@ export class RentalForm implements OnInit {
   protected readonly isEdit = computed(() => this.editingId() !== null);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  // Copy por validador. Chave = validator key; o `serverError` do backend sempre
+  // vence estes textos (ver MESSAGE_ORDER em services/validation-messages.ts).
+  protected readonly vehicleMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione um veículo.',
+  };
+  protected readonly driverMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione um motorista.',
+  };
+  protected readonly startDateMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a data de início.',
+  };
+  protected readonly endDateMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a data final.',
+  };
+  protected readonly billingFrequencyMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione a frequência.',
+  };
+  protected readonly rateMessages: Readonly<Record<string, string>> = {
+    required: 'Informe um valor maior que zero.',
+    min: 'Informe um valor maior que zero.',
+  };
+  protected readonly initialKmMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a quilometragem inicial.',
+    min: 'A quilometragem não pode ser negativa.',
+  };
+  protected readonly firstPaymentMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a data da 1ª parcela.',
+  };
+  protected readonly dailyInterestMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o juros diário (0 se não cobrar).',
+    min: 'O juros não pode ser negativo.',
+  };
+  protected readonly lateFineValueMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o valor da multa (0 se não cobrar).',
+    min: 'O valor da multa não pode ser negativo.',
+  };
+  protected readonly franchiseKmMessages: Readonly<Record<string, string>> = {
+    min: 'A franquia não pode ser negativa.',
+  };
 
   protected readonly vehicles = signal<VehicleListItem[]>([]);
   protected readonly drivers = signal<DriverListItem[]>([]);
@@ -408,7 +464,7 @@ export class RentalForm implements OnInit {
           }
         },
         error: (err: HttpErrorResponse) =>
-          this.error.set(this.extractError(err, 'Aluguel não encontrado.')),
+          this.error.set(this.apiErrors.messageFor(err, 'Aluguel não encontrado.')),
       });
     }
   }
@@ -505,6 +561,7 @@ export class RentalForm implements OnInit {
     }
     this.saving.set(true);
     this.error.set(null);
+    clearServerErrors(this.form);
     const raw = this.form.getRawValue();
     const periodRate = toCents(Number(raw.periodRateReais)) ?? 0;
     const caucao = toCents(Number(raw.caucaoReais ?? 0)) ?? 0;
@@ -542,10 +599,18 @@ export class RentalForm implements OnInit {
         returnFuelPolicy,
       };
       this.rentalService.update(editingId, updatePayload).subscribe({
-        next: (r) => this.router.navigate(['/alugueis', r.id]),
+        next: (r) => {
+          this.notifications.success('Alterações salvas.');
+          this.router.navigate(['/alugueis', r.id]);
+        },
         error: (err: HttpErrorResponse) => {
           this.saving.set(false);
-          this.error.set(this.extractError(err, 'Não foi possível salvar as alterações.'));
+          const { formMessage } = this.apiErrors.handleForm(
+            err,
+            this.form,
+            'Não foi possível salvar as alterações.',
+          );
+          this.error.set(formMessage);
         },
       });
       return;
@@ -577,11 +642,17 @@ export class RentalForm implements OnInit {
       next: (r) => {
         // Aluguel criado: o rascunho cumpriu sua função e some.
         this.dropDraft();
+        this.notifications.success('Aluguel criado.');
         this.router.navigate(['/alugueis', r.id]);
       },
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);
-        this.error.set(this.extractError(err, 'Não foi possível criar o aluguel.'));
+        const { formMessage } = this.apiErrors.handleForm(
+          err,
+          this.form,
+          'Não foi possível criar o aluguel.',
+        );
+        this.error.set(formMessage);
       },
     });
   }
@@ -614,21 +685,18 @@ export class RentalForm implements OnInit {
     }
   }
 
-  protected fieldInvalid(name: string): boolean {
-    const ctrl: AbstractControl | null = this.form.get(name);
-    return !!ctrl && ctrl.invalid && ctrl.touched;
+  /**
+   * "Retirada obrigatória e ainda vazia". Substitui o antigo `fieldInvalid()`
+   * genérico APENAS para a retirada — o único campo que não foi migrado pra
+   * `<app-form-field>`, porque a mensagem dele depende do validador de grupo.
+   */
+  protected pickupRequiredMissing(): boolean {
+    const ctrl = this.form.controls.pickupDate;
+    return ctrl.invalid && ctrl.touched;
   }
 
   protected formHasEndBeforeStart(): boolean {
     return !!this.form.errors?.['endBeforeStart'] && this.form.touched;
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 
   protected formatPlate(plate: string): string {

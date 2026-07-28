@@ -12,6 +12,9 @@ import { FormsModule } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
 import { FinesService } from '../../services/fines.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
@@ -27,12 +30,14 @@ import { VehicleListItem } from '../../types/vehicle.types';
 @Component({
   selector: 'app-fines-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
   templateUrl: './fines-list.html',
 })
 export class FinesList implements OnInit {
   private readonly finesService = inject(FinesService);
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
 
   /**
@@ -70,6 +75,8 @@ export class FinesList implements OnInit {
 
   protected readonly deleting = signal<FineListItem | null>(null);
   protected readonly deletingBusy = signal(false);
+  /** Failure of a row action (delete). Banner, right above the list. */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -127,7 +134,9 @@ export class FinesList implements OnInit {
         page,
         size: this.pageSize(),
       })
-      .subscribe({ error: () => {} });
+      // `FinesService` already writes the failure into its `error` signal, which the
+      // template renders as a banner — claim it so the safety net doesn't toast it too.
+      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
   }
 
   protected statusInfo(status: FineStatus): { label: string; chip: string } {
@@ -211,16 +220,21 @@ export class FinesList implements OnInit {
   protected confirmDelete(): void {
     const f = this.deleting();
     if (!f) return;
+    this.actionError.set(null);
     this.deletingBusy.set(true);
     this.finesService.remove(f.id).subscribe({
       next: () => {
         this.deletingBusy.set(false);
         this.deleting.set(null);
+        this.notifications.success('Multa removida.');
         this.reload(this.page());
       },
-      error: () => {
+      // Business failures (409 / 404) get the inline banner above the list — there is
+      // no single field to anchor them to and the confirm dialog closes on error.
+      error: (err: unknown) => {
         this.deletingBusy.set(false);
         this.deleting.set(null);
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível excluir a multa.'));
       },
     });
   }

@@ -30,21 +30,18 @@
                 </div>
 
                 <div cardActions class="flex flex-wrap items-center gap-2">
-                    @if (isEditing()) {
-                    <button (click)="cancelEdit()"
-                        class="text-sm font-medium text-neutral-500 hover:text-neutral-700 px-3 py-2 rounded-lg transition-colors">
-                        Cancelar
-                    </button>
-                    <button (click)="toggleEdit()" [disabled]="isSaving()"
-                        class="text-sm font-medium bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-all shadow-sm disabled:opacity-50">
-                        {{ isSaving() ? 'Salvando...' : 'Salvar Alterações' }}
-                    </button>
-                    } @else {
-                    <button (click)="toggleEdit()"
-                        class="text-sm font-medium text-primary-700 hover:bg-primary-low px-4 py-2 rounded-lg transition-all border border-transparent hover:border-primary-low">
-                        Editar Dados
-                    </button>
+                    <span
+                        class="text-xs font-semibold uppercase tracking-wider text-neutral-500 bg-neutral-100 border border-neutral-200 px-2.5 py-1 rounded-md">
+                        Somente leitura
+                    </span>
+                </div>
+
+                <div class="px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8 space-y-3">
+                    @if (error(); as loadError) {
+                    <app-alert-banner variant="error" [message]="loadError" />
                     }
+                    <app-alert-banner variant="info"
+                        message="A edição dos dados da empresa ainda não está disponível — o backend não expõe um endpoint para isso. Para alterar nome ou documento, fale com o suporte." />
                 </div>
 
                 <form [formGroup]="companyForm" class="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -56,8 +53,7 @@
                     <div>
                         <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo de Documento</label>
                         <select formControlName="documentType"
-                            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
-                            [class.cursor-pointer]="isEditing()">
+                            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60 disabled:cursor-not-allowed appearance-none">
                             @if (companyInfo()?.documentType) {
                             <option [value]="companyInfo()?.documentType">{{ companyInfo()?.documentType }}</option>
                             }
@@ -157,10 +153,5 @@
 
         </div>
     </div>
-
-    <!-- Confirmação de salvar -->
-    <app-confirm-dialog [open]="showConfirmDialog()" title="Salvar alterações"
-        message="Tem certeza que deseja salvar as alterações nas informações da empresa?" confirmLabel="Sim, salvar"
-        cancelLabel="Cancelar" variant="info" (confirmed)="onConfirmSave()" (cancelled)="onCancelConfirm()" />
 
 </app-default-page-layout>

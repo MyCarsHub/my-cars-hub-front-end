@@ -13,6 +13,8 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import { RentalProgressChecklist } from './documents/rental-progress-checklist';
@@ -48,6 +50,7 @@ import { RENTAL_STATUS_META } from '../../utils/status-maps';
     DetailActions,
     RentalProgressChecklist,
     EndRentalDialog,
+    AlertBanner,
   ],
   templateUrl: './rental-detail.html',
 })
@@ -56,6 +59,7 @@ export class RentalDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly route = inject(ActivatedRoute);
@@ -63,7 +67,14 @@ export class RentalDetail implements OnInit {
 
   protected readonly rental = signal<RentalResponseDto | null>(null);
   protected readonly loading = signal(false);
+  /** Falha ao CARREGAR o aluguel — banner com CTA de volta pra lista. */
   protected readonly error = signal<string | null>(null);
+  /**
+   * Falha de uma OPERACAO da tela (cancelar, concluir, ativar, excluir, caucao,
+   * cobrancas, retry). Banner inline, nunca toast: o interceptor nao toasta 4xx e
+   * `messageFor()` reivindica o erro, desarmando o safety net.
+   */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly vehiclePlate = signal<string>('—');
   protected readonly vehicleLabel = signal<string>('');
@@ -227,7 +238,7 @@ export class RentalDetail implements OnInit {
         this.loadHistory(r.id);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Aluguel não encontrado.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Aluguel não encontrado.'));
         this.loading.set(false);
       },
     });
@@ -266,6 +277,7 @@ export class RentalDetail implements OnInit {
     const payload: CancelRentalPayload = { canceledAt: event.date };
     if (event.endReason) payload.endReason = event.endReason;
     if (event.caucaoRefund) payload.caucaoRefund = event.caucaoRefund;
+    this.actionError.set(null);
     this.cancelBusy.set(true);
     this.rentalService.cancel(r.id, payload).subscribe({
       next: (updated) => {
@@ -278,10 +290,7 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.cancelBusy.set(false);
         this.cancelOpen.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível cancelar o aluguel.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível cancelar o aluguel.'));
       },
     });
   }
@@ -299,6 +308,7 @@ export class RentalDetail implements OnInit {
     const payload: CompleteRentalPayload = { completedAt: event.date };
     if (event.endReason) payload.endReason = event.endReason;
     if (event.caucaoRefund) payload.caucaoRefund = event.caucaoRefund;
+    this.actionError.set(null);
     this.completeBusy.set(true);
     this.rentalService.complete(r.id, payload).subscribe({
       next: (updated) => {
@@ -311,10 +321,7 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.completeBusy.set(false);
         this.completeOpen.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível concluir o aluguel.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível concluir o aluguel.'));
       },
     });
   }
@@ -322,6 +329,7 @@ export class RentalDetail implements OnInit {
   protected activate(): void {
     const r = this.rental();
     if (!r || this.activateBusy()) return;
+    this.actionError.set(null);
     this.activateBusy.set(true);
     this.rentalService.activate(r.id).subscribe({
       next: (updated) => {
@@ -332,10 +340,7 @@ export class RentalDetail implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.activateBusy.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível ativar o aluguel.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível ativar o aluguel.'));
       },
     });
   }
@@ -350,13 +355,19 @@ export class RentalDetail implements OnInit {
   protected confirmDelete(): void {
     const r = this.rental();
     if (!r) return;
+    this.actionError.set(null);
     this.deleting.set(true);
     this.rentalService.remove(r.id).subscribe({
-      next: () => this.router.navigate(['/alugueis']),
+      next: () => {
+        this.notifications.push('success', 'Aluguel excluído.');
+        this.router.navigate(['/alugueis']);
+      },
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.error.set(this.extractError(err, 'Não foi possível excluir.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível excluir o aluguel.'),
+        );
       },
     });
   }
@@ -414,7 +425,6 @@ export class RentalDetail implements OnInit {
   }
 
   protected readonly retrying = signal<string | null>(null);
-  protected readonly generatingCaucao = signal(false);
 
   // ------- Caução: marcar/desmarcar como paga (placeholder, sem charge) -------
   //
@@ -471,6 +481,7 @@ export class RentalDetail implements OnInit {
   protected confirmMarkCaucaoAsPaid(paidAt: string): void {
     const r = this.rental();
     if (!r || this.caucaoBusy()) return;
+    this.actionError.set(null);
     this.caucaoBusy.set(true);
     this.rentalService.markCaucaoAsPaid(r.id, paidAt).subscribe({
       next: (updated) => {
@@ -482,10 +493,7 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.caucaoBusy.set(false);
         this.markCaucaoOpen.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível marcar a caução como paga.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível marcar a caução como paga.'));
       },
     });
   }
@@ -504,6 +512,7 @@ export class RentalDetail implements OnInit {
   protected confirmUnmarkCaucaoAsPaid(): void {
     const r = this.rental();
     if (!r || this.caucaoBusy()) return;
+    this.actionError.set(null);
     this.caucaoBusy.set(true);
     this.rentalService.unmarkCaucaoAsPaid(r.id).subscribe({
       next: (updated) => {
@@ -515,10 +524,7 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.caucaoBusy.set(false);
         this.unmarkCaucaoOpen.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível desmarcar o pagamento da caução.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível desmarcar o pagamento da caução.'));
       },
     });
   }
@@ -586,6 +592,7 @@ export class RentalDetail implements OnInit {
     const r = this.rental();
     const target = this.markPaidTarget();
     if (!r || !target || this.markPaidBusy()) return;
+    this.actionError.set(null);
     this.markPaidBusy.set(true);
     this.rentalService.markChargeAsPaid(r.id, target.id, paidAt).subscribe({
       next: (updated) => {
@@ -604,10 +611,7 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.markPaidBusy.set(false);
         this.markPaidTarget.set(null);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível marcar a cobrança como paga.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível marcar a cobrança como paga.'));
       },
     });
   }
@@ -641,6 +645,7 @@ export class RentalDetail implements OnInit {
     const r = this.rental();
     const target = this.unmarkPaidTarget();
     if (!r || !target || this.unmarkPaidBusy()) return;
+    this.actionError.set(null);
     this.unmarkPaidBusy.set(true);
     this.rentalService.unmarkChargeAsPaid(r.id, target.id).subscribe({
       next: (updated) => {
@@ -658,10 +663,7 @@ export class RentalDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.unmarkPaidBusy.set(false);
         this.unmarkPaidTarget.set(null);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível desmarcar o pagamento.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível desmarcar o pagamento.'));
       },
     });
   }
@@ -677,46 +679,10 @@ export class RentalDetail implements OnInit {
     'FAILED',
   ];
 
-  protected readonly canGenerateCaucao = computed(() => {
-    const r = this.rental();
-    if (!r) return false;
-    if (r.caucaoAmount <= 0) return false;
-    if (r.caucaoPaid) return false;
-    const hasOpen = r.charges.some(
-      (c) => c.kind === 'CAUCAO' && this.OPEN_CAUCAO_STATUSES.includes(c.status),
-    );
-    return !hasOpen;
-  });
-
-  protected generateCaucaoCharge(): void {
-    const r = this.rental();
-    if (!r || this.generatingCaucao()) return;
-    this.generatingCaucao.set(true);
-    this.rentalService.createCaucaoCharge(r.id).subscribe({
-      next: (charge) => {
-        this.generatingCaucao.set(false);
-        if (charge.checkoutUrl) {
-          this.externalNav.openExternal(charge.checkoutUrl);
-        }
-        this.notifications.push('success', 'Cobrança da caução gerada com sucesso.');
-        // Refresh para incluir a nova charge no card de cobranças.
-        this.rentalService.getById(r.id).subscribe({
-          next: (fresh) => this.rental.set(fresh),
-        });
-      },
-      error: (err: HttpErrorResponse) => {
-        this.generatingCaucao.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível gerar a cobrança da caução.'),
-        );
-      },
-    });
-  }
-
   protected retryCharge(charge: RentalChargeDto): void {
     const r = this.rental();
     if (!r || this.retrying()) return;
+    this.actionError.set(null);
     this.retrying.set(charge.id);
     this.rentalService.retryCharge(r.id, charge.id).subscribe({
       next: (res) => {
@@ -734,10 +700,7 @@ export class RentalDetail implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.retrying.set(null);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível regerar a cobrança. Tente novamente.'),
-        );
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível regerar a cobrança. Tente novamente.'));
       },
     });
   }
@@ -829,13 +792,5 @@ export class RentalDetail implements OnInit {
       style: 'currency',
       currency: 'BRL',
     }).format(cents / 100);
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

@@ -1,21 +1,42 @@
 <app-default-login-layout description="Entre na sua conta e teste gratuitamente as nossas funcionalidades."
   googleBtnText="Entrar com o Google" primaryBtnText="Entrar" navigateText="Não tem conta?"
   navigateBtnText="Criar conta" (summitGoogle)="summitGoogle()" (submit)="submit()" (navigate)="navigate()"
-  [disablePrimaryBtn]="!loginForm.valid">
-  <form [formGroup]="loginForm" (ngSubmit)="submit()" novalidate>
-    <app-primary-input label="E-mail" type="email" formControlName="email" placeholder="seu@email.com"
-      iconSrc="svg/email-icon.svg">
-    </app-primary-input>
+  [disablePrimaryBtn]="submitting()">
+  <form [formGroup]="loginForm" (ngSubmit)="submit()" novalidate class="space-y-3">
 
-    <app-primary-input label="Password" type="password" formControlName="password" placeholder="********"
-      iconSrc="svg/password-lock-icon.svg">
-    </app-primary-input>
+    @if (error(); as formError) {
+      <app-alert-banner variant="error" [message]="formError" />
+    }
+
+    <app-form-field label="E-mail" controlId="login-email" [required]="true" [control]="loginForm.controls.email"
+      [messages]="emailMessages">
+      <div class="relative">
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+          <img ngSrc="svg/email-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
+        </div>
+        <input appFieldControl type="email" formControlName="email" placeholder="seu@email.com"
+          autocomplete="email" inputmode="email" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+                 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+      </div>
+    </app-form-field>
+
+    <app-form-field label="Senha" controlId="login-password" [required]="true"
+      [control]="loginForm.controls.password" [messages]="passwordMessages">
+      <div class="relative">
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+          <img ngSrc="svg/password-lock-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
+        </div>
+        <input appFieldControl type="password" formControlName="password" placeholder="********"
+          autocomplete="current-password" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+                 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+      </div>
+    </app-form-field>
+
     <div class="w-full text-right text-sm">
       <span class="text-primary-500 font-medium cursor-pointer hover:text-primary-700 transition">
         Redefinir senha
       </span>
     </div>
-
 
   </form>
 </app-default-login-layout>

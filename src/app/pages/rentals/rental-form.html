@@ -21,17 +21,25 @@
       </div>
     }
 
+    <!-- Erro do formulário: TOPO, dentro de @if pra que role="alert" anuncie na inserção. -->
+    @if (error(); as formError) {
+      <app-alert-banner variant="error" [message]="formError" />
+    }
+
     <!-- 1-4: veículo, motorista, datas, frequência -->
     <app-page-card title="Contrato">
       <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-        <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-vehicle">
-            Veículo <span class="text-rose-600">*</span>
-          </label>
+        <app-form-field
+          label="Veículo"
+          controlId="rental-vehicle"
+          [required]="true"
+          [control]="form.controls.vehicleId"
+          [messages]="vehicleMessages"
+        >
           <select
-            id="rental-vehicle"
+            appFieldControl
             formControlName="vehicleId"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
             <option value="">Selecione...</option>
             @for (v of vehicles(); track v.id) {
@@ -45,19 +53,19 @@
               Nenhum veículo disponível — todos estão em aluguel ativo.
             </p>
           }
-          @if (fieldInvalid('vehicleId')) {
-            <p class="text-xs text-rose-600 mt-1">Selecione um veículo.</p>
-          }
-        </div>
+        </app-form-field>
 
-        <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-driver">
-            Motorista <span class="text-rose-600">*</span>
-          </label>
+        <app-form-field
+          label="Motorista"
+          controlId="rental-driver"
+          [required]="true"
+          [control]="form.controls.driverId"
+          [messages]="driverMessages"
+        >
           <select
-            id="rental-driver"
+            appFieldControl
             formControlName="driverId"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
             <option value="">Selecione...</option>
             @for (d of drivers(); track d.id) {
@@ -69,41 +77,44 @@
               Nenhum motorista disponível — todos estão em aluguel ativo.
             </p>
           }
-          @if (fieldInvalid('driverId')) {
-            <p class="text-xs text-rose-600 mt-1">Selecione um motorista.</p>
-          }
-        </div>
+        </app-form-field>
 
-        <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-start">
-            Início <span class="text-rose-600">*</span>
-          </label>
+        <app-form-field
+          label="Início"
+          controlId="rental-start"
+          [required]="true"
+          [control]="form.controls.startDate"
+          [messages]="startDateMessages"
+        >
           <input
-            id="rental-start"
+            appFieldControl
             type="date"
             formControlName="startDate"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          @if (fieldInvalid('startDate')) {
-            <p class="text-xs text-rose-600 mt-1">Informe a data de início.</p>
-          }
-        </div>
+        </app-form-field>
 
         <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-end">
-            Fim <span class="text-rose-600">*</span>
-          </label>
-          <input
-            id="rental-end"
-            type="date"
-            formControlName="endDate"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
-                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-          @if (fieldInvalid('endDate')) {
-            <p class="text-xs text-rose-600 mt-1">Informe a data final.</p>
-          }
+          <app-form-field
+            label="Fim"
+            controlId="rental-end"
+            [required]="true"
+            [control]="form.controls.endDate"
+            [messages]="endDateMessages"
+          >
+            <input
+              appFieldControl
+              type="date"
+              formControlName="endDate"
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+          </app-form-field>
+          <!-- Erro de GRUPO (endDate < startDate): não pertence a um controle só,
+               então fica fora do app-form-field, com role="alert" próprio. -->
           @if (formHasEndBeforeStart()) {
-            <p class="text-xs text-rose-600 mt-1">A data final deve ser igual ou depois do início.</p>
+            <p class="text-xs text-rose-600 mt-1" role="alert">
+              A data final deve ser igual ou depois do início.
+            </p>
           }
         </div>
       </div>
@@ -113,65 +124,60 @@
     <app-page-card title="Valores">
       <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-billing-frequency">
-              Frequência de cobrança <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            label="Frequência de cobrança"
+            controlId="rental-billing-frequency"
+            hint="Semanal cobra por semana cheia; mensal, por mês cheio (30 dias)."
+            [required]="true"
+            [control]="form.controls.billingFrequency"
+            [messages]="billingFrequencyMessages"
+          >
             <select
-              id="rental-billing-frequency"
+              appFieldControl
               formControlName="billingFrequency"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (opt of billingFrequencyOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
             </select>
-            @if (fieldInvalid('billingFrequency')) {
-              <p class="text-xs text-rose-600 mt-1">Selecione a frequência.</p>
-            }
-            <p class="text-xs text-neutral-400 mt-1">
-              Semanal cobra por semana cheia; mensal, por mês cheio (30 dias).
-            </p>
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-daily">
-              {{ rateLabel() }} <span class="text-rose-600">*</span>
-            </label>
+          <app-form-field
+            [label]="rateLabel()"
+            controlId="rental-daily"
+            hint="Valor por período de cobrança (por dia, semana ou mês)."
+            [required]="true"
+            [control]="form.controls.periodRateReais"
+            [messages]="rateMessages"
+          >
             <input
-              id="rental-daily"
+              appFieldControl
               type="number"
               step="0.01"
               min="0.01"
               inputmode="decimal"
               formControlName="periodRateReais"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid('periodRateReais')) {
-              <p class="text-xs text-rose-600 mt-1">Informe um valor maior que zero.</p>
-            }
-            <p class="text-xs text-neutral-400 mt-1">
-              Valor por período de cobrança (por dia, semana ou mês).
-            </p>
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-caucao">
-              Caução (R$)
-            </label>
+          <app-form-field
+            label="Caução (R$)"
+            controlId="rental-caucao"
+            hint="Reembolsada ao concluir o aluguel. Deixe 0 para não cobrar."
+            [control]="form.controls.caucaoReais"
+          >
             <input
-              id="rental-caucao"
+              appFieldControl
               type="number"
               step="0.01"
               min="0"
               inputmode="decimal"
               formControlName="caucaoReais"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            <p class="text-xs text-neutral-400 mt-1">
-              Reembolsada ao concluir o aluguel. Deixe 0 para não cobrar.
-            </p>
-          </div>
+          </app-form-field>
         </div>
 
         @if (caucaoAmountPositive()) {
@@ -220,25 +226,28 @@
     <app-page-card title="Condições de pagamento">
       <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-initial-km">
-                Km inicial (retirada) <span class="text-rose-600">*</span>
-              </label>
+            <app-form-field
+              label="Km inicial (retirada)"
+              controlId="rental-initial-km"
+              [required]="true"
+              [control]="form.controls.initialKm"
+              [messages]="initialKmMessages"
+            >
               <input
-                id="rental-initial-km"
+                appFieldControl
                 type="number"
                 min="0"
                 step="1"
                 inputmode="numeric"
                 formControlName="initialKm"
                 placeholder="Ex.: 45820"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-              @if (fieldInvalid('initialKm')) {
-                <p class="text-xs text-rose-600 mt-1">Informe a quilometragem inicial.</p>
-              }
-            </div>
+            </app-form-field>
 
+            <!-- NÃO migrado para <app-form-field>: a retirada tem validação de GRUPO
+                 (pickupWithinPeriodValidator) + min/max derivados e mensagem própria
+                 já no padrão (role="alert" em #rental-pickup-date-error). -->
             <div>
               <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-pickup-date">
                 Data/hora da retirada <span class="text-rose-600">*</span>
@@ -257,8 +266,10 @@
                 [class.border-neutral-200]="!pickupOutsidePeriod()"
                 [class.bg-rose-50]="pickupOutsidePeriod()"
                 [class.border-rose-400]="pickupOutsidePeriod()" />
-              @if (fieldInvalid('pickupDate')) {
-                <p class="text-xs text-rose-600 mt-1">Informe a data e hora da retirada.</p>
+              @if (pickupRequiredMissing()) {
+                <p class="text-xs text-rose-600 mt-1" role="alert">
+                  Informe a data e hora da retirada.
+                </p>
               }
               @if (pickupOutsidePeriod()) {
                 <p id="rental-pickup-date-error" role="alert"
@@ -272,110 +283,112 @@
               }
             </div>
 
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-first-payment">
-                Data da 1ª parcela <span class="text-rose-600">*</span>
-              </label>
+            <app-form-field
+              label="Data da 1ª parcela"
+              controlId="rental-first-payment"
+              [required]="true"
+              [control]="form.controls.firstPaymentDate"
+              [messages]="firstPaymentMessages"
+            >
               <input
-                id="rental-first-payment"
+                appFieldControl
                 type="date"
                 formControlName="firstPaymentDate"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-              @if (fieldInvalid('firstPaymentDate')) {
-                <p class="text-xs text-rose-600 mt-1">Informe a data da 1ª parcela.</p>
-              }
-            </div>
+            </app-form-field>
 
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-daily-interest">
-                Juros diário por atraso (R$) <span class="text-rose-600">*</span>
-              </label>
+            <app-form-field
+              label="Juros diário por atraso (R$)"
+              controlId="rental-daily-interest"
+              [required]="true"
+              [control]="form.controls.dailyInterestReais"
+              [messages]="dailyInterestMessages"
+            >
               <input
-                id="rental-daily-interest"
+                appFieldControl
                 type="number"
                 min="0"
                 step="0.01"
                 inputmode="decimal"
                 formControlName="dailyInterestReais"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-              @if (fieldInvalid('dailyInterestReais')) {
-                <p class="text-xs text-rose-600 mt-1">Informe o juros diário (0 se não cobrar).</p>
-              }
-            </div>
+            </app-form-field>
 
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-late-fine-type">
-                Multa por atraso <span class="text-rose-600">*</span>
-              </label>
+            <app-form-field
+              label="Multa por atraso"
+              controlId="rental-late-fine-type"
+              [required]="true"
+              [control]="form.controls.lateFineType"
+            >
               <select
-                id="rental-late-fine-type"
+                appFieldControl
                 formControlName="lateFineType"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
                 <option value="PERCENT">Percentual (%)</option>
                 <option value="FIXED">Valor fixo (R$)</option>
               </select>
-            </div>
+            </app-form-field>
 
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-late-fine-value">
-                Valor da multa <span class="text-rose-600">*</span>
-              </label>
+            <app-form-field
+              label="Valor da multa"
+              controlId="rental-late-fine-value"
+              hint="Se %: informe percentagem (ex.: 2 = 2%). Se R$: informe reais."
+              [required]="true"
+              [control]="form.controls.lateFineValueInput"
+              [messages]="lateFineValueMessages"
+            >
               <input
-                id="rental-late-fine-value"
+                appFieldControl
                 type="number"
                 min="0"
                 step="0.01"
                 inputmode="decimal"
                 formControlName="lateFineValueInput"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-              @if (fieldInvalid('lateFineValueInput')) {
-                <p class="text-xs text-rose-600 mt-1">Informe o valor da multa (0 se não cobrar).</p>
-              } @else {
-                <p class="text-xs text-neutral-400 mt-1">
-                  Se %: informe percentagem (ex.: 2 = 2%). Se R$: informe reais.
-                </p>
-              }
-            </div>
+            </app-form-field>
 
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-franchise-km">
-                Franquia diária (km)
-              </label>
+            <app-form-field
+              label="Franquia diária (km)"
+              controlId="rental-franchise-km"
+              [control]="form.controls.franchiseKm"
+              [messages]="franchiseKmMessages"
+            >
               <input
-                id="rental-franchise-km"
+                appFieldControl
                 type="number"
                 min="0"
                 step="1"
                 inputmode="numeric"
                 formControlName="franchiseKm"
                 placeholder="Ex.: 150 (0 ou vazio = ilimitada)"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            </div>
+            </app-form-field>
 
-            <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="rental-return-fuel">
-                Política de devolução (combustível)
-              </label>
+            <app-form-field
+              label="Política de devolução (combustível)"
+              controlId="rental-return-fuel"
+              [control]="form.controls.returnFuelPolicy"
+            >
               <input
-                id="rental-return-fuel"
+                appFieldControl
                 type="text"
                 maxlength="60"
                 list="rental-return-fuel-options"
                 formControlName="returnFuelPolicy"
                 placeholder="Ex.: Mesmo nível da retirada"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2.5 text-neutral-800
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
               <datalist id="rental-return-fuel-options">
                 <option value="Mesmo nível da retirada"></option>
                 <option value="Tanque cheio"></option>
                 <option value="Livre (sem exigência)"></option>
               </datalist>
-            </div>
+            </app-form-field>
           </div>
         </div>
     </app-page-card>
@@ -383,14 +396,16 @@
     <!-- 8: observações -->
     <app-page-card title="Observações">
       <div class="p-4 sm:p-6">
-        <label class="sr-only" for="rental-notes">Observações</label>
-        <textarea
-          id="rental-notes"
-          rows="3"
-          formControlName="notes"
-          placeholder="Anotações internas sobre o aluguel..."
-          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
-                 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
+        <app-form-field controlId="rental-notes" [control]="form.controls.notes">
+          <label class="sr-only" for="rental-notes">Observações</label>
+          <textarea
+            appFieldControl
+            rows="3"
+            formControlName="notes"
+            placeholder="Anotações internas sobre o aluguel..."
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
+        </app-form-field>
       </div>
     </app-page-card>
 
@@ -555,12 +570,6 @@
         }
       </div>
     </app-page-card>
-
-    @if (error()) {
-      <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-        {{ error() }}
-      </div>
-    }
 
     <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
       <button type="button"

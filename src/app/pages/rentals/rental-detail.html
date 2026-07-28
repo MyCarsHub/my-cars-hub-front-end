@@ -10,18 +10,26 @@
     </div>
   }
 
-  @if (error()) {
-    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3 mb-4">
-      {{ error() }}
-      <button type="button" (click)="backToList()"
-        class="ml-2 underline font-medium text-rose-800">
-        Voltar para a lista
-      </button>
+  <!-- Falha de CARREGAMENTO: o aluguel não abriu, então oferece a saída. -->
+  @if (error(); as loadError) {
+    <div class="mb-4">
+      <app-alert-banner variant="error">
+        {{ loadError }}
+        <button type="button" (click)="backToList()"
+          class="ml-2 underline font-medium text-rose-800 rounded
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2">
+          Voltar para a lista
+        </button>
+      </app-alert-banner>
     </div>
   }
 
   @if (rental(); as r) {
     <div class="space-y-4 sm:space-y-6">
+      <!-- Falha de OPERAÇÃO (cancelar/concluir/ativar/excluir/caução/cobranças). -->
+      @if (actionError(); as opError) {
+        <app-alert-banner variant="error" [message]="opError" />
+      }
       <!-- Desktop actions (top-right) -->
       <div class="hidden lg:flex justify-end">
         <app-detail-actions

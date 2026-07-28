@@ -19,6 +19,8 @@ import { Subscription, forkJoin, of, switchMap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
 import { DriverService } from '../../../services/driver.service';
@@ -36,6 +38,13 @@ import { RentalService } from '../rental.service';
 
 /** Espelha `RentalInspectionService.MAX_PHOTO_BYTES` no backend. */
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Janela de agrupamento das confirmacoes de foto. Enviar os 14 angulos disparava
+ * 14 toasts empilhados; agora cada sucesso reinicia a janela e o lote inteiro sai
+ * como UMA mensagem ("N fotos enviadas."). Curta o bastante pra nao parecer travada.
+ */
+const PHOTO_BATCH_WINDOW_MS = 1200;
 
 interface Slot {
   angle: RentalPhotoAngle;
@@ -62,12 +71,15 @@ interface Slot {
 @Component({
   selector: 'app-rental-inspection-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageCard, ConfirmDialog],
+  imports: [PageCard, ConfirmDialog, AlertBanner],
   template: `
     <!-- Enquanto a folha está aberta ela é a única região alcançável: 'inert'
          tira o card inteiro do tab order e do cursor virtual do leitor de tela. -->
     <app-page-card [title]="title()" [attr.inert]="sourceSheetOpen() ? '' : null">
       <div class="p-4 sm:p-6 space-y-4">
+        @if (error(); as cardError) {
+          <app-alert-banner variant="error" [message]="cardError" />
+        }
         @if (generatedDoc(); as doc) {
           <div
             class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3"
@@ -294,6 +306,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly driverService = inject(DriverService);
   private readonly inspectionPdfService = inject(InspectionPdfService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly imageCompression = inject(ImageCompressionService);
   private readonly platformId = inject(PLATFORM_ID);
@@ -376,6 +389,9 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     REAR_SEAT: null,
   });
   private readonly uploadSubs = new Map<RentalPhotoAngle, Subscription>();
+  /** Fotos confirmadas aguardando o fechamento do lote (ver `PHOTO_BATCH_WINDOW_MS`). */
+  private photoBatchCount = 0;
+  private photoBatchTimer: ReturnType<typeof setTimeout> | null = null;
   /**
    * Token de tentativa por ângulo. Incrementa a cada seleção de arquivo e a
    * cada `finishSlot()`, então uma promise de compressão que resolve tarde
@@ -384,6 +400,12 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
    * subscription sobrescreveria a viva em `uploadSubs`.
    */
   private readonly slotAttempt = new Map<RentalPhotoAngle, number>();
+  /**
+   * Falha da operacao (upload, geracao do PDF, abrir, baixar, remover). Banner
+   * inline no card, nunca toast: o interceptor nao toasta 4xx e `messageFor()`
+   * reivindica o erro, desarmando o safety net.
+   */
+  protected readonly error = signal<string | null>(null);
   protected readonly generating = signal(false);
   protected readonly openingPdf = signal(false);
   protected readonly downloading = signal(false);
@@ -501,6 +523,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     this.pending = null;
     this.sheetTrigger = null;
     if (!file || !angle) return;
+    this.error.set(null);
 
     // iOS Safari envia HEIC/HEIF em fotos default; Android e desktop mandam JPG/PNG/WebP.
     // Alguns navegadores enviam file.type vazio pra HEIC — deixamos passar e o backend valida.
@@ -562,20 +585,40 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
             this.setSlotProgress(angle, pct);
           } else if (event.type === HttpEventType.Response && event.body) {
             this.finishSlot(angle);
-            this.notifications.push('success', 'Foto enviada.');
+            this.queuePhotoConfirmation();
             this.rentalService.refreshRentalState(this.rentalId());
             this.changed.emit();
           }
         },
         error: (err: HttpErrorResponse) => {
           this.finishSlot(angle);
-          this.notifications.push(
-            'error',
-            this.extractError(err, 'Não foi possível enviar a foto.'),
-          );
+          this.error.set(this.apiErrors.messageFor(err, 'Não foi possível enviar a foto.'));
         },
       });
     this.uploadSubs.set(angle, sub);
+  }
+
+  /**
+   * Conta mais uma foto no lote corrente e adia a confirmacao. Enquanto chegarem
+   * uploads dentro da janela, a mensagem nao sai — o usuario recebe UMA
+   * confirmacao no fim do lote em vez de uma por foto.
+   */
+  private queuePhotoConfirmation(): void {
+    this.photoBatchCount += 1;
+    if (this.photoBatchTimer !== null) clearTimeout(this.photoBatchTimer);
+    this.photoBatchTimer = setTimeout(() => this.flushPhotoConfirmation(), PHOTO_BATCH_WINDOW_MS);
+  }
+
+  /** Fecha o lote: uma unica mensagem, pluralizada. */
+  private flushPhotoConfirmation(): void {
+    this.photoBatchTimer = null;
+    const count = this.photoBatchCount;
+    this.photoBatchCount = 0;
+    if (count === 0) return;
+    this.notifications.push(
+      'success',
+      count === 1 ? 'Foto enviada.' : `${count} fotos enviadas.`,
+    );
   }
 
   protected cancelUpload(angle: RentalPhotoAngle): void {
@@ -609,6 +652,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
    */
   protected generate(): void {
     if (this.generating() || this.completedCount() === 0) return;
+    this.error.set(null);
     this.generating.set(true);
     const rentalId = this.rentalId();
     const kind = this.kind();
@@ -646,17 +690,18 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
           this.inspectionPdfService.reset();
           const fallback =
             'Não foi possível gerar o PDF. Tente novamente ou fale com suporte.';
-          if (err instanceof HttpErrorResponse) {
-            this.notifications.push('error', this.extractError(err, fallback));
-          } else {
-            this.notifications.push('error', err?.message || fallback);
-          }
+          this.error.set(
+            err instanceof HttpErrorResponse
+              ? this.apiErrors.messageFor(err, fallback)
+              : err?.message || fallback,
+          );
         },
       });
   }
 
   protected openPdf(docId: string): void {
     if (this.openingPdf()) return;
+    this.error.set(null);
     this.openingPdf.set(true);
     this.rentalService.documentSignedUrl(this.rentalId(), docId).subscribe({
       next: (res) => {
@@ -665,10 +710,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.openingPdf.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível abrir o PDF.'),
-        );
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível abrir o PDF.'));
       },
     });
   }
@@ -681,6 +723,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   protected downloadPdf(): void {
     const doc = this.generatedDoc();
     if (!doc || this.downloading()) return;
+    this.error.set(null);
     this.downloading.set(true);
     this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
       next: async (res) => {
@@ -699,7 +742,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
           document.body.removeChild(a);
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (err) {
-          this.notifications.push('error', 'Falha ao baixar o PDF do laudo.');
+          this.error.set('Falha ao baixar o PDF do laudo.');
           console.error('inspection download failed', err);
         } finally {
           this.downloading.set(false);
@@ -707,10 +750,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.downloading.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível baixar o PDF.'),
-        );
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível baixar o PDF.'));
       },
     });
   }
@@ -724,6 +764,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   protected confirmDelete(): void {
     const doc = this.generatedDoc();
     if (!doc) return;
+    this.error.set(null);
     this.deleting.set(true);
     this.rentalService.deleteDocument(this.rentalId(), doc.id).subscribe({
       next: () => {
@@ -736,10 +777,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível remover o PDF.'),
-        );
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível remover o PDF.'));
       },
     });
   }
@@ -768,18 +806,11 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.photoBatchTimer !== null) clearTimeout(this.photoBatchTimer);
     this.uploadSubs.forEach((sub) => sub.unsubscribe());
     this.uploadSubs.clear();
     Object.values(this.slotPreview()).forEach((url) => {
       if (url) URL.revokeObjectURL(url);
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

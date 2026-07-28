@@ -111,15 +111,11 @@
       </div>
 
       <!-- Error -->
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as listError) {
+        <app-alert-banner variant="error" [message]="listError" />
       }
-      @if (actionError()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ actionError() }}
-        </div>
+      @if (actionError(); as actionMessage) {
+        <app-alert-banner variant="error" [message]="actionMessage" />
       }
 
       <!-- Loading skeleton -->

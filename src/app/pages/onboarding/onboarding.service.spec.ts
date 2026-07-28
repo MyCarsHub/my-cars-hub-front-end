@@ -48,7 +48,9 @@ describe('OnboardingService.loadState error handling', () => {
     expect(errored).toBe(false);
     expect(resolved).toEqual({ step: 1, isCompleted: false, data: {} });
     expect(service.state()).toEqual({ step: 1, isCompleted: false, data: {} });
-    expect(notifyError).toHaveBeenCalledOnce();
+    // Inline banner, never a toast — the container renders `loadError`.
+    expect(service.loadError()).not.toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 
   it('falls back to INITIAL_STATE silently on 404 (fresh user)', () => {
@@ -59,7 +61,8 @@ describe('OnboardingService.loadState error handling', () => {
 
     expect(resolved).toEqual({ step: 1, isCompleted: false, data: {} });
     expect(service.state()).toEqual({ step: 1, isCompleted: false, data: {} });
-    // 404 = expected fresh-user case; no toast.
+    // 404 = expected fresh-user case; nothing to show anywhere.
+    expect(service.loadError()).toBeNull();
     expect(notifyError).not.toHaveBeenCalled();
   });
 
@@ -86,15 +89,18 @@ describe('OnboardingService.loadState error handling', () => {
 
     expect(service.state()).toEqual(beState);
     expect(resolved).toEqual(beState);
-    expect(notifyError).toHaveBeenCalledOnce();
+    expect(service.loadError()).not.toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 
-  it('fires the error toast at most once across two concurrent failing loads', () => {
+  it('shows one banner message and no toast across two concurrent failing loads', () => {
     httpGet.mockReturnValue(throwError(() => httpError(500)));
 
     service.loadState().subscribe();
     service.loadState().subscribe();
 
-    expect(notifyError).toHaveBeenCalledOnce();
+    // A signal holds one value: concurrent failures cannot stack up messages.
+    expect(service.loadError()).not.toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });

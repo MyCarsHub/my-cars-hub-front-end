@@ -2,10 +2,8 @@
   title="Roadmap"
   description="Sugira melhorias e dê combustível às ideias que mais te interessam.">
 
-  @if (error()) {
-    <div role="alert" class="mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-sm">
-      {{ error() }}
-    </div>
+  @if (error(); as pageError) {
+    <app-alert-banner class="mb-6" variant="error" [message]="pageError" />
   }
 
   <!-- Controls: sort + new task -->
@@ -281,37 +279,37 @@
             <p class="text-sm text-neutral-500 mb-5">Descreva sua ideia com clareza. Boas descrições recebem mais combustível.</p>
 
             <div class="space-y-4">
-              <div>
-                <label for="task-title" class="block text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">
-                  Título
-                </label>
+              <app-form-field
+                label="Título"
+                controlId="task-title"
+                [required]="true"
+                [control]="taskForm.controls.title"
+                [messages]="titleMessages">
                 <input
-                  id="task-title"
+                  appFieldControl
                   type="text"
                   formControlName="title"
                   maxlength="120"
                   placeholder="Ex: Notificações por WhatsApp"
-                  class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-                @if (taskForm.controls.title.invalid && taskForm.controls.title.touched) {
-                  <p class="mt-1 text-xs text-rose-600">Título é obrigatório (máx. 120 caracteres).</p>
-                }
-              </div>
+                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+              </app-form-field>
 
-              <div>
-                <label for="task-description" class="block text-xs font-semibold text-neutral-500 mb-1.5 uppercase tracking-wider">
-                  Descrição
-                </label>
+              <app-form-field
+                label="Descrição"
+                controlId="task-description"
+                [control]="taskForm.controls.description"
+                [messages]="descriptionMessages">
                 <textarea
-                  id="task-description"
+                  appFieldControl
                   formControlName="description"
                   maxlength="2000"
                   rows="5"
                   placeholder="Detalhe o problema e como sua ideia melhora o produto."
-                  class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors resize-none"></textarea>
-              </div>
+                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors resize-none"></textarea>
+              </app-form-field>
 
-              @if (formError()) {
-                <p role="alert" class="text-xs text-rose-600">{{ formError() }}</p>
+              @if (formError(); as dialogError) {
+                <app-alert-banner variant="error" [message]="dialogError" />
               }
             </div>
           </div>

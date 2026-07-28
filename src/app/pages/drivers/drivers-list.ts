@@ -11,6 +11,9 @@ import { FormsModule } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
 import {
   DriverFilters,
@@ -45,11 +48,13 @@ const SORT_OPTIONS = [
 @Component({
   selector: 'app-drivers-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
   templateUrl: './drivers-list.html',
 })
 export class DriversList implements OnInit {
   private readonly driverService = inject(DriverService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
 
   protected readonly statusOptions = STATUS_OPTIONS;
@@ -123,7 +128,9 @@ export class DriversList implements OnInit {
       sort: this.sort(),
       page,
       size: this.pageSize(),
-    }).subscribe({ error: () => {} });
+      // `DriverService` already writes the failure into its `error` signal, which the
+      // template renders as a banner — claim it so the safety net doesn't toast it too.
+    }).subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
   }
 
   protected statusLabel(status: DriverStatus): string {
@@ -175,12 +182,15 @@ export class DriversList implements OnInit {
       next: () => {
         this.deleting.set(false);
         this.deletingDriver.set(null);
+        this.notifications.success('Motorista removido.');
         this.reload(this.page());
       },
-      error: (err) => {
+      error: (err: unknown) => {
         this.deleting.set(false);
         this.deletingDriver.set(null);
-        this.actionError.set(this.readError(err, 'Não foi possível excluir o motorista.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível excluir o motorista.'),
+        );
       },
     });
   }
@@ -232,12 +242,15 @@ export class DriversList implements OnInit {
       next: () => {
         this.togglingStatus.set(false);
         this.togglingStatusDriver.set(null);
+        this.notifications.success(
+          next === 'SUSPENDED' ? 'Motorista suspenso.' : 'Motorista reativado.',
+        );
       },
-      error: (err) => {
+      error: (err: unknown) => {
         this.togglingStatus.set(false);
         this.togglingStatusDriver.set(null);
         this.actionError.set(
-          this.readError(err, 'Não foi possível alterar o status do motorista.'),
+          this.apiErrors.messageFor(err, 'Não foi possível alterar o status do motorista.'),
         );
       },
     });
@@ -250,13 +263,5 @@ export class DriversList implements OnInit {
       return `Reativar «${driver.name}»? O motorista voltará a ficar disponível para novos aluguéis.`;
     }
     return `Suspender «${driver.name}»? O motorista ficará bloqueado para novos aluguéis até ser reativado.`;
-  }
-
-  private readError(err: unknown, fallback: string): string {
-    const body = (err as { error?: { message?: string } })?.error;
-    if (body && typeof body.message === 'string' && body.message.length > 0) {
-      return body.message;
-    }
-    return fallback;
   }
 }

@@ -12,11 +12,17 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { FeedbackService } from '../../services/feedback.service';
 import { SessionService } from '../../services/session.service';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
+import { clearServerErrors } from '../../services/api-error';
 import {
   FeedbackSort,
   FeedbackStatus,
@@ -51,6 +57,9 @@ const ADMIN_STATUS_OPTIONS: Array<{ value: FeedbackStatus; label: string }> = [
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
+    AlertBanner,
+    FormField,
+    FieldControl,
   ],
   templateUrl: './roadmap.html',
   styleUrl: './roadmap.css',
@@ -60,6 +69,8 @@ export class Roadmap implements OnInit {
   private readonly feedbackService = inject(FeedbackService);
   private readonly sessionService = inject(SessionService);
   private readonly fb = inject(FormBuilder);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
 
   protected readonly columns = BOARD_COLUMNS;
   protected readonly statusOptions = ADMIN_STATUS_OPTIONS;
@@ -67,7 +78,13 @@ export class Roadmap implements OnInit {
 
   protected readonly tasks = this.feedbackService.tasks;
   protected readonly loading = this.feedbackService.loading;
-  protected readonly error = this.feedbackService.error;
+
+  /**
+   * Screen-level banner. Actions (delete / vote / status) claim their own error here so
+   * nothing is swallowed and the interceptor safety net never doubles the message.
+   */
+  private readonly actionError = signal<string | null>(null);
+  protected readonly error = computed(() => this.actionError() ?? this.feedbackService.error());
 
   protected readonly sort = signal<FeedbackSort>('fuel');
   protected readonly rejectedOpen = signal(false);
@@ -115,14 +132,27 @@ export class Roadmap implements OnInit {
     description: ['', [Validators.maxLength(2000)]],
   });
 
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly titleMessages: Readonly<Record<string, string>> = {
+    required: 'Informe um título.',
+    maxlength: 'Use no máximo 120 caracteres.',
+  };
+  protected readonly descriptionMessages: Readonly<Record<string, string>> = {
+    maxlength: 'Use no máximo 2000 caracteres.',
+  };
+
   ngOnInit(): void {
     this.reload();
   }
 
   private reload(): void {
-    this.feedbackService
-      .loadTasks({ sort: this.sort(), size: 100 })
-      .subscribe({ error: () => void 0 });
+    this.actionError.set(null);
+    this.feedbackService.loadTasks({ sort: this.sort(), size: 100 }).subscribe({
+      error: (err: HttpErrorResponse) =>
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar as sugestões. Tente novamente.'),
+        ),
+    });
   }
 
   private filterByStatus(status: FeedbackStatus): FeedbackTaskResponse[] {
@@ -197,15 +227,18 @@ export class Roadmap implements OnInit {
   protected toggleFuel(task: FeedbackTaskResponse): void {
     if (this.isFuelPending(task.id)) return;
     this.setFuelPending(task.id, true);
+    this.actionError.set(null);
     const done = () => this.setFuelPending(task.id, false);
+    const fail = (err: HttpErrorResponse) => {
+      done();
+      this.actionError.set(
+        this.apiErrors.messageFor(err, 'Não foi possível registrar seu voto. Tente novamente.'),
+      );
+    };
     if (task.hasVoted) {
-      this.feedbackService
-        .unfuel(task.id)
-        .subscribe({ next: done, error: done });
+      this.feedbackService.unfuel(task.id).subscribe({ next: done, error: fail });
     } else {
-      this.feedbackService
-        .fuel(task.id)
-        .subscribe({ next: done, error: done });
+      this.feedbackService.fuel(task.id).subscribe({ next: done, error: fail });
     }
   }
 
@@ -246,6 +279,7 @@ export class Roadmap implements OnInit {
 
     this.submitting.set(true);
     this.formError.set(null);
+    clearServerErrors(this.taskForm);
 
     const editingId = this.editingTaskId();
     const payload = {
@@ -257,12 +291,23 @@ export class Roadmap implements OnInit {
       this.submitting.set(false);
       this.showTaskDialog.set(false);
       this.editingTaskId.set(null);
+      this.notifications.success(
+        editingId ? 'Sugestão atualizada.' : 'Sugestão publicada.',
+      );
     };
-    const onError = () => {
+    /**
+     * One message, one place: backend `fieldErrors` land under the field and only what is
+     * left over goes to the dialog banner. Previously the banner showed a generic text
+     * while the interceptor toast showed the real one.
+     */
+    const onError = (err: HttpErrorResponse) => {
       this.submitting.set(false);
-      this.formError.set(
+      const { formMessage } = this.apiErrors.handleForm(
+        err,
+        this.taskForm,
         'Não foi possível salvar a sugestão. Tente novamente.',
       );
+      this.formError.set(formMessage);
     };
 
     if (editingId) {
@@ -289,6 +334,7 @@ export class Roadmap implements OnInit {
       return;
     }
     const isAdmin = this.pendingDeleteIsAdmin();
+    this.actionError.set(null);
     const request$ = isAdmin
       ? this.feedbackService.adminDelete(id)
       : this.feedbackService.remove(id);
@@ -296,10 +342,14 @@ export class Roadmap implements OnInit {
       next: () => {
         this.showDeleteDialog.set(false);
         this.pendingDeleteId.set(null);
+        this.notifications.success('Sugestão excluída.');
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.showDeleteDialog.set(false);
         this.pendingDeleteId.set(null);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível excluir a sugestão.'),
+        );
       },
     });
   }
@@ -319,8 +369,15 @@ export class Roadmap implements OnInit {
       (event.target as HTMLSelectElement).value = task.status;
       return;
     }
+    this.actionError.set(null);
     this.feedbackService.updateStatus(task.id, value).subscribe({
-      error: () => void 0,
+      next: () => this.notifications.success('Status atualizado.'),
+      error: (err: HttpErrorResponse) => {
+        (event.target as HTMLSelectElement).value = task.status;
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar o status.'),
+        );
+      },
     });
   }
 
@@ -335,6 +392,7 @@ export class Roadmap implements OnInit {
       return;
     }
     const note = this.rejectNote().trim();
+    this.actionError.set(null);
     this.feedbackService
       .updateStatus(id, 'REJECTED', note.length > 0 ? note : null)
       .subscribe({
@@ -342,11 +400,15 @@ export class Roadmap implements OnInit {
           this.showRejectDialog.set(false);
           this.rejectTaskId.set(null);
           this.rejectNote.set('');
+          this.notifications.success('Sugestão rejeitada.');
         },
-        error: () => {
+        error: (err: HttpErrorResponse) => {
           this.showRejectDialog.set(false);
           this.rejectTaskId.set(null);
           this.rejectNote.set('');
+          this.actionError.set(
+            this.apiErrors.messageFor(err, 'Não foi possível rejeitar a sugestão.'),
+          );
         },
       });
   }

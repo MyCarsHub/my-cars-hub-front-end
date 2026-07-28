@@ -116,10 +116,11 @@
         </label>
       </div>
 
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as loadError) {
+        <app-alert-banner variant="error" [message]="loadError" />
+      }
+      @if (actionError(); as opError) {
+        <app-alert-banner variant="error" [message]="opError" />
       }
 
       @if (loading() && items().length === 0) {

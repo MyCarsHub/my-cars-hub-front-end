@@ -3,7 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, tap, catchError, finalize, throwError, timeout, map, of } from 'rxjs';
 import { OnboardingData, OnboardingState, OnboardingStepPayload } from './onboarding.types';
 import { SessionService } from '../../services/session.service';
-import { NotificationService } from '../../services/notification.service';
+import { ApiErrorService } from '../../services/api-error.service';
 import { environment } from '../../../environments/environment';
 
 export interface OnboardingFinishResponse {
@@ -50,15 +50,17 @@ function normalizeState(s: OnboardingState): OnboardingState {
 export class OnboardingService {
   private readonly http = inject(HttpClient);
   private readonly sessionService = inject(SessionService);
-  private readonly notify = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   /** Local cache of backend state — backend is source of truth */
   private readonly _state = signal<OnboardingState>({ ...INITIAL_STATE });
   readonly loading = signal(false);
-  readonly error = signal<string | null>(null);
 
-  /** Debounces error toasts across concurrent loadState() subscribers. */
-  private errorNotified = false;
+  /**
+   * Load-failure copy for the container banner. Save/finish failures are NOT written here:
+   * the container claims those so it can drop backend `fieldErrors` onto the step form.
+   */
+  readonly loadError = signal<string | null>(null);
 
   // ── Derived signals ──────────────────────────────────────────────────────
   readonly state = this._state.asReadonly();
@@ -77,12 +79,11 @@ export class OnboardingService {
    */
   loadState(): Observable<OnboardingState> {
     this.loading.set(true);
-    this.error.set(null);
+    this.loadError.set(null);
     return this.http.get<OnboardingState>(API_BASE).pipe(
       tap((state) => {
         if (state) {
           this._state.set(normalizeState(state));
-          this.errorNotified = false;
         }
       }),
       catchError((err: HttpErrorResponse) => {
@@ -93,10 +94,16 @@ export class OnboardingService {
         // 404 = fresh user (no onboarding row yet) — expected, silent.
         const current = this._state();
         const preservePopulated = !isInitialState(current);
-        if (err.status !== 404 && !this.errorNotified) {
-          this.errorNotified = true;
-          this.notify.error(
-            'Não conseguimos carregar seu progresso — começando do zero. Tente novamente se precisar.',
+        // Always claim: a 404 here is the expected "fresh user" case and must not reach
+        // the interceptor safety net as a "Registro não encontrado." toast.
+        if (err.status === 404) {
+          this.apiErrors.claim(err);
+        } else {
+          this.loadError.set(
+            this.apiErrors.messageFor(
+              err,
+              'Não conseguimos carregar seu progresso — começando do zero. Tente novamente se precisar.',
+            ),
           );
         }
         if (preservePopulated) {
@@ -117,7 +124,7 @@ export class OnboardingService {
    */
   saveStep(step: number, stepData: Partial<OnboardingData>): Observable<OnboardingState> {
     this.loading.set(true);
-    this.error.set(null);
+    this.loadError.set(null);
 
     // Merge new data with existing — never lose previously saved fields
     const fullData: OnboardingData = {
@@ -145,17 +152,15 @@ export class OnboardingService {
           this.advanceStep();
         }
       }),
-      catchError((err) => {
-        this.error.set('Não foi possível salvar. Tente novamente.');
-        return throwError(() => err);
-      }),
+      // The container owns the message: it distributes backend `fieldErrors` onto the
+      // step form and only banners what is left. Setting it here too showed it twice.
       finalize(() => this.loading.set(false)),
     );
   }
 
   finish(): Observable<OnboardingFinishResponse | null> {
     this.loading.set(true);
-    this.error.set(null);
+    this.loadError.set(null);
     return this.http.post<OnboardingFinishResponse>(`${API_BASE}/finish`, {}).pipe(
       tap((response) => {
         this._state.update((s) => ({ ...s, isCompleted: true }));
@@ -173,11 +178,12 @@ export class OnboardingService {
       catchError((err: HttpErrorResponse) => {
         const errorText = typeof err.error === 'string' ? err.error : JSON.stringify(err.error || {});
         if (err.status === 409 || errorText.includes('já finalizado')) {
+          // Not a failure for the user: swallow it AND claim it so the safety net stays quiet.
+          this.apiErrors.claim(err);
           this._state.update((s) => ({ ...s, isCompleted: true }));
           this.sessionService.setOnboardingCompleted(true);
           return of(null);
         }
-        this.error.set('Não foi possível finalizar o cadastro. Tente novamente.');
         return throwError(() => err);
       }),
       finalize(() => this.loading.set(false)),

@@ -114,6 +114,15 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
   });
 
   describe('compressão antes do upload', () => {
+    // A confirmacao de foto e agrupada numa janela de setTimeout — timers falsos
+    // deixam o fechamento do lote deterministico.
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('sobe o arquivo COMPRIMIDO quando a compressão reduz uma foto acima do cap', async () => {
       const original = file(12 * 1024 * 1024, 'image/jpeg', 'IMG_0002.jpg');
       const compressed = file(900 * 1024);
@@ -133,7 +142,36 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
         'FRONT',
         compressed,
       );
+      // A confirmacao sai no fim do lote, nao na resposta de cada upload.
+      expect(notifications.push).not.toHaveBeenCalledWith('success', 'Foto enviada.');
+      vi.advanceTimersByTime(2000);
       expect(notifications.push).toHaveBeenCalledWith('success', 'Foto enviada.');
+    });
+
+    it('lote de fotos gera UMA confirmacao, nao uma por foto', async () => {
+      const compressed = file(500 * 1024);
+      compression.compress.mockResolvedValue(compressed);
+
+      const fixture = makeFixture();
+      const cmp = api(fixture);
+
+      // Tres angulos enviados em sequencia, dentro da janela de agrupamento.
+      for (const angle of ['FRONT', 'BACK', 'LEFT']) {
+        cmp.pending = angle;
+        cmp.onFileSelected(fileEvent(compressed));
+        await Promise.resolve();
+        await Promise.resolve();
+      }
+
+      expect(rentalService.uploadPhotoWithProgress).toHaveBeenCalledTimes(3);
+
+      vi.advanceTimersByTime(2000);
+
+      const confirmations = notifications.push.mock.calls.filter(
+        (call) => call[0] === 'success',
+      );
+      expect(confirmations).toHaveLength(1);
+      expect(confirmations[0]).toEqual(['success', '3 fotos enviadas.']);
     });
 
     it('fallback: compressão devolve o original (HEIC) e o upload prossegue', async () => {

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -85,20 +86,21 @@ describe('ContractTemplate — open/download raw template', () => {
     revokeUrl.mockRestore();
   });
 
-  it('downloadTemplate: erro HTTP dispara toast e reseta loading', () => {
+  it('downloadTemplate: erro HTTP vira banner inline, nunca toast', () => {
     service.downloadTemplate.mockReturnValue(
-      throwError(() => ({ error: { message: 'boom' } })),
+      throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'boom' } })),
     );
     const fixture = makeFixture();
     (fixture.componentInstance as any).downloadTemplate();
 
-    expect(notifications.push).toHaveBeenCalledWith('error', 'boom');
+    expect((fixture.componentInstance as any).error()).toBe('boom');
+    expect(notifications.push).not.toHaveBeenCalledWith('error', 'boom');
     expect((fixture.componentInstance as any).downloading()).toBe(false);
   });
 
   it('openTemplateAsHtml: abre nova aba, chama service e reseta loading em erro', () => {
     service.downloadTemplate.mockReturnValue(
-      throwError(() => ({ error: { message: 'fetch failed' } })),
+      throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'fetch failed' } })),
     );
 
     const fakeWin = {
@@ -118,21 +120,20 @@ describe('ContractTemplate — open/download raw template', () => {
     expect(openSpy).toHaveBeenCalledWith('', '_blank');
     expect(fakeWin.document.write).toHaveBeenCalled();
     expect(service.downloadTemplate).toHaveBeenCalledOnce();
-    expect(notifications.push).toHaveBeenCalledWith('error', 'fetch failed');
+    expect((fixture.componentInstance as any).error()).toBe('fetch failed');
     expect((fixture.componentInstance as any).opening()).toBe(false);
 
     openSpy.mockRestore();
   });
 
-  it('openTemplateAsHtml: pop-up bloqueado → toast e sem chamar service', () => {
+  it('openTemplateAsHtml: pop-up bloqueado → banner inline e sem chamar service', () => {
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
 
     const fixture = makeFixture();
     (fixture.componentInstance as any).openTemplateAsHtml();
 
     expect(service.downloadTemplate).not.toHaveBeenCalled();
-    expect(notifications.push).toHaveBeenCalledWith(
-      'error',
+    expect((fixture.componentInstance as any).error()).toBe(
       'Permita pop-ups pra abrir o template.',
     );
     expect((fixture.componentInstance as any).opening()).toBe(false);
