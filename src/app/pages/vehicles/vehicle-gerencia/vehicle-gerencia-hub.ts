@@ -9,8 +9,6 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
-import { PageCard } from '../../../components/core/page-card/page-card';
-import { StatTile, StatTileTone } from '../../../components/core/stat-tile/stat-tile';
 import {
   VehicleSummaryChip,
   VehicleSummary,
@@ -36,8 +34,6 @@ interface TabDef {
   imports: [
     RouterLink,
     DefaultPageLayout,
-    PageCard,
-    StatTile,
     VehicleSummaryChip,
     FinancingsList,
     MaintenancesList,
@@ -164,32 +160,27 @@ export class VehicleGerenciaHub implements OnInit {
     return rentalStatusInfo(status);
   }
 
-  /**
-   * Sign-aware currency. Verde (`success-700`) só entra como "boa notícia
-   * confirmada" — lucro positivo; prejuízo fica em rose e o neutro em Carbon.
-   * Regra do guia de identidade: "Green appears only when something is
-   * confirmed, verified or good news."
-   */
-  protected resultTone(cents: number): StatTileTone {
-    if (cents > 0) return 'positive';
-    if (cents < 0) return 'negative';
-    return 'neutral';
+  /** Sign-aware currency: negative results shown in red, positive in green. */
+  protected resultClass(cents: number): string {
+    if (cents > 0) return 'text-emerald-700';
+    if (cents < 0) return 'text-rose-700';
+    return 'text-neutral-900';
   }
 
   /**
    * Color for the "Recebido" amount vs contracted revenue:
-   * - equal (fully paid) → verde `success-700` (confirmado — único caso de verde)
+   * - equal (fully paid) → emerald
    * - < revenue but > 0 (partial) → amber
-   * - 0 with revenue > 0 → Smoke (hint shown separately)
-   * - both zero → Carbon
+   * - 0 with revenue > 0 → neutral gray (hint shown separately)
+   * - both zero → neutral
    */
-  protected receivedTone(finance: GerenciaFinanceChunk): StatTileTone {
+  protected receivedClass(finance: GerenciaFinanceChunk): string {
     const rev = finance.totalRentalRevenueCents;
     const recv = finance.totalRentalReceivedCents;
-    if (rev === 0 && recv === 0) return 'neutral';
-    if (recv === 0) return 'muted';
-    if (recv >= rev) return 'positive';
-    return 'warning';
+    if (rev === 0 && recv === 0) return 'text-neutral-900';
+    if (recv === 0) return 'text-neutral-500';
+    if (recv >= rev) return 'text-emerald-700';
+    return 'text-amber-700';
   }
 
   protected licensingChipLabel(): { label: string; chip: string } | null {
