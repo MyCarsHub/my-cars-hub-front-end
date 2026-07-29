@@ -10,9 +10,14 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { OnboardingData } from '../onboarding.types';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { stripDigits } from '../../../utils/format';
+import {
+  applyMaskedDocumentInput,
+  cpfShapeValidator,
+  maskCpf,
+  normalizeCpf,
+} from '../../../utils/document-mask';
 import { cpfValidator } from '../../../utils/validators/cpf.validator';
 
-const CPF_PATTERN = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/;
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
 @Component({
@@ -101,7 +106,7 @@ export class StepPersonal implements OnInit {
   };
   protected readonly cpfMessages: Readonly<Record<string, string>> = {
     required: 'CPF é obrigatório.',
-    pattern: 'CPF inválido. Use o formato 000.000.000-00.',
+    cpfShape: 'CPF inválido. Use o formato 000.000.000-00.',
     cpfInvalid: 'CPF inválido.',
   };
   protected readonly phoneMessages: Readonly<Record<string, string>> = {
@@ -111,7 +116,7 @@ export class StepPersonal implements OnInit {
 
   readonly form: FormGroup = this.fb.group({
     name: ['', Validators.required],
-    cpf: ['', [Validators.required, Validators.pattern(CPF_PATTERN), cpfValidator()]],
+    cpf: ['', [Validators.required, cpfShapeValidator(), cpfValidator()]],
     phoneNumber: ['', [Validators.required, Validators.pattern(PHONE_PATTERN)]],
   });
 
@@ -125,10 +130,11 @@ export class StepPersonal implements OnInit {
 
     this.form.valueChanges.subscribe((val) => {
       // Emit RAW (digits-only) values so the container/service can POST them
-      // straight to the backend without further normalization.
+      // straight to the backend without further normalization. The CPF stays a
+      // STRING throughout — a leading zero must survive to the request body.
       this.formChange.emit({
         name: val.name ?? '',
-        cpf: stripDigits(val.cpf),
+        cpf: normalizeCpf(val.cpf),
         phoneNumber: stripDigits(val.phoneNumber),
       });
       this.isValid.emit(this.form.valid);
@@ -145,23 +151,9 @@ export class StepPersonal implements OnInit {
     this.form.markAllAsTouched();
   }
 
+  /** Progressive CPF mask, caret preserved. */
   protected onCpfInput(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    let value = input.value.replace(/\D/g, '');
-    if (value.length > 11) value = value.slice(0, 11);
-
-    let formatted = '';
-    if (value.length > 9) {
-      formatted = `${value.slice(0, 3)}.${value.slice(3, 6)}.${value.slice(6, 9)}-${value.slice(9)}`;
-    } else if (value.length > 6) {
-      formatted = `${value.slice(0, 3)}.${value.slice(3, 6)}.${value.slice(6)}`;
-    } else if (value.length > 3) {
-      formatted = `${value.slice(0, 3)}.${value.slice(3)}`;
-    } else {
-      formatted = value;
-    }
-
-    this.form.get('cpf')?.setValue(formatted, { emitEvent: true });
+    applyMaskedDocumentInput(event, this.form.get('cpf'), maskCpf);
   }
 
   protected onPhoneInput(event: Event): void {
