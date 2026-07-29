@@ -5,6 +5,7 @@ import { OnboardingData, OnboardingState, OnboardingStepPayload } from './onboar
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { environment } from '../../../environments/environment';
+import { normalizeDocument } from '../../utils/document-mask';
 
 export interface OnboardingFinishResponse {
   message: string;
@@ -12,6 +13,11 @@ export interface OnboardingFinishResponse {
   companyId: string;
   companyName: string;
   role: string;
+}
+
+/** `POST /onboarding/cnpj-availability` — `available` is always true on 200. */
+export interface CnpjAvailabilityResponse {
+  available: boolean;
 }
 
 const API_BASE = `${environment.apiUrl}/onboarding`;
@@ -55,6 +61,12 @@ export class OnboardingService {
   /** Local cache of backend state — backend is source of truth */
   private readonly _state = signal<OnboardingState>({ ...INITIAL_STATE });
   readonly loading = signal(false);
+
+  /** True while the advisory CNPJ availability check is in flight. */
+  readonly checkingCnpj = signal(false);
+
+  /** Canonical CNPJs already confirmed available — keeps the 5/60s bucket intact. */
+  private readonly availableCnpjs = new Set<string>();
 
   /**
    * Load-failure copy for the container banner. Save/finish failures are NOT written here:
@@ -156,6 +168,37 @@ export class OnboardingService {
       // step form and only banners what is left. Setting it here too showed it twice.
       finalize(() => this.loading.set(false)),
     );
+  }
+
+  /**
+   * Advisory check that a CNPJ can still be claimed, so the user is told at the document
+   * step instead of at "Finalizar" — where the whole transaction aborts.
+   *
+   * NOT a guarantee: a database trigger is what actually enforces uniqueness at write
+   * time, and someone else may claim the document between this call and `/finish`.
+   *
+   * POST, not GET, on purpose: the document is PII and must never reach a query string,
+   * access log, browser history or `Referer`.
+   *
+   * The endpoint is rate-limited to 5 requests / 60s per IP, so results are memoised per
+   * canonical document — re-clicking "Próximo" with an unchanged value costs nothing.
+   * Callers must not invoke this while the local mod-11 check is failing.
+   */
+  checkCnpjAvailability(cnpj: string): Observable<CnpjAvailabilityResponse> {
+    // Always a string — canonical form, letters upper-cased, separators stripped.
+    const document = normalizeDocument(cnpj);
+    if (this.availableCnpjs.has(document)) {
+      return of({ available: true });
+    }
+
+    this.checkingCnpj.set(true);
+    return this.http
+      .post<CnpjAvailabilityResponse>(`${API_BASE}/cnpj-availability`, { cnpj: document })
+      .pipe(
+        timeout(15000),
+        tap(() => this.availableCnpjs.add(document)),
+        finalize(() => this.checkingCnpj.set(false)),
+      );
   }
 
   finish(): Observable<OnboardingFinishResponse | null> {

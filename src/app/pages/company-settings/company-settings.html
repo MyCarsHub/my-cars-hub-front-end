@@ -29,53 +29,73 @@
                     </svg>
                 </div>
 
-                <div cardActions class="flex flex-wrap items-center gap-2">
-                    <span
-                        class="text-xs font-semibold uppercase tracking-wider text-neutral-500 bg-neutral-100 border border-neutral-200 px-2.5 py-1 rounded-md">
-                        Somente leitura
-                    </span>
-                </div>
-
                 <div class="px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8 space-y-3">
                     @if (error(); as loadError) {
                     <app-alert-banner variant="error" [message]="loadError" />
                     }
-                    <app-alert-banner variant="info"
-                        message="A edição dos dados da empresa ainda não está disponível — o backend não expõe um endpoint para isso. Para alterar nome ou documento, fale com o suporte." />
+                    @if (saveError(); as formError) {
+                    <app-alert-banner data-save-error variant="error" [message]="formError" />
+                    }
                 </div>
 
-                <form [formGroup]="companyForm" class="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                <form [formGroup]="companyForm" (ngSubmit)="save()" novalidate
+                    class="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+
                     <div class="md:col-span-2">
-                        <app-primary-input label="Nome da Empresa" placeholder="Ex: MyCarsHub Ltda"
-                            formControlName="name" />
+                        <app-form-field label="Nome da Empresa" controlId="company-name" [required]="true"
+                            [control]="companyForm.get('name')" [messages]="nameMessages">
+                            <input appFieldControl formControlName="name" type="text" autocomplete="organization"
+                                maxlength="200" placeholder="Ex: MyCarsHub Ltda"
+                                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                                       focus:outline-none focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base
+                                       transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
+                        </app-form-field>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo de Documento</label>
-                        <select formControlName="documentType"
-                            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60 disabled:cursor-not-allowed appearance-none">
-                            @if (companyInfo()?.documentType) {
-                            <option [value]="companyInfo()?.documentType">{{ companyInfo()?.documentType }}</option>
-                            }
-                            @if (companyInfo()?.documentType !== 'CNPJ') { <option value="CNPJ">CNPJ</option> }
-                            @if (companyInfo()?.documentType !== 'CPF') { <option value="CPF">CPF</option> }
-                        </select>
-                    </div>
+                    <div class="md:col-span-2 space-y-3">
+                        <div>
+                            <p class="block text-sm font-medium text-neutral-500 mb-1">Documento atual</p>
+                            <p class="text-neutral-800 font-medium">
+                                @if (currentDocument()) {
+                                {{ companyInfo()?.documentType }} · {{ currentDocument() }}
+                                } @else {
+                                Nenhum documento cadastrado
+                                }
+                            </p>
+                        </div>
 
-                    <app-primary-input label="Número do Documento" placeholder="00.000.000/0000-00"
-                        formControlName="documentNumber" />
+                        <app-form-field label="Alterar documento (CPF ou CNPJ)" controlId="company-document"
+                            [control]="companyForm.get('documentValue')" [messages]="documentMessages"
+                            hint="Deixe em branco para manter o documento atual. O CNPJ pode conter letras.">
+                            <input appFieldControl formControlName="documentValue" type="text" inputmode="text"
+                                autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="18"
+                                placeholder="000.000.000-00 ou 00.000.000/0000-00" (input)="onDocumentInput($event)"
+                                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 uppercase placeholder:normal-case
+                                       focus:outline-none focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base
+                                       transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
+                        </app-form-field>
+                    </div>
 
                     <div class="pt-2">
-                        <label class="block text-sm font-medium text-neutral-500 mb-1">Data de Fundação</label>
+                        <p class="block text-sm font-medium text-neutral-500 mb-1">Data de Fundação</p>
                         <p class="text-neutral-800 font-medium">{{ companyInfo()?.createdDate }}</p>
                     </div>
 
                     <div class="pt-2">
-                        <label class="block text-sm font-medium text-neutral-500 mb-1">Status da Conta</label>
+                        <p class="block text-sm font-medium text-neutral-500 mb-1">Status da Conta</p>
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                      bg-emerald-100 text-emerald-800 border border-emerald-200">
                             {{ companyInfo()?.status }}
                         </span>
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col sm:flex-row sm:justify-end gap-3 pt-2">
+                        <button type="submit" [disabled]="saving()" [attr.aria-busy]="saving() ? 'true' : null"
+                            class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-semibold bg-primary-500 text-white
+                                   hover:bg-primary-600 shadow-sm focus:outline-none focus-visible:ring-2
+                                   focus-visible:ring-primary-base/40 disabled:opacity-60 disabled:cursor-not-allowed">
+                            {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
+                        </button>
                     </div>
                 </form>
 

@@ -27,7 +27,28 @@ import { SessionService } from '../../services/session.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl } from '@angular/forms';
 import { clearServerErrors } from '../../services/api-error';
+import { isValidCnpj } from '../../utils/validators/cnpj.validator';
 import * as Sentry from '@sentry/angular';
+
+/** The document step. Its CNPJ is checked for availability before the step is saved. */
+const DOCUMENT_STEP = 3;
+
+/**
+ * Reads `retryAfterSeconds` from the 429 body. The endpoint is capped at 5 requests /
+ * 60s per IP; we never retry automatically, we tell the user how long to wait.
+ */
+function retryAfterSecondsOf(err: HttpErrorResponse): number | null {
+  const body: unknown = err.error;
+  if (typeof body === 'object' && body !== null && 'retryAfterSeconds' in body) {
+    const seconds = (body as { retryAfterSeconds?: unknown }).retryAfterSeconds;
+    if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) {
+      return Math.ceil(seconds);
+    }
+  }
+  const header = err.headers?.get('Retry-After');
+  const parsed = header === null || header === undefined ? NaN : Number(header);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.ceil(parsed) : null;
+}
 
 @Component({
   selector: 'app-onboarding-container',
@@ -90,10 +111,18 @@ export class OnboardingContainer implements OnInit {
   /** References to step components so we can call markAllTouched() */
   private readonly stepPersonalRef = viewChild(StepPersonal);
   private readonly stepCompanyRef = viewChild(StepCompany);
+  private readonly stepDocumentRef = viewChild(StepDocument);
 
   protected readonly currentStep = this.svc.currentStep;
   protected readonly totalSteps = this.svc.totalSteps;
   protected readonly loading = this.svc.loading;
+
+  /**
+   * Anything that must lock the footer: a step save/finish, or the CNPJ availability
+   * check. Without it a slow availability response would leave "Próximo" clickable and
+   * the user could fire the request again — straight into the 5/60s rate limit.
+   */
+  protected readonly busy = computed(() => this.svc.loading() || this.svc.checkingCnpj());
 
   /**
    * Single banner slot for the whole wizard. Save / finish failures are claimed here
@@ -118,6 +147,7 @@ export class OnboardingContainer implements OnInit {
   }));
 
   protected readonly nextLabel = computed(() => {
+    if (this.svc.checkingCnpj()) return 'Verificando...';
     if (this.svc.loading()) return 'Salvando...';
     return this.svc.isLastStep() ? 'Acessar Plataforma' : 'Próximo';
   });
@@ -162,17 +192,22 @@ export class OnboardingContainer implements OnInit {
         return this.stepPersonalRef()?.form ?? null;
       case 2:
         return this.stepCompanyRef()?.form ?? null;
+      case DOCUMENT_STEP:
+        // Without this the backend `fieldErrors.cnpj` had nowhere to land and the
+        // message fell through to the wizard banner instead of under the field.
+        return this.stepDocumentRef()?.form ?? null;
       default:
         return null;
     }
   }
 
   protected onNext(): void {
-    if (this.svc.loading()) return;
+    if (this.busy()) return;
 
     if (!this.stepValid()) {
       this.stepPersonalRef()?.markAllTouched();
       this.stepCompanyRef()?.markAllTouched();
+      this.stepDocumentRef()?.markAllTouched();
       return;
     }
 
@@ -234,15 +269,71 @@ export class OnboardingContainer implements OnInit {
       ...this.pendingData(),
     };
 
-    this.svc.saveStep(step, fullData).subscribe({
-      next: () => {
-        this.stepValid.set(false);
-        this.pendingData.set({});
-        this.direction.set('forward');
-      },
-      error: (err: HttpErrorResponse) =>
-        this.claimStepError(err, 'Não foi possível salvar esta etapa. Tente novamente.'),
-    });
+    if (step === DOCUMENT_STEP && fullData.hasCnpj && isValidCnpj(fullData.cnpj ?? '')) {
+      this.saveAfterAvailabilityCheck(step, fullData);
+      return;
+    }
+
+    this.saveStepAndAdvance(step, fullData);
+  }
+
+  /**
+   * Advisory pre-flight for the document step. `stepValid()` already guarantees the
+   * local mod-11 passed, and the `isValidCnpj` guard above repeats it, so a value the
+   * client can already reject never costs a request against the 5/60s bucket.
+   *
+   * A 409 / 400 blocks and lands inline on the field. A 429 blocks with the wait time.
+   * Anything else — offline, timeout, 5xx — lets the user through: the check is a
+   * courtesy and `/finish` plus the database trigger remain the real gate.
+   */
+  private saveAfterAvailabilityCheck(step: number, fullData: OnboardingData): void {
+    this.svc
+      .checkCnpjAvailability(fullData.cnpj ?? '')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.saveStepAndAdvance(step, fullData),
+        error: (err: HttpErrorResponse) => {
+          if (err.status === 409 || err.status === 400) {
+            // Copy comes from the backend: the 409 is deliberately generic and must not
+            // be reworded into anything that confirms a registration exists.
+            this.claimStepError(err, 'Não foi possível usar este CNPJ.');
+            return;
+          }
+          if (err.status === 429) {
+            this.blockForRateLimit(err);
+            return;
+          }
+          // Advisory only — never trap the user behind a check that failed on our side.
+          this.apiErrors.claim(err);
+          this.saveStepAndAdvance(step, fullData);
+        },
+      });
+  }
+
+  /** 429: tell the user how long to wait. We never retry on their behalf. */
+  private blockForRateLimit(err: HttpErrorResponse): void {
+    this.apiErrors.claim(err);
+    const seconds = retryAfterSecondsOf(err);
+    this.actionError.set(
+      seconds === null
+        ? 'Muitas verificações seguidas. Aguarde um minuto e tente novamente.'
+        : `Muitas verificações seguidas. Aguarde ${seconds} segundos e tente novamente.`,
+    );
+  }
+
+  private saveStepAndAdvance(step: number, fullData: OnboardingData): void {
+    this.svc
+      .saveStep(step, fullData)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.stepValid.set(false);
+          this.pendingData.set({});
+          this.direction.set('forward');
+        },
+        error: (err: HttpErrorResponse) =>
+          this.claimStepError(err, 'Não foi possível salvar esta etapa. Tente novamente.'),
+      });
   }
 
   /**
@@ -309,7 +400,7 @@ export class OnboardingContainer implements OnInit {
   }
 
   protected onBack(): void {
-    if (this.svc.loading() || this.svc.isFirstStep()) return;
+    if (this.busy() || this.svc.isFirstStep()) return;
 
     this.actionError.set(null);
     this.svc.loadState().subscribe({
