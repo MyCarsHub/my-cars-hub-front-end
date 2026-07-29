@@ -19,7 +19,6 @@ export class LandingNavComponent {
     { href: '/#problema', label: 'Problema' },
     { href: '/#solucao', label: 'Solução' },
     { href: '/#funcionalidades', label: 'Funcionalidades' },
-    { href: '/#integracoes', label: 'Integrações' },
     { href: '/#planos', label: 'Planos' },
   ];
 
