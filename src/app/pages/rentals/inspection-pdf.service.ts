@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Signal, inject, signal } from '@angular/core';
+import * as Sentry from '@sentry/angular';
 // Type-only import — erased at runtime, so pdf-lib remains lazy-loaded.
 import type { PDFPage, PDFPageDrawTextOptions } from 'pdf-lib';
 import { Observable, from, of } from 'rxjs';
@@ -28,6 +29,22 @@ export interface InspectionPdfUploadDto {
   signedUrl: string;
   ttlSeconds: number;
   sizeBytes: number;
+}
+
+/**
+ * What `generateAndUpload` emits: the backend upload response plus the
+ * degradation report of the local render.
+ *
+ * A photo whose bytes `pdf-lib` refuses to embed (corrupt download, exotic
+ * codec that survived compression, canvas fallback that returned a
+ * non-JPEG/PNG blob) is dropped from the document so the laudo is still
+ * produced — but the drop is NOT silent: each label lands here so the caller
+ * can warn the operator that the PDF is incomplete.
+ *
+ * Empty array = every photo made it in (the normal path).
+ */
+export interface InspectionPdfResult extends InspectionPdfUploadDto {
+  skippedPhotoLabels: string[];
 }
 
 /** Fine-grained progress reported while the PDF is generated + uploaded. */
@@ -221,15 +238,20 @@ export class InspectionPdfService {
    * upload endpoint. Photos are rendered in the canonical
    * {@link RENTAL_PHOTO_ANGLES} order — missing angles are skipped without
    * error to preserve UX parity with the old flow.
+   *
+   * Photos that fail to embed do not abort the run, but they are reported:
+   * see {@link InspectionPdfResult.skippedPhotoLabels}.
    */
   generateAndUpload(
     rentalId: string,
     kind: RentalPhotoKind,
     context: InspectionPdfContext,
     photos: RentalPhotoDto[],
-  ): Observable<InspectionPdfUploadDto> {
+  ): Observable<InspectionPdfResult> {
     return from(this.render(kind, context, photos)).pipe(
-      switchMap((blob) => this.upload(rentalId, kind, blob)),
+      switchMap(({ blob, skippedPhotoLabels }) =>
+        this.upload(rentalId, kind, blob, skippedPhotoLabels),
+      ),
       catchError((err) => {
         this._progress.set({
           step: 'error',
@@ -251,7 +273,7 @@ export class InspectionPdfService {
     kind: RentalPhotoKind,
     context: InspectionPdfContext,
     photos: RentalPhotoDto[],
-  ): Promise<Blob> {
+  ): Promise<{ blob: Blob; skippedPhotoLabels: string[] }> {
     // Lazy import — keeps pdf-lib (~200KB gz) out of the initial bundle.
     const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
 
@@ -352,8 +374,9 @@ export class InspectionPdfService {
     }
 
     // -------------- One page per photo --------------
+    const skippedPhotoLabels: string[] = [];
     for (let i = 0; i < photoBytes.length; i++) {
-      const { label, bytes } = photoBytes[i];
+      const { photo, label, bytes } = photoBytes[i];
       this._progress.set({
         step: 'rendering',
         current: i + 1,
@@ -367,10 +390,17 @@ export class InspectionPdfService {
       let image;
       try {
         image = await doc.embedJpg(bytes);
-      } catch {
+      } catch (jpgErr) {
         try {
           image = await doc.embedPng(bytes);
-        } catch {
+        } catch (pngErr) {
+          // Both encoders refused these bytes. Degrading (PDF without this
+          // page) is still the right call — a laudo with 13 of 14 photos
+          // beats no laudo at all — but it must never be silent: this used
+          // to be a bare `continue`, so operators downloaded incomplete
+          // documents believing they were complete.
+          this.reportPhotoEmbedFailure(label, photo, jpgErr, pngErr);
+          skippedPhotoLabels.push(label);
           continue;
         }
       }
@@ -399,14 +429,44 @@ export class InspectionPdfService {
     }
 
     const pdfBytes = await doc.save();
-    return new Blob([pdfBytes as unknown as ArrayBuffer], { type: 'application/pdf' });
+    const blob = new Blob([pdfBytes as unknown as ArrayBuffer], { type: 'application/pdf' });
+    return { blob, skippedPhotoLabels };
+  }
+
+  /**
+   * Makes a dropped photo observable on both channels the project already
+   * uses: `console.error` for local/devtools visibility (the only console
+   * method allowed by the project's `no-console` lint rule, same pattern as
+   * `auth.service.ts`) and `Sentry.captureException` for prod telemetry
+   * (same pattern as `onboarding-container.ts`).
+   *
+   * NOTE: `environment.sentryDsn` is empty in both environment files today,
+   * so the Sentry call is a no-op until the DSN is configured — the
+   * `console.error` and the returned `skippedPhotoLabels` are what actually
+   * surface the failure right now.
+   */
+  private reportPhotoEmbedFailure(
+    label: string,
+    photo: RentalPhotoDto,
+    jpgErr: unknown,
+    pngErr: unknown,
+  ): void {
+    console.error(
+      `[inspection-pdf] foto "${label}" não pôde ser embutida no PDF e foi omitida.`,
+      { photoId: photo.id, angle: photo.angle, mimeType: photo.mimeType, jpgErr, pngErr },
+    );
+    Sentry.captureException(pngErr instanceof Error ? pngErr : new Error(String(pngErr)), {
+      tags: { source: 'inspection-pdf.embedPhoto' },
+      extra: { label, photoId: photo.id, angle: photo.angle, mimeType: photo.mimeType, jpgErr },
+    });
   }
 
   private upload(
     rentalId: string,
     kind: RentalPhotoKind,
     blob: Blob,
-  ): Observable<InspectionPdfUploadDto> {
+    skippedPhotoLabels: string[],
+  ): Observable<InspectionPdfResult> {
     this._progress.set({
       step: 'uploading',
       current: 0,
@@ -418,13 +478,17 @@ export class InspectionPdfService {
     const url = `${environment.apiUrl}/rentals/${rentalId}/inspections/${kind.toLowerCase()}/upload-pdf`;
     return this.http.post<InspectionPdfUploadDto>(url, form).pipe(
       switchMap((res) => {
+        const skipped = skippedPhotoLabels.length;
         this._progress.set({
           step: 'done',
           current: 1,
           total: 1,
-          message: 'PDF enviado.',
+          message:
+            skipped === 0
+              ? 'PDF enviado.'
+              : `PDF enviado sem ${skipped} foto(s): ${skippedPhotoLabels.join(', ')}.`,
         });
-        return of(res);
+        return of({ ...res, skippedPhotoLabels });
       }),
     );
   }

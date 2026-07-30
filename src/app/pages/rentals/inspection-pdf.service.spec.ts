@@ -3,7 +3,12 @@ import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InspectionPdfService, compressImage, sanitizeForWinAnsi } from './inspection-pdf.service';
+import {
+  InspectionPdfResult,
+  InspectionPdfService,
+  compressImage,
+  sanitizeForWinAnsi,
+} from './inspection-pdf.service';
 import { environment } from '../../../environments/environment';
 import { RentalPhotoDto, RentalResponseDto } from '../../types/rental.types';
 
@@ -171,6 +176,58 @@ describe('InspectionPdfService.generateAndUpload', () => {
           error: reject,
         });
     });
+  });
+
+  // Controle negativo do bug "falha silenciosa de foto": antes, embedJpg e
+  // embedPng falhando resultavam num `continue` mudo — o PDF subia sem a
+  // foto e nem usuário, nem log, nem Sentry ficavam sabendo. Este teste
+  // falha se alguém reintroduzir aquele catch vazio.
+  it('still uploads the PDF when a photo fails to embed, but reports the failure', async () => {
+    const pdfLib = await import('pdf-lib');
+    const doc = await pdfLib.PDFDocument.create();
+    vi.mocked(doc.embedJpg).mockRejectedValueOnce(new Error('not a jpg'));
+    vi.mocked(doc.embedPng).mockRejectedValueOnce(new Error('not a png'));
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const photos = [photo('FRONT', 'p1')];
+      const res = await new Promise<InspectionPdfResult>((resolve, reject) => {
+        service
+          .generateAndUpload(
+            RID,
+            'CHECKIN',
+            { rental: rental(), vehicle: null, driver: null },
+            photos,
+          )
+          .subscribe({ next: resolve, error: reject });
+      });
+
+      // (a) degradação, não aborto: o PDF continua sendo gerado e enviado.
+      expect(httpPost).toHaveBeenCalledTimes(1);
+      expect(res.id).toBe('doc-1');
+
+      // (b) a falha é observável: contabilizada no resultado, logada com
+      //     contexto útil e refletida na mensagem de progresso.
+      expect(res.skippedPhotoLabels).toHaveLength(1);
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(String(logged.mock.calls[0][0])).toContain('não pôde ser embutida');
+      expect(logged.mock.calls[0][1]).toMatchObject({ photoId: 'p1', angle: 'FRONT' });
+      expect(service.progress().message).toContain('sem 1 foto');
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it('reports no skipped photos on the happy path', async () => {
+    const res = await new Promise<InspectionPdfResult>((resolve, reject) => {
+      service
+        .generateAndUpload(RID, 'CHECKIN', { rental: rental(), vehicle: null, driver: null }, [
+          photo('FRONT', 'p1'),
+        ])
+        .subscribe({ next: resolve, error: reject });
+    });
+    expect(res.skippedPhotoLabels).toEqual([]);
+    expect(service.progress().message).toBe('PDF enviado.');
   });
 
 it('lowercases kind in the upload URL (CHECKOUT -> checkout)', async () => {
