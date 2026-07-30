@@ -31,6 +31,15 @@ export default tseslint.config(
     },
   },
   {
+    // LoggerService is the single sanctioned console surface: it wraps
+    // `console.error` behind `warn()` / `error()` and mirrors both to Sentry.
+    // The global `no-console` rule above stays untouched for every other file.
+    files: ['src/app/services/logger.service.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['**/*.html'],
     extends: [...angular.configs.templateRecommended],
     rules: {

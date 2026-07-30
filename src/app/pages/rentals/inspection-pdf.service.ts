@@ -1,6 +1,5 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Signal, inject, signal } from '@angular/core';
-import * as Sentry from '@sentry/angular';
 // Type-only import — erased at runtime, so pdf-lib remains lazy-loaded.
 import type { PDFPage, PDFPageDrawTextOptions } from 'pdf-lib';
 import { Observable, from, of } from 'rxjs';
@@ -14,6 +13,7 @@ import {
   RentalResponseDto,
 } from '../../types/rental.types';
 import { DriverResponse } from '../../types/driver.types';
+import { LoggerService } from '../../services/logger.service';
 import { Vehicle } from '../../types/vehicle.types';
 
 /**
@@ -225,6 +225,7 @@ export function sanitizeForWinAnsi(text: string): string {
 @Injectable({ providedIn: 'root' })
 export class InspectionPdfService {
   private readonly http = inject(HttpClient);
+  private readonly logger = inject(LoggerService);
   private readonly _progress = signal<InspectionPdfProgress>(IDLE);
 
   /** Observable-ish view of the current generation step for UX feedback. */
@@ -434,16 +435,17 @@ export class InspectionPdfService {
   }
 
   /**
-   * Makes a dropped photo observable on both channels the project already
-   * uses: `console.error` for local/devtools visibility (the only console
-   * method allowed by the project's `no-console` lint rule, same pattern as
-   * `auth.service.ts`) and `Sentry.captureException` for prod telemetry
-   * (same pattern as `onboarding-container.ts`).
+   * Makes a dropped photo observable through `LoggerService.warn`.
    *
-   * NOTE: `environment.sentryDsn` is empty in both environment files today,
-   * so the Sentry call is a no-op until the DSN is configured — the
-   * `console.error` and the returned `skippedPhotoLabels` are what actually
-   * surface the failure right now.
+   * This is a WARNING, not an error: the laudo is still generated, uploaded
+   * and usable — it is just missing one photo. Logging it at error level would
+   * put it in the same Sentry bucket as "PDF generation failed", where it
+   * would compete for the same triage attention.
+   *
+   * NOTE: `environment.sentryDsn` is empty in both environment files today, so
+   * the Sentry side is a no-op until the DSN is configured — the console line
+   * and the returned `skippedPhotoLabels` are what actually surface the
+   * failure right now.
    */
   private reportPhotoEmbedFailure(
     label: string,
@@ -451,14 +453,10 @@ export class InspectionPdfService {
     jpgErr: unknown,
     pngErr: unknown,
   ): void {
-    console.error(
+    this.logger.warn(
       `[inspection-pdf] foto "${label}" não pôde ser embutida no PDF e foi omitida.`,
       { photoId: photo.id, angle: photo.angle, mimeType: photo.mimeType, jpgErr, pngErr },
     );
-    Sentry.captureException(pngErr instanceof Error ? pngErr : new Error(String(pngErr)), {
-      tags: { source: 'inspection-pdf.embedPhoto' },
-      extra: { label, photoId: photo.id, angle: photo.angle, mimeType: photo.mimeType, jpgErr },
-    });
   }
 
   private upload(
