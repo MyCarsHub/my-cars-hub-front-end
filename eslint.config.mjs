@@ -14,8 +14,10 @@ export default tseslint.config(
     ],
     processor: angular.processInlineTemplates,
     rules: {
-      // P0: block console usage (except console.error for hard failures)
-      'no-console': ['error', { allow: ['error'] }],
+      // P0: block console usage outright. Everything that needs to record an
+      // event goes through LoggerService (warn/error), which is the only file
+      // with an override below. `main.ts` has its own scoped override.
+      'no-console': 'error',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@angular-eslint/component-selector': 'off',
@@ -35,6 +37,15 @@ export default tseslint.config(
     // `console.error` behind `warn()` / `error()` and mirrors both to Sentry.
     // The global `no-console` rule above stays untouched for every other file.
     files: ['src/app/services/logger.service.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
+    // Bootstrap failure happens before the injector exists, so there is no
+    // LoggerService to route it through — `console.error` is the only channel
+    // left and losing it would make a dead app silent.
+    files: ['src/main.ts'],
     rules: {
       'no-console': 'off',
     },

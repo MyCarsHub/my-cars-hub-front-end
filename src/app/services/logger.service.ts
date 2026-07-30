@@ -12,12 +12,13 @@ export type LogContext = Record<string, unknown>;
 /**
  * Single, centralized logging surface for the app.
  *
- * Why it exists: the project's `no-console` lint rule only allows
- * `console.error`, so before this service every event worth recording — a
- * hard failure and a partial degradation alike — had to be written as an
- * "error". Once the Sentry DSN is configured both would land in the same
- * bucket and compete for the same attention. `warn` vs `error` here maps
- * directly onto Sentry's `warning` vs `error` severities, so triage works.
+ * Why it exists: before this service the project's `no-console` rule allowed
+ * only `console.error`, so every event worth recording — a hard failure and a
+ * partial degradation alike — had to be written as an "error". Once the Sentry
+ * DSN is configured both would land in the same bucket and compete for the same
+ * attention. `warn` vs `error` here maps directly onto Sentry's `warning` vs
+ * `error` severities, so triage works. `no-console` is now `error` with no
+ * exceptions; this file and `main.ts` (bootstrap) carry the only overrides.
  *
  * This file is the ONLY place in `src/` allowed to call `console.*` — see the
  * scoped override in `eslint.config.mjs`. Everything else goes through here.
@@ -41,9 +42,9 @@ export class LoggerService {
    * Partial degradation: the user still has a usable outcome, but something
    * was skipped, retried or fell back. Reaches Sentry as `level: 'warning'`.
    *
-   * Console output uses `console.error` (the only method the lint rule
-   * permits) prefixed with `[warn]` so devtools filtering and log scraping can
-   * still tell the two severities apart.
+   * Console output deliberately stays on `console.error` — warnings are muted
+   * by default in several devtools/log-collection setups — prefixed with
+   * `[warn]` so the two severities remain distinguishable.
    */
   warn(message: string, context?: LogContext): void {
     console.error(`[warn] ${message}`, context ?? {});

@@ -18,6 +18,7 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { DriverService } from '../../../services/driver.service';
+import { LoggerService } from '../../../services/logger.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import {
@@ -275,6 +276,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
   private readonly session = inject(SessionService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly logger = inject(LoggerService);
 
   readonly rentalId = input.required<string>();
   readonly changed = output<void>();
@@ -483,7 +485,9 @@ export class RentalContractCard implements OnInit, OnDestroy {
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (err) {
           this.error.set('Falha ao baixar o contrato.');
-          console.error('[rental-contract-card] download failed', err);
+          this.logger.error('[rental-contract-card] download failed', err, {
+            rentalId: this.rentalId(),
+          });
         } finally {
           this.downloading.set(false);
         }
@@ -530,7 +534,9 @@ export class RentalContractCard implements OnInit, OnDestroy {
             /* noop */
           }
           this.error.set('Falha ao abrir o contrato.');
-          console.error('[rental-contract-card] open failed', err);
+          this.logger.error('[rental-contract-card] open failed', err, {
+            rentalId: this.rentalId(),
+          });
         } finally {
           this.openingPdf.set(false);
         }

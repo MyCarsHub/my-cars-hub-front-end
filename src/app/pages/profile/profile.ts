@@ -19,6 +19,7 @@ import { PrimaryInput } from '../../components/primary-input/primary-input';
 import { AuthService } from '../../services/auth.service';
 import { SessionService } from '../../services/session.service';
 import { BillingService, isFreePlanInForce } from '../../services/billing.service';
+import { LoggerService } from '../../services/logger.service';
 import { environment } from '../../../environments/environment';
 import { SubscriptionResponse } from '../../types/billing.types';
 import { UserCompanies } from '../../types/user-companies';
@@ -38,6 +39,7 @@ export class Profile implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly billingService = inject(BillingService);
   private readonly router = inject(Router);
+  private readonly logger = inject(LoggerService);
   private readonly destroyRef = inject(DestroyRef);
   private meSub: Subscription | null = null;
 
@@ -120,7 +122,11 @@ export class Profile implements OnInit, OnDestroy {
     this.billingService
       .loadPlans()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ error: (err: unknown) => console.error('[profile] loadPlans failed', err) });
+      // Warning, not error: without `/plans` the classification degrades to
+      // "unknown", which `isFreePlanInForce` deliberately resolves as PAID.
+      .subscribe({
+        error: (err: unknown) => this.logger.warn('[profile] loadPlans failed', { error: err }),
+      });
     this.billingService
       .loadSubscription()
       .pipe(takeUntilDestroyed(this.destroyRef))

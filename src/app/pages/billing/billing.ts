@@ -29,6 +29,7 @@ import {
 } from '../../services/billing.service';
 import { BillingAccessService } from '../../services/billing-access.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { LoggerService } from '../../services/logger.service';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import {
@@ -124,6 +125,7 @@ export class Billing implements OnInit, OnDestroy {
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly logger = inject(LoggerService);
   private readonly route = inject(ActivatedRoute);
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
@@ -527,7 +529,9 @@ export class Billing implements OnInit, OnDestroy {
         // The service already put the message in the page-level banner; claiming
         // it here stops the interceptor safety net from saying the same thing again.
         this.apiErrors.claim(err);
-        console.error('[billing] loadPlans failed', err);
+        // Warning, not error: the page stays usable and the fallback is
+        // documented — `isFreePlanInForce` resolves the unknown plan as PAID.
+        this.logger.warn('[billing] loadPlans failed', { error: err });
       },
     });
     this.refreshSubscription();
