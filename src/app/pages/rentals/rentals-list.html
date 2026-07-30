@@ -24,27 +24,14 @@
            period live inside the "Filtros" sheet — collapsed by default to keep
            the mobile viewport tight. -->
       <div class="flex items-center gap-2">
-        <div class="flex gap-2 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap pb-1 flex-1 min-w-0"
-          role="tablist" aria-label="Filtrar por status">
-          @for (opt of statusOptions; track opt.value) {
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="isActive(opt.value)"
-              (click)="setStatus(opt.value)"
-              class="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm
-                     font-medium border transition-colors min-h-[44px]"
-              [class.border-primary-500]="isActive(opt.value)"
-              [class.text-primary-700]="isActive(opt.value)"
-              [class.bg-primary-50]="isActive(opt.value)"
-              [class.border-neutral-200]="!isActive(opt.value)"
-              [class.text-neutral-600]="!isActive(opt.value)"
-              [class.bg-white]="!isActive(opt.value)"
-              [class.hover:bg-neutral-50]="!isActive(opt.value)"
-            >
-              {{ opt.label }}
-            </button>
-          }
+        <div class="flex-1 min-w-0">
+          <app-filter-chip-group
+            [options]="statusChips"
+            [value]="statusFilter()"
+            [scrollable]="true"
+            ariaLabel="Filtrar por status"
+            (selectionChange)="setStatus($event)"
+          />
         </div>
 
         <button type="button"

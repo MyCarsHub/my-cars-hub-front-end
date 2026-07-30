@@ -29,8 +29,18 @@ import {
 import { VehicleListItem } from '../../types/vehicle.types';
 import { DriverListItem } from '../../types/driver.types';
 import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../components/filter-chip-group/filter-chip-group';
 
 type PendingAction = 'activate' | 'cancel' | 'delete';
+
+/**
+ * Chips de status. Mesma fonte do `<select>` do painel de filtros — só
+ * reprojetada no contrato do `FilterChipGroup` (`value` + `label`).
+ */
+const STATUS_CHIPS: readonly FilterChipOption<RentalStatus | ''>[] = RENTAL_STATUS_OPTIONS;
 
 @Component({
   selector: 'app-rentals-list',
@@ -43,6 +53,7 @@ type PendingAction = 'activate' | 'cancel' | 'delete';
     ConfirmDialog,
     ActionsMenu,
     AlertBanner,
+    FilterChipGroup,
   ],
   templateUrl: './rentals-list.html',
 })
@@ -58,7 +69,9 @@ export class RentalsList implements OnInit {
   /** Debounce handle for desktop auto-search. */
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Opções do `<select>` de status dentro do painel "Filtros". */
   protected readonly statusOptions = RENTAL_STATUS_OPTIONS;
+  protected readonly statusChips = STATUS_CHIPS;
 
   protected readonly items = this.rentalService.items;
   protected readonly loading = this.rentalService.loading;
@@ -356,10 +369,6 @@ export class RentalsList implements OnInit {
 
   protected openDetail(r: RentalListItemDto): void {
     this.router.navigate(['/alugueis', r.id]);
-  }
-
-  protected isActive(filter: RentalStatus | ''): boolean {
-    return this.statusFilter() === filter;
   }
 
   // ---------------------------------------------------------------- actions
