@@ -22,6 +22,20 @@ import {
 import { BarChart, BarDatum } from '../../pages/dashboard/components/bar-chart';
 import { MonthlyBillingChart } from '../../pages/dashboard/components/monthly-billing-chart';
 import { MonthlyPointDto } from '../../types/dashboard.types';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../components/filter-chip-group/filter-chip-group';
+
+/** Presets de período. `'custom'` não é um chip: é o estado das datas manuais. */
+type ReportPreset = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear';
+
+const PRESET_CHIPS: readonly FilterChipOption<ReportPreset | 'custom'>[] = [
+  { value: 'thisMonth', label: 'Este mês' },
+  { value: 'lastMonth', label: 'Mês passado' },
+  { value: 'last30', label: 'Últimos 30 dias' },
+  { value: 'thisYear', label: 'Este ano' },
+];
 
 function toIso(d: Date): string {
   const y = d.getFullYear();
@@ -33,7 +47,15 @@ function toIso(d: Date): string {
 @Component({
   selector: 'app-relatorios',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, PageCard, FormsModule, BarChart, MonthlyBillingChart, AlertBanner],
+  imports: [
+    DefaultPageLayout,
+    PageCard,
+    FormsModule,
+    BarChart,
+    MonthlyBillingChart,
+    AlertBanner,
+    FilterChipGroup,
+  ],
   templateUrl: './relatorios.html',
 })
 export class Relatorios implements OnInit {
@@ -59,7 +81,8 @@ export class Relatorios implements OnInit {
   protected readonly from = signal<string>('');
   protected readonly to = signal<string>('');
   protected readonly exporting = signal<'pdf' | 'excel' | 'md' | null>(null);
-  protected readonly activePreset = signal<'thisMonth' | 'lastMonth' | 'last30' | 'thisYear' | 'custom'>('lastMonth');
+  protected readonly presetChips = PRESET_CHIPS;
+  protected readonly activePreset = signal<ReportPreset | 'custom'>('lastMonth');
 
   protected readonly formatBRL = (cents: number): string =>
     new Intl.NumberFormat('pt-BR', {
@@ -162,7 +185,8 @@ export class Relatorios implements OnInit {
     this.load();
   }
 
-  protected setPreset(preset: 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear'): void {
+  protected setPreset(preset: ReportPreset | 'custom'): void {
+    if (preset === 'custom') return;
     const now = new Date();
     let f: Date;
     let t: Date;

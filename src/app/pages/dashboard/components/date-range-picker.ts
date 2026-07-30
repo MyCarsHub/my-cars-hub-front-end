@@ -8,6 +8,10 @@ import {
     output,
     signal,
 } from '@angular/core';
+import {
+    FilterChipGroup,
+    FilterChipOption,
+} from '../../../components/filter-chip-group/filter-chip-group';
 
 export interface DateRange {
     from: string;
@@ -26,25 +30,20 @@ type PresetKey =
     | 'year'
     | 'custom';
 
-interface Preset {
-    key: PresetKey;
-    label: string;
-}
-
 // "Mês atual" is the default: it covers what has already happened this month
 // AND the remaining projected days — matches how the tenant thinks about
 // operational revenue.
-const PRESETS: Preset[] = [
-    { key: 'monthCurrent', label: 'Mês atual' },
-    { key: 'today', label: 'Hoje' },
-    { key: '7d', label: '7 dias' },
-    { key: '30d', label: '30 dias' },
-    { key: '90d', label: '90 dias' },
-    { key: 'next30d', label: 'Próximos 30 dias' },
-    { key: 'next90d', label: 'Próximos 90 dias' },
-    { key: 'monthPast', label: 'Mês passado' },
-    { key: 'year', label: 'Este ano' },
-    { key: 'custom', label: 'Personalizado' },
+const PRESETS: readonly FilterChipOption<PresetKey>[] = [
+    { value: 'monthCurrent', label: 'Mês atual' },
+    { value: 'today', label: 'Hoje' },
+    { value: '7d', label: '7 dias' },
+    { value: '30d', label: '30 dias' },
+    { value: '90d', label: '90 dias' },
+    { value: 'next30d', label: 'Próximos 30 dias' },
+    { value: 'next90d', label: 'Próximos 90 dias' },
+    { value: 'monthPast', label: 'Mês passado' },
+    { value: 'year', label: 'Este ano' },
+    { value: 'custom', label: 'Personalizado' },
 ];
 
 function iso(date: Date): string {
@@ -98,33 +97,16 @@ function rangeForPreset(preset: PresetKey): DateRange | null {
 @Component({
     selector: 'app-date-range-picker',
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [FilterChipGroup],
     template: `
         <div class="flex flex-col gap-3">
-            <div
-                class="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1
-                       lg:overflow-visible lg:flex-wrap"
-                role="tablist"
-                aria-label="Período"
-            >
-                @for (p of presets; track p.key) {
-                    <button
-                        type="button"
-                        role="tab"
-                        [attr.aria-selected]="selected() === p.key"
-                        class="snap-start shrink-0 min-h-[44px] px-3 py-2 rounded-full text-sm
-                               font-medium border transition-colors"
-                        [class.bg-primary-500]="selected() === p.key"
-                        [class.text-white]="selected() === p.key"
-                        [class.border-primary-500]="selected() === p.key"
-                        [class.bg-white]="selected() !== p.key"
-                        [class.text-gray-700]="selected() !== p.key"
-                        [class.border-gray-200]="selected() !== p.key"
-                        (click)="selectPreset(p.key)"
-                    >
-                        {{ p.label }}
-                    </button>
-                }
-            </div>
+            <app-filter-chip-group
+                [options]="presets"
+                [value]="selected()"
+                [scrollable]="true"
+                ariaLabel="Período"
+                (selectionChange)="selectPreset($event)"
+            />
 
             @if (selected() === 'custom') {
                 <div class="flex flex-col sm:flex-row gap-2">

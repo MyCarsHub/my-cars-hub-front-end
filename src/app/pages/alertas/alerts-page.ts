@@ -10,6 +10,10 @@ import { RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../components/filter-chip-group/filter-chip-group';
 import { AlertsService } from '../../services/alerts.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import {
@@ -21,10 +25,7 @@ import {
 } from '../../types/notification-feed.types';
 
 /** Chip de filtro por tipo de documento. `'ALL'` é o chip "Todos". */
-interface TypeChip {
-  value: NotificationType | 'ALL';
-  label: string;
-}
+type TypeChip = FilterChipOption<NotificationType | 'ALL'>;
 
 const TYPE_CHIPS: readonly TypeChip[] = [
   { value: 'ALL', label: 'Todos' },
@@ -35,6 +36,16 @@ const TYPE_CHIPS: readonly TypeChip[] = [
 ];
 
 const WINDOW_OPTIONS: readonly AlertWindow[] = [1, 7, 15, 30];
+
+/** "1 dia" / "N dias" — a janela de 1 dia não pode sair no plural. */
+function windowLabel(option: AlertWindow): string {
+  return option === 1 ? '1 dia' : `${option} dias`;
+}
+
+const WINDOW_CHIPS: readonly FilterChipOption<AlertWindow>[] = WINDOW_OPTIONS.map((option) => ({
+  value: option,
+  label: windowLabel(option),
+}));
 
 const SEVERITY_CHIP: Record<NotificationSeverity, string> = {
   DANGER: 'bg-rose-100 text-rose-700',
@@ -65,7 +76,7 @@ export interface AlertGroup {
 @Component({
   selector: 'app-alerts-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner],
+  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup],
   templateUrl: './alerts-page.html',
 })
 export class AlertsPage implements OnInit {
@@ -73,7 +84,7 @@ export class AlertsPage implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly typeChips = TYPE_CHIPS;
-  protected readonly windowOptions = WINDOW_OPTIONS;
+  protected readonly windowChips = WINDOW_CHIPS;
 
   protected readonly loading = this.alertsService.loading;
   protected readonly error = this.alertsService.error;
@@ -130,11 +141,6 @@ export class AlertsPage implements OnInit {
   /** Filtro por tipo é local: não refaz a requisição. */
   protected onTypeChange(value: NotificationType | 'ALL'): void {
     this.typeFilter.set(value);
-  }
-
-  /** "1 dia" / "N dias" — a janela de 1 dia não pode sair no plural. */
-  protected windowLabel(option: AlertWindow): string {
-    return option === 1 ? '1 dia' : `${option} dias`;
   }
 
   protected severityChip(severity: NotificationSeverity): string {
