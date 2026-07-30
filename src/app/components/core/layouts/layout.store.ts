@@ -1,6 +1,7 @@
 import { computed, Injectable, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SessionService } from '../../../services/session.service';
+import { NotificationFeedService } from '../../../services/notification-feed.service';
 
 export interface Tenant {
   id: string;
@@ -15,6 +16,7 @@ const FALLBACK_TENANT: Tenant = { id: '', name: 'Sem Empresa', role: '', initial
 export class LayoutStore {
   private readonly router = inject(Router);
   private readonly sessionService = inject(SessionService);
+  private readonly notificationFeed = inject(NotificationFeedService);
 
   /** Whether the sidebar is collapsed (desktop only) */
   readonly isCollapsed = signal(false);
@@ -95,7 +97,12 @@ export class LayoutStore {
     this.sessionService.setItem('selectedCompanyId', tenant.id);
     this.sessionService.setItem('selectedCompanyName', tenant.name);
     this.sessionService.setItem('selectedRole', tenant.role);
-    
+
+    // A troca de tenant só navega — o AppShell (e o sino dentro dele) NÃO é
+    // destruído, então o feed manteria o contador e os títulos da empresa
+    // anterior por até 60s. Zera o cache e força um tick imediato.
+    this.notificationFeed.syncTenant();
+
     this.router.navigate(['/dashboard']);
   }
 

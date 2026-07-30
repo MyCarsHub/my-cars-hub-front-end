@@ -322,6 +322,36 @@
         </div>
       </app-page-card>
 
+      <!-- ====== Seguro (opcional) — disponível na criação E na edição ====== -->
+      <app-page-card title="Seguro (opcional)">
+        <div class="p-4 sm:p-6 space-y-4">
+          <button
+            type="button"
+            (click)="toggleInsurance()"
+            [attr.aria-expanded]="showInsurance()"
+            class="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200
+                   text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              @if (showInsurance()) {
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              } @else {
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              }
+            </svg>
+            {{ showInsurance() ? 'Remover seguro' : 'Adicionar seguro' }}
+          </button>
+
+          @if (showInsurance()) {
+            <app-insurance-form-fields [formGroup]="insuranceForm" />
+            <p class="text-xs text-neutral-400">
+              O veículo aceita apenas uma apólice ativa por vez. Se já houver uma,
+              o cadastro é recusado e a mensagem aparece acima.
+            </p>
+          }
+        </div>
+      </app-page-card>
+
       <!-- ====== Ações ====== -->
       <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
         <button

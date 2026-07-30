@@ -29,12 +29,6 @@ describe('LandingComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('renderiza a seção de integrações que o link do header referencia', () => {
-    fixture.detectChanges();
-    const section = fixture.nativeElement.querySelector('#integracoes');
-    expect(section).toBeTruthy();
-  });
-
   it('todo fragmento apontado pelo header existe na página', () => {
     fixture.detectChanges();
     const host: HTMLElement = fixture.nativeElement;

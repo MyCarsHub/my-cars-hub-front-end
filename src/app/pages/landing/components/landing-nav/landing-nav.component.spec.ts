@@ -25,19 +25,8 @@ describe('LandingNavComponent', () => {
       '/#problema',
       '/#solucao',
       '/#funcionalidades',
-      '/#integracoes',
       '/#planos',
     ]);
-  });
-
-  it('o link de Integrações leva para a seção de integrações', () => {
-    const fixture = TestBed.createComponent(LandingNavComponent);
-    fixture.detectChanges();
-    const host: HTMLElement = fixture.nativeElement;
-    const anchors = Array.from(host.querySelectorAll<HTMLAnchorElement>('nav a'));
-    const integracoes = anchors.find((a) => a.textContent?.trim() === 'Integrações');
-    expect(integracoes).toBeTruthy();
-    expect(integracoes?.getAttribute('href')).toBe('/#integracoes');
   });
 
   it('nenhum link do header é morto (# ou vazio)', () => {

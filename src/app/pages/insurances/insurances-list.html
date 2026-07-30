@@ -1,0 +1,335 @@
+<app-default-page-layout
+  title="Seguros"
+  description="Apólices de seguro da frota, com alerta de vencimento próximo."
+>
+  <app-page-card title="Lista">
+    <div class="p-3 sm:p-4 space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        @if (!vehicleIdPrefilter()) {
+          <div class="sm:col-span-2">
+            <label class="sr-only" for="seg-vehicle">Veículo</label>
+            <select
+              id="seg-vehicle"
+              [ngModel]="vehicleFilter()"
+              (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
+              class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+            >
+              <option value="">Veículo: Todos</option>
+              @for (v of vehicles(); track v.id) {
+                <option [value]="v.id">{{ formatPlate(v.plate) }} · {{ v.brand }} {{ v.model }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        <div>
+          <label class="sr-only" for="seg-status">Status</label>
+          <select
+            id="seg-status"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="onStatusChange($event)"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (opt of statusOptions; track opt.value) {
+              <option [value]="opt.value">Status: {{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label class="sr-only" for="seg-expiring">Janela de vencimento</label>
+          <select
+            id="seg-expiring"
+            [ngModel]="expiringFilter()"
+            (ngModelChange)="onExpiringChange($event)"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (opt of expiringOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label class="sr-only" for="seg-sort">Ordenação</label>
+          <select
+            id="seg-sort"
+            [ngModel]="sort()"
+            (ngModelChange)="sort.set($event); onFilterChange()"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            @for (opt of sortOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="lg:col-span-4 flex items-center justify-between gap-3">
+          @if (expiringFilter()) {
+            <p class="text-xs text-neutral-500">
+              A janela de vencimento considera apenas apólices ativas.
+            </p>
+          } @else {
+            <span></span>
+          }
+          <button
+            type="button"
+            (click)="clearFilters()"
+            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      </div>
+
+      @if (error(); as listError) {
+        <app-alert-banner variant="error" [message]="listError" />
+      }
+      @if (actionError(); as actionMessage) {
+        <app-alert-banner variant="error" [message]="actionMessage" />
+      }
+
+      @if (loading() && items().length === 0) {
+        <div class="space-y-2">
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+        </div>
+      }
+
+      @if (!loading() && items().length === 0) {
+        <div class="text-center py-12 space-y-3">
+          <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+            aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="text-neutral-400">
+              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+            </svg>
+          </div>
+          <p class="text-sm text-neutral-500">Nenhuma apólice encontrada.</p>
+          <p class="text-xs text-neutral-400">
+            Seguros são cadastrados a partir da página do veículo.
+          </p>
+        </div>
+      }
+
+      @if (items().length > 0) {
+        <div class="space-y-3 lg:hidden">
+          @for (i of items(); track i.id) {
+            <article
+              class="rounded-xl border border-neutral-200 p-4 space-y-3 cursor-pointer
+                     hover:border-primary-300 transition-colors"
+              [class]="rowHighlight(i) || 'bg-white'"
+              (click)="openDetail(i)"
+              (keydown.enter)="openDetail(i)"
+              tabindex="0"
+              [attr.aria-label]="'Abrir apólice do veículo ' + i.vehiclePlate"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider">
+                    {{ formatPlate(i.vehiclePlate) }}
+                  </p>
+                  <p class="text-xs text-neutral-500 mt-0.5 truncate">
+                    {{ i.vehicleBrand }} {{ i.vehicleModel }}
+                  </p>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                  [class]="expiryBadge(i).chip">
+                  {{ expiryBadge(i).label }}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Seguradora</span>
+                  <p class="font-semibold text-neutral-900 truncate">{{ i.insurer }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Apólice</span>
+                  <p class="font-medium tabular-nums truncate">{{ i.policyNumber }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Cobertura</span>
+                  <p>{{ coverageLabel(i.coverageType) }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Prêmio</span>
+                  <p class="font-medium tabular-nums">{{ formatCurrency(i.premiumAmount) }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Vigência</span>
+                  <p class="tabular-nums">{{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }}</p>
+                </div>
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Status</span>
+                  <p>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      [class]="statusInfo(i.status).chip">
+                      {{ statusInfo(i.status).label }}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-2 pt-1 border-t border-neutral-50">
+                <app-actions-menu label="Ações da apólice">
+                  <a
+                    role="menuitem"
+                    [routerLink]="['/seguros', i.id]"
+                    class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                    Ver detalhes
+                  </a>
+                  @if (canModify(i)) {
+                    <a
+                      role="menuitem"
+                      [routerLink]="['/seguros', i.id, 'editar']"
+                      class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                      Editar
+                    </a>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      (click)="askAction('cancel', i, $event)"
+                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-800 hover:bg-amber-50 min-h-[44px] text-left">
+                      Cancelar apólice
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    role="menuitem"
+                    (click)="askAction('delete', i, $event)"
+                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] text-left border-t border-neutral-100">
+                    Excluir
+                  </button>
+                </app-actions-menu>
+              </div>
+            </article>
+          }
+        </div>
+
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                <th class="py-2 pr-4 font-medium">Veículo</th>
+                <th class="py-2 pr-4 font-medium">Seguradora</th>
+                <th class="py-2 pr-4 font-medium">Apólice</th>
+                <th class="py-2 pr-4 font-medium">Cobertura</th>
+                <th class="py-2 pr-4 font-medium">Prêmio</th>
+                <th class="py-2 pr-4 font-medium">Vigência</th>
+                <th class="py-2 pr-4 font-medium">Vencimento</th>
+                <th class="py-2 pr-4 font-medium">Status</th>
+                <th class="py-2 pr-4 font-medium text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (i of items(); track i.id) {
+                <tr class="border-b border-neutral-50 hover:bg-neutral-50/60 cursor-pointer"
+                  [class]="rowHighlight(i)"
+                  (click)="openDetail(i)"
+                  (keydown.enter)="openDetail(i)"
+                  tabindex="0">
+                  <td class="py-3 pr-4">
+                    <p class="font-semibold text-neutral-900 tabular-nums tracking-wider">
+                      {{ formatPlate(i.vehiclePlate) }}
+                    </p>
+                    <p class="text-xs text-neutral-500">{{ i.vehicleBrand }} {{ i.vehicleModel }}</p>
+                  </td>
+                  <td class="py-3 pr-4">{{ i.insurer }}</td>
+                  <td class="py-3 pr-4 tabular-nums">{{ i.policyNumber }}</td>
+                  <td class="py-3 pr-4">{{ coverageLabel(i.coverageType) }}</td>
+                  <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(i.premiumAmount) }}</td>
+                  <td class="py-3 pr-4 tabular-nums">
+                    {{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }}
+                  </td>
+                  <td class="py-3 pr-4">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      [class]="expiryBadge(i).chip">
+                      {{ expiryBadge(i).label }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      [class]="statusInfo(i.status).chip">
+                      {{ statusInfo(i.status).label }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4">
+                    <div class="flex items-center justify-end gap-1">
+                      <app-actions-menu label="Ações da apólice" [menuWidth]="208">
+                        <a
+                          role="menuitem"
+                          [routerLink]="['/seguros', i.id]"
+                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                          Ver detalhes
+                        </a>
+                        @if (canModify(i)) {
+                          <a
+                            role="menuitem"
+                            [routerLink]="['/seguros', i.id, 'editar']"
+                            class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                            Editar
+                          </a>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="askAction('cancel', i, $event)"
+                            class="w-full px-3 py-2 min-h-[44px] text-xs text-amber-800 hover:bg-amber-50 text-left">
+                            Cancelar apólice
+                          </button>
+                        }
+                        <button
+                          type="button"
+                          role="menuitem"
+                          (click)="askAction('delete', i, $event)"
+                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 hover:bg-rose-50 text-left border-t border-neutral-100">
+                          Excluir
+                        </button>
+                      </app-actions-menu>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-neutral-100 text-sm">
+          <p class="text-neutral-500">
+            {{ total() }} apólice(s) — página {{ pageNumber() }} de {{ totalPages() }}
+          </p>
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() === 0 || loading()"
+              (click)="prev()">
+              Anterior
+            </button>
+            <button type="button"
+              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              [disabled]="page() + 1 >= totalPages() || loading()"
+              (click)="next()">
+              Próxima
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </app-page-card>
+</app-default-page-layout>
+
+<app-confirm-dialog
+  [open]="dialogOpen()"
+  [title]="dialogTitle()"
+  [message]="dialogMessage()"
+  [confirmLabel]="dialogConfirmLabel()"
+  cancelLabel="Voltar"
+  [variant]="dialogVariant()"
+  (confirmed)="confirmAction()"
+  (cancelled)="cancelAction()"
+/>

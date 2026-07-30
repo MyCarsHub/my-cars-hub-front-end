@@ -89,6 +89,16 @@ export const routes: Routes = [
                         data: { pageTitle: 'Dashboard' },
                     },
                     {
+                        // Sem roleGuard: todo membro autenticado vê os próprios
+                        // vencimentos.
+                        path: 'alertas',
+                        loadComponent: () =>
+                            import('./pages/alertas/alerts-page').then(
+                                (m) => m.AlertsPage
+                            ),
+                        data: { pageTitle: 'Alertas' },
+                    },
+                    {
                         path: 'veiculos',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
@@ -148,6 +158,14 @@ export const routes: Routes = [
                                         './pages/vehicles/vehicle-gerencia/gerencia-financings'
                                     ).then((m) => m.GerenciaFinancings),
                                 data: { pageTitle: 'Financiamentos do veículo' },
+                            },
+                            {
+                                path: ':id/gerencia/seguros',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/vehicle-gerencia/gerencia-insurances'
+                                    ).then((m) => m.GerenciaInsurances),
+                                data: { pageTitle: 'Seguros do veículo' },
                             },
                             {
                                 path: ':id/editar',
@@ -335,6 +353,37 @@ export const routes: Routes = [
                                         './pages/financings/financing-detail'
                                     ).then((m) => m.FinancingDetail),
                                 data: { pageTitle: 'Detalhes do financiamento' },
+                            },
+                        ],
+                    },
+                    {
+                        path: 'seguros',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/insurances/insurances-list'
+                                    ).then((m) => m.InsurancesList),
+                                data: { pageTitle: 'Seguros' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/insurances/insurance-form'
+                                    ).then((m) => m.InsuranceForm),
+                                data: { pageTitle: 'Editar apólice' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/insurances/insurance-detail'
+                                    ).then((m) => m.InsuranceDetail),
+                                data: { pageTitle: 'Detalhes da apólice' },
                             },
                         ],
                     },
