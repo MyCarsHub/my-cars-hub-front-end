@@ -187,7 +187,7 @@ describe('InspectionPdfService.generateAndUpload', () => {
     const doc = await pdfLib.PDFDocument.create();
     vi.mocked(doc.embedJpg).mockRejectedValueOnce(new Error('not a jpg'));
     vi.mocked(doc.embedPng).mockRejectedValueOnce(new Error('not a png'));
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     try {
       const photos = [photo('FRONT', 'p1')];
@@ -209,12 +209,12 @@ describe('InspectionPdfService.generateAndUpload', () => {
       // (b) a falha é observável: contabilizada no resultado, logada com
       //     contexto útil e refletida na mensagem de progresso.
       expect(res.skippedPhotoLabels).toHaveLength(1);
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(String(warn.mock.calls[0][0])).toContain('não pôde ser embutida');
-      expect(warn.mock.calls[0][1]).toMatchObject({ photoId: 'p1', angle: 'FRONT' });
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(String(logged.mock.calls[0][0])).toContain('não pôde ser embutida');
+      expect(logged.mock.calls[0][1]).toMatchObject({ photoId: 'p1', angle: 'FRONT' });
       expect(service.progress().message).toContain('sem 1 foto');
     } finally {
-      warn.mockRestore();
+      logged.mockRestore();
     }
   });
 

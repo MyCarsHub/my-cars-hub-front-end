@@ -435,13 +435,14 @@ export class InspectionPdfService {
 
   /**
    * Makes a dropped photo observable on both channels the project already
-   * uses: `console.warn` for local/devtools visibility (same pattern as
+   * uses: `console.error` for local/devtools visibility (the only console
+   * method allowed by the project's `no-console` lint rule, same pattern as
    * `auth.service.ts`) and `Sentry.captureException` for prod telemetry
    * (same pattern as `onboarding-container.ts`).
    *
    * NOTE: `environment.sentryDsn` is empty in both environment files today,
    * so the Sentry call is a no-op until the DSN is configured — the
-   * `console.warn` and the returned `skippedPhotoLabels` are what actually
+   * `console.error` and the returned `skippedPhotoLabels` are what actually
    * surface the failure right now.
    */
   private reportPhotoEmbedFailure(
@@ -450,7 +451,7 @@ export class InspectionPdfService {
     jpgErr: unknown,
     pngErr: unknown,
   ): void {
-    console.warn(
+    console.error(
       `[inspection-pdf] foto "${label}" não pôde ser embutida no PDF e foi omitida.`,
       { photoId: photo.id, angle: photo.angle, mimeType: photo.mimeType, jpgErr, pngErr },
     );
