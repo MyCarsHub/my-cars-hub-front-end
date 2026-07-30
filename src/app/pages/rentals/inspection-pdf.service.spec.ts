@@ -222,6 +222,101 @@ describe('InspectionPdfService.generateAndUpload', () => {
     }
   });
 
+  // Controle negativo do bug irmão: uma foto sem `signedUrl` era descartada
+  // por um `continue` mudo — sem log, fora de `skippedPhotoLabels`, e ainda
+  // assim contada no `total` do progresso (barra que nunca fechava). Este
+  // teste falha se aquele `continue` voltar.
+  it('reports a photo without signedUrl instead of dropping it silently', async () => {
+    const logged = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+
+    try {
+      const withUrl = photo('FRONT', 'p1');
+      const noUrl = { ...photo('BACK', 'p2'), signedUrl: null };
+
+      const res = await new Promise<InspectionPdfResult>((resolve, reject) => {
+        service
+          .generateAndUpload(RID, 'CHECKIN', { rental: rental(), vehicle: null, driver: null }, [
+            withUrl,
+            noUrl,
+          ])
+          .subscribe({ next: resolve, error: reject });
+      });
+
+      // (a) não impede a geração: o PDF continua sendo gerado e enviado, e a
+      //     foto válida ainda é baixada.
+      expect(httpPost).toHaveBeenCalledTimes(1);
+      expect(res.id).toBe('doc-1');
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+      // (b) entra em skippedPhotoLabels, então o card consegue avisar o operador.
+      expect(res.skippedPhotoLabels).toHaveLength(1);
+      expect(service.progress().message).toContain('sem 1 foto');
+
+      // (c) é logada como AVISO, com contexto e com o motivo que a distingue
+      //     de "bytes recusados pelo pdf-lib".
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(String(logged.mock.calls[0][0])).toContain('sem URL assinada');
+      expect(logged.mock.calls[0][1]).toMatchObject({
+        photoId: 'p2',
+        angle: 'BACK',
+        reason: 'missing-signed-url',
+      });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it('excludes photos without signedUrl from the progress total', async () => {
+    const logged = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const totals: number[] = [];
+
+    try {
+      const noUrl = { ...photo('BACK', 'p2'), signedUrl: null };
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async (...args) => {
+        totals.push(service.progress().total);
+        return (origFetch as typeof fetch).call(globalThis, ...(args as Parameters<typeof fetch>));
+      }) as unknown as typeof fetch;
+
+      await new Promise<InspectionPdfResult>((resolve, reject) => {
+        service
+          .generateAndUpload(RID, 'CHECKIN', { rental: rental(), vehicle: null, driver: null }, [
+            photo('FRONT', 'p1'),
+            noUrl,
+          ])
+          .subscribe({ next: resolve, error: reject });
+      });
+
+      // Só a foto baixável entra no denominador: `total` é 1, não 2. Com o
+      // `continue` mudo antigo o total era 2 e o `current` parava em 1.
+      expect(totals).toEqual([1]);
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it('generates the PDF even when every photo lacks a signedUrl', async () => {
+    const logged = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+
+    try {
+      const res = await new Promise<InspectionPdfResult>((resolve, reject) => {
+        service
+          .generateAndUpload(RID, 'CHECKIN', { rental: rental(), vehicle: null, driver: null }, [
+            { ...photo('FRONT', 'p1'), signedUrl: null },
+            { ...photo('BACK', 'p2'), signedUrl: null },
+          ])
+          .subscribe({ next: resolve, error: reject });
+      });
+
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(res.id).toBe('doc-1');
+      expect(res.skippedPhotoLabels).toHaveLength(2);
+      expect(logged).toHaveBeenCalledTimes(2);
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it('reports no skipped photos on the happy path', async () => {
     const res = await new Promise<InspectionPdfResult>((resolve, reject) => {
       service

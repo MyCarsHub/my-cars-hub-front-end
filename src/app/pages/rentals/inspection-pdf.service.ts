@@ -35,11 +35,13 @@ export interface InspectionPdfUploadDto {
  * What `generateAndUpload` emits: the backend upload response plus the
  * degradation report of the local render.
  *
- * A photo whose bytes `pdf-lib` refuses to embed (corrupt download, exotic
- * codec that survived compression, canvas fallback that returned a
- * non-JPEG/PNG blob) is dropped from the document so the laudo is still
- * produced — but the drop is NOT silent: each label lands here so the caller
- * can warn the operator that the PDF is incomplete.
+ * A photo is dropped from the document — so the laudo is still produced —
+ * when either (a) it has no `signedUrl` and therefore cannot be downloaded, or
+ * (b) `pdf-lib` refuses its bytes (corrupt download, exotic codec that survived
+ * compression, canvas fallback that returned a non-JPEG/PNG blob). Neither drop
+ * is silent: both log a `LoggerService.warn` carrying a `reason` that tells the
+ * two apart, and both land their label here so the caller can warn the operator
+ * that the PDF is incomplete.
  *
  * Empty array = every photo made it in (the normal path).
  */
@@ -278,10 +280,29 @@ export class InspectionPdfService {
     // Lazy import — keeps pdf-lib (~200KB gz) out of the initial bundle.
     const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
 
-    // Ordered + filtered list of photos with signedUrl. Angles the operator
-    // never uploaded are simply omitted from the PDF.
+    // Ordered list of the angles the operator actually uploaded. Angles never
+    // uploaded are simply omitted from the PDF (no photo, nothing to report).
     const orderedPhotos = this.orderPhotos(photos);
-    const total = orderedPhotos.length;
+
+    // A photo row that exists but carries no `signedUrl` (expired signature,
+    // storage row without an object, backend serialization gap) cannot be
+    // downloaded at all. It used to be dropped by a bare `continue`, which was
+    // silent AND poisoned the progress bar — it stayed inside `total` while
+    // never producing a download tick, so the bar could never reach its own
+    // total. Both problems are fixed here: the photo is reported like an embed
+    // failure, and `total` counts only the photos that can actually be worked
+    // on.
+    const skippedPhotoLabels: string[] = [];
+    const downloadablePhotos: Array<{ photo: RentalPhotoDto; label: string; url: string }> = [];
+    for (const { photo, label } of orderedPhotos) {
+      if (!photo.signedUrl) {
+        this.reportPhotoUrlMissing(label, photo);
+        skippedPhotoLabels.push(label);
+        continue;
+      }
+      downloadablePhotos.push({ photo, label, url: photo.signedUrl });
+    }
+    const total = downloadablePhotos.length;
 
     // Preload all photo bytes first so that "downloading" and "rendering"
     // are cleanly separated in the UX progress bar.
@@ -293,10 +314,9 @@ export class InspectionPdfService {
     });
 
     const photoBytes: Array<{ photo: RentalPhotoDto; label: string; bytes: ArrayBuffer }> = [];
-    for (let i = 0; i < orderedPhotos.length; i++) {
-      const { photo, label } = orderedPhotos[i];
-      if (!photo.signedUrl) continue;
-      const res = await fetch(photo.signedUrl);
+    for (let i = 0; i < downloadablePhotos.length; i++) {
+      const { photo, label, url } = downloadablePhotos[i];
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`Falha ao baixar a foto ${label} (${res.status}).`);
       let blob = await res.blob();
       this._progress.set({
@@ -375,7 +395,6 @@ export class InspectionPdfService {
     }
 
     // -------------- One page per photo --------------
-    const skippedPhotoLabels: string[] = [];
     for (let i = 0; i < photoBytes.length; i++) {
       const { photo, label, bytes } = photoBytes[i];
       this._progress.set({
@@ -447,6 +466,32 @@ export class InspectionPdfService {
    * and the returned `skippedPhotoLabels` are what actually surface the
    * failure right now.
    */
+  /**
+   * Same contract as {@link reportPhotoEmbedFailure}, different root cause.
+   *
+   * "No `signedUrl`" and "bytes rejected by both encoders" look identical to
+   * the operator (a missing page) but need different investigations: the first
+   * points at the backend/storage signing path — the photo row exists but has
+   * no reachable object — while the second points at the image bytes
+   * themselves. Keeping them as two distinct messages plus an explicit
+   * `reason` field means whoever reads the log (or the Sentry issue, once a DSN
+   * is configured) knows which of the two to chase without re-deriving it.
+   *
+   * The user-facing label stays the plain angle name so the warning toast keeps
+   * reading as a list of missing photos.
+   */
+  private reportPhotoUrlMissing(label: string, photo: RentalPhotoDto): void {
+    this.logger.warn(
+      `[inspection-pdf] foto "${label}" está sem URL assinada e foi omitida do PDF.`,
+      {
+        photoId: photo.id,
+        angle: photo.angle,
+        mimeType: photo.mimeType,
+        reason: 'missing-signed-url',
+      },
+    );
+  }
+
   private reportPhotoEmbedFailure(
     label: string,
     photo: RentalPhotoDto,
@@ -455,7 +500,14 @@ export class InspectionPdfService {
   ): void {
     this.logger.warn(
       `[inspection-pdf] foto "${label}" não pôde ser embutida no PDF e foi omitida.`,
-      { photoId: photo.id, angle: photo.angle, mimeType: photo.mimeType, jpgErr, pngErr },
+      {
+        photoId: photo.id,
+        angle: photo.angle,
+        mimeType: photo.mimeType,
+        reason: 'embed-failed',
+        jpgErr,
+        pngErr,
+      },
     );
   }
 
