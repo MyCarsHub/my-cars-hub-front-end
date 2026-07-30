@@ -12,23 +12,12 @@
         >
           Janela
         </p>
-        <div class="flex flex-wrap gap-2" role="group" aria-labelledby="alerts-window-label">
-          @for (option of windowOptions; track option) {
-            <button
-              type="button"
-              class="min-h-[44px] px-4 py-2 rounded-full border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400"
-              [class]="
-                withinDays() === option
-                  ? 'bg-primary-500 text-white border-primary-500'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-              "
-              [attr.aria-pressed]="withinDays() === option"
-              (click)="onWindowChange(option)"
-            >
-              {{ windowLabel(option) }}
-            </button>
-          }
-        </div>
+        <app-filter-chip-group
+          [options]="windowChips"
+          [value]="withinDays()"
+          ariaLabelledby="alerts-window-label"
+          (selectionChange)="onWindowChange($event)"
+        />
       </div>
 
       <!-- Filtro por tipo -->
@@ -39,23 +28,12 @@
         >
           Tipo
         </p>
-        <div class="flex flex-wrap gap-2" role="group" aria-labelledby="alerts-type-label">
-          @for (chip of typeChips; track chip.value) {
-            <button
-              type="button"
-              class="min-h-[44px] px-4 py-2 rounded-full border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400"
-              [class]="
-                typeFilter() === chip.value
-                  ? 'bg-primary-500 text-white border-primary-500'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-              "
-              [attr.aria-pressed]="typeFilter() === chip.value"
-              (click)="onTypeChange(chip.value)"
-            >
-              {{ chip.label }}
-            </button>
-          }
-        </div>
+        <app-filter-chip-group
+          [options]="typeChips"
+          [value]="typeFilter()"
+          ariaLabelledby="alerts-type-label"
+          (selectionChange)="onTypeChange($event)"
+        />
       </div>
 
       @if (error(); as loadError) {

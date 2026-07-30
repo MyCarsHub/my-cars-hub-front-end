@@ -13,44 +13,14 @@
   <section class="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5 mb-4">
     <div class="flex flex-col lg:flex-row lg:items-end gap-5">
       <div class="flex-1 min-w-0">
-        <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide mb-2">Período</p>
-        <div class="flex flex-wrap gap-2 mb-3">
-          <button type="button" (click)="setPreset('thisMonth')"
-                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
-                  [class.bg-primary-500]="activePreset() === 'thisMonth'"
-                  [class.text-white]="activePreset() === 'thisMonth'"
-                  [class.border-primary-500]="activePreset() === 'thisMonth'"
-                  [class.bg-white]="activePreset() !== 'thisMonth'"
-                  [class.text-gray-700]="activePreset() !== 'thisMonth'"
-                  [class.border-gray-200]="activePreset() !== 'thisMonth'"
-                  [class.hover:bg-gray-50]="activePreset() !== 'thisMonth'">Este mês</button>
-          <button type="button" (click)="setPreset('lastMonth')"
-                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
-                  [class.bg-primary-500]="activePreset() === 'lastMonth'"
-                  [class.text-white]="activePreset() === 'lastMonth'"
-                  [class.border-primary-500]="activePreset() === 'lastMonth'"
-                  [class.bg-white]="activePreset() !== 'lastMonth'"
-                  [class.text-gray-700]="activePreset() !== 'lastMonth'"
-                  [class.border-gray-200]="activePreset() !== 'lastMonth'"
-                  [class.hover:bg-gray-50]="activePreset() !== 'lastMonth'">Mês passado</button>
-          <button type="button" (click)="setPreset('last30')"
-                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
-                  [class.bg-primary-500]="activePreset() === 'last30'"
-                  [class.text-white]="activePreset() === 'last30'"
-                  [class.border-primary-500]="activePreset() === 'last30'"
-                  [class.bg-white]="activePreset() !== 'last30'"
-                  [class.text-gray-700]="activePreset() !== 'last30'"
-                  [class.border-gray-200]="activePreset() !== 'last30'"
-                  [class.hover:bg-gray-50]="activePreset() !== 'last30'">Últimos 30 dias</button>
-          <button type="button" (click)="setPreset('thisYear')"
-                  class="min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors"
-                  [class.bg-primary-500]="activePreset() === 'thisYear'"
-                  [class.text-white]="activePreset() === 'thisYear'"
-                  [class.border-primary-500]="activePreset() === 'thisYear'"
-                  [class.bg-white]="activePreset() !== 'thisYear'"
-                  [class.text-gray-700]="activePreset() !== 'thisYear'"
-                  [class.border-gray-200]="activePreset() !== 'thisYear'"
-                  [class.hover:bg-gray-50]="activePreset() !== 'thisYear'">Este ano</button>
+        <p id="relatorios-periodo-label"
+           class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide mb-2">Período</p>
+        <div class="mb-3">
+          <app-filter-chip-group
+            [options]="presetChips"
+            [value]="activePreset()"
+            ariaLabelledby="relatorios-periodo-label"
+            (selectionChange)="setPreset($event)" />
         </div>
         <div class="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div class="flex-1">

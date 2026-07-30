@@ -157,8 +157,8 @@ describe('AlertsPage', () => {
     fixture.detectChanges();
 
     expect(listSpy).toHaveBeenLastCalledWith(1);
-    expect(chips[0].getAttribute('aria-pressed')).toBe('true');
-    expect(chips[3].getAttribute('aria-pressed')).toBe('false');
+    expect(chips[0].getAttribute('aria-checked')).toBe('true');
+    expect(chips[3].getAttribute('aria-checked')).toBe('false');
   });
 
   it('avisa que a lista está truncada quando vêm exatamente 200 linhas', () => {
