@@ -678,10 +678,20 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
         ),
       )
       .subscribe({
-        next: () => {
+        next: (res) => {
           this.generating.set(false);
           this.inspectionPdfService.reset();
-          this.notifications.push('success', 'PDF do laudo gerado.');
+          // Fotos que o pdf-lib recusou saem do documento, mas o operador
+          // precisa saber ANTES de baixar um laudo incompleto.
+          const skipped = res.skippedPhotoLabels;
+          if (skipped.length > 0) {
+            this.notifications.push(
+              'warning',
+              `PDF gerado, mas ${skipped.length} foto(s) não puderam ser incluídas: ${skipped.join(', ')}.`,
+            );
+          } else {
+            this.notifications.push('success', 'PDF do laudo gerado.');
+          }
           this.rentalService.refreshRentalState(this.rentalId());
           this.changed.emit();
         },
