@@ -1,13 +1,16 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { filter, map, startWith } from 'rxjs/operators';
 import { animate, state, style, transition, trigger } from '@angular/animations';
 import { Sidebar } from '../../sidebar/sidebar';
 import { LayoutStore } from './layout.store';
@@ -34,21 +37,29 @@ import { NotificationBell } from '../../notification-bell/notification-bell';
     <div class="flex h-screen overflow-hidden bg-gray-50">
       <app-sidebar />
       <main
-        class="flex-1 overflow-y-auto transition-none"
+        class="relative flex-1 overflow-y-auto transition-none"
         [@contentMargin]="contentState()"
       >
+        @if (showBell()) {
+          <!--
+            O shell não tem barra de header própria. O sino vive num header
+            posicionado em absolute dentro do scroller do main: ocupa o espaço
+            que o default-page-layout já reserva no topo (pt-20 lg:pt-10),
+            respeita a mesma coluna de conteúdo dos cards (max-w-8xl +
+            px-4/sm:px-6/lg:px-10) e rola junto com a página — sem position
+            fixed, portanto sem disputar z-index com os elementos sticky das
+            páginas.
+          -->
+          <header class="pointer-events-none absolute inset-x-0 top-0 z-10">
+            <div class="max-w-8xl mx-auto flex justify-end px-4 pt-4 sm:px-6 lg:px-10 lg:pt-10">
+              <app-notification-bell class="pointer-events-auto" />
+            </div>
+          </header>
+        }
         <div>
           <router-outlet />
         </div>
       </main>
-    </div>
-    <!--
-      O shell não tem barra de header própria: a sidebar (e, no mobile, o
-      hambúrguer fixo) é toda a cromo. O sino segue a mesma convenção — fixo no
-      canto superior direito, visível no mobile e no desktop.
-    -->
-    <div class="fixed top-4 right-4 z-30">
-      <app-notification-bell />
     </div>
     <app-paywall-dialog
       [open]="paywallOpen()"
@@ -71,6 +82,27 @@ export class AppShell implements OnInit, OnDestroy {
   private readonly router = inject(Router);
 
   protected readonly paywallOpen = signal(false);
+
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e) => e instanceof NavigationEnd),
+      map(() => this.router.url),
+      startWith(this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /**
+   * O sino só monta (e só então começa o polling do contador) depois do
+   * onboarding concluído: em `/onboarding` o usuário ainda não tem empresa, e
+   * pedir o feed sem tenant é ruído garantido. `sessionStorage` não é reativo,
+   * por isso o cálculo é reavaliado a cada navegação via `currentUrl()`.
+   */
+  protected readonly showBell = computed(() => {
+    const url = this.currentUrl();
+    if (url.startsWith('/onboarding')) return false;
+    return this.session.isOnboardingCompleted();
+  });
 
   private resizeListener: (() => void) | null = null;
 
