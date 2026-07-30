@@ -16,11 +16,11 @@
           @for (option of windowOptions; track option) {
             <button
               type="button"
-              class="px-3 py-2 min-h-[44px] rounded-xl border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400"
+              class="min-h-[44px] px-4 py-2 rounded-full border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400"
               [class]="
                 withinDays() === option
                   ? 'bg-primary-500 text-white border-primary-500'
-                  : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
               "
               [attr.aria-pressed]="withinDays() === option"
               (click)="onWindowChange(option)"
@@ -43,11 +43,11 @@
           @for (chip of typeChips; track chip.value) {
             <button
               type="button"
-              class="px-3 py-2 min-h-[44px] rounded-xl border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400"
+              class="min-h-[44px] px-4 py-2 rounded-full border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400"
               [class]="
                 typeFilter() === chip.value
                   ? 'bg-primary-500 text-white border-primary-500'
-                  : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
               "
               [attr.aria-pressed]="typeFilter() === chip.value"
               (click)="onTypeChange(chip.value)"
