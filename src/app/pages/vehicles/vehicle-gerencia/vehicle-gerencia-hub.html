@@ -229,6 +229,12 @@
           </section>
         }
 
+        @case ('seguros') {
+          <section role="tabpanel">
+            <app-insurances-list [vehicleIdPrefilter]="vehicleId()" />
+          </section>
+        }
+
         @case ('manutencoes') {
           <section role="tabpanel">
             <app-maintenances-list [vehicleIdPrefilter]="vehicleId()" />

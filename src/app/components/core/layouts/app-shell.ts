@@ -14,11 +14,12 @@ import { LayoutStore } from './layout.store';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
 import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
+import { NotificationBell } from '../../notification-bell/notification-bell';
 
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, PaywallDialog],
+  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -40,6 +41,14 @@ import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
           <router-outlet />
         </div>
       </main>
+    </div>
+    <!--
+      O shell não tem barra de header própria: a sidebar (e, no mobile, o
+      hambúrguer fixo) é toda a cromo. O sino segue a mesma convenção — fixo no
+      canto superior direito, visível no mobile e no desktop.
+    -->
+    <div class="fixed top-4 right-4 z-30">
+      <app-notification-bell />
     </div>
     <app-paywall-dialog
       [open]="paywallOpen()"

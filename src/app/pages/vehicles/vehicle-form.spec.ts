@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { VehicleForm } from './vehicle-form';
 import { VehiclesService } from '../../services/vehicles.service';
+import { InsurancesService } from '../../services/insurances.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
 
@@ -58,6 +59,7 @@ describe('VehicleForm — server field errors', () => {
         provideRouter([]),
         ApiErrorService,
         { provide: VehiclesService, useValue: { create, getOne: vi.fn(), update: vi.fn() } },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => null } } },
@@ -166,13 +168,16 @@ describe('VehicleForm — financiamento na edição', () => {
   let getOne: ReturnType<typeof vi.fn>;
   let update: ReturnType<typeof vi.fn>;
   let createFinancing: ReturnType<typeof vi.fn>;
+  let createInsurance: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.spyOn>;
   let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
 
   interface FormApi {
     form: { patchValue: (v: unknown) => void };
     financingForm: { patchValue: (v: unknown) => void };
+    insuranceForm: { patchValue: (v: unknown) => void };
     toggleFinancing: () => void;
+    toggleInsurance: () => void;
     submit: () => void;
   }
 
@@ -207,6 +212,7 @@ describe('VehicleForm — financiamento na edição', () => {
     getOne = vi.fn().mockReturnValue(of(vehicle(activeFinancing)));
     update = vi.fn().mockReturnValue(of({ id: VEHICLE_ID }));
     createFinancing = vi.fn().mockReturnValue(of({ id: 'fin-new' }));
+    createInsurance = vi.fn().mockReturnValue(of({ id: 'ins-new' }));
 
     await TestBed.configureTestingModule({
       imports: [VehicleForm],
@@ -217,6 +223,7 @@ describe('VehicleForm — financiamento na edição', () => {
           provide: VehiclesService,
           useValue: { getOne, update, createFinancing, create: vi.fn() },
         },
+        { provide: InsurancesService, useValue: { create: createInsurance } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } },
@@ -327,6 +334,86 @@ describe('VehicleForm — financiamento na edição', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.innerHTML).toContain('Veículo já possui financiamento ativo.');
+    expect(TestBed.inject(NotificationService).error).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Bloco de SEGURO: mesmo contrato do financiamento — opcional, valores em
+   * reais convertidos para centavos, e o 409 de apólice ativa vai para o banner.
+   */
+  it('cria a apólice de seguro junto com a edição do veículo', async () => {
+    await setup(null);
+
+    api().toggleInsurance();
+    api().insuranceForm.patchValue({
+      insurer: 'Porto Seguro',
+      policyNumber: 'AP-99887',
+      coverageType: 'COMPREHENSIVE',
+      premiumAmount: 2400.5,
+      deductibleAmount: 3000,
+      startDate: '2026-01-01',
+      endDate: '2027-01-01',
+      paymentMethod: '12x no cartão',
+    });
+    api().submit();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(createInsurance).toHaveBeenCalledTimes(1);
+
+    const [vehicleId, payload] = createInsurance.mock.calls[0];
+    expect(vehicleId).toBe(VEHICLE_ID);
+    expect(payload).toMatchObject({
+      insurer: 'Porto Seguro',
+      policyNumber: 'AP-99887',
+      coverageType: 'COMPREHENSIVE',
+      premiumAmount: 240_050,
+      deductibleAmount: 300_000,
+      startDate: '2026-01-01',
+      endDate: '2027-01-01',
+      paymentMethod: '12x no cartão',
+    });
+
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', VEHICLE_ID]);
+  });
+
+  it('não salva nada com o bloco de seguro incompleto', async () => {
+    await setup(null);
+
+    api().toggleInsurance();
+    api().submit();
+    fixture.detectChanges();
+
+    expect(update).not.toHaveBeenCalled();
+    expect(createInsurance).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.innerHTML).toContain('Verifique os campos do seguro.');
+  });
+
+  it('mostra no banner o 409 de apólice ativa vindo do servidor', async () => {
+    await setup(null);
+    createInsurance.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { message: 'Veículo já possui seguro ativo.' },
+          }),
+      ),
+    );
+
+    api().toggleInsurance();
+    api().insuranceForm.patchValue({
+      insurer: 'Porto Seguro',
+      policyNumber: 'AP-99887',
+      coverageType: 'COMPREHENSIVE',
+      premiumAmount: 2400,
+      startDate: '2026-01-01',
+      endDate: '2027-01-01',
+    });
+    api().submit();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.innerHTML).toContain('Veículo já possui seguro ativo.');
+    expect(navigate).not.toHaveBeenCalled();
     expect(TestBed.inject(NotificationService).error).not.toHaveBeenCalled();
   });
 });

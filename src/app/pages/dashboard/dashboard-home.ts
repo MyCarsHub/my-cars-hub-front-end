@@ -110,7 +110,11 @@ export class DashboardHome {
             a.openMaintenances.count > 0 ||
             a.expiringCnh30d.count > 0 ||
             a.expiringLicensing30d.count > 0 ||
-            a.reservedRentals.count > 0
+            a.reservedRentals.count > 0 ||
+            // Campos aditivos: `?.` protege contra um backend mais antigo que
+            // ainda não os envia — o dashboard inteiro não pode quebrar por isso.
+            (a.docsExpiring7d?.count ?? 0) > 0 ||
+            (a.expiringInsurance30d?.count ?? 0) > 0
         );
     });
 
