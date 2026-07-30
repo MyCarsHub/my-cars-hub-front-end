@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
-import * as Sentry from '@sentry/angular';
+import { inject, Injectable } from '@angular/core';
+
+import { TelemetryService } from './telemetry.service';
 
 /**
  * Structured key/value payload attached to a log entry. Kept as
@@ -27,9 +28,15 @@ export type LogContext = Record<string, unknown>;
  * documented no-ops — but every call is still wrapped defensively (same
  * pattern as `session.service.ts`) so a telemetry problem can never take down
  * the feature that was merely trying to log.
+ *
+ * The SDK is reached through `TelemetryService` rather than imported here, so
+ * this service's severity contract can be asserted with a plain DI override
+ * instead of an ESM module mock — see that file for the full rationale.
  */
 @Injectable({ providedIn: 'root' })
 export class LoggerService {
+  private readonly telemetry = inject(TelemetryService);
+
   /**
    * Partial degradation: the user still has a usable outcome, but something
    * was skipped, retried or fell back. Reaches Sentry as `level: 'warning'`.
@@ -41,7 +48,7 @@ export class LoggerService {
   warn(message: string, context?: LogContext): void {
     console.error(`[warn] ${message}`, context ?? {});
     try {
-      Sentry.captureMessage(message, { level: 'warning', extra: context });
+      this.telemetry.captureMessage(message, { level: 'warning', extra: context });
     } catch {
       // Sentry may not be initialized (no DSN outside prod); never let a
       // telemetry failure escape into the caller's control flow.
@@ -59,7 +66,7 @@ export class LoggerService {
   error(message: string, error: unknown, context?: LogContext): void {
     console.error(`[error] ${message}`, error, context ?? {});
     try {
-      Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
+      this.telemetry.captureException(error instanceof Error ? error : new Error(String(error)), {
         extra: { message, ...context },
       });
     } catch {

@@ -1,29 +1,31 @@
 import { TestBed } from '@angular/core/testing';
-import * as Sentry from '@sentry/angular';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LoggerService } from './logger.service';
+import { TelemetryService } from './telemetry.service';
 
-// The Sentry namespace is an ESM binding and cannot be `vi.spyOn`'d, so the
-// module itself is mocked. Only the two capture functions the logger uses are
-// stubbed.
-vi.mock('@sentry/angular', () => ({
-  captureMessage: vi.fn(),
-  captureException: vi.fn(),
-}));
-
-const captureMessage = vi.mocked(Sentry.captureMessage);
-const captureException = vi.mocked(Sentry.captureException);
-
+// The Sentry SDK is reached through `TelemetryService`, so the severity
+// contract below is asserted against a DI override. Nothing here mocks the
+// `@sentry/angular` ESM module: under the Angular unit-test builder the spec
+// and the service can end up bound to different instances of that module, and
+// the mock then silently applies to neither the code under test nor the
+// assertions.
 describe('LoggerService', () => {
   let service: LoggerService;
   let consoleError: ReturnType<typeof vi.spyOn>;
+  let captureMessage: ReturnType<typeof vi.fn<TelemetryService['captureMessage']>>;
+  let captureException: ReturnType<typeof vi.fn<TelemetryService['captureException']>>;
 
   beforeEach(() => {
-    captureMessage.mockReset();
-    captureException.mockReset();
+    captureMessage = vi.fn<TelemetryService['captureMessage']>();
+    captureException = vi.fn<TelemetryService['captureException']>();
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [LoggerService] });
+    TestBed.configureTestingModule({
+      providers: [
+        LoggerService,
+        { provide: TelemetryService, useValue: { captureMessage, captureException } },
+      ],
+    });
     service = TestBed.inject(LoggerService);
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
