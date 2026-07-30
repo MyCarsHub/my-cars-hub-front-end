@@ -8,6 +8,7 @@ import { SessionService } from './session.service';
 import { NotificationFeedService } from './notification-feed.service';
 import { InsurancesService } from './insurances.service';
 import { AlertsService } from './alerts.service';
+import { LoggerService } from './logger.service';
 import { MeResponse } from '../types/me-response.type';
 
 /**
@@ -201,7 +202,9 @@ describe('AuthService', () => {
     });
 
     it('falls back to companies-length derivation when hasCompletedOnboarding is missing (deploy skew)', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // Deploy skew is a degradation, not a failure — it must be recorded as
+      // a warning through LoggerService, not as an error.
+      const warnSpy = vi.spyOn(TestBed.inject(LoggerService), 'warn').mockImplementation(() => {});
       httpGet.mockReturnValue(
         of(buildMe([{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }])),
       );

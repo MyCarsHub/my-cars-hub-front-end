@@ -8,6 +8,7 @@ import { SessionService } from './session.service';
 import { NotificationFeedService } from './notification-feed.service';
 import { InsurancesService } from './insurances.service';
 import { AlertsService } from './alerts.service';
+import { LoggerService } from './logger.service';
 
 interface TokenResponse {
     token: string;
@@ -33,6 +34,7 @@ export class AuthService {
     private notificationFeed = inject(NotificationFeedService);
     private insurances = inject(InsurancesService);
     private alerts = inject(AlertsService);
+    private logger = inject(LoggerService);
 
     constructor(private httpClient: HttpClient) { }
 
@@ -142,8 +144,7 @@ export class AuthService {
         const explicitFlag = user.hasCompletedOnboarding;
         const derivedFlag = companies.length > 0;
         if (explicitFlag === undefined || explicitFlag === null) {
-            // eslint-disable-next-line no-console
-            console.warn(
+            this.logger.warn(
                 '[auth] /auth/me did not return `hasCompletedOnboarding`; falling back to companies-length derivation. Likely FE/BE deploy skew.',
             );
         }

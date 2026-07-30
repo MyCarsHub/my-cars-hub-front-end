@@ -11,6 +11,7 @@ import {
 } from './inspection-pdf.service';
 import { environment } from '../../../environments/environment';
 import { RentalPhotoDto, RentalResponseDto } from '../../types/rental.types';
+import { LoggerService } from '../../services/logger.service';
 
 // pdf-lib is heavy + browser-only; stub it out so the spec exercises the
 // download + upload orchestration without pulling the real library into
@@ -40,6 +41,7 @@ describe('InspectionPdfService.generateAndUpload', () => {
   const RID = 'rid-1';
   let httpPost: ReturnType<typeof vi.fn>;
   let service: InspectionPdfService;
+  let logger: LoggerService;
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
@@ -63,6 +65,7 @@ describe('InspectionPdfService.generateAndUpload', () => {
       ],
     });
     service = TestBed.inject(InspectionPdfService);
+    logger = TestBed.inject(LoggerService);
 
     // Stub fetch — each photo download returns an empty ArrayBuffer/Blob.
     globalThis.fetch = vi.fn(async () => ({
@@ -187,7 +190,7 @@ describe('InspectionPdfService.generateAndUpload', () => {
     const doc = await pdfLib.PDFDocument.create();
     vi.mocked(doc.embedJpg).mockRejectedValueOnce(new Error('not a jpg'));
     vi.mocked(doc.embedPng).mockRejectedValueOnce(new Error('not a png'));
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logged = vi.spyOn(logger, 'warn').mockImplementation(() => {});
 
     try {
       const photos = [photo('FRONT', 'p1')];
@@ -206,8 +209,9 @@ describe('InspectionPdfService.generateAndUpload', () => {
       expect(httpPost).toHaveBeenCalledTimes(1);
       expect(res.id).toBe('doc-1');
 
-      // (b) a falha é observável: contabilizada no resultado, logada com
-      //     contexto útil e refletida na mensagem de progresso.
+      // (b) a falha é observável: contabilizada no resultado, registrada como
+      //     AVISO (degradação parcial, não erro) com contexto útil, e
+      //     refletida na mensagem de progresso.
       expect(res.skippedPhotoLabels).toHaveLength(1);
       expect(logged).toHaveBeenCalledTimes(1);
       expect(String(logged.mock.calls[0][0])).toContain('não pôde ser embutida');
