@@ -22,6 +22,7 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
+import { LoggerService } from '../../../services/logger.service';
 import { NotificationService } from '../../../services/notification.service';
 import { DriverService } from '../../../services/driver.service';
 import { VehiclesService } from '../../../services/vehicles.service';
@@ -307,6 +308,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly inspectionPdfService = inject(InspectionPdfService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly logger = inject(LoggerService);
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly imageCompression = inject(ImageCompressionService);
   private readonly platformId = inject(PLATFORM_ID);
@@ -753,7 +755,10 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (err) {
           this.error.set('Falha ao baixar o PDF do laudo.');
-          console.error('inspection download failed', err);
+          this.logger.error('inspection download failed', err, {
+            rentalId: this.rentalId(),
+            kind: this.kind(),
+          });
         } finally {
           this.downloading.set(false);
         }

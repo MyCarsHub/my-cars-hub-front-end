@@ -4,8 +4,17 @@ import * as Sentry from '@sentry/angular';
 /** Structured key/value payload forwarded to the telemetry backend as `extra`. */
 export type TelemetryExtra = Record<string, unknown>;
 
+/** Identity attached to every subsequent event, or `null` to go anonymous. */
+export interface TelemetryUser {
+  id: string;
+  email?: string;
+}
+
 /**
- * The app's single seam onto the Sentry SDK for *capture* calls.
+ * The app's single seam onto the Sentry SDK — every capture and every identity
+ * call in `src/` goes through here. Outside this file, `@sentry/angular` is
+ * imported only by `main.ts` (init) and `app.config.ts` (global `ErrorHandler`
+ * + `TraceService`), both of which are bootstrap wiring rather than app code.
  *
  * Why this exists as a class instead of `LoggerService` importing Sentry
  * directly: `@sentry/angular` is an ESM namespace, so its bindings are neither
@@ -35,5 +44,14 @@ export class TelemetryService {
   /** Records a failure with a stack. Mirrors `Sentry.captureException`. */
   captureException(error: Error, options: { extra: TelemetryExtra }): void {
     Sentry.captureException(error, options);
+  }
+
+  /**
+   * Tags subsequent events with the signed-in user, or clears the tag when
+   * given `null`. Identity, not logging — hence it lives here rather than on
+   * `LoggerService`. Mirrors `Sentry.setUser`.
+   */
+  setUser(user: TelemetryUser | null): void {
+    Sentry.setUser(user);
   }
 }

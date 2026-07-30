@@ -28,7 +28,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl } from '@angular/forms';
 import { clearServerErrors } from '../../services/api-error';
 import { isValidCnpj } from '../../utils/validators/cnpj.validator';
-import * as Sentry from '@sentry/angular';
+import { LoggerService } from '../../services/logger.service';
 
 /** The document step. Its CNPJ is checked for availability before the step is saved. */
 const DOCUMENT_STEP = 3;
@@ -90,6 +90,7 @@ export class OnboardingContainer implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly session = inject(SessionService);
+  private readonly logger = inject(LoggerService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** True once the initial GET /onboarding call has resolved */
@@ -245,8 +246,8 @@ export class OnboardingContainer implements OnInit {
                     // enriquecidos até o próximo /auth/me — aceitável.
                     // Captura em Sentry pra ter visibilidade da taxa dessa
                     // falha silenciosa em prod.
-                    Sentry.captureException(err, {
-                      tags: { source: 'onboarding.finish.hydrateSession' },
+                    this.logger.error('[onboarding] hydrateSession falhou após finish', err, {
+                      source: 'onboarding.finish.hydrateSession',
                     });
                   },
                 });
@@ -383,7 +384,7 @@ export class OnboardingContainer implements OnInit {
           setTimeout(() => this.fetchMeAndProceed(attempt + 1), delay);
           return;
         }
-        console.error('[onboarding] exhausted retries, session=', {
+        this.logger.warn('[onboarding] exhausted retries', {
           selectedCompanyId: this.session.getItem('selectedCompanyId'),
           userCompanies: this.session.getItem('userCompanies'),
           onboardingCompleted: this.session.getItem('onboardingCompleted'),
@@ -393,7 +394,9 @@ export class OnboardingContainer implements OnInit {
         );
       },
       error: (err: HttpErrorResponse) => {
-        console.error('[onboarding] getMe error', err);
+        this.logger.error('[onboarding] getMe error', err, {
+          source: 'onboarding.finish.fetchMeAndProceed',
+        });
         this.handleFinishError(err);
       },
     });

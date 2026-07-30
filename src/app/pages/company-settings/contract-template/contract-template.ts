@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { LoggerService } from '../../../services/logger.service';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 
 /**
@@ -220,6 +221,7 @@ export class ContractTemplate implements OnInit {
   private readonly service = inject(ContractTemplateService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly logger = inject(LoggerService);
 
   /** Screen-level failures. Toasts here are reserved for successes. */
   protected readonly error = signal<string | null>(null);
@@ -457,8 +459,8 @@ export class ContractTemplate implements OnInit {
           win.document.body.innerHTML =
             '<p style="color:#b91c1c;padding:24px;">Falha ao renderizar o template.</p>';
           this.error.set('Falha ao renderizar template no browser.');
-          // Log local só; não expor URL/token em console.
-          console.error('docx-preview render failed', err);
+          // Só a falha do render; nunca a URL/token do blob.
+          this.logger.error('docx-preview render failed', err);
         } finally {
           this.opening.set(false);
         }
