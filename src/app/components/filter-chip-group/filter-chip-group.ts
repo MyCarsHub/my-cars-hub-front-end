@@ -5,9 +5,9 @@ import {
   computed,
   input,
   output,
-  signal,
   viewChildren,
 } from '@angular/core';
+import { RovingFocusTracker, resolveRovingKey } from '../roving-focus/roving-focus';
 
 /** Uma opção do grupo de chips. `value` é o que sai no `selectionChange`. */
 export interface FilterChipOption<T> {
@@ -89,7 +89,7 @@ export class FilterChipGroup<T> {
   );
 
   /** Chip com foco enquanto o grupo está focado; `null` quando o foco está fora. */
-  private readonly focusedIndex = signal<number | null>(null);
+  private readonly focus = new RovingFocusTracker();
 
   /**
    * Índice do chip marcado. Sem seleção válida cai no primeiro chip — senão o
@@ -105,7 +105,7 @@ export class FilterChipGroup<T> {
    * não ser o marcado); ao sair, volta pro marcado — assim o Tab de retorno
    * cai no chip selecionado, como manda o APG.
    */
-  protected readonly rovingIndex = computed(() => this.focusedIndex() ?? this.selectedIndex());
+  protected readonly rovingIndex = computed(() => this.focus.index() ?? this.selectedIndex());
 
   protected chipClass(optionValue: T): string {
     const state = optionValue === this.value() ? CHIP_ACTIVE : CHIP_INACTIVE;
@@ -119,14 +119,12 @@ export class FilterChipGroup<T> {
 
   /** Mantém o roving tabindex no chip realmente focado. */
   protected onFocusIn(event: FocusEvent): void {
-    const index = this.chips().findIndex((chip) => chip.nativeElement === event.target);
-    if (index >= 0) this.focusedIndex.set(index);
+    this.focus.onFocusIn(event, this.chips());
   }
 
   /** Foco saiu do grupo: devolve o tabindex ao chip marcado. */
   protected onFocusOut(event: FocusEvent): void {
-    const stillInside = this.chips().some((chip) => chip.nativeElement === event.relatedTarget);
-    if (!stillInside) this.focusedIndex.set(null);
+    this.focus.onFocusOut(event, this.chips());
   }
 
   /**
@@ -136,31 +134,18 @@ export class FilterChipGroup<T> {
    */
   protected onKeydown(event: KeyboardEvent): void {
     const options = this.options();
-    if (options.length === 0) return;
-
     const current = this.rovingIndex();
+    const action = resolveRovingKey(event.key, current, options.length);
+    if (action === null) return;
 
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
+    event.preventDefault();
+
+    if (action.kind === 'confirm') {
       this.select(options[current].value);
       return;
     }
 
-    let next: number | null = null;
-
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-      next = (current + 1) % options.length;
-    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-      next = (current - 1 + options.length) % options.length;
-    } else if (event.key === 'Home') {
-      next = 0;
-    } else if (event.key === 'End') {
-      next = options.length - 1;
-    }
-
-    if (next === null) return;
-    event.preventDefault();
-    this.focusedIndex.set(next);
-    this.chips()[next]?.nativeElement.focus();
+    this.focus.set(action.index);
+    this.chips()[action.index]?.nativeElement.focus();
   }
 }
