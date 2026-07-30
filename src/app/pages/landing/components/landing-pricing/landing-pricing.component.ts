@@ -9,10 +9,22 @@ import {
 } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { PlanCardComponent } from '../../../../components/core/plan-card/plan-card';
+import {
+  SegmentedToggle,
+  SegmentedToggleOption,
+} from '../../../../components/segmented-toggle/segmented-toggle';
+
+type BillingCycle = 'monthly' | 'yearly';
+
+/** Acento do toggle de ciclo: laranja da landing no Mensal, Hub Green no Anual. */
+const CYCLE_MONTHLY_BACKGROUND = 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)';
+const CYCLE_MONTHLY_SHADOW = '0 6px 18px -6px rgba(235,63,0,0.4)';
+const CYCLE_YEARLY_BACKGROUND = 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)';
+const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(16,185,129,0.45)';
 
 @Component({
   selector: 'app-landing-pricing',
-  imports: [RouterModule, PlanCardComponent],
+  imports: [RouterModule, PlanCardComponent, SegmentedToggle],
   templateUrl: './landing-pricing.component.html',
   styleUrls: ['./landing-pricing.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -22,7 +34,25 @@ export class LandingPricingComponent implements AfterViewInit {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly router = inject(Router);
 
-  protected readonly cycle = signal<'monthly' | 'yearly'>('monthly');
+  protected readonly cycle = signal<BillingCycle>('monthly');
+
+  /** Opções do toggle Mensal/Anual — o badge mostra a economia real do anual. */
+  protected readonly cycleOptions = computed<readonly SegmentedToggleOption<BillingCycle>[]>(() => [
+    {
+      value: 'monthly',
+      label: 'Mensal',
+      activeBackground: CYCLE_MONTHLY_BACKGROUND,
+      activeShadow: CYCLE_MONTHLY_SHADOW,
+    },
+    {
+      value: 'yearly',
+      label: 'Anual',
+      badge: `-${this.proSavings()}%`,
+      activeBackground: CYCLE_YEARLY_BACKGROUND,
+      activeShadow: CYCLE_YEARLY_SHADOW,
+      badgeActiveClass: 'bg-white/[0.22]',
+    },
+  ]);
 
   private readonly proMonthly = 79.9;
   /** PRO yearly total. Matches billing spec target R$ 795,80/ano (~17% off). */
@@ -107,7 +137,7 @@ export class LandingPricingComponent implements AfterViewInit {
     return `ou R$ ${this.formatBRL(this.enterpriseMonthly * 0.85)}/mês no anual`;
   });
 
-  protected setCycle(c: 'monthly' | 'yearly'): void { this.cycle.set(c); }
+  protected setCycle(c: BillingCycle): void { this.cycle.set(c); }
   protected formatBRL(v: number): string { return v.toFixed(2).replace('.', ','); }
 
   protected goToLogin(): void {

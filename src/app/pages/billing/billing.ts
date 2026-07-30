@@ -20,6 +20,10 @@ import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dial
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PlanCardComponent } from '../../components/core/plan-card/plan-card';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import {
+  SegmentedToggle,
+  SegmentedToggleOption,
+} from '../../components/segmented-toggle/segmented-toggle';
 import { ApiErrorService } from '../../services/api-error.service';
 import {
   BillingService,
@@ -104,6 +108,12 @@ const CHECKOUT_REQUEST_TIMEOUT_MS = 20000;
  */
 type AwaitMode = 'returned' | 'checkout-open';
 
+/** Acento do toggle de ciclo: laranja da marca no Mensal, Hub Green no Anual. */
+const CYCLE_MONTHLY_BACKGROUND = 'linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%)';
+const CYCLE_MONTHLY_SHADOW = '0 6px 18px -6px rgba(235,63,0,0.4)';
+const CYCLE_YEARLY_BACKGROUND = 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)';
+const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(16,185,129,0.45)';
+
 @Component({
   selector: 'app-billing',
   imports: [
@@ -113,6 +123,7 @@ type AwaitMode = 'returned' | 'checkout-open';
     PageCard,
     PlanCardComponent,
     AlertBanner,
+    SegmentedToggle,
   ],
   templateUrl: './billing.html',
   styleUrl: './billing.css',
@@ -473,6 +484,29 @@ export class Billing implements OnInit, OnDestroy {
       if (pct > best) best = pct;
     }
     return Math.round(best);
+  });
+
+  /**
+   * Opções do toggle Mensal/Anual. O badge de desconto só existe quando há
+   * economia real no anual — a opção sai sem `badge` quando não há.
+   */
+  protected readonly cycleOptions = computed<readonly SegmentedToggleOption<BillingCycle>[]>(() => {
+    const savings = this.yearlySavingsBadge();
+    return [
+      {
+        value: 'MONTHLY',
+        label: 'Mensal',
+        activeBackground: CYCLE_MONTHLY_BACKGROUND,
+        activeShadow: CYCLE_MONTHLY_SHADOW,
+      },
+      {
+        value: 'YEARLY',
+        label: 'Anual',
+        badge: savings > 0 ? `-${savings}%` : undefined,
+        activeBackground: CYCLE_YEARLY_BACKGROUND,
+        activeShadow: CYCLE_YEARLY_SHADOW,
+      },
+    ];
   });
 
   /**

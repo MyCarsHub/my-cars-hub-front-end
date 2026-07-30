@@ -329,47 +329,11 @@
       <div class="px-4 sm:px-6 pb-6 pt-2">
         <!-- Cycle toggle -->
         <div class="flex justify-center mb-6">
-          <div
-            class="inline-flex items-center gap-1 bg-neutral-100 border border-neutral-200 rounded-full p-1"
-            role="tablist"
-            aria-label="Ciclo de cobrança">
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="cycle() === 'MONTHLY'"
-              (click)="setCycle('MONTHLY')"
-              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[44px] transition-colors duration-200
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-              [class.text-white]="cycle() === 'MONTHLY'"
-              [class.text-neutral-500]="cycle() !== 'MONTHLY'"
-              [class.hover:text-neutral-900]="cycle() !== 'MONTHLY'"
-              [style.background]="cycle() === 'MONTHLY' ? 'linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%)' : 'transparent'"
-              [style.box-shadow]="cycle() === 'MONTHLY' ? '0 6px 18px -6px rgba(235,63,0,0.4)' : 'none'">
-              Mensal
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="cycle() === 'YEARLY'"
-              (click)="setCycle('YEARLY')"
-              class="relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold text-sm cursor-pointer inline-flex items-center gap-2 min-h-[44px] transition-colors duration-200
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-              [class.text-white]="cycle() === 'YEARLY'"
-              [class.text-neutral-500]="cycle() !== 'YEARLY'"
-              [class.hover:text-neutral-900]="cycle() !== 'YEARLY'"
-              [style.background]="cycle() === 'YEARLY' ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)' : 'transparent'"
-              [style.box-shadow]="cycle() === 'YEARLY' ? '0 6px 18px -6px rgba(16,185,129,0.45)' : 'none'">
-              Anual
-              @if (yearlySavingsBadge() > 0) {
-                <span
-                  class="text-[10.5px] font-bold px-2 py-0.5 rounded-full tracking-[0.04em] text-white"
-                  [class.bg-white/25]="cycle() === 'YEARLY'"
-                  [class.bg-emerald-600]="cycle() !== 'YEARLY'">
-                  -{{ yearlySavingsBadge() }}%
-                </span>
-              }
-            </button>
-          </div>
+          <app-segmented-toggle
+            [options]="cycleOptions()"
+            [value]="cycle()"
+            ariaLabel="Ciclo de cobrança"
+            (selectionChange)="setCycle($event)" />
         </div>
 
         <!-- Plans grid -->
