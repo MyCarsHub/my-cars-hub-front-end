@@ -5,6 +5,7 @@ import {
   computed,
   input,
   output,
+  signal,
   viewChildren,
 } from '@angular/core';
 
@@ -30,10 +31,15 @@ const GROUP_SCROLL =
  * Grupo de chips de filtro mutuamente exclusivo.
  *
  * Semântica: `role="radiogroup"` + `role="radio"` + `aria-checked`, com roving
- * tabindex (só o chip selecionado é tabbable) e navegação por setas/Home/End,
- * conforme o padrão APG de radio group. Os três consumidores trocam o CONTEÚDO
- * exibido sem existir `tabpanel` algum, e a seleção é sempre única — por isso
- * `radiogroup` e não `tablist` nem `aria-pressed`.
+ * tabindex e navegação por setas/Home/End. Os três consumidores trocam o
+ * CONTEÚDO exibido sem existir `tabpanel` algum, e a seleção é sempre única —
+ * por isso `radiogroup` e não `tablist` nem `aria-pressed`.
+ *
+ * Variante "a seleção NÃO acompanha o foco": setas/Home/End movem só o foco e
+ * Enter/Espaço confirmam. É a mesma variante que o APG descreve para radio
+ * group dentro de toolbar ("the button that is checked does not change") e que
+ * a prática de teclado recomenda quando selecionar dispara requisição de rede —
+ * aqui cada seleção dispara `reload()`/`load()` nos consumidores.
  */
 @Component({
   selector: 'app-filter-chip-group',
@@ -45,6 +51,8 @@ const GROUP_SCROLL =
       [attr.aria-label]="ariaLabel()"
       [attr.aria-labelledby]="ariaLabelledby()"
       (keydown)="onKeydown($event)"
+      (focusin)="onFocusIn($event)"
+      (focusout)="onFocusOut($event)"
     >
       @for (option of options(); track option.value; let i = $index) {
         <button
@@ -80,14 +88,24 @@ export class FilterChipGroup<T> {
     this.scrollable() ? GROUP_SCROLL : GROUP_WRAP,
   );
 
+  /** Chip com foco enquanto o grupo está focado; `null` quando o foco está fora. */
+  private readonly focusedIndex = signal<number | null>(null);
+
   /**
-   * Índice tabbable. Sem seleção válida cai no primeiro chip — senão o grupo
-   * inteiro sairia da ordem de tabulação.
+   * Índice do chip marcado. Sem seleção válida cai no primeiro chip — senão o
+   * grupo inteiro sairia da ordem de tabulação.
    */
-  protected readonly rovingIndex = computed(() => {
+  private readonly selectedIndex = computed(() => {
     const index = this.options().findIndex((option) => option.value === this.value());
     return index < 0 ? 0 : index;
   });
+
+  /**
+   * Índice tabbable. Enquanto o grupo tem foco segue o chip focado (que pode
+   * não ser o marcado); ao sair, volta pro marcado — assim o Tab de retorno
+   * cai no chip selecionado, como manda o APG.
+   */
+  protected readonly rovingIndex = computed(() => this.focusedIndex() ?? this.selectedIndex());
 
   protected chipClass(optionValue: T): string {
     const state = optionValue === this.value() ? CHIP_ACTIVE : CHIP_INACTIVE;
@@ -99,15 +117,35 @@ export class FilterChipGroup<T> {
     this.selectionChange.emit(optionValue);
   }
 
+  /** Mantém o roving tabindex no chip realmente focado. */
+  protected onFocusIn(event: FocusEvent): void {
+    const index = this.chips().findIndex((chip) => chip.nativeElement === event.target);
+    if (index >= 0) this.focusedIndex.set(index);
+  }
+
+  /** Foco saiu do grupo: devolve o tabindex ao chip marcado. */
+  protected onFocusOut(event: FocusEvent): void {
+    const stillInside = this.chips().some((chip) => chip.nativeElement === event.relatedTarget);
+    if (!stillInside) this.focusedIndex.set(null);
+  }
+
   /**
-   * Setas movem o foco E selecionam (comportamento APG de radio group);
-   * Home/End vão às extremidades. A lista circula nas pontas.
+   * Setas/Home/End movem SOMENTE o foco (a lista circula nas pontas); Enter e
+   * Espaço confirmam o chip focado. `preventDefault` no Enter/Espaço evita o
+   * clique nativo do `<button>` — sem isso a seleção sairia duplicada.
    */
   protected onKeydown(event: KeyboardEvent): void {
     const options = this.options();
     if (options.length === 0) return;
 
     const current = this.rovingIndex();
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.select(options[current].value);
+      return;
+    }
+
     let next: number | null = null;
 
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
@@ -122,7 +160,7 @@ export class FilterChipGroup<T> {
 
     if (next === null) return;
     event.preventDefault();
+    this.focusedIndex.set(next);
     this.chips()[next]?.nativeElement.focus();
-    this.selectionChange.emit(options[next].value);
   }
 }

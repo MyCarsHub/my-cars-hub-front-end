@@ -42,11 +42,15 @@ describe('FilterChipGroup', () => {
   const chips = (): HTMLButtonElement[] =>
     Array.from(host.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
 
-  const press = (key: string): void => {
-    host
-      .querySelector('[role="radiogroup"]')
-      ?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  /** Dispara o keydown a partir do chip focado — ou do grupo, se o foco está fora. */
+  const press = (key: string): KeyboardEvent => {
+    const active = document.activeElement;
+    const from =
+      active && host.contains(active) ? active : host.querySelector('[role="radiogroup"]');
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    from?.dispatchEvent(event);
     fixture.detectChanges();
+    return event;
   };
 
   beforeEach(async () => {
@@ -75,7 +79,7 @@ describe('FilterChipGroup', () => {
     }
   });
 
-  it('keeps only the selected chip tabbable (roving tabindex)', () => {
+  it('keeps the selected chip tabbable while focus is outside the group', () => {
     expect(chips().map((c) => c.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
 
     fixture.componentInstance.value.set('c');
@@ -101,28 +105,73 @@ describe('FilterChipGroup', () => {
     expect(chips()[1].getAttribute('aria-checked')).toBe('true');
   });
 
-  it('moves selection and focus with arrow keys, wrapping at both ends', () => {
+  it('moves focus with arrow keys WITHOUT emitting a selection, wrapping at both ends', () => {
     press('ArrowRight');
-    expect(fixture.componentInstance.emitted).toEqual(['b']);
     expect(document.activeElement).toBe(chips()[1]);
 
     press('ArrowLeft');
     press('ArrowLeft');
-    expect(fixture.componentInstance.emitted).toEqual(['b', 'a', 'c']);
     expect(document.activeElement).toBe(chips()[2]);
 
     press('ArrowRight');
-    expect(fixture.componentInstance.emitted.at(-1)).toBe('a');
+    expect(document.activeElement).toBe(chips()[0]);
+
+    expect(fixture.componentInstance.emitted).toEqual([]);
+    expect(chips().map((c) => c.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
   });
 
-  it('jumps to the extremes with Home and End', () => {
+  it('moves focus with Home and End without emitting a selection', () => {
     press('End');
-    expect(fixture.componentInstance.emitted.at(-1)).toBe('c');
+    expect(document.activeElement).toBe(chips()[2]);
     press('Home');
-    expect(fixture.componentInstance.emitted.at(-1)).toBe('a');
+    expect(document.activeElement).toBe(chips()[0]);
+    expect(fixture.componentInstance.emitted).toEqual([]);
   });
 
-  it('ignores keys that are not navigation keys', () => {
+  it('accepts ArrowDown and ArrowUp as focus movers too', () => {
+    press('ArrowDown');
+    expect(document.activeElement).toBe(chips()[1]);
+    press('ArrowUp');
+    expect(document.activeElement).toBe(chips()[0]);
+    expect(fixture.componentInstance.emitted).toEqual([]);
+  });
+
+  it('confirms the focused chip with Enter', () => {
+    press('ArrowRight');
+    press('ArrowRight');
+    expect(fixture.componentInstance.emitted).toEqual([]);
+
+    press('Enter');
+    expect(fixture.componentInstance.emitted).toEqual(['c']);
+    expect(chips()[2].getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('confirms the focused chip with Space', () => {
+    press('ArrowRight');
+    press(' ');
+    expect(fixture.componentInstance.emitted).toEqual(['b']);
+    expect(chips()[1].getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('cancels the native button activation so Enter and Space emit only once', () => {
+    expect(press('Enter').defaultPrevented).toBe(true);
+    expect(press(' ').defaultPrevented).toBe(true);
+    expect(fixture.componentInstance.emitted).toEqual(['a', 'a']);
+  });
+
+  it('moves the roving tabindex to the focused chip and gives it back on focus out', () => {
+    expect(chips().map((c) => c.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+
+    press('ArrowRight');
+    expect(chips().map((c) => c.getAttribute('tabindex'))).toEqual(['-1', '0', '-1']);
+    expect(chips().map((c) => c.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
+
+    chips()[1].blur();
+    fixture.detectChanges();
+    expect(chips().map((c) => c.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+  });
+
+  it('ignores keys that are not navigation or confirmation keys', () => {
     press('Tab');
     press('a');
     expect(fixture.componentInstance.emitted).toEqual([]);
