@@ -29,7 +29,9 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
-    <h2 class="text-xl font-bold text-gray-900 mb-1">CNPJ da empresa</h2>
+    <h2 class="text-xl font-bold text-gray-900 mb-1 focus:outline-none" tabindex="-1">
+      CNPJ da empresa
+    </h2>
     <p class="text-sm text-primary-700 mb-6">
       Caso sua empresa possua CNPJ, informe abaixo. Não é obrigatório.
     </p>
@@ -37,7 +39,7 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
     <form [formGroup]="form" class="space-y-4" (ngSubmit)="$event.preventDefault()">
       <!-- Toggle checkbox -->
       <label
-        class="flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer border transition-colors"
+        class="flex min-h-11 items-center gap-3 px-4 py-3 rounded-lg cursor-pointer border transition-colors"
         [class.bg-primary-low]="form.get('hasCnpj')?.value"
         [class.border-primary-500]="form.get('hasCnpj')?.value"
         [class.bg-gray-50]="!form.get('hasCnpj')?.value"
@@ -48,7 +50,7 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
           id="ob-has-cnpj"
           type="checkbox"
           formControlName="hasCnpj"
-          class="w-4 h-4 accent-primary-500 rounded"
+          class="w-5 h-5 shrink-0 accent-primary-500 rounded"
         />
         <span class="text-sm font-medium text-gray-700">Minha empresa possui CNPJ</span>
       </label>
@@ -70,7 +72,7 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
             autocomplete="off"
             autocapitalize="characters"
             spellcheck="false"
-            class="w-full px-4 py-2.5 border rounded-lg text-sm transition-shadow uppercase
+            class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow uppercase
                    placeholder:normal-case
                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             placeholder="00.000.000/0000-00"
@@ -103,9 +105,11 @@ export class StepDocument implements OnInit {
 
   ngOnInit(): void {
     const data = this.initialData();
+    // Backend returns the RAW document — re-mask on hydration so Back shows
+    // `00.000.000/0000-00`. Validators normalize first, so the masked value stays valid.
     this.form.patchValue({
       hasCnpj: data.hasCnpj ?? false,
-      cnpj: data.cnpj ?? '',
+      cnpj: maskCnpj(data.cnpj ?? ''),
     });
 
     this.applyCnpjValidators(!!this.form.get('hasCnpj')?.value);

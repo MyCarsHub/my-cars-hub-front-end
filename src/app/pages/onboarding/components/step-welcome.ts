@@ -9,7 +9,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         🎉
       </div>
       
-      <h2 class="text-2xl font-bold text-gray-900 mb-3">Bem-vindo ao MyCarsHub!</h2>
+      <h2 class="text-2xl font-bold text-gray-900 mb-3 focus:outline-none" tabindex="-1">
+        Bem-vindo ao MyCarsHub!
+      </h2>
       <p class="text-gray-600 leading-relaxed mb-8">
         Sua conta foi configurada com sucesso. Agora você já pode começar a gerenciar sua frota de forma inteligente e eficiente.
       </p>

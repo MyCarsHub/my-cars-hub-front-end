@@ -1,9 +1,12 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
+  ElementRef,
   inject,
+  Injector,
   OnInit,
   signal,
   viewChild,
@@ -92,6 +95,8 @@ export class OnboardingContainer implements OnInit {
   private readonly session = inject(SessionService);
   private readonly logger = inject(LoggerService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   /** True once the initial GET /onboarding call has resolved */
   protected readonly loaded = signal(false);
@@ -151,6 +156,20 @@ export class OnboardingContainer implements OnInit {
     if (this.svc.checkingCnpj()) return 'Verificando...';
     if (this.svc.loading()) return 'Salvando...';
     return this.svc.isLastStep() ? 'Acessar Plataforma' : 'Próximo';
+  });
+
+  /**
+   * Why "Próximo" is blocked, announced next to the button (`aria-describedby` +
+   * polite live region). Without it a keyboard/screen-reader user faced a silent
+   * disabled button with no clue about what is missing.
+   */
+  protected readonly nextBlockedReason = computed<string | null>(() => {
+    // The last step has no "Próximo" in the footer — its CTA lives in app-step-welcome.
+    if (this.svc.isLastStep()) return null;
+    if (!this.loaded() || this.busy() || this.stepValid()) return null;
+    return this.svc.currentStep() === DOCUMENT_STEP
+      ? 'Informe um CNPJ válido ou desmarque a opção para continuar.'
+      : 'Preencha os campos obrigatórios para continuar.';
   });
 
   ngOnInit(): void {
@@ -331,6 +350,7 @@ export class OnboardingContainer implements OnInit {
           this.stepValid.set(false);
           this.pendingData.set({});
           this.direction.set('forward');
+          this.focusStepHeading();
         },
         error: (err: HttpErrorResponse) =>
           this.claimStepError(err, 'Não foi possível salvar esta etapa. Tente novamente.'),
@@ -402,6 +422,22 @@ export class OnboardingContainer implements OnInit {
     });
   }
 
+  /**
+   * Every step transition swaps the whole subtree under `@switch`, which drops
+   * `document.activeElement` to BODY — a keyboard / screen-reader user lands back at the
+   * top of the document. After the next render, focus the new step's heading
+   * (`tabindex="-1"` in each step component) so context is announced and Tab continues
+   * from the step content.
+   */
+  private focusStepHeading(): void {
+    afterNextRender(
+      () => {
+        this.host.nativeElement.querySelector<HTMLElement>('h2[tabindex="-1"]')?.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
   protected onBack(): void {
     if (this.busy() || this.svc.isFirstStep()) return;
 
@@ -413,6 +449,7 @@ export class OnboardingContainer implements OnInit {
         this.direction.set('backward');
         // Always decrement locally after re-syncing current backend state
         this.svc.goBackStep();
+        this.focusStepHeading();
       },
       error: (err: HttpErrorResponse) =>
         this.actionError.set(

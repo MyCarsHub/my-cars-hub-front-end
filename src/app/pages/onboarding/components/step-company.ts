@@ -15,7 +15,9 @@ import { FieldControl, FormField } from '../../../components/form-field/form-fie
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
-    <h2 class="text-xl font-bold text-gray-900 mb-1">Sua empresa</h2>
+    <h2 class="text-xl font-bold text-gray-900 mb-1 focus:outline-none" tabindex="-1">
+      Sua empresa
+    </h2>
     <p class="text-sm text-primary-700 mb-6">Informe o nome da organização que será criada.</p>
 
     <form [formGroup]="form" class="space-y-4" (ngSubmit)="$event.preventDefault()">
@@ -31,7 +33,7 @@ import { FieldControl, FormField } from '../../../components/form-field/form-fie
           formControlName="companyName"
           type="text"
           autocomplete="organization"
-          class="w-full px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="Ex: Transportadora São Paulo"
         />

@@ -170,4 +170,20 @@ describe('VehiclesList — menu de ações', () => {
     expect(banner?.querySelector('[role="alert"]')).not.toBeNull();
     expect(errorSpy).not.toHaveBeenCalled();
   });
+
+  // Padrão de listagem acessível (mesmo contrato de FinesList / TopOffendersTable).
+  it('card mobile expõe role="button", nome acessível e micro-labels em neutral-500 (AA)', () => {
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const card = host.querySelector('article');
+    expect(card?.getAttribute('role')).toBe('button');
+    expect(card?.getAttribute('tabindex')).toBe('0');
+    expect(card?.getAttribute('aria-label')).toContain('ABC1D23');
+
+    expect(host.querySelectorAll('article span.text-neutral-500').length).toBeGreaterThan(0);
+    // Nada de neutral-400 (2,98:1) em texto dentro do card — só o ícone decorativo da busca usa.
+    expect(card?.querySelector('.text-neutral-400')).toBeNull();
+  });
 });
