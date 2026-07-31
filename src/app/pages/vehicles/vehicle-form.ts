@@ -1,11 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnInit,
   computed,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -15,7 +17,7 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { EMPTY, Observable, catchError, map, of, switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, map, merge, of, switchMap } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
@@ -81,6 +83,7 @@ export class VehicleForm implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly typeOptions = VEHICLE_TYPE_OPTIONS;
   protected readonly ipvaStatusOptions = IPVA_STATUS_OPTIONS;
@@ -177,6 +180,29 @@ export class VehicleForm implements OnInit {
     { validators: [insuranceDateRangeValidator] },
   );
 
+  /**
+   * Formulário que originou o banner de validação do submit. Enquanto apontar
+   * para um grupo, o banner some sozinho assim que esse grupo voltar a ser
+   * válido — banners de erro do servidor não passam por aqui (ficam até a
+   * próxima ação, como antes).
+   */
+  private bannerSource: AbstractControl | null = null;
+
+  constructor() {
+    merge(
+      this.form.statusChanges,
+      this.financingForm.statusChanges,
+      this.insuranceForm.statusChanges,
+    )
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        if (this.bannerSource?.valid) {
+          this.bannerSource = null;
+          this.error.set(null);
+        }
+      });
+  }
+
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
@@ -258,21 +284,28 @@ export class VehicleForm implements OnInit {
     if (this.saving()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.bannerSource = this.form;
       this.error.set('Verifique os campos destacados e tente novamente.');
+      this.focusFirstInvalid();
       return;
     }
     // Vale tanto na criação quanto na edição: se o usuário abriu o bloco, ele é validado.
     if (this.willSubmitFinancing() && this.financingForm.invalid) {
       this.financingForm.markAllAsTouched();
+      this.bannerSource = this.financingForm;
       this.error.set('Verifique os campos do financiamento.');
+      this.focusFirstInvalid();
       return;
     }
     if (this.willSubmitInsurance() && this.insuranceForm.invalid) {
       this.insuranceForm.markAllAsTouched();
+      this.bannerSource = this.insuranceForm;
       this.error.set('Verifique os campos do seguro.');
+      this.focusFirstInvalid();
       return;
     }
 
+    this.bannerSource = null;
     this.saving.set(true);
     this.error.set(null);
     clearServerErrors(this.form);
@@ -313,6 +346,31 @@ export class VehicleForm implements OnInit {
       };
       this.saveChildren(this.vehiclesService.create(createPayload));
     }
+  }
+
+  /**
+   * Move o foco para o primeiro controle inválido em ordem de documento.
+   * Controles ligados por `formControlName` carregam a classe `ng-invalid` no
+   * próprio elemento (ou no host `app-primary-input`); placa/chassi/RENAVAM são
+   * ligados manualmente (`[value]`/`(input)`) e são resolvidos pelo id + estado
+   * do control.
+   */
+  private focusFirstInvalid(): void {
+    const manualControls: ReadonlyArray<[string, AbstractControl]> = [
+      ['veiculo-plate', this.form.controls.plate],
+      ['veiculo-chassis', this.form.controls.chassis],
+      ['veiculo-renavam', this.form.controls.renavam],
+    ];
+    const fields = Array.from(
+      this.host.nativeElement.querySelectorAll<HTMLElement>('input, select, textarea'),
+    );
+    const target = fields.find((el) => {
+      if (el.classList.contains('ng-invalid')) return true;
+      if (el.closest('app-primary-input')?.classList.contains('ng-invalid')) return true;
+      const manual = manualControls.find(([id]) => id === el.id);
+      return manual !== undefined && manual[1].invalid;
+    });
+    target?.focus();
   }
 
   /**

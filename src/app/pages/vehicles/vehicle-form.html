@@ -37,8 +37,9 @@
           </app-form-field>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo <span class="text-primary-700" aria-hidden="true">*</span></label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-type">Tipo <span class="text-primary-700" aria-hidden="true">*</span></label>
             <select
+              id="veiculo-type"
               formControlName="type"
               aria-required="true"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
@@ -50,8 +51,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Cor</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-color">Cor</label>
             <input
+              id="veiculo-color"
               type="text"
               formControlName="color"
               placeholder="Ex: Prata"
@@ -103,8 +105,9 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5">Ano fabricação <span class="text-primary-700" aria-hidden="true">*</span></label>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-year-manufacture">Ano fabricação <span class="text-primary-700" aria-hidden="true">*</span></label>
               <input
+                id="veiculo-year-manufacture"
                 type="number"
                 formControlName="yearManufacture"
                 min="1900"
@@ -114,8 +117,9 @@
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5">Ano modelo <span class="text-primary-700" aria-hidden="true">*</span></label>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-year-model">Ano modelo <span class="text-primary-700" aria-hidden="true">*</span></label>
               <input
+                id="veiculo-year-model"
                 type="number"
                 formControlName="yearModel"
                 min="1900"
@@ -183,8 +187,9 @@
       <app-page-card title="Operacional">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Hodômetro (km) <span class="text-primary-700" aria-hidden="true">*</span></label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-hodometer">Hodômetro (km) <span class="text-primary-700" aria-hidden="true">*</span></label>
             <input
+              id="veiculo-hodometer"
               type="number"
               formControlName="hodometer"
               min="0"
@@ -197,8 +202,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Licenciamento vence em</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-licensing-expiration">Licenciamento vence em</label>
             <input
+              id="veiculo-licensing-expiration"
               type="date"
               formControlName="licensingExpiration"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
@@ -206,8 +212,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Data da compra</label>
+            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-purchase-date">Data da compra</label>
             <input
+              id="veiculo-purchase-date"
               type="date"
               formControlName="purchaseDate"
               class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800

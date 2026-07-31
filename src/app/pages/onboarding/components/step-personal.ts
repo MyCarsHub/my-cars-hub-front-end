@@ -20,12 +20,28 @@ import { cpfValidator } from '../../../utils/validators/cpf.validator';
 
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
+/**
+ * Progressive `(00) 00000-0000` mask. Shared by the input handler and the hydration
+ * `patchValue` so a value coming back from the backend (raw digits) renders exactly
+ * like one the user typed — Back used to rehydrate `52998224725` unmasked.
+ */
+function maskPhone(value: string | null | undefined): string {
+  let digits = (value ?? '').replace(/\D/g, '');
+  if (digits.length > 11) digits = digits.slice(0, 11);
+  if (digits.length > 6) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length > 2) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length > 0) return `(${digits}`;
+  return digits;
+}
+
 @Component({
   selector: 'app-step-personal',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
-    <h2 class="text-xl font-bold text-gray-900 mb-1">Seus dados pessoais</h2>
+    <h2 class="text-xl font-bold text-gray-900 mb-1 focus:outline-none" tabindex="-1">
+      Seus dados pessoais
+    </h2>
     <p class="text-sm text-primary-700 mb-6">
       Precisamos de algumas informações para configurar sua conta.
     </p>
@@ -43,7 +59,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
           formControlName="name"
           type="text"
           autocomplete="name"
-          class="w-full px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="Seu nome completo"
         />
@@ -62,7 +78,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
           type="text"
           autocomplete="off"
           inputmode="numeric"
-          class="w-full px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="000.000.000-00"
           maxlength="14"
@@ -83,7 +99,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
           type="tel"
           autocomplete="tel"
           inputmode="tel"
-          class="w-full px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="(00) 00000-0000"
           maxlength="15"
@@ -122,10 +138,12 @@ export class StepPersonal implements OnInit {
 
   ngOnInit(): void {
     const data = this.initialData();
+    // Backend returns RAW digits — re-mask on hydration so Back shows `000.000.000-00`
+    // and `(00) 00000-0000`, not the raw value. Validators normalize, so masked is valid.
     this.form.patchValue({
       name: data.name ?? '',
-      cpf: data.cpf ?? '',
-      phoneNumber: data.phoneNumber ?? '',
+      cpf: maskCpf(data.cpf ?? ''),
+      phoneNumber: maskPhone(data.phoneNumber ?? ''),
     });
 
     this.form.valueChanges.subscribe((val) => {
@@ -158,20 +176,6 @@ export class StepPersonal implements OnInit {
 
   protected onPhoneInput(event: Event): void {
     const input = event.target as HTMLInputElement;
-    let value = input.value.replace(/\D/g, '');
-    if (value.length > 11) value = value.slice(0, 11);
-
-    let formatted = '';
-    if (value.length > 6) {
-      formatted = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
-    } else if (value.length > 2) {
-      formatted = `(${value.slice(0, 2)}) ${value.slice(2)}`;
-    } else if (value.length > 0) {
-      formatted = `(${value}`;
-    } else {
-      formatted = value;
-    }
-
-    this.form.get('phoneNumber')?.setValue(formatted, { emitEvent: true });
+    this.form.get('phoneNumber')?.setValue(maskPhone(input.value), { emitEvent: true });
   }
 }

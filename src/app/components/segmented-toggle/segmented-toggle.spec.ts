@@ -143,7 +143,8 @@ describe('SegmentedToggle', () => {
 
   it('swaps the text colour between active and inactive options', () => {
     expect(segments()[0].className).toContain('text-white');
-    expect(segments()[1].className).toContain('text-neutral-500');
+    // neutral-600: contraste AA sobre o trilho bg-neutral-100 (#f5f5f5).
+    expect(segments()[1].className).toContain('text-neutral-600');
   });
 
   it('lets the consumer override the active text colour for a light pill', () => {

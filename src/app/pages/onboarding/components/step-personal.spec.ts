@@ -81,4 +81,25 @@ describe('StepPersonal — CPF no onboarding', () => {
     expect(component.form.get('cpf')?.errors?.['cpfInvalid']).toBe(true);
     expect(component.form.get('cpf')?.errors?.['cpfShape']).toBeUndefined();
   });
+
+  /**
+   * Voltar reidrata o passo com os dígitos crus do backend (`52998224725`); a máscara
+   * precisa ser reaplicada na hidratação — e o valor mascarado continua válido.
+   */
+  it('reidrata CPF e telefone COM máscara e o formulário permanece válido', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [StepPersonal] });
+    const local = TestBed.createComponent(StepPersonal);
+    local.componentRef.setInput('initialData', {
+      name: 'Ada Lovelace',
+      cpf: '52998224725',
+      phoneNumber: '11987654321',
+    });
+    local.detectChanges();
+
+    const form = local.componentInstance.form;
+    expect(form.get('cpf')?.value).toBe('529.982.247-25');
+    expect(form.get('phoneNumber')?.value).toBe('(11) 98765-4321');
+    expect(form.valid).toBe(true);
+  });
 });
