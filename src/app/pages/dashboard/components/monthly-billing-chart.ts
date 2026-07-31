@@ -31,6 +31,8 @@ interface RenderedLolli {
     isCurrent: boolean;
     /** True when this month's value is zero — skip pillar, render baseline dot only. */
     isZero: boolean;
+    /** X of the keyboard-focus outline rect (cx - FOCUS_W/2). */
+    focusX: number;
 }
 
 interface YAxisTick {
@@ -57,6 +59,9 @@ const PLOT_B = VB_H - PAD_B;
 const PLOT_W = PLOT_R - PLOT_L;
 const PLOT_H = PLOT_B - PLOT_T;
 const PILLAR_W = 3;
+// Keyboard-focus outline box around each month column (viewBox units).
+const FOCUS_W = 22;
+const FOCUS_PAD_Y = 8;
 
 /**
  * Vertical bar chart (default) or "lollipop" chart (`mode="line"`) for a
@@ -125,7 +130,7 @@ const PILLAR_W = 3;
                             [attr.viewBox]="viewBox"
                             preserveAspectRatio="xMidYMid meet"
                             class="w-full h-44 sm:h-52 overflow-visible"
-                            role="img"
+                            role="group"
                             [attr.aria-label]="'Evolução do ticket médio, últimos 6 meses'"
                         >
                             <defs>
@@ -177,7 +182,43 @@ const PILLAR_W = 3;
 
                             <!-- Pillars + dots -->
                             @for (l of lollipops(); track l.month) {
-                                <g tabindex="0" focusable="true" class="focus:outline-none">
+                                <!--
+                                  Cada mês é uma parada de foco nomeada: role="img" +
+                                  aria-label no próprio g. O svg raiz NÃO pode ser
+                                  role="img" — esse papel é "children presentational"
+                                  (WAI-ARIA 1.2, seção img), o que apagaria estes rótulos
+                                  da árvore de acessibilidade; por isso a raiz usa
+                                  role="group".
+                                -->
+                                <g
+                                    tabindex="0"
+                                    focusable="true"
+                                    role="img"
+                                    [attr.aria-label]="l.label + ' — ' + l.value"
+                                    class="group focus:outline-none"
+                                >
+                                    <!--
+                                      Keyboard focus indicator. SVG support for CSS outline is
+                                      unreliable (notably WebKit), so the indicator is a real
+                                      rect toggled via the group-focus-visible variant. Stroke
+                                      #101010 (Carbon) = 19,03:1 vs the white chart canvas and
+                                      4,26:1 vs the indigo pillar — both above WCAG 1.4.11 (3:1).
+                                      non-scaling-stroke keeps it 2 CSS px at any viewport.
+                                    -->
+                                    <rect
+                                        class="opacity-0 transition-opacity duration-150 group-focus-visible:opacity-100"
+                                        [attr.x]="l.focusX"
+                                        [attr.y]="focusBoxY"
+                                        [attr.width]="focusBoxW"
+                                        [attr.height]="focusBoxH"
+                                        rx="4"
+                                        fill="none"
+                                        stroke="#101010"
+                                        stroke-width="2"
+                                        vector-effect="non-scaling-stroke"
+                                        pointer-events="none"
+                                    />
+
                                     @if (!l.isZero) {
                                         <rect
                                             [attr.x]="l.barX"
@@ -281,6 +322,9 @@ export class MonthlyBillingChart {
     protected readonly plotR = PLOT_R;
     protected readonly plotB = PLOT_B;
     protected readonly pillarWidth = PILLAR_W;
+    protected readonly focusBoxW = FOCUS_W;
+    protected readonly focusBoxY = PLOT_T - FOCUS_PAD_Y;
+    protected readonly focusBoxH = PLOT_H + FOCUS_PAD_Y * 2;
 
     protected readonly bars = computed<RenderedBar[]>(() => {
         const rows = this.data() ?? [];
@@ -351,6 +395,10 @@ export class MonthlyBillingChart {
                 shortValue: this.formatShortBRL(value),
                 isCurrent,
                 isZero: value === 0,
+                // Clampado no viewBox: sem isto o último mês (cx = PLOT_R) empurraria
+                // a caixa de foco para além de VB_W, e qualquer ancestral com
+                // `overflow-hidden` cortaria metade do indicador.
+                focusX: Math.max(0, Math.min(VB_W - FOCUS_W, cx - FOCUS_W / 2)),
             };
         });
     });

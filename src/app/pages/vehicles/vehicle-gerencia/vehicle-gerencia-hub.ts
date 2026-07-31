@@ -1,10 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnInit,
   computed,
   inject,
   signal,
+  viewChildren,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -21,6 +23,10 @@ import { MaintenancesList } from '../../maintenances/maintenances-list';
 import { RentalService } from '../../rentals/rental.service';
 import { RentalListItemDto, rentalStatusInfo } from '../../../types/rental.types';
 import { licensingBadge } from '../../../utils/status-maps';
+import {
+  RovingFocusTracker,
+  resolveRovingKey,
+} from '../../../components/roving-focus/roving-focus';
 
 type TabKey = 'financeiro' | 'seguros' | 'manutencoes' | 'alugueis' | 'documentos';
 
@@ -28,6 +34,22 @@ interface TabDef {
   key: TabKey;
   label: string;
 }
+
+/**
+ * Esta tablist é horizontal (`aria-orientation` default), então só as setas
+ * laterais + Home/End/confirmação pertencem a ela. `resolveRovingKey` também
+ * entende ArrowUp/ArrowDown por causa do SegmentedToggle (radiogroup vertical);
+ * aqui elas precisam continuar rolando a página, e a decisão de orientação é do
+ * call site — por isso o filtro fica neste componente, não no helper.
+ */
+const HORIZONTAL_TABLIST_KEYS: ReadonlySet<string> = new Set([
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'Enter',
+  ' ',
+]);
 
 @Component({
   selector: 'app-vehicle-gerencia-hub',
@@ -66,6 +88,57 @@ export class VehicleGerenciaHub implements OnInit {
     { key: 'alugueis', label: 'Aluguéis' },
     { key: 'documentos', label: 'Documentos' },
   ];
+
+  private readonly tabButtons = viewChildren<ElementRef<HTMLButtonElement>>('tabButton');
+  private readonly tabFocus = new RovingFocusTracker();
+
+  private readonly activeTabIndex = computed(() => {
+    const index = this.tabs.findIndex((tab) => tab.key === this.activeTab());
+    return index < 0 ? 0 : index;
+  });
+
+  /** Com foco dentro da tablist segue o item focado; fora, volta pro tab ativo. */
+  protected readonly rovingTabIndex = computed(() => this.tabFocus.index() ?? this.activeTabIndex());
+
+  /** Ids estáveis que amarram tab ↔ painel (`aria-controls` / `aria-labelledby`). */
+  protected tabId(key: TabKey): string {
+    return `gerencia-tab-${key}`;
+  }
+
+  protected panelId(key: TabKey): string {
+    return `gerencia-panel-${key}`;
+  }
+
+  protected onTabsFocusIn(event: FocusEvent): void {
+    this.tabFocus.onFocusIn(event, this.tabButtons());
+  }
+
+  protected onTabsFocusOut(event: FocusEvent): void {
+    this.tabFocus.onFocusOut(event, this.tabButtons());
+  }
+
+  /**
+   * Setas / Home / End movem só o foco; Enter / Espaço confirmam — variante
+   * "selection does not follow focus" do APG, adequada aqui porque trocar de
+   * aba dispara carga de dados (aluguéis).
+   */
+  protected onTabsKeydown(event: KeyboardEvent): void {
+    if (!HORIZONTAL_TABLIST_KEYS.has(event.key)) return;
+
+    const current = this.rovingTabIndex();
+    const action = resolveRovingKey(event.key, current, this.tabs.length);
+    if (action === null) return;
+
+    event.preventDefault();
+
+    if (action.kind === 'confirm') {
+      this.selectTab(this.tabs[current].key);
+      return;
+    }
+
+    this.tabFocus.set(action.index);
+    this.tabButtons()[action.index]?.nativeElement.focus();
+  }
 
   protected readonly chipVehicle = computed<VehicleSummary | null>(() => {
     const s = this.summary();
