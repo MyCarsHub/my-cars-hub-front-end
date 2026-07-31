@@ -14,64 +14,81 @@ export interface OffenderRow {
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         @if (rows().length === 0) {
-            <p class="text-sm text-gray-500 text-center py-6">
+            <p class="text-sm text-neutral-500 text-center py-6">
                 Sem multas no período.
             </p>
         } @else {
-            <!-- Mobile: card list -->
-            <ul class="space-y-2 lg:hidden">
+            <!-- Cards (mobile / tablet) -->
+            <div class="space-y-3 lg:hidden">
                 @for (r of rows(); track r.id) {
-                    <li>
-                        <button
-                            type="button"
-                            class="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200
-                                   bg-white text-left min-h-[64px] focus:outline-none focus:ring-2
-                                   focus:ring-primary-400 hover:border-primary-300 transition-colors"
-                            (click)="rowClick.emit(r)"
-                        >
-                            <span
-                                class="w-8 h-8 shrink-0 rounded-full bg-red-50 text-red-600
-                                       flex items-center justify-center text-xs font-semibold tabular-nums"
-                            >
-                                {{ r.count }}
-                            </span>
-                            <span class="flex-1 min-w-0">
-                                <span class="block text-sm font-medium text-gray-900 truncate">
+                    <article
+                        class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 cursor-pointer
+                               hover:border-primary-300 transition-colors"
+                        (click)="rowClick.emit(r)"
+                        (keydown.enter)="rowClick.emit(r)"
+                        (keydown.space)="$event.preventDefault(); rowClick.emit(r)"
+                        role="button"
+                        tabindex="0"
+                        [attr.aria-label]="'Ver detalhes de ' + r.title"
+                    >
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-semibold text-neutral-900 truncate">
                                     {{ r.title }}
-                                </span>
-                                <span class="block text-xs text-gray-500 truncate">
+                                </p>
+                                <p class="text-xs text-neutral-500 mt-0.5 truncate">
                                     {{ r.subtitle }}
-                                </span>
-                            </span>
-                            <span class="text-sm font-semibold text-gray-900 tabular-nums">
-                                {{ format(r.totalAmountCents) }}
-                            </span>
-                        </button>
-                    </li>
-                }
-            </ul>
+                                </p>
+                            </div>
+                        </div>
 
-            <!-- Desktop: table -->
-            <div class="hidden lg:block overflow-hidden rounded-xl border border-gray-200">
-                <table class="w-full text-sm">
-                    <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                            <th class="text-left px-4 py-2 font-medium">Item</th>
-                            <th class="text-left px-4 py-2 font-medium">Detalhe</th>
-                            <th class="text-right px-4 py-2 font-medium">Multas</th>
-                            <th class="text-right px-4 py-2 font-medium">Total</th>
+                        <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
+                            <div>
+                                <span class="text-neutral-500 uppercase tracking-wide text-[10px]">
+                                    Multas
+                                </span>
+                                <p class="font-semibold text-neutral-900 tabular-nums">
+                                    {{ r.count }}
+                                </p>
+                            </div>
+                            <div>
+                                <span class="text-neutral-500 uppercase tracking-wide text-[10px]">
+                                    Total
+                                </span>
+                                <p class="font-semibold text-neutral-900 tabular-nums">
+                                    {{ format(r.totalAmountCents) }}
+                                </p>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+
+            <!-- Table (desktop) -->
+            <div class="hidden lg:block overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                            <th class="py-2 pr-4 font-medium">Item</th>
+                            <th class="py-2 pr-4 font-medium">Detalhe</th>
+                            <th class="py-2 pr-4 font-medium">Multas</th>
+                            <th class="py-2 pr-4 font-medium">Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         @for (r of rows(); track r.id) {
                             <tr
-                                class="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
+                                class="border-b border-neutral-50 hover:bg-neutral-50/60 cursor-pointer"
                                 (click)="rowClick.emit(r)"
+                                (keydown.enter)="rowClick.emit(r)"
+                                (keydown.space)="$event.preventDefault(); rowClick.emit(r)"
+                                tabindex="0"
+                                [attr.aria-label]="'Ver detalhes de ' + r.title"
                             >
-                                <td class="px-4 py-3 font-medium text-gray-900">{{ r.title }}</td>
-                                <td class="px-4 py-3 text-gray-500">{{ r.subtitle }}</td>
-                                <td class="px-4 py-3 text-right tabular-nums">{{ r.count }}</td>
-                                <td class="px-4 py-3 text-right tabular-nums font-semibold">
+                                <td class="py-3 pr-4 font-semibold text-neutral-900">{{ r.title }}</td>
+                                <td class="py-3 pr-4 text-neutral-500">{{ r.subtitle }}</td>
+                                <td class="py-3 pr-4 text-neutral-700 tabular-nums">{{ r.count }}</td>
+                                <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums">
                                     {{ format(r.totalAmountCents) }}
                                 </td>
                             </tr>

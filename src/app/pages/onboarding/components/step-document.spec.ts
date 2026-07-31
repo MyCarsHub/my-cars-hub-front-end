@@ -111,4 +111,17 @@ describe('StepDocument — CNPJ no onboarding', () => {
     expect(lastEmitted().cnpj).toBe('');
     expect(validity[validity.length - 1]).toBe(true);
   });
+
+  /** Voltar reidrata com o documento cru do backend — a máscara é reaplicada. */
+  it('reidrata o CNPJ COM máscara e o campo permanece válido', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [StepDocument] });
+    const local = TestBed.createComponent(StepDocument);
+    local.componentRef.setInput('initialData', { hasCnpj: true, cnpj: '12345678000195' });
+    local.detectChanges();
+
+    const form = local.componentInstance.form;
+    expect(form.get('cnpj')?.value).toBe('12.345.678/0001-95');
+    expect(form.get('cnpj')?.valid).toBe(true);
+  });
 });

@@ -84,49 +84,55 @@
       }
     </div>
 
-    <!-- Footer navigation (sticky) -->
-    @if (!isLastStep()) {
-    <div class="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100 flex items-center gap-2" [class.justify-between]="!isFirstStep()"
-      [class.justify-end]="isFirstStep()">
-      @if (!isFirstStep()) {
-      <button type="button" class="flex items-center gap-2 text-sm font-medium text-gray-500
-                 hover:text-gray-800 transition-colors px-3 py-2 rounded-lg
-                 hover:bg-gray-100 focus:outline-none focus-visible:ring-2
-                 focus-visible:ring-gray-400 disabled:opacity-40" (click)="onBack()" [disabled]="busy()"
-        aria-label="Voltar para o passo anterior">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="19" y1="12" x2="5" y2="12" />
-          <polyline points="12 19 5 12 12 5" />
-        </svg>
-        Voltar
-      </button>
+    <!-- Footer navigation (sticky). Rendered on every step: the last step keeps "Voltar"
+         (its own CTA lives inside app-step-welcome). -->
+    @if (!isFirstStep() || !isLastStep()) {
+    <div class="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100">
+      <!-- Why "Próximo" is blocked — referenced by aria-describedby, announced politely -->
+      @if (nextBlockedReason(); as blockedReason) {
+      <p id="onboarding-next-hint" class="text-xs text-gray-500 mb-3" aria-live="polite">
+        {{ blockedReason }}
+      </p>
       }
 
-      <button type="button" class="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold
-               text-white transition-all duration-200 focus:outline-none
-               focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-        [class.bg-primary-500]="stepValid() && !busy() && loaded()"
-        [class.hover:bg-primary-600]="stepValid() && !busy() && loaded()"
-        [class.shadow-sm]="stepValid() && !busy() && loaded()"
-        [class.bg-gray-300]="!stepValid() || busy() || !loaded()"
-        [class.cursor-not-allowed]="!stepValid() || busy() || !loaded()"
-        [disabled]="!stepValid() || busy() || !loaded()" (click)="onNext()" [attr.aria-busy]="busy()">
-        {{ nextLabel() }}
+      <div class="flex items-center gap-2" [class.justify-between]="!isFirstStep() && !isLastStep()"
+        [class.justify-end]="isFirstStep()">
+        @if (!isFirstStep()) {
+        <button type="button" class="flex items-center gap-2 min-h-11 text-sm font-medium text-gray-500
+                   hover:text-gray-800 transition-colors px-3 py-2 rounded-lg
+                   hover:bg-gray-100 focus:outline-none focus-visible:ring-2
+                   focus-visible:ring-gray-400 disabled:opacity-40" (click)="onBack()" [disabled]="busy()"
+          aria-label="Voltar para o passo anterior">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          Voltar
+        </button>
+        }
+
         @if (!isLastStep()) {
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="5" y1="12" x2="19" y2="12" />
-          <polyline points="12 5 19 12 12 19" />
-        </svg>
+        <button type="button" class="flex items-center gap-2 min-h-11 px-5 py-2.5 rounded-lg text-sm font-semibold
+                 text-white transition-all duration-200 focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+          [class.bg-primary-500]="stepValid() && !busy() && loaded()"
+          [class.hover:bg-primary-600]="stepValid() && !busy() && loaded()"
+          [class.shadow-sm]="stepValid() && !busy() && loaded()"
+          [class.bg-gray-300]="!stepValid() || busy() || !loaded()"
+          [class.cursor-not-allowed]="!stepValid() || busy() || !loaded()"
+          [disabled]="busy() || !loaded()" (click)="onNext()" [attr.aria-busy]="busy()"
+          [attr.aria-disabled]="!stepValid() || busy() || !loaded()"
+          [attr.aria-describedby]="nextBlockedReason() ? 'onboarding-next-hint' : null">
+          {{ nextLabel() }}
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+        </button>
         }
-        @if (isLastStep()) {
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-        }
-      </button>
+      </div>
     </div>
     }
   </div>

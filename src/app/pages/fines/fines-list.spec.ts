@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
@@ -155,5 +155,40 @@ describe('FinesList — menu de ações', () => {
     );
     expect(banners.some((b) => b.textContent?.includes('Multa já foi paga.'))).toBe(true);
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  // Padrão de listagem acessível (mesmo contrato de VehiclesList / TopOffendersTable):
+  // card mobile com role="button", card e linha com aria-label e Enter/Espaço navegando.
+  it('card e linha navegam pro detalhe no Espaço, com preventDefault e nome acessível', () => {
+    const fixture = TestBed.createComponent(FinesList);
+    fixture.detectChanges();
+    const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const card = host.querySelector('article');
+    expect(card?.getAttribute('role')).toBe('button');
+    expect(card?.getAttribute('aria-label')).toContain('Excesso de velocidade');
+
+    const cardSpace = new KeyboardEvent('keydown', { key: ' ', cancelable: true });
+    card?.dispatchEvent(cardSpace);
+    expect(cardSpace.defaultPrevented).toBe(true);
+    expect(navigateSpy).toHaveBeenLastCalledWith(['/multas', 'f-1']);
+
+    const row = host.querySelector('tbody tr');
+    expect(row?.getAttribute('aria-label')).toContain('Excesso de velocidade');
+
+    const rowSpace = new KeyboardEvent('keydown', { key: ' ', cancelable: true });
+    row?.dispatchEvent(rowSpace);
+    expect(rowSpace.defaultPrevented).toBe(true);
+    expect(navigateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('micro-labels dos cards usam neutral-500 (contraste AA), nunca neutral-400', () => {
+    const fixture = TestBed.createComponent(FinesList);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelectorAll('article span.text-neutral-500').length).toBeGreaterThan(0);
+    expect(host.querySelector('.text-neutral-400')).toBeNull();
   });
 });

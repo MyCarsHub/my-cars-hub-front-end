@@ -47,7 +47,9 @@ const SEGMENT_BASE =
   'cursor-pointer inline-flex items-center gap-2 min-h-[44px] transition-colors duration-200 ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
 const SEGMENT_ACTIVE = 'text-white';
-const SEGMENT_INACTIVE = 'text-neutral-500 hover:text-neutral-900';
+/* neutral-600, não 500: o trilho default é bg-neutral-100 (#f5f5f5) e
+   #737373 sobre ele dá 4,34:1 — reprova AA. #525252 dá 7,17:1. */
+const SEGMENT_INACTIVE = 'text-neutral-600 hover:text-neutral-900';
 
 const BADGE_BASE = 'text-[10.5px] font-bold px-2 py-0.5 rounded-full tracking-[0.04em] text-white';
 const BADGE_ACTIVE = 'bg-white/25';

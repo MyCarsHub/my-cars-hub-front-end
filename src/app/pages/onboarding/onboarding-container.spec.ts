@@ -274,3 +274,171 @@ describe('OnboardingContainer — disponibilidade do CNPJ no passo 3', () => {
     expect(saveStep).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * FIXES — onboarding: toda transição derrubava o foco para o BODY, o passo 4 não tinha
+ * "Voltar" e o "Próximo" bloqueado não anunciava o motivo. O foco agora vai para o
+ * heading (`tabindex="-1"`) do novo passo, o rodapé existe em todos os passos e o
+ * motivo do bloqueio é ligado ao botão via `aria-describedby`.
+ */
+describe('OnboardingContainer — foco, Voltar no passo 4 e motivo do bloqueio', () => {
+  /**
+   * Este bloco usa timers REAIS (o foco depende de `afterNextRender` + `whenStable`).
+   * Cada passo emite `isValid` num `setTimeout` do `ngOnInit`; esse timer precisa ser
+   * drenado enquanto o passo ainda está vivo — senão dispara num componente já
+   * destruído (NG0953 no stderr). Chamado após `renderAt` e antes de cada transição.
+   */
+  function drainStepTimers(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  afterEach(drainStepTimers);
+
+  interface Harness {
+    onNext: () => void;
+    onBack: () => void;
+    onStepValidityChange: (valid: boolean) => void;
+  }
+
+  function renderAt(step: number, data: OnboardingState['data'] = {}) {
+    const state: OnboardingState = { step, isCompleted: false, data };
+    const currentStep = signal(step);
+    const isFirstStep = signal(step === 1);
+    const isLastStep = signal(step === 4);
+    const goTo = (next: number): void => {
+      currentStep.set(next);
+      isFirstStep.set(next === 1);
+      isLastStep.set(next === 4);
+    };
+    const svcMock = {
+      loading: signal(false),
+      checkingCnpj: signal(false),
+      loadError: signal<string | null>(null),
+      currentStep,
+      totalSteps: 4,
+      isFirstStep,
+      isLastStep,
+      formData: signal(data),
+      loadState: vi.fn().mockReturnValue(of(state)),
+      saveStep: vi.fn().mockImplementation(() => {
+        goTo(currentStep() + 1);
+        return of(state);
+      }),
+      finish: vi.fn(),
+      checkCnpjAvailability: vi.fn().mockReturnValue(of({ available: true })),
+      goBackStep: vi.fn().mockImplementation(() => goTo(currentStep() - 1)),
+    };
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [OnboardingContainer],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        ApiErrorService,
+        { provide: OnboardingService, useValue: svcMock },
+        {
+          provide: AuthService,
+          useValue: { applyFinishResponse: vi.fn(), hydrateSession: vi.fn(), getMe: vi.fn() },
+        },
+        { provide: LayoutStore, useValue: { refreshTenants: vi.fn() } },
+        {
+          provide: NotificationService,
+          useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
+        },
+        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn() } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(OnboardingContainer);
+    fixture.detectChanges();
+    return { fixture, harness: fixture.componentInstance as unknown as Harness, svcMock };
+  }
+
+  function buttonByText(
+    fixture: ComponentFixture<OnboardingContainer>,
+    text: string,
+  ): HTMLButtonElement | null {
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    );
+    return buttons.find((b) => b.textContent?.includes(text)) ?? null;
+  }
+
+  it('passo 4 tem "Voltar" no rodapé, sem "Próximo" nem hint', async () => {
+    const { fixture, svcMock } = renderAt(4);
+    await drainStepTimers();
+
+    const back = fixture.nativeElement.querySelector(
+      'button[aria-label="Voltar para o passo anterior"]',
+    );
+    expect(back instanceof HTMLButtonElement).toBe(true);
+    expect(buttonByText(fixture, 'Próximo')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#onboarding-next-hint')).toBeNull();
+
+    (back as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(svcMock.goBackStep).toHaveBeenCalledTimes(1);
+  });
+
+  it('"Próximo" bloqueado anuncia o motivo e mostra os erros inline ao clicar', () => {
+    const { fixture } = renderAt(1);
+
+    const hint = fixture.nativeElement.querySelector('#onboarding-next-hint');
+    expect(hint?.textContent).toContain('Preencha os campos obrigatórios');
+
+    const next = buttonByText(fixture, 'Próximo');
+    expect(next?.disabled).toBe(false);
+    expect(next?.getAttribute('aria-disabled')).toBe('true');
+    expect(next?.getAttribute('aria-describedby')).toBe('onboarding-next-hint');
+
+    next?.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#ob-name-error')?.textContent).toContain(
+      'obrigatório',
+    );
+  });
+
+  it('o motivo do bloqueio some quando o passo fica válido', () => {
+    const { fixture, harness } = renderAt(1);
+
+    harness.onStepValidityChange(true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#onboarding-next-hint')).toBeNull();
+    const next = buttonByText(fixture, 'Próximo');
+    expect(next?.getAttribute('aria-disabled')).toBe('false');
+    expect(next?.getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('avançar move o foco para o heading do novo passo', async () => {
+    const { fixture, harness } = renderAt(1, {
+      name: 'Ada',
+      cpf: '52998224725',
+      phoneNumber: '11987654321',
+    });
+    await drainStepTimers();
+
+    harness.onStepValidityChange(true);
+    harness.onNext();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const heading = fixture.nativeElement.querySelector('h2[tabindex="-1"]');
+    expect(heading?.textContent).toContain('Sua empresa');
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('voltar move o foco para o heading do passo anterior', async () => {
+    const { fixture, harness } = renderAt(2, { name: 'Ada' });
+    await drainStepTimers();
+
+    harness.onBack();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const heading = fixture.nativeElement.querySelector('h2[tabindex="-1"]');
+    expect(heading?.textContent).toContain('Seus dados pessoais');
+    expect(document.activeElement).toBe(heading);
+  });
+});

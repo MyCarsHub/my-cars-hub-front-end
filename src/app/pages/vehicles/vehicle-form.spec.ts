@@ -417,3 +417,117 @@ describe('VehicleForm — financiamento na edição', () => {
     expect(TestBed.inject(NotificationService).error).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * FIX: submit inválido — o banner deve sumir sozinho quando o formulário volta
+ * a ser válido (antes ficava preso até o próximo submit) e o foco deve ir para
+ * o primeiro campo inválido (antes ficava no botão de submit).
+ */
+describe('VehicleForm — banner de validação e foco no submit inválido', () => {
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  interface FormApi {
+    form: {
+      patchValue: (v: unknown) => void;
+      controls: { yearManufacture: { setValue: (v: unknown) => void } };
+    };
+    financingForm: { patchValue: (v: unknown) => void };
+    toggleFinancing: () => void;
+    submit: () => void;
+  }
+
+  function api(): FormApi {
+    return fixture.componentInstance as unknown as FormApi;
+  }
+
+  function banner(): HTMLElement | null {
+    return fixture.nativeElement.querySelector('app-alert-banner');
+  }
+
+  function fillValidVehicle(): void {
+    api().form.patchValue({
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      hodometer: 1000,
+    });
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: { create: vi.fn(), getOne: vi.fn(), update: vi.fn() },
+        },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  });
+
+  it('mostra o banner e foca o primeiro campo inválido (placa) no submit inválido', () => {
+    api().submit();
+    fixture.detectChanges();
+
+    expect(banner()).not.toBeNull();
+    expect(fixture.nativeElement.innerHTML).toContain(
+      'Verifique os campos destacados e tente novamente.',
+    );
+    expect(document.activeElement?.id).toBe('veiculo-plate');
+  });
+
+  it('foca o primeiro inválido em ordem de documento quando a placa está ok', () => {
+    fillValidVehicle();
+    api().form.controls.yearManufacture.setValue(null);
+    fixture.detectChanges();
+
+    api().submit();
+    fixture.detectChanges();
+
+    expect(document.activeElement?.id).toBe('veiculo-year-manufacture');
+  });
+
+  it('limpa o banner assim que o formulário volta a ser válido, sem novo submit', () => {
+    api().submit();
+    fixture.detectChanges();
+    expect(banner()).not.toBeNull();
+
+    fillValidVehicle();
+    fixture.detectChanges();
+
+    expect(banner()).toBeNull();
+  });
+
+  it('faz o mesmo para o bloco de financiamento: foca o campo e solta o banner', () => {
+    fillValidVehicle();
+    api().toggleFinancing();
+    fixture.detectChanges();
+
+    api().submit();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.innerHTML).toContain('Verifique os campos do financiamento.');
+    expect(document.activeElement?.id).toBe('financiamento-contract-date');
+
+    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: 50000 });
+    fixture.detectChanges();
+
+    expect(banner()).toBeNull();
+  });
+});
