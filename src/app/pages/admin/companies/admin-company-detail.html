@@ -2,16 +2,20 @@
   title="Detalhes da empresa"
   description="Assinatura, membros e integrações do tenant."
 >
-  @if (error()) {
-    <div class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100 mb-4">
-      {{ error() }}
-      <button
-        type="button"
-        class="ml-2 underline hover:no-underline min-h-11 px-2"
-        (click)="reload()"
-      >
-        Tentar novamente
-      </button>
+  <!-- Falha ao carregar a empresa -->
+  @if (error(); as err) {
+    <div class="mb-4">
+      <app-alert-banner variant="error">
+        {{ err }}
+        <button
+          type="button"
+          class="ml-2 underline hover:no-underline min-h-11 px-2
+                 focus:outline-none focus:ring-2 focus:ring-rose-400 rounded"
+          (click)="reload()"
+        >
+          Tentar novamente
+        </button>
+      </app-alert-banner>
     </div>
   }
 
@@ -304,8 +308,10 @@
             </label>
           }
 
-          @if (confirmError()) {
-            <p class="mt-2 text-xs text-red-600">{{ confirmError() }}</p>
+          @if (actionError(); as err) {
+            <div class="mt-3">
+              <app-alert-banner variant="error" [message]="err" />
+            </div>
           }
         </div>
         <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-0 sm:pt-0">
@@ -336,7 +342,7 @@
   }
 
   <div class="mt-6">
-    <a routerLink="/admin/companies" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+    <a routerLink="/admin/companies" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
       ← Voltar para a lista
     </a>
   </div>

@@ -12,6 +12,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -26,14 +28,33 @@ import {
 } from '../../types/rental.types';
 import { VehicleListItem } from '../../types/vehicle.types';
 import { DriverListItem } from '../../types/driver.types';
-import { ClickOutsideDirective } from '../../utils/directives/click-outside.directive';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../components/filter-chip-group/filter-chip-group';
 
 type PendingAction = 'activate' | 'cancel' | 'delete';
+
+/**
+ * Chips de status. Mesma fonte do `<select>` do painel de filtros — só
+ * reprojetada no contrato do `FilterChipGroup` (`value` + `label`).
+ */
+const STATUS_CHIPS: readonly FilterChipOption<RentalStatus | ''>[] = RENTAL_STATUS_OPTIONS;
 
 @Component({
   selector: 'app-rentals-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, ClickOutsideDirective],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    ActionsMenu,
+    AlertBanner,
+    FilterChipGroup,
+  ],
   templateUrl: './rentals-list.html',
 })
 export class RentalsList implements OnInit {
@@ -41,17 +62,26 @@ export class RentalsList implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
   /** Debounce handle for desktop auto-search. */
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Opções do `<select>` de status dentro do painel "Filtros". */
   protected readonly statusOptions = RENTAL_STATUS_OPTIONS;
+  protected readonly statusChips = STATUS_CHIPS;
 
   protected readonly items = this.rentalService.items;
   protected readonly loading = this.rentalService.loading;
+  /** Falha ao CARREGAR a lista (owned by RentalService). */
   protected readonly error = this.rentalService.error;
+  /**
+   * Falha de uma AÇÃO da lista (iniciar / cancelar / excluir). Banner inline —
+   * o interceptor não toasta 4xx e `messageFor()` reivindica o erro.
+   */
+  protected readonly actionError = signal<string | null>(null);
   protected readonly page = this.rentalService.page;
   protected readonly size = this.rentalService.size;
   protected readonly total = this.rentalService.total;
@@ -99,9 +129,6 @@ export class RentalsList implements OnInit {
     if (this.fromFilter() || this.toFilter()) n++;
     return n;
   });
-
-  // Per-row open dropdown (mobile 3-dot menu). Only one open at a time.
-  protected readonly openMenuId = signal<string | null>(null);
 
   // Confirm dialog + pending action state.
   protected readonly pendingAction = signal<PendingAction | null>(null);
@@ -344,10 +371,6 @@ export class RentalsList implements OnInit {
     this.router.navigate(['/alugueis', r.id]);
   }
 
-  protected isActive(filter: RentalStatus | ''): boolean {
-    return this.statusFilter() === filter;
-  }
-
   // ---------------------------------------------------------------- actions
 
   protected canEdit(r: RentalListItemDto): boolean {
@@ -380,18 +403,8 @@ export class RentalsList implements OnInit {
     return r.status === 'RESERVED' && r.automaticCharge === true;
   }
 
-  protected toggleMenu(id: string, ev: Event): void {
-    ev.stopPropagation();
-    this.openMenuId.update((cur) => (cur === id ? null : id));
-  }
-
-  protected closeMenu(): void {
-    this.openMenuId.set(null);
-  }
-
   protected askAction(action: PendingAction, r: RentalListItemDto, ev: Event): void {
     ev.stopPropagation();
-    this.closeMenu();
     this.pendingAction.set(action);
     this.pendingRental.set(r);
   }
@@ -407,6 +420,7 @@ export class RentalsList implements OnInit {
     const r = this.pendingRental();
     if (!action || !r || this.actionBusy()) return;
     this.actionBusy.set(true);
+    this.actionError.set(null);
 
     const onSuccess = (successMsg: string): void => {
       this.actionBusy.set(false);
@@ -419,12 +433,7 @@ export class RentalsList implements OnInit {
       this.actionBusy.set(false);
       this.pendingAction.set(null);
       this.pendingRental.set(null);
-      const body = err.error;
-      const msg =
-        body && typeof body === 'object' && typeof body.message === 'string'
-          ? body.message
-          : fallback;
-      this.notifications.push('error', msg);
+      this.actionError.set(this.apiErrors.messageFor(err, fallback));
     };
 
     switch (action) {

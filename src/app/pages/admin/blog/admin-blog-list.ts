@@ -11,7 +11,10 @@ import { Router, RouterModule } from '@angular/router';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { BlogService } from '../../blog/blog.service';
 import { BlogPostListItem, blogCategoryLabel } from '../../../types/blog.types';
 
@@ -22,16 +25,19 @@ import { BlogPostListItem, blogCategoryLabel } from '../../../types/blog.types';
   selector: 'app-admin-blog-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [RouterModule, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [RouterModule, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, ActionsMenu],
   templateUrl: './admin-blog-list.html',
   styleUrl: './admin-blog-list.css',
 })
 export class AdminBlogList implements OnInit {
   private readonly service = inject(BlogService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
 
   protected readonly loading = signal(true);
+  /** Screen-level failure (load or row action). Never a toast. */
+  protected readonly error = signal<string | null>(null);
   protected readonly items = signal<BlogPostListItem[]>([]);
   protected readonly total = signal(0);
   protected readonly page = signal(0);
@@ -60,6 +66,7 @@ export class AdminBlogList implements OnInit {
   }
 
   protected togglePublish(post: BlogPostListItem): void {
+    this.error.set(null);
     const req = post.status === 'PUBLISHED'
       ? this.service.unpublish(post.id)
       : this.service.publish(post.id);
@@ -70,7 +77,7 @@ export class AdminBlogList implements OnInit {
         this.load();
       },
       error: (err: HttpErrorResponse) => {
-        this.notifications.push('error', this.extractError(err, 'Falha ao atualizar status.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível atualizar o status do post.'));
       },
     });
   }
@@ -88,6 +95,7 @@ export class AdminBlogList implements OnInit {
     const post = this.pendingDelete();
     if (!post) return;
     this.deleting.set(true);
+    this.error.set(null);
     this.service.delete(post.id).subscribe({
       next: () => {
         this.deleting.set(false);
@@ -99,13 +107,15 @@ export class AdminBlogList implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao excluir.'));
+        this.pendingDelete.set(null);
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível excluir o post.'));
       },
     });
   }
 
   private load(): void {
     this.loading.set(true);
+    this.error.set(null);
     this.service.listAdmin(this.page(), this.size).subscribe({
       next: (res) => {
         this.items.set(res.content);
@@ -114,14 +124,8 @@ export class AdminBlogList implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao carregar posts.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar os posts.'));
       },
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') return body.message;
-    return fallback;
   }
 }

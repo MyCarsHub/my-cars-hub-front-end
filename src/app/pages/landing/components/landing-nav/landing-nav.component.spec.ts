@@ -15,13 +15,18 @@ describe('LandingNavComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('lista exatamente as âncoras de seção da landing (sem Integrações)', () => {
+  it('aponta cada link de seção para uma âncora root-absoluta (funciona também em /blog)', () => {
     const fixture = TestBed.createComponent(LandingNavComponent);
     fixture.detectChanges();
     const host: HTMLElement = fixture.nativeElement;
     const anchors = Array.from(host.querySelectorAll<HTMLAnchorElement>('nav a'));
     const targets = anchors.map((a) => a.getAttribute('href'));
-    expect(targets).toEqual(['#problema', '#solucao', '#funcionalidades', '#planos']);
+    expect(targets).toEqual([
+      '/#problema',
+      '/#solucao',
+      '/#funcionalidades',
+      '/#planos',
+    ]);
   });
 
   it('nenhum link do header é morto (# ou vazio)', () => {

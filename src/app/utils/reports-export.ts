@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { ReportsOverviewResponse } from '../types/reports.types';
+import { PDF_TABLE_TOP_MARGIN, stampLogoOnEveryPage } from './report-pdf-logo';
 
 function centsToBRL(cents: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -64,6 +65,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
       ['Lucro líquido', centsToBRL(report.financial.netProfitCents)],
     ],
     theme: 'grid',
+    margin: { top: PDF_TABLE_TOP_MARGIN },
     headStyles: { fillColor: [235, 63, 0] },
     styles: { fontSize: 10 },
   });
@@ -74,6 +76,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
       head: [['Gateway', 'Receita']],
       body: report.financial.revenueByGateway.map((g) => [g.provider, centsToBRL(g.amountCents)]),
       theme: 'grid',
+      margin: { top: PDF_TABLE_TOP_MARGIN },
       headStyles: { fillColor: [235, 63, 0] },
       styles: { fontSize: 10 },
     });
@@ -89,6 +92,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
       ['Taxa de ocupação da frota', pct(report.operations.fleetOccupancyRate)],
     ],
     theme: 'grid',
+    margin: { top: PDF_TABLE_TOP_MARGIN },
     headStyles: { fillColor: [235, 63, 0] },
     styles: { fontSize: 10 },
   });
@@ -104,6 +108,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
         centsToBRL(v.netCents),
       ]),
       theme: 'grid',
+      margin: { top: PDF_TABLE_TOP_MARGIN },
       headStyles: { fillColor: [22, 163, 74] },
       styles: { fontSize: 10 },
     });
@@ -120,6 +125,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
         centsToBRL(v.netCents),
       ]),
       theme: 'grid',
+      margin: { top: PDF_TABLE_TOP_MARGIN },
       headStyles: { fillColor: [190, 18, 60] },
       styles: { fontSize: 10 },
     });
@@ -131,6 +137,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
       head: [['Top 5 motoristas por receita', 'Receita']],
       body: report.driverRanking.topRevenue.map((d) => [d.name, centsToBRL(d.revenueCents)]),
       theme: 'grid',
+      margin: { top: PDF_TABLE_TOP_MARGIN },
       headStyles: { fillColor: [22, 163, 74] },
       styles: { fontSize: 10 },
     });
@@ -147,6 +154,7 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
         centsToBRL(d.totalProblematicCents),
       ]),
       theme: 'grid',
+      margin: { top: PDF_TABLE_TOP_MARGIN },
       headStyles: { fillColor: [190, 18, 60] },
       styles: { fontSize: 10 },
     });
@@ -158,10 +166,15 @@ export function exportReportPdf(report: ReportsOverviewResponse): void {
       head: [['Mês', 'Receita']],
       body: report.financial.monthlyRevenue.map((m) => [fmtYearMonth(m.yearMonth), centsToBRL(m.revenueCents)]),
       theme: 'grid',
+      margin: { top: PDF_TABLE_TOP_MARGIN },
       headStyles: { fillColor: [235, 63, 0] },
       styles: { fontSize: 10 },
     });
   }
+
+  // Depois de todo o conteúdo: garante a logo em TODAS as páginas, inclusive a primeira,
+  // cujo cabeçalho é escrito fora do autoTable.
+  stampLogoOnEveryPage(doc);
 
   const filename = `relatorio-mycarshub-${report.from}_${report.to}.pdf`;
   doc.save(filename);

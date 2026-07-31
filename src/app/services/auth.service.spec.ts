@@ -1,10 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
+import { NotificationFeedService } from './notification-feed.service';
+import { InsurancesService } from './insurances.service';
+import { AlertsService } from './alerts.service';
+import { LoggerService } from './logger.service';
 import { MeResponse } from '../types/me-response.type';
 
 /**
@@ -20,6 +24,8 @@ describe('AuthService', () => {
     getItem: ReturnType<typeof vi.fn>;
     setToken: ReturnType<typeof vi.fn>;
     setOnboardingCompleted: ReturnType<typeof vi.fn>;
+    getToken: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
   };
   let httpGet: ReturnType<typeof vi.fn>;
   let service: AuthService;
@@ -37,14 +43,23 @@ describe('AuthService', () => {
       setOnboardingCompleted: vi.fn((completed: boolean) => {
         store['onboardingCompleted'] = completed ? 'true' : 'false';
       }),
+      getToken: vi.fn(() => store['token'] ?? null),
+      clear: vi.fn(() => {
+        store = {};
+      }),
     };
     httpGet = vi.fn();
 
     TestBed.configureTestingModule({
       providers: [
         AuthService,
+        // Serviços de cache reais (com HttpClient mockado) para que o teste de
+        // logout prove o estado final dos signals, não só as chamadas.
+        NotificationFeedService,
+        InsurancesService,
+        AlertsService,
         { provide: SessionService, useValue: sessionMock },
-        { provide: HttpClient, useValue: { get: httpGet, post: vi.fn() } },
+        { provide: HttpClient, useValue: { get: httpGet, post: vi.fn(), patch: vi.fn() } },
       ],
     });
     service = TestBed.inject(AuthService);
@@ -187,7 +202,9 @@ describe('AuthService', () => {
     });
 
     it('falls back to companies-length derivation when hasCompletedOnboarding is missing (deploy skew)', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // Deploy skew is a degradation, not a failure — it must be recorded as
+      // a warning through LoggerService, not as an error.
+      const warnSpy = vi.spyOn(TestBed.inject(LoggerService), 'warn').mockImplementation(() => {});
       httpGet.mockReturnValue(
         of(buildMe([{ companyId: 'c-1', companyName: 'A', role: 'OWNER' }])),
       );
@@ -247,6 +264,82 @@ describe('AuthService', () => {
       expect(persisted).toHaveLength(2);
       // OWNER-first default: still c-1
       expect(store['selectedCompanyId']).toBe('c-1');
+    });
+  });
+
+  /**
+   * CRÍTICO: `logout()` não recarrega a página, então os serviços root
+   * sobrevivem na mesma aba. Sem os `reset()` o próximo usuário a logar veria
+   * o cache do anterior (títulos de notificação carregam placa/nome) antes do
+   * primeiro fetch voltar, e o polling do sino continuaria rodando.
+   */
+  describe('logout limpa os caches root', () => {
+    let feed: NotificationFeedService;
+    let insurances: InsurancesService;
+    let alerts: AlertsService;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      feed = TestBed.inject(NotificationFeedService);
+      insurances = TestBed.inject(InsurancesService);
+      alerts = TestBed.inject(AlertsService);
+
+      store['token'] = 'jwt-user-a';
+      store['selectedCompanyId'] = 'company-a';
+
+      httpGet.mockImplementation((url: string) => {
+        const target = String(url);
+        if (target.endsWith('/unread-count')) return of({ count: 4 });
+        if (target.includes('/alerts/documents')) return of([{ title: 'CNH vence' }]);
+        if (target.includes('/insurances')) {
+          return of({ content: [{ id: 'i-1', plate: 'ABC1D23' }], page: 0, size: 20, total: 1 });
+        }
+        return of({
+          content: [{ id: 'n-1', title: 'IPVA do ABC1D23 vence' }],
+          page: 0,
+          size: 10,
+          total: 1,
+        });
+      });
+
+      feed.list().subscribe();
+      feed.startPolling();
+      insurances.list().subscribe();
+      alerts.listDocumentAlerts().subscribe();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('zera os signals dos três serviços e limpa a sessão', () => {
+      expect(feed.items()).toHaveLength(1);
+      expect(feed.unreadCount()).toBe(4);
+      expect(insurances.insurances()).toHaveLength(1);
+      expect(alerts.documentAlerts()).toHaveLength(1);
+
+      service.logout();
+
+      expect(sessionMock.clear).toHaveBeenCalledTimes(1);
+      expect(feed.items()).toEqual([]);
+      expect(feed.unreadCount()).toBe(0);
+      expect(feed.total()).toBe(0);
+      expect(insurances.insurances()).toEqual([]);
+      expect(insurances.total()).toBe(0);
+      expect(alerts.documentAlerts()).toEqual([]);
+    });
+
+    it('para o polling do contador — nenhum tick depois do logout', () => {
+      const unreadCalls = () =>
+        httpGet.mock.calls.filter((c) => String(c[0]).endsWith('/unread-count')).length;
+      const before = unreadCalls();
+      expect(before).toBeGreaterThan(0);
+
+      service.logout();
+      vi.advanceTimersByTime(300_000);
+
+      expect(unreadCalls()).toBe(before);
+      expect(feed.unreadCount()).toBe(0);
     });
   });
 });

@@ -4,46 +4,43 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { SessionService } from './session.service';
 import { NotificationService } from './notification.service';
+import { ApiErrorService } from './api-error.service';
+import { parseApiError } from './api-error';
 
-interface BackendErrorBody {
-  message?: string;
-  error?: string;
-  exception?: string;
-  code?: string;
-}
-
-function isTokenExpired(error: HttpErrorResponse, body: BackendErrorBody): boolean {
-  const details = [
-    typeof error.error === 'string' ? error.error : '',
-    body.message ?? '',
-    body.error ?? '',
-    body.exception ?? '',
-  ].join(' ');
-  return body.code === 'TOKEN_EXPIRED' || details.includes('TokenExpiredException');
+function isTokenExpired(error: HttpErrorResponse, message: string | null): boolean {
+  const raw = typeof error.error === 'string' ? error.error : '';
+  return `${raw} ${message ?? ''}`.includes('TokenExpiredException');
 }
 
 /**
- * Global HTTP error interceptor.
- * - Token expired / 401: clears session and redirects to /login (except /auth/login itself).
- * - 403: shows "Acesso negado".
- * - 400/422: forwards backend message when present.
- * - status 0 (network / CORS / offline): shows a toast, keeps the user where they are.
- * - 5xx: shows the backend message (or a generic one), keeps the user where they are.
+ * Global HTTP error interceptor. It owns EXACTLY ONE class of feedback: the toast for
+ * problems the screen cannot meaningfully explain or recover from.
+ *
+ * - status 0 (network / CORS / offline) → toast, user stays put.
+ * - 401 / token expired → clears session, redirects to /login (except /auth/login itself).
+ * - 403 → "Acesso negado" toast.
+ * - 5xx → toast with the backend message or a generic one, user stays put.
+ *
+ * 4xx (400 / 404 / 409 / 422 / 429 …) are the SCREEN's responsibility and are shown
+ * inline — field errors under the field, business errors in a banner. The interceptor
+ * does not toast them, which is what removes the duplicated messages. It only arms a
+ * safety net (`ApiErrorService.scheduleSafetyNet`): if no screen claims the error, a
+ * toast still fires so nothing is swallowed silently.
+ *
  * Always re-throws so component-level handlers still see the error.
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const session = inject(SessionService);
   const router = inject(Router);
   const notifications = inject(NotificationService);
+  const apiErrors = inject(ApiErrorService);
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
       const status = error.status;
-      const body = (error.error ?? {}) as BackendErrorBody;
-      const backendMessage =
-        typeof body === 'object' && body !== null ? body.message ?? body.error : undefined;
+      const backendMessage = parseApiError(error).message;
 
-      if (isTokenExpired(error, body)) {
+      if (isTokenExpired(error, backendMessage)) {
         session.clear();
         notifications.warning('Sua sessão expirou. Faça login novamente.');
         router.navigate(['/login'], { replaceUrl: true });
@@ -59,14 +56,12 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         }
       } else if (status === 403) {
         notifications.warning('Acesso negado');
-      } else if (status === 400 || status === 422) {
-        if (backendMessage) {
-          notifications.error(backendMessage);
-        }
       } else if (status >= 500 && status < 600) {
         // Falha do servidor. Mantém o usuário na tela pra ele poder tentar de novo
         // sem perder o contexto (mark-paid, form em edição, etc).
         notifications.error(backendMessage || 'Erro no servidor. Tente novamente.');
+      } else if (status >= 400 && status < 500) {
+        apiErrors.scheduleSafetyNet(error);
       }
 
       return throwError(() => error);

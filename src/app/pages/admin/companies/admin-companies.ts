@@ -16,7 +16,10 @@ import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCompaniesService } from '../admin-companies.service';
 import {
   AdminCompanyListItem,
@@ -56,18 +59,33 @@ const PAGE_SIZE = 20;
 @Component({
   selector: 'app-admin-companies',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    AlertBanner,
+    ActionsMenu,
+  ],
   templateUrl: './admin-companies.html',
 })
 export class AdminCompanies implements OnInit, OnDestroy {
   private readonly companiesService = inject(AdminCompaniesService);
   private readonly notify = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
 
   protected readonly companies = this.companiesService.companies;
   protected readonly loading = this.companiesService.loading;
-  protected readonly error = this.companiesService.error;
+  /** Falha ao CARREGAR a lista — banner inline, nunca toast. */
+  protected readonly error = signal<string | null>(null);
+  /**
+   * Falha de uma OPERACAO da tela (suspender/reativar). Banner inline: o
+   * interceptor nao toasta 4xx e `messageFor()` reivindica o erro.
+   */
+  protected readonly actionError = signal<string | null>(null);
   protected readonly total = this.companiesService.total;
 
   protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
@@ -76,7 +94,6 @@ export class AdminCompanies implements OnInit, OnDestroy {
   protected readonly planFilter = signal<PlanFilter>('ALL');
   protected readonly currentPage = signal(0);
 
-  protected readonly openActionMenuId = signal<string | null>(null);
   protected readonly pendingAction = signal<PendingAction | null>(null);
   protected readonly rowPending = signal<Record<string, boolean>>({});
 
@@ -122,6 +139,7 @@ export class AdminCompanies implements OnInit, OnDestroy {
       const status = this.statusFilter();
       const plan = this.planFilter();
       const page = this.currentPage();
+      this.error.set(null);
       this.companiesService
         .load({
           search,
@@ -131,7 +149,13 @@ export class AdminCompanies implements OnInit, OnDestroy {
           size: PAGE_SIZE,
         })
         .subscribe({
-          error: () => this.notify.error('Falha ao carregar empresas.'),
+          error: (err: HttpErrorResponse) =>
+            this.error.set(
+              this.apiErrors.messageFor(
+                err,
+                'Não foi possível carregar as empresas. Tente novamente.',
+              ),
+            ),
         });
     });
   }
@@ -168,22 +192,11 @@ export class AdminCompanies implements OnInit, OnDestroy {
     if (this.canNext()) this.currentPage.update((p) => p + 1);
   }
 
-  protected toggleMenu(company: AdminCompanyListItem, event?: Event): void {
-    event?.stopPropagation();
-    this.openActionMenuId.update((cur) => (cur === company.id ? null : company.id));
-  }
-
-  protected closeMenu(): void {
-    this.openActionMenuId.set(null);
-  }
-
   protected openDetail(company: AdminCompanyListItem): void {
-    this.closeMenu();
     this.router.navigate(['/admin/companies', company.id]);
   }
 
   protected requestToggleStatus(company: AdminCompanyListItem): void {
-    this.closeMenu();
     if (company.active) {
       this.pendingAction.set({ kind: 'SUSPEND', company });
     } else {
@@ -232,6 +245,7 @@ export class AdminCompanies implements OnInit, OnDestroy {
   }
 
   private applyStatus(company: AdminCompanyListItem, active: boolean): void {
+    this.actionError.set(null);
     this.setRowPending(company.id, true);
     this.companiesService.updateStatus(company.id, active).subscribe({
       next: () => {
@@ -240,16 +254,10 @@ export class AdminCompanies implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.setRowPending(company.id, false);
-        this.notify.error(this.extractError(err, 'Falha ao atualizar status da empresa.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar o status da empresa.'),
+        );
       },
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

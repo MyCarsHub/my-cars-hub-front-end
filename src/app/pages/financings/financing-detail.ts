@@ -12,6 +12,8 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid-dialog';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
@@ -22,17 +24,24 @@ import {
 @Component({
   selector: 'app-financing-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, MarkPaidDialog],
+  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, MarkPaidDialog, AlertBanner],
   templateUrl: './financing-detail.html',
 })
 export class FinancingDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly route = inject(ActivatedRoute);
 
   protected readonly financing = signal<FinancingDetailDto | null>(null);
   protected readonly loading = signal(false);
+  /** Load failure — replaces the page body. */
   protected readonly error = signal<string | null>(null);
+  /**
+   * Failure of an installment action. Inline banner above the schedule: business
+   * errors never go to a toast, and both dialogs close before this is set.
+   */
+  protected readonly actionError = signal<string | null>(null);
   /**
    * Id da parcela em processo de pagamento. Usado só pra desabilitar o
    * botão da linha correspondente e evitar double-submit — o payload de
@@ -124,7 +133,7 @@ export class FinancingDetail implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Financiamento não encontrado.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Financiamento não encontrado.'));
         this.loading.set(false);
       },
     });
@@ -173,6 +182,7 @@ export class FinancingDetail implements OnInit {
     const f = this.financing();
     const target = this.markPaidTarget();
     if (!f || !target || this.markPaidBusy()) return;
+    this.actionError.set(null);
     this.markPaidBusy.set(true);
     this.paying.set(target.id);
     this.vehiclesService
@@ -183,15 +193,14 @@ export class FinancingDetail implements OnInit {
           this.markPaidBusy.set(false);
           this.markPaidTarget.set(null);
           this.paying.set(null);
-          this.notifications.push('success', 'Parcela marcada como paga.');
+          this.notifications.success('Parcela marcada como paga.');
         },
         error: (err: HttpErrorResponse) => {
           this.markPaidBusy.set(false);
           this.markPaidTarget.set(null);
           this.paying.set(null);
-          this.notifications.push(
-            'error',
-            this.extractError(err, 'Não foi possível marcar a parcela.'),
+          this.actionError.set(
+            this.apiErrors.messageFor(err, 'Não foi possível marcar a parcela.'),
           );
         },
       });
@@ -222,6 +231,7 @@ export class FinancingDetail implements OnInit {
     const f = this.financing();
     const target = this.unmarkPaidTarget();
     if (!f || !target || this.unmarkPaidBusy()) return;
+    this.actionError.set(null);
     this.unmarkPaidBusy.set(true);
     this.paying.set(target.id);
     this.vehiclesService.unpayFinancingInstallment(f.id, target.id).subscribe({
@@ -230,15 +240,14 @@ export class FinancingDetail implements OnInit {
         this.unmarkPaidBusy.set(false);
         this.unmarkPaidTarget.set(null);
         this.paying.set(null);
-        this.notifications.push('success', 'Pagamento desmarcado.');
+        this.notifications.success('Pagamento desmarcado.');
       },
       error: (err: HttpErrorResponse) => {
         this.unmarkPaidBusy.set(false);
         this.unmarkPaidTarget.set(null);
         this.paying.set(null);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível desmarcar o pagamento.'),
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível desmarcar o pagamento.'),
         );
       },
     });
@@ -294,13 +303,5 @@ export class FinancingDetail implements OnInit {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

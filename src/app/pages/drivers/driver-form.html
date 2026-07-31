@@ -9,101 +9,105 @@
   } @else {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
 
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as formError) {
+        <app-alert-banner variant="error" [message]="formError" />
       }
 
       <!-- ====== Informações Pessoais ====== -->
       <app-page-card title="Informações pessoais">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div class="md:col-span-2">
+          <app-form-field
+            class="md:col-span-2"
+            [control]="form.controls.name"
+            [messages]="nameMessages"
+          >
             <app-primary-input label="Nome completo" [required]="true" placeholder="Ex: João da Silva" formControlName="name" />
-            @if (fieldInvalid(['name'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe o nome do motorista.</p>
-            }
-          </div>
-          <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="motorista-rg">
-              RG <span class="text-primary-500" aria-hidden="true">*</span>
-            </label>
+          </app-form-field>
+
+          <app-form-field
+            class="md:col-span-2"
+            label="RG"
+            controlId="motorista-rg"
+            [required]="true"
+            [control]="form.controls.rg"
+            [messages]="rgMessages"
+          >
             <input
-              id="motorista-rg"
+              appFieldControl
               type="text"
               inputmode="numeric"
               placeholder="12.345.678-9"
               maxlength="13"
-              aria-required="true"
               [value]="rgDisplay()"
               (input)="onRgInput($event)"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid(['rg'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe o RG.</p>
-            }
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <!-- ====== Contato ====== -->
       <app-page-card title="Contato">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6" formGroupName="contact">
-          <div>
+          <app-form-field
+            [control]="form.controls.contact.controls.email"
+            [messages]="emailMessages"
+          >
             <app-primary-input label="E-mail" [required]="true" type="email" placeholder="motorista@empresa.com" formControlName="email" />
-            @if (fieldInvalid(['contact','email'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe um e-mail válido.</p>
-            }
-          </div>
-          <div>
-            <label class="text-sm text-neutral-600" for="motorista-phone">Telefone <span class="text-primary-500" aria-hidden="true">*</span></label>
+          </app-form-field>
+
+          <app-form-field
+            label="Telefone"
+            controlId="motorista-phone"
+            [required]="true"
+            [control]="form.controls.contact.controls.phone"
+            [messages]="phoneMessages"
+          >
             <input
-              id="motorista-phone"
+              appFieldControl
               type="tel"
               inputmode="numeric"
               placeholder="(11) 98765-4321"
               maxlength="15"
-              aria-required="true"
               [value]="phoneDisplay()"
               (beforeinput)="onPhoneBeforeInput($event)"
               (input)="onPhoneInput($event)"
-              class="w-full mt-1 bg-white rounded-xl border border-neutral-200 px-4 py-3
+              class="w-full bg-white rounded-xl border px-4 py-3
                      focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
-            @if (fieldInvalid(['contact','phone'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe um telefone válido (10 ou 11 dígitos).</p>
-            }
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <!-- ====== Endereço ====== -->
       <app-page-card title="Endereço">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-6 gap-4 sm:gap-6" formGroupName="address">
-          <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">CEP <span class="text-primary-500" aria-hidden="true">*</span></label>
+          <app-form-field
+            class="md:col-span-2"
+            label="CEP"
+            controlId="motorista-cep"
+            [required]="true"
+            [hint]="cepLoading() ? 'Buscando endereço…' : ''"
+            [control]="form.controls.address.controls.cep"
+            [messages]="cepMessages"
+          >
             <input
+              appFieldControl
               type="text"
               formControlName="cep"
               placeholder="00000-000"
               maxlength="9"
-              aria-required="true"
               (blur)="onCepBlur()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (cepLoading()) {
-              <p class="text-xs text-neutral-400 mt-1">Buscando endereço…</p>
-            }
-            @if (fieldInvalid(['address','cep'])) {
-              <p class="text-xs text-rose-600 mt-1">CEP inválido (00000-000).</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div class="md:col-span-4">
+          <app-form-field
+            class="md:col-span-4"
+            [control]="form.controls.address.controls.street"
+            [messages]="streetMessages"
+          >
             <app-primary-input label="Rua" [required]="true" placeholder="Rua das Flores" formControlName="street" />
-            @if (fieldInvalid(['address','street'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe a rua.</p>
-            }
-          </div>
+          </app-form-field>
 
           <div class="md:col-span-2">
             <app-primary-input label="Número" placeholder="123" formControlName="number" />
@@ -113,153 +117,177 @@
             <app-primary-input label="Complemento" placeholder="Apto 4, bloco B" formControlName="complement" />
           </div>
 
-          <div class="md:col-span-3">
+          <app-form-field
+            class="md:col-span-3"
+            [control]="form.controls.address.controls.district"
+            [messages]="districtMessages"
+          >
             <app-primary-input label="Bairro" [required]="true" placeholder="Centro" formControlName="district" />
-            @if (fieldInvalid(['address','district'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe o bairro.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div class="md:col-span-2">
+          <app-form-field
+            class="md:col-span-2"
+            [control]="form.controls.address.controls.city"
+            [messages]="cityMessages"
+          >
             <app-primary-input label="Cidade" [required]="true" placeholder="São Paulo" formControlName="city" />
-            @if (fieldInvalid(['address','city'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe a cidade.</p>
-            }
-          </div>
+          </app-form-field>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">UF <span class="text-primary-500" aria-hidden="true">*</span></label>
+          <app-form-field
+            label="UF"
+            controlId="motorista-uf"
+            [required]="true"
+            [control]="form.controls.address.controls.uf"
+            [messages]="ufMessages"
+          >
             <select
+              appFieldControl
               formControlName="uf"
-              aria-required="true"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               <option value="">—</option>
               @for (uf of ufs; track uf) {
                 <option [value]="uf">{{ uf }}</option>
               }
             </select>
-            @if (fieldInvalid(['address','uf'])) {
-              <p class="text-xs text-rose-600 mt-1">Selecione a UF.</p>
-            }
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <!-- ====== CNH ====== -->
       <app-page-card title="Carteira de habilitação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <div>
-            <label class="text-sm text-neutral-600" for="motorista-cnh">Número da CNH <span class="text-primary-500" aria-hidden="true">*</span></label>
+          <app-form-field
+            label="Número da CNH"
+            controlId="motorista-cnh"
+            [required]="true"
+            [control]="form.controls.licenseNumber"
+            [messages]="licenseNumberMessages"
+          >
             <input
-              id="motorista-cnh"
+              appFieldControl
               type="text"
               placeholder="Ex: A1B2C3D4E5F"
               maxlength="11"
               autocapitalize="characters"
-              aria-required="true"
               [value]="licenseDisplay()"
               (input)="onLicenseInput($event)"
-              class="w-full mt-1 bg-white rounded-xl border border-neutral-200 px-4 py-3 tracking-wider
+              class="w-full bg-white rounded-xl border px-4 py-3 tracking-wider
                      focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
-            @if (fieldInvalid(['licenseNumber'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe o número da CNH.</p>
-            }
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Categoria <span class="text-primary-500" aria-hidden="true">*</span></label>
+          </app-form-field>
+
+          <app-form-field
+            label="Categoria"
+            controlId="motorista-categoria"
+            [required]="true"
+            [control]="form.controls.licenseCategory"
+          >
             <select
+              appFieldControl
               formControlName="licenseCategory"
-              aria-required="true"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
               @for (cat of categories; track cat) {
                 <option [value]="cat">{{ cat }}</option>
               }
             </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Vencimento <span class="text-primary-500" aria-hidden="true">*</span></label>
+          </app-form-field>
+
+          <app-form-field
+            label="Vencimento"
+            controlId="motorista-vencimento"
+            [required]="true"
+            [control]="form.controls.licenseExpiry"
+            [messages]="licenseExpiryMessages"
+          >
             <input
+              appFieldControl
               type="date"
               formControlName="licenseExpiry"
-              aria-required="true"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            @if (fieldInvalid(['licenseExpiry'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe a data de vencimento.</p>
-            }
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <!-- ====== Associações ====== -->
       <app-page-card title="Associações">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <div formGroupName="document">
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">Tipo de documento <span class="text-primary-500" aria-hidden="true">*</span></label>
-            <select
-              formControlName="type"
-              aria-required="true"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60">
-              <option value="CPF">CPF</option>
-              <option value="CNPJ">CNPJ</option>
-            </select>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5 mt-4">Número do documento <span class="text-primary-500" aria-hidden="true">*</span></label>
-            <input
-              type="text"
-              placeholder="11 - 14 dígitos"
-              maxlength="14"
-              autocapitalize="characters"
-              aria-required="true"
-              [value]="documentDisplay()"
-              (input)="onDocumentInput($event)"
-              [disabled]="isEdit()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tracking-wider
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60" />
-            @if (isEdit()) {
-              <p class="text-xs text-neutral-400 mt-1">Documento não pode ser alterado após a criação.</p>
-            }
-            @if (fieldInvalid(['document','value'])) {
-              @if (form.get('document.value')?.hasError('cpfInvalid')) {
-                <p class="text-xs text-rose-600 mt-1">CPF inválido.</p>
-              } @else {
-                <p class="text-xs text-rose-600 mt-1">CPF: 11 dígitos. CNPJ: 14 dígitos.</p>
-              }
-            }
+          <div formGroupName="document" class="space-y-4">
+            <app-form-field
+              label="Tipo de documento"
+              controlId="motorista-doc-tipo"
+              [required]="true"
+              [control]="form.controls.document.controls.type"
+            >
+              <select
+                appFieldControl
+                formControlName="type"
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60">
+                <option value="CPF">CPF</option>
+                <option value="CNPJ">CNPJ</option>
+              </select>
+            </app-form-field>
+
+            <app-form-field
+              label="Número do documento"
+              controlId="motorista-doc-valor"
+              [required]="true"
+              [hint]="isEdit() ? 'Documento não pode ser alterado após a criação.' : ''"
+              [control]="form.controls.document.controls.value"
+              [messages]="documentMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                placeholder="11 - 14 dígitos"
+                maxlength="14"
+                autocapitalize="characters"
+                [value]="documentDisplay()"
+                (input)="onDocumentInput($event)"
+                [disabled]="isEdit()"
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-wider
+                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors disabled:opacity-60" />
+            </app-form-field>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5">
-              ID do usuário vinculado <span class="text-neutral-400">(opcional)</span>
-            </label>
+          <app-form-field
+            label="ID do usuário vinculado (opcional)"
+            controlId="motorista-user-id"
+            hint="Vincule apenas se o motorista já tiver conta na plataforma."
+            [control]="form.controls.userId"
+          >
             <input
+              appFieldControl
               type="text"
               formControlName="userId"
               placeholder="UUID do usuário — deixe em branco se o motorista não tem login"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
-            <p class="text-xs text-neutral-400 mt-1">
-              Vincule apenas se o motorista já tiver conta na plataforma.
-            </p>
-          </div>
+          </app-form-field>
         </div>
       </app-page-card>
 
       <!-- ====== Status ====== -->
       <app-page-card title="Status">
         <div class="p-4 sm:p-6">
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5">Situação atual <span class="text-primary-500" aria-hidden="true">*</span></label>
-          <select
-            formControlName="status"
-            aria-required="true"
-            class="w-full md:w-72 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
-                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
-            @for (s of statuses; track s.value) {
-              <option [value]="s.value">{{ s.label }}</option>
-            }
-          </select>
+          <app-form-field
+            label="Situação atual"
+            controlId="motorista-status"
+            [required]="true"
+            [control]="form.controls.status"
+          >
+            <select
+              appFieldControl
+              formControlName="status"
+              class="w-full md:w-72 bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+              @for (s of statuses; track s.value) {
+                <option [value]="s.value">{{ s.label }}</option>
+              }
+            </select>
+          </app-form-field>
         </div>
       </app-page-card>
 

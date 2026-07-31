@@ -1,27 +1,57 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-500: #EB3F00;
-  --color-primary-600: #d63600;
-  --color-primary-400: #FF5722;
+  /* ==========================================================
+     Rampa laranja canônica — guia de identidade visual §03 +
+     Apêndice `--orange-050..900`
+     (documentation/docs/07-development-guides/frontend-guidelines-visual-indentify.md).
+     500 = Signal Orange, 600 = Ignition (hover do primário).
+     A doc não define 200/400/800: interpolados dentro da própria
+     rampa para manter o degradê coerente.
+     ATENÇÃO DE CONTRASTE: primary-500 sobre branco = 3,79:1 →
+     só serve para texto grande (≥18,66px bold), ícones e bordas.
+     Para texto pequeno use primary-700 (5,68:1 sobre branco).
+     ========================================================== */
+  --color-primary-50: #FFF0EA;
+  --color-primary-100: #FFD9C9;
+  --color-primary-200: #FFB699; /* interpolado (doc omissa) */
+  --color-primary-300: #FF8558;
+  --color-primary-400: #FA602E; /* interpolado (doc omissa) */
+  --color-primary-500: #F63B04; /* Signal Orange */
+  --color-primary-600: #EA3E00; /* Ignition */
+  --color-primary-700: #C22F00;
+  --color-primary-800: #982500; /* interpolado (doc omissa) */
+  --color-primary-900: #6E1B00;
+  /* Alias legado de tint para hover/chip — fora da rampa da doc, fica entre
+     050 e 100. Mantido porque é usado como bg de badge/hover em ~15 telas. */
   --color-primary-low: #FFE6DD;
-  --color-primary-50: #FFF5F0;
 
-  --color-black: #0F0F0F;
+  --color-black: #101010; /* Carbon */
   --color-white: #FFFFFF;
-  --color-gray-50: #F2F2F2;
+  --color-gray-50: #F0F0F0; /* Hub Gray — canvas padrão */
 
-  --color-success-500: #22C55E;
-  --color-success-50: #F0FDF4;
+  /* Line — borda/divisor canônico de card (#DDDDDD no guia de identidade). */
+  --color-line: #DDDDDD;
+
+  /* Rampa verde canônica — Apêndice `--green-050..900`.
+     success-500 (Hub Green) sobre branco = 2,54:1 → só fundo/preenchimento,
+     nunca texto. Texto "confirmado" usa success-700 (4,36:1) em tamanho
+     grande ou success-900 (9,12:1) em texto pequeno. */
+  --color-success-50: #E7FBF3;
+  --color-success-100: #BFF3DE;
+  --color-success-500: #10B981; /* Hub Green */
+  --color-success-700: #0B8A61;
+  --color-success-900: #064E37;
 
   /* Landing/Blog tokens expostos como utilities Tailwind.
-     bg-brand, text-ink, border-rule, font-display etc funcionam automático. */
-  --color-brand: #EB3F00;
-  --color-brand-hover: #d63600;
-  --color-brand-strong: #C93300;
-  --color-brand-light: #FF5722;
-  --color-brand-soft: #FFE6DD;
-  --color-brand-tint: #FFF5F0;
+     bg-brand, text-ink, border-rule, font-display etc funcionam automático.
+     Espelham a mesma rampa laranja oficial acima. */
+  --color-brand: #F63B04;
+  --color-brand-hover: #EA3E00;
+  --color-brand-strong: #C22F00;
+  --color-brand-light: #FA602E;
+  --color-brand-soft: #FFD9C9;
+  --color-brand-tint: #FFF0EA;
 
   --color-paper: #FFFFFF;
   --color-paper-alt: #FAFAFA;
@@ -30,7 +60,7 @@
   --color-rule-strong: #D6D6D6;
   --color-ink: #0A0A0A;
   --color-ink-dark: #050505;
-  --color-muted: #666666;
+  --color-muted: #6E6E6E; /* Smoke */
 
   --font-display: 'Sora', system-ui, sans-serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
@@ -69,10 +99,10 @@ body {
   /* Brand gradient tokens — exposed globally (not only inside .landing-root)
      so authenticated pages can reference them via `background: var(--brand-gradient)`.
      Keep the recipe identical to .landing-root for visual consistency. */
-  --brand-gradient: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);
-  --brand-gradient-vertical: linear-gradient(180deg, #FF5722 0%, #EB3F00 60%, #C93300 100%);
-  --brand-gradient-radial-hero: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(235,63,0,0.06), transparent 65%);
-  --brand-gradient-radial-hero-soft: radial-gradient(ellipse 55% 40% at 50% 0%, rgba(235,63,0,0.05), transparent 65%);
+  --brand-gradient: linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%);
+  --brand-gradient-vertical: linear-gradient(180deg, #FA602E 0%, #F63B04 60%, #C22F00 100%);
+  --brand-gradient-radial-hero: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(246,59,4,0.06), transparent 65%);
+  --brand-gradient-radial-hero-soft: radial-gradient(ellipse 55% 40% at 50% 0%, rgba(246,59,4,0.05), transparent 65%);
   --brand-gradient-shine: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
 }
 
@@ -99,14 +129,14 @@ body {
   --ink-30: rgba(10, 10, 10, 0.30);
   --muted: #666666;
   --ink-dark: #050505;
-  --brand: #EB3F00;
-  --brand-hover: #d63600;
-  --brand-strong: #C93300;
-  --brand-light: #FF5722;
-  --brand-soft: #FFE6DD;
-  --brand-tint: #FFF5F0;
-  --brand-gradient: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);
-  --brand-gradient-heavy: linear-gradient(135deg, #FF6B2C 0%, #EB3F00 40%, #C93300 100%);
+  --brand: #F63B04;
+  --brand-hover: #EA3E00;
+  --brand-strong: #C22F00;
+  --brand-light: #FA602E;
+  --brand-soft: #FFD9C9;
+  --brand-tint: #FFF0EA;
+  --brand-gradient: linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%);
+  --brand-gradient-heavy: linear-gradient(135deg, #FF8558 0%, #F63B04 40%, #C22F00 100%);
   --dark-gradient: linear-gradient(135deg, #1a1a1a 0%, #0A0A0A 100%);
   color: var(--ink);
   font-family: var(--font-body);
@@ -140,14 +170,14 @@ body {
   --ink-dark: #050505;
 
   /* Marca */
-  --brand: #EB3F00;
-  --brand-hover: #d63600;
-  --brand-strong: #C93300;
-  --brand-light: #FF5722;
-  --brand-soft: #FFE6DD;
-  --brand-tint: #FFF5F0;
-  --brand-gradient: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);
-  --brand-gradient-heavy: linear-gradient(135deg, #FF6B2C 0%, #EB3F00 40%, #C93300 100%);
+  --brand: #F63B04;
+  --brand-hover: #EA3E00;
+  --brand-strong: #C22F00;
+  --brand-light: #FA602E;
+  --brand-soft: #FFD9C9;
+  --brand-tint: #FFF0EA;
+  --brand-gradient: linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%);
+  --brand-gradient-heavy: linear-gradient(135deg, #FF8558 0%, #F63B04 40%, #C22F00 100%);
   --dark-gradient: linear-gradient(135deg, #1a1a1a 0%, #0A0A0A 100%);
 
   /* Layout */
@@ -205,7 +235,7 @@ body.app-shell-active {
   font-style: italic;
   position: relative;
   display: inline;
-  background-image: linear-gradient(180deg, transparent 60%, rgba(235,63,0,0.18) 60%, rgba(235,63,0,0.18) 92%, transparent 92%);
+  background-image: linear-gradient(180deg, transparent 60%, rgba(246,59,4,0.18) 60%, rgba(246,59,4,0.18) 92%, transparent 92%);
   background-repeat: no-repeat;
   background-size: 0% 100%;
   background-position: 0 0;
@@ -230,7 +260,10 @@ body.app-shell-active {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--brand);
+  /* 12px/600 é texto pequeno: Signal Orange dá 3,79:1 sobre branco (reprova AA).
+     brand-strong (#C22F00) dá 5,68:1. O traço decorativo abaixo segue em Signal
+     Orange — é elemento não-textual (limiar 3:1). */
+  color: var(--brand-strong);
   display: inline-flex;
   align-items: center;
   gap: 10px;

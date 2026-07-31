@@ -7,10 +7,15 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
   FinancingListItem,
@@ -28,14 +33,31 @@ const SORT_OPTIONS = [
   { value: 'contract_date_asc', label: 'Contrato (antigo)' },
 ] as const;
 
+/**
+ * Ações do menu da linha. São as duas únicas operações do backend que atuam
+ * sobre o financiamento inteiro (`PATCH .../paid-off` e `DELETE ...`); marcar /
+ * desmarcar parcela é por parcela e continua só no detalhe.
+ */
+type PendingAction = 'payOff' | 'delete';
+
 @Component({
   selector: 'app-financings-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DefaultPageLayout, PageCard],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    ActionsMenu,
+    AlertBanner,
+  ],
   templateUrl: './financings-list.html',
 })
 export class FinancingsList implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
 
   /**
@@ -60,6 +82,33 @@ export class FinancingsList implements OnInit {
   protected readonly statusFilter = signal<FinancingStatus | ''>('');
   protected readonly sort = signal<string>('created_desc');
   protected readonly pageSize = signal(20);
+
+  /** Ação de linha aguardando confirmação no diálogo. */
+  protected readonly pendingAction = signal<PendingAction | null>(null);
+  protected readonly pendingFinancing = signal<FinancingListItem | null>(null);
+  protected readonly actionBusy = signal(false);
+  /** Falha de uma ação de linha. Banner logo acima da lista. */
+  protected readonly actionError = signal<string | null>(null);
+
+  protected readonly dialogOpen = computed(() => this.pendingAction() !== null);
+
+  protected readonly dialogTitle = computed(() =>
+    this.pendingAction() === 'payOff' ? 'Quitar financiamento' : 'Excluir financiamento',
+  );
+
+  protected readonly dialogMessage = computed(() =>
+    this.pendingAction() === 'payOff'
+      ? 'Marcar este financiamento como quitado? O contrato deixa de contar como em aberto na frota.'
+      : 'Tem certeza que deseja excluir este financiamento? O cronograma de parcelas será removido junto e esta ação não pode ser desfeita.',
+  );
+
+  protected readonly dialogConfirmLabel = computed(() =>
+    this.pendingAction() === 'payOff' ? 'Quitar' : 'Excluir',
+  );
+
+  protected readonly dialogVariant = computed<'info' | 'warning' | 'danger'>(() =>
+    this.pendingAction() === 'payOff' ? 'warning' : 'danger',
+  );
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -108,7 +157,9 @@ export class FinancingsList implements OnInit {
         page,
         size: this.pageSize(),
       })
-      .subscribe({ error: () => {} });
+      // `VehiclesService` already writes the failure into its `financingsError` signal,
+      // rendered as a banner — claim it so the safety net doesn't toast it too.
+      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
   }
 
   protected statusInfo(s: FinancingStatus): { label: string; chip: string } {
@@ -138,6 +189,62 @@ export class FinancingsList implements OnInit {
   protected openDetail(f: FinancingListItem): void {
     // Route to the financing detail page itself (not the vehicle).
     this.router.navigate(['/financiamentos', f.id]);
+  }
+
+  /** Contrato já quitado não pode ser quitado de novo. */
+  protected canPayOff(f: FinancingListItem): boolean {
+    return f.status !== 'PAID_OFF';
+  }
+
+  protected askAction(action: PendingAction, f: FinancingListItem, event?: Event): void {
+    event?.stopPropagation();
+    this.pendingAction.set(action);
+    this.pendingFinancing.set(f);
+  }
+
+  protected cancelAction(): void {
+    if (this.actionBusy()) return;
+    this.pendingAction.set(null);
+    this.pendingFinancing.set(null);
+  }
+
+  protected confirmAction(): void {
+    const action = this.pendingAction();
+    const f = this.pendingFinancing();
+    if (!action || !f || this.actionBusy()) return;
+    this.actionBusy.set(true);
+    this.actionError.set(null);
+
+    // Nunca remove otimisticamente: só recarrega depois do 2xx do servidor.
+    const onSuccess = (message: string): void => {
+      this.actionBusy.set(false);
+      this.pendingAction.set(null);
+      this.pendingFinancing.set(null);
+      this.notifications.success(message);
+      this.reload(this.page());
+    };
+
+    // Erros de negócio (409/404) vão pro banner inline: o diálogo fecha e não há
+    // campo pra ancorar a mensagem.
+    const onError = (fallback: string) => (err: unknown) => {
+      this.actionBusy.set(false);
+      this.pendingAction.set(null);
+      this.pendingFinancing.set(null);
+      this.actionError.set(this.apiErrors.messageFor(err, fallback));
+    };
+
+    if (action === 'payOff') {
+      this.vehiclesService.markPaidOff(f.vehicleId, f.id).subscribe({
+        next: () => onSuccess('Financiamento quitado.'),
+        error: onError('Não foi possível quitar o financiamento.'),
+      });
+      return;
+    }
+
+    this.vehiclesService.deleteFinancing(f.vehicleId, f.id).subscribe({
+      next: () => onSuccess('Financiamento excluído.'),
+      error: onError('Não foi possível excluir o financiamento.'),
+    });
   }
 
   /**

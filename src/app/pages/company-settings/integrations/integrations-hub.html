@@ -2,6 +2,13 @@
   title="Integração"
   description="Conecte serviços externos ao MyCarsHub. Escolha um provedor abaixo para configurar."
 >
+  <!-- Falha ao carregar o status — distingue "falhou" de "nada configurado". -->
+  @if (error(); as loadError) {
+    <div class="mb-3 sm:mb-4">
+      <app-alert-banner variant="error" [message]="loadError" />
+    </div>
+  }
+
   <ul
     role="list"
     class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
@@ -53,7 +60,7 @@
           </div>
 
           <span
-            class="inline-flex items-center gap-1 text-sm font-semibold text-primary-600 transition-colors group-hover:text-primary-700"
+            class="inline-flex items-center gap-1 text-sm font-semibold text-primary-700 transition-colors group-hover:text-primary-800"
           >
             Configurar
             <svg

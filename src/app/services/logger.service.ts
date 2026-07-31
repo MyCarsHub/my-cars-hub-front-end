@@ -1,0 +1,77 @@
+import { inject, Injectable } from '@angular/core';
+
+import { TelemetryService } from './telemetry.service';
+
+/**
+ * Structured key/value payload attached to a log entry. Kept as
+ * `Record<string, unknown>` so callers never have to reach for `any` and so
+ * the whole object can be forwarded to Sentry as `extra` verbatim.
+ */
+export type LogContext = Record<string, unknown>;
+
+/**
+ * Single, centralized logging surface for the app.
+ *
+ * Why it exists: before this service the project's `no-console` rule allowed
+ * only `console.error`, so every event worth recording — a hard failure and a
+ * partial degradation alike — had to be written as an "error". Once the Sentry
+ * DSN is configured both would land in the same bucket and compete for the same
+ * attention. `warn` vs `error` here maps directly onto Sentry's `warning` vs
+ * `error` severities, so triage works. `no-console` is now `error` with no
+ * exceptions; this file and `main.ts` (bootstrap) carry the only overrides.
+ *
+ * This file is the ONLY place in `src/` allowed to call `console.*` — see the
+ * scoped override in `eslint.config.mjs`. Everything else goes through here.
+ *
+ * Sentry state: `main.ts` only calls `Sentry.init()` when a production DSN is
+ * present, and `environment.sentryDsn` is empty in both environment files
+ * today. With no client bound, the Sentry SDK's capture functions are
+ * documented no-ops — but every call is still wrapped defensively (same
+ * pattern as `session.service.ts`) so a telemetry problem can never take down
+ * the feature that was merely trying to log.
+ *
+ * The SDK is reached through `TelemetryService` rather than imported here, so
+ * this service's severity contract can be asserted with a plain DI override
+ * instead of an ESM module mock — see that file for the full rationale.
+ */
+@Injectable({ providedIn: 'root' })
+export class LoggerService {
+  private readonly telemetry = inject(TelemetryService);
+
+  /**
+   * Partial degradation: the user still has a usable outcome, but something
+   * was skipped, retried or fell back. Reaches Sentry as `level: 'warning'`.
+   *
+   * Console output deliberately stays on `console.error` — warnings are muted
+   * by default in several devtools/log-collection setups — prefixed with
+   * `[warn]` so the two severities remain distinguishable.
+   */
+  warn(message: string, context?: LogContext): void {
+    console.error(`[warn] ${message}`, context ?? {});
+    try {
+      this.telemetry.captureMessage(message, { level: 'warning', extra: context });
+    } catch {
+      // Sentry may not be initialized (no DSN outside prod); never let a
+      // telemetry failure escape into the caller's control flow.
+    }
+  }
+
+  /**
+   * Hard failure: the operation did not produce its expected outcome.
+   * Reaches Sentry as an exception (`level: 'error'`).
+   *
+   * `error` is typed `unknown` because catch bindings are `unknown` under
+   * strict TS; non-`Error` throwables are normalized before capture so Sentry
+   * always gets a stack-bearing object.
+   */
+  error(message: string, error: unknown, context?: LogContext): void {
+    console.error(`[error] ${message}`, error, context ?? {});
+    try {
+      this.telemetry.captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { message, ...context },
+      });
+    } catch {
+      // See `warn`.
+    }
+  }
+}

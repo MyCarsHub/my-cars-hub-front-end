@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
@@ -190,9 +191,10 @@ describe('RentalContractCard signature transition toasts', () => {
 });
 
 /**
- * Cobre os fluxos de download DOCX e abertura via docx-preview.
- * Stub no HTTP boundary (RentalService.documentSignedUrl) + no DOM
- * (fetch, window.open, URL.createObjectURL) — verifica só o wiring.
+ * Cobre os fluxos de download PDF (fetch → blob → anchor) e abertura
+ * do PDF em nova aba (window.open + navigation pra signed URL).
+ * Backend armazena PDF real; docx-preview foi removido deste caminho.
+ * Stub no HTTP boundary (RentalService.documentSignedUrl) + no DOM.
  */
 describe('RentalContractCard — download & open PDF', () => {
   const RID = 'rid';
@@ -277,55 +279,71 @@ describe('RentalContractCard — download & open PDF', () => {
     createEl.mockRestore();
   });
 
-  it('downloadContract: erro do signed URL dispara toast e reseta loading', () => {
+  it('downloadContract: erro do backend vira banner inline (sem toast) e reseta loading', () => {
     rentalService.documentSignedUrl.mockReturnValue(
-      throwError(() => ({ error: { message: 'boom' } })),
+      throwError(() => new HttpErrorResponse({ status: 400, error: { message: 'boom' } })),
     );
     const fixture = makeFixture();
     (fixture.componentInstance as any).downloadContract();
+    fixture.detectChanges();
 
-    expect(notifications.push).toHaveBeenCalledWith('error', 'boom');
+    // A mensagem do backend continua chegando ao usuário — agora inline.
+    expect((fixture.componentInstance as any).error()).toBe('boom');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain('boom');
+    // E NÃO duplica com o toast do interceptor.
+    expect(notifications.push).not.toHaveBeenCalledWith('error', 'boom');
     expect((fixture.componentInstance as any).downloading()).toBe(false);
   });
 
-  it('openContractAsPdf: abre nova aba, escreve loading e chama service', () => {
+  it('openContractAsPdf: sucesso → navega a aba pra signed URL do PDF', () => {
     rentalService.documentSignedUrl.mockReturnValue(
-      throwError(() => ({ error: { message: 'fetch failed' } })),
+      of({ url: 'https://signed/contract.pdf' } as any),
     );
-    const fakeWin = {
-      document: {
-        write: vi.fn(),
-        close: vi.fn(),
-        body: document.createElement('div'),
-        querySelector: vi.fn(() => null),
-      },
-      close: vi.fn(),
-    };
+    const location = { href: '' } as { href: string };
+    const fakeWin = { location, close: vi.fn() };
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as any);
 
     const fixture = makeFixture();
     (fixture.componentInstance as any).openContractAsPdf();
 
     expect(openSpy).toHaveBeenCalledWith('', '_blank');
-    expect(fakeWin.document.write).toHaveBeenCalled();
     expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'd1');
-    expect(notifications.push).toHaveBeenCalledWith('error', 'fetch failed');
+    expect(location.href).toBe('https://signed/contract.pdf');
     expect((fixture.componentInstance as any).openingPdf()).toBe(false);
 
     openSpy.mockRestore();
   });
 
-  it('openContractAsPdf: pop-up bloqueado → toast e sem chamar service', () => {
+  it('openContractAsPdf: erro do signed URL fecha aba e mostra banner inline', () => {
+    rentalService.documentSignedUrl.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 400, error: { message: 'fetch failed' } })),
+    );
+    const fakeWin = { location: { href: '' }, close: vi.fn() };
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContractAsPdf();
+
+    expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'd1');
+    expect(fakeWin.close).toHaveBeenCalled();
+    expect((fixture.componentInstance as any).error()).toBe('fetch failed');
+    expect(notifications.push).not.toHaveBeenCalledWith('error', 'fetch failed');
+    expect((fixture.componentInstance as any).openingPdf()).toBe(false);
+
+    openSpy.mockRestore();
+  });
+
+  it('openContractAsPdf: pop-up bloqueado → banner inline e sem chamar service', () => {
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
 
     const fixture = makeFixture();
     (fixture.componentInstance as any).openContractAsPdf();
 
     expect(rentalService.documentSignedUrl).not.toHaveBeenCalled();
-    expect(notifications.push).toHaveBeenCalledWith(
-      'error',
+    expect((fixture.componentInstance as any).error()).toBe(
       'Permita pop-ups pra abrir o contrato.',
     );
+    expect(notifications.push).not.toHaveBeenCalled();
     expect((fixture.componentInstance as any).openingPdf()).toBe(false);
 
     openSpy.mockRestore();

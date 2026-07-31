@@ -12,6 +12,9 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
 import { DriverResponse, DriverStatus } from '../../types/driver.types';
 import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
@@ -21,12 +24,14 @@ import { RentalListItemDto } from '../../types/rental.types';
 @Component({
   selector: 'app-driver-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, DetailActions],
+  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, DetailActions, AlertBanner],
   templateUrl: './driver-detail.html',
 })
 export class DriverDetail implements OnInit {
   private readonly driverService = inject(DriverService);
   private readonly rentalService = inject(RentalService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -107,7 +112,7 @@ export class DriverDetail implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Motorista não encontrado.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Motorista não encontrado.'));
         this.loading.set(false);
       },
     });
@@ -172,11 +177,14 @@ export class DriverDetail implements OnInit {
         this.driver.set(updated);
         this.togglingStatus.set(false);
         this.toggleStatusOpen.set(false);
+        this.notifications.success(
+          next === 'SUSPENDED' ? 'Motorista suspenso.' : 'Motorista reativado.',
+        );
       },
       error: (err: HttpErrorResponse) => {
         this.togglingStatus.set(false);
         this.toggleStatusOpen.set(false);
-        this.actionError.set(this.extractError(err, 'Não foi possível alterar o status.'));
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível alterar o status.'));
       },
     });
   }
@@ -210,11 +218,14 @@ export class DriverDetail implements OnInit {
     this.actionError.set(null);
     this.deleting.set(true);
     this.driverService.remove(d.id).subscribe({
-      next: () => this.router.navigate(['/motoristas']),
+      next: () => {
+        this.notifications.success('Motorista removido.');
+        this.router.navigate(['/motoristas']);
+      },
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.actionError.set(this.extractError(err, 'Não foi possível excluir.'));
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível excluir.'));
       },
     });
   }
@@ -257,13 +268,5 @@ export class DriverDetail implements OnInit {
       a.complement ? ` — ${a.complement}` : '',
     ].join('');
     return `${parts} · ${a.district} · ${a.city}/${a.uf} · CEP ${this.formatCep(a.cep)}`;
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

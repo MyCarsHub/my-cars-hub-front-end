@@ -3,15 +3,19 @@
     <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
       Carregando…
     </div>
-  } @else if (error() && !financing()) {
+  } @else if (error(); as loadError) {
     <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
-      <p class="text-rose-700 text-sm">{{ error() }}</p>
-      <a routerLink="/financiamentos" class="inline-block text-sm text-primary-500 hover:text-primary-600 font-medium">
+      <p class="text-rose-700 text-sm" role="alert">{{ loadError }}</p>
+      <a routerLink="/financiamentos" class="inline-block text-sm text-primary-700 hover:text-primary-800 font-medium">
         Voltar para lista
       </a>
     </div>
   } @else if (financing(); as f) {
     <div class="space-y-4 sm:space-y-6">
+      @if (actionError(); as actionMessage) {
+        <app-alert-banner variant="error" [message]="actionMessage" />
+      }
+
       <!-- Header card -->
       <app-page-card title="Contrato">
         <div class="p-4 sm:p-6 space-y-4">
@@ -27,7 +31,7 @@
               </p>
               <a
                 [routerLink]="['/veiculos', f.vehicleId, 'gerencia']"
-                class="inline-block mt-1 text-xs font-medium text-primary-500 hover:text-primary-600"
+                class="inline-block mt-1 text-xs font-medium text-primary-700 hover:text-primary-800"
               >
                 Ver veículo →
               </a>
@@ -259,7 +263,7 @@
       </app-page-card>
 
       <div class="pt-2">
-        <a routerLink="/financiamentos" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+        <a routerLink="/financiamentos" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
           ← Voltar para a lista
         </a>
       </div>

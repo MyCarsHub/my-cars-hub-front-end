@@ -12,7 +12,11 @@ import { RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
+import { clearServerErrors } from '../../../services/api-error';
 import { SessionService } from '../../../services/session.service';
 import { AsaasIntegrationService } from './asaas-integration.service';
 import { AsaasEnvironment } from './asaas-integration.types';
@@ -31,6 +35,9 @@ const ASAAS_CONFIG_URL = {
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
+    AlertBanner,
+    FormField,
+    FieldControl,
   ],
   templateUrl: './asaas-integration.html',
 })
@@ -38,7 +45,14 @@ export class AsaasIntegration implements OnInit {
   private readonly service = inject(AsaasIntegrationService);
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly session = inject(SessionService);
+
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly accessTokenMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a chave da API Asaas.',
+    minlength: 'A chave parece incompleta. Cole a chave inteira.',
+  };
 
   protected readonly status = this.service.status;
   protected readonly loading = this.service.loading;
@@ -71,7 +85,9 @@ export class AsaasIntegration implements OnInit {
   );
 
   ngOnInit(): void {
-    this.service.load().subscribe({ error: () => {} });
+    // Claim the load failure: the banner already renders `loadError`, so letting the
+    // interceptor safety net fire would show the same problem twice.
+    this.service.load().subscribe({ error: (err: HttpErrorResponse) => this.apiErrors.claim(err) });
   }
 
   protected selectEnvironment(env: AsaasEnvironment): void {
@@ -110,6 +126,7 @@ export class AsaasIntegration implements OnInit {
       return;
     }
     this.formError.set(null);
+    clearServerErrors(this.connectForm);
     const raw = this.connectForm.getRawValue();
     const environment: AsaasEnvironment = this.isPlatformAdmin()
       ? raw.environment
@@ -129,14 +146,14 @@ export class AsaasIntegration implements OnInit {
           this.selectedEnv.set('PRODUCTION');
         },
         error: (err: HttpErrorResponse) => {
-          this.formError.set(
-            this.extractError(
-              err,
-              err.status === 400
-                ? 'Não conseguimos validar essa chave. Verifique se você copiou a chave completa e se o ambiente escolhido está correto (Sandbox vs Produção).'
-                : 'Não foi possível conectar. Tente novamente.',
-            ),
+          const { formMessage } = this.apiErrors.handleForm(
+            err,
+            this.connectForm,
+            err.status === 400
+              ? 'Não conseguimos validar essa chave. Verifique se você copiou a chave completa e se o ambiente escolhido está correto (Sandbox vs Produção).'
+              : 'Não foi possível conectar. Tente novamente.',
           );
+          this.formError.set(formMessage);
         },
       });
   }
@@ -158,9 +175,9 @@ export class AsaasIntegration implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.showDisconnectDialog.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível desconectar. Tente novamente.'),
+        // Inline, not a toast: HTTP failures belong to the screen.
+        this.formError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível desconectar. Tente novamente.'),
         );
       },
     });
@@ -168,11 +185,6 @@ export class AsaasIntegration implements OnInit {
 
   protected toggleAccessTokenVisibility(): void {
     this.showAccessToken.update((v) => !v);
-  }
-
-  protected fieldInvalid(name: string): boolean {
-    const c = this.connectForm.get(name);
-    return !!c && c.invalid && c.touched;
   }
 
   protected environmentLabel(env: AsaasEnvironment | null): string {
@@ -190,13 +202,5 @@ export class AsaasIntegration implements OnInit {
       hour: '2-digit',
       minute: '2-digit',
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

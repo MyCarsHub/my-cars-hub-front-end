@@ -1,10 +1,13 @@
-import { Injectable } from '@angular/core';
-import * as Sentry from '@sentry/angular';
+import { inject, Injectable } from '@angular/core';
+
+import { TelemetryService } from './telemetry.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class SessionService {
+
+  private readonly telemetry = inject(TelemetryService);
 
   private get isBrowser(): boolean {
     return typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
@@ -14,9 +17,9 @@ export class SessionService {
     if (this.isBrowser) {
       sessionStorage.setItem(key, value);
     }
-    // Keep Sentry user context aligned when identity keys change.
+    // Keep telemetry user context aligned when identity keys change.
     if (key === 'id' || key === 'email') {
-      this.syncSentryUser();
+      this.syncTelemetryUser();
     }
   }
 
@@ -32,7 +35,7 @@ export class SessionService {
       sessionStorage.removeItem(key);
     }
     if (key === 'id' || key === 'email') {
-      this.syncSentryUser();
+      this.syncTelemetryUser();
     }
   }
 
@@ -40,9 +43,9 @@ export class SessionService {
     if (this.isBrowser) {
       sessionStorage.clear();
     }
-    // Logout / session drop — untag Sentry so subsequent errors are anonymous.
+    // Logout / session drop — untag telemetry so subsequent errors are anonymous.
     try {
-      Sentry.setUser(null);
+      this.telemetry.setUser(null);
     } catch {
       // Sentry may not be initialized (e.g. dev without DSN); safe to ignore.
     }
@@ -126,14 +129,14 @@ export class SessionService {
     return new TextDecoder('utf-8').decode(bytes);
   }
 
-  private syncSentryUser(): void {
+  private syncTelemetryUser(): void {
     try {
       const id = this.getItem('id');
       const email = this.getItem('email');
       if (id) {
-        Sentry.setUser({ id, email: email ?? undefined });
+        this.telemetry.setUser({ id, email: email ?? undefined });
       } else {
-        Sentry.setUser(null);
+        this.telemetry.setUser(null);
       }
     } catch {
       // Sentry not initialized — no-op.

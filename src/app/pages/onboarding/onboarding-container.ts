@@ -20,10 +20,35 @@ import { StepDocument } from './components/step-document';
 import { StepWelcome } from './components/step-welcome';
 import { AuthService } from '../../services/auth.service';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import { HttpErrorResponse } from '@angular/common/http';
-import * as Sentry from '@sentry/angular';
+import { AbstractControl } from '@angular/forms';
+import { clearServerErrors } from '../../services/api-error';
+import { isValidCnpj } from '../../utils/validators/cnpj.validator';
+import { LoggerService } from '../../services/logger.service';
+
+/** The document step. Its CNPJ is checked for availability before the step is saved. */
+const DOCUMENT_STEP = 3;
+
+/**
+ * Reads `retryAfterSeconds` from the 429 body. The endpoint is capped at 5 requests /
+ * 60s per IP; we never retry automatically, we tell the user how long to wait.
+ */
+function retryAfterSecondsOf(err: HttpErrorResponse): number | null {
+  const body: unknown = err.error;
+  if (typeof body === 'object' && body !== null && 'retryAfterSeconds' in body) {
+    const seconds = (body as { retryAfterSeconds?: unknown }).retryAfterSeconds;
+    if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) {
+      return Math.ceil(seconds);
+    }
+  }
+  const header = err.headers?.get('Retry-After');
+  const parsed = header === null || header === undefined ? NaN : Number(header);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.ceil(parsed) : null;
+}
 
 @Component({
   selector: 'app-onboarding-container',
@@ -34,6 +59,7 @@ import * as Sentry from '@sentry/angular';
     StepCompany,
     StepDocument,
     StepWelcome,
+    AlertBanner,
   ],
   templateUrl: './onboarding-container.html',
   styleUrl: './onboarding-container.css',
@@ -61,8 +87,10 @@ export class OnboardingContainer implements OnInit {
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly layoutStore = inject(LayoutStore);
-  private readonly notify = inject(NotificationService);
+  private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly session = inject(SessionService);
+  private readonly logger = inject(LoggerService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** True once the initial GET /onboarding call has resolved */
@@ -84,11 +112,27 @@ export class OnboardingContainer implements OnInit {
   /** References to step components so we can call markAllTouched() */
   private readonly stepPersonalRef = viewChild(StepPersonal);
   private readonly stepCompanyRef = viewChild(StepCompany);
+  private readonly stepDocumentRef = viewChild(StepDocument);
 
   protected readonly currentStep = this.svc.currentStep;
   protected readonly totalSteps = this.svc.totalSteps;
   protected readonly loading = this.svc.loading;
-  protected readonly error = this.svc.error;
+
+  /**
+   * Anything that must lock the footer: a step save/finish, or the CNPJ availability
+   * check. Without it a slow availability response would leave "Próximo" clickable and
+   * the user could fire the request again — straight into the 5/60s rate limit.
+   */
+  protected readonly busy = computed(() => this.svc.loading() || this.svc.checkingCnpj());
+
+  /**
+   * Single banner slot for the whole wizard. Save / finish failures are claimed here
+   * (after their `fieldErrors` were pushed onto the step form); load failures come from
+   * the service. Previously the same error surfaced three times: service banner,
+   * component toast and interceptor toast.
+   */
+  private readonly actionError = signal<string | null>(null);
+  protected readonly error = computed(() => this.actionError() ?? this.svc.loadError());
 
   protected readonly isFirstStep = this.svc.isFirstStep;
   protected readonly isLastStep = this.svc.isLastStep;
@@ -104,6 +148,7 @@ export class OnboardingContainer implements OnInit {
   }));
 
   protected readonly nextLabel = computed(() => {
+    if (this.svc.checkingCnpj()) return 'Verificando...';
     if (this.svc.loading()) return 'Salvando...';
     return this.svc.isLastStep() ? 'Acessar Plataforma' : 'Próximo';
   });
@@ -120,16 +165,15 @@ export class OnboardingContainer implements OnInit {
         this.loaded.set(true);
       },
       error: (err: HttpErrorResponse) => {
-        // Even on error, show the form (fields will be empty), but toast
-        // so the user understands why the form is blank.
+        // Even on error, show the form (fields will be empty). The message is inline —
+        // `OnboardingService.loadState` already claimed and formatted it.
         this.loaded.set(true);
-        // 404 on first entry is expected (no onboarding row yet) — do not toast.
-        if (err?.status !== 404) {
-          this.notify.error(
-            err?.error?.message ??
-              'Não foi possível carregar seu progresso. Você pode continuar mesmo assim.',
-          );
-        }
+        this.actionError.set(
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível carregar seu progresso. Você pode continuar mesmo assim.',
+          ),
+        );
       },
     });
   }
@@ -142,14 +186,35 @@ export class OnboardingContainer implements OnInit {
     this.stepValid.set(valid);
   }
 
+  /** The reactive form of the step currently on screen, when it has one. */
+  private currentStepForm(): AbstractControl | null {
+    switch (this.svc.currentStep()) {
+      case 1:
+        return this.stepPersonalRef()?.form ?? null;
+      case 2:
+        return this.stepCompanyRef()?.form ?? null;
+      case DOCUMENT_STEP:
+        // Without this the backend `fieldErrors.cnpj` had nowhere to land and the
+        // message fell through to the wizard banner instead of under the field.
+        return this.stepDocumentRef()?.form ?? null;
+      default:
+        return null;
+    }
+  }
+
   protected onNext(): void {
-    if (this.svc.loading()) return;
+    if (this.busy()) return;
 
     if (!this.stepValid()) {
       this.stepPersonalRef()?.markAllTouched();
       this.stepCompanyRef()?.markAllTouched();
+      this.stepDocumentRef()?.markAllTouched();
       return;
     }
+
+    this.actionError.set(null);
+    const stepForm = this.currentStepForm();
+    if (stepForm) clearServerErrors(stepForm);
 
     const step = this.svc.currentStep();
 
@@ -181,12 +246,13 @@ export class OnboardingContainer implements OnInit {
                     // enriquecidos até o próximo /auth/me — aceitável.
                     // Captura em Sentry pra ter visibilidade da taxa dessa
                     // falha silenciosa em prod.
-                    Sentry.captureException(err, {
-                      tags: { source: 'onboarding.finish.hydrateSession' },
+                    this.logger.error('[onboarding] hydrateSession falhou após finish', err, {
+                      source: 'onboarding.finish.hydrateSession',
                     });
                   },
                 });
 
+              this.notifications.success('Cadastro concluído. Bem-vindo ao MyCarsHub!');
               this.router.navigate(['/dashboard']);
               return;
             }
@@ -204,24 +270,91 @@ export class OnboardingContainer implements OnInit {
       ...this.pendingData(),
     };
 
-    this.svc.saveStep(step, fullData).subscribe({
-      next: () => {
-        this.stepValid.set(false);
-        this.pendingData.set({});
-        this.direction.set('forward');
-      },
-      error: (err: HttpErrorResponse) => {
-        this.notify.error(
-          err?.error?.message ?? 'Não foi possível salvar esta etapa. Tente novamente.',
-        );
-      },
-    });
+    if (step === DOCUMENT_STEP && fullData.hasCnpj && isValidCnpj(fullData.cnpj ?? '')) {
+      this.saveAfterAvailabilityCheck(step, fullData);
+      return;
+    }
+
+    this.saveStepAndAdvance(step, fullData);
+  }
+
+  /**
+   * Advisory pre-flight for the document step. `stepValid()` already guarantees the
+   * local mod-11 passed, and the `isValidCnpj` guard above repeats it, so a value the
+   * client can already reject never costs a request against the 5/60s bucket.
+   *
+   * A 409 / 400 blocks and lands inline on the field. A 429 blocks with the wait time.
+   * Anything else — offline, timeout, 5xx — lets the user through: the check is a
+   * courtesy and `/finish` plus the database trigger remain the real gate.
+   */
+  private saveAfterAvailabilityCheck(step: number, fullData: OnboardingData): void {
+    this.svc
+      .checkCnpjAvailability(fullData.cnpj ?? '')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.saveStepAndAdvance(step, fullData),
+        error: (err: HttpErrorResponse) => {
+          if (err.status === 409 || err.status === 400) {
+            // Copy comes from the backend: the 409 is deliberately generic and must not
+            // be reworded into anything that confirms a registration exists.
+            this.claimStepError(err, 'Não foi possível usar este CNPJ.');
+            return;
+          }
+          if (err.status === 429) {
+            this.blockForRateLimit(err);
+            return;
+          }
+          // Advisory only — never trap the user behind a check that failed on our side.
+          this.apiErrors.claim(err);
+          this.saveStepAndAdvance(step, fullData);
+        },
+      });
+  }
+
+  /** 429: tell the user how long to wait. We never retry on their behalf. */
+  private blockForRateLimit(err: HttpErrorResponse): void {
+    this.apiErrors.claim(err);
+    const seconds = retryAfterSecondsOf(err);
+    this.actionError.set(
+      seconds === null
+        ? 'Muitas verificações seguidas. Aguarde um minuto e tente novamente.'
+        : `Muitas verificações seguidas. Aguarde ${seconds} segundos e tente novamente.`,
+    );
+  }
+
+  private saveStepAndAdvance(step: number, fullData: OnboardingData): void {
+    this.svc
+      .saveStep(step, fullData)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.stepValid.set(false);
+          this.pendingData.set({});
+          this.direction.set('forward');
+        },
+        error: (err: HttpErrorResponse) =>
+          this.claimStepError(err, 'Não foi possível salvar esta etapa. Tente novamente.'),
+      });
+  }
+
+  /**
+   * Backend `fieldErrors` land on the matching control of the visible step (inline, under
+   * the field); only what is left over reaches the wizard banner. Never a toast.
+   */
+  private claimStepError(err: HttpErrorResponse, fallback: string): void {
+    const stepForm = this.currentStepForm();
+    if (!stepForm) {
+      this.actionError.set(this.apiErrors.messageFor(err, fallback));
+      return;
+    }
+    const { formMessage } = this.apiErrors.handleForm(err, stepForm, fallback);
+    this.actionError.set(formMessage);
   }
 
   private handleFinishError(err: HttpErrorResponse): void {
-    this.notify.error(
-      err?.error?.message ??
-        'Não foi possível finalizar seu cadastro. Verifique os dados e tente novamente.',
+    this.claimStepError(
+      err,
+      'Não foi possível finalizar seu cadastro. Verifique os dados e tente novamente.',
     );
   }
 
@@ -240,6 +373,7 @@ export class OnboardingContainer implements OnInit {
         const selectedId = this.session.getItem('selectedCompanyId');
         if (selectedId) {
           this.layoutStore.refreshTenants();
+          this.notifications.success('Cadastro concluído. Bem-vindo ao MyCarsHub!');
           this.router.navigate(['/dashboard']);
           return;
         }
@@ -250,25 +384,28 @@ export class OnboardingContainer implements OnInit {
           setTimeout(() => this.fetchMeAndProceed(attempt + 1), delay);
           return;
         }
-        console.error('[onboarding] exhausted retries, session=', {
+        this.logger.warn('[onboarding] exhausted retries', {
           selectedCompanyId: this.session.getItem('selectedCompanyId'),
           userCompanies: this.session.getItem('userCompanies'),
           onboardingCompleted: this.session.getItem('onboardingCompleted'),
         });
-        this.notify.error(
+        this.actionError.set(
           'Não conseguimos vincular sua empresa. Tente novamente ou faça logout e login.',
         );
       },
       error: (err: HttpErrorResponse) => {
-        console.error('[onboarding] getMe error', err);
+        this.logger.error('[onboarding] getMe error', err, {
+          source: 'onboarding.finish.fetchMeAndProceed',
+        });
         this.handleFinishError(err);
       },
     });
   }
 
   protected onBack(): void {
-    if (this.svc.loading() || this.svc.isFirstStep()) return;
+    if (this.busy() || this.svc.isFirstStep()) return;
 
+    this.actionError.set(null);
     this.svc.loadState().subscribe({
       next: () => {
         this.stepValid.set(false);
@@ -277,11 +414,10 @@ export class OnboardingContainer implements OnInit {
         // Always decrement locally after re-syncing current backend state
         this.svc.goBackStep();
       },
-      error: (err: HttpErrorResponse) => {
-        this.notify.error(
-          err?.error?.message ?? 'Não foi possível voltar. Tente novamente.',
-        );
-      },
+      error: (err: HttpErrorResponse) =>
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível voltar. Tente novamente.'),
+        ),
     });
   }
 }

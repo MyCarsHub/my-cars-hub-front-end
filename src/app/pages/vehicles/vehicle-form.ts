@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   AbstractControl,
@@ -15,21 +15,32 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, map, of, switchMap } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { ApiErrorService } from '../../services/api-error.service';
+import { clearServerErrors } from '../../services/api-error';
+import { NotificationService } from '../../services/notification.service';
 import { FinancingFormFields } from '../../components/vehicles/financing-form-fields/financing-form-fields';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
+import { InsuranceFormFields } from '../../components/vehicles/insurance-form-fields/insurance-form-fields';
+import { insuranceDateRangeValidator } from '../../components/vehicles/insurance-form-fields/insurance-utils';
 import { VehiclesService } from '../../services/vehicles.service';
+import { InsurancesService } from '../../services/insurances.service';
+import { CreateInsuranceRequest, InsuranceCoverage } from '../../types/insurance.types';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
+  Financing,
   IPVA_STATUS_OPTIONS,
   IpvaStatus,
   UpdateVehicleRequest,
   VEHICLE_FUEL_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
+  Vehicle,
   VehicleFuel,
   VehicleType,
 } from '../../types/vehicle.types';
@@ -48,11 +59,25 @@ function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-vehicle-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, PrimaryInput, FinancingFormFields],
+  imports: [
+    ReactiveFormsModule,
+    DefaultPageLayout,
+    PageCard,
+    PrimaryInput,
+    FinancingFormFields,
+    InsuranceFormFields,
+    AlertBanner,
+    FormField,
+    FieldControl,
+    RouterLink,
+  ],
   templateUrl: './vehicle-form.html',
 })
 export class VehicleForm implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly insurancesService = inject(InsurancesService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -67,8 +92,39 @@ export class VehicleForm implements OnInit {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly plateMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a placa.',
+    pattern: 'Placa inválida. Use ABC1234 ou ABC1D23.',
+  };
+  protected readonly chassisMessages: Readonly<Record<string, string>> = {
+    pattern: 'Chassi deve ter 17 caracteres (sem I, O, Q).',
+  };
+  protected readonly renavamMessages: Readonly<Record<string, string>> = {
+    pattern: 'RENAVAM deve ter entre 9 e 11 dígitos.',
+  };
+
   protected readonly plateDisplay = signal('');
   protected readonly showFinancing = signal(false);
+  /**
+   * Bloco de seguro (opcional). O backend admite apenas UMA apólice ACTIVE por
+   * veículo e responde 409 no POST quando já existe — o erro cai no banner
+   * inline (`handleInsuranceError`), nunca em toast.
+   */
+  protected readonly showInsurance = signal(false);
+
+  /**
+   * Financiamento ATIVO já vinculado ao veículo (vem em `GET /vehicles/{id}`).
+   * O backend só admite um ativo por veículo — `createFinancing` responde 409
+   * quando já existe — e não expõe endpoint de atualização (apenas quitar e
+   * excluir). Por isso a edição do veículo só oferece ADICIONAR quando este
+   * signal está `null`; havendo um ativo, mostramos o resumo somente-leitura
+   * com link para a tela do financiamento.
+   */
+  protected readonly existingFinancing = signal<Financing | null>(null);
+  protected readonly canAddFinancing = computed(
+    () => !this.isEdit() || this.existingFinancing() === null,
+  );
 
   protected readonly form = this.fb.nonNullable.group(
     {
@@ -105,6 +161,21 @@ export class VehicleForm implements OnInit {
     installments: [0, [Validators.min(0)]],
     installmentAmount: [0, [Validators.min(0)]],
   });
+
+  protected readonly insuranceForm = this.fb.nonNullable.group(
+    {
+      insurer: ['', [Validators.required, Validators.maxLength(120)]],
+      policyNumber: ['', [Validators.required, Validators.maxLength(60)]],
+      coverageType: ['' as InsuranceCoverage | '', [Validators.required]],
+      premiumAmount: [0, [Validators.required, Validators.min(0.01)]],
+      deductibleAmount: [null as number | null, [Validators.min(0)]],
+      startDate: ['', [Validators.required]],
+      endDate: ['', [Validators.required]],
+      paymentMethod: [''],
+      notes: [''],
+    },
+    { validators: [insuranceDateRangeValidator] },
+  );
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -147,6 +218,7 @@ export class VehicleForm implements OnInit {
     this.vehiclesService.getOne(id).subscribe({
       next: (v) => {
         this.plateDisplay.set(v.plate ?? '');
+        this.existingFinancing.set(v.activeFinancing ?? null);
         this.form.patchValue({
           plate: v.plate,
           type: v.type,
@@ -168,7 +240,7 @@ export class VehicleForm implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Veículo não encontrado.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Veículo não encontrado.'));
         this.loading.set(false);
       },
     });
@@ -178,6 +250,10 @@ export class VehicleForm implements OnInit {
     this.showFinancing.update((v) => !v);
   }
 
+  protected toggleInsurance(): void {
+    this.showInsurance.update((v) => !v);
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -185,14 +261,23 @@ export class VehicleForm implements OnInit {
       this.error.set('Verifique os campos destacados e tente novamente.');
       return;
     }
-    if (this.showFinancing() && !this.isEdit() && this.financingForm.invalid) {
+    // Vale tanto na criação quanto na edição: se o usuário abriu o bloco, ele é validado.
+    if (this.willSubmitFinancing() && this.financingForm.invalid) {
       this.financingForm.markAllAsTouched();
       this.error.set('Verifique os campos do financiamento.');
+      return;
+    }
+    if (this.willSubmitInsurance() && this.insuranceForm.invalid) {
+      this.insuranceForm.markAllAsTouched();
+      this.error.set('Verifique os campos do seguro.');
       return;
     }
 
     this.saving.set(true);
     this.error.set(null);
+    clearServerErrors(this.form);
+    clearServerErrors(this.financingForm);
+    clearServerErrors(this.insuranceForm);
 
     const raw = this.form.getRawValue();
     const ipvaAmountCents =
@@ -218,62 +303,161 @@ export class VehicleForm implements OnInit {
 
     if (this.isEdit()) {
       const payload: UpdateVehicleRequest = commonPayload;
-      this.vehiclesService.update(this.editingId()!, payload).subscribe({
-        next: (v) => this.router.navigate(['/veiculos', v.id]),
-        error: (err: HttpErrorResponse) => this.handleError(err),
-      });
+      const vehicleId = this.editingId()!; // isEdit() === true garante o id.
+      this.saveChildren(this.vehiclesService.update(vehicleId, payload));
     } else {
       const createPayload: CreateVehicleRequest = {
         ...commonPayload,
         chassis: raw.chassis?.trim() || null,
         renavam: raw.renavam?.trim() || null,
       };
-
-      if (this.showFinancing()) {
-        const fRaw = this.financingForm.getRawValue();
-        const financingPayload: CreateFinancingRequest = {
-          contractDate: fRaw.contractDate,
-          purchasePrice: toCents(Number(fRaw.purchasePrice)) ?? 0,
-          downPayment: fRaw.downPayment ? toCents(Number(fRaw.downPayment)) : null,
-          installments: fRaw.installments ? Number(fRaw.installments) : null,
-          installmentAmount: fRaw.installmentAmount
-            ? toCents(Number(fRaw.installmentAmount))
-            : null,
-          totalFinanced: null,
-        };
-        this.vehiclesService
-          .create(createPayload)
-          .pipe(
-            switchMap((v) =>
-              this.vehiclesService
-                .createFinancing(v.id, financingPayload)
-                .pipe(switchMap(() => [v])),
-            ),
-          )
-          .subscribe({
-            next: (v) => this.router.navigate(['/veiculos', v.id]),
-            error: (err: HttpErrorResponse) => this.handleError(err),
-          });
-      } else {
-        this.vehiclesService.create(createPayload).subscribe({
-          next: (v) => this.router.navigate(['/veiculos', v.id]),
-          error: (err: HttpErrorResponse) => this.handleError(err),
-        });
-      }
+      this.saveChildren(this.vehiclesService.create(createPayload));
     }
   }
 
+  /**
+   * Encadeia os blocos opcionais (financiamento e seguro) depois do save do
+   * veículo. Cada filho trata o próprio erro inline e completa com `EMPTY`, de
+   * modo que uma falha do filho NÃO navega nem dispara o handler do veículo —
+   * o PUT/POST do veículo já pode ter passado e o usuário precisa saber disso.
+   */
+  private saveChildren(save$: Observable<Vehicle>): void {
+    save$
+      .pipe(
+        switchMap((v) => this.financingStep(v)),
+        switchMap((v) => this.insuranceStep(v)),
+      )
+      .subscribe({
+        next: (v) => {
+          this.saving.set(false);
+          if (this.willSubmitFinancing()) {
+            this.notifications.success('Financiamento adicionado ao veículo.');
+          }
+          if (this.willSubmitInsurance()) {
+            this.notifications.success('Seguro adicionado ao veículo.');
+          }
+          this.router.navigate(['/veiculos', v.id]);
+        },
+        error: (err: HttpErrorResponse) => this.handleError(err),
+      });
+  }
+
+  private financingStep(v: Vehicle): Observable<Vehicle> {
+    if (!this.willSubmitFinancing()) return of(v);
+    return this.vehiclesService.createFinancing(v.id, this.buildFinancingPayload()).pipe(
+      map(() => v),
+      catchError((err: HttpErrorResponse) => {
+        this.handleFinancingError(err);
+        return EMPTY;
+      }),
+    );
+  }
+
+  private insuranceStep(v: Vehicle): Observable<Vehicle> {
+    if (!this.willSubmitInsurance()) return of(v);
+    return this.insurancesService.create(v.id, this.buildInsurancePayload()).pipe(
+      map(() => v),
+      catchError((err: HttpErrorResponse) => {
+        this.handleInsuranceError(err);
+        return EMPTY;
+      }),
+    );
+  }
+
+  /**
+   * O bloco de financiamento só é enviado quando o usuário o abriu E o veículo
+   * ainda não tem um financiamento ativo (na criação `canAddFinancing()` é sempre true).
+   */
+  protected willSubmitFinancing(): boolean {
+    return this.showFinancing() && this.canAddFinancing();
+  }
+
+  /** O bloco de seguro só é enviado quando o usuário o abriu. */
+  protected willSubmitInsurance(): boolean {
+    return this.showInsurance();
+  }
+
+  private buildInsurancePayload(): CreateInsuranceRequest {
+    const raw = this.insuranceForm.getRawValue();
+    return {
+      insurer: raw.insurer.trim(),
+      policyNumber: raw.policyNumber.trim(),
+      coverageType: raw.coverageType as InsuranceCoverage,
+      premiumAmount: toCents(Number(raw.premiumAmount)) ?? 0,
+      deductibleAmount: raw.deductibleAmount != null ? toCents(Number(raw.deductibleAmount)) : null,
+      startDate: raw.startDate,
+      endDate: raw.endDate,
+      paymentMethod: raw.paymentMethod?.trim() || null,
+      notes: raw.notes?.trim() || null,
+    };
+  }
+
+  private buildFinancingPayload(): CreateFinancingRequest {
+    const fRaw = this.financingForm.getRawValue();
+    return {
+      contractDate: fRaw.contractDate,
+      purchasePrice: toCents(Number(fRaw.purchasePrice)) ?? 0,
+      downPayment: fRaw.downPayment ? toCents(Number(fRaw.downPayment)) : null,
+      installments: fRaw.installments ? Number(fRaw.installments) : null,
+      installmentAmount: fRaw.installmentAmount ? toCents(Number(fRaw.installmentAmount)) : null,
+      totalFinanced: null,
+    };
+  }
+
+  /**
+   * Backend `fieldErrors` land on the matching controls (inline, under the field);
+   * only what is left over goes to the form banner. Never a toast — the interceptor
+   * skips 4xx and `ApiErrorService.handleForm` claims the error so the safety net
+   * stays quiet.
+   */
   private handleError(err: HttpErrorResponse): void {
     this.saving.set(false);
-    this.error.set(this.extractError(err, 'Não foi possível salvar o veículo.'));
+    const { formMessage } = this.apiErrors.handleForm(
+      err,
+      this.form,
+      'Não foi possível salvar o veículo.',
+    );
+    this.error.set(formMessage);
   }
 
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
+  /**
+   * Falha do POST do financiamento durante a EDIÇÃO. `fieldErrors` de
+   * `contractDate` / `purchasePrice` / … caem inline no `financingForm`; o que
+   * sobrar (ex.: 409 "já existe financiamento ativo") vai para o banner.
+   */
+  private handleFinancingError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    const { formMessage, applied } = this.apiErrors.handleForm(
+      err,
+      this.financingForm,
+      'Não foi possível adicionar o financiamento.',
+    );
+    this.error.set(
+      formMessage ??
+        (applied.length > 0
+          ? 'Verifique os campos do financiamento destacados e tente novamente.'
+          : 'Não foi possível adicionar o financiamento.'),
+    );
+  }
+
+  /**
+   * Falha do POST do seguro. `fieldErrors` caem inline no `insuranceForm`; o que
+   * sobrar (ex.: 409 "veículo já possui apólice ativa") vai para o banner —
+   * nunca para um toast.
+   */
+  private handleInsuranceError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    const { formMessage, applied } = this.apiErrors.handleForm(
+      err,
+      this.insuranceForm,
+      'Não foi possível adicionar o seguro.',
+    );
+    this.error.set(
+      formMessage ??
+        (applied.length > 0
+          ? 'Verifique os campos do seguro destacados e tente novamente.'
+          : 'Não foi possível adicionar o seguro.'),
+    );
   }
 
   protected cancel(): void {
@@ -293,6 +477,18 @@ export class VehicleForm implements OnInit {
   protected financingFieldInvalid(name: string): boolean {
     const ctrl = this.financingForm.get(name);
     return !!ctrl && ctrl.invalid && ctrl.touched;
+  }
+
+  protected formatCurrency(cents: number | null | undefined): string {
+    if (cents == null) return '—';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+      cents / 100,
+    );
+  }
+
+  protected formatDate(iso: string | null): string {
+    if (!iso) return '—';
+    return new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('pt-BR');
   }
 
   protected hasYearRangeError(): boolean {

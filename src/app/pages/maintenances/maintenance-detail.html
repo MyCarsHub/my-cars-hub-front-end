@@ -3,10 +3,10 @@
     <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
       Carregando…
     </div>
-  } @else if (error() && !item()) {
+  } @else if (error(); as loadError) {
     <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
-      <p class="text-rose-700 text-sm">{{ error() }}</p>
-      <a routerLink="/manutencoes" class="inline-block text-sm text-primary-500 hover:text-primary-600 font-medium">
+      <p class="text-rose-700 text-sm" role="alert">{{ loadError }}</p>
+      <a routerLink="/manutencoes" class="inline-block text-sm text-primary-700 hover:text-primary-800 font-medium">
         Voltar para lista
       </a>
     </div>
@@ -24,10 +24,8 @@
         <app-vehicle-summary-chip [vehicle]="v" />
       }
 
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (actionError(); as actionMessage) {
+        <app-alert-banner variant="error" [message]="actionMessage" />
       }
 
       <app-page-card title="Resumo">
@@ -59,7 +57,13 @@
             </div>
             <div>
               <p class="text-xs uppercase tracking-wide text-neutral-400">Hodômetro</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatNumber(m.hodometerReading) }} km</p>
+              <p class="font-medium text-neutral-800 tabular-nums">
+                @if (m.hodometerReading != null) {
+                  {{ formatNumber(m.hodometerReading) }} km
+                } @else {
+                  Não informado
+                }
+              </p>
             </div>
             <div>
               <p class="text-xs uppercase tracking-wide text-neutral-400">Custo</p>
@@ -104,7 +108,7 @@
       </div>
 
       <div class="pt-2">
-        <a routerLink="/manutencoes" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+        <a routerLink="/manutencoes" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
           ← Voltar para a lista
         </a>
       </div>

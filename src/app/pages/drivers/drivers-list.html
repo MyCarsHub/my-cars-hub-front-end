@@ -111,15 +111,11 @@
       </div>
 
       <!-- Error -->
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as listError) {
+        <app-alert-banner variant="error" [message]="listError" />
       }
-      @if (actionError()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ actionError() }}
-        </div>
+      @if (actionError(); as actionMessage) {
+        <app-alert-banner variant="error" [message]="actionMessage" />
       }
 
       <!-- Loading skeleton -->
@@ -144,7 +140,7 @@
           </div>
           <p class="text-sm text-neutral-500">Nenhum motorista encontrado com esses filtros.</p>
           <a routerLink="/motoristas/novo"
-            class="inline-flex items-center gap-2 text-sm font-medium text-primary-500 hover:text-primary-600">
+            class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
             Cadastrar primeiro motorista
           </a>
         </div>
@@ -192,35 +188,38 @@
                 </div>
               </div>
 
-              <div class="flex flex-wrap justify-end gap-2 pt-1 border-t border-neutral-50">
-                <a
-                  [routerLink]="['/motoristas', driver.id, 'editar']"
-                  (click)="$event.stopPropagation()"
-                  class="text-xs font-medium text-primary-500 hover:bg-primary-low px-3 py-2 rounded-lg">
-                  Editar
-                </a>
-                <button
-                  type="button"
-                  (click)="askToggleStatus(driver, $event)"
-                  [disabled]="!canToggleStatus(driver)"
-                  [attr.title]="toggleStatusTooltip(driver)"
-                  [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + driver.name"
-                  class="text-xs font-medium px-3 py-2 rounded-lg
-                         disabled:cursor-not-allowed disabled:opacity-50
-                         hover:bg-neutral-100"
-                  [class.text-amber-700]="driver.status !== 'SUSPENDED'"
-                  [class.text-emerald-700]="driver.status === 'SUSPENDED'">
-                  {{ toggleStatusLabel(driver) }}
-                </button>
-                <button
-                  type="button"
-                  (click)="askDelete(driver, $event)"
-                  [disabled]="!canDelete(driver)"
-                  [attr.title]="deleteTooltip(driver)"
-                  class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-lg
-                         disabled:cursor-not-allowed disabled:opacity-50">
-                  Excluir
-                </button>
+              <div class="flex items-center justify-end gap-2 pt-1 border-t border-neutral-50">
+                <app-actions-menu label="Ações do motorista">
+                  <a
+                    role="menuitem"
+                    [routerLink]="['/motoristas', driver.id, 'editar']"
+                    class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                    Editar
+                  </a>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    (click)="askToggleStatus(driver, $event)"
+                    [disabled]="!canToggleStatus(driver)"
+                    [attr.title]="toggleStatusTooltip(driver)"
+                    [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + driver.name"
+                    class="w-full flex items-center gap-2 px-3 py-3 text-sm hover:bg-neutral-50 min-h-[44px]
+                           disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                    [class.text-amber-800]="driver.status !== 'SUSPENDED'"
+                    [class.text-emerald-800]="driver.status === 'SUSPENDED'">
+                    {{ toggleStatusLabel(driver) }}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    (click)="askDelete(driver, $event)"
+                    [disabled]="!canDelete(driver)"
+                    [attr.title]="deleteTooltip(driver)"
+                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px]
+                           disabled:opacity-40 disabled:cursor-not-allowed text-left border-t border-neutral-100">
+                    Excluir
+                  </button>
+                </app-actions-menu>
               </div>
             </article>
           }
@@ -265,32 +264,37 @@
                   </td>
                   <td class="py-3 pr-4">
                     <div class="flex items-center justify-end gap-1">
-                      <a
-                        [routerLink]="['/motoristas', driver.id, 'editar']"
-                        (click)="$event.stopPropagation()"
-                        class="text-xs font-medium text-primary-500 hover:bg-primary-low px-2 py-1 rounded-md">
-                        Editar
-                      </a>
-                      <button
-                        type="button"
-                        (click)="askToggleStatus(driver, $event)"
-                        [disabled]="!canToggleStatus(driver)"
-                        [attr.title]="toggleStatusTooltip(driver)"
-                        class="text-xs font-medium px-2 py-1 rounded-md hover:bg-neutral-100
-                               disabled:cursor-not-allowed disabled:opacity-50"
-                        [class.text-amber-700]="driver.status !== 'SUSPENDED'"
-                        [class.text-emerald-700]="driver.status === 'SUSPENDED'">
-                        {{ toggleStatusLabel(driver) }}
-                      </button>
-                      <button
-                        type="button"
-                        (click)="askDelete(driver, $event)"
-                        [disabled]="!canDelete(driver)"
-                        [attr.title]="deleteTooltip(driver)"
-                        class="text-xs font-medium text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-md
-                               disabled:cursor-not-allowed disabled:opacity-50">
-                        Excluir
-                      </button>
+                      <app-actions-menu label="Ações do motorista" [menuWidth]="208">
+                        <a
+                          role="menuitem"
+                          [routerLink]="['/motoristas', driver.id, 'editar']"
+                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                          Editar
+                        </a>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          (click)="askToggleStatus(driver, $event)"
+                          [disabled]="!canToggleStatus(driver)"
+                          [attr.title]="toggleStatusTooltip(driver)"
+                          [attr.aria-label]="toggleStatusLabel(driver) + ' motorista ' + driver.name"
+                          class="w-full px-3 py-2 min-h-[44px] text-xs hover:bg-neutral-50
+                                 disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                          [class.text-amber-800]="driver.status !== 'SUSPENDED'"
+                          [class.text-emerald-800]="driver.status === 'SUSPENDED'">
+                          {{ toggleStatusLabel(driver) }}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          (click)="askDelete(driver, $event)"
+                          [disabled]="!canDelete(driver)"
+                          [attr.title]="deleteTooltip(driver)"
+                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 hover:bg-rose-50
+                                 disabled:opacity-40 disabled:cursor-not-allowed text-left border-t border-neutral-100">
+                          Excluir
+                        </button>
+                      </app-actions-menu>
                     </div>
                   </td>
                 </tr>

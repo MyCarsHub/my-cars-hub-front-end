@@ -24,20 +24,6 @@
       </button>
     </div>
   } @else if (summary(); as s) {
-    <!-- Back link -->
-    <div class="mb-3">
-      <a
-        [routerLink]="['/veiculos', vehicleId()]"
-        class="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-800 font-medium"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Voltar ao veículo
-      </a>
-    </div>
-
     <!-- Sticky vehicle chip -->
     @if (chipVehicle(); as v) {
       <div class="sticky top-0 z-10 -mx-3 sm:-mx-4 lg:mx-0 px-3 sm:px-4 lg:px-0 py-2 bg-neutral-50/95 backdrop-blur border-b border-neutral-100 lg:border-0 lg:bg-transparent lg:backdrop-blur-0 lg:py-0 lg:mb-4">
@@ -243,6 +229,12 @@
           </section>
         }
 
+        @case ('seguros') {
+          <section role="tabpanel">
+            <app-insurances-list [vehicleIdPrefilter]="vehicleId()" />
+          </section>
+        }
+
         @case ('manutencoes') {
           <section role="tabpanel">
             <app-maintenances-list [vehicleIdPrefilter]="vehicleId()" />
@@ -390,6 +382,17 @@
           </section>
         }
       }
+    </div>
+
+    <!-- Mesma composição de "voltar" das telas de detalhe (veículo, motorista,
+         aluguel, multa, manutenção): âncora simples no fim do conteúdo. -->
+    <div class="mt-6">
+      <a
+        [routerLink]="['/veiculos', vehicleId()]"
+        class="text-sm text-primary-700 hover:text-primary-800 font-medium"
+      >
+        ← Voltar ao veículo
+      </a>
     </div>
   }
 </app-default-page-layout>

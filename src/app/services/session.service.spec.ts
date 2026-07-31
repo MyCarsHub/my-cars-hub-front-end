@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { SessionService } from './session.service';
+import { TelemetryService } from './telemetry.service';
 
 /**
  * Security regression: `sessionStorage.systemRole` is user-editable via DevTools.
@@ -89,5 +90,65 @@ describe('SessionService.getSystemRoleFromToken / isPlatformAdmin', () => {
       buildToken({ system_role: 'PLATFORM_ADMIN', exp: futureExp }),
     );
     expect(service.isPlatformAdmin()).toBe(true);
+  });
+});
+
+/**
+ * Identity tagging reaches Sentry through `TelemetryService`, never through a
+ * direct `@sentry/angular` import — that seam is what lets this be asserted
+ * with a DI override instead of an ESM module mock (see `telemetry.service.ts`).
+ */
+describe('SessionService telemetry identity', () => {
+  let service: SessionService;
+  let setUser: ReturnType<typeof vi.fn<TelemetryService['setUser']>>;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    setUser = vi.fn<TelemetryService['setUser']>();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [SessionService, { provide: TelemetryService, useValue: { setUser } }],
+    });
+    service = TestBed.inject(SessionService);
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('tags the user when the id key is written', () => {
+    service.setItem('email', 'a@b.com');
+    setUser.mockClear();
+
+    service.setItem('id', 'u-1');
+
+    expect(setUser).toHaveBeenCalledWith({ id: 'u-1', email: 'a@b.com' });
+  });
+
+  it('goes anonymous when the id key is removed', () => {
+    service.setItem('id', 'u-1');
+    setUser.mockClear();
+
+    service.removeItem('id');
+
+    expect(setUser).toHaveBeenCalledWith(null);
+  });
+
+  it('goes anonymous on clear (logout)', () => {
+    service.setItem('id', 'u-1');
+    setUser.mockClear();
+
+    service.clear();
+
+    expect(setUser).toHaveBeenCalledWith(null);
+  });
+
+  it('never lets a telemetry failure escape into the caller', () => {
+    setUser.mockImplementation(() => {
+      throw new Error('Sentry not initialized');
+    });
+
+    expect(() => service.setItem('id', 'u-1')).not.toThrow();
+    expect(() => service.clear()).not.toThrow();
   });
 });

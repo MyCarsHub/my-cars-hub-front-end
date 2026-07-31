@@ -8,17 +8,29 @@ import {
 } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { OnboardingData } from '../onboarding.types';
-import { stripDigits } from '../../../utils/format';
+import { FieldControl, FormField } from '../../../components/form-field/form-field';
+import {
+  applyMaskedDocumentInput,
+  cnpjShapeValidator,
+  maskCnpj,
+  normalizeDocument,
+} from '../../../utils/document-mask';
+import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
 
-const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/;
-
+/**
+ * CNPJ has been alphanumeric since July 2026 (12 alphanumeric positions + 2 numeric
+ * check digits), so the mask and the shape check must not be digits-only. The value is
+ * a STRING end to end — never coerced to a number, which would break letters and drop
+ * leading zeros. Shape and mod-11 check digits are both validated locally, mirroring
+ * the backend's `CnpjValidator`.
+ */
 @Component({
   selector: 'app-step-document',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
     <h2 class="text-xl font-bold text-gray-900 mb-1">CNPJ da empresa</h2>
-    <p class="text-sm text-primary-500 mb-6">
+    <p class="text-sm text-primary-700 mb-6">
       Caso sua empresa possua CNPJ, informe abaixo. Não é obrigatório.
     </p>
 
@@ -43,27 +55,29 @@ const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/;
 
       <!-- Conditional CNPJ field -->
       @if (form.get('hasCnpj')?.value) {
-        <div>
-          <label for="ob-cnpj" class="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
+        <app-form-field
+          label="CNPJ"
+          controlId="ob-cnpj"
+          [required]="true"
+          [control]="form.get('cnpj')"
+          [messages]="cnpjMessages"
+        >
           <input
-            id="ob-cnpj"
+            appFieldControl
             formControlName="cnpj"
             type="text"
-            inputmode="numeric"
+            inputmode="text"
             autocomplete="off"
-            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm transition-shadow
+            autocapitalize="characters"
+            spellcheck="false"
+            class="w-full px-4 py-2.5 border rounded-lg text-sm transition-shadow uppercase
+                   placeholder:normal-case
                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             placeholder="00.000.000/0000-00"
             maxlength="18"
-            [attr.aria-invalid]="cnpjInvalid()"
             (input)="onCnpjInput($event)"
           />
-          @if (cnpjInvalid()) {
-            <p class="mt-1 text-xs text-red-500" role="alert">
-              CNPJ inválido. Use o formato 00.000.000/0000-00.
-            </p>
-          }
-        </div>
+        </app-form-field>
       }
     </form>
   `,
@@ -74,6 +88,13 @@ export class StepDocument implements OnInit {
   readonly isValid = output<boolean>();
 
   private readonly fb = inject(FormBuilder);
+
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly cnpjMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o CNPJ.',
+    cnpjShape: 'CNPJ inválido. Use 14 caracteres, como 00.000.000/0000-00.',
+    cnpjInvalid: 'CNPJ inválido. Confira os caracteres digitados.',
+  };
 
   readonly form: FormGroup = this.fb.group({
     hasCnpj: [false],
@@ -93,10 +114,10 @@ export class StepDocument implements OnInit {
       this.applyCnpjValidators(!!val.hasCnpj);
       this.formChange.emit({
         hasCnpj: val.hasCnpj ?? false,
-        // Send digits-only to backend — mask is UX only
-        cnpj: val.hasCnpj ? stripDigits(val.cnpj) : '',
+        // Unmasked STRING to the backend — mask is UX only, letters kept in upper case.
+        cnpj: val.hasCnpj ? normalizeDocument(val.cnpj) : '',
       });
-      // Valid when CNPJ is disabled OR when the (masked/raw) value matches the pattern
+      // Valid when CNPJ is disabled OR when the (masked/raw) value matches the shape
       this.isValid.emit(!val.hasCnpj || this.form.get('cnpj')?.valid === true);
     });
 
@@ -110,36 +131,20 @@ export class StepDocument implements OnInit {
     const ctrl = this.form.get('cnpj');
     if (!ctrl) return;
     if (hasCnpj) {
-      ctrl.setValidators([Validators.required, Validators.pattern(CNPJ_PATTERN)]);
+      ctrl.setValidators([Validators.required, cnpjShapeValidator(), cnpjValidator()]);
     } else {
       ctrl.clearValidators();
     }
     ctrl.updateValueAndValidity({ emitEvent: false });
   }
 
-  protected cnpjInvalid(): boolean {
-    const ctrl = this.form.get('cnpj');
-    return !!(ctrl?.invalid && ctrl.touched);
+  /** Mark all fields touched so validation messages appear */
+  markAllTouched(): void {
+    this.form.markAllAsTouched();
   }
 
+  /** Progressive alphanumeric CNPJ mask, caret preserved. */
   protected onCnpjInput(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    let value = input.value.replace(/\D/g, '');
-    if (value.length > 14) value = value.slice(0, 14);
-
-    let formatted = '';
-    if (value.length > 12) {
-      formatted = `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(5, 8)}/${value.slice(8, 12)}-${value.slice(12)}`;
-    } else if (value.length > 8) {
-      formatted = `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(5, 8)}/${value.slice(8)}`;
-    } else if (value.length > 5) {
-      formatted = `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(5)}`;
-    } else if (value.length > 2) {
-      formatted = `${value.slice(0, 2)}.${value.slice(2)}`;
-    } else {
-      formatted = value;
-    }
-
-    this.form.get('cnpj')?.setValue(formatted, { emitEvent: true });
+    applyMaskedDocumentInput(event, this.form.get('cnpj'), maskCnpj);
   }
 }

@@ -17,6 +17,11 @@ import {
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { ApiErrorService } from '../../services/api-error.service';
+import { clearServerErrors } from '../../services/api-error';
+import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
 import { CepService } from '../../services/cep.service';
 import {
@@ -37,12 +42,22 @@ const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','P
 @Component({
   selector: 'app-driver-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, PrimaryInput],
+  imports: [
+    ReactiveFormsModule,
+    DefaultPageLayout,
+    PageCard,
+    PrimaryInput,
+    AlertBanner,
+    FormField,
+    FieldControl,
+  ],
   templateUrl: './driver-form.html',
 })
 export class DriverForm implements OnInit {
   private readonly driverService = inject(DriverService);
   private readonly cepService = inject(CepService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -57,6 +72,51 @@ export class DriverForm implements OnInit {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly cepLoading = signal(false);
+
+  /** Copy overrides per validator key for the `app-form-field` message resolver. */
+  protected readonly nameMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o nome do motorista.',
+  };
+  protected readonly rgMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o RG.',
+  };
+  protected readonly emailMessages: Readonly<Record<string, string>> = {
+    required: 'Informe um e-mail válido.',
+    email: 'Informe um e-mail válido.',
+  };
+  protected readonly phoneMessages: Readonly<Record<string, string>> = {
+    required: 'Informe um telefone válido (10 ou 11 dígitos).',
+    pattern: 'Informe um telefone válido (10 ou 11 dígitos).',
+  };
+  protected readonly cepMessages: Readonly<Record<string, string>> = {
+    required: 'CEP inválido (00000-000).',
+    pattern: 'CEP inválido (00000-000).',
+  };
+  protected readonly streetMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a rua.',
+  };
+  protected readonly districtMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o bairro.',
+  };
+  protected readonly cityMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a cidade.',
+  };
+  protected readonly ufMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione a UF.',
+    pattern: 'Selecione a UF.',
+  };
+  protected readonly licenseNumberMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o número da CNH.',
+    pattern: 'A CNH deve ter 11 caracteres.',
+  };
+  protected readonly licenseExpiryMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a data de vencimento.',
+  };
+  protected readonly documentMessages: Readonly<Record<string, string>> = {
+    required: 'CPF: 11 dígitos. CNPJ: 14 dígitos.',
+    pattern: 'CPF: 11 dígitos. CNPJ: 14 dígitos.',
+    cpfInvalid: 'CPF inválido.',
+  };
 
   // Máscaras visuais — o form control guarda só dígitos (telefone) / alfanumérico (CNH/doc).
   protected readonly phoneDisplay = signal('');
@@ -215,7 +275,7 @@ export class DriverForm implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Motorista não encontrado.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Motorista não encontrado.'));
         this.loading.set(false);
       },
     });
@@ -250,6 +310,7 @@ export class DriverForm implements OnInit {
     }
     this.saving.set(true);
     this.error.set(null);
+    clearServerErrors(this.form);
 
     const raw = this.form.getRawValue();
     const addressPayload = {
@@ -280,7 +341,7 @@ export class DriverForm implements OnInit {
     if (this.isEdit()) {
       const payload: UpdateDriverRequest = commonPayload;
       this.driverService.update(this.editingId()!, payload).subscribe({
-        next: (driver) => this.router.navigate(['/motoristas', driver.id]),
+        next: (driver) => this.onSaved(driver.id),
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
     } else {
@@ -292,23 +353,30 @@ export class DriverForm implements OnInit {
         },
       };
       this.driverService.create(payload).subscribe({
-        next: (driver) => this.router.navigate(['/motoristas', driver.id]),
+        next: (driver) => this.onSaved(driver.id),
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
     }
   }
 
-  private handleError(err: HttpErrorResponse): void {
-    this.saving.set(false);
-    this.error.set(this.extractError(err, 'Não foi possível salvar o motorista.'));
+  private onSaved(id: string): void {
+    this.notifications.success('Motorista salvo.');
+    this.router.navigate(['/motoristas', id]);
   }
 
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
+  /**
+   * Backend `fieldErrors` (e.g. `licenseNumber` when the CNH is already registered)
+   * land on the matching controls; only what is left over goes to the form banner.
+   * Never a toast — `handleForm` claims the error so the safety net stays quiet.
+   */
+  private handleError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    const { formMessage } = this.apiErrors.handleForm(
+      err,
+      this.form,
+      'Não foi possível salvar o motorista.',
+    );
+    this.error.set(formMessage);
   }
 
   protected cancel(): void {
@@ -317,12 +385,5 @@ export class DriverForm implements OnInit {
     } else {
       this.router.navigate(['/motoristas']);
     }
-  }
-
-  // Helpers pra template
-  protected fieldInvalid(path: string[]): boolean {
-    let ctrl: any = this.form;
-    for (const seg of path) ctrl = ctrl?.get(seg);
-    return !!ctrl && ctrl.invalid && ctrl.touched;
   }
 }

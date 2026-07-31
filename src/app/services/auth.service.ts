@@ -5,6 +5,10 @@ import { MeResponse } from '../types/me-response.type';
 import { UserCompanies } from '../types/user-companies';
 import { environment } from '../../environments/environment';
 import { SessionService } from './session.service';
+import { NotificationFeedService } from './notification-feed.service';
+import { InsurancesService } from './insurances.service';
+import { AlertsService } from './alerts.service';
+import { LoggerService } from './logger.service';
 
 interface TokenResponse {
     token: string;
@@ -27,6 +31,10 @@ export interface OnboardingFinishSessionPayload {
 })
 export class AuthService {
     private sessionService = inject(SessionService);
+    private notificationFeed = inject(NotificationFeedService);
+    private insurances = inject(InsurancesService);
+    private alerts = inject(AlertsService);
+    private logger = inject(LoggerService);
 
     constructor(private httpClient: HttpClient) { }
 
@@ -136,8 +144,7 @@ export class AuthService {
         const explicitFlag = user.hasCompletedOnboarding;
         const derivedFlag = companies.length > 0;
         if (explicitFlag === undefined || explicitFlag === null) {
-            // eslint-disable-next-line no-console
-            console.warn(
+            this.logger.warn(
                 '[auth] /auth/me did not return `hasCompletedOnboarding`; falling back to companies-length derivation. Likely FE/BE deploy skew.',
             );
         }
@@ -161,7 +168,18 @@ export class AuthService {
         }
     }
 
+    /**
+     * Logout NÃO recarrega a página, então os serviços `providedIn: 'root'`
+     * sobrevivem na mesma aba com o cache do usuário anterior. Paramos o
+     * polling PRIMEIRO (um tick em voo repopularia o contador), limpamos a
+     * sessão e só então zeramos os caches — assim o `reset()` do feed já lê
+     * `selectedCompanyId` vazio e não fica preso ao tenant antigo.
+     */
     logout() {
+        this.notificationFeed.stopPolling();
         this.sessionService.clear();
+        this.notificationFeed.reset();
+        this.insurances.reset();
+        this.alerts.reset();
     }
 }

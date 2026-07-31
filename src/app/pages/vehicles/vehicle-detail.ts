@@ -13,6 +13,8 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
 import { IpvaStatus, Vehicle, VehicleType } from '../../types/vehicle.types';
@@ -39,6 +41,7 @@ const IPVA_STATUS_LABEL: Record<IpvaStatus, { label: string; chip: string }> = {
     PageCard,
     ConfirmDialog,
     DetailActions,
+    AlertBanner,
   ],
   templateUrl: './vehicle-detail.html',
 })
@@ -47,12 +50,19 @@ export class VehicleDetail implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notify = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly transitioning = signal(false);
 
   protected readonly vehicle = signal<Vehicle | null>(null);
   protected readonly loading = signal(false);
+  /** Falha ao CARREGAR o veículo — banner com caminho de volta pra lista. */
   protected readonly error = signal<string | null>(null);
+  /**
+   * Falha de uma OPERAÇÃO da tela (excluir, transição de status). Banner inline,
+   * nunca toast: o interceptor não toasta 4xx e `messageFor()` reivindica o erro.
+   */
+  protected readonly actionError = signal<string | null>(null);
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
 
@@ -148,7 +158,7 @@ export class VehicleDetail implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Veículo não encontrado.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Veículo não encontrado.'));
         this.loading.set(false);
       },
     });
@@ -166,6 +176,7 @@ export class VehicleDetail implements OnInit {
   protected confirmDelete(): void {
     const v = this.vehicle();
     if (!v) return;
+    this.actionError.set(null);
     this.deleting.set(true);
     this.vehiclesService.remove(v.id).subscribe({
       next: () => {
@@ -175,8 +186,9 @@ export class VehicleDetail implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        const msg = this.extractError(err, 'Não foi possível excluir.');
-        this.notify.error(msg);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível excluir o veículo.'),
+        );
       },
     });
   }
@@ -184,6 +196,7 @@ export class VehicleDetail implements OnInit {
   protected transitionStatus(target: 'AVAILABLE' | 'MAINTENANCE' | 'INACTIVE'): void {
     const v = this.vehicle();
     if (!v || this.transitioning()) return;
+    this.actionError.set(null);
     this.transitioning.set(true);
     this.vehiclesService.updateStatus(v.id, target).subscribe({
       next: (updated) => {
@@ -193,7 +206,9 @@ export class VehicleDetail implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.transitioning.set(false);
-        this.notify.error(this.extractError(err, 'Não foi possível alterar o status.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível alterar o status.'),
+        );
       },
     });
   }
@@ -208,13 +223,5 @@ export class VehicleDetail implements OnInit {
     const p = (plate ?? '').toUpperCase();
     if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
     return p || '—';
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

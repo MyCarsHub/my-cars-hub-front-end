@@ -14,6 +14,9 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
 import {
   VehicleSummary,
   VehicleSummaryChip,
@@ -40,6 +43,7 @@ import {
     ConfirmDialog,
     DetailActions,
     VehicleSummaryChip,
+    AlertBanner,
   ],
   templateUrl: './fine-detail.html',
   animations: [
@@ -65,6 +69,8 @@ export class FineDetail implements OnInit {
   private readonly finesService = inject(FinesService);
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -72,7 +78,16 @@ export class FineDetail implements OnInit {
   protected readonly vehicle = signal<VehicleSummary | null>(null);
   protected readonly driverName = signal<string | null>(null);
   protected readonly loading = signal(false);
+  /** Load failure — replaces the page body. */
   protected readonly error = signal<string | null>(null);
+  /** Failure of an action taken from the page itself (delete). */
+  protected readonly actionError = signal<string | null>(null);
+  /**
+   * Failure of the "mark as paid" action. Lives in its own signal because it must
+   * render INSIDE the pay sheet — a page-level banner sits behind the `z-50`
+   * overlay and would be invisible while the sheet is open.
+   */
+  protected readonly payError = signal<string | null>(null);
 
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
@@ -115,7 +130,7 @@ export class FineDetail implements OnInit {
         if (f.driverId) this.loadDriver(f.driverId);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Multa não encontrada.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Multa não encontrada.'));
         this.loading.set(false);
       },
     });
@@ -154,19 +169,24 @@ export class FineDetail implements OnInit {
   protected confirmDelete(): void {
     const f = this.fine();
     if (!f) return;
+    this.actionError.set(null);
     this.deleting.set(true);
     this.finesService.remove(f.id).subscribe({
-      next: () => this.router.navigate(['/multas']),
+      next: () => {
+        this.notifications.success('Multa removida.');
+        this.router.navigate(['/multas']);
+      },
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.error.set(this.extractError(err, 'Não foi possível excluir.'));
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível excluir.'));
       },
     });
   }
 
   protected openPay(): void {
     this.payDate.set('');
+    this.payError.set(null);
     this.payOpen.set(true);
   }
   protected closePay(): void {
@@ -176,16 +196,19 @@ export class FineDetail implements OnInit {
   protected confirmPay(): void {
     const f = this.fine();
     if (!f) return;
+    this.payError.set(null);
     this.paying.set(true);
     this.finesService.pay(f.id, { paidDate: this.payDate() || undefined }).subscribe({
       next: (updated) => {
         this.paying.set(false);
         this.payOpen.set(false);
         this.fine.set(updated);
+        this.notifications.success('Multa marcada como paga.');
       },
       error: (err: HttpErrorResponse) => {
         this.paying.set(false);
-        this.error.set(this.extractError(err, 'Não foi possível marcar como paga.'));
+        // Sheet stays open so the message has somewhere visible to live.
+        this.payError.set(this.apiErrors.messageFor(err, 'Não foi possível marcar como paga.'));
       },
     });
   }
@@ -218,13 +241,5 @@ export class FineDetail implements OnInit {
       style: 'currency',
       currency: 'BRL',
     }).format(cents / 100);
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

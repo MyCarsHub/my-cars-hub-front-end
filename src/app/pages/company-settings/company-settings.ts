@@ -1,19 +1,85 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  OnInit,
+  signal,
+} from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { PrimaryInput } from '../../components/primary-input/primary-input';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { SessionService } from '../../services/session.service';
 import { CompanyService } from '../../services/company.service';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
+import { clearServerErrors } from '../../services/api-error';
 import { CompanyFullResponse } from '../../types/company-full-response.type';
-import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { CompanyOwner, CompanyStats } from '../../types/company-settings.types';
+import {
+  applyMaskedDocumentInput,
+  documentCheckDigitValidator,
+  documentShapeValidator,
+  maskDocument,
+  normalizeDocument,
+} from '../../utils/document-mask';
+import { LayoutStore } from '../../components/core/layouts/layout.store';
+import { UserCompanies } from '../../types/user-companies';
 
+const SAVE_FALLBACK = 'Não foi possível salvar os dados da empresa.';
+
+/**
+ * Statuses the `errorInterceptor` already toasts (0 / 401 / 403 / 5xx). Repeating them
+ * in the page banner would show the user the same failure twice.
+ */
+function ownedByInterceptor(status: number): boolean {
+  return status === 0 || status === 401 || status === 403 || status >= 500;
+}
+
+/** `scrollIntoView` is absent in jsdom and in a few older mobile browsers. */
+function centre(element: HTMLElement | null): void {
+  if (element && typeof element.scrollIntoView === 'function') {
+    element.scrollIntoView({ block: 'center' });
+  }
+}
+
+/**
+ * Company settings — name and document are both freely editable.
+ *
+ * Backend contract (`PUT /v1/companies/me`): the tenant comes from the access token, so
+ * there is no id in the payload. `documentValue` accepts a CPF or a CNPJ and may change
+ * in any direction (CPF → CNPJ, CNPJ → CPF, CNPJ → another CNPJ). There is no locked
+ * state. CNPJ is alphanumeric since July 2026, so the mask must not be digits-only.
+ *
+ * The response masks `documentValue` (LGPD), so the form never round-trips it: the field
+ * starts empty and only carries what the user actually typed. An untouched field sends
+ * `null`, which the backend reads as "keep the current document".
+ *
+ * The document is validated locally for shape AND mod-11 check digits (same arithmetic
+ * as the backend), so an obvious typo is caught without a round-trip; the backend
+ * remains the authority and its 400 still lands inline on the field.
+ *
+ * Name capitalization is owned by the backend (`NameNormalizer`); the screen renders
+ * whatever the API returns and normalizes nothing locally.
+ */
 @Component({
   selector: 'app-company-settings',
-  imports: [CommonModule, RouterLink, ReactiveFormsModule, PrimaryInput, DefaultPageLayout, ConfirmDialog, PageCard],
+  imports: [
+    RouterLink,
+    ReactiveFormsModule,
+    DefaultPageLayout,
+    AlertBanner,
+    FormField,
+    FieldControl,
+    PageCard,
+  ],
   templateUrl: './company-settings.html',
   styleUrl: './company-settings.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -22,20 +88,40 @@ export class CompanySettings implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly sessionService = inject(SessionService);
   private readonly companyService = inject(CompanyService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
+  private readonly layoutStore = inject(LayoutStore);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   ngOnInit(): void {
     this.loadCompanyInfo();
   }
 
   protected readonly companyInfo = signal<CompanyFullResponse | null>(null);
+  /** Failure of the initial GET. */
+  protected readonly error = signal<string | null>(null);
+  /** Failure of the save that has no single field to attach to. */
+  protected readonly saveError = signal<string | null>(null);
+  protected readonly saving = signal(false);
 
   protected readonly companyForm = this.fb.group({
-    name: [{ value: '', disabled: true }, [Validators.required]],
-    documentType: [{ value: '', disabled: true }, [Validators.required]],
-    documentNumber: [{ value: '', disabled: true }, [Validators.required]],
-    createdAt: [{ value: '', disabled: true }],
-    status: [{ value: '', disabled: true }],
+    name: ['', [Validators.required, Validators.maxLength(200)]],
+    documentValue: ['', [documentShapeValidator(), documentCheckDigitValidator()]],
   });
+
+  /** Copy overrides for the inline message resolver. */
+  protected readonly nameMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o nome da empresa.',
+    maxlength: 'O nome deve ter no máximo 200 caracteres.',
+  };
+  protected readonly documentMessages: Readonly<Record<string, string>> = {
+    documentShape: 'Informe um CPF (11 dígitos) ou um CNPJ (14 caracteres).',
+    documentInvalid: 'Documento inválido. Confira os números digitados.',
+  };
+
+  /** Masked document already on record, or empty when the company has none. */
+  protected readonly currentDocument = computed(() => this.companyInfo()?.documentValue ?? '');
 
   protected readonly owner = signal<CompanyOwner>({
     name: this.sessionService.getItem('name') ?? '',
@@ -49,85 +135,130 @@ export class CompanySettings implements OnInit {
     pendingInvites: 3,
   });
 
-  protected readonly isEditing = signal(false);
-  protected readonly isSaving = signal(false);
-  protected readonly showConfirmDialog = signal(false);
-
-
-
-  protected toggleEdit(): void {
-    if (this.isEditing()) {
-      this.showConfirmDialog.set(true);
-    } else {
-      this.isEditing.set(true);
-      this.enableEditableControls();
-    }
-  }
-
-  protected cancelEdit(): void {
-    const info = this.companyInfo();
-    if (info) {
-      this.companyForm.reset({
-        name: info.name,
-        documentType: info.documentType,
-        documentNumber: info.documentValue,
-        createdAt: info.createdDate,
-        status: info.status
-      });
-    }
-    this.isEditing.set(false);
-    this.disableEditableControls();
-  }
-
-  protected onConfirmSave(): void {
-    this.showConfirmDialog.set(false);
-    this.saveChanges();
-  }
-
-  protected onCancelConfirm(): void {
-    this.showConfirmDialog.set(false);
-  }
-
   protected copyToClipboard(text: string): void {
     navigator.clipboard.writeText(text);
   }
 
-  private loadCompanyInfo(): void {
-    this.companyService.getInfoCompany().subscribe((response) => {
-      this.companyInfo.set(response);
-      this.companyForm.patchValue({
-        name: response.name,
-        documentType: response.documentType,
-        documentNumber: response.documentValue,
-        createdAt: response.createdDate,
-        status: response.status,
+  /** Progressive CPF / CNPJ mask, caret preserved. */
+  protected onDocumentInput(event: Event): void {
+    applyMaskedDocumentInput(event, this.companyForm.get('documentValue'), maskDocument);
+  }
+
+  protected save(): void {
+    if (this.saving()) return;
+
+    clearServerErrors(this.companyForm);
+    this.saveError.set(null);
+
+    if (this.companyForm.invalid) {
+      this.companyForm.markAllAsTouched();
+      this.revealFirstError();
+      return;
+    }
+
+    const raw = this.companyForm.getRawValue();
+    const typedDocument = normalizeDocument(raw.documentValue);
+
+    this.saving.set(true);
+    this.companyService
+      .updateCompany({
+        name: (raw.name ?? '').trim(),
+        // Empty means "keep the current document" — the masked value must never be echoed.
+        documentValue: typedDocument.length > 0 ? typedDocument : null,
+      })
+      .subscribe({
+        next: (response) => {
+          this.saving.set(false);
+          this.applyCompany(response);
+          this.notifications.success('Dados da empresa atualizados.');
+        },
+        error: (err: HttpErrorResponse) => {
+          this.saving.set(false);
+          this.handleSaveError(err);
+        },
       });
-      this.owner.update((o) => ({ ...o, joinedAt: response.createdDate }));
+  }
+
+  /**
+   * `fieldErrors` (400 / 409 on `documentValue`, 400 on `name`) land inline on the
+   * control; a 404 with no field goes to the banner. 0 / 401 / 403 / 5xx are left to
+   * the `errorInterceptor` toast — banner AND toast would say the same thing twice.
+   */
+  private handleSaveError(err: HttpErrorResponse): void {
+    const result = this.apiErrors.handleForm(err, this.companyForm, SAVE_FALLBACK);
+    this.saveError.set(ownedByInterceptor(err.status) ? null : result.formMessage);
+    this.revealFirstError();
+  }
+
+  /**
+   * Brings the first failure into view. The submit button sits at the bottom of a long
+   * form, so on a phone a failed save is otherwise entirely off-screen.
+   *
+   * Field errors win: the invalid control is focused, which both scrolls it into view and
+   * lets the screen reader announce the `role="alert"` message wired by `app-form-field`.
+   * With no invalid control, the banner is scrolled to instead.
+   */
+  private revealFirstError(): void {
+    afterNextRender(
+      () => {
+        const invalid = this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]');
+        if (invalid) {
+          invalid.focus();
+          centre(invalid);
+          return;
+        }
+        centre(this.host.nativeElement.querySelector<HTMLElement>('[data-save-error]'));
+      },
+      { injector: this.injector },
+    );
+  }
+
+  private applyCompany(response: CompanyFullResponse): void {
+    this.companyInfo.set(response);
+    this.companyForm.patchValue({
+      // Backend owns the capitalization — render exactly what it returned.
+      name: response.name,
+      // Never patched from the response: `documentValue` comes back masked.
+      documentValue: '',
+    });
+    this.companyForm.markAsPristine();
+    this.owner.update((o) => ({ ...o, joinedAt: response.createdDate }));
+    this.syncCompanyName(response.name);
+  }
+
+  /**
+   * The company name is cached in sessionStorage in two places — `selectedCompanyName`
+   * (read by `profile.ts`) and the `userCompanies` array (read by `LayoutStore` for the
+   * sidebar tenant switcher). Without this, a rename only shows up after re-login.
+   */
+  private syncCompanyName(name: string): void {
+    this.sessionService.setItem('selectedCompanyName', name);
+
+    const companyId = this.sessionService.getItem('selectedCompanyId');
+    const stored = this.sessionService.getItem('userCompanies');
+    if (companyId && stored) {
+      try {
+        const companies = JSON.parse(stored) as UserCompanies[];
+        const updated = companies.map((c) =>
+          c.companyId === companyId ? { ...c, companyName: name } : c,
+        );
+        this.sessionService.setItem('userCompanies', JSON.stringify(updated));
+      } catch {
+        // fail silent: a corrupted `userCompanies` is LayoutStore's problem, not ours
+      }
+    }
+
+    this.layoutStore.refreshTenants();
+  }
+
+  private loadCompanyInfo(): void {
+    this.error.set(null);
+    this.companyService.getInfoCompany().subscribe({
+      next: (response) => this.applyCompany(response),
+      error: (err: HttpErrorResponse) =>
+        this.error.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar os dados da empresa.'),
+        ),
     });
   }
-
-  private saveChanges(): void {
-    if (this.companyForm.invalid) return;
-
-    this.isSaving.set(true);
-    // TODO: wire up real API call
-    setTimeout(() => {
-      this.isSaving.set(false);
-      this.isEditing.set(false);
-      this.disableEditableControls();
-    }, 1000);
-  }
-
-  private enableEditableControls(): void {
-    this.companyForm.get('name')?.enable();
-    this.companyForm.get('documentType')?.enable();
-    this.companyForm.get('documentNumber')?.enable();
-  }
-
-  private disableEditableControls(): void {
-    this.companyForm.get('name')?.disable();
-    this.companyForm.get('documentType')?.disable();
-    this.companyForm.get('documentNumber')?.disable();
-  }
-
 }

@@ -25,10 +25,9 @@
       </div>
     </app-page-card>
 
-    @if (error()) {
-      <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-        {{ error() }}
-      </div>
+    <!-- Falha ao CARREGAR a lista. Erros de operação ficam dentro da linha. -->
+    @if (error(); as loadError) {
+      <app-alert-banner variant="error" [message]="loadError" />
     }
 
     <app-page-card title="Tickets ({{ total() }})">
@@ -69,7 +68,7 @@
                       <button
                         type="button"
                         (click)="toggleExpand(t.id)"
-                        class="text-xs text-primary-600 hover:text-primary-700 font-medium mt-1"
+                        class="text-xs text-primary-700 hover:text-primary-800 font-medium mt-1"
                       >
                         {{ expandedId() === t.id ? 'Recolher' : 'Ler mensagem completa' }}
                       </button>
@@ -80,32 +79,71 @@
                     </p>
                   </div>
 
-                  <div class="flex flex-wrap gap-2 shrink-0">
-                    @if (t.status !== 'IN_PROGRESS' && t.status !== 'RESOLVED') {
-                      <button
-                        type="button"
-                        (click)="changeStatus(t, 'IN_PROGRESS')"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white"
-                      >
-                        Em atendimento
-                      </button>
-                    }
-                    @if (t.status !== 'RESOLVED') {
-                      <button
-                        type="button"
-                        (click)="changeStatus(t, 'RESOLVED')"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white"
-                      >
-                        Resolver
-                      </button>
-                    } @else {
-                      <button
-                        type="button"
-                        (click)="changeStatus(t, 'OPEN')"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
-                      >
-                        Reabrir
-                      </button>
+                  <div class="w-full sm:w-auto shrink-0 space-y-2">
+                    <div class="flex items-center justify-end">
+                      <app-actions-menu [label]="'Ações para o ticket ' + t.id.slice(0, 8)">
+                        @if (t.status !== 'IN_PROGRESS' && t.status !== 'RESOLVED') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="changeStatus(t, 'IN_PROGRESS')"
+                            class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                          >
+                            Marcar em atendimento
+                          </button>
+                        }
+                        @if (t.status !== 'RESOLVED') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="changeStatus(t, 'RESOLVED')"
+                            class="w-full text-left px-4 py-3 text-sm text-emerald-700 hover:bg-emerald-50 min-h-[44px]"
+                          >
+                            Resolver
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="changeStatus(t, 'OPEN')"
+                            class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                          >
+                            Reabrir
+                          </button>
+                        }
+                      </app-actions-menu>
+                    </div>
+
+                    <!-- Erro da operação, ancorado na linha que o causou. -->
+                    @if (actionErrorFor(t.id); as rowError) {
+                      <div class="flex items-start gap-1.5 sm:max-w-xs">
+                        <app-alert-banner
+                          variant="error"
+                          [message]="rowError"
+                          class="flex-1 min-w-0"
+                        />
+                        <button
+                          type="button"
+                          (click)="dismissActionError()"
+                          aria-label="Dispensar mensagem de erro"
+                          class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-lg text-rose-700
+                                 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M18 6 6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     }
                   </div>
                 </div>

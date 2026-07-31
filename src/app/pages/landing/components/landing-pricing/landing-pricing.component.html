@@ -11,39 +11,16 @@
       </p>
 
       <!-- Toggle mensal/anual -->
-      <div class="reveal inline-flex items-center gap-1 bg-paper-alt border border-rule rounded-full p-1 mt-3 shadow-[0_8px_24px_-18px_rgba(10,10,10,0.14)]" role="tablist" aria-label="Ciclo de cobrança">
-        <button
-          type="button"
-          role="tab"
-          class="relative border-none bg-transparent px-5 py-2.5 rounded-full font-body font-semibold text-[13.5px] cursor-pointer inline-flex items-center gap-2 min-h-[40px] transition-colors duration-200"
-          [class.text-white]="cycle() === 'monthly'"
-          [class.text-ink/70]="cycle() !== 'monthly'"
-          [class.hover:text-ink]="cycle() !== 'monthly'"
-          [style.background]="cycle() === 'monthly' ? 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)' : 'transparent'"
-          [style.box-shadow]="cycle() === 'monthly' ? '0 6px 18px -6px rgba(235,63,0,0.4)' : 'none'"
-          [attr.aria-selected]="cycle() === 'monthly'"
-          (click)="setCycle('monthly')"
-        >Mensal</button>
-        <button
-          type="button"
-          role="tab"
-          class="relative border-none bg-transparent px-5 py-2.5 rounded-full font-body font-semibold text-[13.5px] cursor-pointer inline-flex items-center gap-2 min-h-[40px] transition-colors duration-200"
-          [class.text-white]="cycle() === 'yearly'"
-          [class.text-ink/70]="cycle() !== 'yearly'"
-          [class.hover:text-ink]="cycle() !== 'yearly'"
-          [style.background]="cycle() === 'yearly' ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)' : 'transparent'"
-          [style.box-shadow]="cycle() === 'yearly' ? '0 6px 18px -6px rgba(16,185,129,0.45)' : 'none'"
-          [attr.aria-selected]="cycle() === 'yearly'"
-          (click)="setCycle('yearly')"
-        >
-          Anual
-          <span
-            class="text-[10.5px] font-bold px-2 py-0.5 rounded-full tracking-[0.04em] text-white"
-            [class.bg-white/[0.22]]="cycle() === 'yearly'"
-            [class.bg-emerald-600]="cycle() !== 'yearly'"
-          >-{{ proSavings() }}%</span>
-        </button>
-      </div>
+      <app-segmented-toggle
+        class="reveal mt-3"
+        [options]="cycleOptions()"
+        [value]="cycle()"
+        ariaLabel="Ciclo de cobrança"
+        containerClass="bg-paper-alt border border-rule shadow-[0_8px_24px_-18px_rgba(10,10,10,0.14)]"
+        inactiveClass="text-ink/70 hover:text-ink"
+        textClass="text-[13.5px]"
+        (selectionChange)="setCycle($event)"
+      />
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.15fr_0.9fr] gap-5 lg:gap-6 items-stretch lg:items-center">

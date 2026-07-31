@@ -7,8 +7,11 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { ReportsService } from '../../services/reports.service';
 import {
@@ -19,6 +22,20 @@ import {
 import { BarChart, BarDatum } from '../../pages/dashboard/components/bar-chart';
 import { MonthlyBillingChart } from '../../pages/dashboard/components/monthly-billing-chart';
 import { MonthlyPointDto } from '../../types/dashboard.types';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../components/filter-chip-group/filter-chip-group';
+
+/** Presets de período. `'custom'` não é um chip: é o estado das datas manuais. */
+type ReportPreset = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear';
+
+const PRESET_CHIPS: readonly FilterChipOption<ReportPreset | 'custom'>[] = [
+  { value: 'thisMonth', label: 'Este mês' },
+  { value: 'lastMonth', label: 'Mês passado' },
+  { value: 'last30', label: 'Últimos 30 dias' },
+  { value: 'thisYear', label: 'Este ano' },
+];
 
 function toIso(d: Date): string {
   const y = d.getFullYear();
@@ -30,21 +47,42 @@ function toIso(d: Date): string {
 @Component({
   selector: 'app-relatorios',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, PageCard, FormsModule, BarChart, MonthlyBillingChart],
+  imports: [
+    DefaultPageLayout,
+    PageCard,
+    FormsModule,
+    BarChart,
+    MonthlyBillingChart,
+    AlertBanner,
+    FilterChipGroup,
+  ],
   templateUrl: './relatorios.html',
 })
 export class Relatorios implements OnInit {
   private readonly reportsService = inject(ReportsService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly report = this.reportsService.overview;
   protected readonly loading = this.reportsService.loading;
-  protected readonly error = this.reportsService.error;
+
+  /**
+   * Falha ao CARREGAR o relatório. Superfície única: banner inline. O interceptor
+   * não toasta 4xx e `messageFor()` reivindica o erro, desarmando o safety net.
+   */
+  protected readonly error = signal<string | null>(null);
+
+  /**
+   * Validação do intervalo de datas (De > Até). Inline, ao lado dos campos —
+   * nunca toast: é erro de campo, não de rede.
+   */
+  protected readonly rangeError = signal<string | null>(null);
 
   protected readonly from = signal<string>('');
   protected readonly to = signal<string>('');
   protected readonly exporting = signal<'pdf' | 'excel' | 'md' | null>(null);
-  protected readonly activePreset = signal<'thisMonth' | 'lastMonth' | 'last30' | 'thisYear' | 'custom'>('lastMonth');
+  protected readonly presetChips = PRESET_CHIPS;
+  protected readonly activePreset = signal<ReportPreset | 'custom'>('lastMonth');
 
   protected readonly formatBRL = (cents: number): string =>
     new Intl.NumberFormat('pt-BR', {
@@ -147,7 +185,8 @@ export class Relatorios implements OnInit {
     this.load();
   }
 
-  protected setPreset(preset: 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear'): void {
+  protected setPreset(preset: ReportPreset | 'custom'): void {
+    if (preset === 'custom') return;
     const now = new Date();
     let f: Date;
     let t: Date;
@@ -179,13 +218,19 @@ export class Relatorios implements OnInit {
   protected load(): void {
     const f = this.from();
     const t = this.to();
-    if (!f || !t) return;
-    if (f > t) {
-      this.notifications.warning('Data inicial não pode ser maior que a final.');
+    this.rangeError.set(null);
+    if (!f || !t) {
+      this.rangeError.set('Informe as datas inicial e final do período.');
       return;
     }
+    if (f > t) {
+      this.rangeError.set('A data inicial não pode ser maior que a final.');
+      return;
+    }
+    this.error.set(null);
     this.reportsService.loadOverview(f, t).subscribe({
-      error: () => this.notifications.error('Falha ao carregar relatório.'),
+      error: (err: HttpErrorResponse) =>
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar o relatório.')),
     });
   }
 

@@ -15,7 +15,10 @@ import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
 import {
   AdminUserListItem,
@@ -33,12 +36,21 @@ const PAGE_SIZE = 20;
 @Component({
   selector: 'app-admin-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    AlertBanner,
+    ActionsMenu,
+  ],
   templateUrl: './admin-users.html',
 })
 export class AdminUsers implements OnInit, OnDestroy {
   private readonly usersService = inject(AdminUsersService);
   private readonly notify = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
 
@@ -47,7 +59,14 @@ export class AdminUsers implements OnInit, OnDestroy {
   protected readonly page = this.usersService.page;
   protected readonly size = this.usersService.size;
   protected readonly loading = this.usersService.loading;
-  protected readonly error = this.usersService.error;
+  /** Falha ao CARREGAR a lista — banner inline, nunca toast. */
+  protected readonly error = signal<string | null>(null);
+  /**
+   * Falha de uma OPERACAO da tela (ativar/desativar, promover/rebaixar). Banner
+   * inline: o interceptor nao toasta 4xx e `messageFor()` reivindica o erro,
+   * desarmando o safety net.
+   */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
   protected readonly search = signal<string>('');
@@ -55,7 +74,6 @@ export class AdminUsers implements OnInit, OnDestroy {
   protected readonly roleFilter = signal<AdminUserRoleFilter>('ALL');
   protected readonly currentPage = signal(0);
 
-  protected readonly openActionMenuId = signal<string | null>(null);
   protected readonly pendingAction = signal<PendingAction | null>(null);
   protected readonly rowPending = signal<Record<string, boolean>>({});
 
@@ -120,11 +138,17 @@ export class AdminUsers implements OnInit, OnDestroy {
       const status = this.statusFilter();
       const role = this.roleFilter();
       const page = this.currentPage();
+      this.error.set(null);
       this.usersService
         .load({ search, status, systemRole: role, page, size: PAGE_SIZE })
         .subscribe({
-          error: () => {
-            this.notify.error('Falha ao carregar usuários.');
+          error: (err: HttpErrorResponse) => {
+            this.error.set(
+              this.apiErrors.messageFor(
+                err,
+                'Não foi possível carregar os usuários. Tente novamente.',
+              ),
+            );
           },
         });
     });
@@ -162,22 +186,11 @@ export class AdminUsers implements OnInit, OnDestroy {
     if (this.canNext()) this.currentPage.update((p) => p + 1);
   }
 
-  protected toggleMenu(user: AdminUserListItem, event?: Event): void {
-    event?.stopPropagation();
-    this.openActionMenuId.update((cur) => (cur === user.id ? null : user.id));
-  }
-
-  protected closeMenu(): void {
-    this.openActionMenuId.set(null);
-  }
-
   protected openDetail(user: AdminUserListItem): void {
-    this.closeMenu();
     this.router.navigate(['/admin/users', user.id]);
   }
 
   protected requestToggleStatus(user: AdminUserListItem): void {
-    this.closeMenu();
     if (user.active) {
       // desativar → confirma
       this.pendingAction.set({ kind: 'DEACTIVATE', user });
@@ -188,7 +201,6 @@ export class AdminUsers implements OnInit, OnDestroy {
   }
 
   protected requestToggleRole(user: AdminUserListItem): void {
-    this.closeMenu();
     if (user.systemRole === 'PLATFORM_ADMIN') {
       // rebaixar
       this.pendingAction.set({ kind: 'DEMOTE', user });
@@ -246,6 +258,7 @@ export class AdminUsers implements OnInit, OnDestroy {
   }
 
   private applyStatus(user: AdminUserListItem, active: boolean): void {
+    this.actionError.set(null);
     this.setRowPending(user.id, true);
     this.usersService.updateStatus(user.id, active).subscribe({
       next: () => {
@@ -254,12 +267,15 @@ export class AdminUsers implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.setRowPending(user.id, false);
-        this.notify.error(this.extractError(err, 'Falha ao atualizar status.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar o status do usuário.'),
+        );
       },
     });
   }
 
   private applyRole(user: AdminUserListItem, role: 'USER' | 'PLATFORM_ADMIN'): void {
+    this.actionError.set(null);
     this.setRowPending(user.id, true);
     this.usersService.updateSystemRole(user.id, role).subscribe({
       next: () => {
@@ -272,16 +288,10 @@ export class AdminUsers implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.setRowPending(user.id, false);
-        this.notify.error(this.extractError(err, 'Falha ao atualizar papel.'));
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar o papel do usuário.'),
+        );
       },
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

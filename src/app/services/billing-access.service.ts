@@ -45,6 +45,16 @@ export class BillingAccessService {
     return this.refresh();
   }
 
+  /**
+   * Drop the cached status so the next `load()` hits the backend. Called on
+   * every subscription transition (checkout started, cancel, downgrade,
+   * reactivate, return from the gateway) — without this the guard/paywall
+   * keep the stale decision until a full page reload.
+   */
+  invalidate(): void {
+    this._loaded.set(false);
+  }
+
   refresh(): Observable<AccessStatus | null> {
     // Skip while the user is still onboarding — they hold a TEMPORALLY-scoped
     // token that isn't allowed on billing endpoints and would 403.
@@ -76,14 +86,36 @@ export class BillingAccessService {
       }),
       catchError((err: HttpErrorResponse) => {
         this._loading.set(false);
-        // Fail-open on network/5xx so a flaky backend can't lock everyone out.
-        // Real backend blocking still enforced server-side on write endpoints.
+        this._loaded.set(true);
+
+        // Fail-OPEN only for transport/server faults, so a flaky backend can't
+        // lock every tenant out. This guard is UX, not security — the real
+        // enforcement is server-side on the write endpoints.
         if (err.status === 0 || err.status >= 500) {
-          this._loaded.set(true);
+          this._status.set(null);
           return of(null);
         }
-        this._loaded.set(true);
-        return of(null);
+
+        // 401 belongs to the auth layer (interceptor + authGuard); pretending
+        // the tenant is blocked would fight the logout redirect.
+        if (err.status === 401) {
+          this._status.set(null);
+          return of(null);
+        }
+
+        // Any other 4xx (403 / 404 / 422 …) means we could not prove access.
+        // Fail-CLOSED: treat as blocked so the paywall shows instead of a
+        // silently unlocked app.
+        const blocked: AccessStatus = {
+          status: 'BLOCKED',
+          trialEndsAt: null,
+          graceEndsAt: null,
+          plan: null,
+          blocked: true,
+          reason: 'NO_SUBSCRIPTION',
+        };
+        this._status.set(blocked);
+        return of(blocked);
       }),
     );
   }

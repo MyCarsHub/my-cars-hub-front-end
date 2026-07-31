@@ -1,44 +1,82 @@
 <app-default-login-layout description="Crie sua conta e teste gratuitamente as nossas funcionalidades."
   googleBtnText="Cadastrar-se com o Google" primaryBtnText="Cadastrar-se" navigateText="Já tem conta?"
   navigateBtnText="Entrar" (summitGoogle)="summitGoogle()" (submit)="submit()" (navigate)="navigate()"
-  [disablePrimaryBtn]="!signupForm.valid">
-  <form [formGroup]="signupForm" (ngSubmit)="submit()" novalidate>
-    <app-primary-input label="Nome Completo" type="text" formControlName="name" placeholder="Digite seu nome completo"
-      iconSrc="svg/name-icon.svg">
-    </app-primary-input>
-    <app-primary-input label="E-mail" type="email" formControlName="email" placeholder="seu@email.com"
-      iconSrc="svg/email-icon.svg">
-    </app-primary-input>
+  [disablePrimaryBtn]="submitting()">
+  <form [formGroup]="signupForm" (ngSubmit)="submit()" novalidate class="space-y-3">
 
-    <app-primary-input label="Password" type="password" formControlName="password" placeholder="Mínimo 8 caracteres"
-      iconSrc="svg/password-lock-icon.svg">
-    </app-primary-input>
-    <app-primary-input label="Confirmar sua Senha" type="password" formControlName="passwordConfirm"
-      placeholder="********" iconSrc="svg/password-lock-icon.svg">
-    </app-primary-input>
-    @if (
-      signupForm.hasError('passwordMismatch') &&
-      signupForm.get('passwordConfirm')?.dirty
-    ) {
-      <p class="text-xs text-red-600 mt-1" role="alert" aria-live="polite">
-        As senhas não coincidem.
-      </p>
+    @if (error(); as formError) {
+      <app-alert-banner variant="error" [message]="formError" />
     }
 
-    <label class="flex items-start gap-3 py-2.5 min-h-[44px] cursor-pointer select-none text-sm text-neutral-700">
-      <input
-        type="checkbox"
-        formControlName="acceptedTerms"
-        class="mt-0.5 h-5 w-5 shrink-0 accent-brand cursor-pointer"
-        aria-describedby="acceptedTermsHint" />
-      <span id="acceptedTermsHint" class="leading-snug">
-        Li e concordo com a
-        <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener"
-          class="text-brand underline hover:text-brand-light">Política de Privacidade</a>
-        e os
-        <a routerLink="/termos-de-uso" target="_blank" rel="noopener"
-          class="text-brand underline hover:text-brand-light">Termos de Uso</a>.
-      </span>
-    </label>
+    <app-form-field label="Nome completo" controlId="signup-name" [required]="true"
+      [control]="signupForm.controls.name" [messages]="nameMessages">
+      <div class="relative">
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+          <img ngSrc="svg/name-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
+        </div>
+        <input appFieldControl type="text" formControlName="name" placeholder="Digite seu nome completo"
+          autocomplete="name" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+                 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+      </div>
+    </app-form-field>
+
+    <app-form-field label="E-mail" controlId="signup-email" [required]="true"
+      [control]="signupForm.controls.email" [messages]="emailMessages">
+      <div class="relative">
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+          <img ngSrc="svg/email-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
+        </div>
+        <input appFieldControl type="email" formControlName="email" placeholder="seu@email.com"
+          autocomplete="email" inputmode="email" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+                 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+      </div>
+    </app-form-field>
+
+    <app-form-field label="Senha" controlId="signup-password" [required]="true"
+      [control]="signupForm.controls.password" [messages]="passwordMessages">
+      <div class="relative">
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+          <img ngSrc="svg/password-lock-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
+        </div>
+        <input appFieldControl type="password" formControlName="password" placeholder="Mínimo 8 caracteres"
+          autocomplete="new-password" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+                 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+      </div>
+    </app-form-field>
+
+    <app-form-field label="Confirmar sua senha" controlId="signup-password-confirm" [required]="true"
+      [control]="signupForm.controls.passwordConfirm" [messages]="passwordConfirmMessages">
+      <div class="relative">
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+          <img ngSrc="svg/password-lock-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
+        </div>
+        <input appFieldControl type="password" formControlName="passwordConfirm" placeholder="********"
+          autocomplete="new-password" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+                 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
+      </div>
+    </app-form-field>
+
+    @if (signupForm.hasError('passwordMismatch') && signupForm.controls.passwordConfirm.dirty) {
+      <p class="text-xs text-rose-600" role="alert">As senhas não coincidem.</p>
+    }
+
+    <app-form-field controlId="signup-terms" [control]="signupForm.controls.acceptedTerms"
+      [messages]="termsMessages">
+      <label
+        class="flex items-start gap-3 py-2.5 min-h-[44px] cursor-pointer select-none text-sm text-neutral-700"
+        for="signup-terms">
+        <input appFieldControl type="checkbox" formControlName="acceptedTerms"
+          class="mt-0.5 h-5 w-5 shrink-0 accent-brand cursor-pointer" />
+        <span class="leading-snug">
+          Li e concordo com a
+          <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener"
+            class="text-brand underline hover:text-brand-light">Política de Privacidade</a>
+          e os
+          <a routerLink="/termos-de-uso" target="_blank" rel="noopener"
+            class="text-brand underline hover:text-brand-light">Termos de Uso</a>.
+        </span>
+      </label>
+    </app-form-field>
+
   </form>
 </app-default-login-layout>

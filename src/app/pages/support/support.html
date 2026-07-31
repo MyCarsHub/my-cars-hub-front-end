@@ -39,43 +39,30 @@
         <strong class="text-neutral-800">email</strong> que utiliza na plataforma.
       </p>
 
-      <div>
-        <label class="sr-only" for="support-message">Descrição do problema</label>
+      <app-form-field
+        label="Descrição do problema"
+        controlId="support-message"
+        [required]="true"
+        [control]="form.controls.message"
+        [messages]="messageMessages"
+      >
         <textarea
-          id="support-message"
+          appFieldControl
           rows="5"
           formControlName="message"
           placeholder="Descreva seu problema, CPF/CNPJ e o email cadastrado..."
           maxlength="2000"
-          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800
+          class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800
                  focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors
                  resize-y min-h-[120px]"
         ></textarea>
-        <div class="flex items-center justify-between text-xs mt-1">
-          <span
-            class="text-neutral-500"
-            [class.text-rose-600]="messageTooShort() && form.controls.message.touched"
-          >
-            @if (messageTooShort()) {
-              Mínimo 10 caracteres.
-            } @else {
-              &nbsp;
-            }
-          </span>
-          <span class="text-neutral-400 tabular-nums">{{ messageLength() }} / 2000</span>
-        </div>
-      </div>
+        <p class="text-xs text-neutral-400 tabular-nums text-right mt-1">
+          {{ messageLength() }} / 2000
+        </p>
+      </app-form-field>
 
-      @if (error()) {
-        <div class="rounded-lg bg-rose-50 border border-rose-100 text-rose-800 text-xs p-2.5">
-          {{ error() }}
-        </div>
-      }
-
-      @if (success()) {
-        <div class="rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs p-2.5">
-          {{ success() }}
-        </div>
+      @if (error(); as formError) {
+        <app-alert-banner variant="error" [message]="formError" />
       }
 
       <button

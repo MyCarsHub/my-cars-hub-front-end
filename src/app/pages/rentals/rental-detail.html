@@ -10,18 +10,26 @@
     </div>
   }
 
-  @if (error()) {
-    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3 mb-4">
-      {{ error() }}
-      <button type="button" (click)="backToList()"
-        class="ml-2 underline font-medium text-rose-800">
-        Voltar para a lista
-      </button>
+  <!-- Falha de CARREGAMENTO: o aluguel não abriu, então oferece a saída. -->
+  @if (error(); as loadError) {
+    <div class="mb-4">
+      <app-alert-banner variant="error">
+        {{ loadError }}
+        <button type="button" (click)="backToList()"
+          class="ml-2 underline font-medium text-rose-800 rounded
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2">
+          Voltar para a lista
+        </button>
+      </app-alert-banner>
     </div>
   }
 
   @if (rental(); as r) {
     <div class="space-y-4 sm:space-y-6">
+      <!-- Falha de OPERAÇÃO (cancelar/concluir/ativar/excluir/caução/cobranças). -->
+      @if (actionError(); as opError) {
+        <app-alert-banner variant="error" [message]="opError" />
+      }
       <!-- Desktop actions (top-right) -->
       <div class="hidden lg:flex justify-end">
         <app-detail-actions
@@ -210,7 +218,7 @@
                 class="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
               >
                 <div class="flex items-center gap-3 min-w-0">
-                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-600 font-semibold">C</span>
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 font-semibold">C</span>
                   <div class="min-w-0">
                     <p class="text-sm text-neutral-800 tabular-nums">
                       @if (cc.dueDate) {
@@ -237,134 +245,24 @@
                   >
                     {{ chargeStatusInfo(cc.status).label }}
                   </span>
-                  @if (canUnmarkAsPaid(cc)) {
-                    <button type="button" (click)="askUnmarkPaid(cc)"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                      aria-label="Desmarcar caução como paga">
-                      Desmarcar
-                    </button>
-                  } @else if (canMarkAsPaid(cc)) {
-                    <button type="button" (click)="askMarkPaid(cc)"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
-                             hover:bg-emerald-600 active:scale-95 transition
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                      aria-label="Marcar caução como paga">
-                      Marcar como paga
-                    </button>
-                  }
-                </div>
-              </li>
-            </ul>
-
-            <!-- Desktop -->
-            <div class="hidden lg:block overflow-x-auto">
-              <table class="min-w-full text-sm">
-                <thead>
-                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
-                    <th class="py-2 pr-4 font-medium">#</th>
-                    <th class="py-2 pr-4 font-medium">Vencimento</th>
-                    <th class="py-2 pr-4 font-medium">Tipo</th>
-                    <th class="py-2 pr-4 font-medium">Valor</th>
-                    <th class="py-2 pr-4 font-medium">Pago em</th>
-                    <th class="py-2 pr-4 font-medium">Situação</th>
-                    <th class="py-2 pr-4 font-medium text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr class="border-b border-neutral-50">
-                    <td class="py-2.5 pr-4 tabular-nums text-primary-600 font-semibold">C</td>
-                    <td class="py-2.5 pr-4 tabular-nums">
-                      @if (cc.dueDate) {
-                        {{ formatDate(cc.dueDate) }}
-                      } @else {
-                        <span class="text-neutral-400">—</span>
-                      }
-                    </td>
-                    <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
-                    <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(cc.amount) }}</td>
-                    <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
-                      @if (cc.paidAt) {
-                        {{ formatDateTime(cc.paidAt) }}
-                      } @else {
-                        <span class="text-neutral-400">—</span>
-                      }
-                    </td>
-                    <td class="py-2.5 pr-4">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
-                        [class]="chargeStatusInfo(cc.status).chip">
-                        {{ chargeStatusInfo(cc.status).label }}
-                      </span>
-                    </td>
-                    <td class="py-2.5 pr-4 text-right">
-                      <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canUnmarkAsPaid(cc)) {
-                          <button type="button" (click)="askUnmarkPaid(cc)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-                            Desmarcar
-                          </button>
-                        } @else if (canMarkAsPaid(cc)) {
-                          <button type="button" (click)="askMarkPaid(cc)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
-                                   hover:bg-emerald-600 transition
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
-                            Marcar como paga
-                          </button>
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          } @else if (r.caucaoAmount > 0) {
-            <!-- Placeholder row: caução configurada no rental, mas sem charge ainda. -->
-            <!-- Mobile -->
-            <ul class="space-y-2 lg:hidden" role="list">
-              <li
-                class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-primary-300 bg-primary-50/40 px-3 py-2.5"
-              >
-                <div class="flex items-center gap-3 min-w-0">
-                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-600 font-semibold">C</span>
-                  <div class="min-w-0">
-                    <p class="text-sm text-neutral-800 tabular-nums">
-                      <span class="text-neutral-400">—</span>
-                    </p>
-                    <p class="text-xs text-neutral-500 tabular-nums">
-                      {{ formatCurrency(r.caucaoAmount) }}
-                      <span class="text-neutral-400"> · Caução</span>
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                  <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600"
-                  >
-                    Não gerada
-                  </span>
-                    @if (canMarkCaucaoAsPaidPlaceholder()) {
+                  @if (canMarkAsPaid(cc)) {
                     <button
                       type="button"
-                      (click)="askMarkCaucaoAsPaid()"
-                      [disabled]="caucaoBusy()"
+                      (click)="askMarkPaid(cc)"
                       class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
-                             hover:bg-emerald-600 active:scale-95 transition disabled:opacity-60
+                             hover:bg-emerald-600 active:scale-95 transition
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                       aria-label="Marcar caução como paga"
                     >
                       Marcar como paga
                     </button>
                   }
-                  @if (canUnmarkCaucaoPlaceholder()) {
+                  @if (canUnmarkAsPaid(cc)) {
                     <button
                       type="button"
-                      (click)="askUnmarkCaucaoAsPaid()"
-                      [disabled]="caucaoBusy()"
+                      (click)="askUnmarkPaid(cc)"
                       class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition disabled:opacity-60
+                             hover:bg-primary-600 active:scale-95 transition
                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                       aria-label="Desmarcar caução como paga"
                     >
@@ -391,7 +289,129 @@
                 </thead>
                 <tbody>
                   <tr class="border-b border-neutral-50">
-                    <td class="py-2.5 pr-4 tabular-nums text-primary-600 font-semibold">C</td>
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 font-semibold">C</td>
+                    <td class="py-2.5 pr-4 tabular-nums">
+                      @if (cc.dueDate) {
+                        {{ formatDate(cc.dueDate) }}
+                      } @else {
+                        <span class="text-neutral-400">—</span>
+                      }
+                    </td>
+                    <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
+                    <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(cc.amount) }}</td>
+                    <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
+                      @if (cc.paidAt) {
+                        {{ formatDateTime(cc.paidAt) }}
+                      } @else {
+                        <span class="text-neutral-400">—</span>
+                      }
+                    </td>
+                    <td class="py-2.5 pr-4">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                        [class]="chargeStatusInfo(cc.status).chip">
+                        {{ chargeStatusInfo(cc.status).label }}
+                      </span>
+                    </td>
+                    <td class="py-2.5 pr-4 text-right">
+                      <div class="inline-flex items-center gap-2 justify-end">
+                        @if (canMarkAsPaid(cc)) {
+                          <button
+                            type="button"
+                            (click)="askMarkPaid(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
+                                   hover:bg-emerald-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                          >
+                            Marcar como paga
+                          </button>
+                        }
+                        @if (canUnmarkAsPaid(cc)) {
+                          <button
+                            type="button"
+                            (click)="askUnmarkPaid(cc)"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
+                                   hover:bg-primary-600 transition
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                          >
+                            Desmarcar
+                          </button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          } @else if (r.caucaoAmount > 0) {
+            <!-- Placeholder row: caução configurada no rental, mas sem charge ainda. -->
+            <!-- Mobile -->
+            <ul class="space-y-2 lg:hidden" role="list">
+              <li
+                class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-primary-300 bg-primary-50/40 px-3 py-2.5"
+              >
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 font-semibold">C</span>
+                  <div class="min-w-0">
+                    <p class="text-sm text-neutral-800 tabular-nums">
+                      <span class="text-neutral-400">—</span>
+                    </p>
+                    <p class="text-xs text-neutral-500 tabular-nums">
+                      {{ formatCurrency(r.caucaoAmount) }}
+                      <span class="text-neutral-400"> · Caução</span>
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600"
+                  >
+                    Não gerada
+                  </span>
+                  @if (canMarkCaucaoAsPaidPlaceholder()) {
+                    <button
+                      type="button"
+                      (click)="askMarkCaucaoAsPaid()"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
+                             hover:bg-emerald-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                      aria-label="Marcar caução como paga"
+                    >
+                      Marcar como paga
+                    </button>
+                  }
+                  @if (canUnmarkCaucaoPlaceholder()) {
+                    <button
+                      type="button"
+                      (click)="askUnmarkCaucaoAsPaid()"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
+                             hover:bg-primary-600 active:scale-95 transition
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                      aria-label="Desmarcar caução como paga"
+                    >
+                      Desmarcar
+                    </button>
+                  }
+                </div>
+              </li>
+            </ul>
+
+            <!-- Desktop -->
+            <div class="hidden lg:block overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                    <th class="py-2 pr-4 font-medium">#</th>
+                    <th class="py-2 pr-4 font-medium">Vencimento</th>
+                    <th class="py-2 pr-4 font-medium">Tipo</th>
+                    <th class="py-2 pr-4 font-medium">Valor</th>
+                    <th class="py-2 pr-4 font-medium">Pago em</th>
+                    <th class="py-2 pr-4 font-medium">Situação</th>
+                    <th class="py-2 pr-4 font-medium text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-b border-neutral-50">
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 font-semibold">C</td>
                     <td class="py-2.5 pr-4 tabular-nums"><span class="text-neutral-400">—</span></td>
                     <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
                     <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(r.caucaoAmount) }}</td>
@@ -407,21 +427,19 @@
                           <button
                             type="button"
                             (click)="askMarkCaucaoAsPaid()"
-                            [disabled]="caucaoBusy()"
                             class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
-                                   hover:bg-emerald-600 transition disabled:opacity-60
+                                   hover:bg-emerald-600 transition
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                           >
-                            @if (caucaoBusy()) { Marcando… } @else { Marcar como paga }
+                            Marcar como paga
                           </button>
                         }
                         @if (canUnmarkCaucaoPlaceholder()) {
                           <button
                             type="button"
                             (click)="askUnmarkCaucaoAsPaid()"
-                            [disabled]="caucaoBusy()"
                             class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition disabled:opacity-60
+                                   hover:bg-primary-600 transition
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                           >
                             Desmarcar
@@ -481,7 +499,7 @@
                   <div class="flex items-center gap-3 min-w-0">
                     <span
                       class="text-xs tabular-nums w-6 text-right shrink-0"
-                      [class.text-primary-600]="charge.kind === 'CAUCAO'"
+                      [class.text-primary-700]="charge.kind === 'CAUCAO'"
                       [class.font-semibold]="charge.kind === 'CAUCAO'"
                       [class.text-neutral-400]="charge.kind !== 'CAUCAO'"
                     >
@@ -584,7 +602,7 @@
                     <tr class="border-b border-neutral-50">
                       <td
                         class="py-2.5 pr-4 tabular-nums"
-                        [class.text-primary-600]="charge.kind === 'CAUCAO'"
+                        [class.text-primary-700]="charge.kind === 'CAUCAO'"
                         [class.font-semibold]="charge.kind === 'CAUCAO'"
                         [class.text-neutral-500]="charge.kind !== 'CAUCAO'"
                       >
@@ -804,7 +822,7 @@
       </div>
 
       <div class="pt-2">
-        <a routerLink="/alugueis" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+        <a routerLink="/alugueis" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
           ← Voltar para a lista
         </a>
       </div>

@@ -15,7 +15,10 @@ import {
 import { FormsModule } from '@angular/forms';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { DriverService } from '../../../services/driver.service';
+import { LoggerService } from '../../../services/logger.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import {
@@ -38,10 +41,13 @@ interface SignatureBadge {
   selector: 'app-rental-contract-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [FormsModule, PageCard, ConfirmDialog],
+  imports: [FormsModule, PageCard, ConfirmDialog, AlertBanner],
   template: `
     <app-page-card title="Contrato">
       <div class="p-4 sm:p-6 space-y-4">
+        @if (error(); as cardError) {
+          <app-alert-banner variant="error" [message]="cardError" />
+        }
         @if (loading()) {
           <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
         } @else if (contract(); as c) {
@@ -134,7 +140,7 @@ interface SignatureBadge {
             </div>
           } @else {
             <button type="button" (click)="picker.click()"
-              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors min-h-[48px]">
+              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-700 transition-colors min-h-[48px]">
               Substituir contrato
             </button>
           }
@@ -197,12 +203,38 @@ interface SignatureBadge {
             @for (s of signers(); track $index; let i = $index) {
               <div class="flex gap-2 items-start">
                 <div class="flex-1 space-y-2">
-                  <input type="text" [(ngModel)]="s.name" placeholder="Nome do signatário"
-                    [attr.aria-invalid]="s.name.trim().length === 0 ? 'true' : null"
-                    [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (s.name.trim().length === 0 ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
-                  <input type="email" [(ngModel)]="s.email" placeholder="email@exemplo.com"
-                    [attr.aria-invalid]="isEmailInvalid(s.email) ? 'true' : null"
-                    [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
+                  <div>
+                    <label class="sr-only" [attr.for]="'signer-' + i + '-name'">
+                      Nome do signatário {{ i + 1 }}
+                    </label>
+                    <input type="text" [(ngModel)]="s.name" [name]="'signer-' + i + '-name'"
+                      [id]="'signer-' + i + '-name'"
+                      placeholder="Nome do signatário"
+                      [attr.aria-invalid]="isNameInvalid(s.name) ? 'true' : null"
+                      [attr.aria-describedby]="isNameInvalid(s.name) ? 'signer-' + i + '-name-error' : null"
+                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isNameInvalid(s.name) ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
+                    @if (isNameInvalid(s.name)) {
+                      <p class="text-xs text-rose-600 mt-1" [id]="'signer-' + i + '-name-error'" role="alert">
+                        Informe o nome do signatário.
+                      </p>
+                    }
+                  </div>
+                  <div>
+                    <label class="sr-only" [attr.for]="'signer-' + i + '-email'">
+                      E-mail do signatário {{ i + 1 }}
+                    </label>
+                    <input type="email" [(ngModel)]="s.email" [name]="'signer-' + i + '-email'"
+                      [id]="'signer-' + i + '-email'"
+                      placeholder="email@exemplo.com"
+                      [attr.aria-invalid]="isEmailInvalid(s.email) ? 'true' : null"
+                      [attr.aria-describedby]="isEmailInvalid(s.email) ? 'signer-' + i + '-email-error' : null"
+                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
+                    @if (isEmailInvalid(s.email)) {
+                      <p class="text-xs text-rose-600 mt-1" [id]="'signer-' + i + '-email-error'" role="alert">
+                        Informe um e-mail válido (ex.: nome@empresa.com.br).
+                      </p>
+                    }
+                  </div>
                 </div>
                 @if (signers().length > 1) {
                   <button type="button" (click)="removeSigner(i)"
@@ -218,7 +250,7 @@ interface SignatureBadge {
             }
             @if (signers().length < 6) {
               <button type="button" (click)="addSigner()"
-                class="w-full py-2 rounded-lg border border-dashed border-neutral-300 hover:border-primary-400 text-sm text-neutral-600 hover:text-primary-600 min-h-[44px]">
+                class="w-full py-2 rounded-lg border border-dashed border-neutral-300 hover:border-primary-400 text-sm text-neutral-600 hover:text-primary-700 min-h-[44px]">
                 + Adicionar signatário
               </button>
             }
@@ -243,6 +275,8 @@ export class RentalContractCard implements OnInit, OnDestroy {
   private readonly driverService = inject(DriverService);
   private readonly session = inject(SessionService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly logger = inject(LoggerService);
 
   readonly rentalId = input.required<string>();
   readonly changed = output<void>();
@@ -261,6 +295,13 @@ export class RentalContractCard implements OnInit, OnDestroy {
     if (!snap.documents.some((d) => d.kind === 'CONTRACT')) return null;
     return snap.contractSignature?.status ?? 'NOT_REQUIRED';
   });
+
+  /**
+   * Falha da operacao (upload, download, abrir, remover, assinatura). Banner
+   * inline dentro do card, nunca toast: o interceptor nao toasta 4xx e
+   * `messageFor()` reivindica o erro, desarmando o safety net.
+   */
+  protected readonly error = signal<string | null>(null);
 
   protected readonly uploading = signal(false);
   /** 0-100 durante upload; nulo quando o browser não reporta total (fallback determinado). */
@@ -301,6 +342,11 @@ export class RentalContractCard implements OnInit, OnDestroy {
   /** True quando o campo está vazio ou não bate com o formato básico de email. */
   protected isEmailInvalid(email: string): boolean {
     return !/.+@.+\..+/.test(email.trim());
+  }
+
+  /** True quando o nome do signatário está vazio — espelha o guard de `canSubmit`. */
+  protected isNameInvalid(name: string): boolean {
+    return name.trim().length === 0;
   }
 
   constructor() {
@@ -359,6 +405,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
       return;
     }
 
+    this.error.set(null);
     this.uploading.set(true);
     this.uploadProgress.set(0);
     this.uploadSub = this.rentalService
@@ -379,7 +426,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
         },
         error: (err: HttpErrorResponse) => {
           this.finishUpload();
-          this.notifications.push('error', this.extractError(err, 'Não foi possível enviar o contrato.'));
+          this.error.set(this.apiErrors.messageFor(err, 'Não foi possível enviar o contrato.'));
         },
       });
   }
@@ -401,21 +448,33 @@ export class RentalContractCard implements OnInit, OnDestroy {
   }
 
   /**
-   * Baixa o DOCX cru como arquivo. A signed URL do Supabase é de curta duração
+   * Baixa o PDF do contrato. A signed URL do Supabase é de curta duração
    * (TTL do backend) e privada; usamos `fetch` → Blob → anchor pra forçar o
-   * download com filename amigável em vez de deixar o browser navegar pra URL.
+   * download com filename amigável em vez de deixar o browser navegar pra URL
+   * (o que abriria o viewer inline em vez de baixar).
    */
   protected downloadContract(): void {
     const doc = this.contract();
     if (!doc || this.downloading()) return;
+    this.error.set(null);
     this.downloading.set(true);
     this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
       next: async (res) => {
         try {
           const resp = await fetch(res.url);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          if (!resp.ok) {
+            if (resp.status === 404) {
+              this.error.set('Contrato não encontrado. Faça upload novamente.');
+              return;
+            }
+            throw new Error(`HTTP ${resp.status}`);
+          }
           const blob = await resp.blob();
-          const filename = `Contrato-${this.rentalId()}.docx`;
+          if (blob.size === 0) {
+            this.error.set('Contrato não encontrado. Faça upload novamente.');
+            return;
+          }
+          const filename = `Contrato-${this.rentalId()}.pdf`;
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -425,69 +484,59 @@ export class RentalContractCard implements OnInit, OnDestroy {
           document.body.removeChild(a);
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (err) {
-          this.notifications.push('error', 'Falha ao baixar o contrato.');
-          console.error('contract download failed', err);
+          this.error.set('Falha ao baixar o contrato.');
+          this.logger.error('[rental-contract-card] download failed', err, {
+            rentalId: this.rentalId(),
+          });
         } finally {
           this.downloading.set(false);
         }
       },
       error: (err: HttpErrorResponse) => {
         this.downloading.set(false);
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível baixar o contrato.'),
-        );
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível baixar o contrato.'));
       },
     });
   }
 
   /**
-   * Abre o DOCX renderizado como HTML em nova aba via docx-preview (lazy).
-   * A nova aba é aberta ANTES do await pra evitar pop-up blocker — browsers
-   * só permitem window.open dentro de gesture handler síncrono. Mesmo pattern
-   * de company-settings/contract-template.
+   * Abre o PDF do contrato em nova aba usando o viewer nativo do browser
+   * (Chrome/Safari/Firefox renderizam PDF inline). Backend armazena o
+   * contrato como PDF (validado por magic bytes no upload); zero dep de
+   * render client-side. Mobile-safe (iOS Safari + Android Chrome).
+   *
+   * Fetch prévio pra validar 404/vazio e mostrar toast amigável antes de
+   * navegar a aba (em vez de deixar o viewer nativo mostrar erro cru).
    */
   protected openContractAsPdf(): void {
     const doc = this.contract();
     if (!doc || this.openingPdf()) return;
+    this.error.set(null);
     this.openingPdf.set(true);
+    // Abre a aba SÍNCRONA pra escapar do pop-up blocker (browsers só
+    // permitem window.open dentro do gesture handler). Preenche depois.
     const win = window.open('', '_blank');
     if (!win) {
       this.openingPdf.set(false);
-      this.notifications.push('error', 'Permita pop-ups pra abrir o contrato.');
+      this.error.set('Permita pop-ups pra abrir o contrato.');
       return;
     }
-    win.document.write(
-      '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-        '<title>Contrato</title>' +
-        '<style>body{margin:0;padding:24px;background:#f5f5f5;font-family:sans-serif;}' +
-        '.docx-wrapper{background:transparent!important;padding:0!important;}' +
-        '.docx{background:#fff!important;margin:0 auto 16px;box-shadow:0 2px 8px rgba(0,0,0,.08);}' +
-        '.mch-loading{color:#666;text-align:center;padding:40px;}</style>' +
-        '</head><body><div class="mch-loading">Carregando contrato…</div></body></html>',
-    );
-    win.document.close();
 
     this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
-      next: async (res) => {
+      next: (res) => {
         try {
-          const resp = await fetch(res.url);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const blob = await resp.blob();
-          const { renderAsync } = await import('docx-preview');
-          const loading = win.document.querySelector('.mch-loading');
-          if (loading) loading.remove();
-          await renderAsync(blob, win.document.body, undefined, {
-            className: 'docx',
-            inWrapper: true,
-            ignoreWidth: false,
-            ignoreHeight: false,
-          });
+          // Redireciona a aba pra signed URL — browser renderiza PDF nativamente.
+          win.location.href = res.url;
         } catch (err) {
-          win.document.body.innerHTML =
-            '<p style="color:#b91c1c;padding:24px;">Falha ao renderizar o contrato.</p>';
-          this.notifications.push('error', 'Falha ao renderizar contrato no browser.');
-          console.error('docx-preview render failed', err);
+          try {
+            win.close();
+          } catch {
+            /* noop */
+          }
+          this.error.set('Falha ao abrir o contrato.');
+          this.logger.error('[rental-contract-card] open failed', err, {
+            rentalId: this.rentalId(),
+          });
         } finally {
           this.openingPdf.set(false);
         }
@@ -499,10 +548,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
         } catch {
           /* noop — algumas policies bloqueiam close cross-context */
         }
-        this.notifications.push(
-          'error',
-          this.extractError(err, 'Não foi possível abrir o contrato.'),
-        );
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível abrir o contrato.'));
       },
     });
   }
@@ -512,6 +558,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
   protected confirmDelete(): void {
     const doc = this.contract();
     if (!doc) return;
+    this.error.set(null);
     this.deleting.set(true);
     this.rentalService.deleteDocument(this.rentalId(), doc.id).subscribe({
       next: () => {
@@ -525,7 +572,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.notifications.push('error', this.extractError(err, 'Não foi possível remover o contrato.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível remover o contrato.'));
       },
     });
   }
@@ -593,6 +640,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
 
   protected submitSignature(): void {
     if (!this.canSubmit()) return;
+    this.error.set(null);
     this.requesting.set(true);
     const payload = this.signers().map((s) => ({ name: s.name.trim(), email: s.email.trim() }));
     this.rentalService.requestContractSignature(this.rentalId(), payload).subscribe({
@@ -605,7 +653,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.requesting.set(false);
-        this.notifications.push('error', this.extractError(err, 'Não foi possível solicitar assinatura.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível solicitar assinatura.'));
       },
     });
   }
@@ -635,13 +683,5 @@ export class RentalContractCard implements OnInit, OnDestroy {
 
   protected formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString('pt-BR');
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

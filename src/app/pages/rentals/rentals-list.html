@@ -24,27 +24,14 @@
            period live inside the "Filtros" sheet — collapsed by default to keep
            the mobile viewport tight. -->
       <div class="flex items-center gap-2">
-        <div class="flex gap-2 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap pb-1 flex-1 min-w-0"
-          role="tablist" aria-label="Filtrar por status">
-          @for (opt of statusOptions; track opt.value) {
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="isActive(opt.value)"
-              (click)="setStatus(opt.value)"
-              class="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm
-                     font-medium border transition-colors min-h-[44px]"
-              [class.border-primary-500]="isActive(opt.value)"
-              [class.text-primary-600]="isActive(opt.value)"
-              [class.bg-primary-50]="isActive(opt.value)"
-              [class.border-neutral-200]="!isActive(opt.value)"
-              [class.text-neutral-600]="!isActive(opt.value)"
-              [class.bg-white]="!isActive(opt.value)"
-              [class.hover:bg-neutral-50]="!isActive(opt.value)"
-            >
-              {{ opt.label }}
-            </button>
-          }
+        <div class="flex-1 min-w-0">
+          <app-filter-chip-group
+            [options]="statusChips"
+            [value]="statusFilter()"
+            [scrollable]="true"
+            ariaLabel="Filtrar por status"
+            (selectionChange)="setStatus($event)"
+          />
         </div>
 
         <button type="button"
@@ -116,10 +103,11 @@
         </label>
       </div>
 
-      @if (error()) {
-        <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-          {{ error() }}
-        </div>
+      @if (error(); as loadError) {
+        <app-alert-banner variant="error" [message]="loadError" />
+      }
+      @if (actionError(); as opError) {
+        <app-alert-banner variant="error" [message]="opError" />
       }
 
       @if (loading() && items().length === 0) {
@@ -144,7 +132,7 @@
           </div>
           <p class="text-sm text-neutral-500">Nenhum aluguel encontrado.</p>
           <a routerLink="/alugueis/novo"
-            class="inline-flex items-center gap-2 text-sm font-medium text-primary-500 hover:text-primary-600">
+            class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
             Cadastrar primeiro aluguel
           </a>
         </div>
@@ -226,64 +214,45 @@
                       Aguardando pagamento
                     </span>
                   }
-                  <div class="relative">
-                    @if (canEdit(r) || canDelete(r) || canCancel(r) || canActivate(r)) {
-                    <button type="button"
-                      (click)="toggleMenu(r.id, $event)"
-                      [attr.aria-expanded]="openMenuId() === r.id"
-                      aria-haspopup="menu"
-                      aria-label="Ações do aluguel"
-                      class="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg
-                             text-neutral-600 hover:bg-neutral-100 active:bg-neutral-200 transition-colors">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                        fill="currentColor" aria-hidden="true">
-                        <circle cx="12" cy="5" r="2"/>
-                        <circle cx="12" cy="12" r="2"/>
-                        <circle cx="12" cy="19" r="2"/>
-                      </svg>
-                    </button>
-
-                    @if (openMenuId() === r.id) {
-                      <!-- Backdrop closes menu when tapping outside -->
-                      <div class="fixed inset-0 z-20" (click)="closeMenu()"></div>
-                      <div
-                        role="menu"
-                        (appClickOutside)="closeMenu()"
-                        class="absolute right-0 bottom-full mb-2 z-30 min-w-[200px] rounded-xl border
-                               border-neutral-200 bg-white shadow-lg overflow-hidden">
-                        @if (canEdit(r)) {
-                          <a role="menuitem"
-                            [routerLink]="['/alugueis', r.id, 'editar']"
-                            (click)="closeMenu()"
-                            class="flex items-center gap-2 px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50">
-                            Editar
-                          </a>
-                        }
-                        @if (canActivate(r)) {
-                          <button role="menuitem" type="button"
-                            (click)="askAction('activate', r, $event)"
-                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-blue-700 hover:bg-blue-50">
-                            Iniciar aluguel
-                          </button>
-                        }
-                        @if (canCancel(r)) {
-                          <button role="menuitem" type="button"
-                            (click)="askAction('cancel', r, $event)"
-                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-rose-700 hover:bg-rose-50">
-                            Cancelar
-                          </button>
-                        }
-                        @if (canDelete(r)) {
-                          <button role="menuitem" type="button"
-                            (click)="askAction('delete', r, $event)"
-                            class="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-rose-700 hover:bg-rose-50 border-t border-neutral-100">
-                            Excluir
-                          </button>
-                        }
-                      </div>
-                    }
-                    }
-                  </div>
+                  @if (canEdit(r) || canDelete(r) || canCancel(r) || canActivate(r)) {
+                    <app-actions-menu label="Ações do aluguel">
+                      @if (canEdit(r)) {
+                        <a
+                          role="menuitem"
+                          [routerLink]="['/alugueis', r.id, 'editar']"
+                          class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                          Editar
+                        </a>
+                      }
+                      @if (canActivate(r)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          (click)="askAction('activate', r, $event)"
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-blue-700 hover:bg-blue-50 min-h-[44px] text-left">
+                          Iniciar aluguel
+                        </button>
+                      }
+                      @if (canCancel(r)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          (click)="askAction('cancel', r, $event)"
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-800 hover:bg-amber-50 min-h-[44px] text-left">
+                          Cancelar
+                        </button>
+                      }
+                      @if (canDelete(r)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          (click)="askAction('delete', r, $event)"
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] text-left border-t border-neutral-100">
+                          Excluir
+                        </button>
+                      }
+                    </app-actions-menu>
+                  }
                 </div>
               }
             </article>
@@ -347,20 +316,6 @@
                   </td>
                   <td class="py-3 pr-4 text-right whitespace-nowrap">
                     <div class="inline-flex items-center gap-1">
-                      @if (canEdit(r)) {
-                        <a [routerLink]="['/alugueis', r.id, 'editar']"
-                          title="Editar"
-                          aria-label="Editar aluguel"
-                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-neutral-600
-                                 hover:bg-neutral-100">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" aria-hidden="true">
-                            <path d="M12 20h9"/>
-                            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>
-                          </svg>
-                        </a>
-                      }
                       @if (isAwaitingPayment(r)) {
                         <span
                           role="status"
@@ -379,51 +334,44 @@
                           Aguardando pagamento
                         </span>
                       }
-                      @if (canActivate(r)) {
-                        <button type="button"
-                          (click)="askAction('activate', r, $event)"
-                          title="Iniciar aluguel"
-                          aria-label="Iniciar aluguel"
-                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-blue-600
-                                 hover:bg-blue-50">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" aria-hidden="true">
-                            <polygon points="5 3 19 12 5 21 5 3"/>
-                          </svg>
-                        </button>
-                      }
-                      @if (canCancel(r)) {
-                        <button type="button"
-                          (click)="askAction('cancel', r, $event)"
-                          title="Cancelar aluguel"
-                          aria-label="Cancelar aluguel"
-                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-rose-600
-                                 hover:bg-rose-50">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" aria-hidden="true">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-                          </svg>
-                        </button>
-                      }
-                      @if (canDelete(r)) {
-                        <button type="button"
-                          (click)="askAction('delete', r, $event)"
-                          title="Excluir"
-                          aria-label="Excluir aluguel"
-                          class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-rose-600
-                                 hover:bg-rose-50">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" aria-hidden="true">
-                            <polyline points="3 6 5 6 21 6"/>
-                            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-                            <path d="M10 11v6M14 11v6"/>
-                            <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-                          </svg>
-                        </button>
+                      @if (canEdit(r) || canDelete(r) || canCancel(r) || canActivate(r)) {
+                        <app-actions-menu label="Ações do aluguel" [menuWidth]="208">
+                          @if (canEdit(r)) {
+                            <a
+                              role="menuitem"
+                              [routerLink]="['/alugueis', r.id, 'editar']"
+                              class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                              Editar
+                            </a>
+                          }
+                          @if (canActivate(r)) {
+                            <button
+                              type="button"
+                              role="menuitem"
+                              (click)="askAction('activate', r, $event)"
+                              class="w-full px-3 py-2 min-h-[44px] text-xs text-blue-700 hover:bg-blue-50 text-left">
+                              Iniciar aluguel
+                            </button>
+                          }
+                          @if (canCancel(r)) {
+                            <button
+                              type="button"
+                              role="menuitem"
+                              (click)="askAction('cancel', r, $event)"
+                              class="w-full px-3 py-2 min-h-[44px] text-xs text-amber-800 hover:bg-amber-50 text-left">
+                              Cancelar
+                            </button>
+                          }
+                          @if (canDelete(r)) {
+                            <button
+                              type="button"
+                              role="menuitem"
+                              (click)="askAction('delete', r, $event)"
+                              class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 hover:bg-rose-50 text-left border-t border-neutral-100">
+                              Excluir
+                            </button>
+                          }
+                        </app-actions-menu>
                       }
                     </div>
                   </td>

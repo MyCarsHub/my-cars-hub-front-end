@@ -16,6 +16,9 @@ import {
   VehicleSummary,
   VehicleSummaryChip,
 } from '../../components/vehicles/vehicle-summary-chip/vehicle-summary-chip';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
 import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
@@ -28,19 +31,32 @@ import { licensingBadge } from '../../utils/status-maps';
 @Component({
   selector: 'app-maintenance-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, DetailActions, VehicleSummaryChip],
+  imports: [
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    ConfirmDialog,
+    DetailActions,
+    VehicleSummaryChip,
+    AlertBanner,
+  ],
   templateUrl: './maintenance-detail.html',
 })
 export class MaintenanceDetail implements OnInit {
   private readonly maintenancesService = inject(MaintenancesService);
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   protected readonly item = signal<Maintenance | null>(null);
   protected readonly vehicle = signal<VehicleSummary | null>(null);
   protected readonly loading = signal(false);
+  /** Load failure — replaces the page body. */
   protected readonly error = signal<string | null>(null);
+  /** Failure of the delete action — inline banner above the summary. */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
@@ -81,7 +97,7 @@ export class MaintenanceDetail implements OnInit {
         this.loadVehicle(m.vehicleId);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Manutenção não encontrada.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Manutenção não encontrada.'));
         this.loading.set(false);
       },
     });
@@ -113,13 +129,17 @@ export class MaintenanceDetail implements OnInit {
   protected confirmDelete(): void {
     const m = this.item();
     if (!m) return;
+    this.actionError.set(null);
     this.deleting.set(true);
     this.maintenancesService.remove(m.id).subscribe({
-      next: () => this.router.navigate(['/manutencoes']),
+      next: () => {
+        this.notifications.success('Manutenção removida.');
+        this.router.navigate(['/manutencoes']);
+      },
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.error.set(this.extractError(err, 'Não foi possível excluir.'));
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível excluir.'));
       },
     });
   }
@@ -141,13 +161,5 @@ export class MaintenanceDetail implements OnInit {
       style: 'currency',
       currency: 'BRL',
     }).format(cents / 100);
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

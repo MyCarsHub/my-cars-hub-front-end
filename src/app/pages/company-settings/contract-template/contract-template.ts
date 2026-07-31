@@ -3,7 +3,10 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
+import { LoggerService } from '../../../services/logger.service';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 
 /**
@@ -15,13 +18,17 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
   selector: 'app-contract-template',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [DefaultPageLayout, PageCard, ConfirmDialog],
+  imports: [DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
   template: `
     <app-default-page-layout
       title="Template de contrato"
       description="Configure uma vez e o contrato é gerado automaticamente em cada novo aluguel."
     >
       <div class="space-y-4 sm:space-y-6">
+        @if (error(); as pageError) {
+          <app-alert-banner variant="error" [message]="pageError" />
+        }
+
         <app-page-card title="Como funciona">
           <div class="p-4 sm:p-6 text-sm text-neutral-600 space-y-2">
             <p>
@@ -78,7 +85,7 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
               </div>
 
               <button type="button" (click)="picker.click()" [disabled]="uploading()"
-                class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors min-h-[48px] disabled:opacity-60">
+                class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-700 transition-colors min-h-[48px] disabled:opacity-60">
                 @if (uploading()) { Enviando… } @else { Substituir template }
               </button>
             } @else {
@@ -213,6 +220,11 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
 export class ContractTemplate implements OnInit {
   private readonly service = inject(ContractTemplateService);
   private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
+  private readonly logger = inject(LoggerService);
+
+  /** Screen-level failures. Toasts here are reserved for successes. */
+  protected readonly error = signal<string | null>(null);
 
   private static readonly DEFAULT_SUPPORTED = [
     'companyName', 'companyCnpj',
@@ -273,16 +285,17 @@ export class ContractTemplate implements OnInit {
   }
 
   protected onFileSelected(event: Event): void {
+    this.error.set(null);
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.docx')) {
-      this.notifications.push('error', 'Envie um arquivo .docx do Word.');
+      this.error.set('Envie um arquivo .docx do Word.');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      this.notifications.push('error', 'Template excede 5MB.');
+      this.error.set('Template excede 5MB.');
       return;
     }
     this.uploading.set(true);
@@ -294,7 +307,7 @@ export class ContractTemplate implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.uploading.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao enviar template.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Falha ao enviar template.'));
       },
     });
   }
@@ -302,6 +315,7 @@ export class ContractTemplate implements OnInit {
   protected askDelete(): void { this.deleteOpen.set(true); }
   protected closeDelete(): void { if (!this.deleting()) this.deleteOpen.set(false); }
   protected confirmDelete(): void {
+    this.error.set(null);
     this.deleting.set(true);
     this.service.delete().subscribe({
       next: () => {
@@ -313,7 +327,7 @@ export class ContractTemplate implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.deleting.set(false);
         this.deleteOpen.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao remover template.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Falha ao remover template.'));
       },
     });
   }
@@ -325,7 +339,10 @@ export class ContractTemplate implements OnInit {
         this.template.set(tpl);
         this.loading.set(false);
       },
-      error: () => {
+      // 404 = nenhum template enviado ainda (estado normal). Claim mantém o safety net
+      // do interceptor quieto — a tela já mostra o estado vazio.
+      error: (err: HttpErrorResponse) => {
+        this.apiErrors.claim(err);
         this.template.set(null);
         this.loading.set(false);
       },
@@ -344,24 +361,26 @@ export class ContractTemplate implements OnInit {
 
   protected copyAiInstructions(): void {
     if (this.aiLoading()) return;
+    this.error.set(null);
     this.aiLoading.set(true);
     this.service.aiInstructions().subscribe({
       next: (md) => {
         this.aiLoading.set(false);
         navigator.clipboard.writeText(md).then(
           () => this.notifications.push('success', 'Instruções copiadas — cole no ChatGPT / Claude.'),
-          () => this.notifications.push('error', 'Copie manualmente pelo botão de download.'),
+          () => this.error.set('Copie manualmente pelo botão de download.'),
         );
       },
       error: (err: HttpErrorResponse) => {
         this.aiLoading.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao carregar instruções.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Falha ao carregar instruções.'));
       },
     });
   }
 
   protected downloadAiInstructions(): void {
     if (this.aiLoading()) return;
+    this.error.set(null);
     this.aiLoading.set(true);
     this.service.aiInstructions().subscribe({
       next: (md) => {
@@ -370,13 +389,14 @@ export class ContractTemplate implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.aiLoading.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao baixar instruções.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Falha ao baixar instruções.'));
       },
     });
   }
 
   protected downloadExample(): void {
     if (this.exampleLoading()) return;
+    this.error.set(null);
     this.exampleLoading.set(true);
     this.service.example().subscribe({
       next: (md) => {
@@ -389,7 +409,7 @@ export class ContractTemplate implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.exampleLoading.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao baixar exemplo.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Falha ao baixar exemplo.'));
       },
     });
   }
@@ -402,13 +422,14 @@ export class ContractTemplate implements OnInit {
    */
   protected openTemplateAsHtml(): void {
     if (this.opening()) return;
+    this.error.set(null);
     this.opening.set(true);
     // Nova aba é aberta ANTES do await pra evitar pop-up blocker —
     // browsers só permitem window.open dentro de gesture handler síncrono.
     const win = window.open('', '_blank');
     if (!win) {
       this.opening.set(false);
-      this.notifications.push('error', 'Permita pop-ups pra abrir o template.');
+      this.error.set('Permita pop-ups pra abrir o template.');
       return;
     }
     win.document.write(
@@ -437,9 +458,9 @@ export class ContractTemplate implements OnInit {
         } catch (err) {
           win.document.body.innerHTML =
             '<p style="color:#b91c1c;padding:24px;">Falha ao renderizar o template.</p>';
-          this.notifications.push('error', 'Falha ao renderizar template no browser.');
-          // Log local só; não expor URL/token em console.
-          console.error('docx-preview render failed', err);
+          this.error.set('Falha ao renderizar template no browser.');
+          // Só a falha do render; nunca a URL/token do blob.
+          this.logger.error('docx-preview render failed', err);
         } finally {
           this.opening.set(false);
         }
@@ -451,7 +472,7 @@ export class ContractTemplate implements OnInit {
         } catch {
           /* noop — algumas policies bloqueiam close cross-context */
         }
-        this.notifications.push('error', this.extractError(err, 'Falha ao baixar template.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Falha ao baixar template.'));
       },
     });
   }
@@ -462,6 +483,7 @@ export class ContractTemplate implements OnInit {
    */
   protected downloadTemplate(): void {
     if (this.downloading()) return;
+    this.error.set(null);
     this.downloading.set(true);
     this.service.downloadTemplate().subscribe({
       next: (blob) => {
@@ -478,7 +500,7 @@ export class ContractTemplate implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.downloading.set(false);
-        this.notifications.push('error', this.extractError(err, 'Falha ao baixar template.'));
+        this.error.set(this.apiErrors.messageFor(err, 'Falha ao baixar template.'));
       },
     });
   }
@@ -493,11 +515,5 @@ export class ContractTemplate implements OnInit {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') return body.message;
-    return fallback;
   }
 }

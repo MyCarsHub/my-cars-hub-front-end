@@ -4,7 +4,7 @@
 >
   <div class="space-y-4 sm:space-y-6">
     <div class="flex items-center justify-between gap-2">
-      <a routerLink="/admin/blog" class="text-sm text-neutral-500 hover:text-primary-500 font-medium">
+      <a routerLink="/admin/blog" class="text-sm text-neutral-500 hover:text-primary-700 font-medium">
         ← Voltar
       </a>
       @if (editing()) {
@@ -18,92 +18,170 @@
       }
     </div>
 
-    <app-page-card title="Meta">
-      <div class="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <label class="flex flex-col gap-1 sm:col-span-2">
-          <span class="text-xs font-semibold text-neutral-700">Título *</span>
-          <input type="text" [ngModel]="title()" (ngModelChange)="onTitleInput($event)"
-            placeholder="Como cobrar sem virar chato"
-            class="px-3 py-2 rounded-lg border border-neutral-200 text-sm min-h-[44px]" />
-        </label>
-
-        <label class="flex flex-col gap-1">
-          <span class="text-xs font-semibold text-neutral-700">Slug (URL) *</span>
-          <input type="text" [ngModel]="slug()" (ngModelChange)="slug.set($event)"
-            placeholder="como-cobrar-sem-virar-chato" pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
-            class="px-3 py-2 rounded-lg border border-neutral-200 text-sm min-h-[44px] font-mono" />
-          <small class="text-[11px] text-neutral-500">Kebab-case: letras minúsculas, números, hífens.</small>
-        </label>
-
-        <label class="flex flex-col gap-1">
-          <span class="text-xs font-semibold text-neutral-700">Categoria *</span>
-          <select [ngModel]="category()" (ngModelChange)="category.set($event)"
-            class="px-3 py-2 rounded-lg border border-neutral-200 text-sm min-h-[44px]">
-            @for (c of categories; track c.value) {
-              <option [value]="c.value">{{ c.label }}</option>
-            }
-          </select>
-        </label>
-
-        <label class="flex flex-col gap-1 sm:col-span-2">
-          <span class="text-xs font-semibold text-neutral-700">Excerpt (chamada do card)</span>
-          <textarea rows="2" maxlength="400" [ngModel]="excerpt()" (ngModelChange)="excerpt.set($event)"
-            placeholder="Resumo curto que aparece no card da listagem."
-            class="px-3 py-2 rounded-lg border border-neutral-200 text-sm resize-y"></textarea>
-          <small class="text-[11px] text-neutral-500">{{ excerpt().length }}/400</small>
-        </label>
-
-        <label class="flex flex-col gap-1 sm:col-span-2">
-          <span class="text-xs font-semibold text-neutral-700">URL da capa</span>
-          <input type="url" [ngModel]="coverUrl()" (ngModelChange)="coverUrl.set($event)"
-            placeholder="https://…/imagem.jpg"
-            class="px-3 py-2 rounded-lg border border-neutral-200 text-sm min-h-[44px]" />
-          <small class="text-[11px] text-neutral-500">Opcional. Se vazio, o card usa fallback com o logo.</small>
-        </label>
-
-        <label class="flex flex-col gap-1 sm:col-span-2">
-          <span class="text-xs font-semibold text-neutral-700">Meta description (SEO)</span>
-          <textarea rows="2" maxlength="300" [ngModel]="metaDescription()" (ngModelChange)="metaDescription.set($event)"
-            placeholder="Descrição usada em resultados de busca."
-            class="px-3 py-2 rounded-lg border border-neutral-200 text-sm resize-y"></textarea>
-          <small class="text-[11px] text-neutral-500">{{ metaDescription().length }}/300</small>
-        </label>
+    @if (loadError(); as msg) {
+      <app-alert-banner variant="error" [message]="msg" />
+    } @else if (loading()) {
+      <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+        Carregando…
       </div>
-    </app-page-card>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="save(true)" class="space-y-4 sm:space-y-6">
+        @if (error(); as msg) {
+          <app-alert-banner variant="error" [message]="msg" />
+        }
 
-    <app-page-card title="Conteúdo (markdown)">
-      <div class="p-4 sm:p-6 space-y-3">
-        <textarea rows="24" [ngModel]="bodyMarkdown()" (ngModelChange)="bodyMarkdown.set($event)"
-          placeholder="# Título&#10;&#10;Escreva em markdown. Suporte a **negrito**, *itálico*, [links](https://exemplo.com), listas, blockquotes, `código` e blocos ```..."
-          class="w-full px-3 py-3 rounded-lg border border-neutral-200 text-sm font-mono resize-y min-h-[400px]"></textarea>
-        <small class="text-[11px] text-neutral-500">{{ bodyMarkdown().length }} caracteres — mínimo 50</small>
-      </div>
-    </app-page-card>
+        <app-page-card title="Meta">
+          <div class="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <app-form-field
+              class="sm:col-span-2"
+              label="Título"
+              controlId="blog-title"
+              [required]="true"
+              [control]="form.controls.title"
+              [messages]="titleMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                formControlName="title"
+                (input)="onTitleInput($event)"
+                placeholder="Como cobrar sem virar chato"
+                class="w-full px-3 py-2 rounded-lg border text-sm min-h-[44px]" />
+            </app-form-field>
 
-    @if (editing() && bodyHtmlPreview()) {
-      <app-page-card title="Preview do último salvo">
-        <div class="p-4 sm:p-6">
-          <div class="prose max-w-none" [innerHTML]="bodyHtmlPreview()"></div>
-          <p class="text-[11px] text-neutral-500 mt-4">
-            Salve pra regenerar o preview com as últimas alterações do markdown.
-          </p>
+            <app-form-field
+              label="Slug (URL)"
+              controlId="blog-slug"
+              hint="Kebab-case: letras minúsculas, números, hífens."
+              [required]="true"
+              [control]="form.controls.slug"
+              [messages]="slugMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                formControlName="slug"
+                placeholder="como-cobrar-sem-virar-chato"
+                class="w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] font-mono" />
+            </app-form-field>
+
+            <app-form-field
+              label="Categoria"
+              controlId="blog-category"
+              [required]="true"
+              [control]="form.controls.category"
+            >
+              <select
+                appFieldControl
+                formControlName="category"
+                class="w-full px-3 py-2 rounded-lg border text-sm min-h-[44px]">
+                @for (c of categories; track c.value) {
+                  <option [value]="c.value">{{ c.label }}</option>
+                }
+              </select>
+            </app-form-field>
+
+            <app-form-field
+              class="sm:col-span-2"
+              label="Excerpt (chamada do card)"
+              controlId="blog-excerpt"
+              [control]="form.controls.excerpt"
+            >
+              <textarea
+                appFieldControl
+                rows="2"
+                maxlength="400"
+                formControlName="excerpt"
+                placeholder="Resumo curto que aparece no card da listagem."
+                class="w-full px-3 py-2 rounded-lg border text-sm resize-y"></textarea>
+              <small class="block text-[11px] text-neutral-500">
+                {{ form.controls.excerpt.value.length }}/400
+              </small>
+            </app-form-field>
+
+            <app-form-field
+              class="sm:col-span-2"
+              label="URL da capa"
+              controlId="blog-cover"
+              hint="Opcional. Se vazio, o card usa fallback com o logo."
+              [control]="form.controls.coverUrl"
+            >
+              <input
+                appFieldControl
+                type="url"
+                formControlName="coverUrl"
+                placeholder="https://…/imagem.jpg"
+                class="w-full px-3 py-2 rounded-lg border text-sm min-h-[44px]" />
+            </app-form-field>
+
+            <app-form-field
+              class="sm:col-span-2"
+              label="Meta description (SEO)"
+              controlId="blog-meta"
+              [control]="form.controls.metaDescription"
+            >
+              <textarea
+                appFieldControl
+                rows="2"
+                maxlength="300"
+                formControlName="metaDescription"
+                placeholder="Descrição usada em resultados de busca."
+                class="w-full px-3 py-2 rounded-lg border text-sm resize-y"></textarea>
+              <small class="block text-[11px] text-neutral-500">
+                {{ form.controls.metaDescription.value.length }}/300
+              </small>
+            </app-form-field>
+          </div>
+        </app-page-card>
+
+        <app-page-card title="Conteúdo (markdown)">
+          <div class="p-4 sm:p-6">
+            <app-form-field
+              label="Markdown"
+              controlId="blog-body"
+              [required]="true"
+              [control]="form.controls.bodyMarkdown"
+              [messages]="bodyMessages"
+            >
+              <textarea
+                appFieldControl
+                rows="24"
+                formControlName="bodyMarkdown"
+                placeholder="# Título&#10;&#10;Escreva em markdown. Suporte a **negrito**, *itálico*, [links](https://exemplo.com), listas, blockquotes, `código` e blocos ```..."
+                class="w-full px-3 py-3 rounded-lg border text-sm font-mono resize-y min-h-[400px]"></textarea>
+              <small class="block text-[11px] text-neutral-500">
+                {{ form.controls.bodyMarkdown.value.length }} caracteres — mínimo 50
+              </small>
+            </app-form-field>
+          </div>
+        </app-page-card>
+
+        @if (editing() && bodyHtmlPreview()) {
+          <app-page-card title="Preview do último salvo">
+            <div class="p-4 sm:p-6">
+              <div class="prose max-w-none" [innerHTML]="bodyHtmlPreview()"></div>
+              <p class="text-[11px] text-neutral-500 mt-4">
+                Salve pra regenerar o preview com as últimas alterações do markdown.
+              </p>
+            </div>
+          </app-page-card>
+        }
+
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          <a routerLink="/admin/blog"
+            class="text-center px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium">
+            Cancelar
+          </a>
+          <button type="button" (click)="save(false)" [disabled]="saving() || publishing()"
+            class="px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-semibold disabled:opacity-50">
+            @if (saving()) { Salvando… } @else { Salvar rascunho }
+          </button>
+          <button type="submit" [disabled]="saving() || publishing()"
+            class="px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm disabled:opacity-50">
+            @if (publishing()) { Publicando… } @else { {{ status() === 'PUBLISHED' ? 'Salvar' : 'Salvar e publicar' }} }
+          </button>
         </div>
-      </app-page-card>
+      </form>
     }
-
-    <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-      <a routerLink="/admin/blog"
-        class="text-center px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium">
-        Cancelar
-      </a>
-      <button type="button" (click)="save(false)" [disabled]="!canSubmit()"
-        class="px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-semibold disabled:opacity-50">
-        @if (saving()) { Salvando… } @else { Salvar rascunho }
-      </button>
-      <button type="button" (click)="save(true)" [disabled]="!canSubmit()"
-        class="px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm disabled:opacity-50">
-        @if (publishing()) { Publicando… } @else { {{ status() === 'PUBLISHED' ? 'Salvar' : 'Salvar e publicar' }} }
-      </button>
-    </div>
   </div>
 </app-default-page-layout>

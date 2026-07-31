@@ -24,6 +24,7 @@ import type {
   MaintenanceType,
 } from '../types/maintenance.types';
 import type { FinancingStatus, IpvaStatus } from '../types/vehicle.types';
+import type { InsuranceCoverage, InsuranceStatus } from '../types/insurance.types';
 
 export type VehicleStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'INACTIVE';
 
@@ -257,6 +258,39 @@ export const FINANCING_STATUS_FILTER_OPTIONS: FilterOption<FinancingStatus>[] = 
   { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
   { value: 'ACTIVE', label: FINANCING_STATUS_META.ACTIVE.label, chip: FINANCING_STATUS_META.ACTIVE.chip },
   { value: 'PAID_OFF', label: FINANCING_STATUS_META.PAID_OFF.label, chip: FINANCING_STATUS_META.PAID_OFF.chip },
+];
+
+// ------------------------------------------------------------- insurance
+
+export const INSURANCE_STATUS_META: Record<InsuranceStatus, StatusMeta> = {
+  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
+  EXPIRED: { label: 'Expirada', chip: 'bg-rose-100 text-rose-700', color: '#ef4444' },
+  CANCELLED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700', color: '#6b7280' },
+  SUSPENDED: { label: 'Suspensa', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
+};
+
+export const INSURANCE_STATUS_FILTER_OPTIONS: FilterOption<InsuranceStatus>[] = [
+  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: 'ACTIVE', label: INSURANCE_STATUS_META.ACTIVE.label, chip: INSURANCE_STATUS_META.ACTIVE.chip },
+  { value: 'EXPIRED', label: INSURANCE_STATUS_META.EXPIRED.label, chip: INSURANCE_STATUS_META.EXPIRED.chip },
+  { value: 'SUSPENDED', label: INSURANCE_STATUS_META.SUSPENDED.label, chip: INSURANCE_STATUS_META.SUSPENDED.chip },
+  { value: 'CANCELLED', label: INSURANCE_STATUS_META.CANCELLED.label, chip: INSURANCE_STATUS_META.CANCELLED.chip },
+];
+
+export const INSURANCE_COVERAGE_LABELS: Record<InsuranceCoverage, string> = {
+  COMPREHENSIVE: 'Compreensiva',
+  THEFT: 'Roubo e furto',
+  THIRD_PARTY: 'Terceiros',
+};
+
+/** Opções `{value,label}` para o `<select>` de cobertura no formulário. */
+export const INSURANCE_COVERAGE_OPTIONS: ReadonlyArray<{
+  value: InsuranceCoverage;
+  label: string;
+}> = [
+  { value: 'COMPREHENSIVE', label: INSURANCE_COVERAGE_LABELS.COMPREHENSIVE },
+  { value: 'THEFT', label: INSURANCE_COVERAGE_LABELS.THEFT },
+  { value: 'THIRD_PARTY', label: INSURANCE_COVERAGE_LABELS.THIRD_PARTY },
 ];
 
 // ------------------------------------------- licensing expiration badge

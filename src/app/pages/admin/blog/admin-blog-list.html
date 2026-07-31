@@ -3,6 +3,10 @@
   description="Gerenciar posts públicos exibidos em /blog."
 >
   <div class="space-y-4 sm:space-y-6">
+    @if (error(); as msg) {
+      <app-alert-banner variant="error" [message]="msg" />
+    }
+
     <div class="flex justify-end">
       <a routerLink="/admin/blog/novo"
         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]">
@@ -50,19 +54,33 @@
                     }
                   </p>
                 </div>
-                <div class="flex flex-wrap gap-2 shrink-0">
-                  <button type="button" (click)="togglePublish(post)"
-                    class="inline-flex items-center px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-100 text-neutral-700 text-xs font-medium min-h-[36px]">
-                    {{ post.status === 'PUBLISHED' ? 'Despublicar' : 'Publicar' }}
-                  </button>
-                  <a [routerLink]="['/admin/blog', post.id, 'editar']"
-                    class="inline-flex items-center px-3 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold min-h-[36px]">
-                    Editar
-                  </a>
-                  <button type="button" (click)="askDelete(post)"
-                    class="inline-flex items-center px-3 py-2 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-medium min-h-[36px]">
-                    Excluir
-                  </button>
+                <div class="flex items-center justify-end shrink-0">
+                  <app-actions-menu [label]="'Ações para ' + post.title">
+                    <a
+                      role="menuitem"
+                      [routerLink]="['/admin/blog', post.id, 'editar']"
+                      class="flex items-center w-full px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                    >
+                      Editar
+                    </a>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      (click)="togglePublish(post)"
+                      class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                    >
+                      {{ post.status === 'PUBLISHED' ? 'Despublicar' : 'Publicar' }}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      (click)="askDelete(post)"
+                      class="w-full text-left px-4 py-3 text-sm text-rose-600 hover:bg-rose-50
+                             min-h-[44px] border-t border-neutral-100"
+                    >
+                      Excluir
+                    </button>
+                  </app-actions-menu>
                 </div>
               </li>
             }

@@ -12,6 +12,7 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
 import { DailyCount } from '../../types/admin-overview.types';
 import { AdminEmailTestDialog } from './components/admin-email-test-dialog';
+import { ApiErrorService } from '../../services/api-error.service';
 
 interface AdminSection {
   route: string | null;
@@ -110,6 +111,7 @@ interface Spark {
 })
 export class AdminHome implements OnInit {
   private readonly metricsService = inject(AdminMetricsService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly sections = SECTIONS;
   protected readonly emailTestOpen = signal(false);
@@ -229,11 +231,21 @@ export class AdminHome implements OnInit {
   });
 
   ngOnInit(): void {
-    this.metricsService.loadOverview().subscribe({ error: () => {} });
+    this.loadOverview();
   }
 
   protected reload(): void {
-    this.metricsService.loadOverview().subscribe({ error: () => {} });
+    this.loadOverview();
+  }
+
+  /**
+   * The service already puts the message in the page banner; claiming the error
+   * stops the interceptor safety net from repeating it as a toast.
+   */
+  private loadOverview(): void {
+    this.metricsService
+      .loadOverview()
+      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
   }
 
   protected formatCurrency(value: number): string {

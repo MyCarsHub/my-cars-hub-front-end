@@ -47,11 +47,14 @@
         </div>
       </div>
 
-      <!-- Error -->
-      @if (error()) {
-        <div class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100">
-          {{ error() }}
-        </div>
+      <!-- Falha ao carregar a lista -->
+      @if (loadError(); as msg) {
+        <app-alert-banner variant="error" [message]="msg" />
+      }
+
+      <!-- Falha de uma operação (status / exclusão) -->
+      @if (actionError(); as msg) {
+        <app-alert-banner variant="error" [message]="msg" />
       }
 
       <!-- Loading -->
@@ -112,42 +115,31 @@
                 </div>
               }
 
-              @if (getRowError(task.id); as msg) {
-                <div class="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg p-2">
-                  <span class="flex-1 break-words">{{ msg }}</span>
+              <div class="flex items-center justify-end pt-1 border-t border-gray-50">
+                <app-actions-menu [label]="'Ações para ' + task.title">
+                  @for (action of statusActions(task.status); track action.value) {
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="w-full text-left text-sm px-4 py-3 text-gray-700 hover:bg-gray-50
+                             min-h-[44px] disabled:opacity-50"
+                      [disabled]="isRowPending(task.id)"
+                      (click)="onStatusChange(task, action.value)"
+                    >
+                      {{ action.label }}
+                    </button>
+                  }
                   <button
                     type="button"
-                    class="text-red-500 hover:text-red-700 shrink-0"
-                    (click)="dismissRowError(task.id)"
-                    aria-label="Descartar erro"
-                  >×</button>
-                </div>
-              }
-
-              <div class="flex flex-col sm:flex-row gap-2 pt-1">
-                <select
-                  class="text-sm border border-gray-200 rounded-lg px-3 py-2 flex-1
-                         focus:outline-none focus:ring-2 focus:ring-primary-400
-                         disabled:opacity-50"
-                  [value]="task.status"
-                  [disabled]="isRowPending(task.id)"
-                  (change)="onStatusChange(task, $any($event.target).value)"
-                  [attr.aria-label]="'Mudar status de ' + task.title"
-                >
-                  @for (opt of statusOptions; track opt.value) {
-                    <option [value]="opt.value">{{ opt.label }}</option>
-                  }
-                </select>
-                <button
-                  type="button"
-                  class="text-sm px-4 py-2 rounded-lg text-red-600 border border-red-100
-                         hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400
-                         disabled:opacity-50 sm:w-auto"
-                  [disabled]="isRowPending(task.id)"
-                  (click)="openDeleteDialog(task)"
-                >
-                  Excluir
-                </button>
+                    role="menuitem"
+                    class="w-full text-left text-sm px-4 py-3 text-rose-600 hover:bg-rose-50
+                           min-h-[44px] disabled:opacity-50 border-t border-gray-100"
+                    [disabled]="isRowPending(task.id)"
+                    (click)="openDeleteDialog(task)"
+                  >
+                    Excluir
+                  </button>
+                </app-actions-menu>
               </div>
             </div>
           }
@@ -195,44 +187,33 @@
                     } @else {
                       <span class="text-gray-300">—</span>
                     }
-                    @if (getRowError(task.id); as msg) {
-                      <div class="mt-1 flex items-start gap-1 text-red-700">
-                        <span class="flex-1">{{ msg }}</span>
-                        <button
-                          type="button"
-                          class="text-red-500 hover:text-red-700"
-                          (click)="dismissRowError(task.id)"
-                          aria-label="Descartar erro"
-                        >×</button>
-                      </div>
-                    }
                   </td>
                   <td class="py-3 pr-4 align-top">
-                    <div class="flex items-center justify-end gap-2">
-                      <select
-                        class="text-xs border border-gray-200 rounded-md px-2 py-1
-                               focus:outline-none focus:ring-2 focus:ring-primary-400
-                               disabled:opacity-50"
-                        [value]="task.status"
-                        [disabled]="isRowPending(task.id)"
-                        (change)="onStatusChange(task, $any($event.target).value)"
-                        [attr.aria-label]="'Mudar status de ' + task.title"
-                      >
-                        @for (opt of statusOptions; track opt.value) {
-                          <option [value]="opt.value">{{ opt.label }}</option>
+                    <div class="flex items-center justify-end">
+                      <app-actions-menu [label]="'Ações para ' + task.title" [menuWidth]="224">
+                        @for (action of statusActions(task.status); track action.value) {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            class="w-full text-left text-xs px-4 py-2 text-gray-700 hover:bg-gray-50
+                                   min-h-[44px] disabled:opacity-50"
+                            [disabled]="isRowPending(task.id)"
+                            (click)="onStatusChange(task, action.value)"
+                          >
+                            {{ action.label }}
+                          </button>
                         }
-                      </select>
-                      <button
-                        type="button"
-                        class="text-xs px-2 py-1 rounded-md text-red-600 hover:bg-red-50
-                               focus:outline-none focus:ring-2 focus:ring-red-400
-                               disabled:opacity-50"
-                        [disabled]="isRowPending(task.id)"
-                        (click)="openDeleteDialog(task)"
-                        [attr.aria-label]="'Excluir ' + task.title"
-                      >
-                        Excluir
-                      </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="w-full text-left text-xs px-4 py-2 text-rose-600 hover:bg-rose-50
+                                 min-h-[44px] disabled:opacity-50 border-t border-gray-100"
+                          [disabled]="isRowPending(task.id)"
+                          (click)="openDeleteDialog(task)"
+                        >
+                          Excluir
+                        </button>
+                      </app-actions-menu>
                     </div>
                   </td>
                 </tr>
@@ -245,7 +226,7 @@
   </app-page-card>
 
   <div class="mt-6">
-    <a routerLink="/admin" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+    <a routerLink="/admin" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
       ← Voltar para o painel admin
     </a>
   </div>
@@ -269,19 +250,25 @@
       <p class="mt-3 text-sm text-gray-700 font-medium break-words">{{ task.title }}</p>
 
       <form [formGroup]="rejectForm" (ngSubmit)="submitReject()" class="mt-4 space-y-3">
-        <textarea
-          formControlName="adminNote"
-          rows="4"
-          maxlength="500"
-          class="w-full text-sm border border-gray-200 rounded-lg p-3
-                 focus:outline-none focus:ring-2 focus:ring-red-400"
-          placeholder="Motivo da rejeição"
-        ></textarea>
-        @if (rejectForm.controls.adminNote.invalid && rejectForm.controls.adminNote.touched) {
-          <p class="text-xs text-red-600">Informe o motivo da rejeição.</p>
-        }
-        @if (rejectError()) {
-          <p class="text-xs text-red-600">{{ rejectError() }}</p>
+        <app-form-field
+          label="Motivo"
+          controlId="reject-admin-note"
+          [required]="true"
+          [control]="rejectForm.controls.adminNote"
+          [messages]="adminNoteMessages"
+        >
+          <textarea
+            appFieldControl
+            formControlName="adminNote"
+            rows="4"
+            maxlength="500"
+            class="w-full text-sm border rounded-lg p-3
+                   focus:outline-none focus:ring-2 focus:ring-red-400"
+            placeholder="Motivo da rejeição"
+          ></textarea>
+        </app-form-field>
+        @if (rejectError(); as msg) {
+          <app-alert-banner variant="error" [message]="msg" />
         }
 
         <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">

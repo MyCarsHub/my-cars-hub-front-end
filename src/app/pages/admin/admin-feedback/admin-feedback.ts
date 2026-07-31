@@ -12,7 +12,13 @@ import { RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
+import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { FeedbackService } from '../../../services/feedback.service';
+import { NotificationService } from '../../../services/notification.service';
+import { ApiErrorService } from '../../../services/api-error.service';
+import { clearServerErrors } from '../../../services/api-error';
 import {
   FeedbackStatus,
   FeedbackTaskResponse,
@@ -52,11 +58,17 @@ const FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
+    AlertBanner,
+    ActionsMenu,
+    FormField,
+    FieldControl,
   ],
   templateUrl: './admin-feedback.html',
 })
 export class AdminFeedback implements OnInit {
   private readonly feedbackService = inject(FeedbackService);
+  private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly fb = inject(FormBuilder);
 
   protected readonly filterOptions = FILTER_OPTIONS;
@@ -64,11 +76,17 @@ export class AdminFeedback implements OnInit {
 
   protected readonly filter = signal<StatusFilter>('ALL');
   protected readonly rowPending = signal<Record<string, boolean>>({});
-  protected readonly rowError = signal<Record<string, string>>({});
 
   protected readonly tasks = this.feedbackService.tasks;
   protected readonly loading = this.feedbackService.loading;
-  protected readonly error = this.feedbackService.error;
+
+  /** Falha ao CARREGAR a lista — banner no topo do card. */
+  protected readonly loadError = signal<string | null>(null);
+  /**
+   * Falha de uma OPERAÇÃO (status / exclusão). Banner único no nível da tela;
+   * a mensagem cita o título da sugestão para não perder o contexto da linha.
+   */
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly rejectingTask = signal<FeedbackTaskResponse | null>(null);
   protected readonly deletingTask = signal<FeedbackTaskResponse | null>(null);
@@ -78,6 +96,9 @@ export class AdminFeedback implements OnInit {
   });
   protected readonly rejectSubmitting = signal(false);
   protected readonly rejectError = signal<string | null>(null);
+  protected readonly adminNoteMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o motivo da rejeição.',
+  };
 
   protected readonly filteredTasks = computed(() => {
     const f = this.filter();
@@ -103,9 +124,15 @@ export class AdminFeedback implements OnInit {
   }
 
   protected reload(): void {
-    this.feedbackService
-      .loadTasks({ sort: 'new', size: 200 })
-      .subscribe({ error: () => {} });
+    this.loadError.set(null);
+    this.actionError.set(null);
+    this.feedbackService.loadTasks({ sort: 'new', size: 200 }).subscribe({
+      error: (err: HttpErrorResponse) => {
+        this.loadError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar as sugestões.'),
+        );
+      },
+    });
   }
 
   protected onFilterChange(value: StatusFilter): void {
@@ -127,35 +154,45 @@ export class AdminFeedback implements OnInit {
     return !!this.rowPending()[id];
   }
 
-  protected getRowError(id: string): string | null {
-    return this.rowError()[id] ?? null;
-  }
-
-  protected dismissRowError(id: string): void {
-    this.rowError.update((state) => {
-      const next = { ...state };
-      delete next[id];
-      return next;
-    });
+  /**
+   * Transições de status oferecidas no menu de ações — o status atual é omitido.
+   * "Rejeitado" vira "Rejeitar…" porque abre o diálogo que pede a nota.
+   */
+  protected statusActions(
+    current: FeedbackStatus,
+  ): ReadonlyArray<{ value: FeedbackStatus; label: string }> {
+    return STATUS_OPTIONS.filter((o) => o.value !== current).map((o) => ({
+      value: o.value,
+      label: o.value === 'REJECTED' ? 'Rejeitar…' : `Mover para ${o.label}`,
+    }));
   }
 
   protected onStatusChange(task: FeedbackTaskResponse, next: FeedbackStatus): void {
     if (task.status === next) return;
-    this.dismissRowError(task.id);
+    this.actionError.set(null);
     if (next === 'REJECTED') {
       this.openRejectDialog(task);
       return;
     }
-    this.applyStatus(task.id, next, null, undefined, (err) => {
-      this.setRowError(
-        task.id,
-        this.extractError(err, 'Não foi possível atualizar o status.'),
-      );
-    });
+    this.applyStatus(
+      task.id,
+      next,
+      null,
+      () => this.notifications.success('Status atualizado.'),
+      (err) => {
+        this.actionError.set(
+          this.apiErrors.messageFor(
+            err,
+            `Não foi possível atualizar o status de «${task.title}».`,
+          ),
+        );
+      },
+    );
   }
 
   protected openRejectDialog(task: FeedbackTaskResponse): void {
     this.rejectForm.reset({ adminNote: task.adminNote ?? '' });
+    clearServerErrors(this.rejectForm);
     this.rejectError.set(null);
     this.rejectingTask.set(task);
   }
@@ -174,13 +211,20 @@ export class AdminFeedback implements OnInit {
     }
     this.rejectSubmitting.set(true);
     this.rejectError.set(null);
+    clearServerErrors(this.rejectForm);
     const note = this.rejectForm.controls.adminNote.value?.trim() ?? '';
     this.applyStatus(task.id, 'REJECTED', note, () => {
       this.rejectSubmitting.set(false);
       this.closeRejectDialog();
+      this.notifications.success('Sugestão rejeitada.');
     }, (err) => {
       this.rejectSubmitting.set(false);
-      this.rejectError.set(this.extractError(err, 'Não foi possível rejeitar.'));
+      const { formMessage } = this.apiErrors.handleForm(
+        err,
+        this.rejectForm,
+        'Não foi possível rejeitar a sugestão.',
+      );
+      this.rejectError.set(formMessage);
     });
   }
 
@@ -196,14 +240,19 @@ export class AdminFeedback implements OnInit {
     const task = this.deletingTask();
     if (!task) return;
     this.setPending(task.id, true);
+    this.actionError.set(null);
     this.feedbackService.adminDelete(task.id).subscribe({
       next: () => {
         this.setPending(task.id, false);
         this.closeDeleteDialog();
+        this.notifications.success('Sugestão excluída.');
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.setPending(task.id, false);
         this.closeDeleteDialog();
+        this.actionError.set(
+          this.apiErrors.messageFor(err, `Não foi possível excluir «${task.title}».`),
+        );
       },
     });
   }
@@ -230,17 +279,5 @@ export class AdminFeedback implements OnInit {
 
   private setPending(id: string, value: boolean): void {
     this.rowPending.update((state) => ({ ...state, [id]: value }));
-  }
-
-  private setRowError(id: string, message: string): void {
-    this.rowError.update((state) => ({ ...state, [id]: message }));
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

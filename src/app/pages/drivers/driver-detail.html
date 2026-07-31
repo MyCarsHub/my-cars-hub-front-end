@@ -6,10 +6,8 @@
     <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
       Carregando…
     </div>
-  } @else if (error()) {
-    <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3">
-      {{ error() }}
-    </div>
+  } @else if (error(); as loadError) {
+    <app-alert-banner variant="error" [message]="loadError" />
   } @else if (driver(); as d) {
     <!-- Header -->
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
@@ -50,10 +48,8 @@
       </div>
     </div>
 
-    @if (actionError()) {
-      <div class="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm p-3 mb-4">
-        {{ actionError() }}
-      </div>
+    @if (actionError(); as actionMessage) {
+      <app-alert-banner class="mb-4" variant="error" [message]="actionMessage" />
     }
 
     @if (activeRental(); as rental) {
@@ -262,7 +258,7 @@
     </div>
 
     <div class="mt-6">
-      <a routerLink="/motoristas" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+      <a routerLink="/motoristas" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
         ← Voltar para a lista
       </a>
     </div>

@@ -16,12 +16,13 @@ import {
 import { VehiclesService } from '../../../services/vehicles.service';
 import { GerenciaFinanceChunk, GerenciaSummary } from '../../../types/gerencia-summary.types';
 import { FinancingsList } from '../../financings/financings-list';
+import { InsurancesList } from '../../insurances/insurances-list';
 import { MaintenancesList } from '../../maintenances/maintenances-list';
 import { RentalService } from '../../rentals/rental.service';
 import { RentalListItemDto, rentalStatusInfo } from '../../../types/rental.types';
 import { licensingBadge } from '../../../utils/status-maps';
 
-type TabKey = 'financeiro' | 'manutencoes' | 'alugueis' | 'documentos';
+type TabKey = 'financeiro' | 'seguros' | 'manutencoes' | 'alugueis' | 'documentos';
 
 interface TabDef {
   key: TabKey;
@@ -36,6 +37,7 @@ interface TabDef {
     DefaultPageLayout,
     VehicleSummaryChip,
     FinancingsList,
+    InsurancesList,
     MaintenancesList,
   ],
   templateUrl: './vehicle-gerencia-hub.html',
@@ -59,6 +61,7 @@ export class VehicleGerenciaHub implements OnInit {
 
   protected readonly tabs: TabDef[] = [
     { key: 'financeiro', label: 'Financeiro' },
+    { key: 'seguros', label: 'Seguros' },
     { key: 'manutencoes', label: 'Manutenções' },
     { key: 'alugueis', label: 'Aluguéis' },
     { key: 'documentos', label: 'Documentos' },
