@@ -40,7 +40,7 @@
             appFieldControl
             formControlName="vehicleId"
             class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
             <option value="">Selecione...</option>
             @for (v of vehicles(); track v.id) {
               <option [value]="v.id">
@@ -66,7 +66,7 @@
             appFieldControl
             formControlName="driverId"
             class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
             <option value="">Selecione...</option>
             @for (d of drivers(); track d.id) {
               <option [value]="d.id">{{ d.name }}</option>
@@ -91,7 +91,7 @@
             type="date"
             formControlName="startDate"
             class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
         </app-form-field>
 
         <div>
@@ -107,7 +107,7 @@
               type="date"
               formControlName="endDate"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
           <!-- Erro de GRUPO (endDate < startDate): não pertence a um controle só,
                então fica fora do app-form-field, com role="alert" próprio. -->
@@ -136,7 +136,7 @@
               appFieldControl
               formControlName="billingFrequency"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of billingFrequencyOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
@@ -159,7 +159,7 @@
               inputmode="decimal"
               formControlName="periodRateReais"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -176,7 +176,7 @@
               inputmode="decimal"
               formControlName="caucaoReais"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
         </div>
 
@@ -242,7 +242,7 @@
                 formControlName="initialKm"
                 placeholder="Ex.: 45820"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
             <!-- NÃO migrado para <app-form-field>: a retirada tem validação de GRUPO
@@ -261,7 +261,7 @@
                 [attr.aria-invalid]="pickupOutsidePeriod() ? 'true' : null"
                 [attr.aria-describedby]="pickupDescribedBy()"
                 class="w-full border rounded-xl px-4 py-2.5 text-neutral-800
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
                 [class.bg-neutral-50]="!pickupOutsidePeriod()"
                 [class.border-neutral-200]="!pickupOutsidePeriod()"
                 [class.bg-rose-50]="pickupOutsidePeriod()"
@@ -295,7 +295,7 @@
                 type="date"
                 formControlName="firstPaymentDate"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
             <app-form-field
@@ -313,7 +313,7 @@
                 inputmode="decimal"
                 formControlName="dailyInterestReais"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
             <app-form-field
@@ -326,7 +326,7 @@
                 appFieldControl
                 formControlName="lateFineType"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
                 <option value="PERCENT">Percentual (%)</option>
                 <option value="FIXED">Valor fixo (R$)</option>
               </select>
@@ -348,7 +348,7 @@
                 inputmode="decimal"
                 formControlName="lateFineValueInput"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
             <app-form-field
@@ -366,7 +366,7 @@
                 formControlName="franchiseKm"
                 placeholder="Ex.: 150 (0 ou vazio = ilimitada)"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
             <app-form-field
@@ -382,7 +382,7 @@
                 formControlName="returnFuelPolicy"
                 placeholder="Ex.: Mesmo nível da retirada"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
-                       focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
               <datalist id="rental-return-fuel-options">
                 <option value="Mesmo nível da retirada"></option>
                 <option value="Tanque cheio"></option>
@@ -404,7 +404,7 @@
             formControlName="notes"
             placeholder="Anotações internas sobre o aluguel..."
             class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                   focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"></textarea>
         </app-form-field>
       </div>
     </app-page-card>

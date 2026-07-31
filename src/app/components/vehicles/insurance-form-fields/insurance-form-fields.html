@@ -12,7 +12,7 @@
       autocomplete="off"
       formControlName="insurer"
       class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-             focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+             focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
   </app-form-field>
 
   <app-form-field
@@ -28,7 +28,7 @@
       autocomplete="off"
       formControlName="policyNumber"
       class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-             focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+             focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
   </app-form-field>
 
   <app-form-field
@@ -42,7 +42,7 @@
       appFieldControl
       formControlName="coverageType"
       class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-             focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"
+             focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
     >
       <option value="">Selecione…</option>
       @for (opt of coverageOptions; track opt.value) {
@@ -63,7 +63,7 @@
       autocomplete="off"
       formControlName="paymentMethod"
       class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-             focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+             focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
   </app-form-field>
 
   <div class="grid grid-cols-2 gap-3">
@@ -82,7 +82,7 @@
         inputmode="decimal"
         formControlName="premiumAmount"
         class="w-full bg-neutral-50 border rounded-xl px-3 py-3 text-neutral-800 tabular-nums
-               focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+               focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
     </app-form-field>
 
     <app-form-field
@@ -98,7 +98,7 @@
         inputmode="decimal"
         formControlName="deductibleAmount"
         class="w-full bg-neutral-50 border rounded-xl px-3 py-3 text-neutral-800 tabular-nums
-               focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+               focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
     </app-form-field>
   </div>
 
@@ -115,7 +115,7 @@
         type="date"
         formControlName="startDate"
         class="w-full bg-neutral-50 border rounded-xl px-3 py-3 text-neutral-800
-               focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+               focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
     </app-form-field>
 
     <app-form-field
@@ -130,7 +130,7 @@
         type="date"
         formControlName="endDate"
         class="w-full bg-neutral-50 border rounded-xl px-3 py-3 text-neutral-800
-               focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+               focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
     </app-form-field>
   </div>
 
@@ -151,7 +151,7 @@
       rows="3"
       formControlName="notes"
       class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 resize-y
-             focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"
+             focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
     ></textarea>
   </app-form-field>
 </div>

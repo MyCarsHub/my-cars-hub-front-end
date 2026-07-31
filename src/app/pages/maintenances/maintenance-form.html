@@ -26,7 +26,7 @@
               appFieldControl
               formControlName="vehicleId"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                      disabled:opacity-60">
               <option value="">Selecione…</option>
               @for (v of vehicles(); track v.id) {
@@ -46,7 +46,7 @@
               appFieldControl
               formControlName="type"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of typeOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
@@ -68,7 +68,7 @@
               formControlName="description"
               placeholder="Ex: Troca de óleo e filtros"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -83,7 +83,7 @@
               type="date"
               formControlName="serviceDate"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -97,7 +97,7 @@
               appFieldControl
               formControlName="status"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors">
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of statusOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
@@ -123,7 +123,7 @@
               inputmode="numeric"
               formControlName="hodometerReading"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -141,7 +141,7 @@
               inputmode="decimal"
               formControlName="costReais"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -156,7 +156,7 @@
               formControlName="provider"
               placeholder="Ex: Oficina do Zé"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -171,7 +171,7 @@
               formControlName="invoiceNumber"
               placeholder="Ex: NF-12345"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
         </div>
       </app-page-card>
@@ -188,7 +188,7 @@
               type="date"
               formControlName="nextServiceDate"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -203,7 +203,7 @@
               inputmode="numeric"
               formControlName="nextServiceHodometer"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
           <app-form-field
@@ -217,7 +217,7 @@
               rows="3"
               formControlName="notes"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors"></textarea>
+                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"></textarea>
           </app-form-field>
         </div>
       </app-page-card>
