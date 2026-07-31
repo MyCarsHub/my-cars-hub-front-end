@@ -133,6 +133,23 @@ export class RentalService {
   }
 
   /**
+   * Writes a signature DTO the caller ALREADY has (e.g. the body returned by
+   * mark-signed / request-signature) straight into the shared snapshot, with no
+   * extra round-trip. Prevents the flaky-network hole: the write commits, the
+   * follow-up GET dies, and the UI would otherwise stay on the stale status.
+   *
+   * Returns `false` when the snapshot hasn't hydrated yet — the caller should
+   * then fall back to {@link refreshContractSignature}.
+   */
+  applyContractSignature(rentalId: string, signature: SignatureStatusDto): boolean {
+    const slot = this.stateSlot(rentalId);
+    const current = slot();
+    if (!current) return false;
+    slot.set({ ...current, contractSignature: signature });
+    return true;
+  }
+
+  /**
    * Lighter refresh triggered by the contract card's 30s Autentique poll — only
    * updates `contractSignature` on the shared snapshot, avoids re-fetching docs
    * and photos.
@@ -239,10 +256,11 @@ export class RentalService {
   }
 
   /**
-   * Versão do upload que emite HttpEvents (progresso + resposta final).
-   * Caller usa `event.type === HttpEventType.UploadProgress` pra barra
-   * e `HttpEventType.Response` pra recuperar o DTO. `unsubscribe()` na
-   * Subscription aborta o request no browser.
+   * Versão do upload que emite HttpEvents. Existe por causa do CANCEL:
+   * `unsubscribe()` na Subscription aborta o request no browser. O caller lê
+   * apenas `HttpEventType.Response` pra recuperar o DTO — o app usa
+   * `withFetch()` e o FetchBackend NUNCA emite `UploadProgress`, por isso a
+   * barra do card é indeterminada e não há `reportProgress` aqui.
    */
   uploadContractWithProgress(
     rentalId: string,
@@ -251,7 +269,6 @@ export class RentalService {
     const form = new FormData();
     form.append('file', file);
     return this.http.post<RentalDocumentDto>(`${BASE}/${rentalId}/contract`, form, {
-      reportProgress: true,
       observe: 'events',
     });
   }
@@ -285,6 +302,16 @@ export class RentalService {
 
   getContractSignatureStatus(rentalId: string): Observable<SignatureStatusDto> {
     return this.http.get<SignatureStatusDto>(`${BASE}/${rentalId}/contract/signature`);
+  }
+
+  /**
+   * Marca um contrato MANUAL (papel já assinado fisicamente) como assinado, sem
+   * passar por provider de assinatura eletrônica. O backend reusa de propósito o
+   * mesmo `SignatureStatusDto` do polling — o front só precisa refazer o refresh
+   * de status pra UI reagir. Body vazio: o backend deriva tudo do path + do token.
+   */
+  markContractSigned(rentalId: string): Observable<SignatureStatusDto> {
+    return this.http.post<SignatureStatusDto>(`${BASE}/${rentalId}/contract/mark-signed`, {});
   }
 
   // -------- Vistoria (fotos + PDF de laudo) --------
