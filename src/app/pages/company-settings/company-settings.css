@@ -44,26 +44,6 @@ button, select, input {
     background-color: var(--color-primary-low);
 }
 
-.text-primary-base {
-    color: var(--color-primary-500);
-}
-
-.bg-primary-base {
-    background-color: var(--color-primary-500);
-}
-
-.hover\:bg-primary-dark:hover {
-    background-color: var(--color-primary-600);
-}
-
 .border-primary-low {
     border-color: var(--color-primary-low);
-}
-
-.focus\:ring-primary-base\/20:focus {
-    --tw-ring-color: rgba(235, 63, 0, 0.2);
-}
-
-.focus\:border-primary-base:focus {
-    border-color: var(--color-primary-500);
 }
