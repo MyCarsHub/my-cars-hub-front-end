@@ -111,6 +111,18 @@ export interface UpdateMaintenanceRequest {
   notes?: string | null;
 }
 
+/**
+ * Corpo de `POST /maintenances/{id}/conclude`.
+ *
+ * O backend aceita o corpo vazio e cai na leitura já gravada, mas a UI **sempre**
+ * envia `hodometerReading`: uma manutenção agendada costuma carregar uma leitura
+ * planejada defasada, e omitir o campo dispararia o 400 de "hodômetro menor que
+ * o atual do veículo". Quando enviada, a leitura sobrescreve a armazenada.
+ */
+export interface ConcludeMaintenanceRequest {
+  hodometerReading?: number | null;
+}
+
 export interface MaintenanceFilters {
   vehicleId?: string;
   type?: MaintenanceType | '';

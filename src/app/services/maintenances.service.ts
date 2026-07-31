@@ -4,6 +4,7 @@ import { Observable, catchError, finalize, map, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
 import {
+  ConcludeMaintenanceRequest,
   CreateMaintenanceRequest,
   Maintenance,
   MaintenanceFilters,
@@ -70,6 +71,25 @@ export class MaintenancesService {
 
   update(id: string, payload: UpdateMaintenanceRequest): Observable<Maintenance> {
     return this.http.put<Maintenance>(`${BASE}/${id}`, payload);
+  }
+
+  /**
+   * Marca a manutenção como `DONE`. Válido apenas a partir de `SCHEDULED` /
+   * `IN_PROGRESS` — qualquer outro status volta 409.
+   *
+   * `payload.hodometerReading` sobrescreve a leitura gravada; a UI sempre envia
+   * a leitura real do veículo (ver {@link ConcludeMaintenanceRequest}).
+   */
+  conclude(id: string, payload: ConcludeMaintenanceRequest = {}): Observable<Maintenance> {
+    return this.http.post<Maintenance>(`${BASE}/${id}/conclude`, payload);
+  }
+
+  /**
+   * Marca a manutenção como `CANCELED`. Sem corpo — válido apenas a partir de
+   * `SCHEDULED` / `IN_PROGRESS`.
+   */
+  cancel(id: string): Observable<Maintenance> {
+    return this.http.post<Maintenance>(`${BASE}/${id}/cancel`, null);
   }
 
   remove(id: string): Observable<void> {
