@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PageCard } from '../../../components/core/page-card/page-card';
-import { RentalStatus } from '../../../types/rental.types';
+import { RentalContractSource, RentalStatus } from '../../../types/rental.types';
 import { RentalService } from '../rental.service';
 import { RentalContractCard } from './rental-contract-card';
 import { RentalInspectionCard } from './rental-inspection-card';
@@ -181,7 +181,10 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                 >
                   @switch (step.panel) {
                     @case ('contract') {
-                      <app-rental-contract-card [rentalId]="rentalId()" />
+                      <app-rental-contract-card
+                        [rentalId]="rentalId()"
+                        [contractSource]="contractSource()"
+                      />
                     }
                     @case ('checkin') {
                       <app-rental-inspection-card [rentalId]="rentalId()" kind="CHECKIN" />
@@ -207,6 +210,8 @@ export class RentalProgressChecklist implements OnInit {
   readonly rentalId = input.required<string>();
   readonly status = input.required<RentalStatus>();
   readonly automaticCharge = input<boolean | undefined>(false);
+  /** Repassado ao card de contrato — habilita o botão "Já Assinado" só em MANUAL. */
+  readonly contractSource = input<RentalContractSource | null>(null);
 
   readonly activateRequested = output<void>();
 

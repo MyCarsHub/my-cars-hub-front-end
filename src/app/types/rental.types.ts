@@ -331,7 +331,8 @@ export interface SignedUrlDto {
 }
 
 export type SignatureStatus = 'NOT_REQUIRED' | 'PENDING' | 'SIGNED' | 'REFUSED' | 'EXPIRED';
-export type SignatureProvider = 'AUTENTIQUE' | 'DOCUSIGN';
+/** `MANUAL` = contrato em papel marcado como assinado pelo operador (sem provider). */
+export type SignatureProvider = 'AUTENTIQUE' | 'DOCUSIGN' | 'MANUAL';
 
 export interface SignatureStatusDto {
   documentId: string;

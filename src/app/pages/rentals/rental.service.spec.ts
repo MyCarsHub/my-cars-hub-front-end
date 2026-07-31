@@ -132,6 +132,54 @@ describe('RentalService shared rentalState', () => {
     expect(service.rentalState(RID)()!.contractSignature?.status).toBe('PENDING');
   });
 
+  /**
+   * Escrita direta do DTO que o caller JÁ tem (resposta do POST mark-signed).
+   * Fecha o buraco de rede: sem segundo round-trip, não há GET pra falhar e
+   * deixar a UI presa no status antigo.
+   */
+  it('applyContractSignature writes the DTO into the snapshot without any HTTP call', () => {
+    mockRoutes({
+      [`http://localhost:8085/v1/rentals/${RID}/documents`]: [{ kind: 'CONTRACT', id: 'd1' }],
+      [`http://localhost:8085/v1/rentals/${RID}/contract/signature`]: {
+        documentId: 'd1',
+        status: 'NOT_REQUIRED',
+        provider: null,
+        externalDocumentId: null,
+        signedAt: null,
+      },
+    });
+    service.loadRentalState(RID);
+    const callsAfterLoad = httpGet.mock.calls.length;
+
+    const applied = service.applyContractSignature(RID, {
+      documentId: 'd1',
+      status: 'SIGNED',
+      provider: 'MANUAL',
+      externalDocumentId: null,
+      signedAt: '2026-07-31T12:00:00Z',
+    });
+
+    expect(applied).toBe(true);
+    expect(service.rentalState(RID)()!.contractSignature?.status).toBe('SIGNED');
+    expect(service.rentalState(RID)()!.contractSignature?.provider).toBe('MANUAL');
+    expect(httpGet.mock.calls.length).toBe(callsAfterLoad);
+    // Documentos e fotos permanecem intactos — só a fatia de assinatura muda.
+    expect(service.rentalState(RID)()!.documents).toHaveLength(1);
+  });
+
+  it('applyContractSignature returns false when the snapshot has not hydrated yet', () => {
+    const applied = service.applyContractSignature('never-loaded', {
+      documentId: 'd1',
+      status: 'SIGNED',
+      provider: 'MANUAL',
+      externalDocumentId: null,
+      signedAt: null,
+    });
+
+    expect(applied).toBe(false);
+    expect(service.rentalState('never-loaded')()).toBeNull();
+  });
+
   it('same rentalId returns the same signal instance across calls', () => {
     const a = service.rentalState(RID);
     const b = service.rentalState(RID);
