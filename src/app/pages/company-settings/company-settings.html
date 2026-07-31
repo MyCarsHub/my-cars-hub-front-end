@@ -47,7 +47,7 @@
                             <input appFieldControl formControlName="name" type="text" autocomplete="organization"
                                 maxlength="200" placeholder="Ex: MyCarsHub Ltda"
                                 class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                                       focus:outline-none focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base
+                                       focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600
                                        transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
                         </app-form-field>
                     </div>
@@ -71,7 +71,7 @@
                                 autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="18"
                                 placeholder="000.000.000-00 ou 00.000.000/0000-00" (input)="onDocumentInput($event)"
                                 class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 uppercase placeholder:normal-case
-                                       focus:outline-none focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base
+                                       focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600
                                        transition-colors disabled:opacity-60 disabled:cursor-not-allowed" />
                         </app-form-field>
                     </div>
@@ -93,7 +93,8 @@
                         <button type="submit" [disabled]="saving()" [attr.aria-busy]="saving() ? 'true' : null"
                             class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-semibold bg-primary-500 text-white
                                    hover:bg-primary-600 shadow-sm focus:outline-none focus-visible:ring-2
-                                   focus-visible:ring-primary-base/40 disabled:opacity-60 disabled:cursor-not-allowed">
+                                   focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                                   disabled:opacity-60 disabled:cursor-not-allowed">
                             {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
                         </button>
                     </div>
