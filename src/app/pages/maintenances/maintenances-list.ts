@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
@@ -19,14 +20,25 @@ import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import {
+  ConcludeMaintenanceDialog,
+  isInputRejection,
+} from './components/conclude-maintenance-dialog/conclude-maintenance-dialog';
+import {
   MAINTENANCE_SORT_OPTIONS,
   MAINTENANCE_STATUS_OPTIONS,
   MAINTENANCE_TYPE_OPTIONS,
+  Maintenance,
   MaintenanceListItem,
   MaintenanceStatus,
   MaintenanceType,
 } from '../../types/maintenance.types';
 import { VehicleListItem } from '../../types/vehicle.types';
+
+/** Transições de status disponíveis numa linha (backend: `/conclude`, `/cancel`). */
+type MaintenanceTransition = 'conclude' | 'cancel';
+
+/** Status a partir dos quais o backend aceita concluir/cancelar. */
+const TRANSITIONABLE: readonly MaintenanceStatus[] = ['SCHEDULED', 'IN_PROGRESS'];
 
 @Component({
   selector: 'app-maintenances-list',
@@ -37,6 +49,7 @@ import { VehicleListItem } from '../../types/vehicle.types';
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
+    ConcludeMaintenanceDialog,
     ActionsMenu,
     AlertBanner,
   ],
@@ -81,8 +94,39 @@ export class MaintenancesList implements OnInit {
 
   protected readonly deleting = signal<MaintenanceListItem | null>(null);
   protected readonly deletingBusy = signal(false);
-  /** Failure of a row action (delete). Banner, right above the list. */
+  /** Failure of a row action (delete / concluir / cancelar). Banner, right above the list. */
   protected readonly actionError = signal<string | null>(null);
+
+  /** Transição de status pendente de confirmação (kebab → diálogo). */
+  protected readonly pendingAction = signal<MaintenanceTransition | null>(null);
+  protected readonly pendingItem = signal<MaintenanceListItem | null>(null);
+  protected readonly actionBusy = signal(false);
+  /**
+   * Hodômetro do veículo da linha pendente. `VehicleListItem` não traz a leitura,
+   * então ela é buscada ao abrir o diálogo e chega depois da abertura.
+   */
+  protected readonly pendingVehicleHodometer = signal<number | null>(null);
+  /** A busca do hodômetro do veículo falhou: o campo abre vazio e sem sugestão. */
+  protected readonly pendingVehicleFailed = signal(false);
+  /**
+   * Recusa da leitura pelo backend (400/422). Fica DENTRO do diálogo, que
+   * permanece aberto com o valor digitado para o usuário corrigir e repetir.
+   */
+  protected readonly concludeError = signal<string | null>(null);
+
+  protected readonly concludeOpen = computed(() => this.pendingAction() === 'conclude');
+  protected readonly cancelOpen = computed(() => this.pendingAction() === 'cancel');
+
+  /** Leitura sugerida: a real do veículo quando disponível, senão a já gravada. */
+  protected readonly concludeDefault = computed(
+    () => this.pendingVehicleHodometer() ?? this.pendingItem()?.hodometerReading ?? null,
+  );
+
+  protected readonly pendingLabel = computed(() => {
+    const m = this.pendingItem();
+    if (!m) return '';
+    return `${this.vehiclePlate(m.vehicleId)} · ${m.description}`;
+  });
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -195,6 +239,119 @@ export class MaintenancesList implements OnInit {
 
   protected openDetail(m: MaintenanceListItem): void {
     this.router.navigate(['/manutencoes', m.id]);
+  }
+
+  /**
+   * Concluir/cancelar só existem para `SCHEDULED` / `IN_PROGRESS`. A maioria dos
+   * registros antigos já nasce `DONE`, então o par some na maior parte das linhas.
+   */
+  protected canTransition(m: MaintenanceListItem): boolean {
+    return TRANSITIONABLE.includes(m.status);
+  }
+
+  /**
+   * Sem `$event`: o próprio {@link ActionsMenu} já barra a propagação para a
+   * linha (host `(click)`). Chamar `stopPropagation()` aqui impedia o clique de
+   * chegar ao painel do menu, que então NÃO fechava e ficava por cima do
+   * diálogo (painel `z-[60]` × diálogo `z-50`).
+   */
+  protected askConclude(m: MaintenanceListItem): void {
+    this.pendingItem.set(m);
+    this.pendingVehicleHodometer.set(null);
+    this.pendingVehicleFailed.set(false);
+    this.concludeError.set(null);
+    this.pendingAction.set('conclude');
+    // O diálogo abre imediatamente com a leitura gravada e adota a do veículo
+    // quando ela chega (enquanto o campo não foi editado).
+    this.vehiclesService.getOne(m.vehicleId).subscribe({
+      next: (v) => {
+        if (this.pendingItem()?.id === m.id) this.pendingVehicleHodometer.set(v.hodometer ?? null);
+      },
+      // Sem a leitura do veículo o campo fica vazio: troca a dica genérica por
+      // uma que diz explicitamente ao usuário para digitar a leitura atual.
+      error: (err: unknown) => {
+        this.apiErrors.claim(err);
+        if (this.pendingItem()?.id === m.id) this.pendingVehicleFailed.set(true);
+      },
+    });
+  }
+
+  protected askCancel(m: MaintenanceListItem): void {
+    this.pendingItem.set(m);
+    this.pendingAction.set('cancel');
+  }
+
+  protected closeActionDialog(): void {
+    if (this.actionBusy()) return;
+    this.pendingAction.set(null);
+    this.pendingItem.set(null);
+    this.pendingVehicleHodometer.set(null);
+    this.pendingVehicleFailed.set(false);
+    this.concludeError.set(null);
+  }
+
+  protected confirmConclude(hodometerReading: number): void {
+    const m = this.pendingItem();
+    if (!m || this.actionBusy()) return;
+    this.concludeError.set(null);
+    this.runTransition(
+      this.maintenancesService.conclude(m.id, { hodometerReading }),
+      'Manutenção concluída.',
+      'Não foi possível concluir a manutenção.',
+      // 400/422 = leitura recusada pelo backend; corrigível no próprio campo.
+      (message) => this.concludeError.set(message),
+    );
+  }
+
+  protected confirmCancel(): void {
+    const m = this.pendingItem();
+    if (!m || this.actionBusy()) return;
+    this.runTransition(
+      this.maintenancesService.cancel(m.id),
+      'Manutenção cancelada.',
+      'Não foi possível cancelar a manutenção.',
+    );
+  }
+
+  /**
+   * @param onFieldError Quando informado e o backend recusar a ENTRADA (400/422),
+   * o diálogo permanece aberto com o valor digitado e a mensagem é renderizada
+   * dentro dele. Os demais erros (409 de status, 404, 5xx) fecham e vão para o
+   * banner — não há o que corrigir no campo.
+   */
+  private runTransition(
+    request: Observable<Maintenance>,
+    successMessage: string,
+    fallbackError: string,
+    onFieldError?: (message: string) => void,
+  ): void {
+    this.actionError.set(null);
+    this.actionBusy.set(true);
+    const done = (): void => {
+      this.actionBusy.set(false);
+      this.pendingAction.set(null);
+      this.pendingItem.set(null);
+      this.pendingVehicleHodometer.set(null);
+      this.pendingVehicleFailed.set(false);
+    };
+    request.subscribe({
+      next: () => {
+        done();
+        this.concludeError.set(null);
+        this.notifications.success(successMessage);
+        this.reload(this.page());
+      },
+      error: (err: unknown) => {
+        const message = this.apiErrors.messageFor(err, fallbackError);
+        if (onFieldError && isInputRejection(err)) {
+          this.actionBusy.set(false);
+          onFieldError(message);
+          return;
+        }
+        done();
+        this.actionError.set(message);
+      },
+    });
   }
 
   protected askDelete(m: MaintenanceListItem, event?: Event): void {

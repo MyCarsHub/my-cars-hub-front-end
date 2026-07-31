@@ -192,6 +192,22 @@
                     class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
                     Editar
                   </a>
+                  @if (canTransition(m)) {
+                    <button
+                      type="button"
+                      role="menuitem"
+                      (click)="askConclude(m)"
+                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-emerald-700 hover:bg-emerald-50 min-h-[44px] text-left border-t border-neutral-100">
+                      Concluir
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      (click)="askCancel(m)"
+                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-700 hover:bg-amber-50 min-h-[44px] text-left border-t border-neutral-100">
+                      Cancelar manutenção
+                    </button>
+                  }
                   <button
                     type="button"
                     role="menuitem"
@@ -266,6 +282,22 @@
                           class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
                           Editar
                         </a>
+                        @if (canTransition(m)) {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="askConclude(m)"
+                            class="w-full px-3 py-2 min-h-[44px] text-xs text-emerald-700 hover:bg-emerald-50 text-left border-t border-neutral-100">
+                            Concluir
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="askCancel(m)"
+                            class="w-full px-3 py-2 min-h-[44px] text-xs text-amber-700 hover:bg-amber-50 text-left border-t border-neutral-100">
+                            Cancelar manutenção
+                          </button>
+                        }
                         <button
                           type="button"
                           role="menuitem"
@@ -314,4 +346,27 @@
   variant="danger"
   (confirmed)="confirmDelete()"
   (cancelled)="cancelDelete()"
+/>
+
+<app-conclude-maintenance-dialog
+  [open]="concludeOpen()"
+  [entityLabel]="pendingLabel()"
+  [defaultValue]="concludeDefault()"
+  [vehicleHodometer]="pendingVehicleHodometer()"
+  [vehicleLookupFailed]="pendingVehicleFailed()"
+  [errorMessage]="concludeError()"
+  [busy]="actionBusy()"
+  (confirmed)="confirmConclude($event)"
+  (cancelled)="closeActionDialog()"
+/>
+
+<app-confirm-dialog
+  [open]="cancelOpen()"
+  title="Cancelar manutenção"
+  message="Tem certeza que deseja cancelar esta manutenção? Ela deixa de contar como agendada."
+  confirmLabel="Cancelar manutenção"
+  cancelLabel="Voltar"
+  variant="danger"
+  (confirmed)="confirmCancel()"
+  (cancelled)="closeActionDialog()"
 />
