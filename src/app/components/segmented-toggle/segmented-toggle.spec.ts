@@ -56,6 +56,26 @@ class Host {
   }
 }
 
+/** Host de um consumidor com pill claro (o seletor de ordenação do Roadmap). */
+@Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SegmentedToggle],
+  template: `
+    <app-segmented-toggle
+      [options]="options"
+      [value]="'monthly'"
+      activeClass="text-neutral-900"
+      ariaLabel="Ordenação"
+    />
+  `,
+})
+class LightActiveHost {
+  readonly options: readonly SegmentedToggleOption<Cycle>[] = [
+    { value: 'monthly', label: 'Mensal', activeBackground: '#ffffff' },
+    { value: 'yearly', label: 'Anual' },
+  ];
+}
+
 describe('SegmentedToggle', () => {
   let fixture: ComponentFixture<Host>;
   let host: HTMLElement;
@@ -126,6 +146,16 @@ describe('SegmentedToggle', () => {
     expect(segments()[1].className).toContain('text-neutral-500');
   });
 
+  it('lets the consumer override the active text colour for a light pill', () => {
+    const light = TestBed.createComponent(LightActiveHost);
+    light.detectChanges();
+    const active = (light.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[aria-checked="true"]',
+    );
+    expect(active?.className).toContain('text-neutral-900');
+    expect(active?.className).not.toContain('text-white');
+  });
+
   it('replaces the font size instead of stacking two text-* classes', () => {
     fixture.componentInstance.textClass.set('text-[13.5px]');
     fixture.detectChanges();
@@ -164,10 +194,15 @@ describe('SegmentedToggle', () => {
   // Alvo de toque + foco visível
   // ---------------------------------------------------------------------------
 
-  it('gives every option the 44px touch target and a visible focus ring', () => {
+  it('gives every option the 44px touch target and a visible focus outline', () => {
     for (const segment of segments()) {
       expect(segment.className).toContain('min-h-[44px]');
-      expect(segment.className).toContain('focus-visible:ring-2');
+      expect(segment.className).toContain('focus-visible:outline-2');
+      expect(segment.className).toContain('focus-visible:outline-primary-500');
+      // `ring` vira box-shadow e o `[style.box-shadow]` inline o sobrescreve;
+      // `outline-none` zeraria a var que o `outline-2` usa. Nenhum dos dois pode voltar.
+      expect(segment.className).not.toContain('ring-');
+      expect(segment.className).not.toContain('outline-none');
     }
   });
 

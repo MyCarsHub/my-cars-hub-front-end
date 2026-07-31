@@ -8,35 +8,13 @@
 
   <!-- Controls: sort + new task -->
   <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-    <div
-      role="tablist"
-      aria-label="Ordenação"
-      class="inline-flex bg-neutral-100 rounded-full p-1 border border-neutral-200 self-start">
-      <button
-        role="tab"
-        type="button"
-        [attr.aria-selected]="sort() === 'fuel'"
-        (click)="setSort('fuel')"
-        class="px-4 py-2 text-sm font-medium rounded-full transition-colors"
-        [class.bg-white]="sort() === 'fuel'"
-        [class.text-neutral-900]="sort() === 'fuel'"
-        [class.shadow-sm]="sort() === 'fuel'"
-        [class.text-neutral-500]="sort() !== 'fuel'">
-        Mais Combustível
-      </button>
-      <button
-        role="tab"
-        type="button"
-        [attr.aria-selected]="sort() === 'new'"
-        (click)="setSort('new')"
-        class="px-4 py-2 text-sm font-medium rounded-full transition-colors"
-        [class.bg-white]="sort() === 'new'"
-        [class.text-neutral-900]="sort() === 'new'"
-        [class.shadow-sm]="sort() === 'new'"
-        [class.text-neutral-500]="sort() !== 'new'">
-        Mais Novas
-      </button>
-    </div>
+    <app-segmented-toggle
+      class="self-start"
+      [options]="sortOptions"
+      [value]="sort()"
+      [activeClass]="sortActiveClass"
+      ariaLabel="Ordenação"
+      (selectionChange)="setSort($event)" />
 
     <button
       type="button"
@@ -180,7 +158,7 @@
                     <select
                       (change)="onAdminStatusChange(task, $event)"
                       aria-label="Mover status"
-                      class="text-xs bg-white border border-neutral-200 rounded-lg px-2 py-1.5 text-neutral-600 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors cursor-pointer">
+                      class="text-xs bg-white border border-neutral-200 rounded-lg px-2 py-1.5 text-neutral-600 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors cursor-pointer">
                       @for (option of statusOptions; track trackByStatusValue($index, option)) {
                         <option [value]="option.value" [selected]="option.value === task.status">
                           {{ option.label }}
@@ -291,7 +269,7 @@
                   formControlName="title"
                   maxlength="120"
                   placeholder="Ex: Notificações por WhatsApp"
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors" />
+                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
               </app-form-field>
 
               <app-form-field
@@ -305,7 +283,7 @@
                   maxlength="2000"
                   rows="5"
                   placeholder="Detalhe o problema e como sua ideia melhora o produto."
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors resize-none"></textarea>
+                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors resize-none"></textarea>
               </app-form-field>
 
               @if (formError(); as dialogError) {
@@ -349,7 +327,7 @@
             maxlength="500"
             rows="4"
             placeholder="Motivo da rejeição..."
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-base/20 focus:border-primary-base transition-colors resize-none"></textarea>
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors resize-none"></textarea>
         </div>
         <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 px-5 sm:px-6 py-4 bg-neutral-50 border-t border-neutral-100">
           <button type="button" (click)="cancelReject()"

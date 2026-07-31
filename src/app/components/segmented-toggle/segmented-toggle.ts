@@ -35,11 +35,17 @@ const CONTAINER_CHROME = 'bg-neutral-100 border border-neutral-200';
 /**
  * Sem `text-*` aqui de propósito: o tamanho vem do `textClass`, senão duas
  * classes de font-size disputariam por ordem de folha, não por ordem no atributo.
+ *
+ * O foco usa `outline`, NÃO `ring`: o `ring` do Tailwind compila para
+ * `box-shadow`, e o `[style.box-shadow]` inline da pílula ativa (ou o `none` da
+ * inativa) sobrescreve a classe — o indicador simplesmente não aparecia. Pelo
+ * mesmo motivo não pode existir `outline-none` aqui: em Tailwind v4 ele zera a
+ * var `--tw-outline-style` que o `outline-2` consome, anulando o foco.
  */
 const SEGMENT_BASE =
   'relative border-none bg-transparent px-5 py-2 rounded-full font-body font-semibold ' +
   'cursor-pointer inline-flex items-center gap-2 min-h-[44px] transition-colors duration-200 ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2';
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
 const SEGMENT_ACTIVE = 'text-white';
 const SEGMENT_INACTIVE = 'text-neutral-500 hover:text-neutral-900';
 
@@ -107,6 +113,11 @@ export class SegmentedToggle<T> {
   readonly containerClass = input(CONTAINER_CHROME);
   /** Cor do texto da opção não selecionada, incluindo o hover. */
   readonly inactiveClass = input(SEGMENT_INACTIVE);
+  /**
+   * Cor do texto da opção selecionada. O default assume acento escuro (billing,
+   * landing); quem pinta o pill de claro precisa trocar por um texto escuro.
+   */
+  readonly activeClass = input(SEGMENT_ACTIVE);
   /** Tamanho do texto das opções. Substitui, não acumula. */
   readonly textClass = input('text-sm');
 
@@ -132,7 +143,7 @@ export class SegmentedToggle<T> {
   protected readonly rovingIndex = computed(() => this.focus.index() ?? this.selectedIndex());
 
   protected segmentClass(option: SegmentedToggleOption<T>): string {
-    const state = option.value === this.value() ? SEGMENT_ACTIVE : this.inactiveClass();
+    const state = option.value === this.value() ? this.activeClass() : this.inactiveClass();
     return `${SEGMENT_BASE} ${this.textClass()} ${state}`;
   }
 

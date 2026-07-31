@@ -18,6 +18,10 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
+import {
+  SegmentedToggle,
+  SegmentedToggleOption,
+} from '../../components/segmented-toggle/segmented-toggle';
 import { FeedbackService } from '../../services/feedback.service';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -49,6 +53,32 @@ const ADMIN_STATUS_OPTIONS: Array<{ value: FeedbackStatus; label: string }> = [
   { value: 'REJECTED', label: 'Rejeitado' },
 ];
 
+/**
+ * Acento da opção marcada no seletor de ordenação: pill branco sobre o trilho
+ * neutral-100. Fundo e sombra vão por `style` porque o `SegmentedToggle` sempre
+ * escreve `background`/`box-shadow` inline — classe `bg-white`/`shadow-sm`
+ * perderia para o inline. Valor da sombra = `--shadow-sm` do Tailwind v4.
+ */
+const SORT_ACTIVE_BACKGROUND = '#ffffff';
+const SORT_ACTIVE_SHADOW = '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)';
+/** Texto escuro do pill claro — substitui o `text-white` default do toggle. */
+const SORT_ACTIVE_CLASS = 'text-neutral-900';
+
+const SORT_OPTIONS: readonly SegmentedToggleOption<FeedbackSort>[] = [
+  {
+    value: 'fuel',
+    label: 'Mais Combustível',
+    activeBackground: SORT_ACTIVE_BACKGROUND,
+    activeShadow: SORT_ACTIVE_SHADOW,
+  },
+  {
+    value: 'new',
+    label: 'Mais Novas',
+    activeBackground: SORT_ACTIVE_BACKGROUND,
+    activeShadow: SORT_ACTIVE_SHADOW,
+  },
+];
+
 @Component({
   selector: 'app-roadmap',
   imports: [
@@ -60,6 +90,7 @@ const ADMIN_STATUS_OPTIONS: Array<{ value: FeedbackStatus; label: string }> = [
     AlertBanner,
     FormField,
     FieldControl,
+    SegmentedToggle,
   ],
   templateUrl: './roadmap.html',
   styleUrl: './roadmap.css',
@@ -74,6 +105,8 @@ export class Roadmap implements OnInit {
 
   protected readonly columns = BOARD_COLUMNS;
   protected readonly statusOptions = ADMIN_STATUS_OPTIONS;
+  protected readonly sortOptions = SORT_OPTIONS;
+  protected readonly sortActiveClass = SORT_ACTIVE_CLASS;
   protected readonly skeletons = [0, 1, 2];
 
   protected readonly tasks = this.feedbackService.tasks;
