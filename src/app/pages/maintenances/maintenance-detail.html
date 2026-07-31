@@ -13,7 +13,33 @@
   } @else if (item(); as m) {
     <div class="space-y-4 sm:space-y-6">
       <!-- Desktop actions (top-right) -->
-      <div class="hidden lg:flex justify-end">
+      <div class="hidden lg:flex justify-end gap-3">
+        @if (canTransition()) {
+          <button
+            type="button"
+            (click)="askConclude()"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium
+                   bg-primary-700 hover:bg-primary-800 text-white transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Concluir
+          </button>
+          <button
+            type="button"
+            (click)="askCancel()"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium
+                   border border-amber-300 text-amber-800 bg-white hover:bg-amber-50 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>
+            </svg>
+            Cancelar manutenção
+          </button>
+        }
         <app-detail-actions
           [editRouterLink]="['/manutencoes', m.id, 'editar']"
           (delete)="askDelete()"
@@ -100,7 +126,33 @@
       </app-page-card>
 
       <!-- Mobile actions (bottom) -->
-      <div class="lg:hidden">
+      <div class="lg:hidden flex flex-col gap-3 w-full">
+        @if (canTransition()) {
+          <button
+            type="button"
+            (click)="askConclude()"
+            class="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium
+                   bg-primary-700 hover:bg-primary-800 text-white transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Concluir
+          </button>
+          <button
+            type="button"
+            (click)="askCancel()"
+            class="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium
+                   border border-amber-300 text-amber-800 bg-white hover:bg-amber-50 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/>
+            </svg>
+            Cancelar manutenção
+          </button>
+        }
         <app-detail-actions
           [editRouterLink]="['/manutencoes', m.id, 'editar']"
           (delete)="askDelete()"
@@ -124,4 +176,26 @@
   variant="danger"
   (confirmed)="confirmDelete()"
   (cancelled)="cancelDelete()"
+/>
+
+<app-conclude-maintenance-dialog
+  [open]="concludeOpen()"
+  [entityLabel]="concludeLabel()"
+  [defaultValue]="concludeDefault()"
+  [vehicleHodometer]="vehicleHodometer()"
+  [errorMessage]="concludeError()"
+  [busy]="actionBusy()"
+  (confirmed)="confirmConclude($event)"
+  (cancelled)="closeActionDialog()"
+/>
+
+<app-confirm-dialog
+  [open]="cancelOpen()"
+  title="Cancelar manutenção"
+  message="Tem certeza que deseja cancelar esta manutenção? Ela deixa de contar como agendada."
+  confirmLabel="Cancelar manutenção"
+  cancelLabel="Voltar"
+  variant="danger"
+  (confirmed)="confirmCancel()"
+  (cancelled)="closeActionDialog()"
 />

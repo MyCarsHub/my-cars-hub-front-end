@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { Observable } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
@@ -17,6 +18,10 @@ import {
   VehicleSummaryChip,
 } from '../../components/vehicles/vehicle-summary-chip/vehicle-summary-chip';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import {
+  ConcludeMaintenanceDialog,
+  isInputRejection,
+} from './components/conclude-maintenance-dialog/conclude-maintenance-dialog';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { MaintenancesService } from '../../services/maintenances.service';
@@ -25,8 +30,15 @@ import {
   MAINTENANCE_STATUS_OPTIONS,
   MAINTENANCE_TYPE_OPTIONS,
   Maintenance,
+  MaintenanceStatus,
 } from '../../types/maintenance.types';
 import { licensingBadge } from '../../utils/status-maps';
+
+/** Transições de status disponíveis (backend: `/conclude`, `/cancel`). */
+type MaintenanceTransition = 'conclude' | 'cancel';
+
+/** Status a partir dos quais o backend aceita concluir/cancelar. */
+const TRANSITIONABLE: readonly MaintenanceStatus[] = ['SCHEDULED', 'IN_PROGRESS'];
 
 @Component({
   selector: 'app-maintenance-detail',
@@ -36,6 +48,7 @@ import { licensingBadge } from '../../utils/status-maps';
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
+    ConcludeMaintenanceDialog,
     DetailActions,
     VehicleSummaryChip,
     AlertBanner,
@@ -60,6 +73,40 @@ export class MaintenanceDetail implements OnInit {
 
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
+
+  /** Transição pendente de confirmação. */
+  protected readonly pendingAction = signal<MaintenanceTransition | null>(null);
+  protected readonly actionBusy = signal(false);
+  /**
+   * Recusa da leitura pelo backend (400/422). Fica DENTRO do diálogo, que
+   * permanece aberto com o valor digitado — no mobile os botões ficam no fim de
+   * uma página longa e o banner cairia fora da tela.
+   */
+  protected readonly concludeError = signal<string | null>(null);
+
+  protected readonly concludeOpen = computed(() => this.pendingAction() === 'conclude');
+  protected readonly cancelOpen = computed(() => this.pendingAction() === 'cancel');
+
+  /**
+   * Concluir/cancelar só existem para `SCHEDULED` / `IN_PROGRESS` — qualquer
+   * outro status volta 409 no backend, então os botões somem.
+   */
+  protected readonly canTransition = computed(() => {
+    const s = this.item()?.status;
+    return s != null && TRANSITIONABLE.includes(s);
+  });
+
+  /** Leitura sugerida: a real do veículo quando carregada, senão a já gravada. */
+  protected readonly concludeDefault = computed(
+    () => this.vehicle()?.hodometer ?? this.item()?.hodometerReading ?? null,
+  );
+
+  protected readonly vehicleHodometer = computed(() => this.vehicle()?.hodometer ?? null);
+
+  protected readonly concludeLabel = computed(() => {
+    const m = this.item();
+    return m ? m.description : '';
+  });
 
   protected readonly typeInfo = computed(() => {
     const t = this.item()?.type;
@@ -140,6 +187,82 @@ export class MaintenanceDetail implements OnInit {
         this.deleting.set(false);
         this.deleteOpen.set(false);
         this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível excluir.'));
+      },
+    });
+  }
+
+  protected askConclude(): void {
+    this.concludeError.set(null);
+    this.pendingAction.set('conclude');
+  }
+
+  protected askCancel(): void {
+    this.pendingAction.set('cancel');
+  }
+
+  protected closeActionDialog(): void {
+    if (this.actionBusy()) return;
+    this.pendingAction.set(null);
+    this.concludeError.set(null);
+  }
+
+  protected confirmConclude(hodometerReading: number): void {
+    const m = this.item();
+    if (!m || this.actionBusy()) return;
+    this.concludeError.set(null);
+    this.runTransition(
+      this.maintenancesService.conclude(m.id, { hodometerReading }),
+      'Manutenção concluída.',
+      'Não foi possível concluir a manutenção.',
+      // 400/422 = leitura recusada; corrigível no próprio campo do diálogo.
+      (message) => this.concludeError.set(message),
+    );
+  }
+
+  protected confirmCancel(): void {
+    const m = this.item();
+    if (!m || this.actionBusy()) return;
+    this.runTransition(
+      this.maintenancesService.cancel(m.id),
+      'Manutenção cancelada.',
+      'Não foi possível cancelar a manutenção.',
+    );
+  }
+
+  /**
+   * Ao contrário do delete, a transição mantém o usuário na tela: o registro
+   * continua existindo e o novo status precisa ficar visível aqui mesmo.
+   *
+   * @param onFieldError Quando informado e o backend recusar a ENTRADA (400/422),
+   * o diálogo permanece aberto com o valor digitado e a mensagem é renderizada
+   * dentro dele. Os demais erros (409 de status, 404, 5xx) fecham e vão para o
+   * banner — não há o que corrigir no campo.
+   */
+  private runTransition(
+    request: Observable<Maintenance>,
+    successMessage: string,
+    fallbackError: string,
+    onFieldError?: (message: string) => void,
+  ): void {
+    this.actionError.set(null);
+    this.actionBusy.set(true);
+    request.subscribe({
+      next: (updated) => {
+        this.actionBusy.set(false);
+        this.pendingAction.set(null);
+        this.concludeError.set(null);
+        this.item.set(updated);
+        this.notifications.success(successMessage);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.actionBusy.set(false);
+        const message = this.apiErrors.messageFor(err, fallbackError);
+        if (onFieldError && isInputRejection(err)) {
+          onFieldError(message);
+          return;
+        }
+        this.pendingAction.set(null);
+        this.actionError.set(message);
       },
     });
   }
