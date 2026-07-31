@@ -22,6 +22,7 @@ import { LoggerService } from '../../../services/logger.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import {
+  RentalContractSource,
   RentalDocumentDto,
   SignatureStatus,
   SignerRequest,
@@ -32,6 +33,13 @@ interface SignatureBadge {
   label: string;
   chip: string;
 }
+
+/**
+ * Teto de upload do cliente. O backend aceita 20MB; a divergência é
+ * INTENCIONAL — o app é usado majoritariamente em rede móvel, e 10MB é o
+ * limite amigável pra franquia de dados. Não subir pra "casar" com o backend.
+ */
+const MAX_CONTRACT_BYTES = 10 * 1024 * 1024;
 
 /**
  * Card do contrato. Fetches CONTRACT + status de assinatura. Fluxo de assinatura
@@ -100,20 +108,37 @@ interface SignatureBadge {
             </div>
           </div>
 
-          @if (canRequestSignature()) {
-            <button type="button" (click)="openSignatureModal()"
-              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>
-              </svg>
-              @if (signatureStatus() === 'REFUSED' || signatureStatus() === 'EXPIRED') {
-                Reenviar para assinatura
-              } @else {
-                Solicitar assinatura
+          <!-- Wrapper condicional: dentro da coluna space-y-4, uma div vazia
+               ainda conta como filho e deixa um gap fantasma acima do aviso. -->
+          @if (canRequestSignature() || canMarkSigned()) {
+            <div class="flex flex-col sm:flex-row gap-2">
+              @if (canRequestSignature()) {
+                <button type="button" (click)="openSignatureModal()"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px]"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>
+                  </svg>
+                  @if (signatureStatus() === 'REFUSED' || signatureStatus() === 'EXPIRED') {
+                    Reenviar para assinatura
+                  } @else {
+                    Solicitar assinatura
+                  }
+                </button>
               }
-            </button>
+              @if (canMarkSigned()) {
+                <button type="button" (click)="askMarkSigned()" [disabled]="markingSigned()"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Já Assinado
+                </button>
+              }
+            </div>
           }
 
           @if (signatureStatus() === 'PENDING') {
@@ -125,17 +150,15 @@ interface SignatureBadge {
           @if (uploading()) {
             <div class="rounded-xl border border-primary-200 bg-primary-50/60 p-3 space-y-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-xs text-primary-800 font-medium">
-                  Enviando contrato… {{ uploadProgress() ?? 0 }}%
-                </p>
+                <p class="text-xs text-primary-800 font-medium">Enviando contrato…</p>
                 <button type="button" (click)="cancelUpload()"
-                  class="text-xs text-neutral-600 hover:text-rose-600 font-medium">
+                  class="text-xs text-neutral-600 hover:text-rose-600 font-medium min-h-[44px] px-3">
                   Cancelar
                 </button>
               </div>
-              <div class="h-1.5 rounded-full bg-primary-100 overflow-hidden">
-                <div class="h-full bg-primary-500 transition-all"
-                     [style.width.%]="uploadProgress() ?? 0"></div>
+              <div class="h-1.5 rounded-full bg-primary-100 overflow-hidden"
+                   role="progressbar" aria-label="Enviando contrato">
+                <div class="h-full w-1/3 rounded-full bg-primary-500 indeterminate-bar"></div>
               </div>
             </div>
           } @else {
@@ -152,17 +175,15 @@ interface SignatureBadge {
             @if (uploading()) {
               <div class="rounded-xl bg-primary-50/60 border border-primary-200 p-3 space-y-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-xs text-primary-800 font-medium">
-                    Enviando… {{ uploadProgress() ?? 0 }}%
-                  </p>
+                  <p class="text-xs text-primary-800 font-medium">Enviando contrato…</p>
                   <button type="button" (click)="cancelUpload()"
-                    class="text-xs text-neutral-600 hover:text-rose-600 font-medium">
+                    class="text-xs text-neutral-600 hover:text-rose-600 font-medium min-h-[44px] px-3">
                     Cancelar
                   </button>
                 </div>
-                <div class="h-1.5 rounded-full bg-primary-100 overflow-hidden">
-                  <div class="h-full bg-primary-500 transition-all"
-                       [style.width.%]="uploadProgress() ?? 0"></div>
+                <div class="h-1.5 rounded-full bg-primary-100 overflow-hidden"
+                     role="progressbar" aria-label="Enviando contrato">
+                  <div class="h-full w-1/3 rounded-full bg-primary-500 indeterminate-bar"></div>
                 </div>
               </div>
             } @else {
@@ -186,6 +207,16 @@ interface SignatureBadge {
       variant="danger"
       (confirmed)="confirmDelete()"
       (cancelled)="closeDelete()"
+    />
+
+    <app-confirm-dialog
+      [open]="markSignedOpen()"
+      title="Marcar contrato como assinado?"
+      message="Use apenas se o contrato em papel já foi assinado por todas as partes. O contrato passa direto para ASSINADO, sem assinatura eletrônica. A ação registra quem marcou e quando, e não pode ser desfeita."
+      confirmLabel="Marcar como assinado"
+      variant="warning"
+      (confirmed)="confirmMarkSigned()"
+      (cancelled)="closeMarkSigned()"
     />
 
     @if (signatureModalOpen()) {
@@ -269,6 +300,26 @@ interface SignatureBadge {
       </div>
     }
   `,
+  // Tailwind não tem token de barra indeterminada; keyframe local (encapsulado
+  // pelo Angular) é o mínimo necessário. Respeita prefers-reduced-motion.
+  styles: `
+    .indeterminate-bar {
+      animation: contract-upload-indeterminate 1.2s ease-in-out infinite;
+    }
+    @keyframes contract-upload-indeterminate {
+      0% { transform: translateX(-110%); }
+      100% { transform: translateX(310%); }
+    }
+    /* Sem animação a barra vira estática: largura PARCIAL de propósito —
+       100% leria como "concluído" num upload que ainda está em andamento. */
+    @media (prefers-reduced-motion: reduce) {
+      .indeterminate-bar {
+        animation: none;
+        width: 40%;
+        opacity: 0.7;
+      }
+    }
+  `,
 })
 export class RentalContractCard implements OnInit, OnDestroy {
   private readonly rentalService = inject(RentalService);
@@ -279,6 +330,12 @@ export class RentalContractCard implements OnInit, OnDestroy {
   private readonly logger = inject(LoggerService);
 
   readonly rentalId = input.required<string>();
+  /**
+   * Origem do contrato do rental. `null` = ainda não carregado ou rental antigo;
+   * nesse caso o botão "Já Assinado" fica oculto (fail-closed — o backend também
+   * recusa marcar contrato AUTO como assinado manualmente).
+   */
+  readonly contractSource = input<RentalContractSource | null>(null);
   readonly changed = output<void>();
 
   /** Snapshot compartilhado — evita fetch duplicado com checklist + inspection-card. */
@@ -304,13 +361,13 @@ export class RentalContractCard implements OnInit, OnDestroy {
   protected readonly error = signal<string | null>(null);
 
   protected readonly uploading = signal(false);
-  /** 0-100 durante upload; nulo quando o browser não reporta total (fallback determinado). */
-  protected readonly uploadProgress = signal<number | null>(null);
   private uploadSub: Subscription | null = null;
   protected readonly downloading = signal(false);
   protected readonly openingPdf = signal(false);
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
+  protected readonly markSignedOpen = signal(false);
+  protected readonly markingSigned = signal(false);
 
   protected readonly signatureModalOpen = signal(false);
   protected readonly requesting = signal(false);
@@ -334,6 +391,17 @@ export class RentalContractCard implements OnInit, OnDestroy {
     const s = this.signatureStatus();
     return s === 'NOT_REQUIRED' || s === 'REFUSED' || s === 'EXPIRED';
   });
+
+  /**
+   * "Já Assinado" só faz sentido para contrato MANUAL com PDF anexado e sem
+   * assinatura eletrônica ativa. Reusa `canRequestSignature()` de propósito: os
+   * dois botões compartilham a MESMA janela de status (NOT_REQUIRED/REFUSED/
+   * EXPIRED), então ao virar SIGNED (ou PENDING) ambos somem sozinhos — não há
+   * lógica extra de esconder/desabilitar em lugar nenhum.
+   */
+  protected readonly canMarkSigned = computed(
+    () => this.contractSource() === 'MANUAL' && this.canRequestSignature() && !!this.contract(),
+  );
 
   protected canSubmit(): boolean {
     return this.signers().every((s) => s.name.trim().length > 0 && /.+@.+\..+/.test(s.email.trim()));
@@ -396,28 +464,32 @@ export class RentalContractCard implements OnInit, OnDestroy {
     input.value = '';
     if (!file) return;
 
+    // Guardas client-side: falham ANTES de qualquer request — nada de gastar
+    // dados móveis num upload que o backend rejeitaria. Vão pro banner inline
+    // (regra do AlertBanner: erro de negócio nunca em toast).
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      this.notifications.push('error', 'Selecione um arquivo PDF.');
+      this.error.set('Formato não suportado. Selecione um arquivo PDF.');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      this.notifications.push('error', 'PDF excede 10MB.');
+    if (file.size > MAX_CONTRACT_BYTES) {
+      this.error.set(
+        `O arquivo tem ${this.formatSize(file.size)} e o limite é 10MB. ` +
+          'Comprima o PDF (ou reduza a qualidade do scan) e envie de novo.',
+      );
       return;
     }
 
     this.error.set(null);
     this.uploading.set(true);
-    this.uploadProgress.set(0);
     this.uploadSub = this.rentalService
       .uploadContractWithProgress(this.rentalId(), file)
       .subscribe({
+        // O app usa `withFetch()` e o FetchBackend só emite `Sent` e
+        // `DownloadProgress` — `UploadProgress` NUNCA chega. Por isso não há
+        // percentual aqui e a barra do template é indeterminada; trocar o
+        // backend pra XHR só por causa disso seria desproporcional.
         next: (event) => {
-          if (event.type === HttpEventType.UploadProgress) {
-            const pct = event.total
-              ? Math.round((event.loaded / event.total) * 100)
-              : null;
-            this.uploadProgress.set(pct);
-          } else if (event.type === HttpEventType.Response && event.body) {
+          if (event.type === HttpEventType.Response && event.body) {
             this.finishUpload();
             this.notifications.push('success', 'Contrato enviado.');
             this.rentalService.refreshRentalState(this.rentalId());
@@ -426,14 +498,35 @@ export class RentalContractCard implements OnInit, OnDestroy {
         },
         error: (err: HttpErrorResponse) => {
           this.finishUpload();
-          this.error.set(this.apiErrors.messageFor(err, 'Não foi possível enviar o contrato.'));
+          this.error.set(this.uploadErrorMessage(err));
         },
       });
   }
 
+  /**
+   * Copy amigável pras falhas de upload que o usuário consegue agir em cima:
+   * - status 0 → retorna `null` de propósito: quem toasta rede fora é o
+   *   `errorInterceptor` ("Sem conexão com o servidor."). Um banner inline aqui
+   *   daria DUAS mensagens pra mesma falha.
+   * - 413 → o payload estourou o limite; usamos o teto de 10MB do cliente e não
+   *   a mensagem do backend, que fala em 20MB e contradiria a guarda acima.
+   * Qualquer outro status segue o contrato normal de `messageFor()`.
+   * `claim()` mantém o safety-net do interceptor desarmado para 4xx.
+   */
+  private uploadErrorMessage(err: HttpErrorResponse): string | null {
+    this.apiErrors.claim(err);
+    if (err.status === 0) {
+      return null;
+    }
+    if (err.status === 413) {
+      return 'O arquivo passou do limite de 10MB. Comprima o PDF e envie de novo.';
+    }
+    return this.apiErrors.messageFor(err, 'Não foi possível enviar o contrato.');
+  }
+
   protected cancelUpload(): void {
     if (this.uploadSub) {
-      // unsubscribe aborta o request no browser (HttpClient cancela o XHR).
+      // unsubscribe aborta o request no browser (FetchBackend usa AbortController).
       this.uploadSub.unsubscribe();
       this.uploadSub = null;
       this.finishUpload();
@@ -443,7 +536,6 @@ export class RentalContractCard implements OnInit, OnDestroy {
 
   private finishUpload(): void {
     this.uploading.set(false);
-    this.uploadProgress.set(null);
     this.uploadSub = null;
   }
 
@@ -573,6 +665,53 @@ export class RentalContractCard implements OnInit, OnDestroy {
         this.deleting.set(false);
         this.deleteOpen.set(false);
         this.error.set(this.apiErrors.messageFor(err, 'Não foi possível remover o contrato.'));
+      },
+    });
+  }
+
+  protected askMarkSigned(): void {
+    this.markSignedOpen.set(true);
+  }
+
+  protected closeMarkSigned(): void {
+    if (!this.markingSigned()) this.markSignedOpen.set(false);
+  }
+
+  /**
+   * Marca o contrato em papel como assinado. Sem toast de sucesso próprio: o
+   * effect() de transição de status já toasta quando o signal compartilhado vira
+   * SIGNED — um push aqui duplicaria a notificação.
+   *
+   * O POST já devolve o DTO final (status=SIGNED / provider=MANUAL), então ele é
+   * gravado DIRETO no snapshot compartilhado. Um GET de confirmação seria um
+   * segundo round-trip na mesma rede móvel instável que motivou este fluxo: se
+   * ele morresse, o write teria commitado no backend e a UI continuaria em
+   * NOT_REQUIRED com os dois botões visíveis — o operador tocaria de novo e
+   * levaria um 409 incompreensível. O GET fica só como fallback pro caso do
+   * snapshot ainda não ter hidratado.
+   * Erros (todos 4xx de negócio) vão pro banner inline via `messageFor()`.
+   */
+  protected confirmMarkSigned(): void {
+    if (this.markingSigned()) return;
+    this.error.set(null);
+    this.markingSigned.set(true);
+    this.rentalService.markContractSigned(this.rentalId()).subscribe({
+      next: (signature) => {
+        this.markingSigned.set(false);
+        this.markSignedOpen.set(false);
+        const applied =
+          signature != null &&
+          this.rentalService.applyContractSignature(this.rentalId(), signature);
+        if (!applied) {
+          this.rentalService.refreshContractSignature(this.rentalId());
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.markingSigned.set(false);
+        this.markSignedOpen.set(false);
+        this.error.set(
+          this.apiErrors.messageFor(err, 'Não foi possível marcar o contrato como assinado.'),
+        );
       },
     });
   }
