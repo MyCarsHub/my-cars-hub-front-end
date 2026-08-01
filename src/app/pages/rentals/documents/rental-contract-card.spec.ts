@@ -3,9 +3,10 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
 import { RentalContractCard } from './rental-contract-card';
+import { ContractDocxPreviewService } from './contract-docx-preview.service';
 import { RentalService, RentalStateSnapshot } from '../rental.service';
 import { DriverService } from '../../../services/driver.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -192,13 +193,21 @@ describe('RentalContractCard signature transition toasts', () => {
 });
 
 /**
- * Cobre os fluxos de download PDF (fetch → blob → anchor) e abertura
- * do PDF em nova aba (window.open + navigation pra signed URL).
- * Backend armazena PDF real; docx-preview foi removido deste caminho.
- * Stub no HTTP boundary (RentalService.documentSignedUrl) + no DOM.
+ * Download e abertura do contrato.
+ *
+ * O eixo destes testes é UM só: quem decide o formato são os BYTES, nunca o
+ * `mimeType` da linha. Ao receber o webhook do Autentique o backend sobrescreve
+ * o MESMO objeto `.docx` do storage com o PDF assinado e não atualiza
+ * `mime_type` (AutentiqueWebhookService:141, RentalDocumentService:190) — um
+ * contrato AUTO assinado se declara DOCX pra sempre. Decidir pelo MIME jogaria
+ * bytes de PDF num parser de DOCX e quebraria justamente o contrato ASSINADO.
+ *
+ * Stub no HTTP boundary (RentalService.documentSignedUrl), em `fetch` e no DOM.
  */
 describe('RentalContractCard — download & open PDF', () => {
   const RID = 'rid';
+  /** MIME que o backend mantém mesmo depois do arquivo virar PDF. */
+  const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   const state = signal<RentalStateSnapshot | null>(null);
   const rentalService = {
     rentalState: vi.fn(() => state),
@@ -211,19 +220,111 @@ describe('RentalContractCard — download & open PDF', () => {
   const driverService = { getOne: vi.fn() };
   const session = { getItem: vi.fn(() => null) };
   const notifications = { push: vi.fn() };
+  /**
+   * Dublê do serviço que embrulha o `import()` dinâmico de docx-preview. Trocar
+   * por DI (e não por `vi.mock`) é deliberado: no runner do Angular + Vitest um
+   * `import()` dinâmico nunca resolve, e mockar o módulo não conserta isso.
+   */
+  const docxPreview = { render: vi.fn() };
 
-  function snapshot(): RentalStateSnapshot {
+  /** Bytes de um PDF de verdade — o que importa é só a assinatura `%PDF-`. */
+  function pdfBytes(): ArrayBuffer {
+    return new TextEncoder().encode('%PDF-1.7\n%âãÏÓ\n').buffer as ArrayBuffer;
+  }
+
+  /** Bytes de um `.docx` (container ZIP: `PK\x03\x04`). */
+  function docxBytes(size = 64): ArrayBuffer {
+    const bytes = new Uint8Array(size);
+    bytes.set([0x50, 0x4b, 0x03, 0x04]);
+    return bytes.buffer;
+  }
+
+  function snapshot(mimeType = DOCX_MIME): RentalStateSnapshot {
     return {
-      documents: [{ kind: 'CONTRACT', id: 'd1' } as any],
+      documents: [{ kind: 'CONTRACT', id: 'd1', mimeType } as any],
       checkinPhotos: [],
       checkoutPhotos: [],
       contractSignature: { status: 'NOT_REQUIRED' } as any,
     };
   }
 
+  /**
+   * Aba falsa. `document.open/write/close` espelham o que o card usa, e
+   * `getElementById` devolve um host REAL (deste documento) pra que o
+   * renderizador tenha onde escrever. `ops` registra a SEQUÊNCIA das chamadas
+   * de documento — ver {@link expectPagesReplaced}.
+   */
+  function fakeTab() {
+    const written: string[] = [];
+    const ops: string[] = [];
+    const host = document.createElement('div');
+    return {
+      location: { href: '' },
+      close: vi.fn(),
+      host,
+      document: {
+        open: vi.fn(() => ops.push('open')),
+        write: vi.fn((html: string) => {
+          ops.push('write');
+          written.push(html);
+        }),
+        close: vi.fn(() => ops.push('close')),
+        getElementById: vi.fn(() => host),
+      },
+      written,
+      ops,
+    };
+  }
+
+  /**
+   * Cada página escrita SUBSTITUI a anterior. Sem o `document.open()` o `write`
+   * concatenaria os documentos e todas as asserções que leem a ÚLTIMA página
+   * continuariam verdes — mas a aba mostraria o "Carregando…" grudado em cima
+   * do erro, e o host abandonado pelo watchdog voltaria a existir. Por isso a
+   * checagem é sobre a SEQUÊNCIA `open → write → close`, uma por página.
+   */
+  function expectPagesReplaced(tab: ReturnType<typeof fakeTab>): void {
+    expect(tab.written.length).toBeGreaterThan(0);
+    expect(tab.document.open).toHaveBeenCalledTimes(tab.written.length);
+    expect(tab.ops.join(',')).toBe(
+      Array.from({ length: tab.written.length }, () => 'open,write,close').join(','),
+    );
+  }
+
+  /** Resposta de `fetch` com corpo binário (servidor que IGNOROU o Range). */
+  function okResponse(buffer: ArrayBuffer) {
+    return {
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => buffer,
+      blob: async () => new Blob([buffer]),
+    };
+  }
+
+  /** Resposta 206 do storage: só a fatia pedida pelo header `Range`. */
+  function partialResponse(buffer: ArrayBuffer) {
+    return {
+      ok: true,
+      status: 206,
+      arrayBuffer: async () => buffer.slice(0, 5),
+      blob: async () => new Blob([buffer.slice(0, 5)]),
+    };
+  }
+
+  /** O header que a sonda de formato precisa mandar. */
+  const SNIFF_INIT = { headers: { Range: 'bytes=0-4' } };
+
+  /** Curto-circuito pros fluxos que só passam por promises já resolvidas. */
+  async function settle(): Promise<void> {
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   beforeEach(() => {
     notifications.push.mockClear();
+    docxPreview.render.mockReset();
+    docxPreview.render.mockResolvedValue(undefined);
     rentalService.documentSignedUrl.mockReset();
+    rentalService.documentSignedUrl.mockReturnValue(of({ url: 'https://signed/c.docx' } as any));
     state.set(snapshot());
     TestBed.configureTestingModule({
       providers: [
@@ -231,8 +332,13 @@ describe('RentalContractCard — download & open PDF', () => {
         { provide: DriverService, useValue: driverService },
         { provide: SessionService, useValue: session },
         { provide: NotificationService, useValue: notifications },
+        { provide: ContractDocxPreviewService, useValue: docxPreview },
       ],
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   function makeFixture() {
@@ -244,7 +350,7 @@ describe('RentalContractCard — download & open PDF', () => {
 
   it('downloadContract: fetch signed URL → anchor click → revoga blob URL', async () => {
     rentalService.documentSignedUrl.mockReturnValue(of({ url: 'https://signed/x' } as any));
-    const blob = new Blob(['docx'], { type: 'application/vnd.openxmlformats' });
+    const blob = new Blob([docxBytes()]);
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch' as any)
       .mockResolvedValue({ ok: true, blob: async () => blob } as any);
@@ -252,32 +358,23 @@ describe('RentalContractCard — download & open PDF', () => {
     const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     const clickSpy = vi.fn();
     const originalCreate = document.createElement.bind(document);
-    const createEl = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       const el = originalCreate(tag) as HTMLAnchorElement;
       if (tag === 'a') el.click = clickSpy;
       return el;
     });
-    vi.useFakeTimers();
 
     const fixture = makeFixture();
     (fixture.componentInstance as any).downloadContract();
-    // Aguarda microtasks do fetch/.blob()/finally.
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
 
     expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'd1');
     expect(fetchSpy).toHaveBeenCalledWith('https://signed/x');
     expect(createUrl).toHaveBeenCalledWith(blob);
     expect(clickSpy).toHaveBeenCalledOnce();
-    vi.advanceTimersByTime(1500);
+    // A revogação é adiada: revogar antes do click cancelaria o download.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
     expect(revokeUrl).toHaveBeenCalledWith('blob:mock');
-
-    vi.useRealTimers();
-    fetchSpy.mockRestore();
-    createUrl.mockRestore();
-    revokeUrl.mockRestore();
-    createEl.mockRestore();
   });
 
   it('downloadContract: erro do backend vira banner inline (sem toast) e reseta loading', () => {
@@ -296,58 +393,354 @@ describe('RentalContractCard — download & open PDF', () => {
     expect((fixture.componentInstance as any).downloading()).toBe(false);
   });
 
-  it('openContractAsPdf: sucesso → navega a aba pra signed URL do PDF', () => {
-    rentalService.documentSignedUrl.mockReturnValue(
-      of({ url: 'https://signed/contract.pdf' } as any),
-    );
-    const location = { href: '' } as { href: string };
-    const fakeWin = { location, close: vi.fn() };
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as any);
+  /**
+   * Regressão do bug do contrato assinado: o `mimeType` diz DOCX, os bytes são
+   * PDF. Salvar como `Contrato-rid.docx` produzia um arquivo que o Word recusa
+   * — e o inverso (`.pdf` num DOCX de verdade) o Windows nem abre.
+   */
+  it('download nomeia pela ASSINATURA dos bytes, não pelo mimeType', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const originalCreate = document.createElement.bind(document);
+    const anchors: HTMLAnchorElement[] = [];
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreate(tag) as HTMLAnchorElement;
+      if (tag === 'a') {
+        el.click = vi.fn();
+        anchors.push(el);
+      }
+      return el;
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch' as any)
+      .mockResolvedValue({ ok: true, blob: async () => new Blob([docxBytes()]) } as any);
 
     const fixture = makeFixture();
-    (fixture.componentInstance as any).openContractAsPdf();
+    (fixture.componentInstance as any).downloadContract();
+    await settle();
+    expect(anchors[0].download).toBe(`Contrato-${RID}.docx`);
 
-    expect(openSpy).toHaveBeenCalledWith('', '_blank');
-    expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'd1');
-    expect(location.href).toBe('https://signed/contract.pdf');
-    expect((fixture.componentInstance as any).openingPdf()).toBe(false);
-
-    openSpy.mockRestore();
+    // Mesma linha, MESMO mimeType (DOCX) — só os bytes mudaram para PDF.
+    fetchSpy.mockResolvedValue({ ok: true, blob: async () => new Blob([pdfBytes()]) } as any);
+    (fixture.componentInstance as any).downloadContract();
+    await settle();
+    expect(anchors[1].download).toBe(`Contrato-${RID}.pdf`);
   });
 
-  it('openContractAsPdf: erro do signed URL fecha aba e mostra banner inline', () => {
+  it('openContract: bytes %PDF- (mesmo com mimeType DOCX) → aba vai direto pro arquivo', async () => {
+    rentalService.documentSignedUrl.mockReturnValue(of({ url: 'https://signed/c.docx' } as any));
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue(partialResponse(pdfBytes()) as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    // Fidelidade máxima: o arquivo real vai pro viewer nativo do browser.
+    expect(tab.location.href).toBe('https://signed/c.docx');
+    // O renderizador NUNCA é carregado — nem um PDF vira "prévia".
+    expect(docxPreview.render).not.toHaveBeenCalled();
+    // E nada da moldura de visualização foi escrito na aba.
+    expect(tab.written.join('')).not.toContain('Visualização do contrato');
+    expect((fixture.componentInstance as any).error()).toBeNull();
+    expect((fixture.componentInstance as any).opening()).toBe(false);
+    expectPagesReplaced(tab);
+  });
+
+  /**
+   * Regressão de FRANQUIA DE DADOS. O caminho normal do app é um PDF anexado à
+   * mão (até 10MB) que o browser mesmo renderiza. Puxar o arquivo inteiro só
+   * pra ler 5 bytes e depois deixar a aba baixar TUDO de novo custava o dobro
+   * dos dados móveis no fluxo mais usado — exatamente o que a regra
+   * mobile-first do projeto proíbe.
+   */
+  it('openContract: fareja o formato com Range e baixa só a cabeça no caminho PDF', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch' as any)
+      .mockResolvedValue(partialResponse(pdfBytes()) as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith('https://signed/c.docx', SNIFF_INIT);
+    expect(tab.location.href).toBe('https://signed/c.docx');
+    expect((fixture.componentInstance as any).opening()).toBe(false);
+  });
+
+  /**
+   * Alguns proxies/CDNs ignoram `Range` e devolvem 200 com o arquivo inteiro.
+   * Nesse caso os bytes JÁ ESTÃO na mão: um segundo GET desfaria toda a
+   * economia que a sonda existe pra garantir.
+   */
+  it('openContract: resposta 200 (Range ignorado) reaproveita o corpo, sem segundo GET', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const source = docxBytes();
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch' as any)
+      .mockResolvedValue(okResponse(source) as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith('https://signed/c.docx', SNIFF_INIT);
+    // E o parser recebeu o corpo COMPLETO que já havia chegado.
+    expect(docxPreview.render).toHaveBeenCalledOnce();
+    expect(docxPreview.render.mock.calls[0][0]).toBe(source);
+  });
+
+  /** 206 no ramo DOCX: a cabeça não basta pro parser, aí sim vai o GET cheio. */
+  it('openContract: 206 + bytes DOCX busca o arquivo completo (sem Range) pro parser', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const source = docxBytes();
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch' as any)
+      .mockResolvedValueOnce(partialResponse(source) as any)
+      .mockResolvedValueOnce(okResponse(source) as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[0]).toEqual(['https://signed/c.docx', SNIFF_INIT]);
+    expect(fetchSpy.mock.calls[1]).toEqual(['https://signed/c.docx']);
+    expect(docxPreview.render).toHaveBeenCalledOnce();
+    expect(docxPreview.render.mock.calls[0][0]).toBe(source);
+  });
+
+  /**
+   * Rede de segurança do caminho PDF. Firefox Android, WebViews e um
+   * `Content-Type` velho no storage transformam a navegação em DOWNLOAD e a aba
+   * não sai do lugar. A página escrita ANTES do `location.href` é o que ela
+   * mostra nesse caso — sem isto o usuário ficava encarando "Carregando
+   * contrato…" pra sempre, que parece um app travado.
+   */
+  it('openContract: escreve a ponte com link ANTES de navegar pro PDF', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue(partialResponse(pdfBytes()) as any);
+    // Prova de ORDEM: a navegação só pode acontecer com a página já no lugar.
+    const hrefAtWrite: string[] = [];
+    tab.document.write.mockImplementation((html: string) => {
+      hrefAtWrite.push(tab.location.href);
+      tab.written.push(html);
+      tab.ops.push('write');
+    });
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    const bridge = tab.written[tab.written.length - 1];
+    expect(bridge).toContain('Abrindo o contrato');
+    // Carrega o arquivo: a aba estranhada tem como chegar no documento.
+    expect(bridge).toContain('https://signed/c.docx');
+    expect(bridge).toContain('download');
+    expect(hrefAtWrite[hrefAtWrite.length - 1]).toBe('');
+    expect(tab.location.href).toBe('https://signed/c.docx');
+  });
+
+  /**
+   * A falha mais provável do mundo real: a signed URL expirou entre o clique e
+   * o `fetch`. O storage responde 4xx e a aba PRECISA acabar na página com o
+   * arquivo original — nunca no spinner.
+   */
+  it('openContract: fetch !ok (signed URL expirada) → erro inline + aba com o arquivo ORIGINAL', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue({
+      ok: false,
+      status: 403,
+      arrayBuffer: async () => new ArrayBuffer(0),
+    } as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    const cmp = fixture.componentInstance as any;
+    expect(cmp.error()).toContain('Baixar Contrato');
+    expect(docxPreview.render).not.toHaveBeenCalled();
+    const last = tab.written[tab.written.length - 1];
+    expect(last).toContain('Não foi possível exibir o contrato');
+    expect(last).toContain('https://signed/c.docx');
+    expect(tab.close).not.toHaveBeenCalled();
+    expect(cmp.opening()).toBe(false);
+    expectPagesReplaced(tab);
+  });
+
+  it('openContract: fetch que REJEITA (rede caiu) → erro inline + aba com o arquivo ORIGINAL', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    vi.spyOn(globalThis, 'fetch' as any).mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    const cmp = fixture.componentInstance as any;
+    expect(cmp.error()).toContain('Baixar Contrato');
+    expect(tab.written[tab.written.length - 1]).toContain('https://signed/c.docx');
+    expect(cmp.opening()).toBe(false);
+  });
+
+  /** Objeto existe no storage mas está truncado/zerado — não dá pra farejar nada. */
+  it('openContract: arquivo vazio no storage → aba com o arquivo ORIGINAL', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue(okResponse(new ArrayBuffer(0)) as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    const cmp = fixture.componentInstance as any;
+    expect(docxPreview.render).not.toHaveBeenCalled();
+    expect(cmp.error()).toContain('Baixar Contrato');
+    expect(tab.written[tab.written.length - 1]).toContain('https://signed/c.docx');
+    expect(cmp.opening()).toBe(false);
+  });
+
+  it('openContract: bytes DOCX → renderizador roda e a aba recebe o documento', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const source = docxBytes();
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue(okResponse(source) as any);
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+
+    // A aba é preenchida ANTES de qualquer await — nada de aba branca parada.
+    expect(tab.written[0]).toContain('Carregando contrato');
+    await settle();
+
+    expect(docxPreview.render).toHaveBeenCalledOnce();
+    expect(docxPreview.render.mock.calls[0][0]).toBe(source);
+    // Renderiza DENTRO do host da aba nova, não navega pra lugar nenhum.
+    expect(docxPreview.render.mock.calls[0][1]).toBe(tab.host);
+    expect(tab.location.href).toBe('');
+    expect(tab.written[tab.written.length - 1]).toContain('Visualização do contrato');
+    expect((fixture.componentInstance as any).error()).toBeNull();
+    expect((fixture.componentInstance as any).opening()).toBe(false);
+  });
+
+  it('openContract: falha no render → erro inline + aba com o arquivo ORIGINAL', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue(okResponse(docxBytes()) as any);
+    docxPreview.render.mockRejectedValue(new Error('docx corrompido'));
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+    fixture.detectChanges();
+
+    const cmp = fixture.componentInstance as any;
+    expect(cmp.error()).toContain('Baixar Contrato');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeTruthy();
+    // A aba NÃO fica branca nem fechada: recebe a página de fallback com o
+    // link pro arquivo ORIGINAL.
+    expect(tab.close).not.toHaveBeenCalled();
+    const last = tab.written[tab.written.length - 1];
+    expect(last).toContain('Não foi possível exibir o contrato');
+    expect(last).toContain('https://signed/c.docx');
+    expect(cmp.opening()).toBe(false);
+    // Três páginas (Carregando → visualizador → erro), cada uma substituindo a
+    // anterior: é o `document.open()` que descarta o host onde o render travado
+    // ainda pode escrever depois do watchdog.
+    expect(tab.written).toHaveLength(3);
+    expectPagesReplaced(tab);
+  });
+
+  it('openContract: render travado estoura o watchdog e cai no arquivo ORIGINAL', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue(okResponse(docxBytes()) as any);
+    // Render que nunca resolve — o `.docx` patológico que prendia a aba.
+    docxPreview.render.mockReturnValue(new Promise(() => undefined));
+    vi.useFakeTimers();
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    const cmp = fixture.componentInstance as any;
+    expect(cmp.error()).toContain('Baixar Contrato');
+    expect(tab.written[tab.written.length - 1]).toContain('https://signed/c.docx');
+    expect(cmp.opening()).toBe(false);
+
+    vi.useRealTimers();
+  });
+
+  it('openContract: arquivo grande demais nem chega ao parser', async () => {
+    const tab = fakeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    // 9MB de DOCX: acima do teto de render — uma aba de celular não aguenta.
+    vi.spyOn(globalThis, 'fetch' as any).mockResolvedValue(
+      okResponse(docxBytes(9 * 1024 * 1024)) as any,
+    );
+
+    const fixture = makeFixture();
+    (fixture.componentInstance as any).openContract();
+    await settle();
+
+    expect(docxPreview.render).not.toHaveBeenCalled();
+    expect(tab.written[tab.written.length - 1]).toContain('https://signed/c.docx');
+    expect((fixture.componentInstance as any).opening()).toBe(false);
+  });
+
+  /**
+   * Sem signed URL não há arquivo pra oferecer, então a aba é fechada. Mas
+   * `close()` é NO-OP silencioso em vários browsers mobile e o `catch` do card
+   * engole isso: a mensagem tem que estar escrita ANTES, senão a aba sobrevive
+   * presa no "Carregando contrato…".
+   */
+  it('openContract: erro do signed URL escreve a explicação ANTES de tentar fechar a aba', () => {
     rentalService.documentSignedUrl.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 400, error: { message: 'fetch failed' } })),
     );
-    const fakeWin = { location: { href: '' }, close: vi.fn() };
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as any);
+    const tab = fakeTab();
+    // Simula o browser que RECUSA fechar — a aba continua viva depois do close.
+    tab.close.mockImplementation(() => undefined);
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
 
     const fixture = makeFixture();
-    (fixture.componentInstance as any).openContractAsPdf();
+    (fixture.componentInstance as any).openContract();
 
     expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'd1');
-    expect(fakeWin.close).toHaveBeenCalled();
+    expect(tab.close).toHaveBeenCalled();
+    const last = tab.written[tab.written.length - 1];
+    expect(last).toContain('Não foi possível abrir o contrato');
+    expect(last).not.toContain('Carregando contrato');
+    // Sem link: a signed URL nunca chegou, não existe arquivo pra apontar.
+    expect(last).toContain('Baixar Contrato');
     expect((fixture.componentInstance as any).error()).toBe('fetch failed');
     expect(notifications.push).not.toHaveBeenCalledWith('error', 'fetch failed');
-    expect((fixture.componentInstance as any).openingPdf()).toBe(false);
-
-    openSpy.mockRestore();
+    expect((fixture.componentInstance as any).opening()).toBe(false);
+    expectPagesReplaced(tab);
   });
 
-  it('openContractAsPdf: pop-up bloqueado → banner inline e sem chamar service', () => {
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+  it('openContract: pop-up bloqueado → banner inline e sem chamar service', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
 
     const fixture = makeFixture();
-    (fixture.componentInstance as any).openContractAsPdf();
+    (fixture.componentInstance as any).openContract();
 
     expect(rentalService.documentSignedUrl).not.toHaveBeenCalled();
     expect((fixture.componentInstance as any).error()).toBe(
       'Permita pop-ups pra abrir o contrato.',
     );
     expect(notifications.push).not.toHaveBeenCalled();
-    expect((fixture.componentInstance as any).openingPdf()).toBe(false);
-
-    openSpy.mockRestore();
+    expect((fixture.componentInstance as any).opening()).toBe(false);
   });
 });
 
