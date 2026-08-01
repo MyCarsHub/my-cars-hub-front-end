@@ -72,6 +72,8 @@ const PLANS = [FREE, BASIC, PRO, BUSINESS, PRO_YEARLY, BUSINESS_YEARLY];
 /** Date-independent period bounds — the suite must not rot with the calendar. */
 const FUTURE = new Date(Date.now() + 40 * 86_400_000).toISOString();
 const PAST = new Date(Date.now() - 2 * 86_400_000).toISOString();
+/** A YEARLY commitment still deep inside the year already paid for. */
+const FAR_FUTURE = new Date(Date.now() + 330 * 86_400_000).toISOString();
 
 const sub = (over: Partial<SubscriptionResponse>): SubscriptionResponse => ({
   id: 'sub-1',
@@ -80,8 +82,8 @@ const sub = (over: Partial<SubscriptionResponse>): SubscriptionResponse => ({
   status: 'ACTIVE',
   billingCycle: 'MONTHLY',
   trialEndsAt: null,
-  currentPeriodStart: '2026-07-01T00:00:00Z',
-  currentPeriodEnd: '2026-08-01T00:00:00Z',
+  currentPeriodStart: PAST,
+  currentPeriodEnd: FUTURE,
   cancelAtPeriodEnd: false,
   externalId: null,
   pendingPlanCode: null,
@@ -213,7 +215,7 @@ describe('Billing', () => {
           outcome: 'SCHEDULED',
           currentPlanCode: 'PRO_MONTHLY_STRIPE',
           targetPlanCode: 'FREE_MONTHLY_STRIPE',
-          effectiveAt: '2026-08-01T00:00:00Z',
+          effectiveAt: FUTURE,
           message: null,
         }),
       ),
@@ -276,7 +278,7 @@ describe('Billing', () => {
   // ---------------------------------------------------------------------------
 
   it('does NOT treat a TRIALING PRO subscription as the current plan', () => {
-    subscriptionSignal.set(sub({ status: 'TRIALING', trialEndsAt: '2026-08-01T00:00:00Z' }));
+    subscriptionSignal.set(sub({ status: 'TRIALING', trialEndsAt: FUTURE }));
     const c = build();
 
     expect(c.isCurrent(PRO)).toBe(false);
@@ -463,7 +465,7 @@ describe('Billing', () => {
         status: 'ACTIVE',
         planCode: 'PRO_YEARLY_STRIPE',
         billingCycle: 'YEARLY',
-        currentPeriodEnd: '2027-07-01T00:00:00Z',
+        currentPeriodEnd: FAR_FUTURE,
       }),
     );
     const c = build();
@@ -497,7 +499,7 @@ describe('Billing', () => {
         status: 'ACTIVE',
         planCode: 'PRO_YEARLY_STRIPE',
         billingCycle: 'YEARLY',
-        currentPeriodEnd: '2027-07-01T00:00:00Z',
+        currentPeriodEnd: FAR_FUTURE,
       }),
     );
     const c = build();
@@ -525,7 +527,7 @@ describe('Billing', () => {
         status: 'ACTIVE',
         planCode: 'PRO_YEARLY_STRIPE',
         billingCycle: 'YEARLY',
-        currentPeriodEnd: '2027-07-01T00:00:00Z',
+        currentPeriodEnd: FAR_FUTURE,
       }),
     );
     const c = build();
