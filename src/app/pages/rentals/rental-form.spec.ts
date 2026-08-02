@@ -10,7 +10,6 @@ import { RentalService } from './rental.service';
 import { SessionService } from '../../services/session.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
-import { BillingAccessService } from '../../services/billing-access.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../company-settings/contract-template/contract-template-service';
 
@@ -42,10 +41,6 @@ describe('RentalForm picker filters', () => {
         {
           provide: RentalService,
           useValue: { getById: vi.fn().mockReturnValue(EMPTY) },
-        },
-        {
-          provide: BillingAccessService,
-          useValue: { status: signal(null), load: () => of(null) },
         },
         {
           provide: AsaasIntegrationService,
@@ -186,7 +181,6 @@ describe('RentalForm retirada dentro do período', () => {
           useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
         },
         { provide: RentalService, useValue: { getById: () => EMPTY, create: createSpy } },
-        { provide: BillingAccessService, useValue: { status: signal(null), load: () => of(null) } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
       ],
@@ -339,7 +333,6 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
           useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
         },
         { provide: RentalService, useValue: { getById: () => EMPTY, create: createSpy } },
-        { provide: BillingAccessService, useValue: { status: signal(null), load: () => of(null) } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
       ],

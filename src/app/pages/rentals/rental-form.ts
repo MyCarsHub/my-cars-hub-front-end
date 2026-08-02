@@ -29,7 +29,6 @@ import { toCents } from '../../components/vehicles/financing-form-fields/financi
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
-import { BillingAccessService } from '../../services/billing-access.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../company-settings/contract-template/contract-template-service';
 import { RentalDraftService } from './rental-draft.service';
@@ -62,7 +61,6 @@ export class RentalForm implements OnInit {
   private readonly rentalService = inject(RentalService);
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
-  private readonly billingAccess = inject(BillingAccessService);
   private readonly asaasService = inject(AsaasIntegrationService);
   private readonly contractTemplateService = inject(ContractTemplateService);
   private readonly draftService = inject(RentalDraftService);
@@ -126,12 +124,6 @@ export class RentalForm implements OnInit {
   protected readonly drivers = signal<DriverListItem[]>([]);
 
   protected readonly billingFrequencyOptions = BILLING_FREQUENCY_OPTIONS;
-
-  // TRIAL gate — read from cached BillingAccessService; the app-shell already
-  // primed the cache after login, so this is synchronous in practice.
-  protected readonly isTrial = computed(
-    () => this.billingAccess.status()?.plan?.code === 'TRIAL',
-  );
 
   // Asaas integration status; loaded on init so we can warn the user if they
   // enable automaticCharge without a connected Asaas account.
@@ -373,8 +365,8 @@ export class RentalForm implements OnInit {
   private readonly draftSuspended = signal(false);
 
   private readonly draftAutosave = effect(() => {
-    // `formValue()` é só o gatilho; gravamos o raw value pra não perder
-    // controles desabilitados (ex.: automaticCharge no plano TRIAL).
+    // `formValue()` é só o gatilho; gravamos o raw value porque `value` omite
+    // controles desabilitados e o rascunho voltaria incompleto.
     this.formValue();
     if (this.editingId() !== null || this.draftSuspended()) return;
     this.draftService.save(this.form.getRawValue());
@@ -390,9 +382,6 @@ export class RentalForm implements OnInit {
     // Create-only: recupera o que o usuário já tinha digitado antes de sair pra
     // configurar uma integração. Em edição o backend é a fonte da verdade.
     if (!id) this.restoreDraft();
-
-    // Prime billing access (cached — no-op if already loaded elsewhere).
-    this.billingAccess.load().subscribe();
 
     // Load Asaas integration status so we can show a warning when the user
     // toggles automatic charge without a connected integration.
@@ -411,13 +400,6 @@ export class RentalForm implements OnInit {
       },
       error: () => this.hasContractTemplate.set(false),
     });
-
-    // Disable the toggle up-front when we already know the plan is TRIAL.
-    // A microtask-level effect could handle late arrivals; for now, patch on
-    // load and the template also reads isTrial() to reinforce.
-    if (this.isTrial()) {
-      this.form.controls.automaticCharge.disable();
-    }
 
     // Edit mode: pre-fill from backend rental.
     if (id) {
