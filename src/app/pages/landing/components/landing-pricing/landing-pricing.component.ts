@@ -100,7 +100,7 @@ export class LandingPricingComponent implements AfterViewInit {
   ];
 
   readonly proItems = [
-    'Até 20 veículos',
+    'Até 15 veículos',
     'Motoristas ilimitados',
     'Cobranças automáticas por Asaas e Stripe',
     'Assinatura eletrônica com validade jurídica',

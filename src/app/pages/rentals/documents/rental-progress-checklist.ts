@@ -37,6 +37,8 @@ interface Step {
   showActionButton: boolean;
   actionLabel: string;
   actionKind: 'activate';
+  /** `secondary` = ação de exceção (ex.: forçar ativação com cobrança automática). */
+  actionTone: 'primary' | 'secondary';
 }
 
 const STEP_TO_QUERY: Record<StepKey, string> = {
@@ -166,7 +168,8 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                   <button
                     type="button"
                     (click)="handleAction(step)"
-                    class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-semibold transition-colors min-h-[44px]"
+                    class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors min-h-[44px]"
+                    [class]="actionClass(step)"
                   >
                     {{ step.actionLabel }}
                   </button>
@@ -250,6 +253,18 @@ export class RentalProgressChecklist implements OnInit {
     const isActive = status === 'ACTIVE' || status === 'COMPLETED';
     const isCompleted = status === 'COMPLETED';
     const canActivateManually = status === 'RESERVED' && this.automaticCharge() === false;
+    /**
+     * RESERVED + cobrança automática: a ativação chega pelo webhook do Asaas.
+     * Não é punição — é espera. Mesmo vocabulário do badge da listagem
+     * (`rentals-list.html` → "Aguardando pagamento").
+     */
+    const awaitingPayment = status === 'RESERVED' && this.automaticCharge() === true;
+    /**
+     * O botão aparece nos dois casos. Em `awaitingPayment` ele é a saída de
+     * emergência pro webhook que não chegou — quem valida é o backend, que
+     * devolve 409 com a mensagem certa quando o pagamento ainda não entrou.
+     */
+    const canActivate = canActivateManually || awaitingPayment;
 
     const contractState: StepState = contractSigned
       ? 'done'
@@ -307,7 +322,9 @@ export class RentalProgressChecklist implements OnInit {
       ? { label: 'ativo', tone: 'emerald' }
       : canActivateManually
         ? { label: 'pronto', tone: 'amber' }
-        : { label: 'bloqueado', tone: 'red' };
+        : awaitingPayment
+          ? { label: 'aguardando pagamento', tone: 'amber' }
+          : { label: 'não iniciado', tone: 'neutral' };
 
     return [
       {
@@ -321,6 +338,7 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
+        actionTone: 'primary',
       },
       {
         key: 'CONTRACT',
@@ -333,6 +351,7 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
+        actionTone: 'primary',
       },
       {
         key: 'CHECKIN',
@@ -349,6 +368,7 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
+        actionTone: 'primary',
       },
       {
         key: 'ACTIVATE',
@@ -357,14 +377,17 @@ export class RentalProgressChecklist implements OnInit {
           ? 'Aluguel ativado — cobranças em andamento.'
           : canActivateManually
             ? 'Cobrança da caução (se houver) é disparada aqui.'
-            : 'Aluguel será ativado automaticamente após confirmação do pagamento.',
+            : awaitingPayment
+              ? 'Aluguel será ativado automaticamente após a confirmação do pagamento no Asaas. Se o pagamento já entrou e nada aconteceu, ative manualmente.'
+              : 'Locação não foi iniciada.',
         state: activateState,
         visible: true,
         panel: null,
         badge: activateBadge,
-        showActionButton: canActivateManually,
-        actionLabel: 'Ativar aluguel',
+        showActionButton: canActivate,
+        actionLabel: awaitingPayment ? 'Ativar mesmo assim' : 'Ativar aluguel',
         actionKind: 'activate',
+        actionTone: awaitingPayment ? 'secondary' : 'primary',
       },
       {
         key: 'CHECKOUT',
@@ -381,6 +404,7 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
+        actionTone: 'primary',
       },
     ];
   });
@@ -402,6 +426,17 @@ export class RentalProgressChecklist implements OnInit {
     const next = this.expandedStep() === step.key ? null : step.key;
     this.expandedStep.set(next);
     this.writeDeepLink(next);
+  }
+
+  /**
+   * Classes de variante do botão de ação. String pronta (em vez de vários
+   * `[class.x]`) porque utilitários Tailwind com `:` — `hover:bg-*` — não são
+   * nomes válidos numa binding `[class.nome]`.
+   */
+  protected actionClass(step: Step): string {
+    return step.actionTone === 'secondary'
+      ? 'border border-amber-300 text-amber-800 hover:bg-amber-50'
+      : 'bg-primary-500 hover:bg-primary-600 text-white';
   }
 
   protected handleAction(step: Step): void {

@@ -38,11 +38,13 @@ describe('RentalsList — menu de ações', () => {
 
   let items: ReturnType<typeof signal<RentalListItemDto[]>>;
   let removeSpy: ReturnType<typeof vi.fn>;
+  let cancelSpy: ReturnType<typeof vi.fn>;
   let pushSpy: ReturnType<typeof vi.fn>;
 
   function configure(): void {
     items = signal<RentalListItemDto[]>([rental]);
     removeSpy = vi.fn().mockReturnValue(of(void 0));
+    cancelSpy = vi.fn().mockReturnValue(of(void 0));
     pushSpy = vi.fn();
 
     TestBed.configureTestingModule({
@@ -62,7 +64,7 @@ describe('RentalsList — menu de ações', () => {
             list: vi.fn().mockReturnValue(of({ content: [rental], totalElements: 1 })),
             remove: removeSpy,
             activate: vi.fn().mockReturnValue(of(void 0)),
-            cancel: vi.fn().mockReturnValue(of(void 0)),
+            cancel: cancelSpy,
           },
         },
         {
@@ -143,7 +145,32 @@ describe('RentalsList — menu de ações', () => {
     expect(removeSpy).not.toHaveBeenCalled();
 
     component.confirmDialog();
-    expect(removeSpy).toHaveBeenCalledWith('r-1');
+    expect(removeSpy).toHaveBeenCalledWith('r-1', false);
+  });
+
+  it('opt-in de vencidas nasce desmarcado e viaja em excluir/cancelar quando marcado', () => {
+    const fixture = TestBed.createComponent(RentalsList);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      askAction: (a: 'delete' | 'cancel', r: RentalListItemDto, ev: Event) => void;
+      onRemoveOverdueChange: (checked: boolean) => void;
+      removeOverdueCharges: () => boolean;
+      confirmDialog: () => void;
+    };
+
+    // Excluir com o opt-in marcado → query param true (segundo argumento).
+    component.askAction('delete', rental, new Event('click'));
+    expect(component.removeOverdueCharges()).toBe(false);
+    component.onRemoveOverdueChange(true);
+    component.confirmDialog();
+    expect(removeSpy).toHaveBeenCalledWith('r-1', true);
+
+    // Reabrir outra ação sempre reseta o opt-in — apagar dívida é irreversível.
+    component.askAction('cancel', rental, new Event('click'));
+    expect(component.removeOverdueCharges()).toBe(false);
+    component.confirmDialog();
+    expect(cancelSpy).toHaveBeenCalledWith('r-1', { removeOverdueCharges: false });
   });
 
   it('erro do servidor mantém o aluguel na lista e mostra a mensagem inline', () => {
@@ -177,5 +204,84 @@ describe('RentalsList — menu de ações', () => {
     expect(banners.some((b) => b.textContent?.includes('Aluguel possui cobranças em aberto.'))).toBe(
       true,
     );
+  });
+});
+
+/**
+ * Visibilidade da integração Asaas na listagem. O dado já vem da API
+ * (`RentalListItemDto.automaticCharge`) — nenhum endpoint novo envolvido.
+ * O badge aparece duas vezes por aluguel (card mobile + célula "Cobrança" do
+ * desktop), ambos renderizados no mesmo DOM.
+ */
+describe('RentalsList — badge de integração Asaas', () => {
+  function configureWith(automaticCharge: boolean): void {
+    const rental: RentalListItemDto = {
+      id: 'r-1',
+      vehicleId: 'v-1',
+      driverId: 'd-1',
+      startDate: '2026-01-01',
+      endDate: '2026-01-10',
+      totalAmount: 1000,
+      caucaoAmount: 0,
+      status: 'RESERVED',
+      billingFrequency: 'DAILY',
+      automaticCharge,
+    };
+
+    TestBed.configureTestingModule({
+      imports: [RentalsList],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: RentalService,
+          useValue: {
+            items: signal<RentalListItemDto[]>([rental]),
+            loading: signal(false),
+            error: signal<string | null>(null),
+            page: signal(0),
+            size: signal(20),
+            total: signal(1),
+            list: vi.fn().mockReturnValue(of({ content: [rental], totalElements: 1 })),
+            remove: vi.fn().mockReturnValue(of(void 0)),
+            activate: vi.fn().mockReturnValue(of(void 0)),
+            cancel: vi.fn().mockReturnValue(of(void 0)),
+          },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: vi.fn().mockReturnValue(of({ content: [], totalElements: 0 })) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: vi.fn().mockReturnValue(of({ content: [], totalElements: 0 })) },
+        },
+        { provide: NotificationService, useValue: { push: vi.fn(), success: vi.fn() } },
+      ],
+    });
+  }
+
+  function asaasBadges(host: HTMLElement): Element[] {
+    return Array.from(host.querySelectorAll('[aria-label="Cobrança automática via Asaas"]'));
+  }
+
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('mostra o badge Asaas (mobile + desktop) quando automaticCharge=true', () => {
+    configureWith(true);
+    const fixture = TestBed.createComponent(RentalsList);
+    fixture.detectChanges();
+
+    const badges = asaasBadges(fixture.nativeElement as HTMLElement);
+    expect(badges).toHaveLength(2);
+    expect(badges[0].textContent?.trim()).toBe('Asaas');
+  });
+
+  it('não mostra o badge Asaas quando automaticCharge=false', () => {
+    configureWith(false);
+    const fixture = TestBed.createComponent(RentalsList);
+    fixture.detectChanges();
+
+    expect(asaasBadges(fixture.nativeElement as HTMLElement)).toHaveLength(0);
   });
 });

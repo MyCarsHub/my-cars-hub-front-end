@@ -58,11 +58,25 @@
             <p class="mt-2 text-xs uppercase tracking-wide text-neutral-400 font-semibold">Motorista</p>
             <p class="text-sm text-neutral-800">{{ driverNameSig() }}</p>
           </div>
-          <div class="shrink-0">
+          <div class="shrink-0 flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
             @if (statusInfo(); as s) {
               <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
                 [class]="s.chip">
                 {{ s.label }}
+              </span>
+            }
+            <!-- Integração Asaas: cobrança gerada/baixada automaticamente. -->
+            @if (r.automaticCharge) {
+              <span
+                title="Cobrança automática via Asaas"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs
+                       font-semibold bg-neutral-100 text-neutral-700">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                Cobrança automática via Asaas
               </span>
             }
           </div>
@@ -785,14 +799,18 @@
             <button type="button"
               (click)="activate()"
               [disabled]="activateBusy()"
-              class="w-full sm:w-auto px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white
-                     text-sm font-semibold shadow-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
+              [attr.title]="activateIsOverride()
+                ? 'Use apenas se o pagamento já foi confirmado e o aluguel não ativou sozinho.'
+                : null"
+              class="w-full sm:w-auto px-4 py-3 rounded-xl
+                     text-sm font-semibold disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              [class]="activateButtonClass()">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round" aria-hidden="true">
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
-              {{ activateBusy() ? 'Ativando…' : 'Marcar como ativo' }}
+              {{ activateLabel() }}
             </button>
           }
           @if (canComplete()) {
@@ -854,9 +872,13 @@
 <app-confirm-dialog
   [open]="deleteOpen()"
   title="Excluir aluguel"
-  message="Tem certeza que deseja excluir este aluguel? Esta ação não pode ser desfeita."
+  message="Tem certeza que deseja excluir este aluguel? As cobranças em aberto que ainda não venceram serão apagadas no Asaas; as vencidas e não pagas permanecem cobráveis; as já pagas permanecem e não são estornadas. Esta ação não pode ser desfeita."
   confirmLabel="Excluir"
   variant="danger"
+  optionLabel="Apagar também as cobranças vencidas e não pagas"
+  optionHint="Elas somem do Asaas e deixam de ser cobráveis por lá."
+  [optionChecked]="deleteRemoveOverdue()"
+  (optionCheckedChange)="onDeleteRemoveOverdueChange($event)"
   (confirmed)="confirmDelete()"
   (cancelled)="cancelDelete()"
 />
