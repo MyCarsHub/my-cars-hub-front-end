@@ -57,6 +57,22 @@ export class ConfirmDialog {
    */
   variant = input<'info' | 'warning' | 'danger'>('info');
 
+  /**
+   * Opt-in checkbox (opcional). Só é renderizado quando `optionLabel` tem
+   * conteúdo — os callers que não passam nada seguem com o dialog original.
+   * Estado é do pai: `[(optionChecked)]` ou input + `(optionCheckedChange)`.
+   */
+  optionLabel = input<string>('');
+
+  /** Linha de apoio abaixo do label do checkbox (opcional). */
+  optionHint = input<string>('');
+
+  /** Estado do checkbox opcional. Nunca deve vir pré-marcado em ação destrutiva. */
+  optionChecked = input<boolean>(false);
+
+  /** Emitted whenever the optional checkbox is toggled. */
+  optionCheckedChange = output<boolean>();
+
   /** Emitted when the user clicks the confirm button */
   confirmed = output<void>();
 
@@ -79,6 +95,10 @@ export class ConfirmDialog {
       danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-400',
     };
     return map[this.variant()] ?? map['info'];
+  }
+
+  protected onOptionToggle(event: Event): void {
+    this.optionCheckedChange.emit((event.target as HTMLInputElement).checked);
   }
 
   protected onConfirm(): void {

@@ -134,6 +134,11 @@ export class RentalsList implements OnInit {
   protected readonly pendingAction = signal<PendingAction | null>(null);
   protected readonly pendingRental = signal<RentalListItemDto | null>(null);
   protected readonly actionBusy = signal(false);
+  /**
+   * Opt-in destrutivo de cancelar/excluir: apaga também no Asaas as cobranças
+   * vencidas e não pagas. Reaberto sempre desmarcado (`askAction`).
+   */
+  protected readonly removeOverdueCharges = signal(false);
 
   protected readonly totalPages = computed(() => {
     const t = this.total();
@@ -163,9 +168,9 @@ export class RentalsList implements OnInit {
       case 'activate':
         return 'Deseja marcar este aluguel como ativo agora?';
       case 'cancel':
-        return 'Tem certeza que deseja cancelar este aluguel? As cobranças pendentes serão canceladas.';
+        return 'Tem certeza que deseja cancelar este aluguel? As cobranças em aberto que ainda não venceram serão apagadas no Asaas; as vencidas e não pagas permanecem cobráveis; as já pagas permanecem e não são estornadas.';
       case 'delete':
-        return 'Tem certeza que deseja excluir este aluguel? Esta ação não pode ser desfeita.';
+        return 'Tem certeza que deseja excluir este aluguel? As cobranças em aberto que ainda não venceram serão apagadas no Asaas; as vencidas e não pagas permanecem cobráveis; as já pagas permanecem e não são estornadas. Esta ação não pode ser desfeita.';
       default:
         return '';
     }
@@ -180,6 +185,21 @@ export class RentalsList implements OnInit {
         return 'info';
     }
   });
+
+  /**
+   * Label do opt-in de cobranças vencidas. Vazio em `activate` — lá o
+   * ConfirmDialog não renderiza checkbox nenhum.
+   */
+  protected readonly dialogOptionLabel = computed(() => {
+    const action = this.pendingAction();
+    return action === 'cancel' || action === 'delete'
+      ? 'Apagar também as cobranças vencidas e não pagas'
+      : '';
+  });
+
+  protected readonly dialogOptionHint = computed(() =>
+    this.dialogOptionLabel() ? 'Elas somem do Asaas e deixam de ser cobráveis por lá.' : '',
+  );
 
   protected readonly dialogConfirmLabel = computed(() => {
     switch (this.pendingAction()) {
@@ -405,8 +425,13 @@ export class RentalsList implements OnInit {
 
   protected askAction(action: PendingAction, r: RentalListItemDto, ev: Event): void {
     ev.stopPropagation();
+    this.removeOverdueCharges.set(false);
     this.pendingAction.set(action);
     this.pendingRental.set(r);
+  }
+
+  protected onRemoveOverdueChange(checked: boolean): void {
+    this.removeOverdueCharges.set(checked);
   }
 
   protected cancelDialog(): void {
@@ -444,13 +469,15 @@ export class RentalsList implements OnInit {
         });
         break;
       case 'cancel':
-        this.rentalService.cancel(r.id).subscribe({
-          next: () => onSuccess('Aluguel cancelado.'),
-          error: (err) => onError(err, 'Não foi possível cancelar o aluguel.'),
-        });
+        this.rentalService
+          .cancel(r.id, { removeOverdueCharges: this.removeOverdueCharges() })
+          .subscribe({
+            next: () => onSuccess('Aluguel cancelado.'),
+            error: (err) => onError(err, 'Não foi possível cancelar o aluguel.'),
+          });
         break;
       case 'delete':
-        this.rentalService.remove(r.id).subscribe({
+        this.rentalService.remove(r.id, this.removeOverdueCharges()).subscribe({
           next: () => onSuccess('Aluguel excluído.'),
           error: (err) => onError(err, 'Não foi possível excluir o aluguel.'),
         });
