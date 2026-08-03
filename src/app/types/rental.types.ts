@@ -28,6 +28,11 @@ export interface CompleteRentalPayload {
   completedAt?: string; // yyyy-MM-dd
   endReason?: string; // <= 500
   caucaoRefund?: CaucaoRefundPayload;
+  /**
+   * Opt-in destrutivo: apaga também no Asaas as cobranças vencidas e não pagas.
+   * Default `false` no backend — as vencidas ficam e seguem cobráveis.
+   */
+  removeOverdueCharges?: boolean;
 }
 
 /**
@@ -38,6 +43,8 @@ export interface CancelRentalPayload {
   canceledAt?: string; // yyyy-MM-dd
   endReason?: string; // <= 500
   caucaoRefund?: CaucaoRefundPayload;
+  /** Ver {@link CompleteRentalPayload.removeOverdueCharges}. */
+  removeOverdueCharges?: boolean;
 }
 
 export function caucaoRefundMethodLabel(m: CaucaoRefundMethod): string {

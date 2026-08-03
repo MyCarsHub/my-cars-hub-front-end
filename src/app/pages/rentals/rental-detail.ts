@@ -91,6 +91,8 @@ export class RentalDetail implements OnInit {
 
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
+  /** Opt-in do dialog de exclusão. Reaberto sempre desmarcado em `askDelete()`. */
+  protected readonly deleteRemoveOverdue = signal(false);
 
   protected readonly statusInfo = computed(() => {
     const r = this.rental();
@@ -109,14 +111,38 @@ export class RentalDetail implements OnInit {
   protected readonly canCancel = computed(() => this.rental()?.status === 'RESERVED');
   protected readonly canComplete = computed(() => this.rental()?.status === 'ACTIVE');
   /**
-   * Manual activation is only offered when the rental was created without
-   * automatic charge (there's no Asaas webhook to move it to ACTIVE).
+   * Activation is offered for every RESERVED rental — inclusive de cobrança
+   * automática. Quem decide se pode ativar é o backend (`RentalService.activate`):
+   * quando o direito de uso ainda não está quitado ele devolve 409 com a mensagem
+   * explicando que falta a confirmação do pagamento, e essa mensagem é exibida
+   * no banner via `apiErrors.messageFor`. Escondendo o botão o dono ficava sem
+   * saída quando o webhook do Asaas falhava depois do pagamento entrar.
    */
-  protected readonly canActivate = computed(() => {
+  protected readonly canActivate = computed(() => this.rental()?.status === 'RESERVED');
+  /**
+   * RESERVED + cobrança automática: a ativação normal chega pelo webhook.
+   * Aqui o botão vira uma saída de emergência — estilo secundário, não primário.
+   */
+  protected readonly activateIsOverride = computed(() => {
     const r = this.rental();
-    return r?.status === 'RESERVED' && r?.automaticCharge === false;
+    return r?.status === 'RESERVED' && r?.automaticCharge === true;
   });
   protected readonly activateBusy = signal(false);
+  /**
+   * Variante visual do botão de ativar. String pronta (em vez de várias bindings
+   * `[class.x]`) porque utilitários Tailwind com `:` — `hover:bg-*` — não são
+   * nomes válidos numa binding `[class.nome]`.
+   */
+  protected readonly activateButtonClass = computed(() =>
+    this.activateIsOverride()
+      ? 'border border-blue-200 text-blue-700 hover:bg-blue-50'
+      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
+  );
+  /** Rótulo do botão de ativar — override tem copy própria pra não parecer o fluxo normal. */
+  protected readonly activateLabel = computed(() => {
+    if (this.activateBusy()) return 'Ativando…';
+    return this.activateIsOverride() ? 'Ativar mesmo assim' : 'Marcar como ativo';
+  });
 
   // ------------------------------------------------------------------
   // Cronograma de cobrança (RENTAL_PERIOD + RENTAL_TOTAL, apenas).
@@ -274,7 +300,10 @@ export class RentalDetail implements OnInit {
   protected confirmCancel(event: EndRentalDialogPayload): void {
     const r = this.rental();
     if (!r) return;
-    const payload: CancelRentalPayload = { canceledAt: event.date };
+    const payload: CancelRentalPayload = {
+      canceledAt: event.date,
+      removeOverdueCharges: event.removeOverdueCharges,
+    };
     if (event.endReason) payload.endReason = event.endReason;
     if (event.caucaoRefund) payload.caucaoRefund = event.caucaoRefund;
     this.actionError.set(null);
@@ -305,7 +334,10 @@ export class RentalDetail implements OnInit {
   protected confirmComplete(event: EndRentalDialogPayload): void {
     const r = this.rental();
     if (!r) return;
-    const payload: CompleteRentalPayload = { completedAt: event.date };
+    const payload: CompleteRentalPayload = {
+      completedAt: event.date,
+      removeOverdueCharges: event.removeOverdueCharges,
+    };
     if (event.endReason) payload.endReason = event.endReason;
     if (event.caucaoRefund) payload.caucaoRefund = event.caucaoRefund;
     this.actionError.set(null);
@@ -346,18 +378,22 @@ export class RentalDetail implements OnInit {
   }
 
   protected askDelete(): void {
+    this.deleteRemoveOverdue.set(false);
     this.deleteOpen.set(true);
   }
   protected cancelDelete(): void {
     if (this.deleting()) return;
     this.deleteOpen.set(false);
   }
+  protected onDeleteRemoveOverdueChange(checked: boolean): void {
+    this.deleteRemoveOverdue.set(checked);
+  }
   protected confirmDelete(): void {
     const r = this.rental();
     if (!r) return;
     this.actionError.set(null);
     this.deleting.set(true);
-    this.rentalService.remove(r.id).subscribe({
+    this.rentalService.remove(r.id, this.deleteRemoveOverdue()).subscribe({
       next: () => {
         this.notifications.push('success', 'Aluguel excluído.');
         this.router.navigate(['/alugueis']);

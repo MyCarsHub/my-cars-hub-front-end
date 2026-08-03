@@ -138,12 +138,51 @@ describe('RentalProgressChecklist step derivation', () => {
     expect(checkin.state).toBe('done');
   });
 
-  it('marks ACTIVATE as blocked when automatic charge is on and status RESERVED', () => {
+  it('marks ACTIVATE as awaiting payment when automatic charge is on and status RESERVED', () => {
     const fixture = makeComponent('RESERVED', true);
     fixture.detectChanges();
     const activate = (fixture.componentInstance as any).steps().find((s: any) => s.key === 'ACTIVATE');
     expect(activate.state).toBe('blocked');
-    expect(activate.showActionButton).toBe(false);
+    // "bloqueado" lia como punição; o estado real é espera pelo webhook do Asaas.
+    expect(activate.badge).toEqual({ label: 'aguardando pagamento', tone: 'amber' });
+    expect(activate.description).toContain('confirmação do pagamento');
+  });
+
+  it('offers a secondary activate override when awaiting payment (webhook may never land)', () => {
+    const fixture = makeComponent('RESERVED', true);
+    fixture.detectChanges();
+    const activate = (fixture.componentInstance as any).steps().find((s: any) => s.key === 'ACTIVATE');
+    expect(activate.showActionButton).toBe(true);
+    expect(activate.actionTone).toBe('secondary');
+    expect(activate.actionLabel).toBe('Ativar mesmo assim');
+    expect(activate.description).toContain('ative manualmente');
+  });
+
+  it('emits activateRequested from the override button so the backend can 409 or accept', () => {
+    const fixture = makeComponent('RESERVED', true);
+    fixture.detectChanges();
+    const instance = fixture.componentInstance as any;
+    const emitted = vi.fn();
+    instance.activateRequested.subscribe(emitted);
+    const activate = instance.steps().find((s: any) => s.key === 'ACTIVATE');
+    instance.handleAction(activate);
+    expect(emitted).toHaveBeenCalledTimes(1);
+  });
+
+  it('never labels ACTIVATE as "bloqueado" (rótulo confundia o usuário)', () => {
+    for (const [status, autoCharge] of [
+      ['RESERVED', true],
+      ['RESERVED', false],
+      ['ACTIVE', true],
+      ['COMPLETED', true],
+    ] as const) {
+      const fixture = makeComponent(status, autoCharge);
+      fixture.detectChanges();
+      const activate = (fixture.componentInstance as any)
+        .steps()
+        .find((s: any) => s.key === 'ACTIVATE');
+      expect(activate.badge?.label).not.toBe('bloqueado');
+    }
   });
 
   it('marks ACTIVATE as pending when manual and RESERVED', () => {
@@ -152,6 +191,8 @@ describe('RentalProgressChecklist step derivation', () => {
     const activate = (fixture.componentInstance as any).steps().find((s: any) => s.key === 'ACTIVATE');
     expect(activate.state).toBe('pending');
     expect(activate.showActionButton).toBe(true);
+    expect(activate.actionTone).toBe('primary');
+    expect(activate.actionLabel).toBe('Ativar aluguel');
   });
 
   it('marks ACTIVATE as done and CHECKOUT visible when status ACTIVE', () => {

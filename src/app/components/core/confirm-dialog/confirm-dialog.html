@@ -47,6 +47,22 @@
       </div>
     </div>
 
+    @if (optionLabel()) {
+    <div class="px-4 sm:px-6 pb-1">
+      <label
+        class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 cursor-pointer">
+        <input type="checkbox" [checked]="optionChecked()" (change)="onOptionToggle($event)"
+          class="mt-0.5 h-4 w-4 shrink-0 accent-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1" />
+        <span class="flex-1 min-w-0">
+          <span class="block text-sm font-medium text-amber-900">{{ optionLabel() }}</span>
+          @if (optionHint()) {
+          <span class="mt-0.5 block text-xs leading-relaxed text-amber-800">{{ optionHint() }}</span>
+          }
+        </span>
+      </label>
+    </div>
+    }
+
     <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-3 sm:pt-4">
       <button type="button" (click)="onCancel()"
         class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-300 cursor-pointer">

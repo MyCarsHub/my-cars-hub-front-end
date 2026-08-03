@@ -227,8 +227,13 @@ export class RentalService {
     return this.http.post<RentalResponseDto>(`${BASE}/${id}/complete`, payload ?? {});
   }
 
-  remove(id: string): Observable<void> {
-    return this.http.delete<void>(`${BASE}/${id}`);
+  /**
+   * DELETE /rentals/{id}. `removeOverdueCharges` viaja como query param (não body):
+   * `true` apaga também no Asaas as cobranças vencidas e não pagas.
+   */
+  remove(id: string, removeOverdueCharges = false): Observable<void> {
+    const params = new HttpParams().set('removeOverdueCharges', removeOverdueCharges);
+    return this.http.delete<void>(`${BASE}/${id}`, { params });
   }
 
   /**

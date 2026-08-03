@@ -164,10 +164,28 @@
                     <span class="text-neutral-400">Motorista:</span> {{ driverName(r.driverId) }}
                   </p>
                 </div>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                  [class]="statusInfo(r.status).chip">
-                  {{ statusInfo(r.status).label }}
-                </span>
+                <div class="flex flex-col items-end gap-1 shrink-0">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    [class]="statusInfo(r.status).chip">
+                    {{ statusInfo(r.status).label }}
+                  </span>
+                  <!-- Integração Asaas: cobrança gerada/baixada automaticamente. -->
+                  @if (r.automaticCharge) {
+                    <span
+                      role="img"
+                      title="Cobrança automática via Asaas"
+                      aria-label="Cobrança automática via Asaas"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]
+                             font-semibold bg-neutral-100 text-neutral-700">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                      </svg>
+                      Asaas
+                    </span>
+                  }
+                </div>
               </div>
 
               <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600 cursor-pointer"
@@ -294,9 +312,27 @@
                     {{ daysBetween(r.startDate, r.endDate) }}
                   </td>
                   <td class="py-3 pr-4 cursor-pointer" (click)="openDetail(r)">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">
-                      {{ billingFrequencyLabel(r.billingFrequency) }}
-                    </span>
+                    <div class="flex flex-wrap items-center gap-1">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700">
+                        {{ billingFrequencyLabel(r.billingFrequency) }}
+                      </span>
+                      <!-- Integração Asaas: cobrança gerada/baixada automaticamente. -->
+                      @if (r.automaticCharge) {
+                        <span
+                          role="img"
+                          title="Cobrança automática via Asaas"
+                          aria-label="Cobrança automática via Asaas"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
+                                 font-medium bg-neutral-100 text-neutral-700">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                          </svg>
+                          Asaas
+                        </span>
+                      }
+                    </div>
                   </td>
                   <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums cursor-pointer" (click)="openDetail(r)">
                     {{ formatCurrency(r.totalAmount) }}
@@ -520,6 +556,10 @@
   [confirmLabel]="dialogConfirmLabel()"
   cancelLabel="Voltar"
   [variant]="dialogVariant()"
+  [optionLabel]="dialogOptionLabel()"
+  [optionHint]="dialogOptionHint()"
+  [optionChecked]="removeOverdueCharges()"
+  (optionCheckedChange)="onRemoveOverdueChange($event)"
   (confirmed)="confirmDialog()"
   (cancelled)="cancelDialog()"
 />
