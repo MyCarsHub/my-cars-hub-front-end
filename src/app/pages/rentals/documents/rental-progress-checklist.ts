@@ -137,6 +137,7 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                       }
                     </div>
                     <p
+                      [attr.id]="'desc-' + step.key"
                       class="text-xs mt-0.5"
                       [class.text-emerald-700]="step.state === 'done'"
                       [class.text-amber-700]="step.state === 'progress'"
@@ -165,9 +166,17 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                   }
                 </button>
                 @if (step.showActionButton && step.state !== 'done' && step.actionKind === 'activate') {
+                  <!--
+                    Ação de EXCEÇÃO ("Ativar mesmo assim"): o aviso já é texto
+                    visível na descrição da própria etapa — aqui nunca houve
+                    tooltip. O que faltava era o vínculo: sem aria-describedby
+                    o leitor de tela anunciava só "Ativar mesmo assim, botão" e
+                    o porquê ficava solto acima, no botão de expandir.
+                  -->
                   <button
                     type="button"
                     (click)="handleAction(step)"
+                    [attr.aria-describedby]="step.actionTone === 'secondary' ? 'desc-' + step.key : null"
                     class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors min-h-[44px]"
                     [class]="actionClass(step)"
                   >
@@ -432,11 +441,16 @@ export class RentalProgressChecklist implements OnInit {
    * Classes de variante do botão de ação. String pronta (em vez de vários
    * `[class.x]`) porque utilitários Tailwind com `:` — `hover:bg-*` — não são
    * nomes válidos numa binding `[class.nome]`.
+   *
+   * Ativar aluguel é AZUL em todos os caminhos (`--color-rental-action-*`,
+   * exclusivo deste fluxo — ver styles.css). Os dois tons preservam a
+   * de-ênfase da ação de exceção ("Ativar mesmo assim") DENTRO da família
+   * azul, em vez de misturar laranja/âmbar na mesma ação.
    */
   protected actionClass(step: Step): string {
     return step.actionTone === 'secondary'
-      ? 'border border-amber-300 text-amber-800 hover:bg-amber-50'
-      : 'bg-primary-500 hover:bg-primary-600 text-white';
+      ? 'border border-rental-action-200 text-rental-action-700 hover:bg-rental-action-50'
+      : 'bg-rental-action-600 hover:bg-rental-action-700 text-white';
   }
 
   protected handleAction(step: Step): void {

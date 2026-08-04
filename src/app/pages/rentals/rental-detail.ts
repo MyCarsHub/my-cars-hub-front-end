@@ -1,10 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DOCUMENT,
+  ElementRef,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -76,6 +80,76 @@ export class RentalDetail implements OnInit {
    */
   protected readonly actionError = signal<string | null>(null);
 
+  private readonly actionErrorBanner = viewChild<ElementRef<HTMLElement>>('actionErrorBanner');
+  private readonly document = inject(DOCUMENT);
+
+  /**
+   * Armado SOMENTE por `activate()` antes de publicar o erro no banner.
+   *
+   * `actionError` é compartilhado por 9 operações da tela (cancelar, concluir,
+   * excluir, caução marcar/desmarcar, cobrança marcar/desmarcar, regerar,
+   * ativar). Reagir a qualquer uma delas sequestrava o usuário: um 409 ao
+   * marcar uma cobrança como paga no fim da timeline rolava a página pro topo e
+   * tirava o foco da lista. Só a ativação tem o problema que justificou o
+   * scroll (ver `revealActivationError`), então só ela arma a flag.
+   */
+  private activationErrorPendingReveal = false;
+
+  constructor() {
+    /**
+     * Traz o banner de erro pro campo de visão — apenas no fluxo de ativação.
+     *
+     * O banner mora no TOPO da página; "Ativar mesmo assim" (barra de ações) fica
+     * depois de identificação, período, valores, KPIs, caução, cronograma e
+     * histórico — várias telas de scroll abaixo no mobile. Como `messageFor()`
+     * reivindica o erro e desarma o toast do safety net (`ApiErrorService`), um
+     * 409 do backend ("pagamento ainda não confirmado") não produzia NENHUMA
+     * mudança visível perto do botão: o usuário lia isso como "o botão está
+     * morto". Rolar + focar resolve pro vidente e pro teclado; o `role="alert"`
+     * do próprio banner já cobria o leitor de tela.
+     *
+     * O efeito depende de `actionError()` (signal) e da flag (campo simples, de
+     * propósito NÃO rastreado — quem manda é a origem da ação, não a mudança do
+     * banner).
+     */
+    effect(() => {
+      const message = this.actionError();
+      if (!message) {
+        // Toda operação limpa o banner antes de disparar; desarma junto pra
+        // nunca revelar um erro de outro fluxo com uma flag velha.
+        this.activationErrorPendingReveal = false;
+        return;
+      }
+      if (!this.activationErrorPendingReveal) return;
+      const el = this.actionErrorBanner()?.nativeElement;
+      if (!el) return;
+      this.activationErrorPendingReveal = false;
+      this.revealActivationError(el);
+    });
+  }
+
+  /**
+   * Rola + foca o banner, mas SÓ quando ele está fora do viewport.
+   *
+   * O botão de ativar do checklist fica a menos de uma tela do banner: com os
+   * dois visíveis o scroll mexia a página à toa e roubava o foco do botão que
+   * o usuário quer clicar de novo. `scrollIntoView` sem `behavior` explícito
+   * herda o `scroll-behavior` do CSS — que `styles.css` reseta para `auto`
+   * sob `prefers-reduced-motion: reduce`.
+   */
+  private revealActivationError(el: HTMLElement): void {
+    if (this.isInViewport(el)) return;
+    el.scrollIntoView({ block: 'center' });
+    el.focus({ preventScroll: true });
+  }
+
+  /** Interseção vertical do elemento com o viewport (uma borda dentro já conta). */
+  private isInViewport(el: HTMLElement): boolean {
+    const rect = el.getBoundingClientRect();
+    const viewportHeight = this.document.documentElement.clientHeight;
+    return rect.bottom > 0 && rect.top < viewportHeight;
+  }
+
   protected readonly vehiclePlate = signal<string>('—');
   protected readonly vehicleLabel = signal<string>('');
   protected readonly driverNameSig = signal<string>('—');
@@ -121,23 +195,20 @@ export class RentalDetail implements OnInit {
   protected readonly canActivate = computed(() => this.rental()?.status === 'RESERVED');
   /**
    * RESERVED + cobrança automática: a ativação normal chega pelo webhook.
-   * Aqui o botão vira uma saída de emergência — estilo secundário, não primário.
+   * Aqui o botão é uma saída de emergência — o que muda é o RÓTULO e o AVISO
+   * VISÍVEL ao lado (`#activate-override-hint`, ligado por `aria-describedby`),
+   * não o peso visual: o dono do produto pediu explicitamente o CTA
+   * preenchido de azul nos dois cenários ("hoje ele está somente com contorno").
+   * O aviso era um `title` — tooltip não existe em toque, e num app usado no
+   * celular isso equivalia a não ter aviso nenhum.
+   * A de-ênfase da ação de exceção ficou só no checklist, onde o botão é uma
+   * ação de linha e não o CTA da página (`rental-progress-checklist.actionClass`).
    */
   protected readonly activateIsOverride = computed(() => {
     const r = this.rental();
     return r?.status === 'RESERVED' && r?.automaticCharge === true;
   });
   protected readonly activateBusy = signal(false);
-  /**
-   * Variante visual do botão de ativar. String pronta (em vez de várias bindings
-   * `[class.x]`) porque utilitários Tailwind com `:` — `hover:bg-*` — não são
-   * nomes válidos numa binding `[class.nome]`.
-   */
-  protected readonly activateButtonClass = computed(() =>
-    this.activateIsOverride()
-      ? 'border border-primary-200 text-primary-700 hover:bg-primary-50'
-      : 'bg-primary-500 hover:bg-primary-600 text-white shadow-sm',
-  );
   /** Rótulo do botão de ativar — override tem copy própria pra não parecer o fluxo normal. */
   protected readonly activateLabel = computed(() => {
     if (this.activateBusy()) return 'Ativando…';
@@ -372,6 +443,8 @@ export class RentalDetail implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.activateBusy.set(false);
+        // Único ponto que arma o scroll+foco — ver `activationErrorPendingReveal`.
+        this.activationErrorPendingReveal = true;
         this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível ativar o aluguel.'));
       },
     });

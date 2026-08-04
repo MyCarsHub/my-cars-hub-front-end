@@ -43,6 +43,30 @@
   --color-success-700: #0B8A61;
   --color-success-900: #064E37;
 
+  /* ==========================================================
+     AZUL DE AÇÃO DO ALUGUEL — EXCLUSIVO de `src/app/pages/rentals/**`.
+     NÃO adotar em outros módulos: o CTA primário do app é e continua
+     sendo a rampa laranja `--color-primary-*`. Usar `rental-action-*`
+     fora do fluxo de aluguel é bug de review, não preferência.
+
+     Existe porque "ativar aluguel" é uma transição de estado do
+     contrato, e o dono do produto ancorou essa ação no azul de "Ativo"
+     do Histórico de Status (`RENTAL_STATUS_META.ACTIVE` em
+     utils/status-maps.ts).
+
+     ATENÇÃO DE CONTRASTE: o azul de referência do histórico é o 500
+     (#3B82F6). Com texto branco ele dá 3,68:1 e REPROVA o AA (4,5:1),
+     então NÃO é usado como superfície de botão. A superfície preenchida
+     usa o 600 (#2563EB = 5,17:1 com texto branco) e o outline usa o 700
+     (#1D4ED8 = 6,70:1 sobre branco e 6,16:1 sobre o 50). O 500 fica só
+     como identidade / elemento não-textual (limiar 3:1).
+     ========================================================== */
+  --color-rental-action-50: #EFF6FF;
+  --color-rental-action-200: #BFDBFE;
+  --color-rental-action-500: #3B82F6; /* identidade — nunca atrás de texto */
+  --color-rental-action-600: #2563EB; /* superfície preenchida (texto branco) */
+  --color-rental-action-700: #1D4ED8; /* hover do preenchido + texto do outline */
+
   /* Landing/Blog tokens expostos como utilities Tailwind.
      bg-brand, text-ink, border-rule, font-display etc funcionam automático.
      Espelham a mesma rampa laranja oficial acima. */
@@ -313,6 +337,14 @@ body.app-shell-active {
 
 @media (prefers-reduced-motion: reduce) {
   .landing-root .reveal { opacity: 1; transform: none; transition: none; }
+
+  /* Anula o `scroll-behavior: smooth` global (ver `html`, acima). Scroll
+     programático — `scrollIntoView()` sem `behavior` explícito herda daqui —
+     passa a ser instantâneo: quem pediu menos movimento não assiste ao
+     percurso, e o foco programático não fica centenas de ms fora da tela. */
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 .landing-root :focus-visible {
