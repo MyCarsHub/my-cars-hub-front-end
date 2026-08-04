@@ -27,8 +27,12 @@
   @if (rental(); as r) {
     <div class="space-y-4 sm:space-y-6">
       <!-- Falha de OPERAÇÃO (cancelar/concluir/ativar/excluir/caução/cobranças). -->
+      <!-- tabindex=-1: alvo de foco programático (ver `actionErrorBanner` no TS),
+           não entra na ordem de tabulação. -->
       @if (actionError(); as opError) {
-        <app-alert-banner variant="error" [message]="opError" />
+        <div #actionErrorBanner tabindex="-1" class="scroll-mt-4 rounded-xl">
+          <app-alert-banner variant="error" [message]="opError" />
+        </div>
       }
       <!-- Desktop actions (top-right) -->
       <div class="hidden lg:flex justify-end">
@@ -786,41 +790,66 @@
 
       <!-- Actions -->
       @if (canCancel() || canComplete() || canActivate()) {
-        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-          @if (canCancel()) {
-            <button type="button"
-              (click)="askCancel()"
-              class="w-full sm:w-auto px-4 py-3 rounded-xl border border-rose-200 text-rose-700
-                     hover:bg-rose-50 text-sm font-semibold">
-              Cancelar aluguel
-            </button>
-          }
-          @if (canActivate()) {
-            <button type="button"
-              (click)="activate()"
-              [disabled]="activateBusy()"
-              [attr.title]="activateIsOverride()
-                ? 'Use apenas se o pagamento já foi confirmado e o aluguel não ativou sozinho.'
-                : null"
-              class="w-full sm:w-auto px-4 py-3 rounded-xl
-                     text-sm font-semibold disabled:opacity-60 inline-flex items-center justify-center gap-2"
-              [class]="activateButtonClass()">
+        <div class="flex flex-col gap-2">
+          <!-- Aviso da ativação de EXCEÇÃO. Texto visível (não `title`): tooltip não
+               existe em toque e este app é usado majoritariamente no celular, então
+               o `title` deixava o aviso inacessível justo pra quem mais precisa.
+               Fica ACIMA do grupo — com `flex-col-reverse` o CTA é o primeiro item
+               visual no mobile, logo o aviso encosta nele sem empurrar nada. -->
+          @if (canActivate() && activateIsOverride()) {
+            <p id="activate-override-hint"
+              class="flex items-start gap-1.5 text-sm text-amber-800 sm:justify-end sm:text-right">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" aria-hidden="true">
-                <polyline points="20 6 9 17 4 12"/>
+                stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
-              {{ activateLabel() }}
-            </button>
+              <span>
+                Sob sua responsabilidade: use apenas se o pagamento já entrou e o aluguel não
+                ativou sozinho.
+              </span>
+            </p>
           }
-          @if (canComplete()) {
-            <button type="button"
-              (click)="askComplete()"
-              class="w-full sm:w-auto px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white
-                     text-sm font-semibold shadow-sm">
-              Concluir aluguel
-            </button>
-          }
+          <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            @if (canCancel()) {
+              <button type="button"
+                (click)="askCancel()"
+                class="w-full sm:w-auto px-4 py-3 rounded-xl border border-rose-200 text-rose-700
+                       hover:bg-rose-50 text-sm font-semibold">
+                Cancelar aluguel
+              </button>
+            }
+            @if (canActivate()) {
+              <!-- aria-describedby (não `title`): o leitor de tela anuncia o aviso
+                   junto do botão em vez de deixá-lo solto no DOM. -->
+              <button type="button"
+                (click)="activate()"
+                [disabled]="activateBusy()"
+                [attr.aria-describedby]="activateIsOverride() ? 'activate-override-hint' : null"
+                class="w-full sm:w-auto px-4 py-3 rounded-xl text-sm font-semibold shadow-sm
+                       bg-rental-action-600 hover:bg-rental-action-700 text-white
+                       disabled:opacity-60 inline-flex items-center justify-center gap-2
+                       focus-visible:outline-none focus-visible:ring-2
+                       focus-visible:ring-rental-action-700 focus-visible:ring-offset-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                {{ activateLabel() }}
+              </button>
+            }
+            @if (canComplete()) {
+              <button type="button"
+                (click)="askComplete()"
+                class="w-full sm:w-auto px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white
+                       text-sm font-semibold shadow-sm">
+                Concluir aluguel
+              </button>
+            }
+          </div>
         </div>
       }
 

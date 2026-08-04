@@ -7,6 +7,20 @@ import { describe, expect, it } from 'vitest';
  * would keep its specs green while hiding a broken read. These assertions fail
  * on any such complacent implementation.
  */
+/**
+ * Guards the `Element.prototype.scrollIntoView` stub installed by
+ * `test-setup.ts`. It exists so production code (`pages/rentals/rental-detail.ts`)
+ * can call the API unguarded instead of branching on the test environment — if
+ * this back-fill ever disappears, those specs must fail here first, with a clear
+ * cause, rather than as a confusing TypeError deep inside a component effect.
+ */
+describe('Element.prototype.scrollIntoView (test environment)', () => {
+  it('is available and callable with scroll options', () => {
+    expect(typeof Element.prototype.scrollIntoView).toBe('function');
+    expect(() => document.createElement('div').scrollIntoView({ block: 'center' })).not.toThrow();
+  });
+});
+
 describe('Blob.prototype.arrayBuffer (test environment)', () => {
   it('is available', () => {
     expect(typeof Blob.prototype.arrayBuffer).toBe('function');
