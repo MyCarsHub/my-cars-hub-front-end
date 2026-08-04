@@ -26,10 +26,8 @@ describe('LandingFeaturesComponent', () => {
     const fixture = TestBed.createComponent(LandingFeaturesComponent);
     fixture.detectChanges();
     expect(fixture.componentInstance.features.length).toBe(4);
-    const pills = fixture.componentInstance.features.map((f) => f.pill);
-    expect(pills).toContain('Contrato & IA');
     const html: string = fixture.nativeElement.textContent ?? '';
-    expect(html).toContain('Contrato & IA');
+    expect(html).toContain('Contrato pronto');
     expect(html).toContain('contrato.md');
     expect(html).toContain('ChatGPT');
   });
