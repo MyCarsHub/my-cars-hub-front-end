@@ -43,6 +43,56 @@ describe('parseApiError', () => {
     expect(parseApiError(httpError(500, 'boom')).message).toBe('boom');
     expect(parseApiError('not an http error').fieldErrors).toEqual({});
   });
+
+  /**
+   * Requisições feitas com `responseType: 'text'` (todo DELETE do app) NÃO passam
+   * pelo JSON.parse do Angular — ele só desserializa quando o responseType é 'json'
+   * (@angular/common 21.1.5: `FetchBackend.parseBody` e `HttpXhrBackend`). O envelope
+   * chega então como a string literal `{"message":"..."}`. Sem reinterpretar aqui, o
+   * usuário lê o JSON cru na tela.
+   */
+  describe('envelope que chegou sem parse (responseType: text)', () => {
+    it('extrai o message de um envelope entregue como string', () => {
+      const parsed = parseApiError(
+        httpError(409, '{"message":"Autor não pode remover próprio combustível."}'),
+      );
+
+      expect(parsed.message).toBe('Autor não pode remover próprio combustível.');
+      expect(parsed.status).toBe(409);
+      expect(parsed.hasFieldErrors).toBe(false);
+    });
+
+    it('preserva fieldErrors de um envelope entregue como string', () => {
+      const parsed = parseApiError(
+        httpError(400, '{"message":"Placa inválida","fieldErrors":{"plate":"Placa inválida"}}'),
+      );
+
+      expect(parsed.message).toBe('Placa inválida');
+      expect(parsed.hasFieldErrors).toBe(true);
+      expect(parsed.fieldErrors['plate']).toBe('Placa inválida');
+    });
+
+    it('mantém texto puro verbatim — só JSON de objeto é reinterpretado', () => {
+      expect(parseApiError(httpError(500, 'Erro interno inesperado')).message).toBe(
+        'Erro interno inesperado',
+      );
+      // JSON válido que NÃO é objeto continua sendo a própria mensagem
+      expect(parseApiError(httpError(400, '"só um texto"')).message).toBe('"só um texto"');
+      expect(parseApiError(httpError(400, '[1,2]')).message).toBe('[1,2]');
+      expect(parseApiError(httpError(400, '42')).message).toBe('42');
+    });
+
+    it('flatErrorMessage nunca devolve o JSON serializado', () => {
+      const parsed = parseApiError(
+        httpError(409, '{"message":"Autor não pode remover próprio combustível."}'),
+      );
+
+      const shown = flatErrorMessage(parsed, 'fallback');
+      expect(shown).toBe('Autor não pode remover próprio combustível.');
+      expect(shown).not.toContain('{');
+      expect(shown).not.toContain('"message"');
+    });
+  });
 });
 
 describe('toControlPath', () => {
