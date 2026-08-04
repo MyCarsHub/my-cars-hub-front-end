@@ -1,0 +1,42 @@
+@if (open()) {
+<div @backdrop class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" (click)="onClose()" aria-hidden="true"></div>
+
+<div @dialog role="dialog" aria-modal="true" [attr.aria-labelledby]="titleId" [attr.aria-describedby]="bodyId"
+  (keydown)="onKeydown($event)"
+  class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none">
+  <div #panel tabindex="-1"
+    class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-lg
+           max-h-[90dvh] flex flex-col pointer-events-auto overflow-hidden focus:outline-none">
+
+    <div class="flex items-start gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-3">
+      <div class="flex-1 min-w-0">
+        <h2 [id]="titleId" class="text-base font-semibold text-neutral-900 leading-snug break-words">
+          {{ title() }}
+        </h2>
+        @if (subtitle()) {
+        <p class="mt-1 text-xs text-neutral-500 leading-relaxed break-words">{{ subtitle() }}</p>
+        }
+      </div>
+      <button type="button" (click)="onClose()" [attr.aria-label]="closeLabel()"
+        class="shrink-0 -mr-1 -mt-1 p-2 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 cursor-pointer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+
+    <div [id]="bodyId" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pb-5 sm:pb-6">
+      <ng-content />
+    </div>
+
+    <div class="flex justify-end px-4 sm:px-6 py-3 sm:py-4 bg-neutral-50 border-t border-neutral-100">
+      <button type="button" (click)="onClose()"
+        class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-white border border-neutral-200 hover:bg-neutral-100 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 cursor-pointer">
+        {{ closeLabel() }}
+      </button>
+    </div>
+  </div>
+</div>
+}
