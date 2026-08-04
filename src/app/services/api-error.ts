@@ -50,10 +50,30 @@ function readFieldErrors(body: Record<string, unknown>): Record<string, string> 
   return out;
 }
 
+/**
+ * Requisições feitas com `responseType: 'text'` — todo DELETE do app, porque o backend
+ * responde 204 sem corpo — entregam o corpo de ERRO **sem parse**: o Angular só roda
+ * `JSON.parse` quando o responseType é `'json'` (verificado em @angular/common 21.1.5,
+ * `FetchBackend.parseBody` e `HttpXhrBackend`). O envelope chega então como a string
+ * literal `{"message":"..."}`, e sem reinterpretá-la o usuário lê o JSON cru na tela.
+ *
+ * Só objetos são reinterpretados: texto puro ("Erro interno"), JSON escalar ou array
+ * continuam sendo a própria mensagem, como antes.
+ */
+function reviveJsonEnvelope(body: string): unknown {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return isRecord(parsed) ? parsed : body;
+  } catch {
+    return body;
+  }
+}
+
 /** Normalises the shape of any HTTP error into the backend contract above. */
 export function parseApiError(error: unknown): ParsedApiError {
   const status = error instanceof HttpErrorResponse ? error.status : 0;
-  const body = error instanceof HttpErrorResponse ? error.error : undefined;
+  const raw = error instanceof HttpErrorResponse ? error.error : undefined;
+  const body = typeof raw === 'string' && raw.length > 0 ? reviveJsonEnvelope(raw) : raw;
 
   if (typeof body === 'string' && body.length > 0) {
     return { status, message: body, fieldErrors: {}, hasFieldErrors: false };
