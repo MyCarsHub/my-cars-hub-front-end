@@ -4,7 +4,12 @@ import {
   ErrorHandler,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
-import { provideRouter, withComponentInputBinding, Router } from '@angular/router';
+import {
+  provideRouter,
+  withComponentInputBinding,
+  Router,
+  TitleStrategy,
+} from '@angular/router';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -13,6 +18,7 @@ import * as Sentry from '@sentry/angular';
 import { routes } from './app.routes';
 import { authInterceptor } from './services/auth.interceptor';
 import { errorInterceptor } from './services/error.interceptor';
+import { PageTitleStrategy } from './services/page-title.strategy';
 import { environment } from '../environments/environment';
 
 export const appConfig: ApplicationConfig = {
@@ -21,6 +27,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withFetch(), withInterceptors([authInterceptor, errorInterceptor])),
     provideAnimations(),
+    { provide: TitleStrategy, useClass: PageTitleStrategy },
     provideServiceWorker('ngsw-worker.js', {
       enabled: environment.production,
       registrationStrategy: 'registerWhenStable:30000',

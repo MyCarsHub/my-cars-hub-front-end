@@ -53,7 +53,7 @@ export const routes: Routes = [
             import('./pages/legal/privacy-policy/privacy-policy.component').then(
                 (m) => m.PrivacyPolicyComponent
             ),
-        data: { pageTitle: 'Política de Privacidade — MyCarsHub' },
+        data: { pageTitle: 'Política de Privacidade' },
     },
     {
         path: 'termos-de-uso',
@@ -61,7 +61,7 @@ export const routes: Routes = [
             import('./pages/legal/terms-of-use/terms-of-use.component').then(
                 (m) => m.TermsOfUseComponent
             ),
-        data: { pageTitle: 'Termos de Uso — MyCarsHub' },
+        data: { pageTitle: 'Termos de Uso' },
     },
     {
         path: '',

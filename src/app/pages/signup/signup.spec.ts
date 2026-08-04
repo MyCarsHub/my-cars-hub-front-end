@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { throwError } from 'rxjs';
+import { Router, provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { Signup } from './signup';
@@ -51,7 +51,10 @@ describe('Signup', () => {
     expect(component).toBeTruthy();
   });
 
-  it('is invalid until acceptedTerms is checked (submit blocked)', () => {
+  it('blocks the request until acceptedTerms is checked', () => {
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    signup.mockReturnValue(of({}));
+
     component.signupForm.patchValue({
       name: 'Fulano',
       email: 'fulano@example.com',
@@ -61,8 +64,20 @@ describe('Signup', () => {
     });
     expect(component.signupForm.valid).toBe(false);
 
+    submit();
+
+    // the whole point: an unchecked checkbox must never reach the backend
+    expect(signup).not.toHaveBeenCalled();
+    expect(component.signupForm.touched).toBe(true);
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).not.toBeNull();
+
     component.signupForm.patchValue({ acceptedTerms: true });
     expect(component.signupForm.valid).toBe(true);
+
+    submit();
+
+    expect(signup).toHaveBeenCalledTimes(1);
+    expect(signup).toHaveBeenCalledWith('Fulano', 'fulano@example.com', 'password123');
   });
 
   it('is invalid when passwords do not match; valid when they match', () => {
