@@ -14,7 +14,6 @@ interface FeatureRow {
 }
 
 interface Feature {
-  pill: string;
   title: string;
   description: string;
   viz: 'chips' | 'rows' | 'bar' | 'export';
@@ -38,14 +37,12 @@ export class LandingFeaturesComponent implements AfterViewInit {
 
   readonly features: Feature[] = [
     {
-      pill: 'Cobranças',
       title: 'Conectado ao seu PSP.',
       description: 'Pix, boleto ou cartão pelo gateway que você já usa — status sincronizado por webhook.',
       viz: 'chips',
       chips: ['Pix', 'Boleto', 'Cartão'],
     },
     {
-      pill: 'Multas & Manutenções',
       title: 'Volta pro motorista certo.',
       description: 'Multa vinculada ao contrato. Manutenções agendadas com alerta automático.',
       viz: 'rows',
@@ -55,14 +52,12 @@ export class LandingFeaturesComponent implements AfterViewInit {
       ],
     },
     {
-      pill: 'Financiamentos',
       title: 'Saldo devedor à vista.',
       description: 'Parcelas, juros e calendário consolidados por veículo da frota.',
       viz: 'bar',
       barLabel: 'Civic 2024 · 18 de 48 parcelas · R$ 61.580 restantes',
     },
     {
-      pill: 'Contrato & IA',
       title: 'Contrato pronto — e editável na IA.',
       description: 'Gerado do zero a partir do seu template. Baixe em Markdown ou copie o texto e peça pra sua IA favorita ajustar cláusulas.',
       viz: 'export',

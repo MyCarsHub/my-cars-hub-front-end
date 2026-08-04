@@ -17,22 +17,9 @@ import {
   normalizeCpf,
 } from '../../../utils/document-mask';
 import { cpfValidator } from '../../../utils/validators/cpf.validator';
+import { applyMaskedPhoneInput, maskPhone } from '../../../utils/phone-mask';
 
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
-
-/**
- * Progressive `(00) 00000-0000` mask. Shared by the input handler and the hydration
- * `patchValue` so a value coming back from the backend (raw digits) renders exactly
- * like one the user typed — Back used to rehydrate `52998224725` unmasked.
- */
-function maskPhone(value: string | null | undefined): string {
-  let digits = (value ?? '').replace(/\D/g, '');
-  if (digits.length > 11) digits = digits.slice(0, 11);
-  if (digits.length > 6) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  if (digits.length > 2) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length > 0) return `(${digits}`;
-  return digits;
-}
 
 @Component({
   selector: 'app-step-personal',
@@ -174,8 +161,8 @@ export class StepPersonal implements OnInit {
     applyMaskedDocumentInput(event, this.form.get('cpf'), maskCpf);
   }
 
+  /** Progressive phone mask, caret preserved. */
   protected onPhoneInput(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.form.get('phoneNumber')?.setValue(maskPhone(input.value), { emitEvent: true });
+    applyMaskedPhoneInput(event, this.form.get('phoneNumber'));
   }
 }
