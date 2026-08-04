@@ -135,8 +135,8 @@ export class RentalDetail implements OnInit {
    */
   protected readonly activateButtonClass = computed(() =>
     this.activateIsOverride()
-      ? 'border border-blue-200 text-blue-700 hover:bg-blue-50'
-      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm',
+      ? 'border border-primary-200 text-primary-700 hover:bg-primary-50'
+      : 'bg-primary-500 hover:bg-primary-600 text-white shadow-sm',
   );
   /** Rótulo do botão de ativar — override tem copy própria pra não parecer o fluxo normal. */
   protected readonly activateLabel = computed(() => {
