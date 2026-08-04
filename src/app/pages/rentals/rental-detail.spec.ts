@@ -109,12 +109,31 @@ describe('RentalDetail — ativação, cobrança AUTOMÁTICA (RESERVED)', () => 
     scrollSpy.mockRestore();
   });
 
-  it('renderiza os dois "Ativar mesmo assim" (checklist + barra de ações)', () => {
-    expect(buttonsLabeled(fixture, 'Ativar mesmo assim').length).toBe(2);
+  it('renderiza os dois "Marcar como ativo" (checklist + barra de ações)', () => {
+    expect(buttonsLabeled(fixture, 'Marcar como ativo').length).toBe(2);
   });
 
-  it('cada "Ativar mesmo assim" dispara POST /rentals/{id}/activate', async () => {
-    const buttons = buttonsLabeled(fixture, 'Ativar mesmo assim');
+  /** Sem trava de pagamento no backend, o sucesso é o caminho esperado. */
+  it('o CTA marca o aluguel como ativo e sai da barra de ações', async () => {
+    buttonsLabeled(fixture, 'Marcar como ativo')[1].click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const req = http.expectOne(`${BASE}/${RENTAL_ID}/activate`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ ...RESERVED_BASE, status: 'ACTIVE' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    flushAncillary(http);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(buttonsLabeled(fixture, 'Marcar como ativo').length).toBe(0);
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('cada "Marcar como ativo" dispara POST /rentals/{id}/activate', async () => {
+    const buttons = buttonsLabeled(fixture, 'Marcar como ativo');
 
     for (const [i, button] of buttons.entries()) {
       button.click();
@@ -126,8 +145,8 @@ describe('RentalDetail — ativação, cobrança AUTOMÁTICA (RESERVED)', () => 
       expect(pending[0].request.method).toBe('POST');
 
       pending[0].flush(
-        { message: 'Pagamento ainda não confirmado.' },
-        { status: 409, statusText: 'Conflict' },
+        { message: 'Você não tem permissão para ativar este aluguel.' },
+        { status: 403, statusText: 'Forbidden' },
       );
       fixture.detectChanges();
       await fixture.whenStable();
@@ -135,25 +154,28 @@ describe('RentalDetail — ativação, cobrança AUTOMÁTICA (RESERVED)', () => 
   });
 
   /**
-   * Regressão do "botão morto": o 409 é a resposta ESPERADA enquanto o webhook
-   * do Asaas não confirma o pagamento, e `messageFor()` desarma o toast do
-   * safety net. Sem trazer o banner pro campo de visão, a tela não mudava nada
-   * perto do botão e o clique parecia não fazer nada.
+   * Regressão do "botão morto": `messageFor()` reivindica o erro e desarma o
+   * toast do safety net, então sem trazer o banner (que mora no topo) pro campo
+   * de visão a tela não mudava nada perto do CTA e o clique parecia não fazer
+   * nada. Vale pros erros que sobraram — 400, 402, 403, 404.
    */
-  it('após 409, mostra o banner e move o foco pra ele', async () => {
-    buttonsLabeled(fixture, 'Ativar mesmo assim')[1].click();
+  it('após erro do backend, mostra o banner e move o foco pra ele', async () => {
+    buttonsLabeled(fixture, 'Marcar como ativo')[1].click();
     fixture.detectChanges();
     await fixture.whenStable();
 
     http
       .expectOne(`${BASE}/${RENTAL_ID}/activate`)
-      .flush({ message: 'Pagamento ainda não confirmado.' }, { status: 409, statusText: 'Conflict' });
+      .flush(
+        { message: 'Você não tem permissão para ativar este aluguel.' },
+        { status: 403, statusText: 'Forbidden' },
+      );
     fixture.detectChanges();
     await fixture.whenStable();
 
     const banner: HTMLElement | null = fixture.nativeElement.querySelector('[role="alert"]');
     expect(banner, 'banner de erro não renderizou').toBeTruthy();
-    expect(banner?.textContent).toContain('Pagamento ainda não confirmado.');
+    expect(banner?.textContent).toContain('Você não tem permissão para ativar este aluguel.');
 
     const focusTarget = fixture.nativeElement.querySelector('[tabindex="-1"]');
     expect(document.activeElement).toBe(focusTarget);
@@ -177,7 +199,7 @@ describe('RentalDetail — ativação, cobrança AUTOMÁTICA (RESERVED)', () => 
       .spyOn(Element.prototype, 'getBoundingClientRect')
       .mockReturnValue(new DOMRect(0, -10, 320, 15));
     try {
-      const cta = buttonsLabeled(fixture, 'Ativar mesmo assim')[1];
+      const cta = buttonsLabeled(fixture, 'Marcar como ativo')[1];
       cta.focus();
       scrollSpy.mockClear();
 
@@ -187,7 +209,10 @@ describe('RentalDetail — ativação, cobrança AUTOMÁTICA (RESERVED)', () => 
 
       http
         .expectOne(`${BASE}/${RENTAL_ID}/activate`)
-        .flush({ message: 'Pagamento ainda não confirmado.' }, { status: 409, statusText: 'Conflict' });
+        .flush(
+          { message: 'Você não tem permissão para ativar este aluguel.' },
+          { status: 403, statusText: 'Forbidden' },
+        );
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -200,41 +225,27 @@ describe('RentalDetail — ativação, cobrança AUTOMÁTICA (RESERVED)', () => 
   });
 
   /**
-   * O aviso da variante de exceção vivia num `title`. Tooltip não existe em
-   * toque — num app usado no celular isso é o mesmo que não ter aviso. Com os
-   * dois CTAs azuis preenchidos (pedido do dono), o texto visível passou a ser
-   * o ÚNICO sinal que separa "Ativar mesmo assim" de "Marcar como ativo".
+   * A trava de ativação por pagamento saiu do backend; com ela sai o aviso
+   * âmbar ("Sob sua responsabilidade…") e a variante "Ativar mesmo assim".
+   * Nada de alarme falso: cobrança automática só significa que o webhook
+   * costuma ativar sozinho, não que ativar à mão seja um contorno.
    */
-  it('mostra o aviso da exceção como texto visível, ligado ao CTA por aria-describedby', () => {
-    const hint: HTMLElement | null = fixture.nativeElement.querySelector('#activate-override-hint');
-    expect(hint, 'aviso visível não renderizou').toBeTruthy();
-    expect(hint?.textContent).toContain('Sob sua responsabilidade');
-    expect(hint?.textContent).toContain('pagamento já entrou');
+  it('não mostra aviso de exceção nem descreve os botões, mesmo com cobrança automática', () => {
+    expect(fixture.nativeElement.querySelector('#activate-override-hint')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Sob sua responsabilidade');
+    expect(buttonsLabeled(fixture, 'Ativar mesmo assim').length).toBe(0);
 
-    const [, cta] = buttonsLabeled(fixture, 'Ativar mesmo assim');
-    expect(cta.getAttribute('aria-describedby')).toBe('activate-override-hint');
-    expect(cta.getAttribute('title'), 'tooltip voltou a ser o portador do aviso').toBeNull();
+    for (const button of buttonsLabeled(fixture, 'Marcar como ativo')) {
+      expect(button.getAttribute('aria-describedby')).toBeNull();
+      expect(button.getAttribute('title'), 'tooltip voltou a ser portador de aviso').toBeNull();
+    }
   });
 
-  it('o botão do checklist também aponta pra uma descrição visível não vazia', () => {
-    const [checklistBtn] = buttonsLabeled(fixture, 'Ativar mesmo assim');
-    const id = checklistBtn.getAttribute('aria-describedby');
-    expect(id, 'checklist sem aria-describedby').toBeTruthy();
-
-    const described: HTMLElement | null = fixture.nativeElement.querySelector(`#${id}`);
-    expect(described?.textContent?.trim().length ?? 0).toBeGreaterThan(0);
-  });
-
-  it('os dois botões usam o token azul do fluxo de aluguel', () => {
-    const [checklistBtn, ctaBtn] = buttonsLabeled(fixture, 'Ativar mesmo assim');
-
-    // CTA da página: preenchido de azul (pedido explícito do dono do produto).
-    expect(ctaBtn.className).toContain('bg-rental-action-600');
-    expect(ctaBtn.className).not.toMatch(/primary|amber/);
-
-    // Checklist: mesma família, peso reduzido (ação de exceção numa linha).
-    expect(checklistBtn.className).toContain('rental-action');
-    expect(checklistBtn.className).not.toMatch(/primary|amber/);
+  it('os dois botões usam o token azul preenchido do fluxo de aluguel', () => {
+    for (const button of buttonsLabeled(fixture, 'Marcar como ativo')) {
+      expect(button.className).toContain('bg-rental-action-600');
+      expect(button.className).not.toMatch(/primary|amber/);
+    }
   });
 });
 
@@ -310,28 +321,22 @@ describe('RentalDetail — ativação, cobrança MANUAL (RESERVED)', () => {
     ({ fixture } = await mount({ ...RESERVED_BASE, automaticCharge: false }));
   });
 
-  it('CTA "Marcar como ativo" é azul preenchido, não laranja', () => {
-    const [cta] = buttonsLabeled(fixture, 'Marcar como ativo');
-    expect(cta).toBeTruthy();
-    expect(cta.className).toContain('bg-rental-action-600');
-    expect(cta.className).not.toMatch(/primary|amber/);
+  /** Mesmo rótulo do fluxo automático: sem trava, não há dois cenários. */
+  it('checklist e CTA usam "Marcar como ativo", azul preenchido', () => {
+    const buttons = buttonsLabeled(fixture, 'Marcar como ativo');
+    expect(buttons.length, 'esperado checklist + barra de ações').toBe(2);
+
+    for (const button of buttons) {
+      expect(button.className).toContain('bg-rental-action-600');
+      expect(button.className).not.toMatch(/primary|amber/);
+    }
   });
 
-  it('checklist "Ativar aluguel" é azul preenchido', () => {
-    const [step] = buttonsLabeled(fixture, 'Ativar aluguel');
-    expect(step).toBeTruthy();
-    expect(step.className).toContain('bg-rental-action-600');
-    expect(step.className).not.toMatch(/primary|amber/);
-  });
-
-  /** Contraparte: no fluxo normal não há exceção a avisar — nada de alarme falso. */
-  it('não mostra o aviso de exceção nem descreve os botões do fluxo normal', () => {
+  it('não mostra o aviso de exceção nem descreve os botões', () => {
     expect(fixture.nativeElement.querySelector('#activate-override-hint')).toBeNull();
 
-    const [cta] = buttonsLabeled(fixture, 'Marcar como ativo');
-    expect(cta.getAttribute('aria-describedby')).toBeNull();
-
-    const [checklistBtn] = buttonsLabeled(fixture, 'Ativar aluguel');
-    expect(checklistBtn.getAttribute('aria-describedby')).toBeNull();
+    for (const button of buttonsLabeled(fixture, 'Marcar como ativo')) {
+      expect(button.getAttribute('aria-describedby')).toBeNull();
+    }
   });
 });

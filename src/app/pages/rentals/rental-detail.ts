@@ -99,14 +99,14 @@ export class RentalDetail implements OnInit {
     /**
      * Traz o banner de erro pro campo de visão — apenas no fluxo de ativação.
      *
-     * O banner mora no TOPO da página; "Ativar mesmo assim" (barra de ações) fica
+     * O banner mora no TOPO da página; "Marcar como ativo" (barra de ações) fica
      * depois de identificação, período, valores, KPIs, caução, cronograma e
      * histórico — várias telas de scroll abaixo no mobile. Como `messageFor()`
-     * reivindica o erro e desarma o toast do safety net (`ApiErrorService`), um
-     * 409 do backend ("pagamento ainda não confirmado") não produzia NENHUMA
-     * mudança visível perto do botão: o usuário lia isso como "o botão está
-     * morto". Rolar + focar resolve pro vidente e pro teclado; o `role="alert"`
-     * do próprio banner já cobria o leitor de tela.
+     * reivindica o erro e desarma o toast do safety net (`ApiErrorService`), uma
+     * recusa do backend (400 status inválido, 402 assinatura, 403 papel, 404)
+     * não produzia NENHUMA mudança visível perto do botão: o usuário lia isso
+     * como "o botão está morto". Rolar + focar resolve pro vidente e pro
+     * teclado; o `role="alert"` do próprio banner já cobria o leitor de tela.
      *
      * O efeito depende de `actionError()` (signal) e da flag (campo simples, de
      * propósito NÃO rastreado — quem manda é a origem da ação, não a mudança do
@@ -185,35 +185,18 @@ export class RentalDetail implements OnInit {
   protected readonly canCancel = computed(() => this.rental()?.status === 'RESERVED');
   protected readonly canComplete = computed(() => this.rental()?.status === 'ACTIVE');
   /**
-   * Activation is offered for every RESERVED rental — inclusive de cobrança
-   * automática. Quem decide se pode ativar é o backend (`RentalService.activate`):
-   * quando o direito de uso ainda não está quitado ele devolve 409 com a mensagem
-   * explicando que falta a confirmação do pagamento, e essa mensagem é exibida
-   * no banner via `apiErrors.messageFor`. Escondendo o botão o dono ficava sem
-   * saída quando o webhook do Asaas falhava depois do pagamento entrar.
+   * Ativação é oferecida para TODO aluguel RESERVED — cobrança automática
+   * inclusive. Com automática a ativação normalmente chega sozinha pelo webhook
+   * do Asaas; o botão continua disponível porque marcar como ativo à mão é uma
+   * ação legítima do dono, não um contorno. O backend não impõe mais nenhuma
+   * pré-condição de pagamento (recusa só por status, papel, tenant ou
+   * assinatura), e essa recusa aparece no banner via `apiErrors.messageFor`.
    */
   protected readonly canActivate = computed(() => this.rental()?.status === 'RESERVED');
-  /**
-   * RESERVED + cobrança automática: a ativação normal chega pelo webhook.
-   * Aqui o botão é uma saída de emergência — o que muda é o RÓTULO e o AVISO
-   * VISÍVEL ao lado (`#activate-override-hint`, ligado por `aria-describedby`),
-   * não o peso visual: o dono do produto pediu explicitamente o CTA
-   * preenchido de azul nos dois cenários ("hoje ele está somente com contorno").
-   * O aviso era um `title` — tooltip não existe em toque, e num app usado no
-   * celular isso equivalia a não ter aviso nenhum.
-   * A de-ênfase da ação de exceção ficou só no checklist, onde o botão é uma
-   * ação de linha e não o CTA da página (`rental-progress-checklist.actionClass`).
-   */
-  protected readonly activateIsOverride = computed(() => {
-    const r = this.rental();
-    return r?.status === 'RESERVED' && r?.automaticCharge === true;
-  });
   protected readonly activateBusy = signal(false);
-  /** Rótulo do botão de ativar — override tem copy própria pra não parecer o fluxo normal. */
-  protected readonly activateLabel = computed(() => {
-    if (this.activateBusy()) return 'Ativando…';
-    return this.activateIsOverride() ? 'Ativar mesmo assim' : 'Marcar como ativo';
-  });
+  protected readonly activateLabel = computed(() =>
+    this.activateBusy() ? 'Ativando…' : 'Marcar como ativo',
+  );
 
   // ------------------------------------------------------------------
   // Cronograma de cobrança (RENTAL_PERIOD + RENTAL_TOTAL, apenas).

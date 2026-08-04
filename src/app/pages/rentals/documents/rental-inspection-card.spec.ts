@@ -52,10 +52,10 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
     return { target: input } as unknown as Event;
   }
 
-  function makeFixture() {
+  function makeFixture(kind: 'CHECKIN' | 'CHECKOUT' = 'CHECKIN') {
     const fixture = TestBed.createComponent(RentalInspectionCard);
     fixture.componentRef.setInput('rentalId', RID);
-    fixture.componentRef.setInput('kind', 'CHECKIN');
+    fixture.componentRef.setInput('kind', kind);
     fixture.detectChanges();
     return fixture;
   }
@@ -415,6 +415,57 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
       expect(api(fixture).sourceSheetOpen()).toBe(false);
       expect(galleryClick).toHaveBeenCalledOnce();
       expect(cameraClick).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Rótulos visíveis da vistoria. "Check-in/Check-out (entrada/saída)" lia ao
+   * contrário pra quem opera locadora — o carro "sai" do pátio no começo. A UI
+   * fala retirada/devolução; `CHECKIN`/`CHECKOUT` seguem como termos técnicos
+   * (enum, rota, storage) e nunca aparecem na tela. Os mesmos rótulos estão
+   * duplicados em `rental-progress-checklist.ts` — mudou aqui, muda lá.
+   */
+  describe('rótulos de retirada/devolução', () => {
+    function labels(fixture: ReturnType<typeof makeFixture>) {
+      return fixture.componentInstance as unknown as {
+        title: () => string;
+        downloadLabel: () => string;
+        pdfFileName: () => string;
+        deleteDialogTitle: () => string;
+      };
+    }
+
+    it('CHECKIN fala "retirada" no título, no download, no arquivo e no diálogo', () => {
+      const fixture = makeFixture('CHECKIN');
+      const l = labels(fixture);
+
+      expect(l.title()).toBe('Vistoria de retirada');
+      expect(l.downloadLabel()).toBe('Baixar PDF de retirada');
+      expect(l.pdfFileName()).toBe('vistoria-retirada.pdf');
+      expect(l.deleteDialogTitle()).toBe('Remover PDF da vistoria de retirada?');
+      expect(fixture.nativeElement.querySelector('h2')?.textContent?.trim()).toBe(
+        'Vistoria de retirada',
+      );
+    });
+
+    it('CHECKOUT fala "devolução" nos mesmos quatro pontos', () => {
+      const fixture = makeFixture('CHECKOUT');
+      const l = labels(fixture);
+
+      expect(l.title()).toBe('Vistoria de devolução');
+      expect(l.downloadLabel()).toBe('Baixar PDF de devolução');
+      expect(l.pdfFileName()).toBe('vistoria-devolucao.pdf');
+      expect(l.deleteDialogTitle()).toBe('Remover PDF da vistoria de devolução?');
+      expect(fixture.nativeElement.querySelector('h2')?.textContent?.trim()).toBe(
+        'Vistoria de devolução',
+      );
+    });
+
+    it('não sobra nenhum rótulo antigo no card renderizado', () => {
+      for (const kind of ['CHECKIN', 'CHECKOUT'] as const) {
+        const text = (makeFixture(kind).nativeElement as HTMLElement).textContent ?? '';
+        expect(text).not.toMatch(/check-?in|check-?out|vistoria de (entrada|saída)/i);
+      }
     });
   });
 });

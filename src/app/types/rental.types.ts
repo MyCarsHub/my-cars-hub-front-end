@@ -180,7 +180,8 @@ export interface RentalListItemDto {
   billingFrequency: RentalBillingFrequency;
   /**
    * When true, activation happens automatically via Asaas webhook after
-   * payment confirmation. Manual activate endpoint returns 409 in that case.
+   * payment confirmation. Manual activation stays available regardless — the
+   * activate endpoint no longer requires a confirmed payment.
    */
   automaticCharge?: boolean;
 }
