@@ -37,8 +37,6 @@ interface Step {
   showActionButton: boolean;
   actionLabel: string;
   actionKind: 'activate';
-  /** `secondary` = ação de exceção (ex.: forçar ativação com cobrança automática). */
-  actionTone: 'primary' | 'secondary';
 }
 
 const STEP_TO_QUERY: Record<StepKey, string> = {
@@ -167,18 +165,13 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                 </button>
                 @if (step.showActionButton && step.state !== 'done' && step.actionKind === 'activate') {
                   <!--
-                    Ação de EXCEÇÃO ("Ativar mesmo assim"): o aviso já é texto
-                    visível na descrição da própria etapa — aqui nunca houve
-                    tooltip. O que faltava era o vínculo: sem aria-describedby
-                    o leitor de tela anunciava só "Ativar mesmo assim, botão" e
-                    o porquê ficava solto acima, no botão de expandir.
+                    Ativar aluguel é AZUL em todos os caminhos — token
+                    --color-rental-action-*, exclusivo deste fluxo (styles.css).
                   -->
                   <button
                     type="button"
                     (click)="handleAction(step)"
-                    [attr.aria-describedby]="step.actionTone === 'secondary' ? 'desc-' + step.key : null"
-                    class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors min-h-[44px]"
-                    [class]="actionClass(step)"
+                    class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors min-h-[44px] bg-rental-action-600 hover:bg-rental-action-700 text-white"
                   >
                     {{ step.actionLabel }}
                   </button>
@@ -269,11 +262,12 @@ export class RentalProgressChecklist implements OnInit {
      */
     const awaitingPayment = status === 'RESERVED' && this.automaticCharge() === true;
     /**
-     * O botão aparece nos dois casos. Em `awaitingPayment` ele é a saída de
-     * emergência pro webhook que não chegou — quem valida é o backend, que
-     * devolve 409 com a mensagem certa quando o pagamento ainda não entrou.
+     * Todo aluguel RESERVED pode ser marcado como ativo — mesma regra do CTA da
+     * página (`rental-detail.canActivate`). Não há pré-condição de pagamento:
+     * com cobrança automática o webhook normalmente ativa sozinho, mas ativar à
+     * mão continua sendo uma ação legítima do dono.
      */
-    const canActivate = canActivateManually || awaitingPayment;
+    const canActivate = status === 'RESERVED';
 
     const contractState: StepState = contractSigned
       ? 'done'
@@ -326,7 +320,7 @@ export class RentalProgressChecklist implements OnInit {
             ? { label: '14/14 fotos', tone: 'emerald' }
             : { label: `${checkoutPhotoCount}/14 fotos`, tone: 'amber' };
 
-    const activateState: StepState = isActive ? 'done' : canActivateManually ? 'pending' : 'blocked';
+    const activateState: StepState = isActive ? 'done' : canActivate ? 'pending' : 'blocked';
     const activateBadge: StepBadge | null = isActive
       ? { label: 'ativo', tone: 'emerald' }
       : canActivateManually
@@ -347,7 +341,6 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
-        actionTone: 'primary',
       },
       {
         key: 'CONTRACT',
@@ -360,11 +353,10 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
-        actionTone: 'primary',
       },
       {
         key: 'CHECKIN',
-        title: 'Check-in (vistoria de entrada)',
+        title: 'Vistoria de retirada',
         description: checkinPdfDone
           ? 'Laudo em PDF gerado.'
           : checkinPhotoCount > 0
@@ -377,35 +369,33 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
-        actionTone: 'primary',
       },
       {
         key: 'ACTIVATE',
         title: 'Iniciar locação',
         description: isActive
           ? 'Aluguel ativado — cobranças em andamento.'
-          : canActivateManually
-            ? 'Cobrança da caução (se houver) é disparada aqui.'
-            : awaitingPayment
-              ? 'Aluguel será ativado automaticamente após a confirmação do pagamento no Asaas. Se o pagamento já entrou e nada aconteceu, ative manualmente.'
+          : awaitingPayment
+            ? 'Ativa sozinho quando o pagamento for confirmado no Asaas — ou marque como ativo agora.'
+            : canActivate
+              ? 'Cobrança da caução (se houver) é disparada aqui.'
               : 'Locação não foi iniciada.',
         state: activateState,
         visible: true,
         panel: null,
         badge: activateBadge,
         showActionButton: canActivate,
-        actionLabel: awaitingPayment ? 'Ativar mesmo assim' : 'Ativar aluguel',
+        actionLabel: 'Marcar como ativo',
         actionKind: 'activate',
-        actionTone: awaitingPayment ? 'secondary' : 'primary',
       },
       {
         key: 'CHECKOUT',
-        title: 'Check-out (vistoria de saída)',
+        title: 'Vistoria de devolução',
         description: checkoutPdfDone
           ? 'Laudo em PDF gerado.'
           : checkoutPhotoCount > 0
             ? `${checkoutPhotoCount} de 14 fotos enviadas.`
-            : 'Após a devolução do veículo, fotografe e gere o laudo de saída.',
+            : 'Após a devolução do veículo, fotografe e gere o laudo de devolução.',
         state: checkoutState,
         visible: isActive,
         panel: 'checkout',
@@ -413,7 +403,6 @@ export class RentalProgressChecklist implements OnInit {
         showActionButton: false,
         actionLabel: '',
         actionKind: 'activate',
-        actionTone: 'primary',
       },
     ];
   });
@@ -435,22 +424,6 @@ export class RentalProgressChecklist implements OnInit {
     const next = this.expandedStep() === step.key ? null : step.key;
     this.expandedStep.set(next);
     this.writeDeepLink(next);
-  }
-
-  /**
-   * Classes de variante do botão de ação. String pronta (em vez de vários
-   * `[class.x]`) porque utilitários Tailwind com `:` — `hover:bg-*` — não são
-   * nomes válidos numa binding `[class.nome]`.
-   *
-   * Ativar aluguel é AZUL em todos os caminhos (`--color-rental-action-*`,
-   * exclusivo deste fluxo — ver styles.css). Os dois tons preservam a
-   * de-ênfase da ação de exceção ("Ativar mesmo assim") DENTRO da família
-   * azul, em vez de misturar laranja/âmbar na mesma ação.
-   */
-  protected actionClass(step: Step): string {
-    return step.actionTone === 'secondary'
-      ? 'border border-rental-action-200 text-rental-action-700 hover:bg-rental-action-50'
-      : 'bg-rental-action-600 hover:bg-rental-action-700 text-white';
   }
 
   protected handleAction(step: Step): void {

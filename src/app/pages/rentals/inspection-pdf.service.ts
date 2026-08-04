@@ -357,7 +357,7 @@ export class InspectionPdfService {
     let y = height - margin;
 
     const title =
-      kind === 'CHECKIN' ? 'Laudo de vistoria — CHECK-IN' : 'Laudo de vistoria — CHECK-OUT';
+      kind === 'CHECKIN' ? 'Laudo de vistoria — RETIRADA' : 'Laudo de vistoria — DEVOLUÇÃO';
     this.drawSafeText(cover, title, { x: margin, y, size: 18, font: fontBold, color: rgb(0, 0, 0) });
     y -= 28;
     this.drawSafeText(cover, `Gerado em ${new Date().toLocaleString('pt-BR')}`, {

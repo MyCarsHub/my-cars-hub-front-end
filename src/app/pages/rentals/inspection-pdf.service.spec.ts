@@ -152,6 +152,31 @@ describe('InspectionPdfService.generateAndUpload', () => {
     await done;
   });
 
+  /**
+   * O título da capa acompanha a UI (retirada/devolução) — CHECK-IN/CHECK-OUT
+   * lia ao contrário pra quem opera locadora. O travessão chega ao PDF como
+   * hífen: `sanitizeForWinAnsi` transliteta U+2014, que Helvetica não encoda.
+   */
+  it('titula a capa com retirada/devolução, não com CHECK-IN/CHECK-OUT', async () => {
+    const pdfLib = await import('pdf-lib');
+    const page = (await pdfLib.PDFDocument.create()).addPage();
+
+    async function coverTitle(kind: 'CHECKIN' | 'CHECKOUT'): Promise<string> {
+      vi.mocked(page.drawText).mockClear();
+      await new Promise<void>((resolve, reject) => {
+        service
+          .generateAndUpload(RID, kind, { rental: rental(), vehicle: null, driver: null }, [
+            photo('FRONT', 'p1'),
+          ])
+          .subscribe({ next: () => resolve(), error: reject });
+      });
+      return vi.mocked(page.drawText).mock.calls[0][0] as string;
+    }
+
+    expect(await coverTitle('CHECKIN')).toBe('Laudo de vistoria - RETIRADA');
+    expect(await coverTitle('CHECKOUT')).toBe('Laudo de vistoria - DEVOLUÇÃO');
+  });
+
   it('reports progress steps: downloading -> rendering -> uploading -> done', async () => {
     const steps: string[] = [];
     const photos = [photo('FRONT', 'p1')];

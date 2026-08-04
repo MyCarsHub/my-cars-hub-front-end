@@ -138,56 +138,72 @@ describe('RentalProgressChecklist step derivation', () => {
     expect(checkin.state).toBe('done');
   });
 
+  /**
+   * Os passos de vistoria falam retirada/devolução — "check-in/check-out
+   * (entrada/saída)" lia ao contrário pra quem opera locadora. As chaves
+   * `CHECKIN`/`CHECKOUT` seguem técnicas. Rótulos duplicados em
+   * `rental-inspection-card.ts` — mudou aqui, muda lá.
+   */
+  it('titula os passos de vistoria como retirada e devolução, sem termo antigo', () => {
+    const fixture = makeComponent('ACTIVE');
+    fixture.detectChanges();
+    const steps = (fixture.componentInstance as any).steps();
+    const checkin = steps.find((s: any) => s.key === 'CHECKIN');
+    const checkout = steps.find((s: any) => s.key === 'CHECKOUT');
+
+    expect(checkin.title).toBe('Vistoria de retirada');
+    expect(checkout.title).toBe('Vistoria de devolução');
+    expect(checkout.description).toBe(
+      'Após a devolução do veículo, fotografe e gere o laudo de devolução.',
+    );
+    for (const step of steps) {
+      expect(`${step.title} ${step.description}`).not.toMatch(
+        /check-?in|check-?out|vistoria de (entrada|saída)|laudo de saída/i,
+      );
+    }
+  });
+
   it('marks ACTIVATE as awaiting payment when automatic charge is on and status RESERVED', () => {
     const fixture = makeComponent('RESERVED', true);
     fixture.detectChanges();
     const activate = (fixture.componentInstance as any).steps().find((s: any) => s.key === 'ACTIVATE');
-    expect(activate.state).toBe('blocked');
-    // "bloqueado" lia como punição; o estado real é espera pelo webhook do Asaas.
+    // Sem trava de pagamento no backend, RESERVED é sempre acionável.
+    expect(activate.state).toBe('pending');
+    // O badge segue descrevendo a espera pelo webhook do Asaas, não um bloqueio.
     expect(activate.badge).toEqual({ label: 'aguardando pagamento', tone: 'amber' });
-    expect(activate.description).toContain('confirmação do pagamento');
+    expect(activate.description).toContain('Asaas');
   });
 
-  it('offers a secondary activate override when awaiting payment (webhook may never land)', () => {
+  /**
+   * A trava que justificava "Ativar mesmo assim" saiu do backend. Sobra uma
+   * única ação, com o mesmo rótulo do CTA da página, e uma descrição que não
+   * pode sugerir que ativar à mão é contorno de pagamento que não caiu.
+   */
+  it('offers a single primary activate action when awaiting payment', () => {
     const fixture = makeComponent('RESERVED', true);
     fixture.detectChanges();
     const activate = (fixture.componentInstance as any).steps().find((s: any) => s.key === 'ACTIVATE');
     expect(activate.showActionButton).toBe(true);
-    expect(activate.actionTone).toBe('secondary');
-    expect(activate.actionLabel).toBe('Ativar mesmo assim');
-    expect(activate.description).toContain('ative manualmente');
+    expect(activate.actionLabel).toBe('Marcar como ativo');
+    expect(activate.description).not.toContain('ative manualmente');
+    expect(activate.description).not.toContain('já entrou');
   });
 
-  /**
-   * O aviso da ação de exceção sempre foi texto visível aqui (a descrição da
-   * etapa), nunca um `title` — o que faltava era o vínculo. Sem
-   * `aria-describedby` o leitor de tela anuncia só "Ativar mesmo assim, botão"
-   * e o motivo fica solto no botão de expandir, acima.
-   */
-  it('links the override button to the visible step description via aria-describedby', () => {
-    const fixture = makeComponent('RESERVED', true);
-    fixture.detectChanges();
-    const button: HTMLButtonElement | null =
-      fixture.nativeElement.querySelector('button[aria-describedby="desc-ACTIVATE"]');
-    expect(button, 'botão de exceção sem aria-describedby').toBeTruthy();
-    expect(button?.textContent).toContain('Ativar mesmo assim');
-
-    const described: HTMLElement | null = fixture.nativeElement.querySelector('#desc-ACTIVATE');
-    expect(described?.textContent).toContain('ative manualmente');
+  it('does not describe the activate button (no exception to warn about)', () => {
+    for (const autoCharge of [true, false]) {
+      const fixture = makeComponent('RESERVED', autoCharge);
+      fixture.detectChanges();
+      const buttons = Array.from(
+        fixture.nativeElement.querySelectorAll('button'),
+      ) as HTMLButtonElement[];
+      const action = buttons.find((b) => (b.textContent ?? '').includes('Marcar como ativo'));
+      expect(action, `botão de ativar não renderizou (autoCharge=${autoCharge})`).toBeTruthy();
+      expect(action?.getAttribute('aria-describedby')).toBeNull();
+      expect(action?.className).toContain('bg-rental-action-600');
+    }
   });
 
-  it('does not describe the normal activate button (no exception to warn about)', () => {
-    const fixture = makeComponent('RESERVED', false);
-    fixture.detectChanges();
-    const buttons = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ) as HTMLButtonElement[];
-    const action = buttons.find((b) => (b.textContent ?? '').includes('Ativar aluguel'));
-    expect(action, 'botão "Ativar aluguel" não renderizou').toBeTruthy();
-    expect(action?.getAttribute('aria-describedby')).toBeNull();
-  });
-
-  it('emits activateRequested from the override button so the backend can 409 or accept', () => {
+  it('emits activateRequested from the activate button', () => {
     const fixture = makeComponent('RESERVED', true);
     fixture.detectChanges();
     const instance = fixture.componentInstance as any;
@@ -220,8 +236,7 @@ describe('RentalProgressChecklist step derivation', () => {
     const activate = (fixture.componentInstance as any).steps().find((s: any) => s.key === 'ACTIVATE');
     expect(activate.state).toBe('pending');
     expect(activate.showActionButton).toBe(true);
-    expect(activate.actionTone).toBe('primary');
-    expect(activate.actionLabel).toBe('Ativar aluguel');
+    expect(activate.actionLabel).toBe('Marcar como ativo');
   });
 
   it('marks ACTIVATE as done and CHECKOUT visible when status ACTIVE', () => {

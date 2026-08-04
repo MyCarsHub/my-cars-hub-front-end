@@ -415,19 +415,21 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   protected readonly deleting = signal(false);
 
   protected readonly title = computed(() =>
-    this.kind() === 'CHECKIN' ? 'Check-in (vistoria de entrada)' : 'Check-out (vistoria de saída)',
+    this.kind() === 'CHECKIN' ? 'Vistoria de retirada' : 'Vistoria de devolução',
   );
 
   protected readonly downloadLabel = computed(() =>
-    this.kind() === 'CHECKIN' ? 'Baixar Check-in' : 'Baixar Check-out',
+    this.kind() === 'CHECKIN' ? 'Baixar PDF de retirada' : 'Baixar PDF de devolução',
   );
 
   protected readonly pdfFileName = computed(() =>
-    this.kind() === 'CHECKIN' ? 'checkin.pdf' : 'checkout.pdf',
+    this.kind() === 'CHECKIN' ? 'vistoria-retirada.pdf' : 'vistoria-devolucao.pdf',
   );
 
   protected readonly deleteDialogTitle = computed(() =>
-    this.kind() === 'CHECKIN' ? 'Remover PDF do check-in?' : 'Remover PDF do check-out?',
+    this.kind() === 'CHECKIN'
+      ? 'Remover PDF da vistoria de retirada?'
+      : 'Remover PDF da vistoria de devolução?',
   );
 
   protected readonly slots = computed<Slot[]>(() => {
@@ -743,7 +745,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
           const resp = await fetch(res.url);
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const blob = await resp.blob();
-          const prefix = this.kind() === 'CHECKIN' ? 'Checkin' : 'Checkout';
+          const prefix = this.kind() === 'CHECKIN' ? 'Vistoria-retirada' : 'Vistoria-devolucao';
           const filename = `${prefix}-${this.rentalId()}.pdf`;
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
