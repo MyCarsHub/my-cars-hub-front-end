@@ -6,6 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import {
   FormBuilder,
@@ -16,6 +17,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { DetailDialog } from '../../components/core/detail-dialog/detail-dialog';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import {
@@ -54,6 +56,20 @@ const ADMIN_STATUS_OPTIONS: Array<{ value: FeedbackStatus; label: string }> = [
 ];
 
 /**
+ * Limite da descrição. Uma constante só, espelhada no validator, no `maxlength`
+ * do textarea e no contador visível — antes o 2000 estava escrito em três lugares.
+ */
+const DESCRIPTION_MAX_LENGTH = 2000;
+
+const STATUS_LABELS: Readonly<Record<FeedbackStatus, string>> = {
+  BACKLOG: 'Backlog',
+  PLANNED: 'Planejado',
+  IN_PROGRESS: 'Em Desenvolvimento',
+  DONE: 'Concluído',
+  REJECTED: 'Rejeitado',
+};
+
+/**
  * Acento da opção marcada no seletor de ordenação: pill branco sobre o trilho
  * neutral-100. Fundo e sombra vão por `style` porque o `SegmentedToggle` sempre
  * escreve `background`/`box-shadow` inline — classe `bg-white`/`shadow-sm`
@@ -87,6 +103,7 @@ const SORT_OPTIONS: readonly SegmentedToggleOption<FeedbackSort>[] = [
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,
+    DetailDialog,
     AlertBanner,
     FormField,
     FieldControl,
@@ -136,6 +153,18 @@ export class Roadmap implements OnInit {
   protected readonly rejectTaskId = signal<string | null>(null);
   protected readonly rejectNote = signal('');
 
+  /**
+   * Sugestão aberta no diálogo de leitura. O card corta o texto com `line-clamp`;
+   * este é o caminho para ver a mensagem inteira.
+   */
+  protected readonly detailTask = signal<FeedbackTaskResponse | null>(null);
+  protected readonly detailOpen = computed(() => this.detailTask() !== null);
+  protected readonly detailTitle = computed(() => this.detailTask()?.title ?? '');
+  protected readonly detailSubtitle = computed(() => {
+    const task = this.detailTask();
+    return task ? STATUS_LABELS[task.status] : '';
+  });
+
   protected readonly currentUserId = computed(() =>
     this.sessionService.getUserId(),
   );
@@ -162,8 +191,19 @@ export class Roadmap implements OnInit {
 
   protected readonly taskForm = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(120)]],
-    description: ['', [Validators.maxLength(2000)]],
+    description: ['', [Validators.maxLength(DESCRIPTION_MAX_LENGTH)]],
   });
+
+  protected readonly descriptionMaxLength = DESCRIPTION_MAX_LENGTH;
+
+  private readonly taskFormValue = toSignal(this.taskForm.valueChanges, {
+    initialValue: this.taskForm.getRawValue(),
+  });
+
+  /** Alimenta o contador `N / 2000` do textarea (mesmo padrão de `pages/support`). */
+  protected readonly descriptionLength = computed(
+    () => (this.taskFormValue()?.description ?? '').length,
+  );
 
   /** Copy overrides per validator key for the `app-form-field` message resolver. */
   protected readonly titleMessages: Readonly<Record<string, string>> = {
@@ -171,7 +211,7 @@ export class Roadmap implements OnInit {
     maxlength: 'Use no máximo 120 caracteres.',
   };
   protected readonly descriptionMessages: Readonly<Record<string, string>> = {
-    maxlength: 'Use no máximo 2000 caracteres.',
+    maxlength: `Use no máximo ${DESCRIPTION_MAX_LENGTH} caracteres.`,
   };
 
   ngOnInit(): void {
@@ -273,6 +313,18 @@ export class Roadmap implements OnInit {
     } else {
       this.feedbackService.fuel(task.id).subscribe({ next: done, error: fail });
     }
+  }
+
+  protected openDetail(task: FeedbackTaskResponse): void {
+    this.detailTask.set(task);
+  }
+
+  protected closeDetail(): void {
+    this.detailTask.set(null);
+  }
+
+  protected statusLabel(status: FeedbackStatus): string {
+    return STATUS_LABELS[status];
   }
 
   protected openCreate(): void {
