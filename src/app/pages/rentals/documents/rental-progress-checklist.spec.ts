@@ -158,6 +158,35 @@ describe('RentalProgressChecklist step derivation', () => {
     expect(activate.description).toContain('ative manualmente');
   });
 
+  /**
+   * O aviso da ação de exceção sempre foi texto visível aqui (a descrição da
+   * etapa), nunca um `title` — o que faltava era o vínculo. Sem
+   * `aria-describedby` o leitor de tela anuncia só "Ativar mesmo assim, botão"
+   * e o motivo fica solto no botão de expandir, acima.
+   */
+  it('links the override button to the visible step description via aria-describedby', () => {
+    const fixture = makeComponent('RESERVED', true);
+    fixture.detectChanges();
+    const button: HTMLButtonElement | null =
+      fixture.nativeElement.querySelector('button[aria-describedby="desc-ACTIVATE"]');
+    expect(button, 'botão de exceção sem aria-describedby').toBeTruthy();
+    expect(button?.textContent).toContain('Ativar mesmo assim');
+
+    const described: HTMLElement | null = fixture.nativeElement.querySelector('#desc-ACTIVATE');
+    expect(described?.textContent).toContain('ative manualmente');
+  });
+
+  it('does not describe the normal activate button (no exception to warn about)', () => {
+    const fixture = makeComponent('RESERVED', false);
+    fixture.detectChanges();
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+    const action = buttons.find((b) => (b.textContent ?? '').includes('Ativar aluguel'));
+    expect(action, 'botão "Ativar aluguel" não renderizou').toBeTruthy();
+    expect(action?.getAttribute('aria-describedby')).toBeNull();
+  });
+
   it('emits activateRequested from the override button so the backend can 409 or accept', () => {
     const fixture = makeComponent('RESERVED', true);
     fixture.detectChanges();
