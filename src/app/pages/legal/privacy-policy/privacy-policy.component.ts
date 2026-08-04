@@ -3,15 +3,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnDestroy,
-  OnInit,
   Renderer2,
+  effect,
   inject,
-  signal,
 } from '@angular/core';
 import { LegalNavComponent } from '../legal-nav/legal-nav.component';
 import { LandingFooterComponent } from '../../landing/components/landing-footer/landing-footer.component';
-
-type Lang = 'pt' | 'en';
+import { LegalLang, legalLangSync } from '../legal-lang';
 
 @Component({
   selector: 'app-privacy-policy',
@@ -20,27 +18,28 @@ type Lang = 'pt' | 'en';
   styleUrls: ['../legal.styles.css', './privacy-policy.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PrivacyPolicyComponent implements OnInit, OnDestroy {
+export class PrivacyPolicyComponent implements OnDestroy {
   private readonly renderer = inject(Renderer2);
   private readonly document = inject(DOCUMENT);
+  private readonly langSync = legalLangSync();
 
-  protected readonly lang = signal<Lang>('pt');
+  /** Driven by `?lang` — `pt` when the param is absent. */
+  protected readonly lang = this.langSync.lang;
   protected readonly lastUpdated = '2026-07-21';
 
-  ngOnInit(): void {
-    this.applyHtmlLang('pt');
+  constructor() {
+    effect(() => this.applyHtmlLang(this.lang()));
   }
 
   ngOnDestroy(): void {
     this.applyHtmlLang('pt');
   }
 
-  protected setLang(next: Lang): void {
-    this.lang.set(next);
-    this.applyHtmlLang(next);
+  protected setLang(next: LegalLang): void {
+    this.langSync.setLang(next);
   }
 
-  private applyHtmlLang(lang: Lang): void {
+  private applyHtmlLang(lang: LegalLang): void {
     this.renderer.setAttribute(this.document.documentElement, 'lang', lang);
   }
 }
