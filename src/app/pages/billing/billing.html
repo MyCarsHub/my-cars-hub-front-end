@@ -435,13 +435,25 @@
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Veículos</td>
                     @for (plan of visiblePlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.vehicleLimit) }}</td>
+                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">
+                        @if (isUnlimited(plan.vehicleLimit, plan.name)) {
+                          <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
+                        } @else {
+                          {{ formatLimit(plan.vehicleLimit, plan.name) }}
+                        }
+                      </td>
                     }
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Motoristas</td>
                     @for (plan of visiblePlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.driverLimit) }}</td>
+                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">
+                        @if (isUnlimited(plan.driverLimit, plan.name)) {
+                          <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
+                        } @else {
+                          {{ formatLimit(plan.driverLimit, plan.name) }}
+                        }
+                      </td>
                     }
                   </tr>
                   <tr>
@@ -530,11 +542,23 @@
                     <ul class="p-4 pt-3 space-y-3 text-sm text-neutral-700 border-t border-neutral-100 bg-neutral-50">
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Veículos</span>
-                        <span class="font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.vehicleLimit) }}</span>
+                        <span class="font-semibold text-neutral-900 tabular-nums">
+                          @if (isUnlimited(plan.vehicleLimit, plan.name)) {
+                            <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
+                          } @else {
+                            {{ formatLimit(plan.vehicleLimit, plan.name) }}
+                          }
+                        </span>
                       </li>
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Motoristas</span>
-                        <span class="font-semibold text-neutral-900 tabular-nums">{{ formatLimit(plan.driverLimit) }}</span>
+                        <span class="font-semibold text-neutral-900 tabular-nums">
+                          @if (isUnlimited(plan.driverLimit, plan.name)) {
+                            <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
+                          } @else {
+                            {{ formatLimit(plan.driverLimit, plan.name) }}
+                          }
+                        </span>
                       </li>
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Dias de teste</span>

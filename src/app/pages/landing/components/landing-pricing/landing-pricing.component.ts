@@ -13,6 +13,7 @@ import {
   SegmentedToggle,
   SegmentedToggleOption,
 } from '../../../../components/segmented-toggle/segmented-toggle';
+import { planCapacityLine } from '../../../../utils/plan-limits';
 
 type BillingCycle = 'monthly' | 'yearly';
 
@@ -97,22 +98,23 @@ export class LandingPricingComponent implements AfterViewInit {
    * NÃO pode derivá-las da API: `GET /v1/billing/plans` exige autenticação
    * (`SecurityConfig`) e esta página é pública, sem sessão. Enquanto o endpoint
    * não tiver uma variante pública, **todo ajuste na tabela `plans` precisa ser
-   * repetido aqui** — foi a divergência entre os dois que fez a landing anunciar
-   * limites que o backend não entregava.
+   * repetido em `PLAN_CAPACITY`** — foi a divergência entre os dois que fez a
+   * landing anunciar limites que o backend não entregava.
    *
-   * Fonte de verdade desta entrega: TRIAL 3 veículos / 4 motoristas,
-   * PRO 15 veículos / motoristas ilimitados, ENTERPRISE ilimitado nos dois.
+   * Os números vêm de `utils/plan-limits.ts` (cópia da `plans`, ver V44); a
+   * decisão de exibir o ENTERPRISE como ilimitado vem do mesmo arquivo, para
+   * não divergir de billing e dashboard.
    */
   readonly trialItems = [
-    'Até 3 veículos',
-    'Até 4 motoristas',
+    planCapacityLine('TRIAL', 'vehicles'),
+    planCapacityLine('TRIAL', 'drivers'),
     'Contratos, cobranças, multas, manutenções',
     'Suporte por email',
   ];
 
   readonly proItems = [
-    'Até 15 veículos',
-    'Motoristas ilimitados',
+    planCapacityLine('PRO', 'vehicles'),
+    planCapacityLine('PRO', 'drivers'),
     'Cobranças automáticas por Asaas e Stripe',
     'Assinatura eletrônica com validade jurídica',
     'Vistoria digital completa em 14 ângulos por veículo',
@@ -121,7 +123,8 @@ export class LandingPricingComponent implements AfterViewInit {
   ];
 
   readonly enterpriseItems = [
-    'Veículos ilimitados',
+    planCapacityLine('ENTERPRISE', 'vehicles'),
+    planCapacityLine('ENTERPRISE', 'drivers'),
     'Multi-marca / multi-filial',
     'Usuários e papéis ilimitados',
     'Integrações premium (ERP, telemetria)',

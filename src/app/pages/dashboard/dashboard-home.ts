@@ -9,7 +9,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
+import { BillingAccessService } from '../../services/billing-access.service';
 import { DashboardService } from '../../services/dashboard.service';
+import { showsAsUnlimited } from '../../utils/plan-limits';
 import {
     CashflowEventDto,
     DashboardSummaryDto,
@@ -82,6 +84,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
 export class DashboardHome {
     private readonly service = inject(DashboardService);
     private readonly router = inject(Router);
+    private readonly access = inject(BillingAccessService);
 
     protected readonly summary = signal<DashboardSummaryDto | null>(null);
     protected readonly loading = signal(false);
@@ -121,10 +124,26 @@ export class DashboardHome {
     // ---- Fleet ----------------------------------------------------------
 
     /**
+     * Nome do plano vigente (`TRIAL` / `PRO` / `ENTERPRISE`).
+     *
+     * O resumo do dashboard manda os limites mas não o plano, então vem do
+     * access-status — já carregado pelo `billingAccessGuard`, que é
+     * `canActivateChild` da árvore onde o dashboard mora, logo não há request
+     * extra nem race. Nulo (admin de plataforma, falha de rede) só desliga a
+     * maquiagem: os cards caem no número real, que é o comportamento seguro.
+     */
+    private readonly currentPlanName = computed<string | null>(
+        () => this.access.status()?.plan?.name ?? null,
+    );
+
+    /**
      * Consumo de veículos contra o limite do plano.
      *
-     * `vehicleLimit` nulo = plano com veículos ilimitados (ENTERPRISE): não
-     * existe numerador/denominador para mostrar, então a frase muda inteira —
+     * Dois motivos para a frase virar "ilimitado", ambos decididos em
+     * `utils/plan-limits.ts`: limite nulo (sentinela da coluna, que segue
+     * válido mesmo sem nenhum plano usá-lo depois da V44) e plano maquiado
+     * (ENTERPRISE, com teto real de 500 que a UI não exibe). Nos dois casos
+     * não existe numerador/denominador honesto, então a frase muda inteira —
      * mesmo tratamento de `driverPlanLabel`, para os dois cards da grade de
      * KPIs lerem como um conjunto.
      */
@@ -132,7 +151,9 @@ export class DashboardHome {
         const fleet = this.summary()?.fleet;
         if (!fleet) return '';
         const limit = fleet.vehicleLimit;
-        if (limit === null || limit === undefined) return 'veículos ilimitados no plano';
+        if (showsAsUnlimited(this.currentPlanName(), limit)) {
+            return 'veículos ilimitados no plano';
+        }
         return `${fleet.vehiclesTotal} de ${limit} do plano`;
     });
 
@@ -143,14 +164,15 @@ export class DashboardHome {
      * backend. Usar `driversActive` (recorte operacional) fazia a tela dizer
      * "2 de 5" enquanto o cadastro devolvia 409.
      *
-     * `driverLimit` nulo = plano com motoristas ilimitados (PRO): não existe
-     * numerador/denominador para mostrar, então a frase muda inteira.
+     * Mesma regra de maquiagem de `vehiclePlanLabel` — ver `utils/plan-limits.ts`.
      */
     protected readonly driverPlanLabel = computed(() => {
         const fleet = this.summary()?.fleet;
         if (!fleet) return '';
         const limit = fleet.driverLimit;
-        if (limit === null || limit === undefined) return 'motoristas ilimitados no plano';
+        if (showsAsUnlimited(this.currentPlanName(), limit)) {
+            return 'motoristas ilimitados no plano';
+        }
         return `${fleet.driversTotal} de ${limit} do plano`;
     });
 

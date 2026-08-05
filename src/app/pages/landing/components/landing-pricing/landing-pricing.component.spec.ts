@@ -25,9 +25,29 @@ describe('LandingPricingComponent', () => {
     expect(c.trialItems).toContain('Até 3 veículos');
     expect(c.trialItems).toContain('Até 4 motoristas');
 
-    expect(c.proItems).toContain('Até 15 veículos');
-    expect(c.proItems).toContain('Motoristas ilimitados');
+    expect(c.proItems).toContain('Até 20 veículos');
+    expect(c.proItems).toContain('Até 40 motoristas');
+  });
+
+  // O ENTERPRISE tem teto real (500/1000) desde a V44 e mesmo assim é vendido
+  // como ilimitado — maquiagem deliberada de produto. O que não pode acontecer
+  // é o número vazar para a landing.
+  it('apresenta o ENTERPRISE como ilimitado, sem expor 500/1000', () => {
+    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
 
     expect(c.enterpriseItems).toContain('Veículos ilimitados');
+    expect(c.enterpriseItems).toContain('Motoristas ilimitados');
+
+    const joined = c.enterpriseItems.join(' | ');
+    expect(joined).not.toContain('500');
+    expect(joined).not.toContain('1000');
+  });
+
+  // Guarda-corpo contra a landing voltar a prometer o que a V43 prometia.
+  it('não promete mais motoristas ilimitados no PRO', () => {
+    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
+
+    expect(c.proItems).not.toContain('Motoristas ilimitados');
+    expect(c.proItems).not.toContain('Até 15 veículos');
   });
 });

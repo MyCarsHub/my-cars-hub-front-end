@@ -25,6 +25,7 @@ import {
   SegmentedToggleOption,
 } from '../../components/segmented-toggle/segmented-toggle';
 import { ApiErrorService } from '../../services/api-error.service';
+import { showsAsUnlimited } from '../../utils/plan-limits';
 import {
   BillingService,
   CHECKOUT_PENDING_KEY,
@@ -721,9 +722,25 @@ export class Billing implements OnInit, OnDestroy {
     return plan.period === 'MONTHLY' ? plan.price : plan.price / 12;
   }
 
-  /** Display a plan limit — `null` (unlimited) renders as the infinity sign. */
-  protected formatLimit(value: number | null): string {
-    return value === null ? '∞' : String(value);
+  /**
+   * Display a plan limit in the comparison table.
+   *
+   * A regra de "ilimitado" mora em `utils/plan-limits.ts` e vale para os dois
+   * motivos: limite nulo (sentinela da coluna) e plano maquiado (ENTERPRISE,
+   * que tem teto real e mesmo assim não mostra número).
+   */
+  protected formatLimit(value: number | null, planName: string): string {
+    return showsAsUnlimited(planName, value) ? '∞' : String(value);
+  }
+
+  /**
+   * Mesmo predicado do `formatLimit`, exposto ao template porque o `∞` precisa
+   * de equivalente textual: o glifo vai `aria-hidden` e um `sr-only` em
+   * português ocupa o lugar dele para quem não enxerga a célula. Sem isso o
+   * leitor de tela ou fala "infinity" ou cala a célula.
+   */
+  protected isUnlimited(value: number | null, planName: string): boolean {
+    return showsAsUnlimited(planName, value);
   }
 
   protected formatPrice(value: number): string {
@@ -893,10 +910,21 @@ export class Billing implements OnInit, OnDestroy {
     'Gerente de conta',
   ];
 
-  /** Human label for a plan limit — `null` from the API means unlimited. */
-  private limitLabel(value: number | null | undefined, singular: string, plural: string): string {
-    if (value === null) return `${plural} ilimitados`;
+  /**
+   * Human label for a plan limit. Mesma decisão de maquiagem da tabela
+   * comparativa (`utils/plan-limits.ts`), para o card e a tabela nunca
+   * discordarem sobre o mesmo plano.
+   */
+  private limitLabel(
+    planName: string,
+    value: number | null | undefined,
+    singular: string,
+    plural: string,
+  ): string {
+    // Campo ausente = a API não mandou a coluna; some o bullet em vez de
+    // inventar um limite.
     if (value === undefined) return '';
+    if (showsAsUnlimited(planName, value)) return `${plural} ilimitados`;
     return value === 1 ? `1 ${singular}` : `Até ${value} ${plural}`;
   }
 
@@ -907,9 +935,9 @@ export class Billing implements OnInit, OnDestroy {
    */
   protected planFeatures(plan: PlanResponse): readonly string[] {
     const out: string[] = [];
-    const vehicles = this.limitLabel(plan.vehicleLimit, 'veículo', 'veículos');
+    const vehicles = this.limitLabel(plan.name, plan.vehicleLimit, 'veículo', 'veículos');
     if (vehicles) out.push(vehicles);
-    const drivers = this.limitLabel(plan.driverLimit, 'motorista', 'motoristas');
+    const drivers = this.limitLabel(plan.name, plan.driverLimit, 'motorista', 'motoristas');
     if (drivers) out.push(drivers);
     if (plan.trialDays > 0) out.push(`${plan.trialDays} dias de teste grátis`);
 
