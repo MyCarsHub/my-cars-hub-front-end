@@ -23,20 +23,20 @@
     @if (showAlerts()) {
         @if (summary(); as s) {
             <section class="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 mb-4">
-                @if ((s.alerts.docsExpiring7d?.count ?? 0) > 0) {
+                @if (s.alerts.docsExpiring7d?.count; as docsExpiringCount) {
                     <app-alert-chip
                         variant="danger"
                         label="Documentos a vencer (7d)"
-                        [count]="s.alerts.docsExpiring7d.count"
+                        [count]="docsExpiringCount"
                         icon="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 12v4 M12 18h.01"
                         (chipClick)="onAlertClick('/alertas')"
                     />
                 }
-                @if ((s.alerts.expiringInsurance30d?.count ?? 0) > 0) {
+                @if (s.alerts.expiringInsurance30d?.count; as expiringInsuranceCount) {
                     <app-alert-chip
                         variant="warning"
                         label="Seguros a vencer (30d)"
-                        [count]="s.alerts.expiringInsurance30d.count"
+                        [count]="expiringInsuranceCount"
                         icon="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
                         (chipClick)="onAlertClick('/seguros')"
                     />
@@ -102,21 +102,24 @@
                     {{ s.fleet.vehiclesTotal }}
                 </p>
                 <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
-                    {{ s.fleet.vehiclesTotal }} de {{ vehicleLimitLabel() }} do plano
+                    {{ vehiclePlanLabel() }}
                 </p>
             }
         </div>
 
         <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Motoristas ativos</p>
+            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Motoristas</p>
             @if (loading() && !summary()) {
                 <div class="h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse"></div>
             } @else if (summary(); as s) {
                 <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
-                    {{ s.fleet.driversActive }}
+                    {{ s.fleet.driversTotal }}
                 </p>
                 <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
-                    {{ s.fleet.driversActive }} de {{ driverLimitLabel() }} do plano
+                    {{ driverPlanLabel() }}
+                </p>
+                <p class="text-[11px] sm:text-xs text-gray-400 mt-0.5 truncate">
+                    {{ s.fleet.driversActive }} ativos agora
                 </p>
             }
         </div>

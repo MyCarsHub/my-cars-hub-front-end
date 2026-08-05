@@ -28,16 +28,34 @@ export interface AlertsDto {
     reservedRentals: CountDto;
     /** Fines paid inside the requested period. */
     paidFinesInPeriod: CountAmountDto;
-    /** Apólices de seguro ativas vencendo nos próximos 30 dias. */
-    expiringInsurance30d: CountDto;
-    /** Documentos (CNH/CRLV/seguro/parcela) vencendo nos próximos 7 dias. */
-    docsExpiring7d: CountDto;
+    /**
+     * Apólices de seguro ativas vencendo nos próximos 30 dias.
+     * Opcional: só existe em backends a partir da entrega de seguros — os
+     * consumidores já leem com `?.` / `?? 0`, e declarar obrigatório escondia
+     * essa divergência real de contrato do compilador.
+     */
+    expiringInsurance30d?: CountDto;
+    /**
+     * Documentos (CNH/CRLV/seguro/parcela) vencendo nos próximos 7 dias.
+     * Opcional pelo mesmo motivo de `expiringInsurance30d`.
+     */
+    docsExpiring7d?: CountDto;
 }
 
 export interface FleetDto {
     vehiclesTotal: number;
     vehicleLimit: number | null;
+    /**
+     * Recorte operacional (motoristas `AVAILABLE`/`WORKING`). NÃO serve para
+     * comparar com `driverLimit` — o bloqueio de plano conta todos.
+     */
     driversActive: number;
+    /**
+     * Total de motoristas contados pelo MESMO predicado do bloqueio de plano.
+     * É este o numerador de "X de Y do plano".
+     */
+    driversTotal: number;
+    /** `null` = ilimitado (plano PRO). */
     driverLimit: number | null;
     rentedNow: number;
     reservedNow: number;
