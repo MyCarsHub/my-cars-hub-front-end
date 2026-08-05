@@ -17,7 +17,7 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { EMPTY, Observable, catchError, map, merge, of, switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, map, merge, of, switchMap, tap } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
@@ -48,6 +48,13 @@ import {
 } from '../../types/vehicle.types';
 
 const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
+
+/**
+ * Complemento do banner quando um bloco filho falha sem mensagem do servidor.
+ * Fica no fim da frase — o prefixo ("O veículo foi salvo, mas …") é montado em
+ * `childErrorMessage`.
+ */
+const CHILD_RETRY_HINT = 'Tente novamente em instantes.';
 
 function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
   const manufacture = group.get('yearManufacture')?.value;
@@ -378,10 +385,16 @@ export class VehicleForm implements OnInit {
    * veículo. Cada filho trata o próprio erro inline e completa com `EMPTY`, de
    * modo que uma falha do filho NÃO navega nem dispara o handler do veículo —
    * o PUT/POST do veículo já pode ter passado e o usuário precisa saber disso.
+   *
+   * `editingId` é promovido assim que o veículo é salvo: na CRIAÇÃO, se um bloco
+   * filho falhar o form continua montado, e sem isso o próximo submit dispararia
+   * outro POST /vehicles, cadastrando o veículo DUPLICADO. Com o id setado o
+   * reenvio vira PUT do mesmo veículo + retry só do filho que falhou.
    */
   private saveChildren(save$: Observable<Vehicle>): void {
     save$
       .pipe(
+        tap((v) => this.editingId.set(v.id)),
         switchMap((v) => this.financingStep(v)),
         switchMap((v) => this.insuranceStep(v)),
       )
@@ -479,23 +492,18 @@ export class VehicleForm implements OnInit {
   }
 
   /**
-   * Falha do POST do financiamento durante a EDIÇÃO. `fieldErrors` de
-   * `contractDate` / `purchasePrice` / … caem inline no `financingForm`; o que
-   * sobrar (ex.: 409 "já existe financiamento ativo") vai para o banner.
+   * Falha do POST do financiamento. `fieldErrors` de `contractDate` /
+   * `purchasePrice` / … caem inline no `financingForm`; o que sobrar (ex.: 409
+   * "já existe financiamento ativo") entra no banner.
    */
   private handleFinancingError(err: HttpErrorResponse): void {
     this.saving.set(false);
     const { formMessage, applied } = this.apiErrors.handleForm(
       err,
       this.financingForm,
-      'Não foi possível adicionar o financiamento.',
+      CHILD_RETRY_HINT,
     );
-    this.error.set(
-      formMessage ??
-        (applied.length > 0
-          ? 'Verifique os campos do financiamento destacados e tente novamente.'
-          : 'Não foi possível adicionar o financiamento.'),
-    );
+    this.error.set(this.childErrorMessage('financiamento', formMessage, applied.length > 0));
   }
 
   /**
@@ -508,14 +516,26 @@ export class VehicleForm implements OnInit {
     const { formMessage, applied } = this.apiErrors.handleForm(
       err,
       this.insuranceForm,
-      'Não foi possível adicionar o seguro.',
+      CHILD_RETRY_HINT,
     );
-    this.error.set(
-      formMessage ??
-        (applied.length > 0
-          ? 'Verifique os campos do seguro destacados e tente novamente.'
-          : 'Não foi possível adicionar o seguro.'),
-    );
+    this.error.set(this.childErrorMessage('seguro', formMessage, applied.length > 0));
+  }
+
+  /**
+   * Mensagem de falha de um bloco filho. O prefixo é obrigatório: quando o
+   * filho falha o veículo JÁ foi salvo (POST/PUT 2xx), e omitir isso é o que
+   * levava o usuário a reenviar o formulário achando que nada tinha gravado.
+   * O detalhe do servidor é preservado ao final para não perder o motivo real.
+   */
+  private childErrorMessage(
+    kind: 'financiamento' | 'seguro',
+    formMessage: string | null,
+    hasFieldErrors: boolean,
+  ): string {
+    const head = `O veículo foi salvo, mas o ${kind} não foi adicionado.`;
+    if (formMessage) return `${head} ${formMessage}`;
+    if (hasFieldErrors) return `${head} Verifique os campos destacados e tente novamente.`;
+    return `${head} ${CHILD_RETRY_HINT}`;
   }
 
   protected cancel(): void {

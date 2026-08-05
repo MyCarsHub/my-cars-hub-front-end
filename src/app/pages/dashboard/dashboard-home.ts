@@ -119,8 +119,40 @@ export class DashboardHome {
     });
 
     // ---- Fleet ----------------------------------------------------------
-    protected readonly vehicleLimitLabel = computed(() => this.limitLabel(this.summary()?.fleet.vehicleLimit));
-    protected readonly driverLimitLabel = computed(() => this.limitLabel(this.summary()?.fleet.driverLimit));
+
+    /**
+     * Consumo de veículos contra o limite do plano.
+     *
+     * `vehicleLimit` nulo = plano com veículos ilimitados (ENTERPRISE): não
+     * existe numerador/denominador para mostrar, então a frase muda inteira —
+     * mesmo tratamento de `driverPlanLabel`, para os dois cards da grade de
+     * KPIs lerem como um conjunto.
+     */
+    protected readonly vehiclePlanLabel = computed(() => {
+        const fleet = this.summary()?.fleet;
+        if (!fleet) return '';
+        const limit = fleet.vehicleLimit;
+        if (limit === null || limit === undefined) return 'veículos ilimitados no plano';
+        return `${fleet.vehiclesTotal} de ${limit} do plano`;
+    });
+
+    /**
+     * Consumo de motoristas contra o limite do plano.
+     *
+     * O numerador é `driversTotal` — mesmo predicado usado pelo bloqueio no
+     * backend. Usar `driversActive` (recorte operacional) fazia a tela dizer
+     * "2 de 5" enquanto o cadastro devolvia 409.
+     *
+     * `driverLimit` nulo = plano com motoristas ilimitados (PRO): não existe
+     * numerador/denominador para mostrar, então a frase muda inteira.
+     */
+    protected readonly driverPlanLabel = computed(() => {
+        const fleet = this.summary()?.fleet;
+        if (!fleet) return '';
+        const limit = fleet.driverLimit;
+        if (limit === null || limit === undefined) return 'motoristas ilimitados no plano';
+        return `${fleet.driversTotal} de ${limit} do plano`;
+    });
 
     // ---- Faturamento — deltas vs período anterior + monthly ------------
     protected readonly billingLabel = computed(() =>
@@ -333,10 +365,5 @@ export class DashboardHome {
                 this.loading.set(false);
             },
         });
-    }
-
-    private limitLabel(limit: number | null | undefined): string {
-        if (limit === null || limit === undefined) return 'sem limite';
-        return `${limit}`;
     }
 }

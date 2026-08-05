@@ -262,16 +262,34 @@ export class Billing implements OnInit, OnDestroy {
   /** The subscription is PAID and in force — the only "assinatura vigente". */
   protected readonly isPaidActive = computed(() => this.isActive() && !this.isFreeActive());
 
-  protected readonly isTrialing = computed(() => this.status() === 'TRIALING');
+  /**
+   * The subscription STATUS is `TRIALING` — the gateway's trial window.
+   *
+   * This is NOT the TRIAL plan. A PRO subscription inside its trial period is
+   * `TRIALING` while the plan in force is still PRO, with PRO's limits. Reading
+   * this status as "the customer is on the TRIAL plan" is what made a PRO trial
+   * render the TRIAL card as "Plano atual" — and turned a perfectly legal 4th
+   * vehicle (PRO allows 15) into a reported bug. Plan comes from the plan;
+   * this signal only ever answers "está em período de teste?".
+   */
+  protected readonly isTrialingStatus = computed(() => this.status() === 'TRIALING');
+
+  /**
+   * A plan is genuinely in force. `TRIALING` counts: a trial always runs ON a
+   * plan, so treating it as "no plan" left the PRO card saying "Assinar PRO" to
+   * someone already on PRO. `PENDING` / `INCOMPLETE` deliberately do NOT count —
+   * an abandoned checkout has no plan in force.
+   */
+  protected readonly isPlanInForce = computed(() => this.isActive() || this.isTrialingStatus());
 
   /**
    * The plan actually in force — free plans included, since a free ACTIVE plan
-   * genuinely IS the current plan. `null` unless the subscription is ACTIVE: an
+   * genuinely IS the current plan. `null` unless a plan is in force: an
    * abandoned checkout must never mark a card as the current plan (that both
    * lied to the user and disabled the button they needed to retry).
    */
   protected readonly currentPlanCode = computed<string | null>(() =>
-    this.isActive() ? (this.subscription()?.planCode ?? null) : null,
+    this.isPlanInForce() ? (this.subscription()?.planCode ?? null) : null,
   );
 
   /** Checkout started, payment NOT confirmed. */
@@ -310,14 +328,16 @@ export class Billing implements OnInit, OnDestroy {
     () => this.subscription()?.scheduledDowngradeAt ?? null,
   );
 
-  /** Eyebrow above the hero title. Only a PAID ACTIVE plan earns "Plano atual". */
+  /**
+   * Eyebrow above the hero title. Answers "qual plano?", never "qual status?" —
+   * the status has its own pill right next to it (`statusLabel()`), so a
+   * TRIALING subscription reads "Plano atual / PRO / Período de teste" instead
+   * of replacing the plano with the estado and leaving PRO looking like TRIAL.
+   */
   protected readonly heroEyebrow = computed<string>(() => {
     if (this.isFreeActive()) return 'Plano gratuito';
+    if (this.isPlanInForce()) return 'Plano atual';
     switch (this.status()) {
-      case 'ACTIVE':
-        return 'Plano atual';
-      case 'TRIALING':
-        return 'Período de teste';
       case 'CANCELED':
       case 'EXPIRED':
         return 'Assinatura encerrada';
@@ -999,9 +1019,20 @@ export class Billing implements OnInit, OnDestroy {
     // The backend confirms a free plan actually in force.
     if (this.isFreeActive()) return 'CURRENT';
     if (this.canReturnToFree()) return 'DOWNGRADE';
-    // No subscription row at all, or a trial still running: free is already the
-    // floor this account falls back to, so there is nothing to downgrade to.
+    // No subscription row at all: free is already the floor this account falls
+    // back to, so there is nothing to downgrade to.
     return 'CURRENT';
+  }
+
+  /**
+   * A PAID plan is in force under a trial. Positive evidence only — the `/plans`
+   * row must exist and cost money. Without it we say no, so a `/plans` outage
+   * cannot flip the free card into a state-changing action.
+   */
+  private isTrialingOnPaidPlan(): boolean {
+    if (!this.isTrialingStatus()) return false;
+    const plan = this.currentPlan();
+    return plan !== null && plan.price > 0;
   }
 
   /**
@@ -1011,6 +1042,10 @@ export class Billing implements OnInit, OnDestroy {
    */
   private canReturnToFree(): boolean {
     if (this.isPaidActive()) return true;
+    // A trial running on a PAID plan is NOT the free plan — labelling the free
+    // card "Plano atual" there told a PRO trial they were on TRIAL, which is the
+    // exact plano-vs-status collision this page had to stop repeating.
+    if (this.isTrialingOnPaidPlan()) return true;
     switch (this.status()) {
       case 'PAST_DUE':
       case 'UNPAID':
