@@ -277,15 +277,59 @@ describe('Billing', () => {
   // F1 — the plan shown derives from status, not from planCode alone
   // ---------------------------------------------------------------------------
 
-  it('does NOT treat a TRIALING PRO subscription as the current plan', () => {
+  // PLANO vs STATUS. `TRIALING` is a subscription STATUS; `TRIAL` is a plan
+  // NAME. A PRO subscription in its trial window is on PRO, with PRO's limits —
+  // reading the status as the plan is what made the owner report a legitimate
+  // 4th vehicle (PRO allows 15) as a bug. If these break, that report comes back.
+  it('labels a TRIALING PRO subscription with the PLAN, not with the status', () => {
     subscriptionSignal.set(sub({ status: 'TRIALING', trialEndsAt: FUTURE }));
     const c = build();
 
-    expect(c.isCurrent(PRO)).toBe(false);
-    expect(c.heroEyebrow()).toBe('Período de teste');
-    expect(c.planIntent(PRO)).toBe('SUBSCRIBE');
-    expect(c.planCtaLabel(PRO)).toBe('Assinar PRO');
-    expect(c.planCtaDisabled(PRO)).toBe(false);
+    expect(c.isCurrent(PRO)).toBe(true);
+    // Plano comes from the plan…
+    expect(c.heroEyebrow()).toBe('Plano atual');
+    expect(c.heroPlanTitle()).toBe('PRO');
+    expect(c.planCtaLabel(PRO)).toBe('Plano atual');
+    // …and the trial survives as an ADDITIONAL state, never as the plan.
+    expect(c.statusLabel('TRIALING')).toBe('Período de teste');
+    expect(c.heroNotice()).toContain('período de teste');
+  });
+
+  it('does NOT mark the TRIAL/free plan as current while a PRO trial is running', () => {
+    subscriptionSignal.set(sub({ status: 'TRIALING', trialEndsAt: FUTURE }));
+    const c = build();
+
+    // The bug: the free card wore "Plano atual" while the account was on PRO.
+    expect(c.planIntent(FREE)).not.toBe('CURRENT');
+    expect(c.planCtaLabel(FREE)).not.toBe('Plano atual');
+    expect(c.isCurrent(FREE)).toBe(false);
+  });
+
+  it('keeps the free card non-actionable for a trial that really IS on the free plan', () => {
+    subscriptionSignal.set(
+      sub({
+        status: 'TRIALING',
+        planCode: 'FREE_MONTHLY_STRIPE',
+        planName: 'TRIAL',
+        trialEndsAt: FUTURE,
+      }),
+    );
+    const c = build();
+
+    expect(c.isCurrent(FREE)).toBe(true);
+    expect(c.planCtaLabel(FREE)).toBe('Plano atual');
+    expect(c.planCtaDisabled(FREE)).toBe(true);
+    // The paid card is still a real offer — a trial is not a paid plan.
+    expect(c.planIntent(PRO)).toBe('UPGRADE');
+  });
+
+  it('never promises a paid period a TRIALING account has not paid for', () => {
+    subscriptionSignal.set(sub({ status: 'TRIALING', trialEndsAt: FUTURE }));
+    const c = build();
+
+    // `burnsPaidPeriod()` is false during a trial, so the free card must not
+    // claim the downgrade "vale a partir do fim do período já pago".
+    expect(c.planCtaNote(FREE)).toBe('Sem cobranças. Você volta para o plano gratuito.');
   });
 
   it('does NOT announce a paid plan while the checkout is unpaid (PENDING)', () => {
@@ -875,16 +919,36 @@ describe('Billing', () => {
     expect(c.planIntent(PRO)).toBe('SUBSCRIBE');
   });
 
-  it('keeps the free plan non-actionable while a trial (or nothing) is running', () => {
+  it('never acts blindly on an unknown status — free stays non-actionable', () => {
     const c = build();
-    // Free is already the floor these accounts fall back to; there is nothing
-    // to downgrade to, and an unknown status is never acted upon blindly.
-    for (const status of ['TRIALING', 'SOMETHING_NEW']) {
-      subscriptionSignal.set(sub({ status }));
-      expect(c.planIntent(FREE)).toBe('CURRENT');
-      expect(c.planCtaDisabled(FREE)).toBe(true);
-    }
+    subscriptionSignal.set(sub({ status: 'SOMETHING_NEW' }));
+
+    expect(c.planIntent(FREE)).toBe('CURRENT');
+    expect(c.planCtaDisabled(FREE)).toBe(true);
     expect(billing.startCheckout).not.toHaveBeenCalled();
+  });
+
+  it('treats free as a real destination for a trial running on a PAID plan', () => {
+    const c = build();
+    // `TRIALING` on PRO is NOT "already on the free plan": the account is on
+    // PRO. Calling it CURRENT was the plano-vs-status collision.
+    subscriptionSignal.set(sub({ status: 'TRIALING' }));
+
+    expect(c.planIntent(FREE)).toBe('DOWNGRADE');
+    expect(c.planCtaLabel(FREE)).toBe('Voltar ao plano gratuito');
+    // Still never a checkout — a R$ 0,00 plan has nothing to charge.
+    expect(billing.startCheckout).not.toHaveBeenCalled();
+  });
+
+  it('does NOT flip the free card into an action when /plans has not landed', () => {
+    const c = build();
+    // No `/plans` row means no positive evidence that PRO costs money, so the
+    // trial must not be classified as "trial on a paid plan".
+    plansSignal.set([]);
+    subscriptionSignal.set(sub({ status: 'TRIALING' }));
+
+    expect(c.planIntent(FREE)).toBe('CURRENT');
+    expect(c.planCtaDisabled(FREE)).toBe(true);
   });
 
   // ---------------------------------------------------------------------------
