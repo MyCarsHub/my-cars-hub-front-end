@@ -92,9 +92,20 @@ export class LandingPricingComponent implements AfterViewInit {
     this.cycle() === 'yearly' ? 'text-emerald-700' : 'text-brand-strong',
   );
 
+  /**
+   * ATENÇÃO — capacidades escritas à mão, e a landing é a única superfície que
+   * NÃO pode derivá-las da API: `GET /v1/billing/plans` exige autenticação
+   * (`SecurityConfig`) e esta página é pública, sem sessão. Enquanto o endpoint
+   * não tiver uma variante pública, **todo ajuste na tabela `plans` precisa ser
+   * repetido aqui** — foi a divergência entre os dois que fez a landing anunciar
+   * limites que o backend não entregava.
+   *
+   * Fonte de verdade desta entrega: TRIAL 3 veículos / 4 motoristas,
+   * PRO 15 veículos / motoristas ilimitados, ENTERPRISE ilimitado nos dois.
+   */
   readonly trialItems = [
-    'Até 2 veículos',
-    'Até 3 motoristas',
+    'Até 3 veículos',
+    'Até 4 motoristas',
     'Contratos, cobranças, multas, manutenções',
     'Suporte por email',
   ];

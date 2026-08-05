@@ -12,7 +12,7 @@
               id="seg-vehicle"
               [ngModel]="vehicleFilter()"
               (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
-              class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+              class="w-full px-3 min-h-[44px] text-sm border border-neutral-200 rounded-xl bg-white
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             >
               <option value="">Veículo: Todos</option>
@@ -29,7 +29,7 @@
             id="seg-status"
             [ngModel]="statusFilter()"
             (ngModelChange)="onStatusChange($event)"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 min-h-[44px] text-sm border border-neutral-200 rounded-xl bg-white
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of statusOptions; track opt.value) {
@@ -44,7 +44,7 @@
             id="seg-expiring"
             [ngModel]="expiringFilter()"
             (ngModelChange)="onExpiringChange($event)"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 min-h-[44px] text-sm border border-neutral-200 rounded-xl bg-white
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of expiringOptions; track opt.value) {
@@ -59,7 +59,7 @@
             id="seg-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 min-h-[44px] text-sm border border-neutral-200 rounded-xl bg-white
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {
@@ -79,7 +79,7 @@
           <button
             type="button"
             (click)="clearFilters()"
-            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 min-h-[44px] rounded-lg"
           >
             Limpar filtros
           </button>
@@ -126,6 +126,8 @@
               [class]="rowHighlight(i) || 'bg-white'"
               (click)="openDetail(i)"
               (keydown.enter)="openDetail(i)"
+              (keydown.space)="$event.preventDefault(); openDetail(i)"
+              role="button"
               tabindex="0"
               [attr.aria-label]="'Abrir apólice do veículo ' + i.vehiclePlate"
             >
@@ -233,7 +235,9 @@
                   [class]="rowHighlight(i)"
                   (click)="openDetail(i)"
                   (keydown.enter)="openDetail(i)"
-                  tabindex="0">
+                  (keydown.space)="$event.preventDefault(); openDetail(i)"
+                  tabindex="0"
+                  [attr.aria-label]="'Abrir apólice do veículo ' + i.vehiclePlate">
                   <td class="py-3 pr-4">
                     <p class="font-semibold text-neutral-900 tabular-nums tracking-wider">
                       {{ formatPlate(i.vehiclePlate) }}
@@ -298,20 +302,27 @@
             </tbody>
           </table>
         </div>
+      }
 
+      <!--
+        Paginador ligado a `total()`, não a `items()`: excluir a última linha da
+        última página zera a lista mas não o total, e escondê-lo aqui prendia o
+        usuário numa página vazia sem como voltar.
+      -->
+      @if (total() > 0) {
         <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-neutral-100 text-sm">
           <p class="text-neutral-500">
             {{ total() }} apólice(s) — página {{ pageNumber() }} de {{ totalPages() }}
           </p>
           <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              class="px-4 min-h-[44px] rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
               [disabled]="page() === 0 || loading()"
               (click)="prev()">
               Anterior
             </button>
             <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              class="px-4 min-h-[44px] rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
               [disabled]="page() + 1 >= totalPages() || loading()"
               (click)="next()">
               Próxima

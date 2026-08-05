@@ -419,6 +419,168 @@ describe('VehicleForm — financiamento na edição', () => {
 });
 
 /**
+ * FIX (dano de dado): CRIAÇÃO com bloco filho que falha.
+ *
+ * O POST do veículo já passou; se o form continuar com `editingId` nulo, o
+ * próximo submit dispara outro POST e o usuário fica com o veículo DUPLICADO.
+ * O banner também precisa dizer que o veículo foi salvo — era justamente a
+ * ausência dessa frase que levava o usuário a reenviar.
+ */
+describe('VehicleForm — criação com falha no bloco filho', () => {
+  const NEW_ID = 'veh-novo';
+
+  let create: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let createFinancing: ReturnType<typeof vi.fn>;
+  let createInsurance: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.spyOn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  interface FormApi {
+    form: { patchValue: (v: unknown) => void };
+    financingForm: { patchValue: (v: unknown) => void };
+    insuranceForm: { patchValue: (v: unknown) => void };
+    toggleFinancing: () => void;
+    toggleInsurance: () => void;
+    submit: () => void;
+    isEdit: () => boolean;
+  }
+
+  function api(): FormApi {
+    return fixture.componentInstance as unknown as FormApi;
+  }
+
+  function fillValidVehicle(): void {
+    api().form.patchValue({
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      hodometer: 1000,
+    });
+  }
+
+  function fillValidInsurance(): void {
+    api().insuranceForm.patchValue({
+      insurer: 'Porto Seguro',
+      policyNumber: 'AP-99887',
+      coverageType: 'COMPREHENSIVE',
+      premiumAmount: 2400,
+      startDate: '2026-01-01',
+      endDate: '2027-01-01',
+    });
+  }
+
+  beforeEach(async () => {
+    TestBed.resetTestingModule();
+    create = vi.fn().mockReturnValue(of({ id: NEW_ID }));
+    update = vi.fn().mockReturnValue(of({ id: NEW_ID }));
+    createFinancing = vi.fn().mockReturnValue(of({ id: 'fin-new' }));
+    createInsurance = vi.fn().mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { message: 'Veículo já possui seguro ativo.' },
+          }),
+      ),
+    );
+
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: { create, update, createFinancing, getOne: vi.fn() },
+        },
+        { provide: InsurancesService, useValue: { create: createInsurance } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  });
+
+  it('reenviar depois da falha do seguro NÃO cria um segundo veículo — vira edição do mesmo', () => {
+    fillValidVehicle();
+    api().toggleInsurance();
+    fillValidInsurance();
+
+    api().submit();
+    fixture.detectChanges();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(createInsurance).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+    // O veículo existe: o form assumiu o id e virou edição.
+    expect(api().isEdit()).toBe(true);
+
+    // Reenvio (o usuário insiste depois de ver o erro).
+    api().submit();
+    fixture.detectChanges();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toBe(NEW_ID);
+    expect(createInsurance).toHaveBeenCalledTimes(2);
+  });
+
+  it('o banner diz que o veículo foi salvo e preserva o motivo do servidor', () => {
+    fillValidVehicle();
+    api().toggleInsurance();
+    fillValidInsurance();
+
+    api().submit();
+    fixture.detectChanges();
+
+    const banner = fixture.nativeElement.querySelector('app-alert-banner') as HTMLElement | null;
+    const text = banner?.textContent ?? '';
+    expect(text).toContain('O veículo foi salvo');
+    expect(text).toContain('seguro não foi adicionado');
+    expect(text).toContain('Veículo já possui seguro ativo.');
+  });
+
+  it('mesma garantia para o bloco de financiamento', () => {
+    createFinancing.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { message: 'Veículo já possui financiamento ativo.' },
+          }),
+      ),
+    );
+
+    fillValidVehicle();
+    api().toggleFinancing();
+    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: 50000 });
+
+    api().submit();
+    fixture.detectChanges();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(api().isEdit()).toBe(true);
+
+    const text = (fixture.nativeElement.querySelector('app-alert-banner') as HTMLElement | null)
+      ?.textContent;
+    expect(text).toContain('O veículo foi salvo');
+    expect(text).toContain('Veículo já possui financiamento ativo.');
+  });
+});
+
+/**
  * FIX: submit inválido — o banner deve sumir sozinho quando o formulário volta
  * a ser válido (antes ficava preso até o próximo submit) e o foco deve ir para
  * o primeiro campo inválido (antes ficava no botão de submit).
