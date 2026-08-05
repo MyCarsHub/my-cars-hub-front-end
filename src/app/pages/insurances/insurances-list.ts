@@ -3,9 +3,11 @@ import {
   Component,
   OnInit,
   computed,
+  effect,
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -19,11 +21,8 @@ import { NotificationService } from '../../services/notification.service';
 import { InsurancesService } from '../../services/insurances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { VehicleListItem } from '../../types/vehicle.types';
-import {
-  InsuranceCoverage,
-  InsuranceListItem,
-  InsuranceStatus,
-} from '../../types/insurance.types';
+import { PagedResponse } from '../../types/paged.types';
+import { InsuranceCoverage, InsuranceListItem, InsuranceStatus } from '../../types/insurance.types';
 import {
   INSURANCE_COVERAGE_LABELS,
   INSURANCE_STATUS_FILTER_OPTIONS,
@@ -134,16 +133,28 @@ export class InsurancesList implements OnInit {
 
   protected readonly pageNumber = computed(() => this.page() + 1);
 
+  /**
+   * O prefiltro de veículo é reativo: navegar da gerência de um veículo para a
+   * de outro reusa esta instância (mesma configuração de rota), e ler o input
+   * só no `ngOnInit` deixava a lista presa no primeiro veículo. `untracked`
+   * isola a leitura dos demais filtros para o efeito não virar um watcher de
+   * `reload()` e duplicar requisições a cada troca de filtro.
+   */
+  constructor() {
+    effect(() => {
+      const prefilter = this.vehicleIdPrefilter();
+      untracked(() => {
+        this.vehicleFilter.set(prefilter ?? '');
+        this.reload(0);
+      });
+    });
+  }
+
   ngOnInit(): void {
-    const prefilter = this.vehicleIdPrefilter();
-    if (prefilter) {
-      this.vehicleFilter.set(prefilter);
-    }
     this.vehiclesService.list({ size: 500, sort: 'plate_asc' }).subscribe({
       next: (res) => this.vehicles.set(res.content ?? []),
       error: () => this.vehicles.set([]),
     });
-    this.reload(0);
   }
 
   protected onFilterChange(): void {
@@ -181,6 +192,8 @@ export class InsurancesList implements OnInit {
 
   private reload(page: number): void {
     const expiring = this.expiringFilter();
+    // Banner de falha de ação não sobrevive a uma nova carga da lista.
+    this.actionError.set(null);
     this.insurancesService
       .list({
         vehicleId: this.vehicleFilter() || undefined,
@@ -192,7 +205,24 @@ export class InsurancesList implements OnInit {
       })
       // `InsurancesService` já escreve a falha no signal `error`, renderizado como
       // banner — reivindica o erro para a rede de segurança não exibir um toast.
-      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+      .subscribe({
+        next: (res) => this.clampPage(res, page),
+        error: (err: unknown) => this.apiErrors.claim(err),
+      });
+  }
+
+  /**
+   * Excluir a última linha da última página deixava o usuário numa página que
+   * não existe mais: lista vazia e paginador escondido, sem como voltar. Quando
+   * a página pedida volta vazia mas ainda há registros, recarrega a última
+   * página válida. Só recua (`last < requested`), então não há laço.
+   */
+  private clampPage(res: PagedResponse<InsuranceListItem>, requested: number): void {
+    const total = res.total ?? 0;
+    if (total === 0 || (res.content?.length ?? 0) > 0) return;
+    const size = res.size || this.pageSize();
+    const last = Math.max(0, Math.ceil(total / size) - 1);
+    if (last < requested) this.reload(last);
   }
 
   protected statusInfo(s: InsuranceStatus): { label: string; chip: string } {
@@ -206,18 +236,22 @@ export class InsurancesList implements OnInit {
 
   /**
    * Badge de vencimento derivado de `daysToExpiry` (calculado no backend).
-   * ≤ 7 dias → danger; ≤ 30 dias → warning; vencida/cancelada → neutro.
+   *
+   * Contagem regressiva só faz sentido para apólice ACTIVE — a mesma regra do
+   * detalhe (`insurance-detail.ts`). SUSPENDED/EXPIRED/CANCELLED caem no chip do
+   * próprio status; antes SUSPENDED escapava e aparecia como "Vence em Xd" âmbar,
+   * indistinguível de uma apólice em vigor.
    */
   protected expiryBadge(i: InsuranceListItem): { label: string; chip: string } {
-    if (i.status === 'CANCELLED') {
-      return { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' };
+    if (i.status !== 'ACTIVE') {
+      return this.statusInfo(i.status);
     }
     const days = i.daysToExpiry;
-    if (i.status === 'EXPIRED' || (days != null && days < 0)) {
-      return { label: 'Vencida', chip: 'bg-rose-100 text-rose-700' };
-    }
     if (days == null) {
       return this.statusInfo(i.status);
+    }
+    if (days < 0) {
+      return { label: 'Vencida', chip: 'bg-rose-100 text-rose-700' };
     }
     if (days <= 7) {
       return { label: `Vence em ${days}d`, chip: 'bg-rose-100 text-rose-700' };
@@ -305,12 +339,10 @@ export class InsurancesList implements OnInit {
     if (action === 'cancel') {
       // `cancelledDate` precisa estar em [startDate, hoje]; hoje é sempre válido
       // para uma apólice já iniciada.
-      this.insurancesService
-        .cancel(i.vehicleId, i.id, { cancelledDate: todayIso() })
-        .subscribe({
-          next: () => onSuccess('Apólice cancelada.'),
-          error: onError('Não foi possível cancelar a apólice.'),
-        });
+      this.insurancesService.cancel(i.vehicleId, i.id, { cancelledDate: todayIso() }).subscribe({
+        next: () => onSuccess('Apólice cancelada.'),
+        error: onError('Não foi possível cancelar a apólice.'),
+      });
       return;
     }
 

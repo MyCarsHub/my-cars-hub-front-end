@@ -3,7 +3,7 @@
   type="button"
   class="relative flex items-center justify-center w-11 h-11 rounded-lg bg-white shadow-md border border-gray-200 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
   [attr.aria-label]="ariaLabel()"
-  aria-haspopup="menu"
+  aria-haspopup="dialog"
   [attr.aria-expanded]="open()"
   (click)="toggle()"
   (keydown.escape)="closeAndFocusTrigger()"
@@ -37,21 +37,29 @@
 <!-- Contador anunciado por leitor de tela sem depender do badge visual. -->
 <span class="sr-only" aria-live="polite">{{ ariaLabel() }}</span>
 
+<!--
+  Painel é `role="dialog"`, não `role="menu"`: ele contém cromo que não é item de
+  menu (cabeçalho, botão "marcar todas", skeleton e estado vazio), e um `menu`
+  com esses filhos reprova no AXE `aria-required-children`. A lista de
+  notificações vira uma `list`/`listitem` de verdade dentro do diálogo.
+-->
 @if (open()) {
   <div
+    #panel
     appClickOutside
     (appClickOutside)="onClickOutside($event)"
     (keydown.escape)="closeAndFocusTrigger()"
     (keydown)="onPanelKeydown($event)"
-    role="menu"
+    role="dialog"
+    tabindex="-1"
     aria-label="Notificações recentes"
-    class="fixed left-2 right-2 top-16 z-50 rounded-xl border border-neutral-200 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
+    class="fixed left-2 right-2 top-16 z-50 rounded-xl border border-neutral-200 bg-white shadow-xl focus:outline-none sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
   >
     <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-neutral-100">
       <p class="text-sm font-semibold text-neutral-900">Notificações</p>
       <button
         type="button"
-        class="text-xs font-medium text-primary-700 hover:text-primary-900 px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-50"
+        class="text-xs font-medium text-primary-700 hover:text-primary-900 px-3 min-h-[44px] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-50"
         [disabled]="!hasUnread()"
         (click)="onMarkAllRead()"
       >
@@ -77,40 +85,45 @@
         </p>
       }
 
-      @for (item of items(); track item.id) {
-        <button
-          #menuItem
-          type="button"
-          role="menuitem"
-          class="w-full flex items-start gap-3 px-4 py-3 text-left min-h-[56px] hover:bg-neutral-50 focus:outline-none focus:bg-neutral-50 focus:ring-2 focus:ring-inset focus:ring-primary-400 border-b border-neutral-50 last:border-b-0"
-          [class.bg-primary-50]="!item.read"
-          (click)="onItemClick(item)"
-        >
-          <span
-            class="mt-1.5 w-2 h-2 rounded-full shrink-0"
-            [class]="severityDot(item.severity)"
-            aria-hidden="true"
-          ></span>
-          <span class="min-w-0 flex-1">
-            <span class="block text-sm font-semibold text-neutral-900 truncate">
-              {{ item.title }}
-            </span>
-            <span class="block text-xs text-neutral-600 mt-0.5 line-clamp-2">
-              {{ item.message }}
-            </span>
-            @if (dueLabel(item); as due) {
-              <span class="block text-[11px] text-neutral-500 mt-1">{{ due }}</span>
-            }
-          </span>
-        </button>
+      @if (items().length > 0) {
+        <ul class="list-none">
+          @for (item of items(); track item.id) {
+            <li class="border-b border-neutral-50 last:border-b-0">
+              <button
+                #menuItem
+                type="button"
+                class="w-full flex items-start gap-3 px-4 py-3 text-left min-h-[56px] hover:bg-neutral-50 focus:outline-none focus:bg-neutral-50 focus:ring-2 focus:ring-inset focus:ring-primary-400"
+                [class.bg-primary-50]="!item.read"
+                (click)="onItemClick(item)"
+              >
+                <span
+                  class="mt-1.5 w-2 h-2 rounded-full shrink-0"
+                  [class]="severityDot(item.severity)"
+                  aria-hidden="true"
+                ></span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-sm font-semibold text-neutral-900 truncate">
+                    {{ item.title }}
+                  </span>
+                  <span class="block text-xs text-neutral-600 mt-0.5 line-clamp-2">
+                    {{ item.message }}
+                  </span>
+                  @if (dueLabel(item); as due) {
+                    <span class="block text-[11px] text-neutral-500 mt-1">{{ due }}</span>
+                  }
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
       }
     </div>
 
     <div class="px-4 py-3 border-t border-neutral-100">
       <a
+        #menuItem
         routerLink="/alertas"
-        role="menuitem"
-        class="block text-sm font-medium text-primary-700 hover:text-primary-900 focus:outline-none focus:ring-2 focus:ring-primary-400 rounded-lg py-1"
+        class="flex items-center min-h-[44px] text-sm font-medium text-primary-700 hover:text-primary-900 focus:outline-none focus:ring-2 focus:ring-primary-400 rounded-lg"
         (click)="closeAndFocusTrigger()"
       >
         Ver todos os alertas

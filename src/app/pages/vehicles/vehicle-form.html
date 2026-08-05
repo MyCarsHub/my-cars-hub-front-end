@@ -336,7 +336,8 @@
             type="button"
             (click)="toggleInsurance()"
             [attr.aria-expanded]="showInsurance()"
-            class="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200
+            aria-controls="veiculo-insurance-block"
+            class="w-full sm:w-auto inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-neutral-200
                    text-sm font-medium text-neutral-700 hover:bg-neutral-50">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -349,13 +350,16 @@
             {{ showInsurance() ? 'Remover seguro' : 'Adicionar seguro' }}
           </button>
 
-          @if (showInsurance()) {
-            <app-insurance-form-fields [formGroup]="insuranceForm" />
-            <p class="text-xs text-neutral-400">
-              O veículo aceita apenas uma apólice ativa por vez. Se já houver uma,
-              o cadastro é recusado e a mensagem aparece acima.
-            </p>
-          }
+          <!-- Contêiner sempre presente: `aria-controls` do gatilho precisa de um id real. -->
+          <div id="veiculo-insurance-block" class="space-y-4">
+            @if (showInsurance()) {
+              <app-insurance-form-fields [formGroup]="insuranceForm" />
+              <p class="text-xs text-neutral-400">
+                O veículo aceita apenas uma apólice ativa por vez. Se já houver uma,
+                o cadastro é recusado e a mensagem aparece acima.
+              </p>
+            }
+          </div>
         </div>
       </app-page-card>
 

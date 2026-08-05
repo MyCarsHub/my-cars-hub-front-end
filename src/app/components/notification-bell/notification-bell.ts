@@ -5,6 +5,7 @@ import {
   OnDestroy,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -31,10 +32,10 @@ const SEVERITY_DOT: Record<NotificationSeverity, string> = {
  * Sino de notificações do header — painel com as 10 mais recentes, ação de
  * "marcar todas como lidas" e atalho para `/alertas`.
  *
- * Acessibilidade: gatilho é `<button aria-haspopup="menu">` com `aria-expanded`
- * e `aria-label` contendo o número de não lidas; o painel é `role="menu"`
- * navegável por setas; `Escape` fecha e devolve o foco ao gatilho; o contador
- * é anunciado por uma região `aria-live="polite"`.
+ * Acessibilidade: gatilho é `<button aria-haspopup="dialog">` com `aria-expanded`
+ * e `aria-label` contendo o número de não lidas; o painel é `role="dialog"`
+ * rotulado, recebe o foco ao abrir e é navegável por setas; `Escape` fecha e
+ * devolve o foco ao gatilho; o contador é anunciado por `aria-live="polite"`.
  *
  * Mobile: o painel vira uma folha full-width ancorada abaixo do header em vez
  * de um dropdown estreito cortado pela borda da tela.
@@ -51,7 +52,16 @@ export class NotificationBell implements OnInit, OnDestroy {
   private readonly router = inject(Router);
 
   private readonly trigger = viewChild<ElementRef<HTMLButtonElement>>('trigger');
+  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
   private readonly menuItems = viewChildren<ElementRef<HTMLElement>>('menuItem');
+
+  /**
+   * Armado por `toggle()` e consumido pelo efeito de foco. Campo simples (não
+   * signal) de propósito: o efeito já reage à renderização do painel — este
+   * flag só distingue "acabei de abrir" de "a lista recarregou", para o foco
+   * não ser roubado de volta ao primeiro item enquanto o usuário navega.
+   */
+  private focusOnRender = false;
 
   protected readonly open = signal(false);
   protected readonly items = this.feed.items;
@@ -75,6 +85,24 @@ export class NotificationBell implements OnInit, OnDestroy {
     return `Notificações, ${n} não lidas`;
   });
 
+  /**
+   * Ao abrir, o foco entra no painel — no primeiro item quando já há lista, no
+   * próprio painel (`tabindex="-1"`) enquanto ela carrega. Sem isso o foco
+   * permanecia no gatilho e as setas de `onPanelKeydown` nunca disparavam:
+   * quem usa teclado abria um painel inalcançável.
+   */
+  constructor() {
+    effect(() => {
+      const items = this.menuItems();
+      const panel = this.panel();
+      if (!this.focusOnRender) return;
+      const target = items[0]?.nativeElement ?? panel?.nativeElement;
+      if (!target) return;
+      this.focusOnRender = false;
+      target.focus();
+    });
+  }
+
   ngOnInit(): void {
     // Polling do contador (60s, pausado com a aba escondida) sobe na primeira
     // montagem do sino — nunca antes do usuário estar autenticado.
@@ -87,11 +115,13 @@ export class NotificationBell implements OnInit, OnDestroy {
 
   protected toggle(): void {
     const next = !this.open();
+    this.focusOnRender = next;
     this.open.set(next);
     if (next) this.loadPanel();
   }
 
   protected close(): void {
+    this.focusOnRender = false;
     this.open.set(false);
   }
 

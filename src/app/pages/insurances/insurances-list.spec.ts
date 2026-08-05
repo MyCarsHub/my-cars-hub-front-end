@@ -201,6 +201,22 @@ describe('InsurancesList', () => {
     expect(lastFilters.status).toBeUndefined();
   });
 
+  /**
+   * SUSPENDED escapava do `expiryBadge` e caía na contagem regressiva, ficando
+   * com o chip âmbar "Vence em Xd" — visualmente igual a uma apólice em vigor.
+   * A regra agora é a mesma do detalhe: contagem só para ACTIVE.
+   */
+  it('apólice SUSPENDED mostra o status, não a contagem regressiva', () => {
+    items.set([{ ...insurance, status: 'SUSPENDED', daysToExpiry: 12 }]);
+
+    const fixture = TestBed.createComponent(InsurancesList);
+    fixture.detectChanges();
+
+    const html = (fixture.nativeElement as HTMLElement).innerHTML;
+    expect(html).not.toContain('Vence em 12d');
+    expect(html).toContain('Suspensa');
+  });
+
   it('erro do servidor mantém a apólice na lista e mostra a mensagem inline', () => {
     removeSpy.mockReturnValue(
       throwError(
@@ -230,5 +246,152 @@ describe('InsurancesList', () => {
       banners.some((b) => b.textContent?.includes('Apólice vinculada a um sinistro em aberto.')),
     ).toBe(true);
     expect(successSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * FIX: paginação que prendia o usuário.
+ *
+ * O paginador vivia dentro do `@if (items().length > 0)`: excluir a última
+ * linha da última página deixava lista vazia + paginador escondido, sem como
+ * voltar. Agora ele depende de `total()` e a página fora de alcance recua
+ * sozinha para a última existente.
+ */
+describe('InsurancesList — paginação', () => {
+  const PAGE_SIZE = 20;
+
+  function makeInsurance(n: number): InsuranceListItem {
+    return {
+      id: `ins-${n}`,
+      createdDate: '2026-01-02T10:00:00Z',
+      vehicleId: 'v-1',
+      vehiclePlate: 'ABC1D23',
+      vehicleBrand: 'Fiat',
+      vehicleModel: 'Argo',
+      insurer: 'Porto Seguro',
+      policyNumber: `AP-${n}`,
+      coverageType: 'COMPREHENSIVE',
+      premiumAmount: 240_050,
+      deductibleAmount: null,
+      startDate: '2026-01-01',
+      endDate: '2027-01-01',
+      paymentMethod: null,
+      status: 'ACTIVE',
+      cancelledDate: null,
+      daysToExpiry: 90,
+    };
+  }
+
+  let store: InsuranceListItem[];
+  let items: ReturnType<typeof signal<InsuranceListItem[]>>;
+  let page: ReturnType<typeof signal<number>>;
+  let size: ReturnType<typeof signal<number>>;
+  let total: ReturnType<typeof signal<number>>;
+  let listSpy: ReturnType<typeof vi.fn>;
+  let removeSpy: ReturnType<typeof vi.fn>;
+
+  interface ListInternals {
+    next: () => void;
+    askAction: (action: 'cancel' | 'delete', i: InsuranceListItem) => void;
+    confirmAction: () => void;
+  }
+
+  /** Serviço falso com paginação de verdade sobre `store`. */
+  function configure(): void {
+    store = Array.from({ length: 21 }, (_, n) => makeInsurance(n + 1));
+    items = signal<InsuranceListItem[]>([]);
+    page = signal(0);
+    size = signal(PAGE_SIZE);
+    total = signal(0);
+
+    listSpy = vi.fn((filters: { page?: number; size?: number }) => {
+      const p = filters.page ?? 0;
+      const s = filters.size ?? PAGE_SIZE;
+      const content = store.slice(p * s, p * s + s);
+      items.set(content);
+      page.set(p);
+      size.set(s);
+      total.set(store.length);
+      return of({ content, total: store.length, page: p, size: s });
+    });
+
+    removeSpy = vi.fn((_vehicleId: string, insuranceId: string) => {
+      store = store.filter((i) => i.id !== insuranceId);
+      return of(void 0);
+    });
+
+    TestBed.configureTestingModule({
+      imports: [InsurancesList],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: InsurancesService,
+          useValue: {
+            insurances: items,
+            loading: signal(false),
+            error: signal<string | null>(null),
+            page,
+            size,
+            total,
+            list: listSpy,
+            cancel: vi.fn(),
+            remove: removeSpy,
+          },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: vi.fn().mockReturnValue(of({ content: [], total: 0 })) },
+        },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    });
+  }
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    configure();
+  });
+
+  it('excluir a única linha da última página volta para a última página válida', () => {
+    const fixture = TestBed.createComponent(InsurancesList);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as ListInternals;
+
+    // Página 1 (a segunda): 21 registros, 20 por página → sobra 1.
+    component.next();
+    fixture.detectChanges();
+    expect(page()).toBe(1);
+    expect(items()).toHaveLength(1);
+
+    const last = items()[0];
+    component.askAction('delete', last);
+    component.confirmAction();
+    fixture.detectChanges();
+
+    expect(removeSpy).toHaveBeenCalledWith('v-1', last.id);
+    // Sem o clamp o usuário ficaria na página 1, agora vazia e inalcançável.
+    expect(page()).toBe(0);
+    expect(items()).toHaveLength(20);
+    expect(total()).toBe(20);
+  });
+
+  it('o paginador é renderizado enquanto houver total, mesmo com a página vazia', () => {
+    const fixture = TestBed.createComponent(InsurancesList);
+    fixture.detectChanges();
+
+    // Estado de resgate: página fora de alcance, lista vazia, total intacto.
+    items.set([]);
+    total.set(21);
+    page.set(1);
+    fixture.detectChanges();
+
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).map((b) => b.textContent?.trim());
+
+    expect(labels).toContain('Anterior');
+    expect(labels).toContain('Próxima');
   });
 });

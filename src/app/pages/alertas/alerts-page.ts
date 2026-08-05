@@ -128,6 +128,20 @@ export class AlertsPage implements OnInit {
 
   protected readonly isEmpty = computed(() => !this.loading() && this.filtered().length === 0);
 
+  /**
+   * Texto da região `role="status"`. Trocar um chip substitui a lista inteira
+   * sem mover foco nem rota — sem isso a mudança era invisível para leitor de
+   * tela (WCAG 4.1.3).
+   */
+  protected readonly liveStatus = computed(() => {
+    if (this.loading()) return 'Carregando vencimentos…';
+    if (this.error()) return 'Não foi possível carregar os vencimentos.';
+    const count = this.filtered().length;
+    if (count === 0) return 'Nenhum vencimento neste período.';
+    if (count === 1) return '1 vencimento neste período.';
+    return `${count} vencimentos neste período.`;
+  });
+
   ngOnInit(): void {
     this.reload();
   }
