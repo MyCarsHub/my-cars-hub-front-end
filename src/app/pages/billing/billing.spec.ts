@@ -133,6 +133,10 @@ type Probe = {
   ngOnInit(): void;
   error(): string | null;
   accountActionError(): string | null;
+  formatLimit(value: number | null, planName: string): string;
+  planFeatures(p: PlanResponse): readonly string[];
+  toggleCompare(): void;
+  toggleExpanded(planId: string): void;
 };
 
 describe('Billing', () => {
@@ -1528,5 +1532,115 @@ describe('Billing', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  /**
+   * Tabela comparativa de planos. Depois da V44 a API devolve teto real em
+   * TODOS os planos — inclusive 500/1000 no ENTERPRISE, que mesmo assim é
+   * apresentado como ilimitado (decisão de produto, `utils/plan-limits.ts`).
+   */
+  describe('limites na tabela de planos', () => {
+    const ENTERPRISE = plan({
+      id: 'id-ent',
+      code: 'ENTERPRISE_MONTHLY_STRIPE',
+      name: 'ENTERPRISE',
+      price: 299,
+      vehicleLimit: 500,
+      driverLimit: 1000,
+      trialDays: 0,
+    });
+    const PRO_V44 = plan({
+      id: 'id-pro-v44',
+      code: 'PRO_MONTHLY_STRIPE',
+      name: 'PRO',
+      price: 79.9,
+      vehicleLimit: 20,
+      driverLimit: 40,
+      trialDays: 0,
+    });
+    const TRIAL_V44 = plan({ vehicleLimit: 3, driverLimit: 4 });
+
+    it('esconde o teto real do ENTERPRISE nas células da tabela', () => {
+      const c = build();
+
+      expect(c.formatLimit(ENTERPRISE.vehicleLimit, ENTERPRISE.name)).toBe('∞');
+      expect(c.formatLimit(ENTERPRISE.driverLimit, ENTERPRISE.name)).toBe('∞');
+    });
+
+    it('mostra os números reais de TRIAL e PRO', () => {
+      const c = build();
+
+      expect(c.formatLimit(TRIAL_V44.vehicleLimit, TRIAL_V44.name)).toBe('3');
+      expect(c.formatLimit(TRIAL_V44.driverLimit, TRIAL_V44.name)).toBe('4');
+      expect(c.formatLimit(PRO_V44.vehicleLimit, PRO_V44.name)).toBe('20');
+      expect(c.formatLimit(PRO_V44.driverLimit, PRO_V44.name)).toBe('40');
+    });
+
+    // Sentinela da coluna: segue significando ilimitado para qualquer plano.
+    it('mantém o ramo de limite nulo', () => {
+      const c = build();
+
+      expect(c.formatLimit(null, 'PRO')).toBe('∞');
+    });
+
+    it('não vaza 500/1000 nos bullets do card ENTERPRISE', () => {
+      const c = build();
+      const features = c.planFeatures(ENTERPRISE).join(' | ');
+
+      expect(features).toContain('veículos ilimitados');
+      expect(features).toContain('motoristas ilimitados');
+      expect(features).not.toContain('500');
+      expect(features).not.toContain('1000');
+    });
+
+    it('anuncia os tetos reais nos bullets do card PRO', () => {
+      const c = build();
+      const features = c.planFeatures(PRO_V44).join(' | ');
+
+      expect(features).toContain('Até 20 veículos');
+      expect(features).toContain('Até 40 motoristas');
+      expect(features).not.toContain('ilimitados');
+    });
+
+    /**
+     * O `∞` é decisão visual e não tem leitura útil: o leitor de tela ou diz
+     * "infinity" em inglês ou pula o caractere e deixa a célula muda. Cada
+     * ocorrência do glifo — tabela desktop e acordeão mobile — precisa vir com
+     * o glifo `aria-hidden` e um `sr-only` em português no lugar dele.
+     */
+    it('dá nome acessível em português a todo `∞` renderizado', () => {
+      plansSignal.set([ENTERPRISE, PRO_V44]);
+      const fixture = TestBed.createComponent(Billing);
+      const c = fixture.componentInstance as unknown as Probe;
+      fixture.detectChanges();
+
+      // Abre a comparação (desktop + mobile) e expande o card do ENTERPRISE,
+      // que é onde o acordeão materializa as células.
+      c.toggleCompare();
+      c.toggleExpanded(ENTERPRISE.id);
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      const glyphs = Array.from(host.querySelectorAll('[aria-hidden="true"]')).filter(
+        (el) => el.textContent?.trim() === '∞',
+      );
+
+      // 2 na tabela desktop (veículos + motoristas) e 2 no acordeão mobile.
+      expect(glyphs.length).toBe(4);
+      for (const glyph of glyphs) {
+        const label = glyph.nextElementSibling;
+        expect(label?.classList.contains('sr-only')).toBe(true);
+        expect(label?.textContent?.trim()).toBe('Ilimitado');
+      }
+
+      // O texto acessível é exclusivo do glifo: plano com teto real segue
+      // anunciando o número, sem "Ilimitado" pendurado.
+      const srTexts = Array.from(host.querySelectorAll('.sr-only')).map((el) =>
+        el.textContent?.trim(),
+      );
+      expect(srTexts.filter((t) => t === 'Ilimitado').length).toBe(4);
+      expect(host.textContent).toContain('20');
+      expect(host.textContent).toContain('40');
+    });
   });
 });
