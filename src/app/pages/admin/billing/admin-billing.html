@@ -1,0 +1,633 @@
+<app-default-page-layout
+  title="Billing"
+  description="Assinaturas, problemas de cobrança em aberto e composição do MRR por plano."
+>
+  <!-- ==================== MRR ==================== -->
+  <app-page-card title="Receita recorrente (MRR)">
+    <div class="p-3 sm:p-4 space-y-4">
+      @if (mrrError(); as err) {
+        <app-alert-banner variant="error" [message]="err" />
+        <div>
+          <button
+            type="button"
+            class="text-xs px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700
+                   hover:bg-gray-50 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-primary-400"
+            (click)="reloadMrr()"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      }
+
+      @if (mrrLoading() && !mrr()) {
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+        </div>
+      }
+
+      @if (mrr()) {
+        <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="rounded-xl border border-gray-200 p-4 bg-white">
+            <dt class="text-xs font-medium text-gray-600">MRR total</dt>
+            <dd class="mt-1 text-xl font-semibold text-gray-900 tabular-nums break-words">
+              {{ formatCents(totalMrr()) }}
+            </dd>
+            <p class="mt-1 text-[11px] text-gray-500">Ativas + trial</p>
+          </div>
+          <div class="rounded-xl border border-gray-200 p-4 bg-white">
+            <dt class="text-xs font-medium text-gray-600">MRR só de ativas</dt>
+            <dd class="mt-1 text-xl font-semibold text-gray-900 tabular-nums break-words">
+              {{ formatCents(activeOnlyMrr()) }}
+            </dd>
+            <p class="mt-1 text-[11px] text-gray-500">Exclui trial e canceladas</p>
+          </div>
+          <div class="rounded-xl border border-gray-200 p-4 bg-white">
+            <dt class="text-xs font-medium text-gray-600">Assinaturas</dt>
+            <dd class="mt-1 text-xl font-semibold text-gray-900 tabular-nums">
+              {{ totalSubscriptions() }}
+            </dd>
+            <p class="mt-1 text-[11px] text-gray-500">Total considerado no cálculo</p>
+          </div>
+        </dl>
+
+        @if (byPlan().length === 0) {
+          <p class="text-center text-sm text-gray-500 py-8">
+            Nenhum plano com assinatura para compor o MRR.
+          </p>
+        } @else {
+          <h3 class="text-sm font-semibold text-gray-900 pt-2">Composição por plano</h3>
+
+          <!-- MOBILE: CARDS -->
+          <ul class="space-y-3 lg:hidden list-none">
+            @for (plan of byPlan(); track plan.planId) {
+              <li class="rounded-xl border border-gray-200 p-4 space-y-2 bg-white">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 break-words">{{ plan.planName }}</p>
+                    <p class="text-[11px] text-gray-500 break-words">
+                      {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }} ·
+                      {{ gateway(plan.gateway) }}
+                    </p>
+                  </div>
+                  <span class="text-sm font-semibold text-gray-900 tabular-nums shrink-0">
+                    {{ formatCents(plan.mrrCents) }}
+                  </span>
+                </div>
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                  <dt>Preço do plano</dt>
+                  <dd class="text-right tabular-nums">{{ formatCents(plan.planPriceCents) }}</dd>
+                  <dt>MRR só de ativas</dt>
+                  <dd class="text-right tabular-nums">
+                    {{ formatCents(plan.activeOnlyMrrCents) }}
+                  </dd>
+                  <dt>Assinaturas</dt>
+                  <dd class="text-right tabular-nums">{{ plan.subscriptionsTotal }}</dd>
+                  <dt>Ativas / trial</dt>
+                  <dd class="text-right tabular-nums">
+                    {{ plan.activeTotal }} / {{ plan.trialingTotal }}
+                  </dd>
+                  <dt>Atrasadas / canceladas</dt>
+                  <dd class="text-right tabular-nums">
+                    {{ plan.pastDueTotal }} / {{ plan.canceledTotal }}
+                  </dd>
+                </dl>
+              </li>
+            }
+          </ul>
+
+          <!-- DESKTOP: TABELA -->
+          <div class="hidden lg:block overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <caption class="sr-only">
+                Composição do MRR por plano
+              </caption>
+              <thead>
+                <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                  <th scope="col" class="py-2 pr-4 font-medium">Plano</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Gateway</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">Preço</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">Assin.</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">Ativas</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">Trial</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">Atrasadas</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">Cancel.</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">MRR</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">MRR ativas</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (plan of byPlan(); track plan.planId) {
+                  <tr class="border-b border-gray-50 align-top">
+                    <td class="py-3 pr-4">
+                      <span class="block font-medium text-gray-900 break-words">
+                        {{ plan.planName }}
+                      </span>
+                      <span class="block text-xs text-gray-500 break-words">
+                        {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }}
+                      </span>
+                    </td>
+                    <td class="py-3 pr-4 text-gray-700">{{ gateway(plan.gateway) }}</td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ formatCents(plan.planPriceCents) }}
+                    </td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ plan.subscriptionsTotal }}
+                    </td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ plan.activeTotal }}
+                    </td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ plan.trialingTotal }}
+                    </td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ plan.pastDueTotal }}
+                    </td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ plan.canceledTotal }}
+                    </td>
+                    <td class="py-3 pr-4 text-right font-medium text-gray-900 tabular-nums">
+                      {{ formatCents(plan.mrrCents) }}
+                    </td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ formatCents(plan.activeOnlyMrrCents) }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    </div>
+  </app-page-card>
+
+  <!-- ==================== PROBLEMAS ==================== -->
+  <div class="mt-6">
+    <app-page-card title="Problemas de cobrança">
+      <div class="p-3 sm:p-4 space-y-4">
+        <div class="space-y-2">
+          <span id="billing-window-label" class="block text-xs font-medium text-gray-600">
+            Janela de análise
+          </span>
+          <div
+            class="flex flex-wrap gap-2"
+            role="group"
+            aria-labelledby="billing-window-label"
+          >
+            @for (days of issueWindows; track days) {
+              <button
+                type="button"
+                class="text-xs px-3 py-2 rounded-full border min-h-[36px] focus:outline-none
+                       focus:ring-2 focus:ring-primary-400"
+                [class]="
+                  isIssueWindow(days)
+                    ? 'border-primary-500 bg-primary-50 text-primary-800 font-medium'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                "
+                [attr.aria-pressed]="isIssueWindow(days)"
+                (click)="setIssueWindow(days)"
+              >
+                {{ days }} dias
+              </button>
+            }
+          </div>
+          <p class="text-[11px] text-gray-600 leading-relaxed">{{ windowNotice() }}</p>
+        </div>
+
+        @if (issuesError(); as err) {
+          <app-alert-banner variant="error" [message]="err" />
+        }
+
+        @if (issuesLoading() && issues().length === 0) {
+          <div class="space-y-2">
+            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+          </div>
+        }
+
+        @if (!issuesLoading() && issues().length === 0 && !issuesError()) {
+          <div class="text-center text-sm text-gray-500 py-10 px-4">
+            Nenhum problema de cobrança iniciado nos últimos {{ issueWindow() }} dias.
+            @if (canWidenWindow()) {
+              <span class="block mt-1">
+                Isso não descarta problemas mais antigos ainda em aberto — amplie a janela.
+              </span>
+            }
+          </div>
+        }
+
+        @if (issues().length > 0) {
+          <!-- MOBILE: CARDS -->
+          <ul class="space-y-3 lg:hidden list-none">
+            @for (issue of issues(); track $index) {
+              <li class="rounded-xl border border-gray-200 p-4 space-y-2 bg-white">
+                <div class="flex items-start justify-between gap-2">
+                  <span
+                    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+                           font-medium uppercase tracking-wide break-words"
+                    [class]="issueKind(issue.kind).chip"
+                  >
+                    {{ issueKind(issue.kind).label }}
+                  </span>
+                  <time
+                    class="text-[11px] text-gray-500 tabular-nums shrink-0"
+                    [attr.datetime]="issue.occurredAt"
+                  >
+                    {{ formatDateTime(issue.occurredAt) }}
+                  </time>
+                </div>
+
+                @if (issue.companyId) {
+                  <a
+                    [routerLink]="['/admin/companies', issue.companyId]"
+                    class="block text-sm font-medium text-primary-700 hover:text-primary-800
+                           underline break-words focus:outline-none focus:ring-2
+                           focus:ring-primary-400 rounded"
+                  >
+                    {{ issue.companyName || 'Empresa sem nome' }}
+                  </a>
+                } @else {
+                  <p class="text-sm font-medium text-gray-900 break-words">
+                    {{ issue.companyName || 'Empresa não identificada' }}
+                  </p>
+                }
+
+                <p class="text-[11px] text-gray-500 break-words">
+                  {{ issue.planName || '—' }} · {{ gateway(issue.gateway) }}
+                  @if (issue.externalIdMasked) {
+                    · <span class="tabular-nums">{{ issue.externalIdMasked }}</span>
+                  }
+                </p>
+
+                <p class="text-sm" [class]="issueAmountClass(issue)">{{ issueAmount(issue) }}</p>
+
+                @if (issue.reason) {
+                  <p class="text-xs text-gray-700 break-words">{{ issueReason(issue.reason) }}</p>
+                }
+
+                <p class="text-[11px] text-gray-600 leading-relaxed">
+                  {{ issueKind(issue.kind).guidance }}
+                </p>
+
+                <p class="text-[11px] text-gray-400">
+                  Assinatura <span class="tabular-nums">{{ shortId(issue.subscriptionId) }}</span>
+                </p>
+              </li>
+            }
+          </ul>
+
+          <!-- DESKTOP: TABELA -->
+          <div class="hidden lg:block overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <caption class="sr-only">
+                Problemas de cobrança em aberto iniciados na janela selecionada
+              </caption>
+              <thead>
+                <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                  <th scope="col" class="py-2 pr-4 font-medium">Início</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Tipo</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Empresa</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Plano / gateway</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Valor</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">O que fazer</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (issue of issues(); track $index) {
+                  <tr class="border-b border-gray-50 align-top">
+                    <td class="py-3 pr-4 text-gray-600 tabular-nums whitespace-nowrap">
+                      <time [attr.datetime]="issue.occurredAt">
+                        {{ formatDateTime(issue.occurredAt) }}
+                      </time>
+                    </td>
+                    <td class="py-3 pr-4">
+                      <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        [class]="issueKind(issue.kind).chip"
+                      >
+                        {{ issueKind(issue.kind).label }}
+                      </span>
+                    </td>
+                    <td class="py-3 pr-4">
+                      @if (issue.companyId) {
+                        <a
+                          [routerLink]="['/admin/companies', issue.companyId]"
+                          class="font-medium text-primary-700 hover:text-primary-800 underline
+                                 break-words focus:outline-none focus:ring-2
+                                 focus:ring-primary-400 rounded"
+                        >
+                          {{ issue.companyName || 'Empresa sem nome' }}
+                        </a>
+                      } @else {
+                        <span class="font-medium text-gray-900 break-words">
+                          {{ issue.companyName || 'Empresa não identificada' }}
+                        </span>
+                      }
+                      <span class="block text-xs text-gray-400 tabular-nums">
+                        {{ shortId(issue.subscriptionId) }}
+                      </span>
+                    </td>
+                    <td class="py-3 pr-4 text-gray-700">
+                      {{ issue.planName || '—' }}
+                      <span class="block text-xs text-gray-500">
+                        {{ gateway(issue.gateway) }}
+                        @if (issue.externalIdMasked) {
+                          · {{ issue.externalIdMasked }}
+                        }
+                      </span>
+                    </td>
+                    <td class="py-3 pr-4" [class]="issueAmountClass(issue)">
+                      {{ issueAmount(issue) }}
+                    </td>
+                    <td class="py-3 pr-4 max-w-sm text-xs text-gray-600">
+                      @if (issue.reason) {
+                        <span class="block text-gray-800 mb-1">{{ issueReason(issue.reason) }}</span>
+                      }
+                      {{ issueKind(issue.kind).guidance }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 gap-3">
+            <p class="text-xs text-gray-500 tabular-nums">
+              Página {{ issuesPage() + 1 }} de {{ issuesPages() }} — {{ issuesTotal() }} problema(s)
+            </p>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                       hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                       disabled:opacity-40 disabled:cursor-not-allowed"
+                (click)="prevIssues()"
+                [disabled]="!canPrevIssues() || issuesLoading()"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                       hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                       disabled:opacity-40 disabled:cursor-not-allowed"
+                (click)="nextIssues()"
+                [disabled]="!canNextIssues() || issuesLoading()"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </app-page-card>
+  </div>
+
+  <!-- ==================== ASSINATURAS ==================== -->
+  <div class="mt-6">
+    <app-page-card title="Assinaturas">
+      <div class="p-3 sm:p-4 space-y-4">
+        <label class="block sm:max-w-xs">
+          <span class="block text-xs font-medium text-gray-600 mb-1">Status</span>
+          <select
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
+            [value]="statusFilter()"
+            (change)="setStatusFilter($any($event.target).value)"
+          >
+            <option value="">Todos os status</option>
+            @for (opt of statusOptions(); track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+
+        @if (statusFilter()) {
+          <div>
+            <button
+              type="button"
+              class="text-xs px-3 py-2 rounded-full border border-gray-200 bg-white text-gray-700
+                     hover:bg-gray-50 min-h-[36px] focus:outline-none focus:ring-2
+                     focus:ring-primary-400"
+              (click)="clearStatusFilter()"
+            >
+              Limpar filtro
+            </button>
+          </div>
+        }
+
+        @if (subscriptionsError(); as err) {
+          <app-alert-banner variant="error" [message]="err" />
+        }
+
+        @if (subscriptionsLoading() && subscriptions().length === 0) {
+          <div class="space-y-2">
+            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+          </div>
+        }
+
+        @if (!subscriptionsLoading() && subscriptions().length === 0 && !subscriptionsError()) {
+          <div class="text-center text-sm text-gray-500 py-10">
+            @if (statusFilter()) {
+              Nenhuma assinatura com esse status.
+            } @else {
+              Nenhuma assinatura cadastrada ainda.
+            }
+          </div>
+        }
+
+        @if (subscriptions().length > 0) {
+          <!-- MOBILE: CARDS -->
+          <ul class="space-y-3 lg:hidden list-none">
+            @for (item of subscriptions(); track item.id) {
+              <li class="rounded-xl border border-gray-200 p-4 space-y-2 bg-white">
+                <div class="flex items-start justify-between gap-2">
+                  <a
+                    [routerLink]="['/admin/companies', item.companyId]"
+                    class="text-sm font-medium text-primary-700 hover:text-primary-800 underline
+                           break-words min-w-0 focus:outline-none focus:ring-2
+                           focus:ring-primary-400 rounded"
+                  >
+                    {{ item.companyName }}
+                  </a>
+                  <span
+                    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+                           font-medium uppercase tracking-wide shrink-0"
+                    [class]="statusChip(item.status).chip"
+                  >
+                    {{ statusChip(item.status).label }}
+                  </span>
+                </div>
+
+                <p class="text-[11px] text-gray-500 break-words">
+                  Empresa {{ companyStatusLabel(item.companyStatus) }}
+                </p>
+
+                <p class="text-sm text-gray-900 break-words">
+                  {{ item.planName }}
+                  <span class="text-[11px] text-gray-500">
+                    ({{ periodLabel(item.planPeriod) }} · {{ gateway(item.gateway) }})
+                  </span>
+                </p>
+
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                  <dt>Mensalidade</dt>
+                  <dd class="text-right tabular-nums">{{ formatCents(item.monthlyPriceCents) }}</dd>
+                  <dt>Próxima cobrança</dt>
+                  <dd class="text-right tabular-nums">{{ formatDate(item.nextBillingAt) }}</dd>
+                  <dt>Ciclo atual</dt>
+                  <dd class="text-right tabular-nums">
+                    {{ formatDate(item.currentPeriodStart) }} –
+                    {{ formatDate(item.currentPeriodEnd) }}
+                  </dd>
+                  @if (item.trialEndsAt) {
+                    <dt>Trial até</dt>
+                    <dd class="text-right tabular-nums">{{ formatDate(item.trialEndsAt) }}</dd>
+                  }
+                  @if (item.pastDueSince) {
+                    <dt>Atrasada desde</dt>
+                    <dd class="text-right tabular-nums">{{ formatDate(item.pastDueSince) }}</dd>
+                  }
+                </dl>
+
+                @if (item.cancelAtPeriodEnd) {
+                  <p
+                    class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+                           font-medium bg-gray-200 text-gray-700"
+                  >
+                    Cancela no fim do ciclo
+                  </p>
+                }
+
+                @if (item.externalIdMasked) {
+                  <p class="text-[11px] text-gray-400 tabular-nums break-words">
+                    {{ item.externalIdMasked }}
+                  </p>
+                }
+              </li>
+            }
+          </ul>
+
+          <!-- DESKTOP: TABELA -->
+          <div class="hidden lg:block overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <caption class="sr-only">
+                Assinaturas da plataforma, com empresa, plano, gateway, status e próximo ciclo
+              </caption>
+              <thead>
+                <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                  <th scope="col" class="py-2 pr-4 font-medium">Empresa</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Plano</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Gateway</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Status</th>
+                  <th scope="col" class="py-2 pr-4 font-medium text-right">Mensalidade</th>
+                  <th scope="col" class="py-2 pr-4 font-medium">Próximo ciclo</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of subscriptions(); track item.id) {
+                  <tr class="border-b border-gray-50 align-top">
+                    <td class="py-3 pr-4">
+                      <a
+                        [routerLink]="['/admin/companies', item.companyId]"
+                        class="font-medium text-primary-700 hover:text-primary-800 underline
+                               break-words focus:outline-none focus:ring-2 focus:ring-primary-400
+                               rounded"
+                      >
+                        {{ item.companyName }}
+                      </a>
+                      <span class="block text-xs text-gray-500">
+                        Empresa {{ companyStatusLabel(item.companyStatus) }}
+                      </span>
+                    </td>
+                    <td class="py-3 pr-4 text-gray-700">
+                      {{ item.planName }}
+                      <span class="block text-xs text-gray-500">
+                        {{ item.planCode }} · {{ periodLabel(item.planPeriod) }}
+                      </span>
+                    </td>
+                    <td class="py-3 pr-4 text-gray-700">
+                      {{ gateway(item.gateway) }}
+                      @if (item.externalIdMasked) {
+                        <span class="block text-xs text-gray-400 tabular-nums break-words">
+                          {{ item.externalIdMasked }}
+                        </span>
+                      }
+                    </td>
+                    <td class="py-3 pr-4">
+                      <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        [class]="statusChip(item.status).chip"
+                      >
+                        {{ statusChip(item.status).label }}
+                      </span>
+                      @if (item.cancelAtPeriodEnd) {
+                        <span class="block mt-1 text-[11px] text-gray-500">
+                          Cancela no fim do ciclo
+                        </span>
+                      }
+                      @if (item.pastDueSince) {
+                        <span class="block mt-1 text-[11px] text-gray-500 tabular-nums">
+                          Atrasada desde {{ formatDate(item.pastDueSince) }}
+                        </span>
+                      }
+                    </td>
+                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                      {{ formatCents(item.monthlyPriceCents) }}
+                    </td>
+                    <td class="py-3 pr-4 text-gray-700 tabular-nums whitespace-nowrap">
+                      {{ formatDate(item.nextBillingAt) }}
+                      <span class="block text-xs text-gray-500">
+                        Ciclo {{ formatDate(item.currentPeriodStart) }} –
+                        {{ formatDate(item.currentPeriodEnd) }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 gap-3">
+            <p class="text-xs text-gray-500 tabular-nums">
+              Página {{ subscriptionsPage() + 1 }} de {{ subscriptionsPages() }} —
+              {{ subscriptionsTotal() }} assinatura(s)
+            </p>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                       hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                       disabled:opacity-40 disabled:cursor-not-allowed"
+                (click)="prevSubscriptions()"
+                [disabled]="!canPrevSubscriptions() || subscriptionsLoading()"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                       hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                       disabled:opacity-40 disabled:cursor-not-allowed"
+                (click)="nextSubscriptions()"
+                [disabled]="!canNextSubscriptions() || subscriptionsLoading()"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </app-page-card>
+  </div>
+
+  <div class="mt-6">
+    <a routerLink="/admin" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
+      ← Voltar para o painel admin
+    </a>
+  </div>
+</app-default-page-layout>
