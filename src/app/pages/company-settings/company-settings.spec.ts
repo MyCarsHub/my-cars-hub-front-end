@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormGroup } from '@angular/forms';
 import { provideRouter } from '@angular/router';
@@ -10,6 +11,7 @@ import { CompanyService } from '../../services/company.service';
 import { SessionService } from '../../services/session.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { InvitesService } from '../../services/invites.service';
 import { SERVER_ERROR_KEY } from '../../services/validation-messages';
 import type { CompanyFullResponse } from '../../types/company-full-response.type';
 import type { UpdateCompanyRequest } from '../../types/company-settings.types';
@@ -81,6 +83,16 @@ describe('CompanySettings — edição dos dados da empresa', () => {
             setItem: (key: string, value: string) => {
               session[key] = value;
             },
+          },
+        },
+        {
+          // Only the pending-invite stat comes from here; the invite screens have their
+          // own specs. Signals are inlined so the card renders a deterministic count.
+          provide: InvitesService,
+          useValue: {
+            list: () => of([]),
+            pendingCount: signal(0).asReadonly(),
+            loaded: signal(true).asReadonly(),
           },
         },
         {
