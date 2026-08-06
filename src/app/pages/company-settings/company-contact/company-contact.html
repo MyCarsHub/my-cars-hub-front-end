@@ -1,0 +1,285 @@
+<app-default-page-layout
+  title="Dados de contato da empresa"
+  description="Telefone, e-mail, endereço da sede e quem assina pela locadora. É o que o contrato gerado usa para identificar a sua empresa."
+>
+  <div class="space-y-4 sm:space-y-6">
+    <div>
+      <a
+        routerLink="/configuracoes"
+        class="inline-flex items-center min-h-[44px] text-sm font-medium text-primary-700 hover:text-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 rounded-lg"
+      >
+        ← Voltar para Configurações
+      </a>
+    </div>
+
+    @if (loading()) {
+      <div class="space-y-3" aria-hidden="true">
+        <div class="h-32 rounded-xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-64 rounded-xl bg-neutral-100 animate-pulse"></div>
+      </div>
+      <p class="sr-only" role="status" aria-live="polite">Carregando os dados de contato…</p>
+    } @else if (loadError(); as message) {
+      <app-alert-banner variant="error" [message]="message" />
+      <p class="text-sm text-neutral-600">
+        O formulário não é exibido sem os dados atuais: salvar substitui o bloco de contato
+        inteiro, então editar às cegas apagaria o que já está gravado.
+      </p>
+      <button
+        type="button"
+        class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+        (click)="reload()"
+      >
+        Tentar de novo
+      </button>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="save()" class="space-y-4 sm:space-y-6">
+        @if (neverFilled()) {
+          <app-alert-banner variant="info">
+            Esta empresa ainda não tem dados de contato. Enquanto isso, o contrato gerado sai
+            com as lacunas da locadora em branco.
+          </app-alert-banner>
+        }
+
+        <div formGroupName="contact" class="space-y-4 sm:space-y-6">
+          <app-page-card title="Contato">
+            <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <app-form-field
+                label="Telefone"
+                controlId="empresa-telefone"
+                hint="Com DDD. Aparece no contrato como {{ '{{companyPhone}}' }}."
+                [control]="contactGroup.controls.phone"
+                [messages]="phoneMessages"
+              >
+                <input
+                  appFieldControl
+                  type="tel"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  formControlName="phone"
+                  placeholder="(00) 00000-0000"
+                  maxlength="15"
+                  (input)="onPhoneInput($event)"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                label="E-mail"
+                controlId="empresa-email"
+                hint="Aparece no contrato como {{ '{{companyEmail}}' }}."
+                [control]="contactGroup.controls.email"
+                [messages]="emailMessages"
+              >
+                <input
+                  appFieldControl
+                  type="email"
+                  inputmode="email"
+                  autocomplete="email"
+                  formControlName="email"
+                  placeholder="contato@empresa.com.br"
+                  maxlength="180"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+            </div>
+          </app-page-card>
+
+          <app-page-card title="Endereço da sede">
+            <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-6 gap-4 sm:gap-6">
+              <app-form-field
+                class="md:col-span-2"
+                label="CEP"
+                controlId="empresa-cep"
+                [control]="contactGroup.controls.addressCep"
+                [messages]="cepMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="postal-code"
+                  formControlName="addressCep"
+                  placeholder="00000-000"
+                  maxlength="9"
+                  (input)="onCepInput($event)"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                class="md:col-span-4"
+                label="Logradouro"
+                controlId="empresa-logradouro"
+                [control]="contactGroup.controls.addressStreet"
+                [messages]="streetMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  autocomplete="address-line1"
+                  formControlName="addressStreet"
+                  placeholder="Rua das Flores"
+                  maxlength="180"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                class="md:col-span-2"
+                label="Número"
+                controlId="empresa-numero"
+                [control]="contactGroup.controls.addressNumber"
+                [messages]="numberMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  formControlName="addressNumber"
+                  placeholder="123"
+                  maxlength="20"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                class="md:col-span-4"
+                label="Complemento"
+                controlId="empresa-complemento"
+                [control]="contactGroup.controls.addressComplement"
+                [messages]="complementMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  autocomplete="address-line2"
+                  formControlName="addressComplement"
+                  placeholder="Sala 4"
+                  maxlength="120"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                class="md:col-span-3"
+                label="Bairro"
+                controlId="empresa-bairro"
+                [control]="contactGroup.controls.addressDistrict"
+                [messages]="districtMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  formControlName="addressDistrict"
+                  placeholder="Centro"
+                  maxlength="120"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                class="md:col-span-2"
+                label="Cidade"
+                controlId="empresa-cidade"
+                [control]="contactGroup.controls.addressCity"
+                [messages]="cityMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  autocomplete="address-level2"
+                  formControlName="addressCity"
+                  placeholder="São Paulo"
+                  maxlength="120"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                class="md:col-span-1"
+                label="UF"
+                controlId="empresa-uf"
+                [control]="contactGroup.controls.addressUf"
+                [messages]="ufMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  autocomplete="address-level1"
+                  formControlName="addressUf"
+                  placeholder="SP"
+                  maxlength="2"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 uppercase text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+            </div>
+          </app-page-card>
+
+          <app-page-card title="Representante que assina">
+            <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <app-form-field
+                label="Nome"
+                controlId="empresa-representante"
+                hint="Aparece no contrato como {{ '{{companyRepresentative}}' }}."
+                [control]="contactGroup.controls.representativeName"
+                [messages]="representativeMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  autocomplete="name"
+                  formControlName="representativeName"
+                  placeholder="Maria Souza"
+                  maxlength="200"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+
+              <app-form-field
+                label="Cargo"
+                controlId="empresa-cargo"
+                hint="Aparece no contrato como {{ '{{companyRepresentativeRole}}' }}."
+                [control]="contactGroup.controls.representativeRole"
+                [messages]="roleMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  formControlName="representativeRole"
+                  placeholder="Sócia-administradora"
+                  maxlength="120"
+                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                />
+              </app-form-field>
+            </div>
+          </app-page-card>
+        </div>
+
+        @if (saveError(); as message) {
+          <div data-save-error>
+            <app-alert-banner variant="error" [message]="message" />
+          </div>
+        }
+
+        <app-alert-banner variant="info">
+          Salvar <b>substitui todos os dados de contato de uma vez</b>. Um campo deixado em
+          branco fica em branco também no cadastro — é assim que se apaga um valor.
+        </app-alert-banner>
+
+        <!-- Mobile-first: botão de largura total, encolhe só a partir de sm. -->
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="submit"
+            class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-primary-500 hover:bg-primary-600 text-sm font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            [disabled]="!canSave()"
+          >
+            @if (saving()) {
+              Salvando…
+            } @else {
+              Salvar dados de contato
+            }
+          </button>
+        </div>
+      </form>
+    }
+  </div>
+</app-default-page-layout>
