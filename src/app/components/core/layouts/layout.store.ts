@@ -2,6 +2,9 @@ import { computed, Injectable, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
+import { ApiErrorService } from '../../../services/api-error.service';
+import { CompanySelectionService } from '../../../services/company-selection.service';
+import { NotificationService } from '../../../services/notification.service';
 import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 
 export interface Tenant {
@@ -18,6 +21,9 @@ export class LayoutStore {
   private readonly router = inject(Router);
   private readonly sessionService = inject(SessionService);
   private readonly notificationFeed = inject(NotificationFeedService);
+  private readonly companySelection = inject(CompanySelectionService);
+  private readonly notifications = inject(NotificationService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   /** Whether the sidebar is collapsed (desktop only) */
   readonly isCollapsed = signal(false);
@@ -36,6 +42,10 @@ export class LayoutStore {
 
   /** Currently selected tenant */
   readonly selectedTenant = signal<Tenant>(this.loadSelectedTenantFromStorage(this.tenants()));
+
+  /** Id da empresa cuja troca está em voo, ou `null` quando nada está pendente. */
+  private readonly _switchingTenantId = signal<string | null>(null);
+  readonly switchingTenantId = this._switchingTenantId.asReadonly();
 
   /** Current sidebar width token for animations */
   readonly sidebarWidth = computed(() => (this.isCollapsed() ? '72px' : '260px'));
@@ -103,6 +113,39 @@ export class LayoutStore {
       return;
     }
 
+    // Dois toques no mesmo item (ou em itens diferentes) enquanto a primeira troca
+    // está em voo renderiam duas respostas fora de ordem — a última a chegar venceria
+    // e poderia não ser a que o usuário tocou por último.
+    if (this._switchingTenantId() !== null) return;
+
+    this._switchingTenantId.set(tenant.id);
+
+    // O backend resolve o tenant pelo claim `companyId` do TOKEN. Gravar a escolha no
+    // armazenamento e navegar, sem pedir um token novo, mantinha TODAS as chamadas
+    // seguintes na empresa anterior enquanto a interface anunciava a nova. Por isso o
+    // estado local só muda DEPOIS do token — e, se o servidor recusar, nada muda.
+    this.companySelection.select(tenant.id).subscribe({
+      next: () => {
+        this._switchingTenantId.set(null);
+        this.commitTenant(tenant);
+      },
+      error: (err: unknown) => {
+        this._switchingTenantId.set(null);
+        // Reivindica o erro para o toast específico daqui não competir com a rede de
+        // segurança genérica do `ApiErrorService`.
+        this.apiErrors.claim(err);
+        const atual = this.selectedTenant().name;
+        this.notifications.error(
+          `Não foi possível trocar para ${tenant.name}. Você continua em ${atual}.`,
+        );
+        // Seletor continua aberto de propósito: a troca não aconteceu, e tentar de
+        // novo tem de ser um toque só.
+      },
+    });
+  }
+
+  /** Estado local + armazenamento, já com o token da empresa nova persistido. */
+  private commitTenant(tenant: Tenant): void {
     this.selectedTenant.set(tenant);
     this.isTenantOpen.set(false);
 

@@ -149,6 +149,9 @@ describe('InviteAccept — página pública de aceite', () => {
   });
 
   it('com sessão já ativa aceita sozinho e entra direto na empresa', () => {
+    // Volta do Google: `OauthSuccess` zera a sessão e NÃO chama `/auth/me` no fluxo de
+    // convite, então não há `email` guardado — sem e-mail para comparar, aceitar é o
+    // comportamento certo (o backend continua sendo a autoridade).
     store['token'] = 'temporally-token';
 
     const { navigate } = render('raw-token');
@@ -159,6 +162,40 @@ describe('InviteAccept — página pública de aceite', () => {
     expect(navigate).toHaveBeenCalledWith(['/dashboard'], { replaceUrl: true });
     expect(store[PENDING_INVITE_TOKEN_KEY]).toBeUndefined();
     expect(reset).toHaveBeenCalled();
+  });
+
+  /**
+   * O caso real que quebrou produção: o dono abriu o link do convite na MESMA aba em que
+   * já estava logado como proprietário. A conta convidada é outra. Disparar o aceite ali
+   * gasta o convite contra a conta errada e volta 400 do backend — a divergência precisa
+   * ser mostrada ANTES da chamada.
+   */
+  it('sessão de OUTRA conta não dispara o aceite: mostra a divergência e oferece trocar', () => {
+    store['token'] = 'token-do-dono';
+    store['email'] = 'dono@empresa.com.br';
+
+    const { fixture, component } = render('raw-token');
+
+    expect(accept).not.toHaveBeenCalled();
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).toContain('dono@empresa.com.br');
+    expect(text).toContain('convidado@empresa.com.br');
+
+    component.switchAccount();
+
+    expect(logout).toHaveBeenCalled();
+    expect(store[PENDING_INVITE_TOKEN_KEY]).toBe('raw-token');
+    expect(loginWithGoogle).toHaveBeenCalled();
+  });
+
+  it('mesma conta com caixa e espaços diferentes é a mesma conta — aceita', () => {
+    store['token'] = 'token-do-convidado';
+    store['email'] = '  CONVIDADO@Empresa.COM.BR ';
+
+    const { navigate } = render('raw-token');
+
+    expect(accept).toHaveBeenCalledWith('raw-token');
+    expect(navigate).toHaveBeenCalledWith(['/dashboard'], { replaceUrl: true });
   });
 
   it('410 na validação fala em convite expirado', () => {

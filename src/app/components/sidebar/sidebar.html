@@ -89,10 +89,12 @@
     @if (layout.isTenantOpen() && (!layout.isCollapsed() || layout.isMobile())) {
     <div class="mt-2 space-y-1" @dropdownSlide role="listbox" aria-label="Selecionar empresa">
       @for (tenant of layout.tenants(); track tenant.id) {
-      <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100
-                   transition-colors text-left" [class.bg-primary-500/10]="tenant.id === layout.selectedTenant().id"
+      <button class="w-full min-h-12 flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100
+                   transition-colors text-left disabled:opacity-60 disabled:cursor-wait"
+        [class.bg-primary-500/10]="tenant.id === layout.selectedTenant().id"
         (click)="onSelectTenant(tenant)" role="option" [attr.aria-selected]="tenant.id === layout.selectedTenant().id"
-        type="button">
+        [disabled]="layout.switchingTenantId() !== null"
+        [attr.aria-busy]="layout.switchingTenantId() === tenant.id ? 'true' : null" type="button">
         <div class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-sm font-medium"
           [class.bg-primary-500]="tenant.id === layout.selectedTenant().id"
           [class.text-white]="tenant.id === layout.selectedTenant().id"
@@ -102,7 +104,11 @@
         </div>
         <div class="min-w-0">
           <p class="text-sm font-medium text-gray-900 truncate">{{ tenant.name }}</p>
+          @if (layout.switchingTenantId() === tenant.id) {
+          <p class="text-xs text-primary-700 font-medium">Trocando…</p>
+          } @else {
           <p class="text-xs text-gray-500">{{ tenant.role }}</p>
+          }
         </div>
       </button>
       }
