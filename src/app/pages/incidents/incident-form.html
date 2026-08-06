@@ -1,0 +1,296 @@
+<app-default-page-layout
+  [title]="isEdit() ? 'Editar sinistro' : 'Registrar sinistro'"
+  description="Colisão, roubo, dano ou pane com um veículo da frota."
+>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <app-page-card title="O que aconteceu">
+      <div class="p-4 sm:p-6 space-y-4">
+        @if (error(); as formError) {
+          <app-alert-banner variant="error" [message]="formError" />
+        }
+
+        @if (loading()) {
+          <div class="space-y-2">
+            <div class="h-12 rounded-xl bg-neutral-100 animate-pulse"></div>
+            <div class="h-12 rounded-xl bg-neutral-100 animate-pulse"></div>
+          </div>
+        }
+
+        <app-form-field
+          label="Veículo"
+          [control]="form.controls.vehicleId"
+          [messages]="vehicleMessages"
+          [required]="true"
+          [hint]="isEdit() ? 'O veículo não muda depois do registro.' : ''"
+        >
+          <select
+            appFieldControl
+            formControlName="vehicleId"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
+                   disabled:opacity-60"
+          >
+            <option value="">Selecione o veículo</option>
+            @for (v of vehicles(); track v.id) {
+              <option [value]="v.id">{{ v.plate }} · {{ v.brand }} {{ v.model }}</option>
+            }
+          </select>
+        </app-form-field>
+
+        <app-form-field
+          label="Tipo do sinistro"
+          [control]="form.controls.incidentType"
+          [messages]="typeMessages"
+          [required]="true"
+        >
+          <select
+            appFieldControl
+            formControlName="incidentType"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          >
+            @for (opt of typeOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </app-form-field>
+
+        <app-form-field
+          label="Quando aconteceu"
+          [control]="form.controls.occurredAt"
+          [messages]="occurredAtMessages"
+          [required]="true"
+          hint="Não pode ser no futuro."
+        >
+          <input
+            appFieldControl
+            type="datetime-local"
+            formControlName="occurredAt"
+            [max]="maxOccurredAt"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+
+        <app-form-field label="Local" [control]="form.controls.location">
+          <input
+            appFieldControl
+            type="text"
+            formControlName="location"
+            maxlength="200"
+            placeholder="Av. Paulista, 1000 — São Paulo/SP"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+
+        <app-form-field
+          label="Descrição"
+          [control]="form.controls.description"
+          [messages]="descriptionMessages"
+          [required]="true"
+        >
+          <textarea
+            appFieldControl
+            formControlName="description"
+            rows="4"
+            maxlength="1000"
+            placeholder="Descreva o ocorrido: como aconteceu, o que foi danificado, se houve vítimas."
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          ></textarea>
+        </app-form-field>
+
+        <app-form-field
+          label="Quem responde"
+          [control]="form.controls.atFaultParty"
+          hint="Deixe em 'Não apurado' enquanto a culpa não estiver definida."
+        >
+          <select
+            appFieldControl
+            formControlName="atFaultParty"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          >
+            @for (opt of faultPartyOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </app-form-field>
+
+        <app-form-field label="Motorista envolvido" [control]="form.controls.driverId">
+          <select
+            appFieldControl
+            formControlName="driverId"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          >
+            <option value="">Nenhum / não se aplica</option>
+            @for (d of drivers(); track d.id) {
+              <option [value]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        </app-form-field>
+      </div>
+    </app-page-card>
+
+    <app-page-card title="Custos">
+      <div class="p-4 sm:p-6 space-y-4">
+        <app-form-field
+          label="Custo estimado (R$)"
+          [control]="form.controls.estimatedCostReais"
+          hint="Orçamento inicial do reparo. O custo REAL é pedido ao encerrar o sinistro."
+        >
+          <input
+            appFieldControl
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            formControlName="estimatedCostReais"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+
+        <app-form-field
+          label="Franquia (R$)"
+          [control]="form.controls.deductibleReais"
+          hint="Em branco, o sistema usa a franquia da apólice ativa do veículo, se houver."
+        >
+          <input
+            appFieldControl
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            formControlName="deductibleReais"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+      </div>
+    </app-page-card>
+
+    <!-- Dado pessoal de terceiro: coletado aqui, visível só no detalhe. -->
+    <app-page-card title="Terceiro envolvido" [collapsible]="true" [defaultOpen]="false">
+      <div class="p-4 sm:p-6 space-y-4">
+        <app-alert-banner variant="info">
+          Preencha somente se houve outra pessoa envolvida. São dados pessoais de terceiro:
+          eles nunca aparecem na listagem, só nesta ficha.
+        </app-alert-banner>
+
+        <app-form-field label="Nome" [control]="form.controls.thirdPartyName">
+          <input
+            appFieldControl
+            type="text"
+            formControlName="thirdPartyName"
+            maxlength="150"
+            autocomplete="off"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+
+        <app-form-field label="Documento" [control]="form.controls.thirdPartyDocument">
+          <input
+            appFieldControl
+            type="text"
+            formControlName="thirdPartyDocument"
+            maxlength="30"
+            autocomplete="off"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+
+        <app-form-field label="Telefone" [control]="form.controls.thirdPartyPhone">
+          <input
+            appFieldControl
+            type="tel"
+            formControlName="thirdPartyPhone"
+            maxlength="30"
+            autocomplete="off"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+
+        <app-form-field label="Placa do veículo do terceiro" [control]="form.controls.thirdPartyPlate">
+          <input
+            appFieldControl
+            type="text"
+            formControlName="thirdPartyPlate"
+            maxlength="10"
+            autocomplete="off"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 uppercase
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+        </app-form-field>
+      </div>
+    </app-page-card>
+
+    <app-page-card title="Observações">
+      <div class="p-4 sm:p-6 space-y-4">
+        <app-form-field label="Notas internas" [control]="form.controls.notes">
+          <textarea
+            appFieldControl
+            formControlName="notes"
+            rows="3"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          ></textarea>
+        </app-form-field>
+
+        @if (!isEdit()) {
+          <div class="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                formControlName="takeVehicleOutOfService"
+                class="mt-0.5 h-5 w-5 rounded border-neutral-300 text-primary-600
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+              />
+              <span class="text-sm text-neutral-800">
+                Tirar o veículo de circulação agora
+                <span class="block text-xs text-neutral-600 mt-0.5">
+                  Move o veículo para "Em manutenção". Só funciona se ele estiver disponível —
+                  um carro alugado nunca é alterado automaticamente.
+                </span>
+              </span>
+            </label>
+          </div>
+        }
+      </div>
+    </app-page-card>
+
+    <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="cancel()"
+        [disabled]="saving()"
+        class="w-full sm:w-auto px-4 rounded-xl text-sm font-medium text-neutral-700 min-h-[48px]
+               bg-white border border-neutral-200 hover:bg-neutral-50 disabled:opacity-60
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="saving()"
+        class="w-full sm:w-auto px-5 rounded-xl text-sm font-semibold bg-primary-700 text-white
+               min-h-[48px] hover:bg-primary-800 shadow-sm transition-colors disabled:opacity-60
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+               focus-visible:ring-offset-2"
+      >
+        @if (saving()) {
+          Salvando…
+        } @else if (isEdit()) {
+          Salvar alterações
+        } @else {
+          Registrar sinistro
+        }
+      </button>
+    </div>
+  </form>
+</app-default-page-layout>
