@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import {
+  HttpContext,
   HttpHandlerFn,
   HttpParams,
   HttpRequest,
@@ -13,20 +14,23 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { authInterceptor } from './auth.interceptor';
 import { environment } from '../../environments/environment';
 import { SessionService } from './session.service';
+import { IMPERSONATION_ADMIN_TOKEN_KEY, USE_ADMIN_TOKEN } from './impersonation.context';
 
 const API = environment.apiUrl;
 const SIGNED_URL = 'https://wxgvknttzynnycijmoeu.supabase.co/storage/v1/object/sign/docs/a.pdf?token=xyz';
 
 describe('authInterceptor', () => {
   let getToken: ReturnType<typeof vi.fn>;
+  let getItem: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     getToken = vi.fn().mockReturnValue(null);
+    getItem = vi.fn().mockReturnValue(null);
 
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([authInterceptor])),
-        { provide: SessionService, useValue: { getToken } },
+        { provide: SessionService, useValue: { getToken, getItem } },
       ],
     });
   });
@@ -119,5 +123,57 @@ describe('authInterceptor', () => {
     expect(seen.params.get('status')).toBe('ACTIVE');
     expect(seen.params.get('page')).toBe('2');
     expect(seen.params.get('ngsw-bypass')).toBe('1');
+  });
+
+  /**
+   * `USE_ADMIN_TOKEN` pede a credencial administrativa preservada durante uma
+   * sessão de impersonação. Duas regras a mantêm inofensiva fora do seu único
+   * uso legítimo (`DELETE /admin/impersonation/{id}`).
+   */
+  describe('USE_ADMIN_TOKEN', () => {
+    const withAdminToken = new HttpContext().set(USE_ADMIN_TOKEN, true);
+
+    beforeEach(() => {
+      // Durante a sessão, `token` guarda a credencial de IMPERSONAÇÃO.
+      getToken.mockReturnValue('impersonation-jwt');
+      getItem.mockImplementation((key: string) =>
+        key === IMPERSONATION_ADMIN_TOKEN_KEY ? 'admin-jwt' : null,
+      );
+    });
+
+    it('usa a credencial administrativa em /admin/**', async () => {
+      const seen = await forward(
+        new HttpRequest('DELETE', `${API}/admin/impersonation/s1`, { context: withAdminToken }),
+      );
+
+      expect(seen.headers.get('Authorization')).toBe('Bearer admin-jwt');
+    });
+
+    /**
+     * A marca é um booleano sem amarração de URL: uma requisição futura marcada
+     * por engano levaria a credencial de PLATFORM_ADMIN para qualquer rota.
+     */
+    it('IGNORA a marca fora de /admin/** e usa o token normal', async () => {
+      const seen = await forward(
+        new HttpRequest('POST', `${API}/vehicles`, {}, { context: withAdminToken }),
+      );
+
+      expect(seen.headers.get('Authorization')).toBe('Bearer impersonation-jwt');
+    });
+
+    /**
+     * Sem credencial administrativa guardada, o fallback antigo mandava o token
+     * de IMPERSONAÇÃO para `/admin/**` — uma rota que ele nunca deveria
+     * alcançar — só para colher um 403 confuso. Falha rápido, sem header.
+     */
+    it('sem credencial administrativa, não manda o token de impersonação para /admin/**', async () => {
+      getItem.mockReturnValue(null);
+
+      const seen = await forward(
+        new HttpRequest('DELETE', `${API}/admin/impersonation/s1`, { context: withAdminToken }),
+      );
+
+      expect(seen.headers.has('Authorization')).toBe(false);
+    });
   });
 });

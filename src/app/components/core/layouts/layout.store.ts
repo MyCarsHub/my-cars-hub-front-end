@@ -2,6 +2,7 @@ import { computed, Injectable, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
+import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 
 export interface Tenant {
   id: string;
@@ -91,9 +92,20 @@ export class LayoutStore {
   }
 
   selectTenant(tenant: Tenant): void {
+    // Durante uma sessão de impersonação a lista de tenants é reescrita para a
+    // empresa observada e só ela, mas o store é singleton de raiz: um clique
+    // vindo de uma lista desatualizada gravaria id/nome/papel de OUTRA empresa
+    // por cima da sessão ativa, e o banner passaria a afirmar uma empresa
+    // enquanto o resto da interface mostra outra — a exata divergência que o
+    // `reconcile()` existe para impedir. Fechar o seletor e não fazer nada.
+    if (this.isImpersonating()) {
+      this.isTenantOpen.set(false);
+      return;
+    }
+
     this.selectedTenant.set(tenant);
     this.isTenantOpen.set(false);
-    
+
     this.sessionService.setItem('selectedCompanyId', tenant.id);
     this.sessionService.setItem('selectedCompanyName', tenant.name);
     this.sessionService.setItem('selectedRole', tenant.role);
@@ -106,6 +118,26 @@ export class LayoutStore {
     this.router.navigate(['/dashboard']);
   }
 
+  /**
+   * Lê a chave de sessão em vez de injetar o `ImpersonationService`: o serviço
+   * já resolve este store sob demanda (para chamar `refreshTenants()` na
+   * entrada e na saída da impersonação), e injetá-lo de volta fecharia um ciclo
+   * de import entre os dois módulos. `impersonation.context` é folha, sem
+   * dependências, e a chave só existe enquanto a sessão existe.
+   */
+  private isImpersonating(): boolean {
+    return this.sessionService.getItem(IMPERSONATION_STATE_KEY) !== null;
+  }
+
+  /**
+   * Relê `userCompanies` / `selectedCompanyId` do armazenamento.
+   *
+   * Obrigatório em toda troca de contexto que não destrói o shell — trocar de
+   * empresa no onboarding, entrar e sair de impersonação. O store é singleton
+   * de raiz e só leria o armazenamento uma vez, na construção: sem esta
+   * chamada, a barra lateral do admin continuaria oferecendo as empresas dele
+   * enquanto o banner anuncia a empresa observada.
+   */
   refreshTenants(): void {
     const newTenants = this.loadTenantsFromStorage();
     this.tenants.set(newTenants);

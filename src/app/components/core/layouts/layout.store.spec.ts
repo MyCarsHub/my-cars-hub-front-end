@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayoutStore } from './layout.store';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
+import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 
 /**
  * CRÍTICO: a troca de empresa só navega para `/dashboard` — o AppShell (e o
@@ -119,5 +120,100 @@ describe('LayoutStore — troca de tenant', () => {
 
     expect(unreadCountCalls()).toBe(ticksBefore);
     expect(feed.items()).toHaveLength(1);
+  });
+});
+
+/**
+ * O store é singleton de raiz e lê `userCompanies` UMA vez, na construção.
+ * Como o shell do admin já está montado quando a impersonação começa, sem uma
+ * releitura explícita a barra lateral seguiria oferecendo as empresas dele — e
+ * um clique gravaria id/nome/papel de OUTRA empresa por cima da sessão ativa,
+ * deixando o banner afirmando uma empresa e o resto da interface outra.
+ */
+describe('LayoutStore durante uma sessão de impersonação', () => {
+  const adminCompanies = [
+    { companyId: 'admin-co', companyName: 'Empresa do admin', role: 'OWNER' },
+    { companyId: 'admin-co-2', companyName: 'Outra do admin', role: 'MANAGER' },
+  ];
+
+  let store: Record<string, string>;
+  let navigate: ReturnType<typeof vi.fn>;
+  let layout: LayoutStore;
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    store = {
+      token: 'jwt',
+      userCompanies: JSON.stringify(adminCompanies),
+      selectedCompanyId: 'admin-co',
+    };
+    navigate = vi.fn();
+
+    TestBed.configureTestingModule({
+      providers: [
+        LayoutStore,
+        NotificationFeedService,
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        { provide: Router, useValue: { navigate } },
+        { provide: HttpClient, useValue: { get: vi.fn(() => of({ count: 0 })), patch: vi.fn() } },
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: (key: string) => store[key] ?? null,
+            setItem: (key: string, value: string) => {
+              store[key] = value;
+            },
+            getToken: () => store['token'] ?? null,
+          },
+        },
+      ],
+    });
+
+    layout = TestBed.inject(LayoutStore);
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('refreshTenants() troca a lista pelas empresas observadas', () => {
+    expect(layout.tenants()).toHaveLength(2);
+
+    // É o que `ImpersonationService.begin()` grava.
+    store['userCompanies'] = JSON.stringify([
+      { companyId: 'co-1', companyName: 'Locadora Alfa', role: 'OWNER' },
+    ]);
+    store['selectedCompanyId'] = 'co-1';
+    store[IMPERSONATION_STATE_KEY] = JSON.stringify({ sessionId: 's1', companyId: 'co-1' });
+
+    layout.refreshTenants();
+
+    expect(layout.tenants()).toHaveLength(1);
+    expect(layout.tenants()[0].id).toBe('co-1');
+    expect(layout.selectedTenant().id).toBe('co-1');
+  });
+
+  it('um clique numa empresa do admin NÃO sobrescreve a sessão de impersonação', () => {
+    store[IMPERSONATION_STATE_KEY] = JSON.stringify({ sessionId: 's1', companyId: 'co-1' });
+    store['selectedCompanyId'] = 'co-1';
+    store['selectedCompanyName'] = 'Locadora Alfa';
+    store['selectedRole'] = 'OWNER';
+    layout.toggleTenant();
+
+    layout.selectTenant({ id: 'admin-co-2', name: 'Outra do admin', role: 'MANAGER', initial: 'O' });
+
+    expect(store['selectedCompanyId']).toBe('co-1');
+    expect(store['selectedCompanyName']).toBe('Locadora Alfa');
+    expect(store['selectedRole']).toBe('OWNER');
+    expect(navigate).not.toHaveBeenCalled();
+    // Ainda assim o seletor fecha — nada de dropdown preso aberto.
+    expect(layout.isTenantOpen()).toBe(false);
+  });
+
+  it('sem sessão de impersonação a troca de empresa continua normal', () => {
+    layout.selectTenant({ id: 'admin-co-2', name: 'Outra do admin', role: 'MANAGER', initial: 'O' });
+
+    expect(store['selectedCompanyId']).toBe('admin-co-2');
+    expect(navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 });

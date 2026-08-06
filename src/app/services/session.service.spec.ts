@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { SessionService } from './session.service';
+import { SessionResetRegistry } from './session-reset.registry';
 import { TelemetryService } from './telemetry.service';
 
 /**
@@ -150,5 +151,76 @@ describe('SessionService telemetry identity', () => {
 
     expect(() => service.setItem('id', 'u-1')).not.toThrow();
     expect(() => service.clear()).not.toThrow();
+  });
+});
+
+/**
+ * VÃO DE COBERTURA — limpeza de sessão fora do `logout()`.
+ *
+ * Zerar o `sessionStorage` não zera o estado em memória dos serviços
+ * `providedIn: 'root'`. Enquanto essa segunda metade dependeu de cada chamador
+ * lembrar, cinco dos seis `clear()` do app deixavam a sessão de impersonação
+ * viva e os caches por empresa cheios. Os ganchos são o que torna a limpeza
+ * completa em TODO caminho — 401 do interceptor, `authGuard`, `oauth-success`.
+ */
+describe('SessionService.clear dispara os ganchos de reset', () => {
+  let service: SessionService;
+  let registry: SessionResetRegistry;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [SessionService, SessionResetRegistry] });
+    service = TestBed.inject(SessionService);
+    registry = TestBed.inject(SessionResetRegistry);
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('executa cada gancho registrado', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    registry.register(first);
+    registry.register(second);
+
+    service.clear();
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it('roda os ganchos DEPOIS do wipe — quem relê o armazenamento vê a sessão vazia', () => {
+    sessionStorage.setItem('selectedCompanyId', 'company-a');
+    let seen: string | null = 'não rodou';
+    registry.register(() => {
+      seen = sessionStorage.getItem('selectedCompanyId');
+    });
+
+    service.clear();
+
+    expect(seen).toBeNull();
+  });
+
+  it('um gancho que lança não impede os seguintes nem escapa para o chamador', () => {
+    const survivor = vi.fn();
+    registry.register(() => {
+      throw new Error('gancho quebrado');
+    });
+    registry.register(survivor);
+
+    expect(() => service.clear()).not.toThrow();
+    expect(survivor).toHaveBeenCalledTimes(1);
+  });
+
+  it('não reentra quando um gancho acaba chamando clear() de novo', () => {
+    const inner = vi.fn();
+    registry.register(() => service.clear());
+    registry.register(inner);
+
+    service.clear();
+
+    expect(inner).toHaveBeenCalledTimes(1);
   });
 });

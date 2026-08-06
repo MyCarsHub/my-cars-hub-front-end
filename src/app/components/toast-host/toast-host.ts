@@ -4,6 +4,7 @@ import {
   NotificationKind,
   NotificationService,
 } from '../../services/notification.service';
+import { ImpersonationService } from '../../services/impersonation.service';
 
 interface ToastStyle {
   container: string;
@@ -55,6 +56,21 @@ const KIND_STYLES: Record<NotificationKind, ToastStyle> = {
 })
 export class ToastHost {
   private readonly notificationService = inject(NotificationService);
+  private readonly impersonation = inject(ImpersonationService);
+
+  /**
+   * No desktop os toasts moram no topo à direita — exatamente onde a barra de
+   * impersonação fica. Sem este empurrão para 72px (56 da barra + 16 de
+   * respiro) o aviso de "somente leitura" nasceria escondido atrás dela, e o
+   * botão de encerrar a sessão ficaria coberto a cada toast.
+   *
+   * O `top` sai INTEIRO daqui (o template não traz `sm:top-4` estático) porque
+   * duas utilities de `top` no mesmo elemento se decidiriam pela ordem do CSS
+   * gerado, não pela intenção.
+   */
+  protected readonly topOffsetClass = computed(() =>
+    this.impersonation.active() ? 'sm:top-18' : 'sm:top-4',
+  );
 
   protected readonly toasts = computed(() =>
     this.notificationService.notifications().map((n) => ({
