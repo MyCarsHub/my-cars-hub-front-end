@@ -353,7 +353,7 @@ describe('VehicleForm — financiamento na edição', () => {
       deductibleAmount: 3000,
       startDate: '2026-01-01',
       endDate: '2027-01-01',
-      paymentMethod: '12x no cartão',
+      paymentMethod: 'CREDIT_CARD',
     });
     api().submit();
 
@@ -370,7 +370,7 @@ describe('VehicleForm — financiamento na edição', () => {
       deductibleAmount: 300_000,
       startDate: '2026-01-01',
       endDate: '2027-01-01',
-      paymentMethod: '12x no cartão',
+      paymentMethod: 'CREDIT_CARD',
     });
 
     expect(navigate).toHaveBeenCalledWith(['/veiculos', VEHICLE_ID]);

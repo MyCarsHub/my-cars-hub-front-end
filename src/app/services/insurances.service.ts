@@ -6,10 +6,15 @@ import { PagedResponse } from '../types/paged.types';
 import {
   CancelInsuranceRequest,
   CreateInsuranceRequest,
+  GenerateInsuranceInstallmentsRequest,
   Insurance,
   InsuranceDetail,
   InsuranceFilters,
+  InsuranceInstallment,
   InsuranceListItem,
+  InsurancePolicyDocument,
+  InsuranceSignedUrl,
+  PayInsuranceInstallmentRequest,
   UpdateInsuranceRequest,
 } from '../types/insurance.types';
 
@@ -131,5 +136,94 @@ export class InsurancesService {
       }),
       finalize(() => this._loading.set(false)),
     );
+  }
+
+  // ---------------------------------------------------- apólice em PDF
+
+  /**
+   * Anexa o PDF da apólice (multipart, campo `file`). Sem `reportProgress`
+   * DE PROPÓSITO: o app usa `withFetch()` e o `FetchBackend` nunca emite
+   * `UploadProgress`, então pedir progresso só produziria uma barra falsa.
+   * A UI mostra estado indeterminado. Substitui o documento existente.
+   */
+  uploadPolicyDocument(insuranceId: string, file: File): Observable<InsurancePolicyDocument> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<InsurancePolicyDocument>(
+      `${FLEET_BASE}/${insuranceId}/policy-document`,
+      form,
+    );
+  }
+
+  /** URL assinada de curta duração para abrir/baixar o PDF da apólice. */
+  policyDocumentSignedUrl(insuranceId: string): Observable<InsuranceSignedUrl> {
+    return this.http.get<InsuranceSignedUrl>(
+      `${FLEET_BASE}/${insuranceId}/policy-document/signed-url`,
+    );
+  }
+
+  /** 204. Apaga o arquivo do storage — irreversível, exige confirmação na UI. */
+  deletePolicyDocument(insuranceId: string): Observable<void> {
+    return this.http
+      .delete(`${FLEET_BASE}/${insuranceId}/policy-document`, { responseType: 'text' })
+      .pipe(map(() => void 0));
+  }
+
+  // ------------------------------------------- parcelamento do prêmio
+
+  /**
+   * Cronograma atual. Só é necessário como fallback — o `GET /v1/insurances/{id}`
+   * já devolve `installments`, e toda mutação devolve o cronograma inteiro.
+   */
+  listInstallments(insuranceId: string): Observable<InsuranceInstallment[]> {
+    return this.http.get<InsuranceInstallment[]>(`${FLEET_BASE}/${insuranceId}/installments`);
+  }
+
+  /**
+   * Gera o cronograma (`installments` entre 1 e 120). Devolve o cronograma
+   * COMPLETO — nunca faça um GET depois disto.
+   */
+  generateInstallments(
+    insuranceId: string,
+    payload: GenerateInsuranceInstallmentsRequest,
+  ): Observable<InsuranceInstallment[]> {
+    return this.http.post<InsuranceInstallment[]>(
+      `${FLEET_BASE}/${insuranceId}/installments`,
+      payload,
+    );
+  }
+
+  /** Marca uma parcela como paga. Body opcional. Devolve o cronograma COMPLETO. */
+  payInstallment(
+    insuranceId: string,
+    installmentId: string,
+    payload: PayInsuranceInstallmentRequest = {},
+  ): Observable<InsuranceInstallment[]> {
+    return this.http.patch<InsuranceInstallment[]>(
+      `${FLEET_BASE}/${insuranceId}/installments/${installmentId}/pay`,
+      payload,
+    );
+  }
+
+  /** Desfaz o pagamento de uma parcela. Devolve o cronograma COMPLETO. */
+  unpayInstallment(
+    insuranceId: string,
+    installmentId: string,
+  ): Observable<InsuranceInstallment[]> {
+    return this.http.patch<InsuranceInstallment[]>(
+      `${FLEET_BASE}/${insuranceId}/installments/${installmentId}/unpay`,
+      {},
+    );
+  }
+
+  /**
+   * Apaga o cronograma inteiro (204). O backend RECUSA com 409/400 quando
+   * existe parcela já paga — a tela precisa traduzir isso, não deixar cair no
+   * erro genérico.
+   */
+  deleteInstallments(insuranceId: string): Observable<void> {
+    return this.http
+      .delete(`${FLEET_BASE}/${insuranceId}/installments`, { responseType: 'text' })
+      .pipe(map(() => void 0));
   }
 }

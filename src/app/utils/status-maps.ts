@@ -24,7 +24,11 @@ import type {
   MaintenanceType,
 } from '../types/maintenance.types';
 import type { FinancingStatus, IpvaStatus } from '../types/vehicle.types';
-import type { InsuranceCoverage, InsuranceStatus } from '../types/insurance.types';
+import type {
+  InsuranceCoverage,
+  InsurancePaymentMethod,
+  InsuranceStatus,
+} from '../types/insurance.types';
 
 export type VehicleStatus = 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'INACTIVE';
 
@@ -291,6 +295,37 @@ export const INSURANCE_COVERAGE_OPTIONS: ReadonlyArray<{
   { value: 'COMPREHENSIVE', label: INSURANCE_COVERAGE_LABELS.COMPREHENSIVE },
   { value: 'THEFT', label: INSURANCE_COVERAGE_LABELS.THEFT },
   { value: 'THIRD_PARTY', label: INSURANCE_COVERAGE_LABELS.THIRD_PARTY },
+];
+
+/**
+ * Forma de pagamento do prêmio. O backend valida o enum e devolve 400 com
+ * `fieldErrors` para qualquer outro valor — por isso o formulário usa `<select>`
+ * e não texto livre.
+ */
+export const INSURANCE_PAYMENT_METHOD_LABELS: Record<InsurancePaymentMethod, string> = {
+  PIX: 'Pix',
+  BOLETO: 'Boleto',
+  CREDIT_CARD: 'Cartão de crédito',
+  DEBIT_CARD: 'Cartão de débito',
+  BANK_TRANSFER: 'Transferência bancária',
+  CASH: 'Dinheiro',
+  DIRECT_DEBIT: 'Débito automático',
+  OTHER: 'Outro',
+};
+
+/** Opções `{value,label}` para o `<select>` de forma de pagamento. */
+export const INSURANCE_PAYMENT_METHOD_OPTIONS: ReadonlyArray<{
+  value: InsurancePaymentMethod;
+  label: string;
+}> = [
+  { value: 'PIX', label: INSURANCE_PAYMENT_METHOD_LABELS.PIX },
+  { value: 'BOLETO', label: INSURANCE_PAYMENT_METHOD_LABELS.BOLETO },
+  { value: 'CREDIT_CARD', label: INSURANCE_PAYMENT_METHOD_LABELS.CREDIT_CARD },
+  { value: 'DEBIT_CARD', label: INSURANCE_PAYMENT_METHOD_LABELS.DEBIT_CARD },
+  { value: 'BANK_TRANSFER', label: INSURANCE_PAYMENT_METHOD_LABELS.BANK_TRANSFER },
+  { value: 'CASH', label: INSURANCE_PAYMENT_METHOD_LABELS.CASH },
+  { value: 'DIRECT_DEBIT', label: INSURANCE_PAYMENT_METHOD_LABELS.DIRECT_DEBIT },
+  { value: 'OTHER', label: INSURANCE_PAYMENT_METHOD_LABELS.OTHER },
 ];
 
 // ------------------------------------------- licensing expiration badge

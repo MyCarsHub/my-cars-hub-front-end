@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { AbstractControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { FieldControl, FormField } from '../../form-field/form-field';
-import { INSURANCE_COVERAGE_OPTIONS } from '../../../utils/status-maps';
+import {
+  INSURANCE_COVERAGE_OPTIONS,
+  INSURANCE_PAYMENT_METHOD_OPTIONS,
+} from '../../../utils/status-maps';
 
 /**
  * Campos da apólice de seguro, reaproveitados pelo cadastro dentro do
@@ -20,6 +23,7 @@ export class InsuranceFormFields {
   readonly formGroup = input.required<FormGroup>();
 
   protected readonly coverageOptions = INSURANCE_COVERAGE_OPTIONS;
+  protected readonly paymentMethodOptions = INSURANCE_PAYMENT_METHOD_OPTIONS;
 
   /** Copy overrides per validator key for the `app-form-field` message resolver. */
   protected readonly insurerMessages: Readonly<Record<string, string>> = {
