@@ -482,6 +482,56 @@
         </div>
       </app-page-card>
 
+      <!--
+        Multa por devolução em atraso (V53). Só aparece quando existe: a
+        conta fica ao lado da cobrança para o motorista poder conferir de onde
+        veio o valor, em vez de descobri-lo já lançado no cronograma.
+      -->
+      @if (overdueFee(); as fee) {
+        <app-page-card title="Multa por devolução em atraso">
+          <div class="p-3 sm:p-4">
+            <div class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 space-y-2">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p class="text-sm font-semibold text-amber-900">Cobrança lançada</p>
+                <p class="text-base font-bold text-amber-900 tabular-nums">
+                  {{ formatCurrency(fee.amount) }}
+                </p>
+              </div>
+
+              <p class="text-sm text-amber-900 tabular-nums">{{ overdueFeeFormula() }}</p>
+
+              <dl class="text-xs text-amber-800 space-y-0.5">
+                <div class="flex flex-wrap gap-x-1">
+                  <dt class="font-medium">
+                    Prazo (fim do aluguel + {{ overdueFeeGraceLabel() }}):
+                  </dt>
+                  <dd class="tabular-nums">{{ overdueFeeDueAtLabel() }}</dd>
+                </div>
+                <div class="flex flex-wrap gap-x-1">
+                  <dt class="font-medium">Devolução registrada:</dt>
+                  <dd class="tabular-nums">{{ overdueFeeReturnedAtLabel() }}</dd>
+                </div>
+                <div class="flex flex-wrap gap-x-1">
+                  <dt class="font-medium">Regra da empresa:</dt>
+                  <dd>{{ overdueFeeRuleLabel() }}</dd>
+                </div>
+              </dl>
+
+              @if (canConfigureOverdue) {
+                <a
+                  routerLink="/configuracoes/atraso"
+                  class="inline-flex items-center min-h-[44px] text-xs font-semibold text-amber-800 underline
+                         hover:text-amber-900 focus:outline-none focus-visible:ring-2
+                         focus-visible:ring-amber-700 focus-visible:ring-offset-1 rounded-lg"
+                >
+                  Ver a regra de atraso
+                </a>
+              }
+            </div>
+          </div>
+        </app-page-card>
+      }
+
       <!-- Cronograma de cobrança (RENTAL_PERIOD + RENTAL_TOTAL, sem CAUCAO) -->
       <app-page-card
         title="Cronograma de cobrança"
@@ -867,6 +917,11 @@
     [rental]="r"
     [busy]="completeBusy()"
     intent="complete"
+    [overduePreview]="overduePreview()"
+    [overduePreviewLoading]="overduePreviewLoading()"
+    [overduePreviewError]="overduePreviewError()"
+    [canConfigureOverdue]="canConfigureOverdue"
+    (returnAtChanged)="onOverdueReturnAtChanged($event)"
     (confirmed)="confirmComplete($event)"
     (cancelled)="cancelComplete()"
   />
