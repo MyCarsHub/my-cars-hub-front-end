@@ -102,6 +102,11 @@ describe('AdminHome — consolidado de aluguéis e contratos', () => {
     return found?.nextElementSibling?.textContent?.trim() ?? '';
   }
 
+  /** Texto da página com quebras de linha do template colapsadas. */
+  function flatText(host: HTMLElement): string {
+    return (host.textContent ?? '').replace(/\s+/g, ' ');
+  }
+
   /** Contagem exibida na barra de um status de aluguel. */
   function barCount(host: HTMLElement, label: string): string {
     const spans = Array.from(host.querySelectorAll('span'));
@@ -127,24 +132,59 @@ describe('AdminHome — consolidado de aluguéis e contratos', () => {
 
     // Centavos -> BRL pelo mesmo formatador já usado pelo MRR/ARR da página.
     expect(statValue(host, 'Aluguéis fechados')).toContain('1.234,56');
-    expect(host.textContent).toContain('42 aluguéis');
+    expect(flatText(host)).toContain('42 aluguéis');
 
     expect(statValue(host, 'Aluguéis concluídos')).toContain('900,00');
-    expect(host.textContent).toContain('30 aluguéis');
+    expect(flatText(host)).toContain('30 aluguéis');
 
     expect(statValue(host, 'Contratos de locação')).toBe('25');
     expect(statValue(host, 'Contratos assinados')).toBe('9');
   });
 
+  /**
+   * Os quatro números viraram cartões da mesma grade dos demais indicadores, o
+   * que não deixa espaço para o texto de apoio DENTRO do cartão. As ressalvas
+   * migraram para a nota "Como ler os números de volume", logo abaixo da grade —
+   * se alguém apagar a nota achando que é decoração, este teste cai.
+   */
   it('não rotula o consolidado de forma enganosa nem mostra assinados como total', () => {
     overview.set(POPULATED_OVERVIEW);
     const host = render();
+    const text = flatText(host);
 
     // "fechado" e "concluído" são recortes diferentes e aparecem separados.
-    expect(host.textContent).toContain('Fechado = reservado, em andamento ou concluído');
-    expect(host.textContent).toContain('Não inclui cancelados');
-    expect(host.textContent).toContain('Subconjunto do total');
-    expect(host.textContent).not.toContain('undefined');
+    expect(text).toContain('Aluguéis fechados = reservado, em andamento ou concluído');
+    expect(text).toContain('Não inclui cancelados');
+    expect(text).toContain('apenas os aluguéis já finalizados');
+    expect(text).toContain('Contratos assinados é subconjunto do total');
+    expect(text).toContain('contrato assinado em papel fica de fora');
+    // O subconjunto também é legível no próprio cartão, sem depender da nota.
+    expect(text).toContain('de 25 contratos');
+    expect(text).not.toContain('undefined');
+  });
+
+  /**
+   * O pedido foi "igual aos cards existentes": os quatro números vivem na MESMA
+   * grade de indicadores, não numa seção própria.
+   */
+  it('renderiza os números de volume dentro da grade de indicadores', () => {
+    overview.set(POPULATED_OVERVIEW);
+    const host = render();
+
+    const grid = host.querySelector('div.grid.grid-cols-2');
+    expect(grid, 'grade de indicadores não encontrada').toBeTruthy();
+
+    const gridText = (grid?.textContent ?? '').replace(/\s+/g, ' ');
+    for (const label of [
+      'Usuários',
+      'Aluguéis fechados',
+      'Aluguéis concluídos',
+      'Contratos de locação',
+      'Contratos assinados',
+    ]) {
+      expect(gridText, `"${label}" fora da grade`).toContain(label);
+    }
+    expect(host.textContent).not.toContain('Volume consolidado');
   });
 
   it('trata status ausente do mapa esparso como zero', () => {

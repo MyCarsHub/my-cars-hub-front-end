@@ -34,12 +34,14 @@ import {
   IncidentType,
   RESOLUTION_DIMENSION_LABEL,
   VehicleIncidentListItem,
-  VehicleIncidentSummary,
 } from '../../types/vehicle-incident.types';
 
 /**
- * Visão consolidada de sinistros cross-veículos — "quantos carros estão parados
- * agora" é a pergunta que abre esta tela.
+ * Visão consolidada de sinistros cross-veículos: a lista filtrável É a tela.
+ *
+ * O cartão "Resumo" foi retirado por decisão do dono do produto, e com ele a
+ * chamada a `GET /vehicle-incidents/summary` — que sem nada para renderizar
+ * seria só uma requisição a mais no celular. Não reintroduza uma sem a outra.
  *
  * DADO PESSOAL: a linha da listagem NÃO traz os dados do terceiro envolvido
  * (nome, documento, telefone, placa). O backend os mantém fora do
@@ -89,9 +91,6 @@ export class IncidentsList implements OnInit {
   protected readonly size = this.incidentsService.size;
   protected readonly total = this.incidentsService.total;
 
-  /** Agregados do endpoint `/summary` — não some a página corrente, que é UMA página. */
-  protected readonly summary = signal<VehicleIncidentSummary | null>(null);
-
   protected readonly vehicles = signal<VehicleListItem[]>([]);
   protected readonly vehiclesById = computed(() => {
     const map = new Map<string, VehicleListItem>();
@@ -130,28 +129,10 @@ export class IncidentsList implements OnInit {
     });
 
     this.reload(0);
-    this.loadSummary();
-  }
-
-  private loadSummary(): void {
-    this.incidentsService.summary({ from: this.from() || undefined, to: this.to() || undefined }).subscribe({
-      next: (s) => this.summary.set(s),
-      // O resumo é acessório: sua falha não pode apagar a lista, que é o conteúdo.
-      error: (err: unknown) => {
-        this.apiErrors.claim(err);
-        this.summary.set(null);
-      },
-    });
   }
 
   protected onFilterChange(): void {
     this.reload(0);
-  }
-
-  /** Só o recorte de período muda os agregados — os demais filtros não. */
-  protected onPeriodChange(): void {
-    this.reload(0);
-    this.loadSummary();
   }
 
   protected clearFilters(): void {
@@ -163,7 +144,6 @@ export class IncidentsList implements OnInit {
     this.to.set('');
     this.sort.set('occurred_desc');
     this.reload(0);
-    this.loadSummary();
   }
 
   protected prev(): void {
@@ -259,7 +239,6 @@ export class IncidentsList implements OnInit {
         this.deleting.set(null);
         this.notifications.success('Sinistro removido.');
         this.reload(this.page());
-        this.loadSummary();
       },
       error: (err: unknown) => {
         this.deletingBusy.set(false);

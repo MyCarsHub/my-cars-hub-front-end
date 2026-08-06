@@ -353,10 +353,12 @@ describe('AlertsPage', () => {
   });
 
   /**
-   * Membro comum não chega em `/configuracoes/**` (o `roleGuard` barra), mas
-   * precisa entender com quanta antecedência a empresa é avisada.
+   * A tela `/configuracoes/alertas` deixou de existir: o editor de janelas é uma
+   * SEÇÃO desta página. Como `/alertas` é aberta a qualquer membro, o papel que
+   * o `roleGuard` guardava passou a ser checado aqui — membro comum continua
+   * lendo o estado, sem o editor.
    */
-  it('mostra o estado das janelas para todo membro e o link de edição só para OWNER/MANAGER', () => {
+  it('mostra o estado das janelas para todo membro e o editor só para OWNER/MANAGER', () => {
     const fixture = TestBed.createComponent(AlertsPage);
     fixture.detectChanges();
 
@@ -364,10 +366,11 @@ describe('AlertsPage', () => {
     expect(host.textContent).toContain(
       'Avisos da empresa: 30, 15, 7 e 1 dia antes do vencimento (padrão do sistema).',
     );
-    expect(host.querySelector('a[href="/configuracoes/alertas"]')).not.toBeNull();
+    expect(host.querySelector('app-alert-windows')).not.toBeNull();
+    expect(host.textContent).toContain('Substituir janelas');
   });
 
-  it('esconde o link de configuração de quem não é OWNER nem MANAGER', () => {
+  it('esconde o editor de janelas de quem não é OWNER nem MANAGER', () => {
     selectedRole = 'USER';
     TestBed.resetTestingModule();
     configure();
@@ -377,6 +380,16 @@ describe('AlertsPage', () => {
 
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('Avisos da empresa:');
+    expect(host.querySelector('app-alert-windows')).toBeNull();
+    expect(host.textContent).not.toContain('Substituir janelas');
+  });
+
+  /** Nenhuma rota de Configurações sobrou apontada a partir desta página. */
+  it('não linka mais para /configuracoes/alertas', () => {
+    const fixture = TestBed.createComponent(AlertsPage);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelector('a[href="/configuracoes/alertas"]')).toBeNull();
   });
 

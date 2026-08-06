@@ -73,11 +73,13 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Configurações',
     icon: ICON_SETTINGS,
     children: [
-      { route: '/configuracoes', label: 'Empresa', icon: ICON_COMPANY, roles: ['OWNER'], exactMatch: true },
+      // "Avisos de vencimento" e "Devolução com atraso" saíram daqui: viraram
+      // seções de `/alertas` e de `/configuracoes`, respectivamente. MANAGER
+      // entra em "Empresa" porque a regra da multa (que ele sempre pôde editar)
+      // mora lá agora — a página esconde dele o que é OWNER-only.
+      { route: '/configuracoes', label: 'Empresa', icon: ICON_COMPANY, roles: ['OWNER', 'MANAGER'], exactMatch: true },
       { route: '/configuracoes/integracoes', label: 'Integrações', icon: ICON_INTEGRATIONS, roles: ['OWNER', 'MANAGER'] },
       { route: '/configuracoes/contratos', label: 'Contratos', icon: ICON_COMPANY, roles: ['OWNER', 'MANAGER'] },
-      { route: '/configuracoes/alertas', label: 'Avisos de vencimento', icon: ICON_ALERTS, roles: ['OWNER', 'MANAGER'] },
-      { route: '/configuracoes/atraso', label: 'Devolução com atraso', icon: ICON_ALERTS, roles: ['OWNER', 'MANAGER'] },
     ],
   },
   { route: '/suporte', label: 'Suporte', icon: ICON_SUPPORT, pinBottom: true },

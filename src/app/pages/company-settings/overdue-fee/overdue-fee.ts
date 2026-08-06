@@ -11,7 +11,6 @@ import {
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
-import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { NotificationService } from '../../../services/notification.service';
 import { formatBRL } from '../../../types/dashboard.types';
@@ -54,7 +53,13 @@ function multiplierRangeValidator(minBps: number, maxBps: number): ValidatorFn {
 }
 
 /**
- * Configurações → Devolução com atraso (`/configuracoes/atraso`).
+ * Seção "Devolução com atraso" da página de Configurações (`/configuracoes`).
+ *
+ * Já foi a tela `/configuracoes/atraso`. Virou seção porque são apenas dois
+ * números e uma tela inteira para eles era navegação a mais; o serviço próprio
+ * (`OverdueSettingsService`) CONTINUA separado, então o `PUT` daqui segue tocando
+ * só multiplicador + tolerância e não herda a corrida de carregamento do
+ * formulário de nome/documento que divide a página com esta seção.
  *
  * Define os dois números que decidem a multa automática: quantas vezes a diária
  * é cobrada por dia de atraso, e quantas horas de tolerância o motorista tem
@@ -72,16 +77,17 @@ function multiplierRangeValidator(minBps: number, maxBps: number): ValidatorFn {
  * 3. **`customized` distingue "nunca configurou" de "configurou igual ao
  *    padrão"** — vira selo visível, como em Avisos de vencimento.
  *
- * O `roleGuard(['OWNER','MANAGER'])` da rota é quem controla o acesso; a tela
- * não repete a regra de papel. Membro comum não chega aqui — ele lê a regra em
- * vigor no popup de conclusão do aluguel, que mostra multiplicador e tolerância
- * junto da conta.
+ * O `roleGuard(['OWNER','MANAGER'])` da rota `/configuracoes` é quem controla o
+ * acesso; a seção não repete a regra de papel (o backend também exige
+ * OWNER/MANAGER no `PUT`, então um 403 chega inline se algo escapar). Membro
+ * comum não chega aqui — ele lê a regra em vigor no popup de conclusão do
+ * aluguel, que mostra multiplicador e tolerância junto da conta.
  */
 @Component({
   selector: 'app-overdue-fee',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
+  imports: [ReactiveFormsModule, PageCard, AlertBanner, FormField, FieldControl],
   templateUrl: './overdue-fee.html',
 })
 export class OverdueFee implements OnInit {
