@@ -14,12 +14,26 @@ import { CompanySettings } from './pages/company-settings/company-settings';
 
 export const routes: Routes = [
     {
+        // SEO: `data.seo` marks a route as PUBLIC and indexable. Routes without it get
+        // `noindex, nofollow` and no canonical from `PageTitleStrategy` — fail-closed, so
+        // the authenticated tree can never leak into Google by someone forgetting a flag.
+        // Prerendered at build time; see `app.routes.server.ts`.
         path: '',
         pathMatch: 'full',
         loadComponent: () =>
             import('./pages/landing/page/landing.component').then(
                 (m) => m.LandingComponent
             ),
+        data: {
+            pageTitle: 'Gestão inteligente para locadoras',
+            seo: {
+                description:
+                    'Sistema de gestão para locadoras de veículos: frota, motoristas, ' +
+                    'aluguéis, contratos, cobranças automáticas e relatórios em uma plataforma só. ' +
+                    'Teste 14 dias grátis, sem cartão.',
+                canonicalPath: '/',
+            },
+        },
     },
     {
         path: 'login',
@@ -38,14 +52,47 @@ export const routes: Routes = [
         component: OauthSuccess,
     },
     {
+        // PUBLIC on purpose: this is the link the invitation e-mail carries,
+        // `{frontendUrl}/invite/accept?token={rawToken}`. The path and the query-param
+        // name are the backend's contract — changing either 404s every invite already
+        // sent. It must also stay OUTSIDE the AppShell/authGuard tree: the invitee opens
+        // it logged out and only authenticates halfway through the flow.
+        path: 'invite/accept',
+        loadComponent: () =>
+            import('./pages/invites/invite-accept').then((m) => m.InviteAccept),
+        data: { pageTitle: 'Convite' },
+    },
+    {
         path: 'blog',
         loadComponent: () =>
             import('./pages/blog/blog-list').then((m) => m.BlogList),
+        data: {
+            pageTitle: 'Blog',
+            seo: {
+                description:
+                    'Conteúdo prático sobre gestão de locadoras de veículos: contratos, ' +
+                    'cobrança, manutenção de frota e controle de motoristas.',
+            },
+        },
     },
     {
+        // NOT prerendered: the post comes from an API call at runtime. The canonical is
+        // still per-slug because it is derived from the resolved URL, not from `data`.
+        //
+        // The description below is only the FALLBACK used until the post lands — it is
+        // identical for every slug, so `BlogDetail` overwrites it with the post's own
+        // `metaDescription` (see `SeoService.setDescription`). Without that override the
+        // whole blog would ship duplicate meta descriptions.
         path: 'blog/:slug',
         loadComponent: () =>
             import('./pages/blog/blog-detail').then((m) => m.BlogDetail),
+        data: {
+            pageTitle: 'Blog',
+            seo: {
+                description:
+                    'Artigo do blog MyCarsHub sobre gestão de locadoras de veículos.',
+            },
+        },
     },
     {
         path: 'politica-de-privacidade',
@@ -53,7 +100,16 @@ export const routes: Routes = [
             import('./pages/legal/privacy-policy/privacy-policy.component').then(
                 (m) => m.PrivacyPolicyComponent
             ),
-        data: { pageTitle: 'Política de Privacidade' },
+        data: {
+            pageTitle: 'Política de Privacidade',
+            seo: {
+                description:
+                    'Como o MyCarsHub coleta, usa, armazena e protege os dados pessoais ' +
+                    'de locadoras e motoristas, em conformidade com a LGPD.',
+                // PT is the canonical version; `?lang=en` must not create a duplicate URL.
+                canonicalPath: '/politica-de-privacidade',
+            },
+        },
     },
     {
         path: 'termos-de-uso',
@@ -61,7 +117,15 @@ export const routes: Routes = [
             import('./pages/legal/terms-of-use/terms-of-use.component').then(
                 (m) => m.TermsOfUseComponent
             ),
-        data: { pageTitle: 'Termos de Uso' },
+        data: {
+            pageTitle: 'Termos de Uso',
+            seo: {
+                description:
+                    'Condições de uso da plataforma MyCarsHub: contratação, planos, ' +
+                    'responsabilidades das partes e regras de cancelamento.',
+                canonicalPath: '/termos-de-uso',
+            },
+        },
     },
     {
         path: '',
@@ -97,6 +161,22 @@ export const routes: Routes = [
                                 (m) => m.AlertsPage
                             ),
                         data: { pageTitle: 'Alertas' },
+                    },
+                    {
+                        // Visões AGREGADAS da frota — não pendem de um veículo
+                        // e por isso ficam fora de `/veiculos/:id`.
+                        path: 'frota',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: 'calendario',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/vehicles/fleet-calendar/fleet-calendar-page'
+                                    ).then((m) => m.FleetCalendarPage),
+                                data: { pageTitle: 'Calendário da frota' },
+                            },
+                        ],
                     },
                     {
                         path: 'veiculos',
@@ -334,6 +414,48 @@ export const routes: Routes = [
                         ],
                     },
                     {
+                        // Sinistro NÃO é multa: multa tem órgão emissor e
+                        // pontuação na CNH; sinistro tem seguradora, franquia e
+                        // um veículo potencialmente parado. Rota própria.
+                        path: 'sinistros',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import('./pages/incidents/incidents-list').then(
+                                        (m) => m.IncidentsList
+                                    ),
+                                data: { pageTitle: 'Sinistros' },
+                            },
+                            {
+                                path: 'novo',
+                                loadComponent: () =>
+                                    import('./pages/incidents/incident-form').then(
+                                        (m) => m.IncidentForm
+                                    ),
+                                data: { pageTitle: 'Registrar sinistro' },
+                            },
+                            {
+                                path: ':id',
+                                loadComponent: () =>
+                                    import('./pages/incidents/incident-detail').then(
+                                        (m) => m.IncidentDetail
+                                    ),
+                                data: { pageTitle: 'Detalhes do sinistro' },
+                            },
+                            {
+                                path: ':id/editar',
+                                loadComponent: () =>
+                                    import('./pages/incidents/incident-form').then(
+                                        (m) => m.IncidentForm
+                                    ),
+                                data: { pageTitle: 'Editar sinistro' },
+                            },
+                        ],
+                    },
+                    {
                         path: 'financiamentos',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
@@ -426,6 +548,50 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Integração Asaas' },
                             },
                             {
+                                // Janelas de aviso da empresa. Só OWNER/MANAGER
+                                // edita; membro comum vê o estado (leitura) na
+                                // própria página `/alertas`.
+                                path: 'alertas',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/alert-windows/alert-windows'
+                                    ).then((m) => m.AlertWindows),
+                                data: { pageTitle: 'Avisos de vencimento' },
+                            },
+                            {
+                                // Regra de multa por devolução em atraso.
+                                // Subdiretório + serviço próprios, fora da tela
+                                // de Configurações: o PUT toca só multiplicador
+                                // + tolerância e não pode herdar a corrida de
+                                // carregamento daquela. Só OWNER/MANAGER edita;
+                                // membro comum lê a regra em vigor no popup de
+                                // conclusão do aluguel, junto da conta da multa.
+                                path: 'atraso',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/overdue-fee/overdue-fee'
+                                    ).then((m) => m.OverdueFee),
+                                data: { pageTitle: 'Devolução com atraso' },
+                            },
+                            {
+                                // Dados de contato da empresa que alimentam o
+                                // contrato. Rota própria, fora da tela de
+                                // Configurações: o PUT substitui o bloco de
+                                // contato INTEIRO, então esta tela não pode
+                                // herdar a corrida de carregamento daquela.
+                                // OWNER-only para casar com o backend, que exige
+                                // OWNER em PUT /v1/companies/me.
+                                path: 'contato',
+                                canActivate: [roleGuard(['OWNER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/company-contact/company-contact'
+                                    ).then((m) => m.CompanyContact),
+                                data: { pageTitle: 'Dados de contato' },
+                            },
+                            {
                                 path: 'contratos',
                                 canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
@@ -433,6 +599,15 @@ export const routes: Routes = [
                                         './pages/company-settings/contract-template/contract-template'
                                     ).then((m) => m.ContractTemplate),
                                 data: { pageTitle: 'Template de contrato' },
+                            },
+                            {
+                                path: 'convites',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import('./pages/invites/invites').then(
+                                        (m) => m.Invites
+                                    ),
+                                data: { pageTitle: 'Convites' },
                             },
                         ],
                     },
@@ -568,6 +743,22 @@ export const routes: Routes = [
                                         (m) => m.AdminSupportList,
                                     ),
                                 data: { pageTitle: 'Suporte' },
+                            },
+                            {
+                                path: 'auditoria',
+                                loadComponent: () =>
+                                    import('./pages/admin/audit/admin-audit').then(
+                                        (m) => m.AdminAudit,
+                                    ),
+                                data: { pageTitle: 'Auditoria' },
+                            },
+                            {
+                                path: 'billing',
+                                loadComponent: () =>
+                                    import('./pages/admin/billing/admin-billing').then(
+                                        (m) => m.AdminBilling,
+                                    ),
+                                data: { pageTitle: 'Billing' },
                             },
                         ],
                     },

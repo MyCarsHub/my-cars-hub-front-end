@@ -9,6 +9,7 @@ import { AppShell } from './app-shell';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
+import { ImpersonationService } from '../../../services/impersonation.service';
 
 /**
  * Cobre o gate do sino no shell: em `/onboarding` (ou com o onboarding ainda
@@ -34,6 +35,10 @@ describe('AppShell — gate do sino de notificações', () => {
             isOnboardingCompleted: () => onboardingCompleted,
             isPlatformAdmin: () => false,
           },
+        },
+        {
+          provide: ImpersonationService,
+          useValue: { active: signal(false) },
         },
         {
           provide: BillingAccessService,

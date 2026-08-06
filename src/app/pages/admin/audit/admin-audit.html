@@ -1,0 +1,271 @@
+<app-default-page-layout
+  title="Auditoria"
+  description="Trilha de todas as ações administrativas: quem fez, o que fez e quando."
+>
+  <app-page-card title="Trilha de ações">
+    <div class="p-3 sm:p-4 space-y-4">
+      <!-- ================= FILTROS ================= -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="block text-xs font-medium text-gray-600 mb-1">Ator</span>
+          <select
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
+            [value]="actorFilter()"
+            (change)="setActorFilter($any($event.target).value)"
+          >
+            <option value="">Todos os atores</option>
+            @for (actor of actors(); track actor.id) {
+              <option [value]="actor.id">{{ actor.name || actor.email }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="block">
+          <span class="block text-xs font-medium text-gray-600 mb-1">Ação</span>
+          <select
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
+            [value]="actionFilter()"
+            (change)="setActionFilter($any($event.target).value)"
+          >
+            <option value="">Todas as ações</option>
+            @for (opt of actionOptions(); track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="block">
+          <span class="block text-xs font-medium text-gray-600 mb-1">De</span>
+          <input
+            type="date"
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
+            [value]="fromFilter()"
+            (change)="setFromFilter($any($event.target).value)"
+          />
+        </label>
+
+        <label class="block">
+          <span class="block text-xs font-medium text-gray-600 mb-1">Até</span>
+          <input
+            type="date"
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white
+                   focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
+            [value]="toFilter()"
+            (change)="setToFilter($any($event.target).value)"
+          />
+        </label>
+      </div>
+
+      @if (hasFilters()) {
+        <div>
+          <button
+            type="button"
+            class="text-xs px-3 py-2 rounded-full border border-gray-200 bg-white text-gray-700
+                   hover:bg-gray-50 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-primary-400"
+            (click)="clearFilters()"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      }
+
+      <!-- Falha ao carregar a trilha -->
+      @if (error(); as err) {
+        <app-alert-banner variant="error" [message]="err" />
+      }
+
+      <!-- Loading skeleton -->
+      @if (loading() && items().length === 0) {
+        <div class="space-y-2">
+          <div class="h-16 rounded-lg bg-gray-100 animate-pulse"></div>
+          <div class="h-16 rounded-lg bg-gray-100 animate-pulse"></div>
+          <div class="h-16 rounded-lg bg-gray-100 animate-pulse"></div>
+        </div>
+      }
+
+      <!-- Empty state -->
+      @if (!loading() && items().length === 0 && !error()) {
+        <div class="text-center text-sm text-gray-500 py-10">
+          @if (hasFilters()) {
+            Nenhuma ação registrada com esses filtros.
+          } @else {
+            Nenhuma ação administrativa registrada ainda.
+          }
+        </div>
+      }
+
+      @if (items().length > 0) {
+        <!-- ================= MOBILE: CARDS ================= -->
+        <ul class="space-y-3 lg:hidden list-none">
+          @for (item of items(); track item.id) {
+            <li class="rounded-xl border border-gray-200 p-4 space-y-2 bg-white">
+              <div class="flex items-start justify-between gap-2">
+                <span
+                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+                         font-medium uppercase tracking-wide break-words"
+                  [class]="actionChip(item.action)"
+                >
+                  {{ actionLabel(item.action) }}
+                </span>
+                <time
+                  class="text-[11px] text-gray-500 tabular-nums shrink-0"
+                  [attr.datetime]="item.createdDate"
+                >
+                  {{ formatDateTime(item.createdDate) }}
+                </time>
+              </div>
+
+              <p class="text-sm text-gray-900 break-words">
+                {{ actorLabel(item) }}
+              </p>
+              @if (item.actorEmail) {
+                <p class="text-[11px] text-gray-500 break-words">{{ item.actorEmail }}</p>
+              }
+
+              <p class="text-[11px] text-gray-500">
+                Alvo: {{ targetLabel(item.targetType) }}
+                <span class="tabular-nums">{{ shortId(item.targetId) }}</span>
+              </p>
+
+              @if (item.payload) {
+                <div>
+                  <button
+                    type="button"
+                    class="text-xs text-primary-700 hover:text-primary-800 underline
+                           min-h-[36px] focus:outline-none focus:ring-2 focus:ring-primary-400 rounded"
+                    [attr.aria-expanded]="isExpanded(item.id)"
+                    [attr.aria-controls]="isExpanded(item.id) ? 'payload-m-' + item.id : null"
+                    (click)="toggleExpanded(item.id)"
+                  >
+                    {{ isExpanded(item.id) ? 'Ocultar detalhes' : 'Ver detalhes' }}
+                  </button>
+                  @if (isExpanded(item.id)) {
+                    <pre
+                      [id]="'payload-m-' + item.id"
+                      class="mt-2 text-[11px] text-gray-700 bg-gray-50 rounded-lg p-2
+                             whitespace-pre-wrap break-words font-mono"
+                    >{{ item.payload }}</pre>
+                  }
+                </div>
+              }
+            </li>
+          }
+        </ul>
+
+        <!-- ================= DESKTOP: TABELA ================= -->
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <caption class="sr-only">
+              Trilha de ações administrativas, das mais recentes para as mais antigas
+            </caption>
+            <thead>
+              <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                <th scope="col" class="py-2 pr-4 font-medium">Quando</th>
+                <th scope="col" class="py-2 pr-4 font-medium">Ator</th>
+                <th scope="col" class="py-2 pr-4 font-medium">Ação</th>
+                <th scope="col" class="py-2 pr-4 font-medium">Alvo</th>
+                <th scope="col" class="py-2 pr-4 font-medium">Detalhes</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of items(); track item.id) {
+                <tr class="border-b border-gray-50 align-top">
+                  <td class="py-3 pr-4 text-gray-600 tabular-nums whitespace-nowrap">
+                    <time [attr.datetime]="item.createdDate">
+                      {{ formatDateTime(item.createdDate) }}
+                    </time>
+                  </td>
+                  <td class="py-3 pr-4">
+                    <span class="block font-medium text-gray-900 break-words">
+                      {{ actorLabel(item) }}
+                    </span>
+                    @if (item.actorEmail) {
+                      <span class="block text-xs text-gray-500 break-words">
+                        {{ item.actorEmail }}
+                      </span>
+                    }
+                  </td>
+                  <td class="py-3 pr-4">
+                    <span
+                      class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                      [class]="actionChip(item.action)"
+                    >
+                      {{ actionLabel(item.action) }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4 text-gray-700">
+                    {{ targetLabel(item.targetType) }}
+                    <span class="block text-xs text-gray-400 tabular-nums">
+                      {{ shortId(item.targetId) }}
+                    </span>
+                  </td>
+                  <td class="py-3 pr-4 max-w-md">
+                    @if (item.payload) {
+                      <button
+                        type="button"
+                        class="text-xs text-primary-700 hover:text-primary-800 underline
+                               focus:outline-none focus:ring-2 focus:ring-primary-400 rounded"
+                        [attr.aria-expanded]="isExpanded(item.id)"
+                        [attr.aria-controls]="isExpanded(item.id) ? 'payload-d-' + item.id : null"
+                        (click)="toggleExpanded(item.id)"
+                      >
+                        {{ isExpanded(item.id) ? 'Ocultar' : 'Ver' }}
+                      </button>
+                      @if (isExpanded(item.id)) {
+                        <pre
+                          [id]="'payload-d-' + item.id"
+                          class="mt-2 text-[11px] text-gray-700 bg-gray-50 rounded-lg p-2
+                                 whitespace-pre-wrap break-words font-mono"
+                        >{{ item.payload }}</pre>
+                      }
+                    } @else {
+                      <span class="text-xs text-gray-400">—</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginação -->
+        <div class="flex items-center justify-between pt-2 gap-3">
+          <p class="text-xs text-gray-500 tabular-nums">
+            Página {{ currentPage() + 1 }} de {{ totalPages() }} — {{ total() }} registro(s)
+          </p>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                     disabled:opacity-40 disabled:cursor-not-allowed"
+              (click)="prevPage()"
+              [disabled]="!canPrev() || loading()"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
+                     disabled:opacity-40 disabled:cursor-not-allowed"
+              (click)="nextPage()"
+              [disabled]="!canNext() || loading()"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </app-page-card>
+
+  <div class="mt-6">
+    <a routerLink="/admin" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
+      ← Voltar para o painel admin
+    </a>
+  </div>
+</app-default-page-layout>

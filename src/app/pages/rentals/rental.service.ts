@@ -7,6 +7,7 @@ import {
 import { Injectable, Signal, WritableSignal, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, forkJoin, of, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { OverdueFeeSummary } from '../../types/overdue.types';
 import { PagedResponse } from '../../types/paged.types';
 import {
   CancelRentalPayload,
@@ -225,6 +226,25 @@ export class RentalService {
 
   complete(id: string, payload?: CompleteRentalPayload): Observable<RentalResponseDto> {
     return this.http.post<RentalResponseDto>(`${BASE}/${id}/complete`, payload ?? {});
+  }
+
+  /**
+   * V53 — prévia da multa por devolução em atraso. **Leitura pura**: não grava
+   * nada e não chama gateway de pagamento, então é seguro chamar a cada
+   * mudança de data/hora no popup de conclusão.
+   *
+   * `returnedAt` viaja como data-e-hora LOCAL, sem offset
+   * (`2026-07-22T23:00:00`) — o backend compara relógio de parede com relógio
+   * de parede. Nada é convertido aqui de propósito. Omitido = agora, no fuso
+   * do servidor.
+   *
+   * Quando a multa JÁ foi lançada, a resposta vem com `chargeId` preenchido e
+   * descreve o que foi cobrado — a tela não deve sugerir um segundo lançamento.
+   */
+  overduePreview(id: string, returnedAt?: string): Observable<OverdueFeeSummary> {
+    let params = new HttpParams();
+    if (returnedAt) params = params.set('returnedAt', returnedAt);
+    return this.http.get<OverdueFeeSummary>(`${BASE}/${id}/overdue-preview`, { params });
   }
 
   /**

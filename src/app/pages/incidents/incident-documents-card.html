@@ -1,0 +1,157 @@
+<app-page-card title="Anexos">
+  <div class="p-4 sm:p-6 space-y-4">
+    @if (error(); as cardError) {
+      <app-alert-banner variant="error" [message]="cardError" />
+    }
+
+    <p class="text-sm text-neutral-600">
+      Fotos do dano, boletim de ocorrência, orçamento de reparo. Aceitos PDF, JPG, PNG, WebP e
+      HEIC/HEIF, até 20MB por arquivo.
+    </p>
+
+    <!-- Tipo primeiro, envio depois: no celular a ordem importa, e o backend
+         exige o `kind` junto do arquivo. -->
+    <div class="space-y-3 sm:flex sm:items-end sm:gap-3 sm:space-y-0">
+      <div class="sm:flex-1">
+        <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-doc-kind">
+          Tipo do anexo
+        </label>
+        <select
+          id="incident-doc-kind"
+          [ngModel]="selectedKind()"
+          (ngModelChange)="selectedKind.set($event)"
+          [disabled]="uploading()"
+          class="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800
+                 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
+                 disabled:opacity-60"
+        >
+          @for (option of kindOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </div>
+
+      @if (!uploading()) {
+        <button
+          type="button"
+          (click)="picker.click()"
+          class="w-full sm:w-auto inline-flex items-center justify-center px-5 rounded-xl
+                 bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold
+                 shadow-sm transition-colors min-h-[48px]
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                 focus-visible:ring-offset-2"
+        >
+          Anexar arquivo
+        </button>
+      }
+    </div>
+
+    @if (uploading()) {
+      <div
+        class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl
+               border border-primary-200 bg-primary-50 p-3"
+        role="status"
+        aria-live="polite"
+      >
+        <p class="text-sm font-medium text-primary-800">
+          Enviando o anexo… Mantenha esta tela aberta.
+        </p>
+        <button
+          type="button"
+          (click)="cancelUpload()"
+          class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
+                 border border-neutral-300 bg-white text-sm font-medium text-neutral-700
+                 hover:bg-neutral-50 transition-colors min-h-[44px]
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+        >
+          Cancelar envio
+        </button>
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="space-y-2">
+        <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+      </div>
+    }
+
+    @if (isEmpty()) {
+      <div class="rounded-xl border-2 border-dashed border-neutral-300 p-6 text-center">
+        <p class="text-sm text-neutral-600">
+          Nenhum anexo ainda. Fotos tiradas no local valem mais que qualquer descrição depois.
+        </p>
+      </div>
+    }
+
+    @if (documents().length > 0) {
+      <ul class="space-y-2">
+        @for (doc of documents(); track doc.id) {
+          <li
+            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl
+                   border border-neutral-200 bg-white p-3"
+          >
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-neutral-900 truncate">{{ doc.fileName }}</p>
+              <p class="text-xs text-neutral-500 tabular-nums">
+                {{ doc.kindLabel }} · {{ sizeText(doc) }} · {{ uploadedAtText(doc) }}
+              </p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+              <button
+                type="button"
+                (click)="openDocument(doc)"
+                [disabled]="openingId() !== null"
+                class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
+                       bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold
+                       shadow-sm transition-colors min-h-[44px]
+                       disabled:opacity-60 disabled:cursor-not-allowed
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                       focus-visible:ring-offset-2"
+                [attr.aria-label]="'Abrir anexo ' + doc.fileName"
+              >
+                @if (openingId() === doc.id) {
+                  Abrindo…
+                } @else {
+                  Abrir
+                }
+              </button>
+              <button
+                type="button"
+                (click)="askDelete(doc)"
+                class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
+                       border border-rose-300 text-rose-700 text-sm font-medium
+                       hover:bg-rose-50 transition-colors min-h-[44px]
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                [attr.aria-label]="'Remover anexo ' + doc.fileName"
+              >
+                Remover
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    <input
+      #picker
+      type="file"
+      accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"
+      hidden
+      aria-hidden="true"
+      tabindex="-1"
+      (change)="onFileSelected($event)"
+    />
+  </div>
+</app-page-card>
+
+<app-confirm-dialog
+  [open]="deleting() !== null"
+  title="Remover anexo?"
+  message="O arquivo será apagado do armazenamento e não poderá ser recuperado."
+  confirmLabel="Remover"
+  cancelLabel="Voltar"
+  variant="danger"
+  (confirmed)="confirmDelete()"
+  (cancelled)="cancelDelete()"
+/>

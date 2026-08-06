@@ -22,6 +22,11 @@ const POLL_INTERVAL_MS = 60_000;
  * marcadas AGORA, não o restante — depois dele o não-lidas é sempre 0.
  * Por isso o contador é zerado localmente, e nunca alimentado com `count`.
  *
+ * O estado de leitura é **por usuário**, não por empresa: dois membros da mesma
+ * company têm sinos independentes. Por isso o cache é invalidado tanto na troca
+ * de empresa quanto na troca de usuário (`syncTenant()`), e nunca compartilhado
+ * entre sessões na mesma aba.
+ *
  * O contador nunca é atualizado de forma otimista: só depois do 2xx.
  */
 @Injectable({ providedIn: 'root' })
@@ -53,17 +58,21 @@ export class NotificationFeedService {
   private visibilityListener: (() => void) | null = null;
 
   /**
-   * Empresa dona dos dados atualmente em cache. Serviço root sobrevive à troca
-   * de tenant (que só navega, sem destruir o AppShell), então guardamos o id
-   * para detectar a troca em `syncTenant()`.
+   * Empresa e usuário donos dos dados atualmente em cache. Serviço root
+   * sobrevive à troca de tenant (que só navega, sem destruir o AppShell), então
+   * guardamos os ids para detectar a troca em `syncTenant()`. O usuário entra
+   * na chave porque o estado de leitura é por usuário: o não-lidas de quem
+   * estava logado antes não pode ser reaproveitado por quem entrou depois.
    */
   private cachedCompanyId: string | null = null;
+  private cachedUserId: string | null = null;
 
   constructor() {
     // Serviço root: o DestroyRef do injector raiz morre junto com a aplicação,
     // então o interval e o listener não vazam entre testes/SSR.
     inject(DestroyRef).onDestroy(() => this.stopPolling());
     this.cachedCompanyId = this.session.getItem('selectedCompanyId');
+    this.cachedUserId = this.session.getItem('id');
   }
 
   /**
@@ -82,18 +91,24 @@ export class NotificationFeedService {
     this._unreadCount.set(0);
     this.lastUnreadOnly = false;
     this.cachedCompanyId = this.session.getItem('selectedCompanyId');
+    this.cachedUserId = this.session.getItem('id');
   }
 
   /**
-   * Reconcilia o cache com a empresa selecionada na sessão. Idempotente: só
-   * age quando o tenant realmente mudou, e então zera o cache e dispara um
-   * tick imediato em vez de esperar até 60s pelo próximo poll.
+   * Reconcilia o cache com a empresa E o usuário da sessão. Idempotente: só
+   * age quando algum dos dois realmente mudou, e então zera o cache e dispara
+   * um tick imediato em vez de esperar até 60s pelo próximo poll.
+   *
+   * O usuário conta porque `read` / `unread-count` são por usuário: reaproveitar
+   * o contador do anterior mostraria o sino de outra pessoa.
    */
   syncTenant(): void {
-    const current = this.session.getItem('selectedCompanyId');
-    if (current === this.cachedCompanyId) return;
+    const companyId = this.session.getItem('selectedCompanyId');
+    const userId = this.session.getItem('id');
+    if (companyId === this.cachedCompanyId && userId === this.cachedUserId) return;
     this.reset();
-    this.cachedCompanyId = current;
+    this.cachedCompanyId = companyId;
+    this.cachedUserId = userId;
     this.tickUnreadCount();
   }
 
@@ -129,8 +144,13 @@ export class NotificationFeedService {
   }
 
   /**
-   * `PATCH /v1/notifications/{id}/read` → 204. Decrementa o contador só depois
-   * do 2xx e recarrega a lista com os últimos filtros.
+   * `PATCH /v1/notifications/{id}/read` → 204, marcando para o usuário do
+   * token. Decrementa o contador só depois do 2xx e recarrega a lista com os
+   * últimos filtros.
+   *
+   * Remarcar algo que o usuário já leu responde sucesso (não 404) e NÃO renova
+   * a data de leitura — só id de outra empresa dá 404. Por isso a chamada é
+   * segura de repetir e não precisa de guarda otimista.
    */
   markRead(id: string): Observable<void> {
     return this.http.patch(`${BASE}/${id}/read`, {}, { responseType: 'text' }).pipe(
@@ -145,7 +165,8 @@ export class NotificationFeedService {
 
   /**
    * `PATCH /v1/notifications/read-all`. O `count` devolvido são as linhas
-   * marcadas agora — o restante é sempre 0, então zeramos localmente.
+   * marcadas agora PARA ESTE USUÁRIO — não o total da empresa e não o restante.
+   * Depois dele o não-lidas do usuário é sempre 0, então zeramos localmente.
    */
   markAllRead(): Observable<MarkAllReadResult> {
     return this.http.patch<MarkAllReadResult>(`${BASE}/read-all`, {}).pipe(

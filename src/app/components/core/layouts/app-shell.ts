@@ -18,6 +18,7 @@ import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
 import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
 import { NotificationBell } from '../../notification-bell/notification-bell';
+import { ImpersonationService } from '../../../services/impersonation.service';
 
 @Component({
   selector: 'app-shell',
@@ -34,7 +35,13 @@ import { NotificationBell } from '../../notification-bell/notification-bell';
     ]),
   ],
   template: `
-    <div class="flex h-screen overflow-hidden bg-gray-50">
+    <!--
+      pt-14 reserva os 56px da barra de impersonação (fixed no topo, montada na
+      raiz da aplicação). Com box-sizing border-box, o h-screen continua valendo
+      100vh e é o CONTEÚDO que encolhe — sem isso a barra cobriria o topo da
+      sidebar e o botão do menu no mobile.
+    -->
+    <div class="flex h-screen overflow-hidden bg-gray-50" [class.pt-14]="impersonating()">
       <app-sidebar />
       <main
         class="relative flex-1 overflow-y-auto transition-none"
@@ -80,6 +87,9 @@ export class AppShell implements OnInit, OnDestroy {
   protected readonly access = inject(BillingAccessService);
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
+
+  /** Reserva de espaço para a barra de impersonação — ver o comentário no template. */
+  protected readonly impersonating = inject(ImpersonationService).active;
 
   protected readonly paywallOpen = signal(false);
 

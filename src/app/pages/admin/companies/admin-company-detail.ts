@@ -19,15 +19,45 @@ import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCompaniesService } from '../admin-companies.service';
+import { ImpersonationService } from '../../../services/impersonation.service';
 import {
   AdminCompanyMember,
   AdminCompanyStatus,
   AdminCompanySubscriptionStatus,
 } from '../../../types/admin-company.types';
+import { formatBRL } from '../../../types/dashboard.types';
 
 interface ChipStyle {
   label: string;
   chip: string;
+}
+
+/**
+ * Uma linha do bloco "Operação". `value` já chega formatado (BRL ou contagem)
+ * para manter o template burro; `zero` só governa a cor do número.
+ */
+interface OperationMetric {
+  label: string;
+  value: string;
+  /** Qualificador da semântica — usado onde o rótulo sozinho enganaria. */
+  hint: string | null;
+  zero: boolean;
+}
+
+interface OperationGroup {
+  key: string;
+  title: string;
+  metrics: OperationMetric[];
+}
+
+const COUNT_FORMATTER = new Intl.NumberFormat('pt-BR');
+
+function countMetric(label: string, value: number, hint: string | null = null): OperationMetric {
+  return { label, value: COUNT_FORMATTER.format(value), hint, zero: value === 0 };
+}
+
+function moneyMetric(label: string, cents: number, hint: string | null = null): OperationMetric {
+  return { label, value: formatBRL(cents), hint, zero: cents === 0 };
 }
 
 const COMPANY_STATUS: Record<AdminCompanyStatus, ChipStyle> = {
@@ -64,6 +94,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly impersonation = inject(ImpersonationService);
   private readonly destroyRef = inject(DestroyRef);
 
   private companyId: string | null = null;
@@ -85,6 +116,10 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    */
   protected readonly actionError = signal<string | null>(null);
 
+  /** Falha ao ABRIR a sessão de impersonação — banner inline no card do cabeçalho. */
+  protected readonly impersonationError = signal<string | null>(null);
+  protected readonly impersonationStarting = signal(false);
+
   protected readonly targetActive = computed(() => !(this.detail()?.active ?? false));
 
   protected readonly companyChip = computed<ChipStyle | null>(() => {
@@ -97,6 +132,86 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     const status = this.detail()?.subscription?.status;
     if (!status) return null;
     return SUB_STATUS[status] ?? { label: status, chip: 'bg-gray-100 text-gray-700' };
+  });
+
+  /**
+   * Os seis grupos do bloco "Operação", já formatados.
+   *
+   * Rótulos são fiéis à semântica do backend, não ao nome do campo:
+   * `closedTotal` é "não cancelados" (`status <> CANCELED`), `closedAmountCents`
+   * é o valor CONTRATADO e `paidAmountCents` é o que ENTROU — os dois divergem
+   * por natureza e nenhum deles é chamado de "faturamento". Em multas e
+   * manutenções a quantidade conta tudo, mas o dinheiro exclui as canceladas.
+   *
+   * Devolve `[]` quando não há empresa carregada (ou, defensivamente, quando um
+   * backend antigo não mandou `operations`) — o template esconde o bloco.
+   */
+  protected readonly operationGroups = computed<OperationGroup[]>(() => {
+    const ops = this.detail()?.operations;
+    if (!ops) return [];
+
+    return [
+      {
+        key: 'rentals',
+        title: 'Aluguéis',
+        metrics: [
+          countMetric('Total', ops.rentals.total),
+          countMetric('Ativos', ops.rentals.activeTotal),
+          countMetric('Não cancelados', ops.rentals.closedTotal),
+          moneyMetric('Valor contratado', ops.rentals.closedAmountCents, 'soma dos não cancelados'),
+          countMetric('Concluídos', ops.rentals.completedTotal),
+          moneyMetric('Valor dos concluídos', ops.rentals.completedAmountCents),
+          countMetric('Cancelados', ops.rentals.canceledTotal),
+          moneyMetric('Recebido', ops.rentals.paidAmountCents, 'cobranças pagas'),
+        ],
+      },
+      {
+        key: 'contracts',
+        title: 'Contratos',
+        metrics: [
+          countMetric('Total', ops.contracts.total),
+          countMetric('Gerados pelo sistema', ops.contracts.generatedTotal),
+          countMetric(
+            'Assinados digitalmente',
+            ops.contracts.signedTotal,
+            'assinatura em papel não entra',
+          ),
+        ],
+      },
+      {
+        key: 'vehicles',
+        title: 'Veículos',
+        metrics: [
+          countMetric('Total', ops.vehicles.total),
+          countMetric('Ativos', ops.vehicles.activeTotal, 'exclui arquivados'),
+        ],
+      },
+      {
+        key: 'drivers',
+        title: 'Motoristas',
+        metrics: [
+          countMetric('Total', ops.drivers.total),
+          countMetric('Em atividade', ops.drivers.workingTotal),
+        ],
+      },
+      {
+        key: 'fines',
+        title: 'Multas',
+        metrics: [
+          countMetric('Total', ops.fines.total),
+          countMetric('Pendentes', ops.fines.pendingTotal),
+          moneyMetric('Valor', ops.fines.amountCents, 'exclui canceladas'),
+        ],
+      },
+      {
+        key: 'maintenances',
+        title: 'Manutenções',
+        metrics: [
+          countMetric('Total', ops.maintenances.total),
+          moneyMetric('Custo', ops.maintenances.costCents, 'exclui canceladas'),
+        ],
+      },
+    ];
   });
 
   ngOnInit(): void {
@@ -126,6 +241,34 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     this.companiesService.loadDetail(id).subscribe({
       error: (err: HttpErrorResponse) => {
         this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar a empresa.'));
+      },
+    });
+  }
+
+  /**
+   * Abre a sessão "ver como empresa" e joga o admin direto no dashboard do
+   * tenant. A navegação só acontece DEPOIS da troca de credencial, senão a
+   * primeira tela carregaria com o token administrativo e mostraria dados do
+   * contexto errado.
+   */
+  protected startImpersonation(): void {
+    if (!this.companyId || this.impersonationStarting()) return;
+    this.impersonationError.set(null);
+    this.impersonationStarting.set(true);
+
+    this.impersonation.start(this.companyId).subscribe({
+      next: (session) => {
+        this.impersonationStarting.set(false);
+        this.notifications.info(
+          `Você está vendo ${session.companyName} em modo somente leitura.`,
+        );
+        void this.router.navigate(['/dashboard']);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.impersonationStarting.set(false);
+        this.impersonationError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível abrir a sessão de leitura.'),
+        );
       },
     });
   }

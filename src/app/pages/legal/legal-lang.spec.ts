@@ -47,7 +47,9 @@ describe('legal pages · language ↔ URL sync', () => {
     const harness = await renderAt('/politica-de-privacidade');
 
     expect(headingOf(harness)).toBe('Política de Privacidade');
-    expect(document.documentElement.lang).toBe('pt');
+    // `pt-BR`, não `pt`: é o valor que `src/index.html` já declara para o site inteiro —
+    // a página legal só o confirma, e volta a ele ao sair (ver `HTML_LANG`).
+    expect(document.documentElement.lang).toBe('pt-BR');
   });
 
   it('renders English directly from ?lang=en (shareable / survives reload)', async () => {
@@ -61,6 +63,25 @@ describe('legal pages · language ↔ URL sync', () => {
     const harness = await renderAt('/termos-de-uso?lang=en');
 
     expect(headingOf(harness)).toBe('Terms of Use');
+  });
+
+  /**
+   * Both pages are prerendered WITHOUT a query string, so the static HTML carries only the
+   * PT branch of the `@if` that wraps their whole body. Hydrating `?lang=en` over that HTML
+   * is a guaranteed mismatch, so the components opt out of hydration entirely.
+   */
+  it('opts the privacy page out of hydration', async () => {
+    const harness = await renderAt('/politica-de-privacidade?lang=en');
+    const host = harness.fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('app-privacy-policy[ngskiphydration]')).not.toBeNull();
+  });
+
+  it('opts the terms page out of hydration', async () => {
+    const harness = await renderAt('/termos-de-uso?lang=en');
+    const host = harness.fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('app-terms-of-use[ngskiphydration]')).not.toBeNull();
   });
 
   it('writes the language to the URL when the toggle is used', async () => {

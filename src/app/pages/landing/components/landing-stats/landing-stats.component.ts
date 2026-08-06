@@ -1,8 +1,8 @@
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  afterNextRender,
   inject,
 } from '@angular/core';
 
@@ -12,30 +12,39 @@ import {
   styleUrls: ['./landing-stats.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LandingStatsComponent implements AfterViewInit {
+export class LandingStatsComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
 
-  ngAfterViewInit(): void {
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          e.target.classList.add('revealed');
-          obs.unobserve(e.target);
-          if ((e.target as HTMLElement).dataset['counters'] && !(e.target as HTMLElement).dataset['counted']) {
-            (e.target as HTMLElement).dataset['counted'] = '1';
-            e.target.querySelectorAll<HTMLElement>('[data-count]').forEach((node) => {
-              const end = parseInt(node.dataset['count']!, 10);
-              this.animate(node, end, end > 50 ? 1600 : 1400);
-            });
+  constructor() {
+    this.revealOnScroll();
+  }
+
+  private revealOnScroll(): void {
+    // `afterNextRender` em vez de `ngAfterViewInit`: este bloco usa APIs de DOM real
+    // (IntersectionObserver, NodeList.forEach) que não existem durante o prerender. O
+    // Angular pula estes callbacks no servidor — ver `app.routes.server.ts`.
+    afterNextRender(() => {
+      const obs = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            e.target.classList.add('revealed');
+            obs.unobserve(e.target);
+            if ((e.target as HTMLElement).dataset['counters'] && !(e.target as HTMLElement).dataset['counted']) {
+              (e.target as HTMLElement).dataset['counted'] = '1';
+              e.target.querySelectorAll<HTMLElement>('[data-count]').forEach((node) => {
+                const end = parseInt(node.dataset['count']!, 10);
+                this.animate(node, end, end > 50 ? 1600 : 1400);
+              });
+            }
           }
-        }
-      },
-      { threshold: 0.2 }
-    );
-    this.host.nativeElement
-      .querySelectorAll('.reveal')
-      .forEach((el: Element) => obs.observe(el));
+        },
+        { threshold: 0.2 }
+      );
+      this.host.nativeElement
+        .querySelectorAll('.reveal')
+        .forEach((el: Element) => obs.observe(el));
+    });
   }
 
   private animate(node: HTMLElement, end: number, ms: number): void {

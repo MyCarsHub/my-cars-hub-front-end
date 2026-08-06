@@ -1,9 +1,11 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { ToastHost } from './toast-host';
 import { NotificationService } from '../../services/notification.service';
+import { ImpersonationService } from '../../services/impersonation.service';
 
 describe('ToastHost', () => {
   let fixture: ComponentFixture<ToastHost>;
@@ -12,7 +14,10 @@ describe('ToastHost', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ToastHost],
-      providers: [provideAnimations()],
+      providers: [
+        provideAnimations(),
+        { provide: ImpersonationService, useValue: { active: signal(false) } },
+      ],
     }).compileComponents();
 
     notifications = TestBed.inject(NotificationService);

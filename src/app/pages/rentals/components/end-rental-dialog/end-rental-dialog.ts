@@ -8,11 +8,22 @@ import {
   signal,
 } from '@angular/core';
 import { animate, style, transition, trigger } from '@angular/animations';
+import { RouterLink } from '@angular/router';
+import {
+  OverdueFeeSummary,
+  formatLocalDateTime,
+  graceHoursLabel,
+  multiplierLabel,
+  overdueFeeFormula,
+  overdueRuleLabel,
+  toLocalDateTime,
+} from '../../../../types/overdue.types';
 import {
   CaucaoRefundMethod,
   CaucaoRefundPayload,
   RentalResponseDto,
 } from '../../../../types/rental.types';
+import { nowHhMmInBusinessTz, todayInBusinessTz } from '../../../../utils/business-clock';
 
 /**
  * Payload emitido pelo dialog — mesma forma que o backend aceita em
@@ -20,6 +31,11 @@ import {
  */
 export interface EndRentalDialogPayload {
   date: string; // yyyy-MM-dd
+  /**
+   * Data e hora da devolução efetiva, local e sem offset. Só é preenchido na
+   * conclusão — cancelamento não devolve veículo e não gera multa.
+   */
+  actualReturnAt?: string;
   endReason?: string;
   caucaoRefund?: CaucaoRefundPayload;
   /** Opt-in: apagar também no Asaas as cobranças vencidas e não pagas. */
@@ -52,10 +68,23 @@ export type CaucaoRefundState = 'GATEWAY' | 'PAID_OFFLINE' | 'UNPAID' | 'NO_CAUC
  * Dialog rico de encerramento (Concluir ou Cancelar). Coleta data,
  * motivo opcional e — sempre que houver caução — método + valor da devolução,
  * com a copy ajustada ao {@link CaucaoRefundState} real.
+ *
+ * **Multa por atraso (V53).** Na conclusão o dialog coleta também a HORA da
+ * devolução (a tolerância é contada em horas; sem hora não haveria como
+ * aplicá-la) e mostra a prévia da multa ANTES de o usuário confirmar. O
+ * componente segue burro: não fala HTTP. Ele emite {@link returnAtChanged} a
+ * cada mudança de data/hora e recebe de volta {@link overduePreview} — quem
+ * busca é o `RentalDetail`.
+ *
+ * Duas garantias que a interface precisa manter:
+ *  - devolução no prazo NÃO mostra multa nenhuma, nem um "R$ 0,00";
+ *  - havendo multa a confirmar, o botão só destrava depois do "ciente" —
+ *    cobrança que o cliente não entende é cobrança contestada.
  */
 @Component({
   selector: 'app-end-rental-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink],
   templateUrl: './end-rental-dialog.html',
   host: {
     '(document:keydown.escape)': 'onEscape($event)',
@@ -92,12 +121,44 @@ export class EndRentalDialog {
   /** `complete` (verde, "Concluir aluguel") ou `cancel` (vermelho, "Cancelar aluguel"). */
   intent = input<EndRentalIntent>('complete');
 
+  /**
+   * Conta da multa para a data/hora atualmente escolhida, buscada pelo caller.
+   * `null` = ainda não chegou (ou o intent é `cancel`, que não tem multa).
+   */
+  overduePreview = input<OverdueFeeSummary | null>(null);
+  overduePreviewLoading = input<boolean>(false);
+  overduePreviewError = input<string | null>(null);
+  /** OWNER/MANAGER vê o atalho para a tela da regra; membro comum só lê a regra. */
+  canConfigureOverdue = input<boolean>(false);
+
   confirmed = output<EndRentalDialogPayload>();
   cancelled = output<void>();
+  /** Data-e-hora local escolhida para a devolução — dispara a prévia no caller. */
+  returnAtChanged = output<string>();
 
-  private readonly _today = todayIso();
+  /**
+   * "Hoje" e "agora" em BRASÍLIA, reavaliados a cada abertura — o dialog vive
+   * tanto quanto a página do aluguel, e um popup aberto antes da meia-noite não
+   * pode propor a data de ontem.
+   */
+  protected readonly today = signal<string>(todayInBusinessTz());
 
-  protected readonly selectedDate = signal<string>(this._today);
+  protected readonly selectedDate = signal<string>(this.today());
+  /** Hora da devolução. Só entra no fluxo de conclusão. */
+  protected readonly returnTime = signal<string>(nowHhMmInBusinessTz());
+  /** "Ciente da multa" — exigido antes de confirmar quando há valor a cobrar. */
+  protected readonly overdueAck = signal<boolean>(false);
+  /**
+   * "Ciente de que NÃO SEI o valor" — exigido quando a prévia falha. Deliberamente
+   * separado do `overdueAck`: são riscos diferentes, e um consentimento dado
+   * para um valor visível não pode valer como consentimento para um desconhecido.
+   */
+  protected readonly overdueBlindAck = signal<boolean>(false);
+  /**
+   * Incrementado por "Tentar de novo". Existe só para o `effect` da prévia ter
+   * uma dependência que mude quando o instante escolhido NÃO mudou.
+   */
+  private readonly previewNonce = signal<number>(0);
   protected readonly reason = signal<string>('');
   protected readonly refundMethod = signal<CaucaoRefundMethod>('AUTOMATIC');
   protected readonly refundAmountCents = signal<number>(0);
@@ -105,7 +166,7 @@ export class EndRentalDialog {
   protected readonly removeOverdueCharges = signal<boolean>(false);
 
   protected readonly minDate = computed(() => this.rental().startDate);
-  protected readonly maxDate = computed(() => this._today);
+  protected readonly maxDate = computed(() => this.today());
 
   /** Charges CAUCAO já pagas. O backend age sobre a primeira que encontrar. */
   private readonly paidCaucaoCharges = computed(() =>
@@ -166,10 +227,18 @@ export class EndRentalDialog {
     return paid > 0 ? Math.min(paid, cap) : cap;
   });
 
-  /** Diferença em dias entre a data escolhida e o endDate programado. */
+  /**
+   * A data que REALMENTE vai ser enviada — a escolhida, já limitada à faixa
+   * aceita. Fonte única: prévia, rótulo e payload leem daqui. Enquanto a prévia
+   * era pedida com a data crua e o payload saía com a clampada, o valor
+   * confirmado podia não ser o previsto.
+   */
+  protected readonly effectiveDate = computed<string>(() => this.clampDate(this.selectedDate()));
+
+  /** Diferença em dias entre a data efetiva e o endDate programado. */
   protected readonly daysBeforeEnd = computed<number>(() => {
     const r = this.rental();
-    const chosen = this.selectedDate();
+    const chosen = this.effectiveDate();
     if (!chosen) return 0;
     const chosenMs = new Date(chosen + 'T00:00:00').getTime();
     const endMs = new Date(r.endDate + 'T00:00:00').getTime();
@@ -177,15 +246,21 @@ export class EndRentalDialog {
   });
 
   protected readonly previewLabel = computed<string>(() => {
-    const chosen = this.selectedDate();
+    const chosen = this.effectiveDate();
     if (!chosen) return '';
     const chosenLabel = new Date(chosen + 'T00:00:00').toLocaleDateString('pt-BR');
     if (this.intent() === 'cancel') {
       return `Cancelamento em ${chosenLabel}`;
     }
     const diff = this.daysBeforeEnd();
-    if (diff <= 0) return `Concluído em ${chosenLabel} (dentro do prazo)`;
-    return `Concluído em ${chosenLabel} — ${diff} dia(s) antes do fim programado`;
+    if (diff > 0) return `Concluído em ${chosenLabel} — ${diff} dia(s) antes do fim programado`;
+    // "Dentro do prazo" só quando a prévia confirma. Antes desta feature a
+    // frase saía de `endDate - data escolhida <= 0`, que é devolução PONTUAL ou
+    // ATRASADA — e o rodapé jurava "dentro do prazo" logo abaixo do painel que
+    // mostrava a multa.
+    if (this.hasOverdueFee()) return `Concluído em ${chosenLabel} — devolução em atraso`;
+    if (this.onTimeConfirmed()) return `Concluído em ${chosenLabel} (dentro do prazo)`;
+    return `Concluído em ${chosenLabel}`;
   });
 
   /**
@@ -245,6 +320,117 @@ export class EndRentalDialog {
       : 'Reter o valor da caução.',
   );
 
+  // ------------------------------------------------------------------
+  // Multa por devolução em atraso (V53). Nada disso existe no cancelamento.
+  // ------------------------------------------------------------------
+
+  /** `2026-07-22T23:00:00` — local, sem offset, como o backend espera. */
+  protected readonly actualReturnAt = computed<string>(() =>
+    toLocalDateTime(this.effectiveDate(), this.returnTime()),
+  );
+
+  protected readonly isComplete = computed(() => this.intent() === 'complete');
+
+  /** Prévia relevante: só na conclusão, e só depois que o caller a entregou. */
+  protected readonly overdue = computed<OverdueFeeSummary | null>(() =>
+    this.isComplete() ? this.overduePreview() : null,
+  );
+
+  /**
+   * **NÃO SEI o valor.** Terceiro estado, e o mais perigoso: a prévia falhou.
+   *
+   * "Não consegui calcular" não é "não há multa". O backend aplica a regra na
+   * conclusão de qualquer jeito — a falha é da CONSULTA, não da cobrança. Sem
+   * este estado, o erro zerava a prévia, `hasOverdueFee` virava `false`, o
+   * "ciente" desaparecia e o botão destravava: o cliente era cobrado sem que o
+   * valor tivesse aparecido na tela uma única vez.
+   */
+  protected readonly overdueUnknown = computed<boolean>(
+    () => this.isComplete() && this.overduePreviewError() !== null,
+  );
+
+  /**
+   * Há multa a mostrar. Multa de zero centavo o backend nunca lança.
+   * Nunca verdadeiro sem prévia — com erro, o que vale é {@link overdueUnknown}.
+   */
+  protected readonly hasOverdueFee = computed<boolean>(() => {
+    const preview = this.overdue();
+    return !this.overdueUnknown() && preview !== null && preview.overdue && preview.amount > 0;
+  });
+
+  /**
+   * Devolução no prazo: mostramos a confirmação SEM valor nenhum. Exibir
+   * "R$ 0,00" só ensinaria o operador a ignorar o bloco quando ele importa.
+   *
+   * Exige prévia RESPONDIDA: afirmar "dentro do prazo" com a consulta quebrada
+   * seria a tela garantindo algo que ela não sabe.
+   */
+  protected readonly onTimeConfirmed = computed<boolean>(() => {
+    const preview = this.overdue();
+    return !this.overdueUnknown() && preview !== null && !this.hasOverdueFee();
+  });
+
+  /** Multa já lançada — a tela informa, não pede novo consentimento. */
+  protected readonly overdueAlreadyCharged = computed<boolean>(
+    () => this.hasOverdueFee() && this.overdue()?.chargeId != null,
+  );
+
+  /** O "ciente" só é exigido para uma multa que ainda vai ser criada. */
+  protected readonly requiresOverdueAck = computed<boolean>(
+    () => this.hasOverdueFee() && !this.overdueAlreadyCharged(),
+  );
+
+  /** `2 diárias × R$ 100,00 × 1,5x = R$ 300,00`. */
+  protected readonly overdueFormula = computed<string>(() => {
+    const preview = this.overdue();
+    return preview ? overdueFeeFormula(preview) : '';
+  });
+
+  /** Só o total, para o destaque e para a frase do "ciente". */
+  protected readonly overdueFormulaTotal = computed<string>(() =>
+    formatBRL(this.overdue()?.amount ?? 0),
+  );
+
+  protected readonly overdueDueAtLabel = computed<string>(() =>
+    formatLocalDateTime(this.overdue()?.dueAt),
+  );
+
+  protected readonly overdueReturnedAtLabel = computed<string>(() =>
+    formatLocalDateTime(this.overdue()?.returnedAt),
+  );
+
+  /** Regra em vigor, legível por qualquer membro — inclusive quem não edita. */
+  protected readonly overdueRule = computed<string>(() => {
+    const preview = this.overdue();
+    if (!preview) return '';
+    return overdueRuleLabel(preview.multiplierBps, preview.graceHours);
+  });
+
+  protected readonly overdueGraceLabel = computed<string>(() =>
+    graceHoursLabel(this.overdue()?.graceHours ?? 0),
+  );
+
+  protected readonly overdueMultiplierLabel = computed<string>(() =>
+    multiplierLabel(this.overdue()?.multiplierBps ?? 0),
+  );
+
+  /**
+   * Trava do botão. Além do "ciente", segura enquanto a prévia está em voo:
+   * confirmar no meio do recálculo geraria uma cobrança que o usuário não viu.
+   *
+   * Com a prévia QUEBRADA a trava não some — troca de dono. Bloquear para
+   * sempre não é opção defensável: o veículo já voltou, e uma indisponibilidade
+   * do preview deixaria o aluguel `ACTIVE` faturando. Então o caminho existe,
+   * mas só através de uma ciência própria e explícita — ver {@link overdueBlindAck}.
+   */
+  protected readonly canConfirm = computed<boolean>(() => {
+    if (this.busy() || !this.selectedDate()) return false;
+    if (!this.isComplete()) return true;
+    if (this.overduePreviewLoading()) return false;
+    if (this.overdueUnknown()) return this.overdueBlindAck();
+    return !this.requiresOverdueAck() || this.overdueAck();
+  });
+
   protected readonly confirmLabel = computed(() =>
     this.intent() === 'cancel' ? 'Cancelar aluguel' : 'Concluir aluguel',
   );
@@ -271,13 +457,30 @@ export class EndRentalDialog {
     // Reset a cada abertura: hoje / campos limpos / refund default.
     effect(() => {
       if (this.open()) {
-        this.selectedDate.set(this._today);
+        // Releitura do relógio de Brasília: a instância sobrevive à página.
+        const today = todayInBusinessTz();
+        this.today.set(today);
+        this.selectedDate.set(today);
+        this.returnTime.set(nowHhMmInBusinessTz());
         this.reason.set('');
         this.removeOverdueCharges.set(false);
+        // O "ciente" nunca sobrevive a uma reabertura: o valor pode ter mudado.
+        this.overdueAck.set(false);
+        this.overdueBlindAck.set(false);
         // Nunca pré-selecionar devolução: `NONE` em todos os estados.
         this.refundMethod.set('NONE');
         this.refundAmountCents.set(0);
       }
+    });
+
+    // Pede a prévia ao caller sempre que o instante da devolução muda — e já na
+    // abertura, para o valor estar na tela antes do primeiro clique.
+    effect(() => {
+      if (!this.open() || !this.isComplete()) return;
+      // Lido para o "Tentar de novo" reemitir o MESMO instante após uma falha.
+      this.previewNonce();
+      const at = this.actualReturnAt();
+      if (at) this.returnAtChanged.emit(at);
     });
 
     // Rede de segurança: se o rental for recarregado com o dialog aberto e a
@@ -293,6 +496,44 @@ export class EndRentalDialog {
 
   protected onDateInput(event: Event): void {
     this.selectedDate.set((event.target as HTMLInputElement).value);
+    // O valor da multa muda com a data: um "ciente" antigo não vale para ele.
+    this.dropOverdueConsent();
+  }
+
+  protected onReturnTimeInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    // `<input type="time">` devolve '' enquanto o usuário digita — manter o
+    // último horário válido evita disparar prévia com data-e-hora quebrada.
+    if (!value) return;
+    this.returnTime.set(value);
+    this.dropOverdueConsent();
+  }
+
+  protected onOverdueAckToggle(event: Event): void {
+    this.overdueAck.set((event.target as HTMLInputElement).checked);
+  }
+
+  protected onOverdueBlindAckToggle(event: Event): void {
+    this.overdueBlindAck.set((event.target as HTMLInputElement).checked);
+  }
+
+  /**
+   * Repete o pedido da prévia para o instante já escolhido. É o caminho barato
+   * de sair do estado "não sei": sem ele, a única saída seria mexer na hora da
+   * devolução — o que muda a própria cobrança — ou concluir às cegas.
+   */
+  protected retryPreview(): void {
+    if (this.busy()) return;
+    this.previewNonce.update((n) => n + 1);
+  }
+
+  /**
+   * Qualquer mudança no instante invalida os DOIS consentimentos: o valor
+   * consentido some junto com a conta que o produziu.
+   */
+  private dropOverdueConsent(): void {
+    this.overdueAck.set(false);
+    this.overdueBlindAck.set(false);
   }
 
   protected onReasonInput(event: Event): void {
@@ -322,13 +563,18 @@ export class EndRentalDialog {
   }
 
   protected onConfirm(): void {
-    if (this.busy()) return;
-    const chosen = this.clampDate(this.selectedDate());
+    if (!this.canConfirm()) return;
+    const chosen = this.effectiveDate();
     const reason = this.reason().trim();
     const payload: EndRentalDialogPayload = {
       date: chosen,
       removeOverdueCharges: this.removeOverdueCharges(),
     };
+    // Mesmíssimo `computed` que alimentou a prévia — é o que garante que o valor
+    // cobrado seja o valor mostrado.
+    if (this.isComplete()) {
+      payload.actualReturnAt = this.actualReturnAt();
+    }
     if (reason.length > 0) payload.endReason = reason;
     if (this.showRefundSection()) {
       const method = this.refundMethod();
@@ -369,14 +615,6 @@ export class EndRentalDialog {
     if (max && clamped > max) clamped = max;
     return clamped;
   }
-}
-
-function todayIso(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
 }
 
 function formatBRL(cents: number): string {

@@ -17,6 +17,7 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { SessionService } from '../../services/session.service';
 import { CompanyService } from '../../services/company.service';
+import { InvitesService } from '../../services/invites.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { clearServerErrors } from '../../services/api-error';
@@ -88,6 +89,7 @@ export class CompanySettings implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly sessionService = inject(SessionService);
   private readonly companyService = inject(CompanyService);
+  private readonly invitesService = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly layoutStore = inject(LayoutStore);
@@ -96,6 +98,10 @@ export class CompanySettings implements OnInit {
 
   ngOnInit(): void {
     this.loadCompanyInfo();
+    // The invite count is a secondary stat here; a failure hides the card instead of
+    // shouting. Claiming the error keeps the interceptor's safety-net toast quiet — the
+    // dedicated /configuracoes/convites screen is where invite errors are explained.
+    this.invitesService.list().subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
   }
 
   protected readonly companyInfo = signal<CompanyFullResponse | null>(null);
@@ -129,11 +135,15 @@ export class CompanySettings implements OnInit {
     joinedAt: '',
   });
 
-  // TODO: replace with real API data once endpoints are available
+  // TODO: `activeUsers` is still a placeholder — it needs the company-members endpoint,
+  // which is a separate queued feature. `pendingInvites` below is real.
   protected readonly stats = signal<CompanyStats>({
     activeUsers: 12,
-    pendingInvites: 3,
   });
+
+  /** Real pending-invite count, from `GET /v1/invites`. */
+  protected readonly pendingInvites = this.invitesService.pendingCount;
+  protected readonly invitesLoaded = this.invitesService.loaded;
 
   protected copyToClipboard(text: string): void {
     navigator.clipboard.writeText(text);

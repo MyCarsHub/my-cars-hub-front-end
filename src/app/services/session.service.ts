@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 
+import { SessionResetRegistry } from './session-reset.registry';
 import { TelemetryService } from './telemetry.service';
 
 @Injectable({
@@ -8,6 +9,7 @@ import { TelemetryService } from './telemetry.service';
 export class SessionService {
 
   private readonly telemetry = inject(TelemetryService);
+  private readonly resetRegistry = inject(SessionResetRegistry);
 
   private get isBrowser(): boolean {
     return typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
@@ -39,6 +41,18 @@ export class SessionService {
     }
   }
 
+  /**
+   * Derruba a sessão inteira.
+   *
+   * Zerar o armazenamento NÃO basta: os serviços `providedIn: 'root'` seguem
+   * vivos na mesma aba com o estado em memória intacto. Por isso os ganchos do
+   * `SessionResetRegistry` rodam aqui — é o que garante que a sessão de
+   * impersonação e os caches por empresa morram em TODO caminho que zera a
+   * sessão, e não só no `logout()`. Ver `session-reset.registry.ts`.
+   *
+   * Os ganchos rodam DEPOIS do wipe, de propósito: um gancho que releia o
+   * armazenamento precisa enxergar a sessão já vazia.
+   */
   clear(): void {
     if (this.isBrowser) {
       sessionStorage.clear();
@@ -49,6 +63,7 @@ export class SessionService {
     } catch {
       // Sentry may not be initialized (e.g. dev without DSN); safe to ignore.
     }
+    this.resetRegistry.run();
   }
 
   setToken(token: string): void {
@@ -116,6 +131,49 @@ export class SessionService {
       return payload.system_role === 'PLATFORM_ADMIN' ? 'PLATFORM_ADMIN' : 'USER';
     } catch {
       return 'USER';
+    }
+  }
+
+  /**
+   * Lê o claim `companyId` do JWT — a MESMA fonte que o backend usa para resolver
+   * o tenant em `PUT /v1/companies/me` (`requireTenant()`).
+   *
+   * Existe porque `sessionStorage.selectedCompanyId` e o token PODEM divergir na
+   * mesma sessão: `LayoutStore.selectTenant` troca a empresa selecionada e navega
+   * sem pedir um token novo em `/auth/select-company/{id}`. Para uma tela que
+   * apenas exibe, a divergência é cosmética; para uma que LÊ de `/companies/{id}`
+   * e ESCREVE em `/companies/me`, ela significa gravar os dados de uma empresa por
+   * cima de outra. Quem precisa que leitura e escrita caiam no mesmo tenant lê
+   * daqui, não do sessionStorage.
+   *
+   * Fail-closed: token ausente, malformado ou expirado devolve `null`, e a tela
+   * trata isso como "não deu para carregar" em vez de chutar uma empresa.
+   */
+  getCompanyIdFromToken(): string | null {
+    if (!this.isBrowser) {
+      return null;
+    }
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        return null;
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return null;
+      }
+      const payload = JSON.parse(this.base64UrlDecode(parts[1])) as {
+        companyId?: unknown;
+        exp?: unknown;
+      };
+      if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) {
+        return null;
+      }
+      return typeof payload.companyId === 'string' && payload.companyId.length > 0
+        ? payload.companyId
+        : null;
+    } catch {
+      return null;
     }
   }
 

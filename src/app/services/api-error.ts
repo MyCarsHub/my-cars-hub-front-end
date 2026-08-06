@@ -10,10 +10,17 @@ import { SERVER_ERROR_KEY, ServerFieldError } from './validation-messages';
  *    entry whose value is IDENTICAL to `message` — show one or the other, never both.
  * 3. Everything else: `{ message }`, with `fieldErrors` absent (not null).
  *
- * The backend never sends `error`, `exception` or `code`.
+ * The backend never sends `error` or `exception`.
+ *
+ * `code` is the one exception to shape 3 and vem só das recusas escritas dentro
+ * do `JwtAuthFilter` (impersonação: `IMPERSONATION_READ_ONLY`,
+ * `IMPERSONATION_INVALID_TOKEN`, …), que não passam pelo
+ * `GlobalExceptionHandler`. Ausente em todo o resto — trate sempre como
+ * opcional.
  */
 export interface ApiErrorBody {
   message?: string;
+  code?: string;
   errors?: ReadonlyArray<{ field?: string; message?: string }>;
   fieldErrors?: Record<string, string>;
 }
@@ -22,6 +29,8 @@ export interface ParsedApiError {
   status: number;
   /** Backend `message`, or `null` when absent / not a JSON body. */
   message: string | null;
+  /** Backend `code`, or `null` — presente apenas nas recusas do `JwtAuthFilter`. */
+  code: string | null;
   /** Never null — empty object when the backend omitted the key. */
   fieldErrors: Readonly<Record<string, string>>;
   hasFieldErrors: boolean;
@@ -76,16 +85,17 @@ export function parseApiError(error: unknown): ParsedApiError {
   const body = typeof raw === 'string' && raw.length > 0 ? reviveJsonEnvelope(raw) : raw;
 
   if (typeof body === 'string' && body.length > 0) {
-    return { status, message: body, fieldErrors: {}, hasFieldErrors: false };
+    return { status, message: body, code: null, fieldErrors: {}, hasFieldErrors: false };
   }
   if (!isRecord(body)) {
-    return { status, message: null, fieldErrors: {}, hasFieldErrors: false };
+    return { status, message: null, code: null, fieldErrors: {}, hasFieldErrors: false };
   }
 
   const fieldErrors = readFieldErrors(body);
   return {
     status,
     message: typeof body['message'] === 'string' ? body['message'] : null,
+    code: typeof body['code'] === 'string' && body['code'].length > 0 ? body['code'] : null,
     fieldErrors,
     hasFieldErrors: Object.keys(fieldErrors).length > 0,
   };

@@ -120,9 +120,11 @@
         </div>
         <div>
           <p class="text-xs text-gray-500 uppercase tracking-wide">Último login</p>
-          <p class="text-sm text-gray-900 mt-1 tabular-nums">
-            {{ formatDateTime(user.lastLoginAt) }}
-          </p>
+          @if (lastLogin(); as value) {
+            <p class="text-sm text-gray-900 mt-1 tabular-nums">{{ value }}</p>
+          } @else {
+            <p class="text-sm text-gray-500 mt-1">Sem registro de acesso</p>
+          }
         </div>
         <div>
           <p class="text-xs text-gray-500 uppercase tracking-wide">Papel de sistema</p>

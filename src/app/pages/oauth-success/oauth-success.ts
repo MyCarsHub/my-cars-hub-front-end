@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
 import { SessionService } from '../../services/session.service';
+import { PENDING_INVITE_TOKEN_KEY } from '../invites/invite-session';
 
 interface OauthExchangeResponse {
   token: string;
@@ -66,11 +67,27 @@ export class OauthSuccess implements OnInit {
   }
 
   private completeLogin(token: string): void {
+    // Read BEFORE the wipe: `clear()` takes sessionStorage down wholesale.
+    const pendingInvite = this.sessionService.getItem(PENDING_INVITE_TOKEN_KEY);
+
     // Wipe any leftover state from a previous login (companies=[], selectedCompanyId,
     // onboardingCompleted=false, etc). Sem isso, um relogin depois de trocar de
     // usuário/onboarding herda cache velho e o user cai num dashboard 403 mudo.
     this.sessionService.clear();
     this.sessionService.setToken(token);
+
+    // Invite flow: this login exists only to accept an invitation. `/auth/me` is skipped
+    // on purpose — the invitee has no company yet (it would bounce them to /onboarding),
+    // and the accept response is what supplies the company-scoped token.
+    if (pendingInvite) {
+      this.sessionService.setItem(PENDING_INVITE_TOKEN_KEY, pendingInvite);
+      this.router.navigate(['/invite/accept'], {
+        queryParams: { token: pendingInvite },
+        replaceUrl: true,
+      });
+      return;
+    }
+
     this.authService.getMe().subscribe({
       next: (user) => {
         // PLATFORM_ADMIN operates above the tenant model — bypass onboarding

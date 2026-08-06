@@ -12,11 +12,14 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
 import { DailyCount } from '../../types/admin-overview.types';
 import { AdminEmailTestDialog } from './components/admin-email-test-dialog';
+import { AdminOpsToolsDialog } from './components/admin-ops-tools-dialog';
 import { ApiErrorService } from '../../services/api-error.service';
+
+type AdminSectionAction = 'openEmailTest' | 'openOpsTools';
 
 interface AdminSection {
   route: string | null;
-  action?: 'openEmailTest';
+  action?: AdminSectionAction;
   title: string;
   description: string;
   icon: string;
@@ -56,11 +59,30 @@ const SECTIONS: AdminSection[] = [
     icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
   },
   {
+    route: '/admin/auditoria',
+    title: 'Auditoria',
+    description: 'Trilha de todas as ações administrativas: quem fez, o que e quando.',
+    icon: 'M9 11l3 3 8-8 M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9',
+  },
+  {
+    route: '/admin/billing',
+    title: 'Billing',
+    description: 'Assinaturas, problemas de cobrança em aberto e MRR por plano.',
+    icon: 'M2 10h20 M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M7 15h2',
+  },
+  {
     route: null,
     action: 'openEmailTest',
     title: 'Testar templates',
     description: 'Envia todos os 13 templates para um email de validação.',
     icon: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6 12 13 2 6',
+  },
+  {
+    route: null,
+    action: 'openOpsTools',
+    title: 'Ferramentas',
+    description: 'Ações operacionais de suporte, como regenerar o cronograma de um aluguel.',
+    icon: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
   },
 ];
 
@@ -80,6 +102,13 @@ const SUB_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
   { key: 'EXPIRED', label: 'Expirada', color: '#ef4444' },
 ];
 
+const RENTAL_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
+  { key: 'RESERVED', label: 'Reservado', color: '#3b82f6' },
+  { key: 'ACTIVE', label: 'Em andamento', color: '#10b981' },
+  { key: 'COMPLETED', label: 'Concluído', color: '#6366f1' },
+  { key: 'CANCELED', label: 'Cancelado', color: '#6b7280' },
+];
+
 const FB_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
   { key: 'BACKLOG', label: 'Backlog', color: '#9ca3af' },
   { key: 'PLANNED', label: 'Planejado', color: '#3b82f6' },
@@ -87,6 +116,12 @@ const FB_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
   { key: 'DONE', label: 'Concluído', color: '#10b981' },
   { key: 'REJECTED', label: 'Rejeitado', color: '#ef4444' },
 ];
+
+/** Contagem + valor em REAIS (o backend entrega centavos; a conversão é aqui). */
+interface VolumeStat {
+  count: number;
+  amount: number;
+}
 
 interface SparkPoint {
   x: number;
@@ -106,7 +141,7 @@ interface Spark {
 @Component({
   selector: 'app-admin-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, PageCard, RouterLink, AdminEmailTestDialog],
+  imports: [DefaultPageLayout, PageCard, RouterLink, AdminEmailTestDialog, AdminOpsToolsDialog],
   templateUrl: './admin-home.html',
 })
 export class AdminHome implements OnInit {
@@ -115,14 +150,7 @@ export class AdminHome implements OnInit {
 
   protected readonly sections = SECTIONS;
   protected readonly emailTestOpen = signal(false);
-
-  protected openEmailTest(): void {
-    this.emailTestOpen.set(true);
-  }
-
-  protected closeEmailTest(): void {
-    this.emailTestOpen.set(false);
-  }
+  protected readonly opsToolsOpen = signal(false);
   protected readonly overview = this.metricsService.overview;
   protected readonly loading = this.metricsService.loading;
   protected readonly error = this.metricsService.error;
@@ -207,6 +235,42 @@ export class AdminHome implements OnInit {
     });
   });
 
+  /**
+   * Aluguel FECHADO = status diferente de CANCELED. É negócio efetivado
+   * (reservado, em andamento ou concluído), NÃO "concluído".
+   */
+  protected readonly closedRentals = computed<VolumeStat>(() => {
+    const r = this.overview()?.rentals;
+    return { count: r?.closedTotal ?? 0, amount: (r?.closedAmountCents ?? 0) / 100 };
+  });
+
+  /** Recorte conservador: apenas aluguéis COMPLETED. */
+  protected readonly completedRentals = computed<VolumeStat>(() => {
+    const r = this.overview()?.rentals;
+    return { count: r?.completedTotal ?? 0, amount: (r?.completedAmountCents ?? 0) / 100 };
+  });
+
+  protected readonly contractsTotal = computed(() => this.overview()?.contracts?.total ?? 0);
+
+  /** SUBCONJUNTO de `contractsTotal` — nunca exibir como total de contratos. */
+  protected readonly contractsSigned = computed(() => this.overview()?.contracts?.signedTotal ?? 0);
+
+  /** `byStatus` é esparso: status sem registro some do mapa e vale zero. */
+  protected readonly rentalBars = computed<StatusBar[]>(() => {
+    const map = this.overview()?.rentals?.byStatus ?? {};
+    const total = Object.values(map).reduce((sum, n) => sum + n, 0);
+    return RENTAL_STATUS_ORDER.map((s) => {
+      const count = map[s.key] ?? 0;
+      return {
+        key: s.key,
+        label: s.label,
+        count,
+        color: s.color,
+        percent: total > 0 ? (count / total) * 100 : 0,
+      };
+    });
+  });
+
   protected readonly usersSpark = computed<Spark | null>(() => {
     const days = this.overview()?.users.newByDay;
     if (!days || days.length === 0) return null;
@@ -246,6 +310,36 @@ export class AdminHome implements OnInit {
     this.metricsService
       .loadOverview()
       .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+  }
+
+  /**
+   * Cards sem rota abrem um diálogo; a seção declara qual pela sua `action`.
+   * O `default` atribui a ação a `never`: uma nova entrada em `AdminSectionAction`
+   * sem `case` aqui quebra a COMPILAÇÃO em vez de renderizar um botão inerte.
+   */
+  protected openAction(section: AdminSection): void {
+    switch (section.action) {
+      case 'openEmailTest':
+        this.emailTestOpen.set(true);
+        return;
+      case 'openOpsTools':
+        this.opsToolsOpen.set(true);
+        return;
+      case undefined:
+        return;
+      default: {
+        const unhandled: never = section.action;
+        throw new Error(`Ação administrativa não tratada: ${String(unhandled)}`);
+      }
+    }
+  }
+
+  protected closeEmailTest(): void {
+    this.emailTestOpen.set(false);
+  }
+
+  protected closeOpsTools(): void {
+    this.opsToolsOpen.set(false);
   }
 
   protected formatCurrency(value: number): string {
