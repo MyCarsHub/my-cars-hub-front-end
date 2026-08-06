@@ -1,27 +1,53 @@
 <app-default-page-layout
   title="Suporte"
-  description="Tickets abertos pelos usuários. Marque como Em atendimento ou Resolvido conforme responder."
+  description="Tickets abertos pelos usuários. Abra um ticket para ler a thread, responder o autor e definir um responsável."
 >
   <div class="space-y-4">
+    <!-- ================= FILTROS ================= -->
     <app-page-card title="Filtros">
-      <div class="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-end gap-3">
-        <div class="flex-1">
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="filter-status">
-            Status
+      <div class="p-4 sm:p-6 space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="block">
+            <span class="block text-sm font-medium text-neutral-700 mb-1.5">Status</span>
+            <select
+              (change)="onStatusFilterChange($any($event.target).value)"
+              [value]="statusFilter()"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800
+                     min-h-[44px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            >
+              <option value="">Todos os status</option>
+              <option value="OPEN">Aberto</option>
+              <option value="IN_PROGRESS">Em atendimento</option>
+              <option value="RESOLVED">Resolvido</option>
+            </select>
           </label>
-          <select
-            id="filter-status"
-            (change)="onFilterChange($any($event.target).value)"
-            [value]="statusFilter()"
-            class="w-full sm:w-64 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
-                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
-          >
-            <option value="">Todos</option>
-            <option value="OPEN">Aberto</option>
-            <option value="IN_PROGRESS">Em atendimento</option>
-            <option value="RESOLVED">Resolvido</option>
-          </select>
+
+          <label class="block">
+            <span class="block text-sm font-medium text-neutral-700 mb-1.5">Empresa</span>
+            <select
+              (change)="onCompanyFilterChange($any($event.target).value)"
+              [value]="companyFilter()"
+              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800
+                     min-h-[44px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+            >
+              <option value="">Todas as empresas</option>
+              @for (company of companies(); track company.id) {
+                <option [value]="company.id">{{ company.name }}</option>
+              }
+            </select>
+          </label>
         </div>
+
+        @if (hasFilters()) {
+          <button
+            type="button"
+            (click)="clearFilters()"
+            class="text-xs px-3 py-2 rounded-full border border-neutral-200 bg-white text-neutral-700
+                   hover:bg-neutral-50 min-h-[36px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+          >
+            Limpar filtros
+          </button>
+        }
       </div>
     </app-page-card>
 
@@ -31,57 +57,78 @@
     }
 
     <app-page-card title="Tickets ({{ total() }})">
-      <div class="p-2 sm:p-3">
-        @if (loading()) {
-          <p class="text-sm text-neutral-500 p-4">Carregando…</p>
+      <div class="p-3 sm:p-4 space-y-4">
+        @if (loading() && items().length === 0) {
+          <div class="space-y-2" aria-hidden="true">
+            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+          </div>
         } @else if (items().length === 0) {
-          <p class="text-sm text-neutral-500 p-4">Nenhum ticket encontrado.</p>
+          <p class="text-sm text-neutral-500 text-center py-10">
+            @if (hasFilters()) {
+              Nenhum ticket encontrado com esses filtros.
+            } @else {
+              Nenhum ticket registrado ainda.
+            }
+          </p>
         } @else {
-          <ul class="divide-y divide-neutral-100">
+          <ul class="space-y-3 list-none">
             @for (t of items(); track t.id) {
-              <li class="p-3 sm:p-4">
-                <div class="flex flex-wrap items-start justify-between gap-2">
-                  <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span
-                        class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                        [class]="statusMeta[t.status].chip"
-                      >
-                        {{ statusMeta[t.status].label }}
-                      </span>
-                      <span
-                        class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-700"
-                      >
-                        {{ channelLabel[t.channel] }}
-                      </span>
-                      <span class="text-xs text-neutral-500">
-                        {{ t.createdDate | date: 'dd/MM/yyyy HH:mm' }}
-                      </span>
-                    </div>
-                    <p
-                      class="text-sm text-neutral-800 mt-1.5"
-                      [class.line-clamp-2]="expandedId() !== t.id"
-                    >
-                      {{ t.message }}
-                    </p>
-                    @if (t.message.length > 140) {
-                      <button
-                        type="button"
-                        (click)="toggleExpand(t.id)"
-                        class="text-xs text-primary-700 hover:text-primary-800 font-medium mt-1"
-                      >
-                        {{ expandedId() === t.id ? 'Recolher' : 'Ler mensagem completa' }}
-                      </button>
-                    }
-                    <p class="text-[11px] text-neutral-400 mt-1">
-                      Ticket {{ t.id.slice(0, 8) }} · Company
-                      {{ t.companyId ? t.companyId.slice(0, 8) : '—' }}
-                    </p>
-                  </div>
+              <li class="rounded-xl border border-neutral-200 bg-white">
+                <!-- ---------------- Resumo do ticket ---------------- -->
+                <div class="p-3 sm:p-4">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1 space-y-1.5">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span
+                          class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+                          [class]="statusMeta[t.status].chip"
+                        >
+                          {{ statusMeta[t.status].label }}
+                        </span>
+                        <span
+                          class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-200 text-neutral-800"
+                        >
+                          {{ channelLabel[t.channel] }}
+                        </span>
+                        <time
+                          class="text-xs text-neutral-500 tabular-nums"
+                          [attr.datetime]="t.createdDate"
+                        >
+                          {{ t.createdDate | date: 'dd/MM/yyyy HH:mm' }}
+                        </time>
+                      </div>
 
-                  <div class="w-full sm:w-auto shrink-0 space-y-2">
-                    <div class="flex items-center justify-end">
-                      <app-actions-menu [label]="'Ações para o ticket ' + t.id.slice(0, 8)">
+                      <p class="text-sm font-medium text-neutral-900 break-words">
+                        {{ companyLabel(t) }}
+                      </p>
+                      <p class="text-xs text-neutral-600 break-words">
+                        {{ authorLabel(t) }}
+                        @if (t.userEmail) {
+                          · {{ t.userEmail }}
+                        }
+                      </p>
+
+                      <p class="text-sm text-neutral-800 line-clamp-2 break-words">
+                        {{ t.message }}
+                      </p>
+
+                      <div
+                        class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-600 pt-0.5"
+                      >
+                        <span>Responsável: {{ assigneeLabel(t) }}</span>
+                        <span class="tabular-nums">{{ t.replyCount }} resposta(s)</span>
+                        @if (t.lastReplyAt) {
+                          <span class="tabular-nums">
+                            Última em {{ t.lastReplyAt | date: 'dd/MM/yyyy HH:mm' }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+
+                    <div class="shrink-0">
+                      <app-actions-menu [label]="'Ações para o ticket de ' + authorLabel(t)">
                         @if (t.status !== 'IN_PROGRESS' && t.status !== 'RESOLVED') {
                           <button
                             type="button"
@@ -113,65 +160,206 @@
                         }
                       </app-actions-menu>
                     </div>
-
-                    <!-- Erro da operação, ancorado na linha que o causou. -->
-                    @if (actionErrorFor(t.id); as rowError) {
-                      <div class="flex items-start gap-1.5 sm:max-w-xs">
-                        <app-alert-banner
-                          variant="error"
-                          [message]="rowError"
-                          class="flex-1 min-w-0"
-                        />
-                        <button
-                          type="button"
-                          (click)="dismissActionError()"
-                          aria-label="Dispensar mensagem de erro"
-                          class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-lg text-rose-700
-                                 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2.5"
-                            stroke-linecap="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M18 6 6 18M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    }
                   </div>
+
+                  <div class="mt-2">
+                    <button
+                      type="button"
+                      (click)="toggleTicket(t)"
+                      [attr.aria-expanded]="isOpen(t.id)"
+                      [attr.aria-controls]="isOpen(t.id) ? 'ticket-detail-' + t.id : null"
+                      class="text-xs font-medium text-primary-700 hover:text-primary-800 underline
+                             min-h-[36px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                    >
+                      {{ isOpen(t.id) ? 'Fechar ticket' : 'Abrir ticket e responder' }}
+                    </button>
+                  </div>
+
+                  <!-- Erro da operação de status, ancorado na linha que o causou. -->
+                  @if (actionErrorFor(t.id); as rowError) {
+                    <div class="flex items-start gap-1.5 mt-2">
+                      <app-alert-banner
+                        variant="error"
+                        [message]="rowError"
+                        class="flex-1 min-w-0"
+                      />
+                      <button
+                        type="button"
+                        (click)="dismissActionError()"
+                        aria-label="Dispensar mensagem de erro"
+                        class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-lg text-rose-700
+                               hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  }
                 </div>
+
+                <!-- ---------------- Ticket aberto: thread + ações ---------------- -->
+                @if (isOpen(t.id)) {
+                  <div
+                    [id]="'ticket-detail-' + t.id"
+                    class="border-t border-neutral-100 bg-neutral-50/60 p-3 sm:p-4 space-y-4"
+                  >
+                    @if (detailError(); as openError) {
+                      <app-alert-banner variant="error" [message]="openError" />
+                    }
+
+                    <!-- Mensagem original, completa -->
+                    <section class="space-y-1.5">
+                      <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Mensagem do autor
+                      </h3>
+                      <p class="text-sm text-neutral-800 whitespace-pre-wrap break-words">
+                        {{ t.message }}
+                      </p>
+                      <p class="text-[11px] text-neutral-500 break-words">
+                        Ticket {{ t.id }}
+                      </p>
+                    </section>
+
+                    <!-- Responsável -->
+                    <section class="space-y-1.5">
+                      <label
+                        class="block text-xs font-semibold uppercase tracking-wide text-neutral-500"
+                        [attr.for]="'ticket-assignee-' + t.id"
+                      >
+                        Responsável
+                      </label>
+                      <select
+                        [id]="'ticket-assignee-' + t.id"
+                        [formControl]="assigneeControl"
+                        (change)="onAssigneeChange($any($event.target).value)"
+                        class="w-full sm:max-w-sm bg-white border border-neutral-200 rounded-xl px-4 py-3 text-sm
+                               text-neutral-800 min-h-[44px] focus:ring-2 focus:ring-primary-600
+                               focus:border-primary-600 transition-colors disabled:opacity-60"
+                      >
+                        <option value="">Sem responsável</option>
+                        @if (unlistedAssignee(); as unlisted) {
+                          <option [value]="unlisted.id">{{ unlisted.label }}</option>
+                        }
+                        @for (admin of assignees(); track admin.id) {
+                          <option [value]="admin.id">{{ assigneeOptionLabel(admin) }}</option>
+                        }
+                      </select>
+                      @if (assigning()) {
+                        <p class="text-xs text-neutral-500" role="status">Salvando responsável…</p>
+                      }
+                      @if (assignError(); as assignFailure) {
+                        <app-alert-banner variant="error" [message]="assignFailure" />
+                      }
+                    </section>
+
+                    <!-- Thread -->
+                    <section class="space-y-2">
+                      <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Respostas
+                      </h3>
+                      @if (detailLoading()) {
+                        <p class="text-sm text-neutral-500">Carregando a thread…</p>
+                      } @else {
+                        <app-admin-support-thread [replies]="replies()" />
+                      }
+                    </section>
+
+                    <!-- Responder -->
+                    <section>
+                      <form [formGroup]="replyForm" (ngSubmit)="submitReply()" class="space-y-2">
+                        <app-form-field
+                          label="Responder ao autor"
+                          [controlId]="'reply-message-' + t.id"
+                          [required]="true"
+                          [control]="replyForm.controls.message"
+                          [messages]="replyMessages"
+                          [hint]="replyHint()"
+                        >
+                          <textarea
+                            appFieldControl
+                            rows="4"
+                            formControlName="message"
+                            [attr.maxlength]="replyMaxLength"
+                            placeholder="Escreva a resposta que o autor vai receber…"
+                            class="w-full bg-white border rounded-xl px-4 py-3 text-sm text-neutral-800
+                                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600
+                                   transition-colors resize-y min-h-[112px]"
+                          ></textarea>
+                          <p class="text-xs text-neutral-600 tabular-nums text-right mt-1">
+                            {{ replyLength() }} / {{ replyMaxLength }}
+                          </p>
+                        </app-form-field>
+
+                        @if (!canEmailAuthor()) {
+                          <app-alert-banner
+                            variant="warning"
+                            message="Este autor não tem e-mail cadastrado. A resposta fica registrada no ticket, mas ninguém será avisado."
+                          />
+                        }
+
+                        @if (replyError(); as replyFailure) {
+                          <app-alert-banner variant="error" [message]="replyFailure" />
+                        }
+
+                        <button
+                          type="submit"
+                          [disabled]="replying()"
+                          [attr.aria-busy]="replying()"
+                          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3
+                                 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm
+                                 font-semibold shadow-sm transition-colors min-h-[44px]
+                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700
+                                 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {{ replyButtonLabel() }}
+                        </button>
+                      </form>
+                    </section>
+                  </div>
+                }
               </li>
             }
           </ul>
         }
 
-        <div class="flex items-center justify-between p-3 border-t border-neutral-100">
-          <button
-            type="button"
-            (click)="prevPage()"
-            [disabled]="!hasPrev()"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700
-                   hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Anterior
-          </button>
-          <span class="text-xs text-neutral-500">Página {{ page() + 1 }}</span>
-          <button
-            type="button"
-            (click)="nextPage()"
-            [disabled]="!hasNext()"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700
-                   hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Próxima
-          </button>
+        <!-- Paginação -->
+        <div class="flex items-center justify-between gap-3 pt-1">
+          <p class="text-xs text-neutral-500 tabular-nums">
+            Página {{ page() + 1 }} de {{ totalPages() }} — {{ total() }} ticket(s)
+          </p>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              (click)="prevPage()"
+              [disabled]="!hasPrev() || loading()"
+              class="px-3 py-2 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700
+                     min-h-[36px] hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              (click)="nextPage()"
+              [disabled]="!hasNext() || loading()"
+              class="px-3 py-2 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700
+                     min-h-[36px] hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Próxima
+            </button>
+          </div>
         </div>
       </div>
     </app-page-card>

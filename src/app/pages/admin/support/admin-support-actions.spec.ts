@@ -6,7 +6,7 @@ import { AdminSupportList } from './admin-support-list';
 import { SupportTicketService } from '../../../services/support-ticket.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
-import type { SupportTicketDto } from '../../../types/support.types';
+import type { SupportTicketAdminItem } from '../../../types/support.types';
 
 /**
  * Padrão de listagem: a coluna de ações é o menu de três pontos
@@ -14,16 +14,25 @@ import type { SupportTicketDto } from '../../../types/support.types';
  * status —, então não há diálogo de confirmação.
  */
 describe('AdminSupportList — menu de ações', () => {
-  const OPEN_TICKET: SupportTicketDto = {
+  const OPEN_TICKET: SupportTicketAdminItem = {
     id: 'tkt-abcdef12',
-    createdDate: '2026-01-10T12:00:00Z',
+    createdDate: '2026-01-10T12:00:00',
     companyId: 'co-1',
+    companyName: 'Locadora Aurora',
     userId: 'usr-1',
+    userName: 'Marina Prado',
+    userEmail: 'marina@aurora.com.br',
     message: 'Não consigo emitir o contrato.',
     channel: 'EMAIL',
     status: 'OPEN',
     resolvedAt: null,
     resolvedBy: null,
+    resolvedByName: null,
+    assignedTo: null,
+    assignedToName: null,
+    assignedAt: null,
+    replyCount: 0,
+    lastReplyAt: null,
   };
 
   let adminUpdateStatus: ReturnType<typeof vi.fn>;
@@ -41,7 +50,9 @@ describe('AdminSupportList — menu de ações', () => {
 
   beforeEach(() => {
     TestBed.resetTestingModule();
-    adminUpdateStatus = vi.fn().mockReturnValue(of({ ...OPEN_TICKET, status: 'RESOLVED' }));
+    adminUpdateStatus = vi
+      .fn()
+      .mockReturnValue(of({ ticket: { ...OPEN_TICKET, status: 'RESOLVED' }, replies: [] }));
     TestBed.configureTestingModule({
       imports: [AdminSupportList],
       providers: [
@@ -49,8 +60,16 @@ describe('AdminSupportList — menu de ações', () => {
         {
           provide: SupportTicketService,
           useValue: {
-            adminList: vi.fn().mockReturnValue(of({ content: [OPEN_TICKET], total: 1 })),
+            adminList: vi
+              .fn()
+              .mockReturnValue(of({ content: [OPEN_TICKET], page: 0, size: 20, total: 1 })),
+            adminGet: vi.fn().mockReturnValue(of({ ticket: OPEN_TICKET, replies: [] })),
             adminUpdateStatus,
+            adminReply: vi.fn(),
+            adminAssign: vi.fn(),
+            adminUnassign: vi.fn(),
+            adminAssignees: vi.fn().mockReturnValue(of([])),
+            adminCompanies: vi.fn().mockReturnValue(of([])),
           },
         },
         {
