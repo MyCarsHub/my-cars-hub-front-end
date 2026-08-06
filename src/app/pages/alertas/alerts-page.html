@@ -4,21 +4,45 @@
 >
   <app-page-card title="Vencimentos">
     <div class="p-3 sm:p-4 space-y-4">
-      <!-- Janela de vencimento -->
-      <div class="space-y-2">
-        <p
-          id="alerts-window-label"
-          class="text-xs font-medium text-neutral-500 uppercase tracking-wide"
-        >
-          Janela
-        </p>
-        <app-filter-chip-group
-          [options]="windowChips"
-          [value]="withinDays()"
-          ariaLabelledby="alerts-window-label"
-          (selectionChange)="onWindowChange($event)"
-        />
-      </div>
+      <!--
+        Janela de vencimento. Os atalhos vêm das janelas configuradas pela
+        empresa (`/companies/current/alert-settings`), não de constante local —
+        senão a tela mentiria para quem configurasse outra coisa. Sem a
+        configuração (falha na leitura) o bloco some e a lista continua, com o
+        recorte que o backend escolheu.
+      -->
+      @if (windowChips().length > 0) {
+        <div class="space-y-2">
+          <p
+            id="alerts-window-label"
+            class="text-xs font-medium text-neutral-500 uppercase tracking-wide"
+          >
+            Janela
+          </p>
+          <app-filter-chip-group
+            [options]="windowChips()"
+            [value]="withinDays()"
+            ariaLabelledby="alerts-window-label"
+            (selectionChange)="onWindowChange($event)"
+          />
+          <!--
+            Estado somente-leitura: todo membro vê como a empresa é avisada; só
+            OWNER/MANAGER (mesmo papel do `roleGuard` da rota) recebe o link de
+            edição.
+          -->
+          <p class="text-xs text-neutral-500">
+            Avisos da empresa: {{ windowsSummary() }}.
+            @if (canConfigure) {
+              <a
+                routerLink="/configuracoes/alertas"
+                class="inline-flex items-center min-h-[44px] font-medium text-primary-700 hover:text-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 rounded-lg"
+              >
+                Configurar janelas
+              </a>
+            }
+          </p>
+        </div>
+      }
 
       <!-- Filtro por tipo -->
       <div class="space-y-2">
@@ -40,8 +64,10 @@
         <app-alert-banner variant="error" [message]="loadError" />
       }
 
-      @if (capped()) {
-        <p class="text-xs text-neutral-500">Mostrando os 200 vencimentos mais próximos.</p>
+      @if (typeFilterIsPartial()) {
+        <p class="text-xs text-neutral-500">
+          O filtro por tipo se aplica só aos vencimentos desta página.
+        </p>
       }
 
       <!--
@@ -69,8 +95,18 @@
 
         @for (group of groups(); track group.key) {
           <section class="space-y-3">
+            <!--
+              "Vence hoje" / "Vence amanhã" carregam a data ao lado: o "hoje"
+              que define o grupo é calculado em UTC pelo backend, então perto da
+              meia-noite em Brasília o rótulo sozinho poderia enganar.
+            -->
             <h3 class="text-sm font-semibold text-neutral-900">
               {{ group.label }}
+              @if (group.dateHint) {
+                <span class="text-neutral-500 font-normal tabular-nums"
+                  >— {{ group.dateHint }}</span
+                >
+              }
               <span class="text-neutral-400 font-normal">({{ group.alerts.length }})</span>
             </h3>
 
@@ -163,6 +199,40 @@
           </section>
         }
       </div>
+
+      <!--
+        Paginação server-side: o backend devolve `content`/`page`/`size`/`total`,
+        então nada é truncado em silêncio — o excedente está na próxima página.
+        Mobile-first: contagem em cima, botões de 44px lado a lado embaixo.
+      -->
+      @if (!error()) {
+        <nav
+          class="flex flex-col gap-3 pt-3 border-t border-neutral-100 text-sm sm:flex-row sm:items-center sm:justify-between"
+          aria-label="Paginação dos vencimentos"
+        >
+          <p class="text-neutral-500">
+            {{ total() }} vencimento(s) — página {{ pageNumber() }} de {{ totalPages() }}
+          </p>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="flex-1 sm:flex-none inline-flex items-center justify-center min-h-[44px] px-4 rounded-lg border border-neutral-200 font-medium text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-50 disabled:hover:bg-transparent"
+              [disabled]="!hasPrev() || loading()"
+              (click)="prev()"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              class="flex-1 sm:flex-none inline-flex items-center justify-center min-h-[44px] px-4 rounded-lg border border-neutral-200 font-medium text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-50 disabled:hover:bg-transparent"
+              [disabled]="!hasNext() || loading()"
+              (click)="next()"
+            >
+              Próxima
+            </button>
+          </div>
+        </nav>
+      }
     </div>
   </app-page-card>
 </app-default-page-layout>

@@ -80,7 +80,7 @@ describe('NotificationFeedService', () => {
     hidden = false;
     unreadCountResponse = 3;
     getToken = vi.fn(() => 'jwt-token');
-    sessionStore = { selectedCompanyId: 'company-a' };
+    sessionStore = { selectedCompanyId: 'company-a', id: 'user-a' };
     getItem = vi.fn((key: string) => sessionStore[key] ?? null);
     httpPatch = vi.fn(() => of(''));
     httpGet = vi.fn((url: string) =>
@@ -371,8 +371,60 @@ describe('NotificationFeedService', () => {
   });
 
   /**
+   * O estado de leitura é POR USUÁRIO: `markRead` e `markAllRead` valem para o
+   * dono do token, e dois membros da mesma empresa têm sinos independentes.
+   */
+  describe('leitura por usuário', () => {
+    it('markRead marca só o item pedido e decrementa o contador do usuário atual', () => {
+      const service = create();
+      service.refreshUnreadCount().subscribe();
+      service.list().subscribe();
+      expect(service.unreadCount()).toBe(3);
+
+      service.markRead('n-1').subscribe();
+
+      expect(String(httpPatch.mock.calls[0][0])).toContain('/notifications/n-1/read');
+      expect(service.unreadCount()).toBe(2);
+    });
+
+    /**
+     * Remarcar algo já lido responde sucesso (não 404) e não renova a data —
+     * então repetir a chamada não pode empurrar o contador para negativo.
+     */
+    it('remarcar um item já lido não derruba o contador abaixo de zero', () => {
+      const service = create();
+      service.refreshUnreadCount().subscribe();
+
+      service.markRead('n-1').subscribe();
+      service.markRead('n-1').subscribe();
+      service.markRead('n-1').subscribe();
+      service.markRead('n-1').subscribe();
+
+      expect(service.unreadCount()).toBe(0);
+    });
+
+    it('markAllRead zera o contador do usuário e ignora o count devolvido', () => {
+      const service = create();
+      service.refreshUnreadCount().subscribe();
+      service.list().subscribe();
+      // 7 são as linhas marcadas AGORA para ESTE usuário, não o que sobrou.
+      httpPatch.mockReturnValueOnce(of({ count: 7 }));
+      const listsBefore = listCalls().length;
+
+      service.markAllRead().subscribe();
+
+      expect(String(httpPatch.mock.calls.at(-1)?.[0])).toContain('/notifications/read-all');
+      expect(service.unreadCount()).toBe(0);
+      // A lista é recarregada do servidor — a verdade do `read` é do backend.
+      expect(listCalls().length).toBe(listsBefore + 1);
+    });
+  });
+
+  /**
    * A troca de empresa só navega — o AppShell e o sino não são destruídos, então
    * sem `syncTenant()` o contador da empresa A sobreviveria até 60s sob a B.
+   * Pelo mesmo motivo o USUÁRIO entra na chave: leitura é por usuário, e o
+   * logout/login na mesma aba não recria o serviço root.
    */
   describe('syncTenant', () => {
     it('zera o cache e faz um tick imediato quando a empresa muda', () => {
@@ -393,7 +445,28 @@ describe('NotificationFeedService', () => {
       expect(service.unreadCount()).toBe(1);
     });
 
-    it('é no-op quando a empresa selecionada não mudou', () => {
+    /**
+     * Leitura é por usuário: logout/login na mesma aba não recria o serviço
+     * root, então sem esta invalidação o sino do usuário B mostraria o
+     * não-lidas do usuário A — mesma empresa, contadores diferentes.
+     */
+    it('zera o cache e faz um tick imediato quando o USUÁRIO muda, na mesma empresa', () => {
+      const service = create();
+      service.startPolling();
+      service.list().subscribe();
+      expect(service.unreadCount()).toBe(3);
+      const ticksBefore = unreadCountCalls();
+
+      sessionStore['id'] = 'user-b';
+      unreadCountResponse = 0;
+      service.syncTenant();
+
+      expect(unreadCountCalls()).toBe(ticksBefore + 1);
+      expect(service.items()).toEqual([]);
+      expect(service.unreadCount()).toBe(0);
+    });
+
+    it('é no-op quando empresa e usuário não mudaram', () => {
       const service = create();
       service.startPolling();
       service.list().subscribe();
