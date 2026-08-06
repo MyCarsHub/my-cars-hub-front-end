@@ -140,6 +140,32 @@ describe('Invites — envio e gestão de convites', () => {
     expect(fixture.nativeElement.querySelectorAll('button[aria-label^="Cancelar"]')).toHaveLength(1);
   });
 
+  /**
+   * Layout pedido pelo dono do produto: formulário EM CIMA, listagem EMBAIXO,
+   * empilhados. Antes eram duas colunas (`grid lg:grid-cols-3`), o que em 375px
+   * escondia a lista atrás de um formulário inteiro. O teste ancora a ordem e a
+   * ausência de colunas para que uma edição futura não volte atrás em silêncio.
+   */
+  it('empilha formulário em cima e listagem embaixo, sem colunas lado a lado', () => {
+    const { fixture } = render();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const cards = Array.from(host.querySelectorAll('app-page-card'));
+    expect(cards.map((c) => c.querySelector('h2')?.textContent?.trim())).toEqual([
+      'Convidar pessoa',
+      'Convites enviados',
+    ]);
+    // O formulário precisa estar DENTRO do primeiro cartão, não do segundo.
+    expect(cards[0].querySelector('form')).not.toBeNull();
+    expect(cards[1].querySelector('form')).toBeNull();
+
+    // Nenhum ancestral dos cartões distribui o conteúdo em colunas.
+    const columnised = Array.from(host.querySelectorAll('[class*="grid-cols"]')).filter((el) =>
+      el.querySelector('app-page-card'),
+    );
+    expect(columnised).toEqual([]);
+  });
+
   it('reenvia pelo id e recarrega a lista para pegar o novo prazo', () => {
     const { component } = render();
     list.mockClear();

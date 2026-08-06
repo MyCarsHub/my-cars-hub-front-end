@@ -14,7 +14,6 @@ import {
   VehicleIncident,
   VehicleIncidentFilters,
   VehicleIncidentListItem,
-  VehicleIncidentSummary,
 } from '../types/vehicle-incident.types';
 
 const BASE = `${environment.apiUrl}/vehicle-incidents`;
@@ -98,18 +97,6 @@ export class VehicleIncidentsService {
       }),
       finalize(() => this._loading.set(false)),
     );
-  }
-
-  /**
-   * Agregados (contagens + totais financeiros). Existe para poupar uma segunda
-   * rodada de rede no mobile — a tela de lista monta o card de resumo com isto,
-   * não somando a página corrente (que é só uma página).
-   */
-  summary(range: { from?: string; to?: string } = {}): Observable<VehicleIncidentSummary> {
-    let params = new HttpParams();
-    if (range.from) params = params.set('from', range.from);
-    if (range.to) params = params.set('to', range.to);
-    return this.http.get<VehicleIncidentSummary>(`${BASE}/summary`, { params });
   }
 
   /** Detalhe. ÚNICO lugar de onde vêm os dados do terceiro envolvido (LGPD). */

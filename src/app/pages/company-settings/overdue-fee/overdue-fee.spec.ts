@@ -11,14 +11,15 @@ import { OverdueFee } from './overdue-fee';
 import { OverdueSettingsService } from './overdue-settings.service';
 
 /**
- * Cobre Configurações → Devolução com atraso:
+ * Cobre a seção "Devolução com atraso" da página de Configurações (ex-tela
+ * `/configuracoes/atraso`):
  *  - carregar a regra em vigor + selo padrão × personalizado;
  *  - salvar como SUBSTITUIÇÃO (multiplicador em "x" convertido para bps);
  *  - restaurar o padrão em um clique, com os números à vista;
  *  - validação usando os limites que vieram na resposta, sem constante local;
  *  - o erro do servidor (400 fora de faixa / 403 de papel) chegando à tela.
  */
-describe('OverdueFee (Configurações → Devolução com atraso)', () => {
+describe('OverdueFee (seção "Devolução com atraso" de /configuracoes)', () => {
   const SETTINGS: OverdueSettings = {
     multiplierBps: 15_000,
     graceHours: 3,

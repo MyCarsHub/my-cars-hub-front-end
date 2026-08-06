@@ -2,7 +2,13 @@
   title="Alertas"
   description="Documentos e parcelas com vencimento próximo, agrupados por urgência."
 >
-  <app-page-card title="Vencimentos">
+  <!--
+    Mobile-first: Vencimentos e Janelas de aviso ficam EMPILHADOS em qualquer
+    largura — o editor de janelas é um formulário e ficaria espremido numa
+    segunda coluna. A margem abaixo faz o papel do `space-y` que um wrapper daria,
+    sem re-indentar a página inteira.
+  -->
+  <app-page-card title="Vencimentos" class="mb-4 sm:mb-6">
     <div class="p-3 sm:p-4 space-y-4">
       <!--
         Janela de vencimento. Os atalhos vêm das janelas configuradas pela
@@ -26,19 +32,14 @@
             (selectionChange)="onWindowChange($event)"
           />
           <!--
-            Estado somente-leitura: todo membro vê como a empresa é avisada; só
-            OWNER/MANAGER (mesmo papel do `roleGuard` da rota) recebe o link de
-            edição.
+            Estado somente-leitura: todo membro vê como a empresa é avisada. Quem
+            pode editar não vai mais a outra tela — o editor está logo abaixo,
+            nesta mesma página.
           -->
           <p class="text-xs text-neutral-500">
             Avisos da empresa: {{ windowsSummary() }}.
             @if (canConfigure) {
-              <a
-                routerLink="/configuracoes/alertas"
-                class="inline-flex items-center min-h-[44px] font-medium text-primary-700 hover:text-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 rounded-lg"
-              >
-                Configurar janelas
-              </a>
+              <span>Edite em "Janelas de aviso", logo abaixo.</span>
             }
           </p>
         </div>
@@ -235,4 +236,13 @@
       }
     </div>
   </app-page-card>
+
+  <!--
+    Ex-tela `/configuracoes/alertas`. O papel que a rota guardava (`OWNER` /
+    `MANAGER`) é checado aqui: `/alertas` é aberta a qualquer membro, e membro
+    comum continua só lendo o resumo acima.
+  -->
+  @if (canConfigure) {
+    <app-alert-windows />
+  }
 </app-default-page-layout>

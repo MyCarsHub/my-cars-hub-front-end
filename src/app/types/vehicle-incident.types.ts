@@ -104,18 +104,6 @@ export interface VehicleIncident {
   vehicleTakenOutOfService: boolean | null;
 }
 
-export interface VehicleIncidentSummary {
-  openCount: number;
-  inRepairCount: number;
-  /** OPEN + IN_REPAIR — o número do card. */
-  activeCount: number;
-  writtenOffCount: number;
-  totalEstimatedCostCents: number;
-  totalActualCostCents: number;
-  totalIndemnifiedCents: number;
-  totalNetCostCents: number;
-}
-
 export interface IncidentDocument {
   id: string;
   incidentId: string;

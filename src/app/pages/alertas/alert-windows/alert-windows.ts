@@ -8,8 +8,6 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
@@ -28,12 +26,18 @@ const LOAD_FALLBACK = 'Não foi possível carregar as janelas de aviso.';
 const SAVE_FALLBACK = 'Não foi possível salvar as janelas de aviso.';
 
 /**
- * Configurações → Avisos de vencimento (`/configuracoes/alertas`).
+ * Seção "Janelas de aviso" da página `/alertas`.
  *
  * Edita as janelas de antecedência com que a empresa é avisada dos vencimentos.
- * O acesso é do `roleGuard(['OWNER','MANAGER'])` já declarado na rota — a tela
- * não repete a regra de papel. Membro comum não chega aqui; ele vê o estado (só
- * leitura) na própria página `/alertas`.
+ * Já foi a tela `/configuracoes/alertas`; virou seção porque a página de Alertas
+ * é onde o assunto vive — navegar até Configurações para mudar dois números era
+ * um salto sem motivo.
+ *
+ * **A regra de papel agora é da PÁGINA, não da rota.** `/alertas` é aberta a
+ * qualquer membro autenticado, então quem renderiza esta seção é o
+ * `@if (canConfigure)` de `alerts-page.html` (mesmos OWNER/MANAGER que o antigo
+ * `roleGuard`). Membro comum continua vendo o estado em leitura, no resumo
+ * "Avisos da empresa: …" logo acima.
  *
  * Três decisões que a interface precisa deixar visíveis:
  *
@@ -49,15 +53,7 @@ const SAVE_FALLBACK = 'Não foi possível salvar as janelas de aviso.';
   selector: 'app-alert-windows',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [
-    RouterLink,
-    ReactiveFormsModule,
-    DefaultPageLayout,
-    PageCard,
-    AlertBanner,
-    FormField,
-    FieldControl,
-  ],
+  imports: [ReactiveFormsModule, PageCard, AlertBanner, FormField, FieldControl],
   templateUrl: './alert-windows.html',
 })
 export class AlertWindows implements OnInit {
@@ -141,8 +137,8 @@ export class AlertWindows implements OnInit {
   protected reload(): void {
     this.loading.set(true);
     this.loadError.set(null);
-    // `force`: a tela de configuração precisa mostrar o servidor, não o que
-    // ficou em cache de uma visita anterior a `/alertas`.
+    // `force`: o editor mostra o servidor, não o cache que a própria página
+    // pode ter herdado de uma visita anterior (ou de outra aba).
     this.service.load(true).subscribe({
       next: (settings) => {
         this.adopt(settings);

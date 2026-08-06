@@ -12,7 +12,8 @@ import { NotificationService } from '../../../services/notification.service';
 import type { AlertSettings } from '../../../types/alert-settings.types';
 
 /**
- * Cobre Configurações → Avisos de vencimento:
+ * Cobre a seção "Janelas de aviso" de `/alertas` (ex-tela
+ * `/configuracoes/alertas`):
  *  - carregar (janelas em vigor + selo padrão × personalizado);
  *  - salvar como SUBSTITUIÇÃO da lista inteira;
  *  - restaurar o padrão em um clique, com os números à vista;
@@ -20,7 +21,7 @@ import type { AlertSettings } from '../../../types/alert-settings.types';
  *    (`minWindowDays` / `maxWindowDays` / `maxWindowCount`), sem constante local;
  *  - o 400 do servidor (`fieldErrors.windows`) chegando à tela.
  */
-describe('AlertWindows (Configurações → Avisos de vencimento)', () => {
+describe('AlertWindows (seção "Janelas de aviso" de /alertas)', () => {
   const SETTINGS: AlertSettings = {
     windows: [30, 15, 7, 1],
     customized: false,

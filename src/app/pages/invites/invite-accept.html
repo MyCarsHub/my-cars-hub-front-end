@@ -77,6 +77,71 @@
         </p>
       }
 
+      @case ('mismatch') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Este convite é para outra conta
+        </h1>
+
+        <div class="mt-4">
+          <app-alert-banner variant="warning">
+            Esta aba está conectada com um e-mail diferente do que recebeu o convite. Troque de
+            conta para continuar.
+          </app-alert-banner>
+        </div>
+
+        <dl class="mt-6 rounded-xl border border-neutral-200 divide-y divide-neutral-100 text-sm">
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-500 shrink-0">Conectado como</dt>
+            <dd class="font-medium text-neutral-900 text-right break-all min-w-0">
+              {{ signedInEmail() }}
+            </dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-500 shrink-0">Convite para</dt>
+            <dd class="font-medium text-neutral-900 text-right break-all min-w-0">
+              {{ invitedEmail() }}
+            </dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-500 shrink-0">Empresa</dt>
+            <dd class="font-medium text-neutral-900 text-right break-words min-w-0">
+              {{ companyName() }}
+            </dd>
+          </div>
+        </dl>
+
+        <div class="mt-6 flex flex-col gap-3">
+          <button
+            type="button"
+            (click)="switchAccount()"
+            [disabled]="redirecting()"
+            [attr.aria-busy]="redirecting() ? 'true' : null"
+            class="w-full min-h-12 inline-flex items-center justify-center gap-3 rounded-xl
+                   bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                   disabled:opacity-60 disabled:cursor-wait"
+          >
+            <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
+            <span>{{ redirecting() ? 'Redirecionando…' : 'Sair e entrar com outra conta' }}</span>
+          </button>
+
+          <a
+            routerLink="/"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                   border-neutral-200 text-sm font-semibold text-neutral-700 px-5 py-3
+                   hover:bg-neutral-50 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Voltar para o início
+          </a>
+        </div>
+
+        <p class="mt-4 text-xs text-neutral-500 leading-relaxed">
+          Sair daqui encerra a sessão desta aba. O convite continua válido pelo prazo do e-mail.
+        </p>
+      }
+
       @case ('error') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
           Não foi possível usar este convite

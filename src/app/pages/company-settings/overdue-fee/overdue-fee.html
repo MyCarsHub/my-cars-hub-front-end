@@ -1,9 +1,20 @@
-<app-default-page-layout
-  title="Devolução com atraso"
-  description="Quantas vezes a diária é cobrada por dia de atraso e quanto tempo de tolerância o motorista tem depois do fim do prazo."
->
-  <div class="space-y-4 sm:space-y-6">
+<!--
+  Seção da página de Configurações, não mais uma tela. As três cartas antigas
+  ("Em vigor hoje" + "Como o atraso é calculado" + "Regra de multa") viraram UMA:
+  em 375px, três cartas empilhadas para dois campos era rolagem sem conteúdo.
+
+  A explicação da regra virou `<details>` fechado — continua no DOM (leitor de
+  tela e busca do navegador acham), é acessível por teclado sem JS, e não empurra
+  os campos para fora da tela no celular.
+-->
+<app-page-card title="Devolução com atraso" [collapsible]="true" [defaultOpen]="true">
+  <div class="p-4 sm:p-6 space-y-5">
     <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveStatus() }}</p>
+
+    <p class="text-sm text-neutral-600">
+      Quantas vezes a diária é cobrada por dia de atraso e quanto tempo de tolerância o motorista
+      tem depois do fim do prazo.
+    </p>
 
     @if (loadError(); as message) {
       <app-alert-banner variant="error" [message]="message" />
@@ -18,186 +29,181 @@
 
     @if (loading()) {
       <div class="space-y-3" aria-hidden="true">
-        <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-72 rounded-xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-48 rounded-xl bg-neutral-100 animate-pulse"></div>
       </div>
     } @else if (settings(); as config) {
-      <!-- Estado atual: o que o servidor tem hoje, separado do rascunho. -->
-      <app-page-card title="Em vigor hoje">
-        <div class="p-4 sm:p-6 space-y-2">
-          <div class="flex flex-wrap items-center gap-2">
-            <span
-              class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
-              [class]="
-                customized() ? 'bg-primary-100 text-primary-800' : 'bg-neutral-100 text-neutral-700'
-              "
-            >
-              {{ customized() ? 'Personalizado' : 'Padrão do sistema' }}
+      <!-- Estado atual, em uma linha: o que o servidor tem hoje. -->
+      <div class="space-y-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <span
+            class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            [class]="
+              customized() ? 'bg-primary-100 text-primary-800' : 'bg-neutral-100 text-neutral-700'
+            "
+          >
+            {{ customized() ? 'Personalizado' : 'Padrão do sistema' }}
+          </span>
+          @if (!customized()) {
+            <span class="text-xs text-neutral-500">
+              Esta empresa ainda não configurou a regra de atraso.
             </span>
-            @if (!customized()) {
-              <span class="text-xs text-neutral-500">
-                Esta empresa ainda não configurou a regra de atraso.
-              </span>
-            }
-          </div>
-          <p class="text-sm text-neutral-700">
-            Cada dia de atraso custa
-            <b class="tabular-nums">{{ savedMultiplierLabel() }}</b> a diária, com
-            <b class="tabular-nums">{{ savedGraceLabel() }}</b> de tolerância.
-          </p>
+          }
         </div>
-      </app-page-card>
+        <p class="text-sm text-neutral-700">
+          Em vigor hoje: cada dia de atraso custa
+          <b class="tabular-nums">{{ savedMultiplierLabel() }}</b> a diária, com
+          <b class="tabular-nums">{{ savedGraceLabel() }}</b> de tolerância.
+        </p>
+      </div>
 
-      <!-- A regra, escrita como ela realmente funciona. -->
-      <app-page-card title="Como o atraso é calculado">
-        <div class="p-4 sm:p-6">
-          <ol class="text-sm text-neutral-700 space-y-2 list-decimal pl-5">
-            <li>
-              O prazo vence à <b>meia-noite que abre o dia seguinte</b> ao fim do aluguel, mais as
-              horas de tolerância.
-            </li>
-            <li>
-              Está atrasado quem devolve <b>estritamente depois</b> disso. Devolver exatamente no
-              limite conta como no prazo.
-            </li>
-            <li>
-              Os dias cobrados são <b>dias de calendário</b> entre o fim do aluguel e a data da
-              devolução — não frações de hora. A tolerância decide <i>se</i> cobra; a diferença de
-              datas decide <i>quanto</i>.
-            </li>
-            <li>
-              A conta é <b>dias × diária × multiplicador</b>. A diária é arredondada antes da
-              multiplicação, para o valor mostrado fechar com o valor cobrado.
-            </li>
-            <li>Multa de zero centavo nunca é lançada.</li>
-          </ol>
-        </div>
-      </app-page-card>
+      <!-- A regra, escrita como ela realmente funciona. Fechada por padrão. -->
+      <details class="rounded-xl border border-neutral-200 bg-neutral-50">
+        <summary
+          class="flex min-h-[44px] cursor-pointer list-none items-center px-3 text-sm font-medium text-neutral-800 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+        >
+          Como o atraso é calculado
+        </summary>
+        <ol class="px-3 pb-3 text-sm text-neutral-700 space-y-2 list-decimal pl-8">
+          <li>
+            O prazo vence à <b>meia-noite que abre o dia seguinte</b> ao fim do aluguel, mais as
+            horas de tolerância.
+          </li>
+          <li>
+            Está atrasado quem devolve <b>estritamente depois</b> disso. Devolver exatamente no
+            limite conta como no prazo.
+          </li>
+          <li>
+            Os dias cobrados são <b>dias de calendário</b> entre o fim do aluguel e a data da
+            devolução — não frações de hora. A tolerância decide <i>se</i> cobra; a diferença de
+            datas decide <i>quanto</i>.
+          </li>
+          <li>
+            A conta é <b>dias × diária × multiplicador</b>. A diária é arredondada antes da
+            multiplicação, para o valor mostrado fechar com o valor cobrado.
+          </li>
+          <li>Multa de zero centavo nunca é lançada.</li>
+        </ol>
+      </details>
 
-      <app-page-card title="Regra de multa">
-        <div class="p-4 sm:p-6 space-y-5">
-          <p class="text-sm text-neutral-600">
-            Salvar <b>substitui a regra inteira</b>: os dois valores passam a ser exatamente os de
-            baixo.
+      <p class="text-sm text-neutral-600">
+        Salvar <b>substitui a regra inteira</b>: os dois valores passam a ser exatamente os de
+        baixo.
+      </p>
+
+      <!-- Mobile-first: campos empilhados, lado a lado só a partir de sm. -->
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <app-form-field
+          class="flex-1"
+          label="Multiplicador da diária"
+          [control]="multiplier"
+          [messages]="multiplierMessages"
+          [hint]="'De ' + minMultiplierLabel() + ' a ' + maxMultiplierLabel() + '.'"
+        >
+          <input
+            appFieldControl
+            type="number"
+            inputmode="decimal"
+            step="any"
+            [formControl]="multiplier"
+            (input)="onFieldInput()"
+            class="w-full min-h-[44px] rounded-xl border px-3 py-2 text-sm text-neutral-900 tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+          />
+        </app-form-field>
+
+        <app-form-field
+          class="flex-1"
+          label="Tolerância (em horas)"
+          [control]="graceHours"
+          [messages]="graceHoursMessages"
+          [hint]="'De ' + config.minGraceHours + ' a ' + config.maxGraceHours + ' horas.'"
+        >
+          <input
+            appFieldControl
+            type="number"
+            inputmode="numeric"
+            step="1"
+            [formControl]="graceHours"
+            [min]="config.minGraceHours"
+            [max]="config.maxGraceHours"
+            (input)="onFieldInput()"
+            class="w-full min-h-[44px] rounded-xl border px-3 py-2 text-sm text-neutral-900 tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+          />
+        </app-form-field>
+      </div>
+
+      <!--
+        O DEGRAU, à vista. A tolerância adia a cobrança e, ao mesmo tempo,
+        aumenta a primeira delas — porque os dias contam desde o fim do
+        aluguel, não desde o fim da tolerância. Mostrar só "2 dias de
+        atraso × multiplicador" escondia exatamente isso.
+        Mobile-first: as duas pontas empilham e só ficam lado a lado em sm.
+      -->
+      @if (example()) {
+        <div class="rounded-xl border border-neutral-200 bg-neutral-50 p-3 space-y-3">
+          <p class="text-sm font-medium text-neutral-800">
+            Exemplo: aluguel que termina em {{ exampleEndDateLabel() }}, diária de R$ 100,00.
           </p>
 
-          <!-- Mobile-first: campos empilhados, lado a lado só a partir de sm. -->
-          <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <app-form-field
-              class="flex-1"
-              label="Multiplicador da diária"
-              [control]="multiplier"
-              [messages]="multiplierMessages"
-              [hint]="'De ' + minMultiplierLabel() + ' a ' + maxMultiplierLabel() + '.'"
-            >
-              <input
-                appFieldControl
-                type="number"
-                inputmode="decimal"
-                step="any"
-                [formControl]="multiplier"
-                (input)="onFieldInput()"
-                class="w-full min-h-[44px] rounded-xl border px-3 py-2 text-sm text-neutral-900 tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-              />
-            </app-form-field>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <p class="text-xs font-semibold text-emerald-900">Até {{ exampleDueAtLabel() }}</p>
+              <p class="text-sm text-emerald-900">Devolver aqui é sem multa.</p>
+            </div>
 
-            <app-form-field
-              class="flex-1"
-              label="Tolerância (em horas)"
-              [control]="graceHours"
-              [messages]="graceHoursMessages"
-              [hint]="'De ' + config.minGraceHours + ' a ' + config.maxGraceHours + ' horas.'"
-            >
-              <input
-                appFieldControl
-                type="number"
-                inputmode="numeric"
-                step="1"
-                [formControl]="graceHours"
-                [min]="config.minGraceHours"
-                [max]="config.maxGraceHours"
-                (input)="onFieldInput()"
-                class="w-full min-h-[44px] rounded-xl border px-3 py-2 text-sm text-neutral-900 tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-              />
-            </app-form-field>
-          </div>
-
-          <!--
-            O DEGRAU, à vista. A tolerância adia a cobrança e, ao mesmo tempo,
-            aumenta a primeira delas — porque os dias contam desde o fim do
-            aluguel, não desde o fim da tolerância. Mostrar só "2 dias de
-            atraso × multiplicador" escondia exatamente isso.
-            Mobile-first: as duas pontas empilham e só ficam lado a lado em sm.
-          -->
-          @if (example()) {
-            <div class="rounded-xl border border-neutral-200 bg-neutral-50 p-3 space-y-3">
-              <p class="text-sm font-medium text-neutral-800">
-                Exemplo: aluguel que termina em {{ exampleEndDateLabel() }}, diária de R$ 100,00.
-              </p>
-
-              <div class="grid gap-2 sm:grid-cols-2">
-                <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-                  <p class="text-xs font-semibold text-emerald-900">
-                    Até {{ exampleDueAtLabel() }}
-                  </p>
-                  <p class="text-sm text-emerald-900">Devolver aqui é sem multa.</p>
-                </div>
-
-                <div class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
-                  <p class="text-xs font-semibold text-amber-900">Um minuto depois disso</p>
-                  <p class="text-sm text-amber-900 tabular-nums">
-                    {{ exampleFirstChargeLabel() }}
-                  </p>
-                </div>
-              </div>
-
-              <p class="text-xs leading-relaxed text-neutral-600">
-                A tolerância decide <b>se</b> cobra, mas <b>não é descontada</b> da contagem: os
-                dias são contados a partir do fim do aluguel. Por isso cada 24 horas de tolerância
-                <b>somam uma diária</b> à primeira multa — aumentar a tolerância adia a cobrança e
-                encarece a primeira.
+            <div class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+              <p class="text-xs font-semibold text-amber-900">Um minuto depois disso</p>
+              <p class="text-sm text-amber-900 tabular-nums">
+                {{ exampleFirstChargeLabel() }}
               </p>
             </div>
-          }
-
-          @if (saveError(); as message) {
-            <app-alert-banner variant="error" [message]="message" />
-          }
-
-          <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <button
-              type="button"
-              class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-primary-500 hover:bg-primary-600 text-sm font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              [disabled]="!canSave()"
-              (click)="save()"
-            >
-              @if (saving()) {
-                Salvando…
-              } @else {
-                Salvar regra
-              }
-            </button>
-
-            <button
-              type="button"
-              class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              [disabled]="!hasChanges() || saving()"
-              (click)="discardChanges()"
-            >
-              Desfazer alterações
-            </button>
-
-            <button
-              type="button"
-              class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              [disabled]="atDefault() || saving()"
-              (click)="restoreDefault()"
-            >
-              Restaurar padrão ({{ defaultMultiplierLabel() }}, {{ defaultGraceLabel() }})
-            </button>
           </div>
+
+          <p class="text-xs leading-relaxed text-neutral-600">
+            A tolerância decide <b>se</b> cobra, mas <b>não é descontada</b> da contagem: os dias
+            são contados a partir do fim do aluguel. Por isso cada 24 horas de tolerância
+            <b>somam uma diária</b> à primeira multa — aumentar a tolerância adia a cobrança e
+            encarece a primeira.
+          </p>
         </div>
-      </app-page-card>
+      }
+
+      @if (saveError(); as message) {
+        <app-alert-banner variant="error" [message]="message" />
+      }
+
+      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <button
+          type="button"
+          class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-primary-500 hover:bg-primary-600 text-sm font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          [disabled]="!canSave()"
+          (click)="save()"
+        >
+          @if (saving()) {
+            Salvando…
+          } @else {
+            Salvar regra
+          }
+        </button>
+
+        <button
+          type="button"
+          class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          [disabled]="!hasChanges() || saving()"
+          (click)="discardChanges()"
+        >
+          Desfazer alterações
+        </button>
+
+        <button
+          type="button"
+          class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          [disabled]="atDefault() || saving()"
+          (click)="restoreDefault()"
+        >
+          Restaurar padrão ({{ defaultMultiplierLabel() }}, {{ defaultGraceLabel() }})
+        </button>
+      </div>
     }
   </div>
-</app-default-page-layout>
+</app-page-card>

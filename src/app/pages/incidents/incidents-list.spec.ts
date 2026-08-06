@@ -13,7 +13,6 @@ import { NotificationService } from '../../services/notification.service';
 import type {
   VehicleIncidentFilters,
   VehicleIncidentListItem,
-  VehicleIncidentSummary,
 } from '../../types/vehicle-incident.types';
 
 /**
@@ -44,19 +43,13 @@ describe('IncidentsList', () => {
     createdDate: '2026-03-01T10:00:00',
   };
 
-  const summaryData: VehicleIncidentSummary = {
-    openCount: 2,
-    inRepairCount: 3,
-    activeCount: 5,
-    writtenOffCount: 1,
-    totalEstimatedCostCents: 1_000_000,
-    totalActualCostCents: 750_000,
-    totalIndemnifiedCents: 300_000,
-    totalNetCostCents: 450_000,
-  };
-
   let items: ReturnType<typeof signal<VehicleIncidentListItem[]>>;
   let list: ReturnType<typeof vi.fn>;
+  /**
+   * O cartão "Resumo" saiu da tela a pedido do dono do produto. O espião fica
+   * aqui só para provar que a CHAMADA saiu junto: um `/summary` disparado sem
+   * ninguém para renderizar é rede desperdiçada no celular.
+   */
   let summary: ReturnType<typeof vi.fn>;
   let remove: ReturnType<typeof vi.fn>;
   let errorToast: ReturnType<typeof vi.fn>;
@@ -64,7 +57,7 @@ describe('IncidentsList', () => {
   function configure(): void {
     items = signal<VehicleIncidentListItem[]>([incident]);
     list = vi.fn(() => of({ content: [incident], page: 0, size: 20, total: 1 }));
-    summary = vi.fn(() => of(summaryData));
+    summary = vi.fn(() => of(null));
     remove = vi.fn(() => of(void 0));
     errorToast = vi.fn();
 
@@ -134,23 +127,26 @@ describe('IncidentsList', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('thirdParty');
   });
 
-  it('usa o endpoint /summary em vez de somar a página corrente', () => {
+  /**
+   * O dono do produto tirou o "Resumo" da tela. Sair da tela sem sair da rede
+   * seria o pior dos dois mundos: custo de uma requisição, zero pixel na tela.
+   */
+  it('não renderiza o Resumo nem chama o endpoint /summary', () => {
     const fixture = render();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = host.textContent ?? '';
 
-    expect(summary).toHaveBeenCalledTimes(1);
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    // activeCount = 5, e não os 1 item da página.
-    expect(text).toContain('5');
-    expect(text).toContain('Em aberto + em reparo');
-  });
+    expect(summary).not.toHaveBeenCalled();
 
-  it('o resumo falhar não apaga a lista', () => {
-    summary.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
-    );
-    const fixture = render();
+    // "Em aberto + em reparo" NÃO serve como sonda: é também o rótulo da opção
+    // ACTIVE do filtro de situação, que continua na tela.
+    expect(text).not.toContain('Prejuízo líquido');
+    expect(text).not.toContain('Custo real acumulado');
+    expect(text).not.toContain('Perdas totais');
 
-    expect((fixture.nativeElement as HTMLElement).querySelector('article')).not.toBeNull();
+    const cardTitles = Array.from(host.querySelectorAll('h2')).map((h) => h.textContent?.trim());
+    expect(cardTitles).not.toContain('Resumo');
+    expect(cardTitles).toContain('Lista');
   });
 
   it('o filtro ACTIVE traz aberto + em reparo numa chamada só', () => {
