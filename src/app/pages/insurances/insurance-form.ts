@@ -15,7 +15,11 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { InsurancesService } from '../../services/insurances.service';
-import { InsuranceCoverage, UpdateInsuranceRequest } from '../../types/insurance.types';
+import {
+  InsuranceCoverage,
+  InsurancePaymentMethod,
+  UpdateInsuranceRequest,
+} from '../../types/insurance.types';
 
 /**
  * Edição de uma apólice existente (`PATCH /v1/vehicles/{vehicleId}/insurances/{id}`).
@@ -63,7 +67,7 @@ export class InsuranceForm implements OnInit {
       deductibleAmount: [null as number | null, [Validators.min(0)]],
       startDate: ['', [Validators.required]],
       endDate: ['', [Validators.required]],
-      paymentMethod: [''],
+      paymentMethod: ['' as InsurancePaymentMethod | ''],
       notes: [''],
     },
     { validators: [insuranceDateRangeValidator] },
@@ -131,7 +135,9 @@ export class InsuranceForm implements OnInit {
       deductibleAmount: raw.deductibleAmount != null ? toCents(Number(raw.deductibleAmount)) : null,
       startDate: raw.startDate,
       endDate: raw.endDate,
-      paymentMethod: raw.paymentMethod?.trim() || null,
+      // `''` (opção "Não informada") vira null — o backend aceita null, mas
+      // recusa string vazia por não pertencer ao enum.
+      paymentMethod: raw.paymentMethod || null,
       notes: raw.notes?.trim() || null,
     };
 

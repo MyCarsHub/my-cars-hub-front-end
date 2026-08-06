@@ -9,6 +9,7 @@ import { NotificationFeedService } from './notification-feed.service';
 import { InsurancesService } from './insurances.service';
 import { AlertsService } from './alerts.service';
 import { LoggerService } from './logger.service';
+import { ImpersonationService } from './impersonation.service';
 import { MeResponse } from '../types/me-response.type';
 
 /**
@@ -60,6 +61,7 @@ describe('AuthService', () => {
         AlertsService,
         { provide: SessionService, useValue: sessionMock },
         { provide: HttpClient, useValue: { get: httpGet, post: vi.fn(), patch: vi.fn() } },
+        { provide: ImpersonationService, useValue: { reset: vi.fn() } },
       ],
     });
     service = TestBed.inject(AuthService);
@@ -290,7 +292,9 @@ describe('AuthService', () => {
       httpGet.mockImplementation((url: string) => {
         const target = String(url);
         if (target.endsWith('/unread-count')) return of({ count: 4 });
-        if (target.includes('/alerts/documents')) return of([{ title: 'CNH vence' }]);
+        if (target.includes('/alerts/documents')) {
+          return of({ content: [{ title: 'CNH vence' }], page: 0, size: 20, total: 1 });
+        }
         if (target.includes('/insurances')) {
           return of({ content: [{ id: 'i-1', plate: 'ABC1D23' }], page: 0, size: 20, total: 1 });
         }
@@ -327,6 +331,15 @@ describe('AuthService', () => {
       expect(insurances.insurances()).toEqual([]);
       expect(insurances.total()).toBe(0);
       expect(alerts.documentAlerts()).toEqual([]);
+    });
+
+    it('derruba a sessão de impersonação junto — o banner não pode sobreviver ao logout', () => {
+      service.logout();
+
+      const impersonation = TestBed.inject(ImpersonationService) as unknown as {
+        reset: ReturnType<typeof vi.fn>;
+      };
+      expect(impersonation.reset).toHaveBeenCalledTimes(1);
     });
 
     it('para o polling do contador — nenhum tick depois do logout', () => {

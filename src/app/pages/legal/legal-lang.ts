@@ -4,6 +4,18 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 export type LegalLang = 'pt' | 'en';
 
+/**
+ * BCP-47 tag written to `<html lang>` while a legal page is open.
+ *
+ * PT maps to `pt-BR`, the same value `src/index.html` ships and the rest of the site
+ * keeps — the legal pages are the only bilingual surface, so they must restore the site
+ * default on the way out instead of leaving a bare `pt` behind.
+ */
+export const HTML_LANG: Readonly<Record<LegalLang, string>> = {
+  pt: 'pt-BR',
+  en: 'en',
+};
+
 export interface LegalLangSync {
   /** Current language, derived from the `?lang` query param. */
   readonly lang: Signal<LegalLang>;

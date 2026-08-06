@@ -8,8 +8,9 @@ import type { DocumentAlert } from '../types/notification-feed.types';
 
 /**
  * Cobre `GET /v1/alerts/documents`:
- *  - `withinDays` viaja como query param (round-trip server-side do seletor);
- *  - a resposta alimenta o signal de cache, inclusive quando vem nula;
+ *  - `withinDays`, `page` e `size` viajam como query params;
+ *  - o ENVELOPE paginado (`content`/`page`/`size`/`total`) alimenta os signals,
+ *    inclusive quando a resposta vem nula;
  *  - `loading` sobe na chamada e desce no finalize (sucesso E erro);
  *  - o erro grava a mensagem no signal E é reemitido para quem assinou.
  */
@@ -27,6 +28,26 @@ describe('AlertsService', () => {
     actionUrl: '/motoristas/d-1',
   };
 
+  const ipvaAlert: DocumentAlert = {
+    type: 'IPVA_DUE_SOON',
+    typeLabel: 'IPVA a vencer',
+    severity: 'DANGER',
+    title: 'IPVA do ABC1D23 vence em 2 dias',
+    subtitle: 'IPVA — R$ 1.240,00',
+    entityType: 'VEHICLE',
+    entityId: 'v-9',
+    dueDate: '2026-08-07',
+    daysRemaining: 2,
+    actionUrl: '/veiculos/v-9',
+  };
+
+  const envelope = (content: DocumentAlert[], page = 0, size = 20, total = content.length) => ({
+    content,
+    page,
+    size,
+    total,
+  });
+
   let httpGet: ReturnType<typeof vi.fn>;
   let service: AlertsService;
 
@@ -37,7 +58,7 @@ describe('AlertsService', () => {
 
   beforeEach(() => {
     TestBed.resetTestingModule();
-    httpGet = vi.fn(() => of([alert]));
+    httpGet = vi.fn(() => of(envelope([alert])));
 
     TestBed.configureTestingModule({
       providers: [AlertsService, { provide: HttpClient, useValue: { get: httpGet } }],
@@ -45,25 +66,70 @@ describe('AlertsService', () => {
     service = TestBed.inject(AlertsService);
   });
 
-  it('envia withinDays como query param e usa o default de 30 dias', () => {
+  /**
+   * O default deixou de ser 30 fixo: sem `withinDays` o backend usa a MAIOR
+   * janela configurada pela empresa. Mandar 30 por conta própria passaria por
+   * cima da configuração de quem escolheu outra coisa.
+   */
+  it('omite withinDays quando não informado, deixando a janela por conta do backend', () => {
     service.listDocumentAlerts().subscribe();
     expect(String(httpGet.mock.calls[0][0])).toContain('/alerts/documents');
-    expect(paramsOfLastCall().get('withinDays')).toBe('30');
-
-    service.listDocumentAlerts(1).subscribe();
-    expect(paramsOfLastCall().get('withinDays')).toBe('1');
+    expect(paramsOfLastCall().has('withinDays')).toBe(false);
   });
 
-  it('publica a resposta no signal de cache e limpa o erro anterior', () => {
-    service.listDocumentAlerts(7).subscribe();
+  it('envia withinDays como query param quando a página escolhe a janela', () => {
+    service.listDocumentAlerts(1).subscribe();
+    expect(paramsOfLastCall().get('withinDays')).toBe('1');
 
-    expect(service.documentAlerts()).toEqual([alert]);
+    service.listDocumentAlerts(90).subscribe();
+    expect(paramsOfLastCall().get('withinDays')).toBe('90');
+  });
+
+  it('envia page e size, com o default de 20 por página', () => {
+    service.listDocumentAlerts().subscribe();
+    expect(paramsOfLastCall().get('page')).toBe('0');
+    expect(paramsOfLastCall().get('size')).toBe('20');
+
+    service.listDocumentAlerts(7, 3, 50).subscribe();
+    expect(paramsOfLastCall().get('page')).toBe('3');
+    expect(paramsOfLastCall().get('size')).toBe('50');
+  });
+
+  it('lê o envelope paginado — content vira a lista, page/size/total viram signals', () => {
+    httpGet.mockReturnValue(of(envelope([alert, ipvaAlert], 2, 20, 47)));
+
+    service.listDocumentAlerts(30, 2).subscribe();
+
+    expect(service.documentAlerts()).toEqual([alert, ipvaAlert]);
+    expect(service.page()).toBe(2);
+    expect(service.size()).toBe(20);
+    expect(service.total()).toBe(47);
     expect(service.error()).toBeNull();
     expect(service.loading()).toBe(false);
   });
 
+  it('preserva o alerta de IPVA com typeLabel, valor no subtitle e rota do veículo', () => {
+    httpGet.mockReturnValue(of(envelope([ipvaAlert])));
+
+    service.listDocumentAlerts().subscribe();
+
+    const [received] = service.documentAlerts();
+    expect(received.type).toBe('IPVA_DUE_SOON');
+    expect(received.typeLabel).toBe('IPVA a vencer');
+    expect(received.subtitle).toContain('R$ 1.240,00');
+    expect(received.actionUrl).toBe('/veiculos/v-9');
+  });
+
   it('trata uma resposta nula como lista vazia', () => {
     httpGet.mockReturnValue(of(null));
+    service.listDocumentAlerts().subscribe();
+
+    expect(service.documentAlerts()).toEqual([]);
+    expect(service.total()).toBe(0);
+  });
+
+  it('trata um envelope sem content como lista vazia', () => {
+    httpGet.mockReturnValue(of({ page: 0, size: 20, total: 0 }));
     service.listDocumentAlerts().subscribe();
 
     expect(service.documentAlerts()).toEqual([]);
@@ -73,7 +139,7 @@ describe('AlertsService', () => {
     let loadingDuringRequest = false;
     httpGet.mockImplementation(() => {
       loadingDuringRequest = service.loading();
-      return of([alert]);
+      return of(envelope([alert]));
     });
 
     service.listDocumentAlerts().subscribe();
@@ -103,7 +169,7 @@ describe('AlertsService', () => {
     service.listDocumentAlerts().subscribe({ error: () => void 0 });
     expect(service.error()).not.toBeNull();
 
-    httpGet.mockReturnValue(of([alert]));
+    httpGet.mockReturnValue(of(envelope([alert])));
     service.listDocumentAlerts().subscribe();
 
     expect(service.error()).toBeNull();
@@ -116,12 +182,16 @@ describe('AlertsService', () => {
    * alertas do anterior.
    */
   it('reset devolve o cache ao estado inicial', () => {
-    service.listDocumentAlerts().subscribe();
+    httpGet.mockReturnValue(of(envelope([alert], 2, 20, 47)));
+    service.listDocumentAlerts(30, 2).subscribe();
     expect(service.documentAlerts()).toEqual([alert]);
 
     service.reset();
 
     expect(service.documentAlerts()).toEqual([]);
+    expect(service.page()).toBe(0);
+    expect(service.size()).toBe(20);
+    expect(service.total()).toBe(0);
     expect(service.loading()).toBe(false);
     expect(service.error()).toBeNull();
   });

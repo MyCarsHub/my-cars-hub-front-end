@@ -162,17 +162,26 @@ html {
   margin: 0;
 }
 
-/* Reveal-on-scroll */
+/* Reveal-on-scroll — VISÍVEL POR PADRÃO.
+   Espelha a regra que realmente é servida, em `src/styles.css` (este arquivo não está em
+   `angular.json` nem em nenhum `styleUrls`). O estado escondido vive sob
+   `[data-reveal-ready]`, escrito por `reveal-ready.ts` depois do primeiro render, para
+   que o HTML prerenderizado nunca chegue invisível. */
 .reveal {
-  opacity: 0;
-  transform: translateY(20px);
   transition: opacity var(--dur-slow) var(--ease-out),
               transform var(--dur-slow) var(--ease-out);
 }
-.reveal.revealed { opacity: 1; transform: none; }
+.landing-root[data-reveal-ready] .reveal:not(.revealed) {
+  opacity: 0;
+  transform: translateY(20px);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal { opacity: 1; transform: none; transition: none; }
+  .landing-root[data-reveal-ready] .reveal:not(.revealed) {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 .landing-root :focus-visible {

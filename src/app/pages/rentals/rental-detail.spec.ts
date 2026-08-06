@@ -2,6 +2,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -76,6 +77,9 @@ async function mount(rental: RentalResponseDto): Promise<{
       provideHttpClient(),
       provideHttpClientTesting(),
       provideRouter([]),
+      // Os dialogs de encerramento animam backdrop/painel — sem isto qualquer
+      // teste que os abra estoura NG05105.
+      provideNoopAnimations(),
       { provide: ActivatedRoute, useValue: activatedRouteStub },
     ],
   });
@@ -94,6 +98,85 @@ async function mount(rental: RentalResponseDto): Promise<{
 
   return { fixture, http };
 }
+
+/**
+ * Pipeline da prévia da multa por atraso.
+ *
+ * O `distinctUntilChanged` que existia aqui era uma armadilha: `onOverdueReturnAtChanged`
+ * liga `overduePreviewLoading` ANTES de empurrar no Subject, e quem desliga é a
+ * resposta. Uma emissão repetida — reabrir o popup no mesmo minuto, ou o botão
+ * "Tentar de novo" — era engolida pelo operador, o loading nunca voltava a
+ * `false` e o botão de concluir ficava permanentemente desabilitado com
+ * "Calculando a multa por atraso…" na tela.
+ */
+describe('RentalDetail — prévia da multa por atraso', () => {
+  const ACTIVE_RENTAL: RentalResponseDto = { ...RESERVED_BASE, status: 'ACTIVE' };
+
+  /** `debounceTime(250)` do pipeline. Timers reais para não brigar com o zoneless. */
+  async function afterDebounce(fixture: ComponentFixture<RentalDetail>): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    fixture.detectChanges();
+    await fixture.whenStable();
+  }
+
+  function previewRequests(http: HttpTestingController) {
+    return http.match((req) => req.url.includes('/overdue-preview'));
+  }
+
+  async function openCompleteDialog(fixture: ComponentFixture<RentalDetail>): Promise<void> {
+    buttonsLabeled(fixture, 'Concluir aluguel')[0].click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+  }
+
+  const ON_TIME = {
+    chargeId: null,
+    overdue: false,
+    overdueDays: 0,
+    dailyRate: 0,
+    multiplierBps: 15_000,
+    graceHours: 3,
+    amount: 0,
+    dueAt: '2026-09-01T03:00:00',
+    returnedAt: '2026-08-31T18:00:00',
+  };
+
+  it('reabrir o popup no mesmo minuto pede a prévia DE NOVO', async () => {
+    const { fixture, http } = await mount(ACTIVE_RENTAL);
+
+    await openCompleteDialog(fixture);
+    await afterDebounce(fixture);
+
+    const first = previewRequests(http);
+    expect(first.length).toBe(1);
+    first[0].flush(ON_TIME);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Fecha e reabre sem tocar em data/hora: o instante emitido é o MESMO.
+    buttonsLabeled(fixture, 'Cancelar')[0].click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await openCompleteDialog(fixture);
+    await afterDebounce(fixture);
+
+    // Sem esta segunda requisição o loading fica ligado para sempre: quem o
+    // desliga é a resposta, e não haveria resposta nenhuma.
+    const second = previewRequests(http);
+    expect(second.length).toBe(1);
+    expect(fixture.nativeElement.textContent).toContain('Calculando a multa por atraso');
+
+    second[0].flush(ON_TIME);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Calculando a multa por atraso');
+    expect(fixture.nativeElement.textContent).toContain('Devolução dentro do prazo');
+    expect(buttonsLabeled(fixture, 'Concluir aluguel')[1].disabled).toBe(false);
+
+    http.verify();
+  });
+});
 
 describe('RentalDetail — ativação, cobrança AUTOMÁTICA (RESERVED)', () => {
   let fixture: ComponentFixture<RentalDetail>;

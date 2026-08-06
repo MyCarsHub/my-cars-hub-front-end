@@ -100,6 +100,18 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     }
   });
 
+  /**
+   * Último acesso formatado, ou `null` quando o backend não tem registro.
+   *
+   * O `last_login_date` só passou a ser gravado no login Google recentemente e
+   * NÃO houve backfill — usuários antigos ficam nulos até logarem de novo,
+   * mesmo já tendo acessado. Por isso o estado vazio é "Sem registro de
+   * acesso" (ausência do dado) e não uma afirmação de que a pessoa nunca entrou.
+   */
+  protected readonly lastLogin = computed<string | null>(() =>
+    this.formatDateTime(this.detail()?.lastLoginAt ?? null),
+  );
+
   ngOnInit(): void {
     this.route.paramMap
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -213,10 +225,10 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  protected formatDateTime(iso: string | null): string {
-    if (!iso) return 'N/A';
+  private formatDateTime(iso: string | null): string | null {
+    if (!iso) return null;
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return 'N/A';
+    if (Number.isNaN(d.getTime())) return null;
     return d.toLocaleString('pt-BR', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit',

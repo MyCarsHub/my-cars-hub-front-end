@@ -57,12 +57,19 @@ describe('OauthSuccess routing (systemRole aware)', () => {
     };
   }
 
-  async function setup(me: MeResponse) {
+  async function setup(me: MeResponse, stored: Record<string, string> = {}) {
     const navigate = vi.fn();
     const authService = { getMe: vi.fn().mockReturnValue(of(me)) };
+    const store = { ...stored };
     const sessionService = {
-      clear: vi.fn(),
+      clear: vi.fn(() => {
+        for (const key of Object.keys(store)) delete store[key];
+      }),
       setToken: vi.fn(),
+      getItem: vi.fn((key: string) => store[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        store[key] = value;
+      }),
     };
 
     await TestBed.configureTestingModule({
@@ -86,6 +93,25 @@ describe('OauthSuccess routing (systemRole aware)', () => {
     await fixture.whenStable();
     return { navigate, authService, sessionService };
   }
+
+  /**
+   * Convite: o login existe só para aceitar o convite, então `/auth/me` é pulado — o
+   * convidado ainda não tem empresa e cairia em /onboarding. O token bruto é reposto
+   * DEPOIS do `clear()`, que derruba o sessionStorage inteiro.
+   */
+  it('volta para a página do convite quando há token de convite pendente', async () => {
+    const { navigate, authService, sessionService } = await setup(
+      buildMe({ systemRole: 'USER', companies: [] }),
+      { pendingInviteToken: 'raw-token' },
+    );
+
+    expect(authService.getMe).not.toHaveBeenCalled();
+    expect(sessionService.setItem).toHaveBeenCalledWith('pendingInviteToken', 'raw-token');
+    expect(navigate).toHaveBeenCalledWith(['/invite/accept'], {
+      queryParams: { token: 'raw-token' },
+      replaceUrl: true,
+    });
+  });
 
   it('routes PLATFORM_ADMIN with companies=[] straight to /dashboard', async () => {
     const { navigate } = await setup(

@@ -20,9 +20,19 @@ import {
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { InsurancesService } from '../../services/insurances.service';
-import { InsuranceDetail as InsuranceDetailDto } from '../../types/insurance.types';
-import { INSURANCE_COVERAGE_LABELS, INSURANCE_STATUS_META } from '../../utils/status-maps';
+import {
+  InsuranceDetail as InsuranceDetailDto,
+  InsuranceInstallment,
+  InsurancePolicyDocument,
+} from '../../types/insurance.types';
+import {
+  INSURANCE_COVERAGE_LABELS,
+  INSURANCE_PAYMENT_METHOD_LABELS,
+  INSURANCE_STATUS_META,
+} from '../../utils/status-maps';
 import { todayIso } from '../../components/vehicles/insurance-form-fields/insurance-utils';
+import { InsurancePolicyDocumentCard } from './insurance-policy-document-card';
+import { InsuranceInstallmentsCard } from './insurance-installments-card';
 
 /** Ação de página aguardando confirmação no diálogo. */
 type PendingAction = 'cancel' | 'delete';
@@ -38,6 +48,8 @@ type PendingAction = 'cancel' | 'delete';
     DetailActions,
     AlertBanner,
     VehicleSummaryChip,
+    InsurancePolicyDocumentCard,
+    InsuranceInstallmentsCard,
   ],
   templateUrl: './insurance-detail.html',
 })
@@ -116,6 +128,17 @@ export class InsuranceDetail implements OnInit {
     return INSURANCE_COVERAGE_LABELS[i.coverageType] ?? i.coverageType;
   });
 
+  /**
+   * Rótulo da forma de pagamento. O mapa local vem primeiro (mesma copy do
+   * `<select>` do formulário); `paymentMethodLabel` do backend é o fallback
+   * para um valor de enum que o frontend ainda não conheça.
+   */
+  protected readonly paymentMethodText = computed<string>(() => {
+    const i = this.insurance();
+    if (!i || !i.paymentMethod) return '—';
+    return INSURANCE_PAYMENT_METHOD_LABELS[i.paymentMethod] ?? i.paymentMethodLabel ?? '—';
+  });
+
   /** Apólice CANCELLED ou EXPIRED não pode ser editada nem cancelada. */
   protected readonly canModify = computed<boolean>(() => {
     const i = this.insurance();
@@ -147,6 +170,19 @@ export class InsuranceDetail implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  /**
+   * Sincroniza o detalhe com o que os cards filhos já receberam do backend.
+   * Sem refetch de propósito: o POST/DELETE do documento e toda mutação de
+   * parcela já devolvem o estado final.
+   */
+  protected onPolicyDocumentChanged(document: InsurancePolicyDocument | null): void {
+    this.insurance.update((i) => (i ? { ...i, policyDocument: document } : i));
+  }
+
+  protected onInstallmentsChanged(installments: InsuranceInstallment[]): void {
+    this.insurance.update((i) => (i ? { ...i, installments } : i));
   }
 
   protected askAction(action: PendingAction): void {

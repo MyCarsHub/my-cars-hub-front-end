@@ -10,8 +10,10 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
@@ -25,6 +27,14 @@ import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
+import { SessionService } from '../../services/session.service';
+import {
+  OverdueFeeSummary,
+  formatLocalDateTime,
+  graceHoursLabel,
+  overdueFeeFormula,
+  overdueRuleLabel,
+} from '../../types/overdue.types';
 import {
   CancelRentalPayload,
   CompleteRentalPayload,
@@ -41,6 +51,9 @@ import {
 } from '../../types/rental.types';
 import { EndRentalDialog, EndRentalDialogPayload } from './components/end-rental-dialog/end-rental-dialog';
 import { RENTAL_STATUS_META } from '../../utils/status-maps';
+
+/** Papéis que podem EDITAR a regra de multa por atraso (espelha o `roleGuard`). */
+const OVERDUE_CONFIG_ROLES = ['OWNER', 'MANAGER'];
 
 @Component({
   selector: 'app-rental-detail',
@@ -126,6 +139,42 @@ export class RentalDetail implements OnInit {
       this.activationErrorPendingReveal = false;
       this.revealActivationError(el);
     });
+
+    // Pipeline da prévia da multa. `debounceTime` porque o `<input type="time">`
+    // emite a cada dígito; `switchMap` porque a última escolha é a única que
+    // vale. Erro NÃO derruba o stream — o operador continua podendo ajustar a
+    // hora depois de uma falha de rede.
+    //
+    // SEM `distinctUntilChanged`, de propósito. Quem liga `overduePreviewLoading`
+    // é `onOverdueReturnAtChanged`, e quem desliga é a resposta; um valor
+    // repetido engolido pelo operador deixava o loading ligado para sempre e o
+    // botão de concluir travado — o que acontecia ao reabrir o popup no mesmo
+    // minuto e ao apertar "Tentar de novo". O `debounceTime` já colapsa a
+    // rajada de digitação, e o GET é idempotente: repetir custa uma consulta.
+    this.overdueReturnAt
+      .pipe(
+        debounceTime(250),
+        switchMap((returnedAt) => {
+          const id = this.rental()?.id;
+          if (!id) return EMPTY;
+          return this.rentalService.overduePreview(id, returnedAt).pipe(
+            catchError((err: HttpErrorResponse) => {
+              this.overduePreviewLoading.set(false);
+              this.overduePreview.set(null);
+              this.overduePreviewError.set(
+                this.apiErrors.messageFor(err, 'Não foi possível calcular a multa por atraso.'),
+              );
+              return EMPTY;
+            }),
+          );
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((summary) => {
+        this.overduePreviewLoading.set(false);
+        this.overduePreviewError.set(null);
+        this.overduePreview.set(summary);
+      });
   }
 
   /**
@@ -162,6 +211,57 @@ export class RentalDetail implements OnInit {
 
   protected readonly completeOpen = signal(false);
   protected readonly completeBusy = signal(false);
+
+  // ------------------------------------------------------------------
+  // Prévia da multa por atraso (V53).
+  //
+  // O dialog é burro: ele emite a data-e-hora escolhida e esta tela busca a
+  // conta. `switchMap` porque cada mudança invalida a resposta anterior —
+  // sem ele, uma resposta lenta de um horário antigo poderia sobrescrever a
+  // do horário atual e o usuário confirmaria um valor que não é o dele.
+  // ------------------------------------------------------------------
+  protected readonly overduePreview = signal<OverdueFeeSummary | null>(null);
+  protected readonly overduePreviewLoading = signal(false);
+  protected readonly overduePreviewError = signal<string | null>(null);
+  private readonly overdueReturnAt = new Subject<string>();
+
+  /** Só OWNER/MANAGER abre a tela da regra — mesmo papel do `roleGuard` da rota. */
+  protected readonly canConfigureOverdue = OVERDUE_CONFIG_ROLES.includes(
+    inject(SessionService).getItem('selectedRole') ?? '',
+  );
+
+  /**
+   * A multa efetivamente lançada neste aluguel. Filtra o caso "sem atraso": o
+   * backend nunca lança multa de zero centavo, e mostrar um zero aqui só
+   * ensinaria a ignorar o bloco quando ele importa.
+   */
+  protected readonly overdueFee = computed<OverdueFeeSummary | null>(() => {
+    const fee = this.rental()?.overdueFee ?? null;
+    return fee && fee.overdue && fee.amount > 0 ? fee : null;
+  });
+
+  /** A conta por extenso — é o que o motorista confere ao contestar. */
+  protected readonly overdueFeeFormula = computed<string>(() => {
+    const fee = this.overdueFee();
+    return fee ? overdueFeeFormula(fee) : '';
+  });
+
+  protected readonly overdueFeeDueAtLabel = computed<string>(() =>
+    formatLocalDateTime(this.overdueFee()?.dueAt),
+  );
+
+  protected readonly overdueFeeReturnedAtLabel = computed<string>(() =>
+    formatLocalDateTime(this.overdueFee()?.returnedAt),
+  );
+
+  protected readonly overdueFeeGraceLabel = computed<string>(() =>
+    graceHoursLabel(this.overdueFee()?.graceHours ?? 0),
+  );
+
+  protected readonly overdueFeeRuleLabel = computed<string>(() => {
+    const fee = this.overdueFee();
+    return fee ? overdueRuleLabel(fee.multiplierBps, fee.graceHours) : '';
+  });
 
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
@@ -379,12 +479,26 @@ export class RentalDetail implements OnInit {
   }
 
   protected askComplete(): void {
+    // Estado limpo: nunca reabrir mostrando a conta de outra devolução.
+    this.overduePreview.set(null);
+    this.overduePreviewError.set(null);
+    this.overduePreviewLoading.set(false);
     this.completeOpen.set(true);
   }
   protected cancelComplete(): void {
     if (this.completeBusy()) return;
     this.completeOpen.set(false);
   }
+
+  /** Data-e-hora escolhida no dialog mudou — recalcula a prévia. */
+  protected onOverdueReturnAtChanged(returnedAt: string): void {
+    const r = this.rental();
+    if (!r) return;
+    this.overduePreviewLoading.set(true);
+    this.overduePreviewError.set(null);
+    this.overdueReturnAt.next(returnedAt);
+  }
+
   protected confirmComplete(event: EndRentalDialogPayload): void {
     const r = this.rental();
     if (!r) return;
@@ -392,6 +506,7 @@ export class RentalDetail implements OnInit {
       completedAt: event.date,
       removeOverdueCharges: event.removeOverdueCharges,
     };
+    if (event.actualReturnAt) payload.actualReturnAt = event.actualReturnAt;
     if (event.endReason) payload.endReason = event.endReason;
     if (event.caucaoRefund) payload.caucaoRefund = event.caucaoRefund;
     this.actionError.set(null);
@@ -488,6 +603,9 @@ export class RentalDetail implements OnInit {
    */
   protected rowBadge(charge: RentalChargeDto, indexInList: number): string {
     if (charge.kind === 'CAUCAO') return 'C';
+    // "M" de multa: a cobrança de atraso é one-off, não um período do
+    // cronograma — numerá-la faria parecer que existe um período extra.
+    if (charge.kind === 'OVERDUE_FEE') return 'M';
     return String(this.periodNumber(charge, indexInList));
   }
 

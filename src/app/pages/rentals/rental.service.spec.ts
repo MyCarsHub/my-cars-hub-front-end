@@ -304,3 +304,40 @@ describe('RentalService.unmarkCaucaoAsPaid', () => {
     );
   });
 });
+
+describe('RentalService.overduePreview', () => {
+  function setup(): { service: RentalService; httpGet: ReturnType<typeof vi.fn> } {
+    const httpGet = vi.fn().mockReturnValue(of({ overdue: false }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        RentalService,
+        {
+          provide: HttpClient,
+          useValue: { get: httpGet, post: vi.fn(), delete: vi.fn(), put: vi.fn() },
+        },
+      ],
+    });
+    return { service: TestBed.inject(RentalService), httpGet };
+  }
+
+  it('manda returnedAt como data-e-hora LOCAL, sem offset e sem conversão', () => {
+    const { service, httpGet } = setup();
+
+    service.overduePreview('rid-1', '2026-07-22T23:00:00').subscribe();
+
+    const [url, options] = httpGet.mock.calls[0];
+    expect(url).toBe(`${environment.apiUrl}/rentals/rid-1/overdue-preview`);
+    // O valor viaja intacto: nada de `Z`, nada de `+03:00`, nada de UTC.
+    expect(options.params.get('returnedAt')).toBe('2026-07-22T23:00:00');
+  });
+
+  it('omite returnedAt quando não informado — o backend usa "agora"', () => {
+    const { service, httpGet } = setup();
+
+    service.overduePreview('rid-1').subscribe();
+
+    const [, options] = httpGet.mock.calls[0];
+    expect(options.params.has('returnedAt')).toBe(false);
+  });
+});

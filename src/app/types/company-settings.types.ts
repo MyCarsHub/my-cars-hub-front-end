@@ -4,9 +4,12 @@ export interface CompanyOwner {
   joinedAt: string;
 }
 
+/**
+ * `pendingInvites` used to live here as a hardcoded placeholder. It now comes from
+ * `InvitesService.pendingCount()`, which is derived from `GET /v1/invites`.
+ */
 export interface CompanyStats {
   activeUsers: number;
-  pendingInvites: number;
 }
 
 /**

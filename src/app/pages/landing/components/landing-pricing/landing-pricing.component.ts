@@ -1,13 +1,14 @@
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  afterNextRender,
   computed,
   inject,
   signal,
 } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
+import { ENTERPRISE_YEARLY_TOTAL, PLAN_PRICES } from '../../landing-plans';
 import { PlanCardComponent } from '../../../../components/core/plan-card/plan-card';
 import {
   SegmentedToggle,
@@ -23,6 +24,11 @@ const CYCLE_MONTHLY_SHADOW = '0 6px 18px -6px rgba(235,63,0,0.4)';
 const CYCLE_YEARLY_BACKGROUND = 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)';
 const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(16,185,129,0.45)';
 
+/**
+ * Dona dos PREÇOS que a landing anuncia (via `landing-plans.ts`). Não emite JSON-LD: os
+ * mesmos preços saem uma única vez no `offers` do `SoftwareApplication`, escrito pela
+ * página da landing — ver `landing-structured-data.ts`.
+ */
 @Component({
   selector: 'app-landing-pricing',
   imports: [RouterModule, PlanCardComponent, SegmentedToggle],
@@ -31,11 +37,15 @@ const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(16,185,129,0.45)';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
 })
-export class LandingPricingComponent implements AfterViewInit {
+export class LandingPricingComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly router = inject(Router);
 
   protected readonly cycle = signal<BillingCycle>('monthly');
+
+  constructor() {
+    this.revealOnScroll();
+  }
 
   /** Opções do toggle Mensal/Anual — o badge mostra a economia real do anual. */
   protected readonly cycleOptions = computed<readonly SegmentedToggleOption<BillingCycle>[]>(() => [
@@ -55,12 +65,12 @@ export class LandingPricingComponent implements AfterViewInit {
     },
   ]);
 
-  private readonly proMonthly = 79.9;
-  /** PRO yearly total. Matches billing spec target R$ 795,80/ano (~17% off). */
-  private readonly proYearlyTotal = 795.8;
-  private readonly enterpriseMonthly = 299;
-  /** ENTERPRISE yearly total = 12 × monthly × (1 - 0.15) = 3049.80 (15% off). */
-  private readonly enterpriseYearlyTotal = this.enterpriseMonthly * 12 * 0.85;
+  // Prices live in `landing-plans.ts` — shared with the JSON-LD builder so the cards and
+  // the structured data cannot drift apart.
+  private readonly proMonthly = PLAN_PRICES.proMonthly;
+  private readonly proYearlyTotal = PLAN_PRICES.proYearlyTotal;
+  private readonly enterpriseMonthly = PLAN_PRICES.enterpriseMonthly;
+  private readonly enterpriseYearlyTotal = ENTERPRISE_YEARLY_TOTAL;
 
   /** Price shown on PRO card: monthly value on Mensal, YEARLY TOTAL on Anual. */
   protected readonly proPrice = computed(() =>
@@ -158,18 +168,23 @@ export class LandingPricingComponent implements AfterViewInit {
     this.router.navigate(['/login']);
   }
 
-  ngAfterViewInit(): void {
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            e.target.classList.add('revealed');
-            obs.unobserve(e.target);
+  private revealOnScroll(): void {
+    // `afterNextRender` em vez de `ngAfterViewInit`: este bloco usa APIs de DOM real
+    // (IntersectionObserver, NodeList.forEach) que não existem durante o prerender. O
+    // Angular pula estes callbacks no servidor — ver `app.routes.server.ts`.
+    afterNextRender(() => {
+      const obs = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              e.target.classList.add('revealed');
+              obs.unobserve(e.target);
+            }
           }
-        }
-      },
-      { threshold: 0.15 },
-    );
-    this.host.nativeElement.querySelectorAll('.reveal').forEach((el: Element) => obs.observe(el));
+        },
+        { threshold: 0.15 },
+      );
+      this.host.nativeElement.querySelectorAll('.reveal').forEach((el: Element) => obs.observe(el));
+    });
   }
 }

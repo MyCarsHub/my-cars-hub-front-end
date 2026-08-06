@@ -1,0 +1,307 @@
+<app-page-card title="Situação">
+  <div class="p-4 sm:p-6 space-y-4">
+    @if (cardError(); as conflictMessage) {
+      <app-alert-banner variant="warning" [message]="conflictMessage" />
+    }
+
+    <p class="text-sm text-neutral-600">
+      As duas situações abaixo correm em paralelo e são independentes: o veículo pode voltar a
+      rodar antes de a seguradora pagar, e a seguradora pode pagar depois de o reparo terminar.
+    </p>
+
+    <!-- Grid de 1 coluna no celular; as duas dimensões só ficam lado a lado a partir de sm. -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- ------------------------------------------------ dimensão 1: veículo -->
+      <section
+        class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3"
+        aria-labelledby="incident-resolution-heading"
+      >
+        <div class="space-y-1">
+          <h3
+            id="incident-resolution-heading"
+            class="text-xs font-semibold uppercase tracking-wide text-neutral-500"
+          >
+            Situação do veículo
+          </h3>
+          <p class="text-[11px] text-neutral-500">O que aconteceu com o carro.</p>
+        </div>
+
+        <p>
+          <span
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold"
+            [class]="resolutionMeta().chip"
+          >
+            <span aria-hidden="true">{{ resolutionMeta().icon }}</span>
+            {{ resolutionDimensionLabel }}: {{ resolutionMeta().label }}
+          </span>
+        </p>
+
+        @if (resolutionOptions().length > 0) {
+          <div class="space-y-2">
+            <p
+              class="text-[11px] font-medium text-neutral-500"
+              id="incident-resolution-actions-label"
+            >
+              Avançar para:
+            </p>
+            <div
+              class="flex flex-col gap-2"
+              role="group"
+              aria-labelledby="incident-resolution-actions-label"
+            >
+              @for (option of resolutionOptions(); track option.target) {
+                <button
+                  type="button"
+                  (click)="openTransition(option)"
+                  class="w-full inline-flex items-center justify-center gap-2 px-4 rounded-xl
+                         border border-neutral-300 bg-white text-sm font-medium text-neutral-800
+                         hover:bg-neutral-50 transition-colors min-h-[44px]
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                         focus-visible:ring-offset-2"
+                  [attr.aria-label]="
+                    'Mudar situação do veículo para ' + option.targetLabel
+                  "
+                >
+                  <span aria-hidden="true">{{ option.targetIcon }}</span>
+                  {{ option.targetLabel }}
+                </button>
+              }
+            </div>
+          </div>
+        } @else {
+          <p class="text-xs text-neutral-600">
+            Estado final: a situação do veículo não avança mais. Um novo evento com este carro
+            deve ser registrado como outro sinistro.
+          </p>
+        }
+      </section>
+
+      <!-- ----------------------------------------------- dimensão 2: seguro -->
+      <section
+        class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3"
+        aria-labelledby="incident-insurance-heading"
+      >
+        <div class="space-y-1">
+          <h3
+            id="incident-insurance-heading"
+            class="text-xs font-semibold uppercase tracking-wide text-neutral-500"
+          >
+            Processo de seguro
+          </h3>
+          <p class="text-[11px] text-neutral-500">O andamento com a seguradora.</p>
+        </div>
+
+        <p>
+          <span
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold"
+            [class]="insuranceMeta().chip"
+          >
+            <span aria-hidden="true">{{ insuranceMeta().icon }}</span>
+            {{ insuranceDimensionLabel }}: {{ insuranceMeta().label }}
+          </span>
+        </p>
+
+        @if (insuranceOptions().length > 0) {
+          <div class="space-y-2">
+            <p class="text-[11px] font-medium text-neutral-500" id="incident-insurance-actions-label">
+              Avançar para:
+            </p>
+            <div
+              class="flex flex-col gap-2"
+              role="group"
+              aria-labelledby="incident-insurance-actions-label"
+            >
+              @for (option of insuranceOptions(); track option.target) {
+                <button
+                  type="button"
+                  (click)="openTransition(option)"
+                  class="w-full inline-flex items-center justify-center gap-2 px-4 rounded-xl
+                         border border-neutral-300 bg-white text-sm font-medium text-neutral-800
+                         hover:bg-neutral-50 transition-colors min-h-[44px]
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                         focus-visible:ring-offset-2"
+                  [attr.aria-label]="'Mudar processo de seguro para ' + option.targetLabel"
+                >
+                  <span aria-hidden="true">{{ option.targetIcon }}</span>
+                  {{ option.targetLabel }}
+                </button>
+              }
+            </div>
+          </div>
+        } @else {
+          <p class="text-xs text-neutral-600">
+            Estado final: o processo com a seguradora está encerrado e não avança mais.
+          </p>
+        }
+      </section>
+    </div>
+  </div>
+</app-page-card>
+
+<!-- Folha inferior no celular, diálogo centrado a partir de sm. O campo que a
+     transição exige é pedido AQUI, no mesmo passo — nunca depois. -->
+@if (pending(); as transition) {
+  <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div
+      class="absolute inset-0 bg-neutral-900/50"
+      @sheetBackdrop
+      (click)="closeSheet()"
+      aria-hidden="true"
+    ></div>
+    <div
+      class="relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-t-2xl
+             sm:rounded-2xl shadow-xl border border-neutral-200 p-5 space-y-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="incident-transition-title"
+      @sheet
+    >
+      <h3 id="incident-transition-title" class="text-base font-semibold text-neutral-900">
+        {{ sheetTitle() }}
+      </h3>
+
+      @if (transition.needsActualCost) {
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-actual-cost">
+            Custo real <span class="text-primary-700" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="incident-actual-cost"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            required
+            aria-required="true"
+            [ngModel]="actualCostReais()"
+            (ngModelChange)="actualCostReais.set($event)"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+          <p class="text-xs text-neutral-500 mt-1">
+            Quanto o reparo (ou a perda) custou de fato, em reais. Encerrar sem esse número
+            deixa o fechamento financeiro do sinistro sem resposta.
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-notes">
+            Observação do encerramento
+          </label>
+          <textarea
+            id="incident-notes"
+            rows="3"
+            [ngModel]="notes()"
+            (ngModelChange)="notes.set($event)"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          ></textarea>
+          <p class="text-xs text-neutral-500 mt-1">Opcional. É anexada às notas, não as substitui.</p>
+        </div>
+      }
+
+      @if (transition.needsClaimNumber) {
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-claim-number">
+            Número do sinistro na seguradora
+            <span class="text-primary-700" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="incident-claim-number"
+            type="text"
+            maxlength="60"
+            required
+            aria-required="true"
+            [ngModel]="claimNumber()"
+            (ngModelChange)="claimNumber.set($event)"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+          <p class="text-xs text-neutral-500 mt-1">
+            Sem ele o registro não é rastreável do lado da seguradora.
+          </p>
+        </div>
+      }
+
+      @if (transition.needsIndemnified) {
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-indemnified">
+            Valor indenizado <span class="text-primary-700" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="incident-indemnified"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            required
+            aria-required="true"
+            [ngModel]="indemnifiedReais()"
+            (ngModelChange)="indemnifiedReais.set($event)"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+          <p class="text-xs text-neutral-500 mt-1">Quanto a seguradora devolveu, em reais.</p>
+        </div>
+      }
+
+      @if (transition.dimension === 'INSURANCE') {
+        <div>
+          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-deductible">
+            Franquia paga
+          </label>
+          <input
+            id="incident-deductible"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            [ngModel]="deductibleReais()"
+            (ngModelChange)="deductibleReais.set($event)"
+            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                   focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+          />
+          <p class="text-xs text-neutral-500 mt-1">
+            Opcional. Corrija aqui se a seguradora cobrou valor diferente do estimado.
+          </p>
+        </div>
+      }
+
+      @if (missingRequired(); as requiredMessage) {
+        <app-alert-banner variant="warning" [message]="requiredMessage" />
+      }
+      @if (sheetError(); as transitionError) {
+        <app-alert-banner variant="error" [message]="transitionError" />
+      }
+
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+        <button
+          type="button"
+          (click)="closeSheet()"
+          [disabled]="saving()"
+          class="w-full sm:w-auto px-4 rounded-xl text-sm font-medium text-neutral-700 min-h-[44px]
+                 bg-white border border-neutral-200 hover:bg-neutral-50 disabled:opacity-60
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="confirm()"
+          [disabled]="saving() || !canConfirm()"
+          class="w-full sm:w-auto px-4 rounded-xl text-sm font-semibold bg-primary-700 text-white
+                 min-h-[44px] hover:bg-primary-800 shadow-sm transition-colors
+                 disabled:opacity-60 disabled:cursor-not-allowed
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                 focus-visible:ring-offset-2"
+        >
+          @if (saving()) {
+            Salvando…
+          } @else {
+            Confirmar
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}

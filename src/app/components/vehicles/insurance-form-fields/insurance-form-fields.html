@@ -51,19 +51,25 @@
     </select>
   </app-form-field>
 
+  <!-- Enum validado no backend: texto livre responde 400. Ver
+       INSURANCE_PAYMENT_METHOD_OPTIONS. Vazio = null, que continua válido. -->
   <app-form-field
     label="Forma de pagamento"
     controlId="seguro-payment-method"
-    hint="Ex.: 12x no cartão, boleto anual…"
+    hint="Opcional. Como o prêmio é pago à seguradora."
     [control]="control('paymentMethod')"
   >
-    <input
+    <select
       appFieldControl
-      type="text"
-      autocomplete="off"
       formControlName="paymentMethod"
       class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-             focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+             focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+    >
+      <option value="">Não informada</option>
+      @for (opt of paymentMethodOptions; track opt.value) {
+        <option [value]="opt.value">{{ opt.label }}</option>
+      }
+    </select>
   </app-form-field>
 
   <div class="grid grid-cols-2 gap-3">

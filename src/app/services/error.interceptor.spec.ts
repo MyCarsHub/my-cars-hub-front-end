@@ -15,6 +15,11 @@ import { errorInterceptor } from './error.interceptor';
 import { SessionService } from './session.service';
 import { NotificationService } from './notification.service';
 import { ApiErrorService } from './api-error.service';
+import { ImpersonationService } from './impersonation.service';
+import {
+  IMPERSONATION_ERROR_CODES,
+  IMPERSONATION_READ_ONLY_MESSAGE,
+} from './impersonation.context';
 
 function makeError(status: number, body?: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error: body, url: 'http://localhost/v1/x' });
@@ -26,6 +31,8 @@ describe('errorInterceptor', () => {
   let notifyError: ReturnType<typeof vi.fn>;
   let notifyWarning: ReturnType<typeof vi.fn>;
   let scheduleSafetyNet: ReturnType<typeof vi.fn>;
+  let impersonating: boolean;
+  let impersonationExpire: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     sessionClear = vi.fn();
@@ -33,6 +40,8 @@ describe('errorInterceptor', () => {
     notifyError = vi.fn();
     notifyWarning = vi.fn();
     scheduleSafetyNet = vi.fn();
+    impersonating = false;
+    impersonationExpire = vi.fn();
 
     TestBed.configureTestingModule({
       providers: [
@@ -40,6 +49,10 @@ describe('errorInterceptor', () => {
         { provide: SessionService, useValue: { clear: sessionClear } },
         { provide: Router, useValue: { navigate: routerNavigate } },
         { provide: ApiErrorService, useValue: { scheduleSafetyNet, claim: vi.fn() } },
+        {
+          provide: ImpersonationService,
+          useValue: { active: () => impersonating, expire: impersonationExpire },
+        },
         {
           provide: NotificationService,
           useValue: {
@@ -157,5 +170,73 @@ describe('errorInterceptor', () => {
     expect(notifyError).not.toHaveBeenCalled();
     expect(notifyWarning).not.toHaveBeenCalled();
     expect(sessionClear).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Durante uma sessão de impersonação, os dois desfechos genéricos acima são
+   * exatamente os errados: o 401 tiraria do admin o PRÓPRIO acesso, e o 403
+   * viraria "Acesso negado" — que não diz que foi a sessão somente-leitura.
+   */
+  describe('sessão de impersonação', () => {
+    it('401 encerra a impersonação e NÃO manda o admin para o login', async () => {
+      impersonating = true;
+
+      const err = await runAndCatch(401, { code: IMPERSONATION_ERROR_CODES.invalidToken });
+
+      expect(impersonationExpire).toHaveBeenCalledTimes(1);
+      expect(sessionClear).not.toHaveBeenCalled();
+      expect(routerNavigate).not.toHaveBeenCalled();
+      expect(err?.status).toBe(401);
+    });
+
+    it('401 fora de impersonação segue caindo no login', async () => {
+      await runAndCatch(401);
+
+      expect(impersonationExpire).not.toHaveBeenCalled();
+      expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    });
+
+    it('403 do filtro (code) explica a sessão somente leitura', async () => {
+      await runAndCatch(403, {
+        code: IMPERSONATION_ERROR_CODES.readOnly,
+        message: 'Sessão de impersonação é somente leitura: nenhuma alteração é permitida.',
+      });
+
+      expect(notifyWarning).toHaveBeenCalledWith(IMPERSONATION_READ_ONLY_MESSAGE);
+      expect(notifyWarning).not.toHaveBeenCalledWith('Acesso negado');
+    });
+
+    it('403 da transação READ ONLY (só mensagem, sem code) também é reconhecido', async () => {
+      impersonating = true;
+
+      await runAndCatch(403, {
+        message: 'Sessão somente leitura: nenhuma alteração é permitida.',
+      });
+
+      expect(notifyWarning).toHaveBeenCalledWith(IMPERSONATION_READ_ONLY_MESSAGE);
+    });
+
+    /**
+     * A frase não é contrato: a transação READ ONLY do Postgres é só uma das
+     * origens possíveis para "somente leitura" numa mensagem de 403. Sem sessão
+     * ativa, casar a expressão avisaria sobre uma impersonação inexistente e
+     * esconderia o motivo real da recusa.
+     */
+    it('403 com "somente leitura" na mensagem SEM sessão ativa cai no aviso genérico', async () => {
+      impersonating = false;
+
+      await runAndCatch(403, {
+        message: 'Este recurso é somente leitura no seu plano.',
+      });
+
+      expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
+      expect(notifyWarning).not.toHaveBeenCalledWith(IMPERSONATION_READ_ONLY_MESSAGE);
+    });
+
+    it('403 comum continua sendo "Acesso negado"', async () => {
+      await runAndCatch(403, { message: 'Apenas OWNER e MANAGER podem executar esta ação.' });
+
+      expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
+    });
   });
 });

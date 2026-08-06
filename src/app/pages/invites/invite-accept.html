@@ -1,0 +1,122 @@
+<main
+  class="min-h-dvh bg-neutral-50 px-4 py-10 sm:py-16 flex items-start sm:items-center justify-center"
+>
+  <section
+    class="w-full max-w-md bg-white border border-neutral-200 rounded-2xl shadow-sm p-6 sm:p-8"
+    aria-labelledby="invite-title"
+  >
+    <a routerLink="/" class="inline-flex mb-6 rounded-lg focus:outline-none focus-visible:ring-2
+              focus-visible:ring-primary-600 focus-visible:ring-offset-2" aria-label="MyCarsHub — início">
+      <img ngSrc="svg/logo-my-cars-hub-complete.svg" width="160" height="38" priority alt="MyCarsHub" />
+    </a>
+
+    @switch (step()) {
+      @case ('validating') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Verificando seu convite…
+        </h1>
+        <p role="status" class="mt-2 text-sm text-neutral-500">
+          Só um instante enquanto confirmamos o link.
+        </p>
+      }
+
+      @case ('accepting') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Entrando na empresa…
+        </h1>
+        <p role="status" class="mt-2 text-sm text-neutral-500">
+          Estamos finalizando seu acesso a {{ companyName() }}.
+        </p>
+      }
+
+      @case ('ready') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Você foi convidado para
+          <span class="text-primary-600">{{ companyName() }}</span>
+        </h1>
+        <p class="mt-2 text-sm text-neutral-500">
+          Entre com o Google usando o e-mail que recebeu este convite para concluir.
+        </p>
+
+        <dl class="mt-6 rounded-xl border border-neutral-200 divide-y divide-neutral-100 text-sm">
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-500 shrink-0">Empresa</dt>
+            <dd class="font-medium text-neutral-900 text-right break-words min-w-0">
+              {{ companyName() }}
+            </dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-500 shrink-0">Seu acesso</dt>
+            <dd class="font-medium text-neutral-900 text-right">{{ roleLabel() }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-500 shrink-0">E-mail convidado</dt>
+            <dd class="font-medium text-neutral-900 text-right break-all min-w-0">
+              {{ invitedEmail() }}
+            </dd>
+          </div>
+        </dl>
+
+        <button
+          type="button"
+          (click)="continueWithGoogle()"
+          [disabled]="redirecting()"
+          [attr.aria-busy]="redirecting() ? 'true' : null"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center gap-3 rounded-xl
+                 bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                 hover:bg-primary-600 transition-colors focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                 disabled:opacity-60 disabled:cursor-wait"
+        >
+          <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
+          <span>{{ redirecting() ? 'Redirecionando…' : ctaLabel() }}</span>
+        </button>
+
+        <p class="mt-4 text-xs text-neutral-500 leading-relaxed">
+          O convite vale por 24 horas a partir do envio. Depois disso, peça um novo à empresa.
+        </p>
+      }
+
+      @case ('error') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Não foi possível usar este convite
+        </h1>
+
+        @if (errorMessage(); as message) {
+          <div class="mt-4">
+            <app-alert-banner variant="error" [message]="message" />
+          </div>
+        }
+
+        <div class="mt-6 flex flex-col gap-3">
+          @if (canSwitchAccount()) {
+            <button
+              type="button"
+              (click)="switchAccount()"
+              [disabled]="redirecting()"
+              [attr.aria-busy]="redirecting() ? 'true' : null"
+              class="w-full min-h-12 inline-flex items-center justify-center gap-3 rounded-xl
+                     bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                     hover:bg-primary-600 transition-colors focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                     disabled:opacity-60 disabled:cursor-wait"
+            >
+              <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
+              <span>{{ redirecting() ? 'Redirecionando…' : 'Entrar com outra conta' }}</span>
+            </button>
+          }
+
+          <a
+            routerLink="/"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                   border-neutral-200 text-sm font-semibold text-neutral-700 px-5 py-3
+                   hover:bg-neutral-50 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Voltar para o início
+          </a>
+        </div>
+      }
+    }
+  </section>
+</main>

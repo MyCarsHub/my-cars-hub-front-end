@@ -1,7 +1,8 @@
+import { OverdueFeeSummary } from './overdue.types';
 import { PagedResponse } from './paged.types';
 
 export type RentalStatus = 'RESERVED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
-export type ChargeKind = 'RENTAL_TOTAL' | 'RENTAL_PERIOD' | 'CAUCAO';
+export type ChargeKind = 'RENTAL_TOTAL' | 'RENTAL_PERIOD' | 'CAUCAO' | 'OVERDUE_FEE';
 export type ChargeStatus =
   | 'PENDING'
   | 'PAID'
@@ -26,6 +27,13 @@ export interface CaucaoRefundPayload {
  */
 export interface CompleteRentalPayload {
   completedAt?: string; // yyyy-MM-dd
+  /**
+   * V53 — data E HORA da devolução, em horário local, **sem offset**
+   * (`2026-07-22T23:00:00`). Só existe para decidir a multa por atraso: a
+   * tolerância é contada em horas e sem hora não haveria como aplicá-la.
+   * Quando vem junto de `completedAt`, as duas datas precisam coincidir.
+   */
+  actualReturnAt?: string;
   endReason?: string; // <= 500
   caucaoRefund?: CaucaoRefundPayload;
   /**
@@ -166,6 +174,12 @@ export interface RentalResponseDto {
   completedAt?: string | null;
   /** Data de cancelamento (yyyy-MM-dd). Presente quando status=CANCELED. */
   canceledAt?: string | null;
+  /**
+   * V53 — a conta da multa por devolução em atraso, quando houve uma. `null`
+   * (ou ausente) significa que nada foi cobrado: devolução no prazo, aluguel
+   * ainda não concluído, ou multa de zero centavo, que o backend nunca lança.
+   */
+  overdueFee?: OverdueFeeSummary | null;
 }
 
 export interface RentalListItemDto {
@@ -295,6 +309,7 @@ export function chargeKindLabel(kind: ChargeKind): string {
     RENTAL_TOTAL: 'Aluguel',
     RENTAL_PERIOD: 'Aluguel — período',
     CAUCAO: 'Caução',
+    OVERDUE_FEE: 'Multa por atraso',
   };
   return map[kind];
 }

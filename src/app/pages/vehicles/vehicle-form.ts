@@ -32,7 +32,11 @@ import { InsuranceFormFields } from '../../components/vehicles/insurance-form-fi
 import { insuranceDateRangeValidator } from '../../components/vehicles/insurance-form-fields/insurance-utils';
 import { VehiclesService } from '../../services/vehicles.service';
 import { InsurancesService } from '../../services/insurances.service';
-import { CreateInsuranceRequest, InsuranceCoverage } from '../../types/insurance.types';
+import {
+  CreateInsuranceRequest,
+  InsuranceCoverage,
+  InsurancePaymentMethod,
+} from '../../types/insurance.types';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
@@ -181,7 +185,7 @@ export class VehicleForm implements OnInit {
       deductibleAmount: [null as number | null, [Validators.min(0)]],
       startDate: ['', [Validators.required]],
       endDate: ['', [Validators.required]],
-      paymentMethod: [''],
+      paymentMethod: ['' as InsurancePaymentMethod | ''],
       notes: [''],
     },
     { validators: [insuranceDateRangeValidator] },
@@ -458,7 +462,9 @@ export class VehicleForm implements OnInit {
       deductibleAmount: raw.deductibleAmount != null ? toCents(Number(raw.deductibleAmount)) : null,
       startDate: raw.startDate,
       endDate: raw.endDate,
-      paymentMethod: raw.paymentMethod?.trim() || null,
+      // `''` (opção "Não informada") vira null — o enum do backend não aceita
+      // string vazia, e texto livre passou a responder 400.
+      paymentMethod: raw.paymentMethod || null,
       notes: raw.notes?.trim() || null,
     };
   }

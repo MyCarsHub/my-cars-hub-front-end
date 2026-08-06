@@ -1,0 +1,52 @@
+# MyCarsHub — https://mycarshub.app.br
+#
+# Served from the domain ROOT: everything in `public/` is copied verbatim into the build
+# output root by the `assets` glob in angular.json — the same mechanism that already
+# serves /manifest.webmanifest in production.
+#
+# A denylist, not `Disallow: /` + allowlist, on purpose: Googlebot must be able to fetch
+# the JS/CSS bundles to render the client-side routes. Blocking them breaks rendering.
+# The authenticated paths below mirror the children of the `AppShell` route in
+# `src/app/app.routes.ts`. They ALSO emit `noindex, nofollow` at runtime (any route
+# without `data.seo` does — see `services/seo.service.ts`), and that runtime tag is the
+# stronger guarantee: `Disallow` only stops the crawl, and a page Google never crawls is
+# a page whose `noindex` Google never reads — it can still be indexed from an external
+# link, URL only. So the two mechanisms do NOT back each other up: this list covers paths
+# from being crawled, and the meta tag covers paths from being indexed. A path that drifts
+# out of this list keeps the meta tag; a path that loses `data.seo` keeps this list.
+
+User-agent: *
+
+# Authenticated application — unreachable without a session, useless to a crawler.
+Disallow: /dashboard
+Disallow: /veiculos
+Disallow: /motoristas
+Disallow: /alugueis
+Disallow: /manutencoes
+Disallow: /multas
+Disallow: /financiamentos
+Disallow: /seguros
+Disallow: /alertas
+Disallow: /relatorios
+Disallow: /perfil
+Disallow: /configuracoes
+Disallow: /suporte
+Disallow: /roadmap
+Disallow: /billing
+Disallow: /admin
+Disallow: /onboarding
+
+# Auth and one-time token flows. Indexing these is useless and leaks invite URLs.
+Disallow: /login
+Disallow: /signup
+Disallow: /oauth-success
+Disallow: /invite/
+
+# Backend, proxied through the SPA origin (see the rewrite in vercel.json).
+Disallow: /api/
+
+# Legal pages have a single canonical (PT); the ?lang=en variant must not be crawled
+# as a separate URL.
+Disallow: /*?lang=
+
+Sitemap: https://mycarshub.app.br/sitemap.xml

@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { NotificationService } from './notification.service';
+import { PendingTabPlaceholderCopy, renderPendingTabPlaceholder } from './pending-tab-placeholder';
 
 /**
  * A tab reserved SYNCHRONOUSLY inside a user gesture, navigated later when the
@@ -52,8 +53,12 @@ export class ExternalNavigationService {
    * cloning `sessionStorage` into the new tab, which is what lets the gateway
    * return page recognise which plan was being paid for. The reverse reference
    * is severed by hand instead, before any cross-origin navigation happens.
+   *
+   * `copy` é o que a aba reservada EXIBE enquanto espera. O padrão é o texto do
+   * checkout; todo caller que NÃO está cobrando precisa passar o seu, senão o
+   * usuário lê "Abrindo o pagamento seguro" ao abrir um documento.
    */
-  openPendingTab(): PendingTab {
+  openPendingTab(copy?: PendingTabPlaceholderCopy): PendingTab {
     if (typeof window === 'undefined') return BLOCKED_TAB;
     const win = window.open('', '_blank');
     if (!win) return BLOCKED_TAB;
@@ -64,7 +69,7 @@ export class ExternalNavigationService {
       win.close();
       return BLOCKED_TAB;
     }
-    this.renderPlaceholder(win);
+    this.renderPlaceholder(win, copy);
     return {
       blocked: false,
       navigate: (url: string) => {
@@ -91,23 +96,16 @@ export class ExternalNavigationService {
     }
   }
 
-  /** about:blank reads as a broken tab on mobile — say what is happening. */
-  private renderPlaceholder(win: Window): void {
+  /**
+   * about:blank reads as a broken tab on mobile — say what is happening.
+   * The markup/CSS lives in `pending-tab-placeholder.ts`; see the note there on
+   * why this is hand-rolled DOM instead of the `OauthSuccess` component.
+   */
+  private renderPlaceholder(win: Window, copy?: PendingTabPlaceholderCopy): void {
     try {
-      const doc = win.document;
-      doc.title = 'Redirecionando para o pagamento…';
-      const message = doc.createElement('p');
-      message.textContent = 'Abrindo o pagamento seguro. Não feche esta aba.';
-      message.setAttribute(
-        'style',
-        'font: 16px/1.5 system-ui, -apple-system, sans-serif; padding: 24px; color: #1f2937;',
-      );
-      // A freshly opened about:blank may not have parsed a <body> yet; the
-      // document element always exists, so the message is never dropped.
-      const host = doc.body ?? doc.documentElement;
-      host?.appendChild(message);
+      renderPendingTabPlaceholder(win.document, copy);
     } catch {
-      // A placeholder is a nicety; never let it break the checkout.
+      // Even reaching `win.document` can throw; a placeholder never breaks the flow.
     }
   }
 }

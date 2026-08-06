@@ -6,8 +6,16 @@
       "destination": "https://my-cars-hub-back-end.onrender.com/v1/:path*"
     },
     {
+      "source": "/politica-de-privacidade",
+      "destination": "/politica-de-privacidade/index.html"
+    },
+    {
+      "source": "/termos-de-uso",
+      "destination": "/termos-de-uso/index.html"
+    },
+    {
       "source": "/((?!api).*)",
-      "destination": "/index.html"
+      "destination": "/index.csr.html"
     }
   ],
   "headers": [
@@ -59,6 +67,15 @@
     },
     {
       "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/index.csr.html",
       "headers": [
         {
           "key": "Cache-Control",
