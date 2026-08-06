@@ -261,14 +261,15 @@ body.app-shell-active {
   display: inline;
   background-image: linear-gradient(180deg, transparent 60%, rgba(246,59,4,0.18) 60%, rgba(246,59,4,0.18) 92%, transparent 92%);
   background-repeat: no-repeat;
-  background-size: 0% 100%;
+  /* Mesma inversão do `.reveal` (ver abaixo): o traço nasce pintado, e só some enquanto
+     o bloco que o contém espera a animação de entrada. */
+  background-size: 100% 100%;
   background-position: 0 0;
   transition: background-size 900ms var(--ease-out) 200ms;
   padding: 0 2px;
 }
-.landing-root .reveal.revealed .hl,
-.landing-root .revealed .hl {
-  background-size: 100% 100%;
+.landing-root[data-reveal-ready] .reveal:not(.revealed) .hl {
+  background-size: 0% 100%;
 }
 /* Em bg laranja: highlight branco translúcido */
 .solution .hl,
@@ -313,30 +314,37 @@ body.app-shell-active {
   margin: 0;
 }
 
+/* Reveal-on-scroll — VISÍVEL POR PADRÃO.
+   A landing é prerenderizada: `opacity: 0` como estado base fazia os 156KB de HTML
+   estático chegarem invisíveis até o JS bootar e o IntersectionObserver disparar, o que
+   anula o ganho do prerender e deixa a página em branco se o bundle falhar. O estado
+   escondido agora só existe sob `[data-reveal-ready]`, atributo escrito por
+   `pages/landing/reveal-ready.ts` DEPOIS do primeiro render do cliente — e só para o que
+   ainda não apareceu na tela. */
 .landing-root .reveal {
-  opacity: 0;
-  transform: translateY(20px);
   transition: opacity var(--dur-slow) var(--ease-out),
               transform var(--dur-slow) var(--ease-out);
+}
+.landing-root[data-reveal-ready] .reveal:not(.revealed) {
+  opacity: 0;
+  transform: translateY(20px);
   will-change: opacity, transform;
 }
-.landing-root .reveal.revealed {
-  opacity: 1;
-  transform: none;
-}
-.landing-root h2.reveal {
+.landing-root[data-reveal-ready] h2.reveal:not(.revealed) {
   transform: translateY(24px) scale(0.98);
   transform-origin: left center;
-}
-.landing-root h2.reveal.revealed {
-  transform: none;
 }
 .landing-root h2 {
   transition: transform 900ms var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-root .reveal { opacity: 1; transform: none; transition: none; }
+  .landing-root[data-reveal-ready] .reveal:not(.revealed),
+  .landing-root[data-reveal-ready] h2.reveal:not(.revealed) {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 
   /* Anula o `scroll-behavior: smooth` global (ver `html`, acima). Scroll
      programático — `scrollIntoView()` sem `behavior` explícito herda daqui —

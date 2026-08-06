@@ -7,6 +7,8 @@ import {
   TitleStrategy,
 } from '@angular/router';
 
+import { RouteSeo, SeoService } from './seo.service';
+
 const BRAND = 'MyCarsHub';
 
 /**
@@ -15,14 +17,26 @@ const BRAND = 'MyCarsHub';
  *
  * Resolution order: `Route.title` → deepest primary `data.pageTitle` → brand only.
  * The brand suffix is always appended here, so route labels stay bare.
+ *
+ * Also the single place that drives `SeoService`: title, description, canonical, Open
+ * Graph and robots all change together on navigation, so they are written together.
+ * Public routes declare `data.seo`; anything without it is treated as private surface
+ * and gets `noindex, nofollow`.
  */
 @Injectable({ providedIn: 'root' })
 export class PageTitleStrategy extends TitleStrategy {
   private readonly title = inject(Title);
+  private readonly seo = inject(SeoService);
 
   override updateTitle(snapshot: RouterStateSnapshot): void {
     const pageTitle = this.buildTitle(snapshot) ?? deepestPageTitle(snapshot.root);
-    this.title.setTitle(pageTitle ? `${pageTitle} — ${BRAND}` : BRAND);
+    const fullTitle = pageTitle ? `${pageTitle} — ${BRAND}` : BRAND;
+    this.title.setTitle(fullTitle);
+    this.seo.applyRouteSeo({
+      title: fullTitle,
+      urlPath: snapshot.url,
+      seo: deepestSeo(snapshot.root),
+    });
   }
 }
 
@@ -40,4 +54,28 @@ function deepestPageTitle(root: ActivatedRouteSnapshot): string | undefined {
   }
 
   return found;
+}
+
+/** Same walk for `data.seo` — the deepest declaration wins, parents act as defaults. */
+function deepestSeo(root: ActivatedRouteSnapshot): RouteSeo | undefined {
+  let found: RouteSeo | undefined;
+  let current: ActivatedRouteSnapshot | undefined = root;
+
+  while (current) {
+    const candidate: unknown = current.data['seo'];
+    if (isRouteSeo(candidate)) {
+      found = candidate;
+    }
+    current = current.children.find((child) => child.outlet === PRIMARY_OUTLET);
+  }
+
+  return found;
+}
+
+function isRouteSeo(value: unknown): value is RouteSeo {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { description?: unknown }).description === 'string'
+  );
 }

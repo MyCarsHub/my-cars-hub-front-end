@@ -11,6 +11,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { LandingNavComponent } from '../landing/components/landing-nav/landing-nav.component';
 import { LandingFooterComponent } from '../landing/components/landing-footer/landing-footer.component';
 import { BlogPostDetail, blogCategoryLabel } from '../../types/blog.types';
+import { SeoService } from '../../services/seo.service';
 import { BlogService } from './blog.service';
 
 /**
@@ -29,6 +30,7 @@ export class BlogDetail implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(BlogService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly seo = inject(SeoService);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -64,6 +66,10 @@ export class BlogDetail implements OnInit {
       next: (p) => {
         this.post.set(p);
         this.safeBody.set(this.sanitizer.bypassSecurityTrustHtml(p.bodyHtml));
+        // `data.seo.description` da rota é a MESMA frase para todo post; sem isto o blog
+        // inteiro sai com meta descriptions duplicadas — justo no conteúdo que existe
+        // para rankear. O post traz a sua; o excerpt é o plano B.
+        this.seo.setDescription(p.metaDescription ?? p.excerpt ?? '');
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {

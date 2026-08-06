@@ -1,4 +1,15 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  afterNextRender,
+  inject,
+  signal,
+} from '@angular/core';
+import { SeoService } from '../../../services/seo.service';
+import { organizationJsonLd, softwareApplicationJsonLd } from '../landing-structured-data';
+import { enableRevealAnimations } from '../reveal-ready';
 import { LandingNavComponent } from '../components/landing-nav/landing-nav.component';
 import { LandingHeroComponent } from '../components/landing-hero/landing-hero.component';
 import { LandingProblemComponent } from '../components/landing-problem/landing-problem.component';
@@ -33,8 +44,33 @@ import { LandingFooterComponent } from '../components/landing-footer/landing-foo
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(window:scroll)': 'onScroll()' },
 })
-export class LandingComponent {
+export class LandingComponent implements OnDestroy {
+  private readonly seo = inject(SeoService);
+  private readonly host = inject(ElementRef<HTMLElement>);
+
   protected readonly showFab = signal(false);
+
+  constructor() {
+    // Written in the constructor so the blocks are already in <head> when the prerender
+    // serializes the document — that is what puts them in the static HTML Google reads.
+    this.seo.setJsonLd('organization', organizationJsonLd());
+    this.seo.setJsonLd('software-application', softwareApplicationJsonLd());
+
+    // Só depois que o cliente renderizou o CSS pode esconder o que vai entrar animado —
+    // até lá o HTML prerenderizado fica visível. Ver `reveal-ready.ts`.
+    afterNextRender(() => {
+      const root = (this.host.nativeElement as HTMLElement).querySelector<HTMLElement>(
+        '.landing-root',
+      );
+      if (root) enableRevealAnimations(root);
+    });
+  }
+
+  ngOnDestroy(): void {
+    // Navigating away in the SPA must not leave the landing's schema on other pages.
+    this.seo.removeJsonLd('organization');
+    this.seo.removeJsonLd('software-application');
+  }
 
   protected onScroll(): void {
     this.showFab.set(window.scrollY > 600);

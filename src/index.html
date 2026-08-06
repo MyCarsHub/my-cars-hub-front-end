@@ -1,7 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <!-- `lang="pt-BR"` acima: é o idioma real de TODO o conteúdo público (landing, blog,
+       app) e fica serializado no `browser/index.html` prerenderizado e no
+       `index.csr.html` — é o que o crawler lê, e o JSON-LD da landing já declara
+       `inLanguage: "pt-BR"`. As páginas legais são as ÚNICAS bilíngues e sobrescrevem
+       o atributo em runtime (ver `pages/legal/legal-lang.ts`). -->
   <title>MyCarsHub</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

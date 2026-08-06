@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MyCarsHub sitemap. Served from the domain ROOT via the `public/` assets glob in
+  angular.json, and referenced by /robots.txt.
+
+  Only PUBLIC, indexable URLs belong here — the same set that carries `data.seo` in
+  src/app/app.routes.ts. `lastmod` is present only where a real date exists (the legal
+  pages declare `lastUpdated` in their components); it is omitted elsewhere rather than
+  invented, since a false lastmod trains Google to ignore the signal.
+
+  /blog/:slug entries are intentionally absent: posts are fetched at runtime, so there is
+  no build-time list of slugs. Add them here once the blog has a static index.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://mycarshub.app.br/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://mycarshub.app.br/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://mycarshub.app.br/termos-de-uso</loc>
+    <lastmod>2026-07-21</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://mycarshub.app.br/politica-de-privacidade</loc>
+    <lastmod>2026-07-21</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>

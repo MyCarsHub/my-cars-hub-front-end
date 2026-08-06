@@ -1,4 +1,10 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterNextRender,
+  inject,
+} from '@angular/core';
 
 interface FaqItem { q: string; a: string; }
 
@@ -8,7 +14,7 @@ interface FaqItem { q: string; a: string; }
   styleUrls: ['./landing-faq.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LandingFaqComponent implements AfterViewInit {
+export class LandingFaqComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
 
   readonly faqs: FaqItem[] = [
@@ -21,11 +27,20 @@ export class LandingFaqComponent implements AfterViewInit {
     { q: 'Posso cancelar a qualquer momento?', a: 'Sim. Sem fidelidade, sem multa. Cancele quando quiser direto na plataforma.' },
   ];
 
-  ngAfterViewInit(): void {
-    const obs = new IntersectionObserver(
-      (entries) => { for (const e of entries) { if (e.isIntersecting) { e.target.classList.add('revealed'); obs.unobserve(e.target); } } },
-      { threshold: 0.15 }
-    );
-    this.host.nativeElement.querySelectorAll('.reveal').forEach((el: Element) => obs.observe(el));
+  constructor() {
+    this.revealOnScroll();
+  }
+
+  private revealOnScroll(): void {
+    // `afterNextRender` em vez de `ngAfterViewInit`: este bloco usa APIs de DOM real
+    // (IntersectionObserver, NodeList.forEach) que não existem durante o prerender. O
+    // Angular pula estes callbacks no servidor — ver `app.routes.server.ts`.
+    afterNextRender(() => {
+      const obs = new IntersectionObserver(
+        (entries) => { for (const e of entries) { if (e.isIntersecting) { e.target.classList.add('revealed'); obs.unobserve(e.target); } } },
+        { threshold: 0.15 }
+      );
+      this.host.nativeElement.querySelectorAll('.reveal').forEach((el: Element) => obs.observe(el));
+    });
   }
 }

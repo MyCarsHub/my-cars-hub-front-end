@@ -1,8 +1,8 @@
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  afterNextRender,
   inject,
 } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -24,7 +24,7 @@ interface Pillar {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
 })
-export class LandingSolutionComponent implements AfterViewInit {
+export class LandingSolutionComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -62,18 +62,27 @@ export class LandingSolutionComponent implements AfterViewInit {
     },
   ];
 
-  ngAfterViewInit(): void {
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            e.target.classList.add('revealed');
-            obs.unobserve(e.target);
+  constructor() {
+    this.revealOnScroll();
+  }
+
+  private revealOnScroll(): void {
+    // `afterNextRender` em vez de `ngAfterViewInit`: este bloco usa APIs de DOM real
+    // (IntersectionObserver, NodeList.forEach) que não existem durante o prerender. O
+    // Angular pula estes callbacks no servidor — ver `app.routes.server.ts`.
+    afterNextRender(() => {
+      const obs = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              e.target.classList.add('revealed');
+              obs.unobserve(e.target);
+            }
           }
-        }
-      },
-      { threshold: 0.2 },
-    );
-    this.host.nativeElement.querySelectorAll('.reveal').forEach((el: Element) => obs.observe(el));
+        },
+        { threshold: 0.2 },
+      );
+      this.host.nativeElement.querySelectorAll('.reveal').forEach((el: Element) => obs.observe(el));
+    });
   }
 }
