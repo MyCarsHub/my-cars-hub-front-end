@@ -26,6 +26,7 @@ import {
   NotificationType,
 } from '../../types/notification-feed.types';
 import { alertWindowLabel, formatAlertWindows, sortWindowsAsc } from '../../utils/alert-windows';
+import { AlertWindows } from './alert-windows/alert-windows';
 
 /** Chip de filtro por tipo de documento. `'ALL'` é o chip "Todos". */
 type TypeChip = FilterChipOption<NotificationType | 'ALL'>;
@@ -39,7 +40,11 @@ const TYPE_CHIPS: readonly TypeChip[] = [
   { value: 'FINANCING_INSTALLMENT_DUE', label: 'Financiamento' },
 ];
 
-/** Papéis que podem abrir Configurações → Avisos de vencimento. */
+/**
+ * Papéis que podem EDITAR as janelas de aviso. Antes era o `roleGuard` da rota
+ * `/configuracoes/alertas`; a tela virou seção desta página, que é aberta a
+ * qualquer membro, então o papel passou a ser checado aqui.
+ */
 const CONFIG_ROLES = ['OWNER', 'MANAGER'];
 
 const SEVERITY_CHIP: Record<NotificationSeverity, string> = {
@@ -83,7 +88,7 @@ export interface AlertGroup {
 @Component({
   selector: 'app-alerts-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup],
+  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup, AlertWindows],
   templateUrl: './alerts-page.html',
 })
 export class AlertsPage implements OnInit {
@@ -109,7 +114,7 @@ export class AlertsPage implements OnInit {
   protected readonly withinDays = signal<AlertWindow | null>(null);
   protected readonly typeFilter = signal<NotificationType | 'ALL'>('ALL');
 
-  /** Só OWNER/MANAGER abre a tela de configuração — mesmo papel do `roleGuard`. */
+  /** Só OWNER/MANAGER vê o editor de janelas — mesmo papel do antigo `roleGuard`. */
   protected readonly canConfigure = CONFIG_ROLES.includes(
     this.session.getItem('selectedRole') ?? '',
   );

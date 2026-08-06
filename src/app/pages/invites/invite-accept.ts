@@ -11,7 +11,7 @@ import { inviteErrorCopy } from '../../services/invite-errors';
 import { ValidateInviteResponse } from '../../types/invite.types';
 import { PENDING_INVITE_TOKEN_KEY } from './invite-session';
 
-type AcceptStep = 'validating' | 'ready' | 'accepting' | 'error';
+type AcceptStep = 'validating' | 'ready' | 'accepting' | 'mismatch' | 'error';
 
 const ROLE_LABELS: Readonly<Record<string, string>> = {
   MANAGER: 'Gerente',
@@ -63,6 +63,8 @@ export class InviteAccept implements OnInit {
   protected readonly details = signal<ValidateInviteResponse | null>(null);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly redirecting = signal(false);
+  /** E-mail da sessão aberta nesta aba, só quando ele diverge do convidado. */
+  protected readonly signedInEmail = signal('');
 
   protected readonly companyName = computed(() => this.details()?.companyName ?? '');
   protected readonly invitedEmail = computed(() => this.details()?.email ?? '');
@@ -105,7 +107,7 @@ export class InviteAccept implements OnInit {
         this.details.set(details);
         // Coming back from Google there is already a token — finish without a second click.
         if (this.session.getToken()) {
-          this.acceptInvite();
+          this.acceptOrReportMismatch(details);
           return;
         }
         this.step.set('ready');
@@ -128,6 +130,34 @@ export class InviteAccept implements OnInit {
     if (this.redirecting()) return;
     this.auth.logout();
     this.continueWithGoogle();
+  }
+
+  /**
+   * Há token nesta aba — mas de QUEM?
+   *
+   * O caso real: o link do convite é aberto no mesmo navegador onde o proprietário já
+   * está logado, e o convidado é uma segunda conta da mesma pessoa. Aceitar às cegas
+   * gastava o convite contra a conta errada e voltava 400 do backend. A divergência é
+   * detectável aqui — os dois e-mails já estão em mãos.
+   *
+   * Comparação sem caixa e sem espaços: o backend normaliza dos dois lados.
+   *
+   * Sessão SEM `email` guardado não é divergência: é exatamente o que a volta do Google
+   * produz no fluxo de convite (`OauthSuccess` zera a sessão e pula o `/auth/me`). Sem
+   * e-mail para comparar, seguimos com o aceite e o backend continua sendo a autoridade
+   * — o caminho de erro com "Entrar com outra conta" segue existindo para esse caso.
+   */
+  private acceptOrReportMismatch(details: ValidateInviteResponse): void {
+    const signedIn = (this.session.getItem('email') ?? '').trim();
+    const invited = (details.email ?? '').trim();
+
+    if (signedIn && invited && signedIn.toLowerCase() !== invited.toLowerCase()) {
+      this.signedInEmail.set(signedIn);
+      this.step.set('mismatch');
+      return;
+    }
+
+    this.acceptInvite();
   }
 
   private acceptInvite(): void {

@@ -523,10 +523,20 @@ export const routes: Routes = [
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
                             {
+                                // OWNER **e** MANAGER: a regra de multa por
+                                // devolução em atraso deixou de ter tela própria
+                                // (`/configuracoes/atraso`, que aceitava os dois
+                                // papéis) e virou seção desta página. Manter
+                                // OWNER-only aqui tiraria do MANAGER uma
+                                // capacidade que ele já tem em produção — e o
+                                // backend aceita MANAGER no PUT da regra.
+                                // O que é OWNER-only (nome/documento, cartão do
+                                // proprietário, atalho de Dados de contato) é
+                                // escondido dentro de `CompanySettings`.
                                 path: '',
                                 pathMatch: 'full',
                                 component: CompanySettings,
-                                canActivate: [roleGuard(['OWNER'])],
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 data: { pageTitle: 'Configurações' },
                             },
                             {
@@ -547,34 +557,13 @@ export const routes: Routes = [
                                     ).then((m) => m.AsaasIntegration),
                                 data: { pageTitle: 'Integração Asaas' },
                             },
-                            {
-                                // Janelas de aviso da empresa. Só OWNER/MANAGER
-                                // edita; membro comum vê o estado (leitura) na
-                                // própria página `/alertas`.
-                                path: 'alertas',
-                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
-                                loadComponent: () =>
-                                    import(
-                                        './pages/company-settings/alert-windows/alert-windows'
-                                    ).then((m) => m.AlertWindows),
-                                data: { pageTitle: 'Avisos de vencimento' },
-                            },
-                            {
-                                // Regra de multa por devolução em atraso.
-                                // Subdiretório + serviço próprios, fora da tela
-                                // de Configurações: o PUT toca só multiplicador
-                                // + tolerância e não pode herdar a corrida de
-                                // carregamento daquela. Só OWNER/MANAGER edita;
-                                // membro comum lê a regra em vigor no popup de
-                                // conclusão do aluguel, junto da conta da multa.
-                                path: 'atraso',
-                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
-                                loadComponent: () =>
-                                    import(
-                                        './pages/company-settings/overdue-fee/overdue-fee'
-                                    ).then((m) => m.OverdueFee),
-                                data: { pageTitle: 'Devolução com atraso' },
-                            },
+                            // REMOVIDAS: `alertas` (janelas de aviso) e `atraso`
+                            // (regra da multa) eram duas telas para dois punhados
+                            // de campos. As janelas viraram a seção
+                            // `app-alert-windows` da página `/alertas`; a regra da
+                            // multa virou a seção `app-overdue-fee` da própria
+                            // página de Configurações (`path: ''` acima). Nenhuma
+                            // capacidade saiu do produto — só o salto de rota.
                             {
                                 // Dados de contato da empresa que alimentam o
                                 // contrato. Rota própria, fora da tela de

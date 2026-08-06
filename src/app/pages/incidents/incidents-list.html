@@ -2,44 +2,6 @@
   title="Sinistros"
   description="Colisões, roubos e danos da frota — situação do veículo, processo de seguro e custos."
 >
-  <!-- Resumo vem do endpoint /summary: agregados de TODOS os sinistros do
-       recorte, não da página carregada. Uma chamada, montada no celular. -->
-  @if (summary(); as s) {
-    <app-page-card title="Resumo">
-      <div class="p-3 sm:p-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-xl border border-neutral-200 bg-white p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Em aberto + em reparo</p>
-          <p class="text-2xl font-semibold text-neutral-900 tabular-nums">{{ s.activeCount }}</p>
-          <p class="text-[11px] text-neutral-500 tabular-nums">
-            {{ s.openCount }} em aberto · {{ s.inRepairCount }} em reparo
-          </p>
-        </div>
-        <div class="rounded-xl border border-neutral-200 bg-white p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Perdas totais</p>
-          <p class="text-2xl font-semibold text-neutral-900 tabular-nums">{{ s.writtenOffCount }}</p>
-        </div>
-        <div class="rounded-xl border border-neutral-200 bg-white p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Custo real acumulado</p>
-          <p class="text-lg font-semibold text-neutral-900 tabular-nums">
-            {{ formatCurrency(s.totalActualCostCents) }}
-          </p>
-          <p class="text-[11px] text-neutral-500 tabular-nums">
-            Estimado {{ formatCurrency(s.totalEstimatedCostCents) }}
-          </p>
-        </div>
-        <div class="rounded-xl border border-neutral-200 bg-white p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Prejuízo líquido</p>
-          <p class="text-lg font-semibold text-neutral-900 tabular-nums">
-            {{ formatCurrency(s.totalNetCostCents) }}
-          </p>
-          <p class="text-[11px] text-neutral-500 tabular-nums">
-            Indenizado {{ formatCurrency(s.totalIndemnifiedCents) }}
-          </p>
-        </div>
-      </div>
-    </app-page-card>
-  }
-
   <app-page-card title="Lista">
     <div cardActions>
       <a
@@ -130,7 +92,7 @@
             id="incidents-from"
             type="date"
             [ngModel]="from()"
-            (ngModelChange)="from.set($event); onPeriodChange()"
+            (ngModelChange)="from.set($event); onFilterChange()"
             class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           />
@@ -142,7 +104,7 @@
             id="incidents-to"
             type="date"
             [ngModel]="to()"
-            (ngModelChange)="to.set($event); onPeriodChange()"
+            (ngModelChange)="to.set($event); onFilterChange()"
             class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           />

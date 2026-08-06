@@ -33,6 +33,7 @@ import {
 } from '../../utils/document-mask';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { UserCompanies } from '../../types/user-companies';
+import { OverdueFee } from './overdue-fee/overdue-fee';
 
 const SAVE_FALLBACK = 'Não foi possível salvar os dados da empresa.';
 
@@ -69,6 +70,20 @@ function centre(element: HTMLElement | null): void {
  *
  * Name capitalization is owned by the backend (`NameNormalizer`); the screen renders
  * whatever the API returns and normalizes nothing locally.
+ *
+ * ## Papéis nesta página
+ *
+ * A rota deixou de ser OWNER-only quando a tela `/configuracoes/atraso` virou a seção
+ * `app-overdue-fee` daqui: aquela rota aceitava OWNER **e** MANAGER, e o backend também
+ * (`PUT /v1/companies/current/overdue-settings`). Manter `roleGuard(['OWNER'])` teria
+ * tirado do MANAGER uma capacidade que ele tinha em produção.
+ *
+ * Então a rota passou a `roleGuard(['OWNER','MANAGER'])` e o que é OWNER-only virou
+ * `@if (isOwner)` no template — exatamente os blocos cujo endpoint exige OWNER:
+ * o formulário de nome/documento (`PUT /v1/companies/me`), o cartão do proprietário e o
+ * atalho para Dados de contato (rota OWNER-only). O `GET` da empresa também só sai para
+ * OWNER: sem o formulário não há o que preencher, e assim um MANAGER não dispara uma
+ * requisição que pode voltar 403.
  */
 @Component({
   selector: 'app-company-settings',
@@ -80,6 +95,7 @@ function centre(element: HTMLElement | null): void {
     FormField,
     FieldControl,
     PageCard,
+    OverdueFee,
   ],
   templateUrl: './company-settings.html',
   styleUrl: './company-settings.css',
@@ -96,8 +112,15 @@ export class CompanySettings implements OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
+  /**
+   * OWNER-only blocks. `PUT /v1/companies/me` exige OWNER no backend, então mostrar o
+   * formulário a um MANAGER só produziria um 403 no salvamento.
+   */
+  protected readonly isOwner = this.sessionService.getItem('selectedRole') === 'OWNER';
+
   ngOnInit(): void {
-    this.loadCompanyInfo();
+    // Só OWNER edita os dados cadastrais — sem o formulário, o GET não tem consumidor.
+    if (this.isOwner) this.loadCompanyInfo();
     // The invite count is a secondary stat here; a failure hides the card instead of
     // shouting. Claiming the error keeps the interceptor's safety-net toast quiet — the
     // dedicated /configuracoes/convites screen is where invite errors are explained.
