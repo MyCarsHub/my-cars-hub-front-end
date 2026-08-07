@@ -1,9 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormGroup } from '@angular/forms';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { CompanySettings } from './company-settings';
@@ -11,7 +10,6 @@ import { CompanyService } from '../../services/company.service';
 import { SessionService } from '../../services/session.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import { InvitesService } from '../../services/invites.service';
 import { SERVER_ERROR_KEY } from '../../services/validation-messages';
 import type { CompanyFullResponse } from '../../types/company-full-response.type';
 import type { UpdateCompanyRequest } from '../../types/company-settings.types';
@@ -63,6 +61,9 @@ describe('CompanySettings — edição dos dados da empresa', () => {
     companyForm: FormGroup;
     save: () => void;
     saveError: () => string | null;
+    editing: () => boolean;
+    startEdit: () => void;
+    cancelEdit: () => void;
   }
 
   function configure(): void {
@@ -86,16 +87,6 @@ describe('CompanySettings — edição dos dados da empresa', () => {
           },
         },
         {
-          // Only the pending-invite stat comes from here; the invite screens have their
-          // own specs. Signals are inlined so the card renders a deterministic count.
-          provide: InvitesService,
-          useValue: {
-            list: () => of([]),
-            pendingCount: signal(0).asReadonly(),
-            loaded: signal(true).asReadonly(),
-          },
-        },
-        {
           provide: NotificationService,
           useValue: {
             success: notifySuccess,
@@ -114,6 +105,20 @@ describe('CompanySettings — edição dos dados da empresa', () => {
     const fixture = TestBed.createComponent(CompanySettings);
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance as unknown as Harness };
+  }
+
+  /**
+   * O cartão institucional abre em leitura — os campos só existem no DOM depois do
+   * "Editar". Specs que tocam em `input`/`#company-name` passam por aqui.
+   *
+   * `startEdit` sincroniza o formulário com a empresa carregada, então qualquer
+   * `setValue` do teste vem DEPOIS desta chamada, nunca antes.
+   */
+  function renderEditing(): { fixture: ComponentFixture<CompanySettings>; component: Harness } {
+    const rendered = render();
+    rendered.component.startEdit();
+    rendered.fixture.detectChanges();
+    return rendered;
   }
 
   function documentInputOf(fixture: ComponentFixture<CompanySettings>): HTMLInputElement {
@@ -200,13 +205,15 @@ describe('CompanySettings — edição dos dados da empresa', () => {
   it('nunca devolve o documento mascarado ao backend após um save', () => {
     updateCompany.mockReturnValue(of(COMPANY_CNPJ));
 
-    const { fixture, component } = render();
+    const { fixture, component } = renderEditing();
     component.companyForm.get('documentValue')?.setValue(CNPJ);
     component.save();
     fixture.detectChanges();
 
     expect(component.companyForm.get('documentValue')?.value).toBe('');
     // Campo continua editável — nenhum estado travado após ganhar CNPJ.
+    component.startEdit();
+    fixture.detectChanges();
     expect(documentInputOf(fixture).disabled).toBe(false);
   });
 
@@ -249,7 +256,7 @@ describe('CompanySettings — edição dos dados da empresa', () => {
   });
 
   it('mascara enquanto digita e mantém o cursor na posição editada', () => {
-    const { fixture, component } = render();
+    const { fixture, component } = renderEditing();
     const input = documentInputOf(fixture);
 
     input.value = '12345678000195';
@@ -261,7 +268,7 @@ describe('CompanySettings — edição dos dados da empresa', () => {
   });
 
   it('apaga o separador e o caractere anterior num único backspace', () => {
-    const { fixture, component } = render();
+    const { fixture, component } = renderEditing();
     const input = documentInputOf(fixture);
 
     input.value = '12345678000195';
@@ -313,7 +320,7 @@ describe('CompanySettings — edição dos dados da empresa', () => {
     });
 
     it('renderiza o campo de documento normalmente', () => {
-      const { fixture } = render();
+      const { fixture } = renderEditing();
 
       expect(documentInputOf(fixture)).toBeTruthy();
       expect(fixture.nativeElement.textContent).toContain('CNPJ');
@@ -453,6 +460,392 @@ describe('CompanySettings — edição dos dados da empresa', () => {
   });
 
   /**
+   * O avatar do proprietário era um disco laranja SEM filho nenhum — na tela lia como
+   * imagem quebrada. Ele agora carrega as iniciais, e some quando não há nome.
+   */
+  describe('avatar do proprietário', () => {
+    function avatarOf(fixture: ComponentFixture<CompanySettings>): HTMLElement | null {
+      return (fixture.nativeElement as HTMLElement).querySelector('[data-owner-avatar]');
+    }
+
+    it('mostra as iniciais do primeiro e do último nome', () => {
+      session['name'] = 'Lorran Sarmento Santos';
+      const { fixture } = render();
+
+      expect(avatarOf(fixture)?.textContent?.trim()).toBe('LS');
+    });
+
+    it('usa uma única letra quando o nome tem só uma palavra', () => {
+      session['name'] = 'lorran';
+      const { fixture } = render();
+
+      expect(avatarOf(fixture)?.textContent?.trim()).toBe('L');
+    });
+
+    it('não desenha o círculo quando não há nome na sessão', () => {
+      const { fixture } = render();
+
+      expect(avatarOf(fixture)).toBeNull();
+    });
+  });
+
+  /**
+   * Sem dados carregados a tela mostrava um rótulo órfão ("Data de fundação" sem valor)
+   * e um selo de status vazio — uma lasca verde de ~28x8px.
+   */
+  describe('estado vazio', () => {
+    it('omite data de fundação, status e "desde" enquanto o GET não voltou', () => {
+      getInfoCompany = vi.fn().mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      const { fixture } = render();
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+      expect(text).not.toContain('Data de fundação');
+      expect(text).not.toContain('Status da conta');
+      expect(text).not.toContain('No MyCarsHub desde');
+    });
+
+    it('mostra as três linhas quando a empresa carrega', () => {
+      const { fixture } = render();
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+      expect(text).toContain('Data de fundação');
+      expect(text).toContain('ACTIVE');
+      expect(text).toContain('No MyCarsHub desde');
+    });
+  });
+
+  /**
+   * O cartão institucional abre em SOMENTE-LEITURA. Nome e documento só viram campo
+   * depois do "Editar"; "Cancelar" descarta o que foi digitado e volta para leitura.
+   *
+   * Nada disso toca em validador, payload ou endpoint — os specs de save acima
+   * continuam valendo palavra por palavra.
+   */
+  describe('leitura por padrão, edição sob demanda', () => {
+    function host(fixture: ComponentFixture<CompanySettings>): HTMLElement {
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    function editToggleOf(fixture: ComponentFixture<CompanySettings>): HTMLButtonElement {
+      const button = host(fixture).querySelector('[data-edit-toggle]');
+      if (!(button instanceof HTMLButtonElement)) throw new Error('botão "Editar" ausente');
+      return button;
+    }
+
+    function submitOf(fixture: ComponentFixture<CompanySettings>): HTMLElement | null {
+      return host(fixture).querySelector('button[type="submit"]');
+    }
+
+    function cancelOf(fixture: ComponentFixture<CompanySettings>): HTMLButtonElement {
+      const buttons = Array.from(host(fixture).querySelectorAll('button[type="button"]'));
+      const cancel = buttons.find((b) => (b.textContent ?? '').trim() === 'Cancelar');
+      if (!(cancel instanceof HTMLButtonElement)) throw new Error('botão "Cancelar" ausente');
+      return cancel;
+    }
+
+    function retryOf(fixture: ComponentFixture<CompanySettings>): HTMLButtonElement {
+      const buttons = Array.from(host(fixture).querySelectorAll('button[type="button"]'));
+      const retry = buttons.find((b) => (b.textContent ?? '').trim() === 'Tentar de novo');
+      if (!(retry instanceof HTMLButtonElement)) throw new Error('botão "Tentar de novo" ausente');
+      return retry;
+    }
+
+    it('abre em leitura: sem campos, sem submit, com o botão "Editar"', () => {
+      const { fixture, component } = render();
+
+      expect(component.editing()).toBe(false);
+      expect(host(fixture).querySelector('#company-name')).toBeNull();
+      expect(host(fixture).querySelector('#company-document')).toBeNull();
+      // Um submit visível sem nada para submeter é o que fazia a tela parecer inacabada.
+      expect(submitOf(fixture)).toBeNull();
+      expect(editToggleOf(fixture).textContent?.trim()).toContain('Editar');
+    });
+
+    it('em leitura mostra nome e documento como valor, no tratamento de legenda da página', () => {
+      const { fixture } = render();
+      const text = host(fixture).textContent ?? '';
+
+      expect(text).toContain('Nome da empresa');
+      expect(text).toContain('Locadora Alfa');
+      expect(text).toContain('Documento');
+      expect(text).toContain('CPF · ***.***.**X-90');
+      // "Alterar documento" é rótulo de campo — não pode vazar para o modo de leitura.
+      expect(text).not.toContain('Alterar documento');
+    });
+
+    it('clicar em "Editar" revela os campos e o par Salvar/Cancelar', () => {
+      const { fixture, component } = render();
+
+      editToggleOf(fixture).click();
+      fixture.detectChanges();
+
+      expect(component.editing()).toBe(true);
+      expect(host(fixture).querySelector('#company-name')).not.toBeNull();
+      expect(host(fixture).querySelector('#company-document')).not.toBeNull();
+      expect(submitOf(fixture)).not.toBeNull();
+      expect(cancelOf(fixture)).not.toBeNull();
+      // O gatilho sai de cena enquanto o formulário está aberto.
+      expect(host(fixture).querySelector('[data-edit-toggle]')).toBeNull();
+    });
+
+    it('o gatilho "Editar" não submete o formulário', () => {
+      const { fixture } = render();
+
+      expect(editToggleOf(fixture).type).toBe('button');
+
+      editToggleOf(fixture).click();
+      fixture.detectChanges();
+
+      expect(updateCompany).not.toHaveBeenCalled();
+    });
+
+    it('"Cancelar" restaura o nome digitado e volta para leitura', () => {
+      const { fixture, component } = renderEditing();
+      component.companyForm.get('name')?.setValue('Nome Rascunho');
+      fixture.detectChanges();
+
+      cancelOf(fixture).click();
+      fixture.detectChanges();
+
+      expect(component.editing()).toBe(false);
+      expect(updateCompany).not.toHaveBeenCalled();
+      // Volta ao valor da empresa carregada, não ao rascunho.
+      expect(component.companyForm.get('name')?.value).toBe('Locadora Alfa');
+      expect(host(fixture).textContent).toContain('Locadora Alfa');
+      expect(host(fixture).textContent).not.toContain('Nome Rascunho');
+    });
+
+    it('"Cancelar" descarta o documento digitado — reabrir a edição mostra o campo vazio', () => {
+      const { fixture, component } = renderEditing();
+      component.companyForm.get('documentValue')?.setValue(CNPJ);
+
+      cancelOf(fixture).click();
+      fixture.detectChanges();
+
+      editToggleOf(fixture).click();
+      fixture.detectChanges();
+
+      expect(component.companyForm.get('documentValue')?.value).toBe('');
+      expect(documentInputOf(fixture).value).toBe('');
+    });
+
+    it('"Cancelar" limpa o erro da tentativa anterior', () => {
+      updateCompany.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({ status: 404, error: { message: 'Empresa não encontrada' } }),
+        ),
+      );
+
+      const { fixture, component } = renderEditing();
+      component.save();
+      fixture.detectChanges();
+      expect(component.saveError()).toBe('Empresa não encontrada');
+
+      cancelOf(fixture).click();
+      fixture.detectChanges();
+
+      expect(component.saveError()).toBeNull();
+      expect(host(fixture).querySelector('[data-save-error]')).toBeNull();
+    });
+
+    it('"Cancelar" não deixa a marcação de inválido do save anterior grudada no campo', () => {
+      const { fixture, component } = renderEditing();
+      component.companyForm.get('name')?.setValue('');
+      component.save();
+      fixture.detectChanges();
+      expect(component.companyForm.get('name')?.touched).toBe(true);
+
+      cancelOf(fixture).click();
+      component.startEdit();
+      fixture.detectChanges();
+
+      expect(component.companyForm.get('name')?.touched).toBe(false);
+      expect(host(fixture).querySelector('[aria-invalid="true"]')).toBeNull();
+    });
+
+    it('um save bem-sucedido volta sozinho para leitura', () => {
+      updateCompany.mockReturnValue(of({ ...COMPANY_CPF, name: 'Locadora Beta' }));
+
+      const { fixture, component } = renderEditing();
+      component.companyForm.get('name')?.setValue('Locadora Beta');
+      component.save();
+      fixture.detectChanges();
+
+      expect(component.editing()).toBe(false);
+      expect(host(fixture).querySelector('#company-name')).toBeNull();
+      expect(host(fixture).textContent).toContain('Locadora Beta');
+    });
+
+    it('um save que falha MANTÉM o formulário aberto, com o que o usuário digitou', () => {
+      updateCompany.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({ status: 404, error: { message: 'Empresa não encontrada' } }),
+        ),
+      );
+
+      const { fixture, component } = renderEditing();
+      component.companyForm.get('name')?.setValue('Locadora Beta');
+      component.save();
+      fixture.detectChanges();
+
+      expect(component.editing()).toBe(true);
+      expect(host(fixture).querySelector('#company-name')).not.toBeNull();
+      expect(component.companyForm.get('name')?.value).toBe('Locadora Beta');
+    });
+
+    /**
+     * Sem empresa carregada o modo de leitura não pode virar uma pilha de legendas
+     * sem valor — é o mesmo endurecimento de "Data de fundação" / "Status da conta".
+     */
+    it('sem empresa carregada, leitura não mostra legenda órfã de nome nem de documento', () => {
+      getInfoCompany = vi
+        .fn()
+        .mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      const { fixture } = render();
+      const text = host(fixture).textContent ?? '';
+
+      expect(text).not.toContain('Nome da empresa');
+      expect(text).not.toContain('Documento');
+    });
+
+    it('empresa sem documento mostra a frase explícita, não uma legenda vazia', () => {
+      getInfoCompany = vi.fn().mockReturnValue(of({ ...COMPANY_CPF, documentValue: '' }));
+
+      const { fixture } = render();
+
+      expect(host(fixture).textContent).toContain('Nenhum documento cadastrado');
+    });
+
+    it('"Documento atual" em edição sai da mesma fonte do modo de leitura', () => {
+      getInfoCompany = vi.fn().mockReturnValue(of({ ...COMPANY_CPF, documentValue: '' }));
+
+      const { fixture } = renderEditing();
+
+      // Era a mesma regra escrita duas vezes no template; agora é `documentSummary()`
+      // nos dois modos, então elas não têm como divergir.
+      expect(host(fixture).textContent).toContain('Documento atual');
+      expect(host(fixture).textContent).toContain('Nenhum documento cadastrado');
+    });
+
+    /**
+     * Sem empresa carregada NÃO pode haver "Editar": o formulário abriria com o nome
+     * vazio e o "Salvar" mandaria um `PUT` de renomeação montado sobre dados que o
+     * usuário nunca viu. Mesma recusa de `company-contact`.
+     */
+    describe('sem dados carregados não há edição', () => {
+      it('GET que falha não oferece o gatilho "Editar"', () => {
+        getInfoCompany = vi
+          .fn()
+          .mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+        const { fixture } = render();
+
+        expect(host(fixture).querySelector('[data-edit-toggle]')).toBeNull();
+        expect(host(fixture).querySelector('#company-name')).toBeNull();
+        expect(submitOf(fixture)).toBeNull();
+      });
+
+      it('o estado de erro oferece "Tentar de novo", e o retry refaz o GET', () => {
+        getInfoCompany = vi
+          .fn()
+          .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })))
+          .mockReturnValue(of(COMPANY_CPF));
+
+        const { fixture } = render();
+        expect(host(fixture).querySelector('[data-edit-toggle]')).toBeNull();
+
+        retryOf(fixture).click();
+        fixture.detectChanges();
+
+        expect(getInfoCompany).toHaveBeenCalledTimes(2);
+        expect(host(fixture).textContent).toContain('Locadora Alfa');
+        // Com os dados na mão o gatilho volta — e o banner de erro sai de cena.
+        expect(host(fixture).querySelector('[data-edit-toggle]')).not.toBeNull();
+        expect(host(fixture).textContent).not.toContain('Tentar de novo');
+      });
+
+      /**
+       * A corrida entre `applyCompany()` e o que está sendo digitado morre aqui: entrar
+       * em edição EXIGE `companyInfo()`, e quem o preenche é justamente o retorno do
+       * GET. Não existe estado "formulário aberto com GET em voo" para sobrescrever.
+       */
+      it('enquanto o GET não respondeu não há gatilho — nem janela para o patchValue atropelar', () => {
+        const pending = new Subject<CompanyFullResponse>();
+        getInfoCompany = vi.fn().mockReturnValue(pending.asObservable());
+
+        const { fixture, component } = render();
+
+        expect(component.editing()).toBe(false);
+        expect(host(fixture).querySelector('[data-edit-toggle]')).toBeNull();
+
+        pending.next(COMPANY_CPF);
+        pending.complete();
+        fixture.detectChanges();
+
+        expect(host(fixture).querySelector('[data-edit-toggle]')).not.toBeNull();
+      });
+    });
+
+    /**
+     * O foco é a justificativa de acessibilidade da troca de modo: o gatilho e os campos
+     * se substituem no mesmo frame, então sem mover o foco de propósito ele cai no
+     * `<body>` e o leitor de tela perde o contexto. Timers REAIS — `afterNextRender`
+     * depende de `whenStable`, o mesmo par de `onboarding-container.spec.ts`.
+     */
+    describe('foco ao trocar de modo', () => {
+      beforeEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('"Editar" leva o foco para o campo de nome', async () => {
+        const { fixture } = render();
+
+        editToggleOf(fixture).click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        const nameInput = host(fixture).querySelector('#company-name');
+        expect(nameInput).not.toBeNull();
+        expect(document.activeElement).toBe(nameInput);
+      });
+
+      it('"Cancelar" devolve o foco ao gatilho "Editar"', async () => {
+        const { fixture } = render();
+        editToggleOf(fixture).click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        cancelOf(fixture).click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        // O gatilho é um elemento NOVO — o `@if` o recriou ao voltar para leitura.
+        expect(document.activeElement).toBe(editToggleOf(fixture));
+      });
+
+      it('um save bem-sucedido também devolve o foco ao gatilho', async () => {
+        updateCompany.mockReturnValue(of({ ...COMPANY_CPF, name: 'Locadora Beta' }));
+
+        const { fixture, component } = render();
+        editToggleOf(fixture).click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        component.save();
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(component.editing()).toBe(false);
+        expect(document.activeElement).toBe(editToggleOf(fixture));
+      });
+    });
+  });
+
+  /**
    * A ordem dos cartões é a ordem do DOM — não há array de abas nem config. Como o
    * mobile mostra tudo numa coluna só, a ordem do DOM É a ordem que o celular vê,
    * então ela é comportamento e fica travada por spec.
@@ -465,21 +858,21 @@ describe('CompanySettings — edição dos dados da empresa', () => {
       );
     }
 
-    it('OWNER: Informações Institucionais → Equipe → Integrações', () => {
+    it('OWNER: Informações Institucionais → Contato → Integrações', () => {
       const { fixture } = render();
 
       expect(cardTitles(fixture).slice(0, 3)).toEqual([
         'Informações Institucionais',
-        'Equipe',
+        'Contato',
         'Integrações',
       ]);
     });
 
-    it('MANAGER: Equipe → Integrações, sem cartão institucional', () => {
+    it('MANAGER: só Integrações, sem cartão institucional nem de contato', () => {
       session['selectedRole'] = 'MANAGER';
       const { fixture } = render();
 
-      expect(cardTitles(fixture)).toEqual(['Equipe', 'Integrações']);
+      expect(cardTitles(fixture)).toEqual(['Integrações']);
     });
 
     it('não sobrou nada da antiga seção "Devolução com atraso"', () => {
@@ -503,7 +896,7 @@ describe('CompanySettings — edição dos dados da empresa', () => {
    */
   describe('papéis', () => {
     it('OWNER vê o formulário da empresa e o atalho de contato', () => {
-      const { fixture } = render();
+      const { fixture } = renderEditing();
       const host = fixture.nativeElement as HTMLElement;
 
       expect(host.querySelector('#company-name')).not.toBeNull();
@@ -519,14 +912,22 @@ describe('CompanySettings — edição dos dados da empresa', () => {
 
       expect(host.querySelector('#company-name')).toBeNull();
       expect(host.querySelector('a[href="/configuracoes/contato"]')).toBeNull();
+      // Nem o gatilho de edição: para o MANAGER o cartão inteiro não existe, e não
+      // apenas os campos (que em leitura estariam ausentes de qualquer jeito).
+      expect(host.querySelector('[data-edit-toggle]')).toBeNull();
       // Sem formulário não há o que preencher — e o GET pode voltar 403.
       expect(getInfoCompany).not.toHaveBeenCalled();
     });
 
-    it('OWNER vê os atalhos de Convites e Asaas', () => {
+    // O produto está refazendo o fluxo de convites e tirou os pontos de entrada da UI:
+    // o cartão Equipe saiu daqui inteiro. A rota `configuracoes/convites` continua
+    // existindo (coberta em `app.routes.roles.spec.ts`) — só o atalho foi removido.
+    it('OWNER vê o atalho de Asaas e nenhum atalho de Convites', () => {
       const owner = render().fixture.nativeElement as HTMLElement;
-      expect(owner.querySelector('a[href="/configuracoes/convites"]')).not.toBeNull();
       expect(owner.querySelector('a[href="/configuracoes/integracoes/asaas"]')).not.toBeNull();
+      expect(owner.querySelector('a[href="/configuracoes/convites"]')).toBeNull();
+      expect(owner.textContent).not.toContain('Convites');
+      expect(owner.textContent).not.toContain('Equipe');
     });
   });
 });
