@@ -163,22 +163,6 @@ export const routes: Routes = [
                         data: { pageTitle: 'Alertas' },
                     },
                     {
-                        // Visões AGREGADAS da frota — não pendem de um veículo
-                        // e por isso ficam fora de `/veiculos/:id`.
-                        path: 'frota',
-                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
-                        children: [
-                            {
-                                path: 'calendario',
-                                loadComponent: () =>
-                                    import(
-                                        './pages/vehicles/fleet-calendar/fleet-calendar-page'
-                                    ).then((m) => m.FleetCalendarPage),
-                                data: { pageTitle: 'Calendário da frota' },
-                            },
-                        ],
-                    },
-                    {
                         path: 'veiculos',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
@@ -519,29 +503,30 @@ export const routes: Routes = [
                         data: { pageTitle: 'Relatórios' },
                     },
                     {
+                        // TODA a área de Configurações é OWNER-only. O único
+                        // motivo para o MANAGER entrar aqui era a regra de multa
+                        // por devolução em atraso, que ele podia editar; essa
+                        // edição saiu do produto (a regra continua valendo e
+                        // sendo aplicada pelo backend, mas não tem mais tela).
+                        // Sem ela, sobrava para o MANAGER uma página só de
+                        // leitura com tudo escondido — então o acesso foi
+                        // fechado. Cada filho repete `OWNER` para que nenhum
+                        // guard filho afirme ser mais permissivo que o pai.
+                        // Isto é navegação: quem de fato barra a escrita é o
+                        // backend, que exige OWNER nesses endpoints.
                         path: 'configuracoes',
-                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        canActivate: [roleGuard(['OWNER'])],
                         children: [
                             {
-                                // OWNER **e** MANAGER: a regra de multa por
-                                // devolução em atraso deixou de ter tela própria
-                                // (`/configuracoes/atraso`, que aceitava os dois
-                                // papéis) e virou seção desta página. Manter
-                                // OWNER-only aqui tiraria do MANAGER uma
-                                // capacidade que ele já tem em produção — e o
-                                // backend aceita MANAGER no PUT da regra.
-                                // O que é OWNER-only (nome/documento, cartão do
-                                // proprietário, atalho de Dados de contato) é
-                                // escondido dentro de `CompanySettings`.
                                 path: '',
                                 pathMatch: 'full',
                                 component: CompanySettings,
-                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                canActivate: [roleGuard(['OWNER'])],
                                 data: { pageTitle: 'Configurações' },
                             },
                             {
                                 path: 'integracoes',
-                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                canActivate: [roleGuard(['OWNER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/integrations/integrations-hub'
@@ -550,7 +535,7 @@ export const routes: Routes = [
                             },
                             {
                                 path: 'integracoes/asaas',
-                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                canActivate: [roleGuard(['OWNER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/integrations/asaas-integration'
@@ -559,11 +544,11 @@ export const routes: Routes = [
                             },
                             // REMOVIDAS: `alertas` (janelas de aviso) e `atraso`
                             // (regra da multa) eram duas telas para dois punhados
-                            // de campos. As janelas viraram a seção
-                            // `app-alert-windows` da página `/alertas`; a regra da
-                            // multa virou a seção `app-overdue-fee` da própria
-                            // página de Configurações (`path: ''` acima). Nenhuma
-                            // capacidade saiu do produto — só o salto de rota.
+                            // de campos. A edição de ambas saiu do produto: a
+                            // regra da multa continua valendo e sendo aplicada
+                            // pelo backend, mas não tem mais tela de leitura nem
+                            // de edição; `/alertas` só MOSTRA as janelas de aviso,
+                            // com os padrões do backend.
                             {
                                 // Dados de contato da empresa que alimentam o
                                 // contrato. Rota própria, fora da tela de
@@ -582,7 +567,7 @@ export const routes: Routes = [
                             },
                             {
                                 path: 'contratos',
-                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                canActivate: [roleGuard(['OWNER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/contract-template/contract-template'
@@ -591,7 +576,7 @@ export const routes: Routes = [
                             },
                             {
                                 path: 'convites',
-                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                canActivate: [roleGuard(['OWNER'])],
                                 loadComponent: () =>
                                     import('./pages/invites/invites').then(
                                         (m) => m.Invites

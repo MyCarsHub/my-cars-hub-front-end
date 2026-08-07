@@ -27,7 +27,6 @@ import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
-import { SessionService } from '../../services/session.service';
 import {
   OverdueFeeSummary,
   formatLocalDateTime,
@@ -51,9 +50,6 @@ import {
 } from '../../types/rental.types';
 import { EndRentalDialog, EndRentalDialogPayload } from './components/end-rental-dialog/end-rental-dialog';
 import { RENTAL_STATUS_META } from '../../utils/status-maps';
-
-/** Papéis que podem EDITAR a regra de multa por atraso (espelha o `roleGuard`). */
-const OVERDUE_CONFIG_ROLES = ['OWNER', 'MANAGER'];
 
 @Component({
   selector: 'app-rental-detail',
@@ -224,11 +220,6 @@ export class RentalDetail implements OnInit {
   protected readonly overduePreviewLoading = signal(false);
   protected readonly overduePreviewError = signal<string | null>(null);
   private readonly overdueReturnAt = new Subject<string>();
-
-  /** Só OWNER/MANAGER abre a tela da regra — mesmo papel do `roleGuard` da rota. */
-  protected readonly canConfigureOverdue = OVERDUE_CONFIG_ROLES.includes(
-    inject(SessionService).getItem('selectedRole') ?? '',
-  );
 
   /**
    * A multa efetivamente lançada neste aluguel. Filtra o caso "sem atraso": o

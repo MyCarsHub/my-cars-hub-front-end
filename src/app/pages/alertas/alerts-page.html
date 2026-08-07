@@ -2,12 +2,6 @@
   title="Alertas"
   description="Documentos e parcelas com vencimento próximo, agrupados por urgência."
 >
-  <!--
-    Mobile-first: Vencimentos e Janelas de aviso ficam EMPILHADOS em qualquer
-    largura — o editor de janelas é um formulário e ficaria espremido numa
-    segunda coluna. A margem abaixo faz o papel do `space-y` que um wrapper daria,
-    sem re-indentar a página inteira.
-  -->
   <app-page-card title="Vencimentos" class="mb-4 sm:mb-6">
     <div class="p-3 sm:p-4 space-y-4">
       <!--
@@ -31,17 +25,8 @@
             ariaLabelledby="alerts-window-label"
             (selectionChange)="onWindowChange($event)"
           />
-          <!--
-            Estado somente-leitura: todo membro vê como a empresa é avisada. Quem
-            pode editar não vai mais a outra tela — o editor está logo abaixo,
-            nesta mesma página.
-          -->
-          <p class="text-xs text-neutral-500">
-            Avisos da empresa: {{ windowsSummary() }}.
-            @if (canConfigure) {
-              <span>Edite em "Janelas de aviso", logo abaixo.</span>
-            }
-          </p>
+          <!-- Somente leitura: a tela mostra como a empresa é avisada, sem editor. -->
+          <p class="text-xs text-neutral-500">Avisos da empresa: {{ windowsSummary() }}.</p>
         </div>
       }
 
@@ -236,13 +221,4 @@
       }
     </div>
   </app-page-card>
-
-  <!--
-    Ex-tela `/configuracoes/alertas`. O papel que a rota guardava (`OWNER` /
-    `MANAGER`) é checado aqui: `/alertas` é aberta a qualquer membro, e membro
-    comum continua só lendo o resumo acima.
-  -->
-  @if (canConfigure) {
-    <app-alert-windows />
-  }
 </app-default-page-layout>

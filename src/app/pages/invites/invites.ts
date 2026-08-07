@@ -55,7 +55,10 @@ interface InviteRow extends InviteResponse {
 }
 
 /**
- * Convites — OWNER / MANAGER send, resend and cancel; every member can read the list.
+ * Convites — the only route to this page is `/configuracoes/convites`, and the whole
+ * `/configuracoes` subtree is `roleGuard(['OWNER'])` (parent and every child). So the
+ * only role that reads this list, or sends, resends and cancels from it, is OWNER.
+ * MANAGERs no longer invite anyone — an accepted product consequence, not a bug.
  *
  * Two backend facts drive this screen:
  *
@@ -233,7 +236,9 @@ export class Invites implements OnInit {
    *
    * 403 is also toasted by `errorInterceptor` as a bare "Acesso negado" — the banner is
    * kept anyway because that toast never says WHICH permission is missing or who can
-   * grant it, and this screen is reachable by MANAGERs whose company may restrict them.
+   * grant it. The OWNER-only `roleGuard` on the route does not make a 403 unreachable:
+   * the backend remains the authority and can reject on its own terms — a role revoked
+   * or a tenant switched mid-session, a plan rule, an invite already resolved elsewhere.
    */
   private handleCreateError(err: HttpErrorResponse): void {
     const specific = inviteErrorCopy(err, 'manage');

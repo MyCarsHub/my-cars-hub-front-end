@@ -2,132 +2,19 @@
     description="Gerencie as informações institucionais, plano e segurança da sua organização.">
 
     <!-- Mobile-first: UMA coluna até lg. A ordem do DOM é a ordem que o celular
-         mostra, e por isso os atalhos (incluindo Convites) vêm ANTES do
-         formulário longo de nome/documento — era ali que "Convites" ficava
-         invisível, no fim da segunda coluna. -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+         mostra, e ela vai do institucional para o operacional — Informações
+         Institucionais (com o atalho de Dados de contato no rodapé do próprio
+         cartão), depois Equipe e por fim Integrações. Os dois últimos são
+         cartões curtos de propósito: ficando abaixo do formulário longo, eles
+         precisam ser alcançáveis com poucas rolagens em 375px.
 
-        <div class="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
+         A rota é OWNER-only; o recorte por papel abaixo é defesa em profundidade.
+         Fora do OWNER não há coluna lateral nem formulário institucional, então o
+         grid vira uma coluna só — senão sobrariam dois cartões curtos espremidos
+         em 1/3 da largura no desktop. -->
+    <div class="grid grid-cols-1 gap-4 sm:gap-6 lg:gap-8" [class.lg:grid-cols-3]="isOwner">
 
-            <!-- Atalhos das telas de Configurações. Um cartão só, em vez de um
-                 cartão por link: em 375px três cartões de uma linha cada eram
-                 rolagem pura. -->
-            <app-page-card title="Empresa e equipe">
-
-                <div cardIcon class="p-2 bg-primary-low rounded-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                        class="text-primary-500" aria-hidden="true">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                </div>
-
-                <div class="p-4 sm:p-6 space-y-3">
-
-                    <!-- Convites. Estava só no fim da coluna lateral e passava
-                         despercebido no celular. -->
-                    <a routerLink="/configuracoes/convites"
-                       class="group flex items-center gap-3 sm:gap-4 rounded-xl border border-neutral-200 hover:border-primary-300
-                              hover:bg-primary-50/30 p-3 sm:p-4 transition-colors focus:outline-none
-                              focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
-                        <div class="w-11 h-11 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" class="text-primary-600" aria-hidden="true">
-                                <rect x="2" y="4" width="20" height="16" rx="2" />
-                                <path d="m22 7-10 6L2 7" />
-                            </svg>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-semibold text-neutral-900">Convites</p>
-                            <p class="text-xs text-neutral-500 truncate">
-                                @if (invitesLoaded()) {
-                                {{ pendingInvites() }} aguardando resposta
-                                } @else {
-                                Convide gerentes e motoristas para a sua empresa.
-                                }
-                            </p>
-                        </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" class="text-neutral-400 group-hover:text-primary-700 shrink-0"
-                            aria-hidden="true">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                    </a>
-
-                    <!-- Dados de contato. Tela separada de propósito: o salvamento de lá
-                         substitui o bloco de contato inteiro, então ele não pode dividir
-                         formulário nem carregamento com o de nome/documento abaixo.
-                         Rota OWNER-only (o backend exige OWNER em PUT /companies/me). -->
-                    @if (isOwner) {
-                    <a routerLink="/configuracoes/contato"
-                       class="group flex items-center gap-3 sm:gap-4 rounded-xl border border-neutral-200 hover:border-primary-300
-                              hover:bg-primary-50/30 p-3 sm:p-4 transition-colors focus:outline-none
-                              focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
-                        <div class="w-11 h-11 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" class="text-primary-600" aria-hidden="true">
-                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6
-                                         19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0
-                                         1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
-                            </svg>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-semibold text-neutral-900">Dados de contato</p>
-                            <p class="text-xs text-neutral-500 truncate">
-                                Telefone, e-mail, endereço e representante — o que o contrato usa.
-                            </p>
-                        </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" class="text-neutral-400 group-hover:text-primary-700 shrink-0"
-                            aria-hidden="true">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                    </a>
-                    }
-
-                    <!-- Integrações -->
-                    <a routerLink="/configuracoes/integracoes/asaas"
-                       class="group flex items-center gap-3 sm:gap-4 rounded-xl border border-neutral-200 hover:border-primary-300
-                              hover:bg-primary-50/30 p-3 sm:p-4 transition-colors focus:outline-none
-                              focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
-                        <div class="w-11 h-11 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" class="text-primary-600" aria-hidden="true">
-                                <rect x="2" y="5" width="20" height="14" rx="2"/>
-                                <line x1="2" y1="10" x2="22" y2="10"/>
-                            </svg>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-semibold text-neutral-900">Asaas</p>
-                            <p class="text-xs text-neutral-500 truncate">
-                                Cobranças de aluguéis e caução direto na sua conta Asaas.
-                            </p>
-                        </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" class="text-neutral-400 group-hover:text-primary-700 shrink-0"
-                            aria-hidden="true">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                    </a>
-
-                </div>
-
-            </app-page-card>
-
-            <!-- Regra da multa por devolução em atraso. Era a tela
-                 `/configuracoes/atraso`; virou seção aqui. Serviço próprio, então
-                 o PUT dela não divide carregamento com o formulário abaixo.
-                 OWNER e MANAGER — o mesmo que a rota antiga aceitava. -->
-            <app-overdue-fee />
+        <div class="space-y-4 sm:space-y-6 lg:space-y-8" [class.lg:col-span-2]="isOwner">
 
             <!-- Informações Institucionais. OWNER-only: `PUT /v1/companies/me`
                  exige OWNER no backend. -->
@@ -226,8 +113,136 @@
                     </div>
                 </form>
 
+                <!-- Dados de contato. Mora no rodapé deste cartão porque é a outra
+                     metade do cadastro institucional, mas continua sendo TELA
+                     separada: o salvamento de lá substitui o bloco de contato
+                     inteiro, então ele não pode dividir formulário nem
+                     carregamento com o de nome/documento acima. Já está dentro do
+                     `@if (isOwner)` — a rota é OWNER-only (o backend exige OWNER
+                     em PUT /companies/me). -->
+                <div class="px-4 pb-4 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8">
+                    <a routerLink="/configuracoes/contato"
+                       class="group flex items-center gap-3 sm:gap-4 rounded-xl border border-neutral-200 hover:border-primary-300
+                              hover:bg-primary-50/30 p-3 sm:p-4 transition-colors focus:outline-none
+                              focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
+                        <div class="w-11 h-11 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="text-primary-600" aria-hidden="true">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6
+                                         19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0
+                                         1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-neutral-900">Dados de contato</p>
+                            <p class="text-xs text-neutral-500 truncate">
+                                Telefone, e-mail, endereço e representante — o que o contrato usa.
+                            </p>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" class="text-neutral-400 group-hover:text-primary-700 shrink-0"
+                            aria-hidden="true">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </a>
+                </div>
+
             </app-page-card>
             }
+
+            <!-- Equipe. Fora de `@if` porque a rota já é OWNER-only: só o OWNER
+                 chega até aqui e, portanto, só ele convida. -->
+            <app-page-card title="Equipe">
+
+                <div cardIcon class="p-2 bg-primary-low rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="text-primary-500" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                </div>
+
+                <div class="p-4 sm:p-6">
+                    <a routerLink="/configuracoes/convites"
+                       class="group flex items-center gap-3 sm:gap-4 rounded-xl border border-neutral-200 hover:border-primary-300
+                              hover:bg-primary-50/30 p-3 sm:p-4 transition-colors focus:outline-none
+                              focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
+                        <div class="w-11 h-11 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="text-primary-600" aria-hidden="true">
+                                <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <path d="m22 7-10 6L2 7" />
+                            </svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-neutral-900">Convites</p>
+                            <p class="text-xs text-neutral-500 truncate">
+                                @if (invitesLoaded()) {
+                                {{ pendingInvites() }} aguardando resposta
+                                } @else {
+                                Convide gerentes e motoristas para a sua empresa.
+                                }
+                            </p>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" class="text-neutral-400 group-hover:text-primary-700 shrink-0"
+                            aria-hidden="true">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </a>
+                </div>
+
+            </app-page-card>
+
+            <!-- Integrações. Mesmo caso do cartão Equipe: a rota é OWNER-only, então
+                 não há papel a recortar aqui dentro. -->
+            <app-page-card title="Integrações">
+
+                <div cardIcon class="p-2 bg-primary-low rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="text-primary-500" aria-hidden="true">
+                        <rect x="2" y="5" width="20" height="14" rx="2" />
+                        <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                </div>
+
+                <div class="p-4 sm:p-6">
+                    <a routerLink="/configuracoes/integracoes/asaas"
+                       class="group flex items-center gap-3 sm:gap-4 rounded-xl border border-neutral-200 hover:border-primary-300
+                              hover:bg-primary-50/30 p-3 sm:p-4 transition-colors focus:outline-none
+                              focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
+                        <div class="w-11 h-11 rounded-xl bg-primary-500/10 flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="text-primary-600" aria-hidden="true">
+                                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                                <line x1="2" y1="10" x2="22" y2="10"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-neutral-900">Asaas</p>
+                            <p class="text-xs text-neutral-500 truncate">
+                                Cobranças de aluguéis e caução direto na sua conta Asaas.
+                            </p>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" class="text-neutral-400 group-hover:text-primary-700 shrink-0"
+                            aria-hidden="true">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </a>
+                </div>
+
+            </app-page-card>
 
         </div>
 

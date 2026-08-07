@@ -12,11 +12,9 @@ import { SessionService } from '../../services/session.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { InvitesService } from '../../services/invites.service';
-import { OverdueSettingsService } from './overdue-fee/overdue-settings.service';
 import { SERVER_ERROR_KEY } from '../../services/validation-messages';
 import type { CompanyFullResponse } from '../../types/company-full-response.type';
 import type { UpdateCompanyRequest } from '../../types/company-settings.types';
-import type { OverdueSettings } from '../../types/overdue.types';
 
 /**
  * `PUT /v1/companies/me`: name and document are both freely editable. The document may
@@ -52,19 +50,6 @@ describe('CompanySettings — edição dos dados da empresa', () => {
     documentId: 'doc-2',
     documentType: 'CNPJ',
     documentValue: '**.***.***/****-95',
-  };
-
-  /** Resposta fixa do serviço da seção "Devolução com atraso". */
-  const OVERDUE_SETTINGS: OverdueSettings = {
-    multiplierBps: 15_000,
-    graceHours: 3,
-    customized: false,
-    defaultMultiplierBps: 15_000,
-    defaultGraceHours: 3,
-    minMultiplierBps: 10_000,
-    maxMultiplierBps: 50_000,
-    minGraceHours: 0,
-    maxGraceHours: 72,
   };
 
   let getInfoCompany: ReturnType<typeof vi.fn>;
@@ -111,19 +96,6 @@ describe('CompanySettings — edição dos dados da empresa', () => {
           },
         },
         {
-          // A regra de multa por atraso virou uma SEÇÃO desta página (era a tela
-          // `/configuracoes/atraso`). Ela tem serviço próprio de propósito, então
-          // aqui basta um duplo — o comportamento dela é coberto por
-          // `overdue-fee.spec.ts`.
-          provide: OverdueSettingsService,
-          useValue: {
-            settings: signal<OverdueSettings | null>(null).asReadonly(),
-            loading: signal(false).asReadonly(),
-            load: () => of(OVERDUE_SETTINGS),
-            save: () => of(OVERDUE_SETTINGS),
-          },
-        },
-        {
           provide: NotificationService,
           useValue: {
             success: notifySuccess,
@@ -165,8 +137,8 @@ describe('CompanySettings — edição dos dados da empresa', () => {
     session = {
       selectedCompanyId: 'co-1',
       selectedCompanyName: 'Locadora Alfa',
-      // A página aceita OWNER e MANAGER desde que a regra de atraso virou seção
-      // dela; o formulário de nome/documento só aparece para OWNER.
+      // A rota é OWNER-only, então OWNER é o único papel que a página vê na
+      // prática. Os testes que montam com MANAGER são defesa em profundidade.
       selectedRole: 'OWNER',
       userCompanies: JSON.stringify([
         { companyId: 'co-1', companyName: 'Locadora Alfa', role: 'OWNER' },
@@ -481,23 +453,65 @@ describe('CompanySettings — edição dos dados da empresa', () => {
   });
 
   /**
-   * A tela `/configuracoes/atraso` (OWNER **e** MANAGER) virou a seção
-   * `app-overdue-fee` desta página, que era OWNER-only. Para o MANAGER não perder
-   * o que já tinha, a rota passou a aceitar os dois papéis e o que é OWNER-only
-   * ficou escondido no template.
+   * A ordem dos cartões é a ordem do DOM — não há array de abas nem config. Como o
+   * mobile mostra tudo numa coluna só, a ordem do DOM É a ordem que o celular vê,
+   * então ela é comportamento e fica travada por spec.
+   */
+  describe('ordem dos cartões', () => {
+    function cardTitles(fixture: ComponentFixture<CompanySettings>): string[] {
+      const host = fixture.nativeElement as HTMLElement;
+      return Array.from(host.querySelectorAll('app-page-card h2')).map((h) =>
+        (h.textContent ?? '').trim(),
+      );
+    }
+
+    it('OWNER: Informações Institucionais → Equipe → Integrações', () => {
+      const { fixture } = render();
+
+      expect(cardTitles(fixture).slice(0, 3)).toEqual([
+        'Informações Institucionais',
+        'Equipe',
+        'Integrações',
+      ]);
+    });
+
+    it('MANAGER: Equipe → Integrações, sem cartão institucional', () => {
+      session['selectedRole'] = 'MANAGER';
+      const { fixture } = render();
+
+      expect(cardTitles(fixture)).toEqual(['Equipe', 'Integrações']);
+    });
+
+    it('não sobrou nada da antiga seção "Devolução com atraso"', () => {
+      const { fixture } = render();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('app-overdue-fee')).toBeNull();
+      expect(host.textContent).not.toContain('Devolução com atraso');
+    });
+  });
+
+  /**
+   * A rota é OWNER-only — quem garante isso é o `roleGuard` de `/configuracoes`
+   * (coberto em `app.routes.roles.spec.ts`), não este template. O MANAGER não
+   * chega mais aqui: a regra de multa por atraso, único motivo para ele entrar,
+   * saiu do produto.
+   *
+   * O template mantém o recorte por papel como defesa em profundidade, para o
+   * caso de alguém afrouxar o guard. É isso — e só isso — que o teste de
+   * MANAGER abaixo cobre; ele não descreve um caminho que o produto ofereça.
    */
   describe('papéis', () => {
-    it('OWNER vê o formulário da empresa, o atalho de contato e a regra de atraso', () => {
+    it('OWNER vê o formulário da empresa e o atalho de contato', () => {
       const { fixture } = render();
       const host = fixture.nativeElement as HTMLElement;
 
       expect(host.querySelector('#company-name')).not.toBeNull();
       expect(host.querySelector('a[href="/configuracoes/contato"]')).not.toBeNull();
-      expect(host.querySelector('app-overdue-fee')).not.toBeNull();
       expect(getInfoCompany).toHaveBeenCalled();
     });
 
-    it('MANAGER só vê o que o backend deixa: sem formulário da empresa, com a regra de atraso', () => {
+    it('defesa em profundidade: MANAGER que burlasse o guard não veria empresa nem contato', () => {
       session['selectedRole'] = 'MANAGER';
 
       const { fixture } = render();
@@ -505,18 +519,14 @@ describe('CompanySettings — edição dos dados da empresa', () => {
 
       expect(host.querySelector('#company-name')).toBeNull();
       expect(host.querySelector('a[href="/configuracoes/contato"]')).toBeNull();
-      expect(host.querySelector('app-overdue-fee')).not.toBeNull();
       // Sem formulário não há o que preencher — e o GET pode voltar 403.
       expect(getInfoCompany).not.toHaveBeenCalled();
     });
 
-    it('o atalho para Convites aparece para os dois papéis', () => {
+    it('OWNER vê os atalhos de Convites e Asaas', () => {
       const owner = render().fixture.nativeElement as HTMLElement;
       expect(owner.querySelector('a[href="/configuracoes/convites"]')).not.toBeNull();
-
-      session['selectedRole'] = 'MANAGER';
-      const manager = render().fixture.nativeElement as HTMLElement;
-      expect(manager.querySelector('a[href="/configuracoes/convites"]')).not.toBeNull();
+      expect(owner.querySelector('a[href="/configuracoes/integracoes/asaas"]')).not.toBeNull();
     });
   });
 });

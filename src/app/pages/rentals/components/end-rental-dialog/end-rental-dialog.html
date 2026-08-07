@@ -233,19 +233,6 @@
                   </div>
                 </dl>
 
-                <!-- `/configuracoes/atraso` não existe mais: a regra virou seção
-                     da página de Configurações, que aceita OWNER e MANAGER. -->
-                @if (canConfigureOverdue()) {
-                  <a
-                    routerLink="/configuracoes"
-                    class="inline-flex items-center min-h-[44px] text-xs font-semibold text-amber-800 underline
-                           hover:text-amber-900 focus:outline-none focus-visible:ring-2
-                           focus-visible:ring-amber-700 focus-visible:ring-offset-1 rounded-lg"
-                  >
-                    Alterar a regra de atraso
-                  </a>
-                }
-
                 @if (overdueAlreadyCharged()) {
                   <p class="text-xs text-amber-800">
                     Esta cobrança já existe no aluguel — concluir não gera outra.
