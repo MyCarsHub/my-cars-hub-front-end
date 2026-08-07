@@ -46,7 +46,12 @@ export class ConfirmDialog {
   /** Label for the confirm button */
   confirmLabel = input<string>('Confirmar');
 
-  /** Label for the cancel button */
+  /**
+   * Label for the cancel button. An empty string drops the button entirely —
+   * for the acknowledgement-only dialog, where confirming and cancelling do the
+   * same thing and two differently-labelled buttons would lie about that. The
+   * backdrop still emits `cancelled`, so the dialog is never a trap.
+   */
   cancelLabel = input<string>('Cancelar');
 
   /**

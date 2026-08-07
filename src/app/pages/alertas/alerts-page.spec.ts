@@ -8,7 +8,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AlertsPage } from './alerts-page';
 import { AlertsService } from '../../services/alerts.service';
 import { AlertSettingsService } from '../../services/alert-settings.service';
-import { SessionService } from '../../services/session.service';
 import type { AlertSettings } from '../../types/alert-settings.types';
 import type {
   AlertWindow,
@@ -58,7 +57,6 @@ describe('AlertsPage', () => {
   let listSpy: ReturnType<typeof vi.fn>;
   /** Janelas da empresa; `null` simula a leitura que falhou. */
   let companySettings: AlertSettings | null;
-  let selectedRole: string;
   let settingsSignal: ReturnType<typeof signal<AlertSettings | null>>;
 
   interface PageInternals {
@@ -119,10 +117,6 @@ describe('AlertsPage', () => {
             }),
           },
         },
-        {
-          provide: SessionService,
-          useValue: { getItem: (key: string) => (key === 'selectedRole' ? selectedRole : null) },
-        },
       ],
     });
   }
@@ -130,7 +124,6 @@ describe('AlertsPage', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
     companySettings = DEFAULT_SETTINGS;
-    selectedRole = 'OWNER';
     configure();
   });
 
@@ -350,38 +343,6 @@ describe('AlertsPage', () => {
       'Próximos 45 dias',
       'Próximos 90 dias',
     ]);
-  });
-
-  /**
-   * A tela `/configuracoes/alertas` deixou de existir: o editor de janelas é uma
-   * SEÇÃO desta página. Como `/alertas` é aberta a qualquer membro, o papel que
-   * o `roleGuard` guardava passou a ser checado aqui — membro comum continua
-   * lendo o estado, sem o editor.
-   */
-  it('mostra o estado das janelas para todo membro e o editor só para OWNER/MANAGER', () => {
-    const fixture = TestBed.createComponent(AlertsPage);
-    fixture.detectChanges();
-
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).toContain(
-      'Avisos da empresa: 30, 15, 7 e 1 dia antes do vencimento (padrão do sistema).',
-    );
-    expect(host.querySelector('app-alert-windows')).not.toBeNull();
-    expect(host.textContent).toContain('Substituir janelas');
-  });
-
-  it('esconde o editor de janelas de quem não é OWNER nem MANAGER', () => {
-    selectedRole = 'USER';
-    TestBed.resetTestingModule();
-    configure();
-
-    const fixture = TestBed.createComponent(AlertsPage);
-    fixture.detectChanges();
-
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).toContain('Avisos da empresa:');
-    expect(host.querySelector('app-alert-windows')).toBeNull();
-    expect(host.textContent).not.toContain('Substituir janelas');
   });
 
   /** Nenhuma rota de Configurações sobrou apontada a partir desta página. */

@@ -4,10 +4,14 @@ import { SessionService } from '../../services/session.service';
 /**
  * Rascunho do formulário de "Novo aluguel".
  *
- * Motivação: os cards de integração (Contrato / Cobrança) levam o usuário pra
- * `/configuracoes/contratos` e `/configuracoes/integracoes/asaas` via router.
+ * Motivação: para o OWNER, os cards de integração (Contrato / Cobrança) levam
+ * pra `/configuracoes/contratos` e `/configuracoes/integracoes/asaas` via router.
  * O `RentalForm` é destruído nessa navegação e todo o preenchimento se perdia.
  * Persistimos o valor bruto do form em `sessionStorage` e restauramos na volta.
+ *
+ * `/configuracoes/*` é OWNER-only, então esse caminho de ida e volta só existe
+ * para o OWNER — para os demais papéis os cards não oferecem link nenhum e o
+ * rascunho nunca chega a ser exercitado por essa rota.
  *
  * Isolamento: a chave inclui usuário + empresa ativa, e o payload repete os dois
  * pra revalidação na leitura. Trocar de usuário ou de empresa nunca restaura o

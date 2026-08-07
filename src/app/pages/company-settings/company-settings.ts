@@ -33,7 +33,6 @@ import {
 } from '../../utils/document-mask';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { UserCompanies } from '../../types/user-companies';
-import { OverdueFee } from './overdue-fee/overdue-fee';
 
 const SAVE_FALLBACK = 'Não foi possível salvar os dados da empresa.';
 
@@ -73,17 +72,20 @@ function centre(element: HTMLElement | null): void {
  *
  * ## Papéis nesta página
  *
- * A rota deixou de ser OWNER-only quando a tela `/configuracoes/atraso` virou a seção
- * `app-overdue-fee` daqui: aquela rota aceitava OWNER **e** MANAGER, e o backend também
- * (`PUT /v1/companies/current/overdue-settings`). Manter `roleGuard(['OWNER'])` teria
- * tirado do MANAGER uma capacidade que ele tinha em produção.
+ * A rota é `roleGuard(['OWNER'])` — `/configuracoes` e todos os sete filhos são
+ * OWNER-only (`app.routes.ts`), e quem barra o acesso é o guard, não este template. O
+ * MANAGER não chega mais aqui, nem aos cartões Equipe (Convites) e Integrações: ele
+ * perder o envio de convites é consequência aceita pelo produto, não um bug.
  *
- * Então a rota passou a `roleGuard(['OWNER','MANAGER'])` e o que é OWNER-only virou
- * `@if (isOwner)` no template — exatamente os blocos cujo endpoint exige OWNER:
- * o formulário de nome/documento (`PUT /v1/companies/me`), o cartão do proprietário e o
- * atalho para Dados de contato (rota OWNER-only). O `GET` da empresa também só sai para
- * OWNER: sem o formulário não há o que preencher, e assim um MANAGER não dispara uma
- * requisição que pode voltar 403.
+ * Os `@if (isOwner)` que sobraram no template são defesa em profundidade, para o caso de
+ * alguém afrouxar o guard — não o controle de acesso principal. Eles recortam os blocos
+ * cujo endpoint exige OWNER: o cartão Informações Institucionais (`PUT /v1/companies/me`),
+ * que carrega no rodapé o atalho para Dados de contato, e o cartão do proprietário. O
+ * `GET` da empresa segue o mesmo recorte: sem o formulário não há o que preencher, e
+ * assim nenhuma requisição que voltaria 403 chega a sair.
+ *
+ * Fora do OWNER o grid vira uma coluna só (não há coluna lateral) — é o layout desse
+ * cenário de defesa em profundidade, não um caminho que o produto ofereça.
  */
 @Component({
   selector: 'app-company-settings',
@@ -95,7 +97,6 @@ function centre(element: HTMLElement | null): void {
     FormField,
     FieldControl,
     PageCard,
-    OverdueFee,
   ],
   templateUrl: './company-settings.html',
   styleUrl: './company-settings.css',

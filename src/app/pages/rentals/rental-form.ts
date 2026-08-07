@@ -27,6 +27,7 @@ import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { RentalService } from './rental.service';
+import { SessionService } from '../../services/session.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
@@ -64,6 +65,7 @@ export class RentalForm implements OnInit {
   private readonly asaasService = inject(AsaasIntegrationService);
   private readonly contractTemplateService = inject(ContractTemplateService);
   private readonly draftService = inject(RentalDraftService);
+  private readonly sessionService = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
@@ -72,6 +74,22 @@ export class RentalForm implements OnInit {
 
   /** V29: true se a company tem template de contrato — controla default do toggle. */
   protected readonly hasContractTemplate = signal(false);
+
+  /**
+   * `/configuracoes/*` é OWNER-only (`roleGuard(['OWNER'])` em `app.routes.ts`).
+   * `/alugueis` continua OWNER+MANAGER, então um MANAGER chega até aqui e via
+   * link/navegação programática caía num redirect silencioso pro `/dashboard`.
+   *
+   * A derivação é a MESMA de `pages/company-settings/company-settings.ts` e do
+   * `roleGuard`: `selectedRole` no sessionStorage. Lido uma vez na construção —
+   * trocar de empresa grava o `selectedRole` novo e navega pro `/dashboard`
+   * (`layout.store.ts`, `commitTenant`), o que destrói este componente antes de
+   * qualquer releitura. Não há papel "quente".
+   *
+   * O aviso de "não configurado" continua visível pros dois papéis; o que muda
+   * é só a chamada pra ação (link/navegação vs. "peça ao proprietário").
+   */
+  protected readonly isOwner = this.sessionService.getItem('selectedRole') === 'OWNER';
 
 
   protected readonly editingId = signal<string | null>(null);
@@ -278,16 +296,35 @@ export class RentalForm implements OnInit {
   protected readonly missingIntegrationMessage = computed(() => {
     switch (this.missingIntegrationTarget()) {
       case 'asaas':
-        return 'Configure a integração Asaas antes de habilitar cobrança automática neste aluguel.';
+        return this.isOwner
+          ? 'Configure a integração Asaas antes de habilitar cobrança automática neste aluguel.'
+          : 'A integração Asaas ainda não foi configurada. Peça ao proprietário da conta para configurar, ou desative a cobrança automática neste aluguel.';
       case 'contract':
-        return 'Configure o template de contrato antes de habilitar a geração automática neste aluguel.';
+        return this.isOwner
+          ? 'Configure o template de contrato antes de habilitar a geração automática neste aluguel.'
+          : 'O template de contrato ainda não foi configurado. Peça ao proprietário da conta para configurar, ou desative a geração automática neste aluguel.';
       default:
         return '';
     }
   });
 
-  protected readonly missingIntegrationConfirmLabel = computed(() =>
-    this.missingIntegrationTarget() === 'asaas' ? 'Configurar Asaas' : 'Configurar contrato',
+  protected readonly missingIntegrationConfirmLabel = computed(() => {
+    if (!this.isOwner) return 'Entendi';
+    return this.missingIntegrationTarget() === 'asaas' ? 'Configurar Asaas' : 'Configurar contrato';
+  });
+
+  /**
+   * Só o OWNER tem duas saídas de verdade: "Configurar …" navega pra
+   * `/configuracoes/*` e "Voltar ao aluguel" fica no formulário.
+   *
+   * Fora do OWNER o confirmar não navega (a rota é OWNER-only), então os dois
+   * botões fariam exatamente a mesma coisa — fechar o dialog — com rótulos
+   * diferentes e o confirmar ainda pintado como ação de peso pelo
+   * `variant="warning"`. Label vazia = `ConfirmDialog` não renderiza o cancelar,
+   * sobrando só o "Entendi". O backdrop continua fechando.
+   */
+  protected readonly missingIntegrationCancelLabel = computed(() =>
+    this.isOwner ? 'Voltar ao aluguel' : '',
   );
 
   /** Só mostra o toggle "caução recebida por fora" quando há caução. */
@@ -643,10 +680,16 @@ export class RentalForm implements OnInit {
    * User confirmed the "not configured" dialog — navigate to the appropriate
    * settings page so they can fix it before returning. Mirrors the inline
    * "Configure agora" link on both cards.
+   *
+   * Só o OWNER navega: `/configuracoes/*` é OWNER-only e um MANAGER seria
+   * redirecionado em silêncio pro `/dashboard`, perdendo o formulário. Pra ele o
+   * botão é apenas um "Entendi" — fecha o dialog e devolve o form intacto, com o
+   * aviso do card ainda visível.
    */
   protected confirmMissingIntegration(): void {
     const target = this.missingIntegrationTarget();
     this.missingIntegrationTarget.set(null);
+    if (!this.isOwner) return;
     if (target === 'asaas') {
       this.router.navigate(['/configuracoes/integracoes/asaas']);
     } else if (target === 'contract') {

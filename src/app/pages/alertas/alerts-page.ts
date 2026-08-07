@@ -17,7 +17,6 @@ import {
 import { AlertsService } from '../../services/alerts.service';
 import { AlertSettingsService } from '../../services/alert-settings.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import { SessionService } from '../../services/session.service';
 import {
   AlertWindow,
   DOCUMENT_ALERTS_PAGE_SIZE,
@@ -26,7 +25,6 @@ import {
   NotificationType,
 } from '../../types/notification-feed.types';
 import { alertWindowLabel, formatAlertWindows, sortWindowsAsc } from '../../utils/alert-windows';
-import { AlertWindows } from './alert-windows/alert-windows';
 
 /** Chip de filtro por tipo de documento. `'ALL'` é o chip "Todos". */
 type TypeChip = FilterChipOption<NotificationType | 'ALL'>;
@@ -39,13 +37,6 @@ const TYPE_CHIPS: readonly TypeChip[] = [
   { value: 'INSURANCE_DUE_SOON', label: 'Seguro' },
   { value: 'FINANCING_INSTALLMENT_DUE', label: 'Financiamento' },
 ];
-
-/**
- * Papéis que podem EDITAR as janelas de aviso. Antes era o `roleGuard` da rota
- * `/configuracoes/alertas`; a tela virou seção desta página, que é aberta a
- * qualquer membro, então o papel passou a ser checado aqui.
- */
-const CONFIG_ROLES = ['OWNER', 'MANAGER'];
 
 const SEVERITY_CHIP: Record<NotificationSeverity, string> = {
   DANGER: 'bg-rose-100 text-rose-700',
@@ -88,14 +79,13 @@ export interface AlertGroup {
 @Component({
   selector: 'app-alerts-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup, AlertWindows],
+  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner, FilterChipGroup],
   templateUrl: './alerts-page.html',
 })
 export class AlertsPage implements OnInit {
   private readonly alertsService = inject(AlertsService);
   private readonly alertSettings = inject(AlertSettingsService);
   private readonly apiErrors = inject(ApiErrorService);
-  private readonly session = inject(SessionService);
 
   protected readonly typeChips = TYPE_CHIPS;
 
@@ -113,11 +103,6 @@ export class AlertsPage implements OnInit {
    */
   protected readonly withinDays = signal<AlertWindow | null>(null);
   protected readonly typeFilter = signal<NotificationType | 'ALL'>('ALL');
-
-  /** Só OWNER/MANAGER vê o editor de janelas — mesmo papel do antigo `roleGuard`. */
-  protected readonly canConfigure = CONFIG_ROLES.includes(
-    this.session.getItem('selectedRole') ?? '',
-  );
 
   /** Atalhos de janela derivados da empresa, em ordem crescente. */
   protected readonly windowChips = computed<FilterChipOption<AlertWindow>[]>(() =>

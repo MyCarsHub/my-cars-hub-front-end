@@ -454,11 +454,16 @@
               </svg>
               <div class="min-w-0">
                 <p class="font-semibold">Nenhum template de contrato configurado.</p>
-                <p class="text-xs mt-0.5">
-                  <a routerLink="/configuracoes/contratos"
-                    class="underline font-medium hover:text-amber-950">
-                    Configure agora →
-                  </a>
+                <p class="text-xs mt-0.5 leading-relaxed">
+                  @if (isOwner) {
+                    <a routerLink="/configuracoes/contratos"
+                      class="underline font-medium hover:text-amber-950">
+                      Configure agora →
+                    </a>
+                  } @else {
+                    Peça ao proprietário da conta para configurar, ou desative a geração
+                    automática acima.
+                  }
                 </p>
               </div>
             </div>
@@ -469,11 +474,15 @@
                 stroke-linejoin="round" class="shrink-0 mt-0.5 text-blue-600" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
               </svg>
-              <p class="text-xs">
+              <p class="text-xs leading-relaxed">
                 Ao salvar, o contrato será gerado automaticamente a partir do template em
-                <a routerLink="/configuracoes/contratos" class="underline font-medium">
-                  Configurações → Contratos
-                </a>.
+                @if (isOwner) {
+                  <a routerLink="/configuracoes/contratos" class="underline font-medium">
+                    Configurações → Contratos
+                  </a>.
+                } @else {
+                  <span class="font-medium">Configurações → Contratos</span>.
+                }
               </p>
             </div>
           }
@@ -527,11 +536,16 @@
               </svg>
               <div class="min-w-0">
                 <p class="font-semibold">Nenhuma integração Asaas configurada.</p>
-                <p class="text-xs mt-0.5">
-                  <a routerLink="/configuracoes/integracoes/asaas"
-                    class="underline font-medium hover:text-amber-950">
-                    Configure agora →
-                  </a>
+                <p class="text-xs mt-0.5 leading-relaxed">
+                  @if (isOwner) {
+                    <a routerLink="/configuracoes/integracoes/asaas"
+                      class="underline font-medium hover:text-amber-950">
+                      Configure agora →
+                    </a>
+                  } @else {
+                    Peça ao proprietário da conta para configurar, ou desative a cobrança
+                    automática acima.
+                  }
                 </p>
               </div>
             </div>
@@ -542,12 +556,17 @@
                 stroke-linejoin="round" class="shrink-0 mt-0.5 text-blue-600" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
               </svg>
-              <p class="text-xs">
+              <p class="text-xs leading-relaxed">
                 Ao salvar, cobranças serão criadas automaticamente no Asaas.
-                Verifique se sua integração está ativa em
-                <a routerLink="/configuracoes/integracoes/asaas" class="underline font-medium">
-                  Configurações → Integrações
-                </a>.
+                @if (isOwner) {
+                  Verifique se sua integração está ativa em
+                  <a routerLink="/configuracoes/integracoes/asaas" class="underline font-medium">
+                    Configurações → Integrações
+                  </a>.
+                } @else {
+                  A integração é gerenciada pelo proprietário da conta em
+                  <span class="font-medium">Configurações → Integrações</span>.
+                }
               </p>
             </div>
           }
@@ -585,7 +604,7 @@
     [title]="missingIntegrationTitle()"
     [message]="missingIntegrationMessage()"
     [confirmLabel]="missingIntegrationConfirmLabel()"
-    cancelLabel="Voltar ao aluguel"
+    [cancelLabel]="missingIntegrationCancelLabel()"
     variant="warning"
     (confirmed)="confirmMissingIntegration()"
     (cancelled)="cancelMissingIntegration()"
