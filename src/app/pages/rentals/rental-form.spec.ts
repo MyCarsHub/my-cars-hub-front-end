@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
 import { signal } from '@angular/core';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, EMPTY } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 
 import { RentalForm } from './rental-form';
 import { RentalService } from './rental.service';
@@ -458,5 +459,146 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
     const after = second.componentInstance as unknown as FormLike;
     expect(after.draftRestored()).toBe(false);
     expect(after.form.getRawValue()['vehicleId']).toBe('');
+  });
+});
+
+/**
+ * `/configuracoes/*` virou OWNER-only (`roleGuard(['OWNER'])`), mas `/alugueis`
+ * segue OWNER+MANAGER. Um MANAGER que clicasse em "Configure agora" (ou
+ * confirmasse o dialog de integração ausente) era redirecionado em silêncio pro
+ * `/dashboard`, perdendo o formulário. O aviso continua visível pros dois
+ * papéis — o que muda é a chamada pra ação.
+ */
+describe('RentalForm CTAs de configuração por papel', () => {
+  let navigateSpy: Mock<Router['navigate']>;
+
+  type FormWithDialog = {
+    form: { patchValue: (v: Record<string, unknown>) => void };
+    missingIntegrationTarget: {
+      (): 'asaas' | 'contract' | null;
+      set: (v: 'asaas' | 'contract' | null) => void;
+    };
+    missingIntegrationMessage: () => string;
+    missingIntegrationConfirmLabel: () => string;
+    confirmMissingIntegration: () => void;
+  };
+
+  /** Monta o form de criação com o papel informado em `selectedRole`. */
+  function mountAs(role: string): ReturnType<typeof TestBed.createComponent<RentalForm>> {
+    TestBed.resetTestingModule();
+    const store = new Map<string, string>([
+      ['id', 'user-1'],
+      ['selectedCompanyId', 'company-1'],
+      ['selectedRole', role],
+    ]);
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        // O ConfirmDialog usa animações; sem isso o render do dialog quebra.
+        provideNoopAnimations(),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        {
+          provide: SessionService,
+          useValue: {
+            setItem: (k: string, v: string) => store.set(k, v),
+            getItem: (k: string) => store.get(k) ?? null,
+            removeItem: (k: string) => store.delete(k),
+          },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        { provide: RentalService, useValue: { getById: () => EMPTY, create: () => EMPTY } },
+        { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalForm);
+    navigateSpy = vi.fn<Router['navigate']>().mockResolvedValue(true);
+    // Sem template nem Asaas: os dois cards caem no estado "não configurado".
+    (fixture.componentInstance as unknown as FormWithDialog).form.patchValue({
+      useContractTemplate: true,
+      automaticCharge: true,
+    });
+    fixture.detectChanges();
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigate').mockImplementation(navigateSpy);
+    return fixture;
+  }
+
+  /** Rótulos dos botões do dialog de integração ausente, na ordem do DOM. */
+  function dialogButtons(fixture: { nativeElement: HTMLElement }): string[] {
+    return [...fixture.nativeElement.querySelectorAll('app-confirm-dialog button')].map((b) =>
+      (b.textContent ?? '').trim(),
+    );
+  }
+
+  /** Todos os hrefs de `/configuracoes` renderizados na página. */
+  function settingsLinks(fixture: { nativeElement: HTMLElement }): string[] {
+    return [...fixture.nativeElement.querySelectorAll('a[href]')]
+      .map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? '')
+      .filter((href) => href.includes('/configuracoes'));
+  }
+
+  it('OWNER: mantém os links "Configure agora" e a navegação do dialog', () => {
+    const fixture = mountAs('OWNER');
+    const cmp = fixture.componentInstance as unknown as FormWithDialog;
+
+    const links = settingsLinks(fixture);
+    expect(links).toContain('/configuracoes/contratos');
+    expect(links).toContain('/configuracoes/integracoes/asaas');
+    expect(fixture.nativeElement.textContent).toContain('Configure agora');
+
+    cmp.missingIntegrationTarget.set('asaas');
+    fixture.detectChanges();
+    expect(cmp.missingIntegrationConfirmLabel()).toBe('Configurar Asaas');
+    // Duas saídas distintas: navegar pra configuração ou ficar no formulário.
+    expect(dialogButtons(fixture)).toEqual(['Voltar ao aluguel', 'Configurar Asaas']);
+    cmp.confirmMissingIntegration();
+    expect(navigateSpy).toHaveBeenCalledWith(['/configuracoes/integracoes/asaas']);
+
+    cmp.missingIntegrationTarget.set('contract');
+    cmp.confirmMissingIntegration();
+    expect(navigateSpy).toHaveBeenCalledWith(['/configuracoes/contratos']);
+  });
+
+  it('MANAGER: mantém os avisos, sem link nem navegação pra /configuracoes', () => {
+    const fixture = mountAs('MANAGER');
+    const cmp = fixture.componentInstance as unknown as FormWithDialog;
+
+    // Nenhum caminho clicável pra área fechada.
+    expect(settingsLinks(fixture)).toEqual([]);
+
+    // O aviso em si continua na tela — é o que impede o MANAGER de preencher
+    // um formulário que não pode ser concluído.
+    const text = fixture.nativeElement.textContent ?? '';
+    expect(text).toContain('Nenhum template de contrato configurado.');
+    expect(text).toContain('Nenhuma integração Asaas configurada.');
+    expect(text).not.toContain('Configure agora');
+    expect(text).toContain('Peça ao proprietário da conta para configurar');
+
+    // Dialog: confirmar apenas fecha, sem navegar pra rota fechada.
+    cmp.missingIntegrationTarget.set('asaas');
+    fixture.detectChanges();
+    expect(cmp.missingIntegrationConfirmLabel()).toBe('Entendi');
+    expect(cmp.missingIntegrationMessage()).toContain('Peça ao proprietário da conta');
+    // Sem navegação possível, confirmar e cancelar fariam a mesma coisa: um botão só.
+    expect(dialogButtons(fixture)).toEqual(['Entendi']);
+    cmp.confirmMissingIntegration();
+    fixture.detectChanges();
+
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(cmp.missingIntegrationTarget()).toBeNull();
+    // O aviso do card segue visível depois de fechar o dialog.
+    expect(fixture.nativeElement.textContent).toContain('Nenhuma integração Asaas configurada.');
   });
 });

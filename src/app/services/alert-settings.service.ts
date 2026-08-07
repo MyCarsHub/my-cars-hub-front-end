@@ -39,8 +39,13 @@ export class AlertSettingsService {
 
   /**
    * Lê as janelas da empresa. Devolve o cache quando ele pertence à empresa
-   * selecionada; `force` refaz a requisição (usado pela tela de configuração,
-   * que precisa exibir o estado do servidor, não o que ficou de outra tela).
+   * selecionada; `force` refaz a requisição para quem precisa do estado do
+   * servidor, e não do que ficou em cache por outra tela.
+   *
+   * A tela que originou o `force` (AlertWindows, em `/configuracoes`) não existe
+   * mais. O parâmetro fica: é o único jeito de furar o cache sem expor o sinal
+   * interno, e o cache é `providedIn: 'root'`, logo sobrevive a qualquer
+   * navegação.
    */
   load(force = false): Observable<AlertSettings> {
     const company = this.session.getItem('selectedCompanyId');
@@ -69,6 +74,11 @@ export class AlertSettingsService {
    * Substitui a lista inteira. A resposta (já com `customized: true`) vira o
    * novo estado; um 400 chega intacto para a tela extrair `fieldErrors.windows`
    * pelo `ApiErrorService`.
+   *
+   * Sem chamador no frontend desde que a tela de janelas de aviso saiu — e isso
+   * é deliberado, igual ao endpoint de multa por atraso: o `PUT` continua vivo no
+   * backend e este método é o ponto de entrada pronto para a tela que voltar a
+   * expor a edição. Não apague sem essa decisão ser revista.
    */
   save(windows: number[]): Observable<AlertSettings> {
     const body: AlertSettingsUpdate = { windows };

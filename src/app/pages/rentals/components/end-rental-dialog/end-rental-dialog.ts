@@ -8,7 +8,6 @@ import {
   signal,
 } from '@angular/core';
 import { animate, style, transition, trigger } from '@angular/animations';
-import { RouterLink } from '@angular/router';
 import {
   OverdueFeeSummary,
   formatLocalDateTime,
@@ -84,7 +83,6 @@ export type CaucaoRefundState = 'GATEWAY' | 'PAID_OFFLINE' | 'UNPAID' | 'NO_CAUC
 @Component({
   selector: 'app-end-rental-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
   templateUrl: './end-rental-dialog.html',
   host: {
     '(document:keydown.escape)': 'onEscape($event)',
@@ -128,8 +126,6 @@ export class EndRentalDialog {
   overduePreview = input<OverdueFeeSummary | null>(null);
   overduePreviewLoading = input<boolean>(false);
   overduePreviewError = input<string | null>(null);
-  /** OWNER/MANAGER vê o atalho para a tela da regra; membro comum só lê a regra. */
-  canConfigureOverdue = input<boolean>(false);
 
   confirmed = output<EndRentalDialogPayload>();
   cancelled = output<void>();
