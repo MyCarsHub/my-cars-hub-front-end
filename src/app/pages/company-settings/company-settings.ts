@@ -17,7 +17,6 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { SessionService } from '../../services/session.service';
 import { CompanyService } from '../../services/company.service';
-import { InvitesService } from '../../services/invites.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { clearServerErrors } from '../../services/api-error';
@@ -52,7 +51,27 @@ function centre(element: HTMLElement | null): void {
 }
 
 /**
- * Company settings — name and document are both freely editable.
+ * Company settings — name and document are editable, but behind an explicit "Editar".
+ *
+ * ## Leitura por padrão, edição sob demanda
+ *
+ * O cartão institucional abre em SOMENTE-LEITURA: nome e documento saem como legenda
+ * em caixa alta miúda + valor, o mesmo tratamento que "Data de fundação" e "Status da
+ * conta" já usavam ali. O botão "Editar" (slot `cardActions` do `app-page-card`, mesmo
+ * lugar do toggle de `billing.html`) troca para o formulário reativo, que é o MESMO de
+ * antes — nenhum validador, payload ou endpoint mudou.
+ *
+ * "Cancelar" não é só esconder os campos: ele reconstrói o formulário a partir de
+ * `companyInfo()` (`resetFormFromCompany`), então o que o usuário digitou e não salvou
+ * não sobrevive a uma segunda entrada em edição. Salvar com sucesso também sai do modo
+ * de edição — o formulário já não tem nada pendente.
+ *
+ * Salvar/Cancelar pertencem ao modo de edição: um submit visível sem nada para submeter
+ * era exatamente o que fazia a tela parecer inacabada.
+ *
+ * Não havia toggle de edição in-loco em lugar nenhum do projeto (todo "Editar" existente
+ * navega para uma tela de formulário), então o padrão aqui é o mínimo: um `signal`
+ * booleano trocando o modo.
  *
  * Backend contract (`PUT /v1/companies/me`): the tenant comes from the access token, so
  * there is no id in the payload. `documentValue` accepts a CPF or a CNPJ and may change
@@ -74,15 +93,18 @@ function centre(element: HTMLElement | null): void {
  *
  * A rota é `roleGuard(['OWNER'])` — `/configuracoes` e todos os sete filhos são
  * OWNER-only (`app.routes.ts`), e quem barra o acesso é o guard, não este template. O
- * MANAGER não chega mais aqui, nem aos cartões Equipe (Convites) e Integrações: ele
- * perder o envio de convites é consequência aceita pelo produto, não um bug.
+ * MANAGER não chega mais aqui, nem ao cartão Integrações.
  *
  * Os `@if (isOwner)` que sobraram no template são defesa em profundidade, para o caso de
  * alguém afrouxar o guard — não o controle de acesso principal. Eles recortam os blocos
- * cujo endpoint exige OWNER: o cartão Informações Institucionais (`PUT /v1/companies/me`),
- * que carrega no rodapé o atalho para Dados de contato, e o cartão do proprietário. O
- * `GET` da empresa segue o mesmo recorte: sem o formulário não há o que preencher, e
- * assim nenhuma requisição que voltaria 403 chega a sair.
+ * cujo endpoint exige OWNER: o formulário Informações Institucionais
+ * (`PUT /v1/companies/me`) com o cartão de atalho Contato ao lado, e o cartão do
+ * proprietário. O `GET` da empresa segue o mesmo recorte: sem o formulário não há o que
+ * preencher, e assim nenhuma requisição que voltaria 403 chega a sair.
+ *
+ * O cartão Equipe (atalho de Convites) saiu da tela: o produto está refazendo o fluxo de
+ * convites e removeu seus pontos de entrada da UI. A rota `configuracoes/convites` e o
+ * `InvitesService` continuam existindo — só o atalho daqui foi removido.
  *
  * Fora do OWNER o grid vira uma coluna só (não há coluna lateral) — é o layout desse
  * cenário de defesa em profundidade, não um caminho que o produto ofereça.
@@ -106,7 +128,6 @@ export class CompanySettings implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly sessionService = inject(SessionService);
   private readonly companyService = inject(CompanyService);
-  private readonly invitesService = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly layoutStore = inject(LayoutStore);
@@ -121,11 +142,7 @@ export class CompanySettings implements OnInit {
 
   ngOnInit(): void {
     // Só OWNER edita os dados cadastrais — sem o formulário, o GET não tem consumidor.
-    if (this.isOwner) this.loadCompanyInfo();
-    // The invite count is a secondary stat here; a failure hides the card instead of
-    // shouting. Claiming the error keeps the interceptor's safety-net toast quiet — the
-    // dedicated /configuracoes/convites screen is where invite errors are explained.
-    this.invitesService.list().subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+    if (this.isOwner) this.reload();
   }
 
   protected readonly companyInfo = signal<CompanyFullResponse | null>(null);
@@ -150,8 +167,90 @@ export class CompanySettings implements OnInit {
     documentInvalid: 'Documento inválido. Confira os números digitados.',
   };
 
-  /** Masked document already on record, or empty when the company has none. */
-  protected readonly currentDocument = computed(() => this.companyInfo()?.documentValue ?? '');
+  /**
+   * Modo do cartão institucional. `false` = leitura (padrão), `true` = formulário.
+   * Não havia toggle de edição in-loco no projeto para copiar — este é o mínimo.
+   */
+  protected readonly editing = signal(false);
+
+  /**
+   * Só há o que editar depois que o GET responde. Sem esta trava o cartão em erro (ou
+   * ainda carregando) mostrava título, botão "Editar" e mais nada: clicar abria um
+   * campo de nome VAZIO e salvar mandava um `PUT` de renomeação montado sobre dados
+   * que o usuário nunca viu. Mesma recusa de `company-contact.ts` — sem os dados
+   * atuais, não se edita às cegas.
+   *
+   * Esta trava também fecha a corrida entre `applyCompany()` e o que está sendo
+   * digitado: entrar em edição EXIGE `companyInfo()` preenchido, e o único `patchValue`
+   * de fora (`applyCompany`, no retorno do GET) é justamente o que o preenche. Não
+   * existe mais janela em que o formulário esteja aberto e um GET ainda em voo — por
+   * isso `applyCompany` não precisa de um `if (editing())`, que seria código morto.
+   */
+  protected readonly canEdit = computed(() => this.companyInfo() !== null);
+
+  /**
+   * Linha somente-leitura do documento. Vazia enquanto o GET não voltou — sem valor não
+   * há linha, senão fica uma legenda órfã. Com a empresa carregada e sem documento, a
+   * frase explícita É o valor, então a linha aparece.
+   *
+   * É a MESMA fonte nos dois modos (em edição, sob o rótulo "Documento atual"): a regra
+   * "tipo · valor / Nenhum documento cadastrado" vivia duplicada no template e nada
+   * garantia que as duas cópias continuassem concordando.
+   */
+  protected readonly documentSummary = computed(() => {
+    const info = this.companyInfo();
+    if (!info) return '';
+    const masked = info.documentValue ?? '';
+    return masked ? `${info.documentType} · ${masked}` : 'Nenhum documento cadastrado';
+  });
+
+  /** Entra em edição com o formulário sincronizado com o que está na tela. */
+  protected startEdit(): void {
+    this.resetFormFromCompany();
+    this.editing.set(true);
+    // O primeiro campo do formulário que acabou de aparecer — sem isso o foco fica no
+    // botão "Editar", que some no mesmo frame, e o leitor de tela perde o contexto.
+    this.focusAfterRender('#company-name');
+  }
+
+  /**
+   * Sai da edição descartando o que foi digitado. Reconstrói a partir de `companyInfo()`
+   * em vez de só esconder os campos: reabrir a edição precisa mostrar o valor gravado.
+   */
+  protected cancelEdit(): void {
+    this.resetFormFromCompany();
+    this.leaveEdit();
+  }
+
+  private leaveEdit(): void {
+    this.editing.set(false);
+    // Devolve o foco ao gatilho, que é para onde o modo de leitura volta.
+    this.focusAfterRender('[data-edit-toggle]');
+  }
+
+  /**
+   * Formulário = estado carregado. `reset` (e não `patchValue`) porque também limpa
+   * `touched`/`dirty`: reabrir a edição não deve herdar a borda vermelha da tentativa
+   * anterior. `documentValue` volta vazio sempre — a resposta o devolve mascarado.
+   */
+  private resetFormFromCompany(): void {
+    clearServerErrors(this.companyForm);
+    this.saveError.set(null);
+    this.companyForm.reset({
+      name: this.companyInfo()?.name ?? '',
+      documentValue: '',
+    });
+  }
+
+  /** Foco só depois que o novo modo pintou — antes disso o alvo não existe no DOM. */
+  private focusAfterRender(selector: string): void {
+    afterNextRender(
+      () => {
+        this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus();
+      },
+      { injector: this.injector },
+    );
+  }
 
   protected readonly owner = signal<CompanyOwner>({
     name: this.sessionService.getItem('name') ?? '',
@@ -159,15 +258,27 @@ export class CompanySettings implements OnInit {
     joinedAt: '',
   });
 
+  /**
+   * Iniciais do proprietário para o avatar — primeiro e último nome, no máximo duas
+   * letras. Vazio quando não há nome, e nesse caso o template não desenha o círculo:
+   * um disco laranja sem conteúdo é lido como imagem quebrada.
+   */
+  protected readonly ownerInitials = computed(() => {
+    const words = this.owner()
+      .name.trim()
+      .split(/\s+/)
+      .filter((w) => w.length > 0);
+    if (words.length === 0) return '';
+    const first = words[0].charAt(0);
+    const last = words.length > 1 ? words[words.length - 1].charAt(0) : '';
+    return (first + last).toUpperCase();
+  });
+
   // TODO: `activeUsers` is still a placeholder — it needs the company-members endpoint,
-  // which is a separate queued feature. `pendingInvites` below is real.
+  // which is a separate queued feature.
   protected readonly stats = signal<CompanyStats>({
     activeUsers: 12,
   });
-
-  /** Real pending-invite count, from `GET /v1/invites`. */
-  protected readonly pendingInvites = this.invitesService.pendingCount;
-  protected readonly invitesLoaded = this.invitesService.loaded;
 
   protected copyToClipboard(text: string): void {
     navigator.clipboard.writeText(text);
@@ -204,6 +315,8 @@ export class CompanySettings implements OnInit {
         next: (response) => {
           this.saving.set(false);
           this.applyCompany(response);
+          // Salvou: não há mais nada pendente, então o cartão volta a ser leitura.
+          this.leaveEdit();
           this.notifications.success('Dados da empresa atualizados.');
         },
         error: (err: HttpErrorResponse) => {
@@ -285,7 +398,13 @@ export class CompanySettings implements OnInit {
     this.layoutStore.refreshTenants();
   }
 
-  private loadCompanyInfo(): void {
+  /**
+   * Recarrega os dados da empresa. Chamado no `ngOnInit` e pelo "Tentar de novo" do
+   * estado de erro — mesmo par de `company-contact.ts`. Zerar `error` de saída já tira
+   * o botão da tela enquanto a requisição está em voo, então não há clique duplo a
+   * defender.
+   */
+  protected reload(): void {
     this.error.set(null);
     this.companyService.getInfoCompany().subscribe({
       next: (response) => this.applyCompany(response),

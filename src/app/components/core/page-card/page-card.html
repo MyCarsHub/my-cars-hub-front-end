@@ -1,12 +1,21 @@
 <section class="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
 
-  <div class="px-6 py-5 flex items-center justify-between">
+  <!-- Recuo do header acompanha o do corpo: a esmagadora maioria dos consumidores
+       usa `p-4 sm:p-6` (ou `p-4`), então `px-6` fixo deixava o título 8px à direita
+       dos rótulos abaixo dele em telas < sm. Acima de sm nada muda.
+
+       `gap-2` + `shrink-0` nas ações: `justify-between` sozinho não reserva folga
+       nenhuma entre o título e o slot `cardActions` — medido em 375px, a borda
+       direita do título encostava EXATAMENTE na esquerda das ações (0px). O `gap`
+       garante a folga e o `shrink-0` faz o título quebrar linha antes de espremer
+       a ação, o que vale para todo consumidor de `cardActions`, não só um. -->
+  <div class="px-4 sm:px-6 py-5 flex items-center justify-between gap-2">
     <div class="flex items-center gap-3">
       <ng-content select="[cardIcon]" />
       <h2 class="font-semibold text-neutral-800">{{ title() }}</h2>
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 shrink-0">
       <ng-content select="[cardActions]" />
       @if (collapsible()) {
         <button
