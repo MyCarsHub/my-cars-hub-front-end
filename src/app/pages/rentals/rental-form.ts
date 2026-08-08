@@ -199,8 +199,12 @@ export class RentalForm implements OnInit {
     const s = new Date(v.startDate + 'T00:00:00').getTime();
     const e = new Date(v.endDate + 'T00:00:00').getTime();
     if (Number.isNaN(s) || Number.isNaN(e) || e < s) return 0;
-    const diff = Math.round((e - s) / 86_400_000);
-    return diff > 0 ? diff : 1;
+    // Período INCLUSIVO nas duas pontas — espelha `RentalService.create()`, que
+    // usa `ChronoUnit.DAYS.between(start, end) + 1` e alimenta com esse número o
+    // `computeTotalAmount`. Sem o `+1` a prévia mostrava metade do que o backend
+    // gravava (medido em produção). O piso artificial de 1 saiu junto: com o
+    // guard de `e < s` acima, `diff` nunca é negativo, então o resultado já é >= 1.
+    return Math.round((e - s) / 86_400_000) + 1;
   });
 
   protected readonly billingFrequency = computed<RentalBillingFrequency>(
