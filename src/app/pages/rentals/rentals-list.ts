@@ -383,8 +383,9 @@ export class RentalsList implements OnInit {
     if (!startIso || !endIso) return 0;
     const s = new Date(startIso + 'T00:00:00').getTime();
     const e = new Date(endIso + 'T00:00:00').getTime();
+    // Período inclusivo, igual ao backend e à prévia do form (ver rental-form.ts).
     const diff = Math.round((e - s) / 86_400_000);
-    return diff > 0 ? diff : 1;
+    return diff >= 0 ? diff + 1 : 1;
   }
 
   protected openDetail(r: RentalListItemDto): void {

@@ -602,3 +602,157 @@ describe('RentalForm CTAs de configuração por papel', () => {
     expect(fixture.nativeElement.textContent).toContain('Nenhuma integração Asaas configurada.');
   });
 });
+
+/**
+ * Prévia de valor × total gravado pelo backend.
+ *
+ * REGRA (fonte da verdade: `RentalService.java`): o período do aluguel é
+ * INCLUSIVO nas duas pontas — `ChronoUnit.DAYS.between(start, end) + 1`.
+ * Logo `start == end` é 1 diária, e 08/08→09/08 são DUAS diárias.
+ * `computeTotalAmount` cobra `rate * days` (DAILY), `rate * ceil(days/7)`
+ * (WEEKLY) e `rate * ceil(days/30)` (MONTHLY) em cima desse mesmo número.
+ *
+ * O form tem que espelhar isso EXATAMENTE: enquanto ele calculava o período de
+ * forma exclusiva, a tela mostrava R$100 e o banco gravava R$200 (medido em
+ * produção em 07/08/2026, três aluguéis). Se um dia a semântica for invertida,
+ * inverta ESTES números junto com o backend — não só o componente.
+ */
+describe('RentalForm prévia de valor (período inclusivo, espelho do backend)', () => {
+  type MoneyFormLike = {
+    form: { patchValue: (v: Record<string, unknown>) => void };
+    totalDays: () => number;
+    billingUnits: () => number;
+    totalAmountCents: () => number | null;
+    totalAmountLabel: () => string;
+  };
+
+  function mount(): {
+    fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>;
+    cmp: MoneyFormLike;
+  } {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        { provide: RentalService, useValue: { getById: () => EMPTY, create: vi.fn() } },
+        { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalForm);
+    fixture.detectChanges();
+    return { fixture, cmp: fixture.componentInstance as unknown as MoneyFormLike };
+  }
+
+  /** Preenche período + frequência + tarifa e devolve o componente já atualizado. */
+  function preview(
+    startDate: string,
+    endDate: string,
+    billingFrequency: string,
+    periodRateReais: number,
+  ): MoneyFormLike {
+    const { fixture, cmp } = mount();
+    cmp.form.patchValue({ startDate, endDate, billingFrequency, periodRateReais });
+    fixture.detectChanges();
+    return cmp;
+  }
+
+  it('start == end conta 1 diária', () => {
+    const cmp = preview('2026-08-08', '2026-08-08', 'DAILY', 100);
+
+    expect(cmp.totalDays()).toBe(1);
+    expect(cmp.billingUnits()).toBe(1);
+    expect(cmp.totalAmountCents()).toBe(10_000);
+  });
+
+  it('start → start+1 conta 2 diárias (caso medido em produção: R$100/dia = R$200)', () => {
+    const cmp = preview('2026-08-08', '2026-08-09', 'DAILY', 100);
+
+    expect(cmp.totalDays()).toBe(2);
+    expect(cmp.billingUnits()).toBe(2);
+    expect(cmp.totalAmountCents()).toBe(20_000);
+    expect(cmp.totalAmountLabel()).toContain('200,00');
+  });
+
+  it('05/08 → 07/08 conta 3 diárias (caso medido em produção: R$150/dia = R$450)', () => {
+    const cmp = preview('2026-08-05', '2026-08-07', 'DAILY', 150);
+
+    expect(cmp.totalDays()).toBe(3);
+    expect(cmp.totalAmountCents()).toBe(45_000);
+  });
+
+  it('faixa de 30 dias corridos conta 31 diárias', () => {
+    const cmp = preview('2026-08-01', '2026-08-31', 'DAILY', 100);
+
+    expect(cmp.totalDays()).toBe(31);
+    expect(cmp.billingUnits()).toBe(31);
+    expect(cmp.totalAmountCents()).toBe(310_000);
+  });
+
+  it('SEMANAL: 8 dias inclusivos são 2 semanas (produção: R$100/sem = R$200)', () => {
+    const cmp = preview('2026-08-08', '2026-08-15', 'WEEKLY', 100);
+
+    expect(cmp.totalDays()).toBe(8);
+    expect(cmp.billingUnits()).toBe(2);
+    expect(cmp.totalAmountCents()).toBe(20_000);
+  });
+
+  it('SEMANAL: 7 dias inclusivos continuam 1 semana (a semana cheia não vira duas)', () => {
+    const cmp = preview('2026-08-08', '2026-08-14', 'WEEKLY', 100);
+
+    expect(cmp.totalDays()).toBe(7);
+    expect(cmp.billingUnits()).toBe(1);
+    expect(cmp.totalAmountCents()).toBe(10_000);
+  });
+
+  it('MENSAL: 30 dias inclusivos são 1 mês; 31 cruzam o limite e viram 2', () => {
+    const umMes = preview('2026-08-01', '2026-08-30', 'MONTHLY', 2500);
+    expect(umMes.totalDays()).toBe(30);
+    expect(umMes.billingUnits()).toBe(1);
+    expect(umMes.totalAmountCents()).toBe(250_000);
+
+    const doisMeses = preview('2026-08-01', '2026-08-31', 'MONTHLY', 2500);
+    expect(doisMeses.totalDays()).toBe(31);
+    expect(doisMeses.billingUnits()).toBe(2);
+    expect(doisMeses.totalAmountCents()).toBe(500_000);
+  });
+
+  // --- entrada inválida: comportamento PRESERVADO (0 dias, prévia "--") ------
+
+  it('fim antes do início não vira erro nem 1 dia: zera a prévia', () => {
+    const cmp = preview('2026-08-10', '2026-08-01', 'DAILY', 100);
+
+    expect(cmp.totalDays()).toBe(0);
+    expect(cmp.billingUnits()).toBe(0);
+    expect(cmp.totalAmountCents()).toBeNull();
+    expect(cmp.totalAmountLabel()).toBe('--');
+  });
+
+  it('período vazio zera a prévia', () => {
+    const cmp = preview('', '', 'DAILY', 100);
+
+    expect(cmp.totalDays()).toBe(0);
+    expect(cmp.totalAmountCents()).toBeNull();
+    expect(cmp.totalAmountLabel()).toBe('--');
+  });
+
+  it('data inválida (NaN) zera a prévia', () => {
+    const cmp = preview('2026-13-45', '2026-08-31', 'DAILY', 100);
+
+    expect(cmp.totalDays()).toBe(0);
+    expect(cmp.totalAmountLabel()).toBe('--');
+  });
+});

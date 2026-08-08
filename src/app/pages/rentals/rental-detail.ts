@@ -269,8 +269,11 @@ export class RentalDetail implements OnInit {
     if (!r) return 0;
     const s = new Date(r.startDate + 'T00:00:00').getTime();
     const e = new Date(r.endDate + 'T00:00:00').getTime();
+    // Mesma regra inclusiva do backend (`DAYS.between(start, end) + 1`) usada na
+    // prévia do form — os dois têm que dizer o mesmo número pro mesmo aluguel.
+    // O piso de 1 fica só como rede pra período invertido vindo da API.
     const diff = Math.round((e - s) / 86_400_000);
-    return diff > 0 ? diff : 1;
+    return diff >= 0 ? diff + 1 : 1;
   });
 
   protected readonly canCancel = computed(() => this.rental()?.status === 'RESERVED');

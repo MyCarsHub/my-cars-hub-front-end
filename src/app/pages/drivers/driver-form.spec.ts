@@ -136,6 +136,18 @@ describe('DriverForm — erros de campo vindos do backend', () => {
     return fixture.nativeElement.querySelector('#motorista-cnh-error');
   }
 
+  function documentError(): HTMLElement | null {
+    return fixture.nativeElement.querySelector('#motorista-doc-valor-error');
+  }
+
+  function formOf(): { get: (path: string) => { errors: Record<string, unknown> | null } | null } {
+    return (
+      fixture.componentInstance as unknown as {
+        form: { get: (path: string) => { errors: Record<string, unknown> | null } | null };
+      }
+    ).form;
+  }
+
   function fillValidForm(): void {
     const form = (
       fixture.componentInstance as unknown as { form: { patchValue: (v: unknown) => void } }
@@ -236,6 +248,89 @@ describe('DriverForm — erros de campo vindos do backend', () => {
 
     expect(fixture.nativeElement.innerHTML).toContain('Limite de motoristas do plano atingido.');
     expect(licenseError()).toBeNull();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Regressão: 409 de CPF duplicado. O documento mora em `document: { type, value }`,
+   * então a única chave que casa com um control renderizado é o caminho COMPLETO
+   * `document.value` — mesmo precedente de `address.zipCode` (api-error.spec.ts:24-31)
+   * e `licenseNumber` (acima). Com ela, o erro aparece embaixo do campo do CPF.
+   */
+  it('mostra o CPF duplicado embaixo do campo quando a chave é document.value', () => {
+    const error = new HttpErrorResponse({
+      status: 409,
+      error: {
+        message: 'CPF já cadastrado para esta empresa.',
+        fieldErrors: { 'document.value': 'CPF já cadastrado para esta empresa.' },
+      },
+    });
+    create.mockReturnValue(throwError(() => error));
+
+    fillValidForm();
+    submit();
+
+    const inline = documentError();
+    expect(inline).not.toBeNull();
+    expect(inline?.textContent?.trim()).toBe('CPF já cadastrado para esta empresa.');
+    expect(inline?.getAttribute('role')).toBe('alert');
+
+    const input = fixture.nativeElement.querySelector('#motorista-doc-valor') as HTMLInputElement;
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe('motorista-doc-valor-error');
+
+    // shape 2 do contrato: já mostrado inline, não repete no banner
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+
+    // e nunca toast — a rede de segurança do interceptor fica quieta
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
+    vi.runAllTimers();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  /**
+   * DOCUMENTA O MODO DE FALHA — não é o comportamento desejado, é o registro de por que
+   * a chave precisa ser o caminho completo (`document.value`).
+   *
+   * Com a chave curta `document`, `root.get('document')` resolve para o FormGroup
+   * `document` (api-error.ts:113). O `applyFieldErrors` considera isso um match, seta o
+   * `serverError` NO GRUPO — que nenhum `<app-form-field>` binda — e deixa `unmatched`
+   * vazio, o que faz o `formLevelMessage` devolver `null` (api-error.ts:181). Resultado:
+   * o usuário não vê NADA, nem inline nem banner. Se alguém reverter a chave no backend
+   * para `document`, este teste continua verde mas conta a história; o teste acima
+   * (`document.value`) é o que quebra.
+   */
+  it('não liga o erro a nenhum campo visível quando a chave é o grupo `document` (formato antigo)', () => {
+    const error = new HttpErrorResponse({
+      status: 409,
+      error: {
+        message: 'CPF já cadastrado para esta empresa.',
+        fieldErrors: { document: 'CPF já cadastrado para esta empresa.' },
+      },
+    });
+    create.mockReturnValue(throwError(() => error));
+
+    fillValidForm();
+    submit();
+
+    // nada embaixo do campo do CPF…
+    expect(documentError()).toBeNull();
+    const input = fixture.nativeElement.querySelector('#motorista-doc-valor') as HTMLInputElement;
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+
+    // …e nada no banner: `unmatched` ficou vazio porque o get() casou com o FormGroup
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+    expect(fixture.nativeElement.innerHTML).not.toContain('CPF já cadastrado para esta empresa.');
+
+    // a prova do engolimento: o serverError foi parar no grupo, que ninguém renderiza
+    expect(formOf().get('document')?.errors?.['serverError']).toEqual({
+      message: 'CPF já cadastrado para esta empresa.',
+    });
+    expect(formOf().get('document.value')?.errors?.['serverError']).toBeUndefined();
+
+    // e o toast também não salva: a tela reivindicou o erro via handleForm()
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
+    vi.runAllTimers();
     expect(notifyError).not.toHaveBeenCalled();
   });
 });
