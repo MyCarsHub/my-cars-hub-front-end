@@ -49,8 +49,14 @@
             }
           </select>
           @if (!vehicles().length) {
-            <p class="text-sm text-neutral-500 mt-1">
-              Nenhum veículo disponível — todos estão em aluguel ativo.
+            <p class="text-sm text-neutral-500 mt-1">{{ emptyVehiclesMessage() }}</p>
+          }
+          <!-- A troca de período derrubou a escolha anterior: o campo foi limpo,
+               então o aviso precisa dizer por quê. role="alert" porque a
+               alteração no formulário não partiu deste campo. -->
+          @if (vehicleUnavailableNotice()) {
+            <p class="text-sm text-amber-800 mt-1" role="alert">
+              O veículo escolhido não está livre no período informado. Selecione outro.
             </p>
           }
         </app-form-field>
@@ -73,8 +79,11 @@
             }
           </select>
           @if (!drivers().length) {
-            <p class="text-sm text-neutral-500 mt-1">
-              Nenhum motorista disponível — todos estão em aluguel ativo.
+            <p class="text-sm text-neutral-500 mt-1">{{ emptyDriversMessage() }}</p>
+          }
+          @if (driverUnavailableNotice()) {
+            <p class="text-sm text-amber-800 mt-1" role="alert">
+              O motorista escolhido não está livre no período informado. Selecione outro.
             </p>
           }
         </app-form-field>

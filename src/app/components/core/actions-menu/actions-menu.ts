@@ -37,6 +37,16 @@ const MIN_PANEL_HEIGHT = 120;
  * horizontal), inverte para cima quando não há espaço abaixo (última linha da
  * lista) e limita a altura com scroll interno.
  *
+ * O painel é `flex flex-col` de propósito, e NÃO um bloco comum: `<button>` é
+ * `display: inline-block` por padrão e o compilador do Angular remove o
+ * whitespace entre os itens projetados, então item sem classe de display ficava
+ * SEM oportunidade de quebra de linha e se alinhava lado a lado, estourando a
+ * largura do painel (scrollbar horizontal + itens fora da vista). O container
+ * de coluna blockifica todo item projetado, então o consumidor não precisa
+ * lembrar de pôr `flex`/`block` em cada `<button>`. O `[&>*]:shrink-0` vem
+ * junto porque item de flex encolhe por padrão: sem ele, um menu mais alto que
+ * o `max-height` espremeria os itens em vez de rolar.
+ *
  * Teclado (WAI-ARIA menu button): setas navegam, Home/End vão às pontas,
  * Escape fecha e devolve o foco ao gatilho, Tab fecha.
  *
