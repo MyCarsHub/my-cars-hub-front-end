@@ -96,4 +96,16 @@ export interface DriverFilters {
    * que ele esteja em uso (escape hatch para não sumir da lista).
    */
   includeCurrentRentalId?: string;
+  /**
+   * Período pretendido (`yyyy-MM-dd`) do aluguel sendo montado. Só tem efeito
+   * junto de `availableForRental` — com ele, o backend esconde apenas os
+   * motoristas que COLIDEM com esse intervalo, liberando quem está dirigindo
+   * hoje para uma reserva futura.
+   *
+   * Contrato do backend: mande os DOIS ou NENHUM — só uma das pontas é 400.
+   * `periodEnd` é INCLUSIVO e não pode ser anterior a `periodStart`.
+   */
+  periodStart?: string;
+  /** Fim do período pretendido, INCLUSIVO. Ver `periodStart`. */
+  periodEnd?: string;
 }

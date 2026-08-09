@@ -127,6 +127,337 @@ describe('RentalForm picker filters', () => {
 });
 
 /**
+ * Período → pickers.
+ *
+ * CONTRATO DO BACKEND (`GET /v1/vehicles`, `GET /v1/drivers`):
+ * `periodStart`/`periodEnd` em `yyyy-MM-dd`, `periodEnd` INCLUSIVO, só surtem
+ * efeito junto de `availableForRental=true`, e **só uma das duas pontas é 400**.
+ * Daí a regra central destes testes: ou saem as DUAS, ou não sai NENHUMA.
+ */
+describe('RentalForm período nos pickers', () => {
+  let vehiclesList: Mock;
+  let driversList: Mock;
+
+  /** `debounceTime(300)` do pipeline. Timers reais, como no rental-detail.spec. */
+  async function afterDebounce(fixture: { detectChanges: () => void }): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    fixture.detectChanges();
+  }
+
+  function mount(
+    rentalId: string | null = null,
+    vehicles: unknown[] = [],
+    drivers: unknown[] = [],
+  ): ReturnType<typeof TestBed.createComponent<RentalForm>> {
+    TestBed.resetTestingModule();
+    vehiclesList = vi.fn().mockReturnValue(of({ content: vehicles, page: 0, size: 500, total: 0 }));
+    driversList = vi.fn().mockReturnValue(of({ content: drivers, page: 0, size: 500, total: 0 }));
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => rentalId } } },
+        },
+        { provide: VehiclesService, useValue: { list: vehiclesList } },
+        { provide: DriverService, useValue: { list: driversList } },
+        { provide: RentalService, useValue: { getById: () => EMPTY, create: vi.fn() } },
+        { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalForm);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  type PeriodFormLike = { form: { patchValue: (v: Record<string, unknown>) => void } };
+
+  /** Último argumento com que cada picker foi chamado. */
+  function lastCalls(): { vehicle: Record<string, unknown>; driver: Record<string, unknown> } {
+    return {
+      vehicle: vehiclesList.mock.calls.at(-1)?.[0] as Record<string, unknown>,
+      driver: driversList.mock.calls.at(-1)?.[0] as Record<string, unknown>,
+    };
+  }
+
+  it('período completo entra nas DUAS buscas', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+
+    expect(lastCalls().vehicle).toEqual({
+      size: 500,
+      sort: 'plate_asc',
+      availableForRental: true,
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-10',
+    });
+    expect(lastCalls().driver).toEqual({
+      size: 500,
+      sort: 'name_asc',
+      availableForRental: true,
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-10',
+    });
+  });
+
+  it('start == end é válido (aluguel de um dia só)', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-01' });
+    await afterDebounce(fixture);
+
+    expect(lastCalls().vehicle).toMatchObject({
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-01',
+    });
+  });
+
+  it('só o início preenchido NÃO manda parâmetro nenhum (seria 400)', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ startDate: '2026-09-01' });
+    await afterDebounce(fixture);
+
+    for (const call of [...vehiclesList.mock.calls, ...driversList.mock.calls]) {
+      expect(call[0]).not.toHaveProperty('periodStart');
+      expect(call[0]).not.toHaveProperty('periodEnd');
+    }
+  });
+
+  it('só o fim preenchido NÃO manda parâmetro nenhum (seria 400)', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+
+    for (const call of [...vehiclesList.mock.calls, ...driversList.mock.calls]) {
+      expect(call[0]).not.toHaveProperty('periodStart');
+      expect(call[0]).not.toHaveProperty('periodEnd');
+    }
+  });
+
+  it('fim antes do início NÃO manda parâmetro nenhum (seria 400)', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ startDate: '2026-09-10', endDate: '2026-09-01' });
+    await afterDebounce(fixture);
+
+    for (const call of [...vehiclesList.mock.calls, ...driversList.mock.calls]) {
+      expect(call[0]).not.toHaveProperty('periodStart');
+    }
+  });
+
+  it('data que não existe no calendário não vira parâmetro', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ startDate: '2026-13-45', endDate: '2026-12-31' });
+    await afterDebounce(fixture);
+
+    for (const call of vehiclesList.mock.calls) {
+      expect(call[0]).not.toHaveProperty('periodStart');
+    }
+  });
+
+  it('mudar o período refaz as DUAS buscas com as datas novas', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+    const afterFirst = vehiclesList.mock.calls.length;
+
+    cmp.form.patchValue({ endDate: '2026-09-20' });
+    await afterDebounce(fixture);
+
+    expect(vehiclesList.mock.calls.length).toBeGreaterThan(afterFirst);
+    expect(lastCalls().vehicle).toMatchObject({ periodEnd: '2026-09-20' });
+    expect(lastCalls().driver).toMatchObject({ periodEnd: '2026-09-20' });
+  });
+
+  it('rajada de digitação vira UM refetch só (debounce)', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    const beforeTyping = vehiclesList.mock.calls.length;
+
+    // Chrome emite por segmento ao digitar o ano: 0002 → 0020 → 0202 → 2026.
+    cmp.form.patchValue({ startDate: '0002-09-01', endDate: '0002-09-10' });
+    cmp.form.patchValue({ startDate: '0020-09-01', endDate: '0020-09-10' });
+    cmp.form.patchValue({ startDate: '0202-09-01', endDate: '0202-09-10' });
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+
+    expect(vehiclesList.mock.calls.length - beforeTyping).toBe(1);
+    expect(lastCalls().vehicle).toMatchObject({ periodStart: '2026-09-01' });
+  });
+
+  it('mexer em campo fora do período não refaz busca', async () => {
+    const fixture = mount();
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    const before = vehiclesList.mock.calls.length;
+
+    cmp.form.patchValue({ periodRateReais: 250, notes: 'entrega na garagem' });
+    await afterDebounce(fixture);
+
+    expect(vehiclesList.mock.calls.length).toBe(before);
+  });
+
+  it('edição: período convive com includeCurrentRentalId', async () => {
+    const fixture = mount('rental-uuid-42');
+    const cmp = fixture.componentInstance as unknown as PeriodFormLike;
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+
+    expect(lastCalls().vehicle).toEqual({
+      size: 500,
+      sort: 'plate_asc',
+      availableForRental: true,
+      includeCurrentRentalId: 'rental-uuid-42',
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-10',
+    });
+    expect(lastCalls().driver).toMatchObject({
+      includeCurrentRentalId: 'rental-uuid-42',
+      periodEnd: '2026-09-10',
+    });
+  });
+});
+
+/**
+ * DECISÃO documentada: quando o refresh do picker derruba o item já escolhido,
+ * a seleção é LIMPA e um aviso explica. Manter deixaria o `<select>` em branco
+ * (não existe `<option>` pro valor) enquanto o controle ainda segurava o id —
+ * "válido" pro `required` e reprovado só no submit.
+ */
+describe('RentalForm seleção que deixa de valer no novo período', () => {
+  const VEICULO_A = {
+    id: 'veh-a',
+    plate: 'AAA1A11',
+    type: 'CAR',
+    brand: 'Fiat',
+    model: 'Mobi',
+    yearModel: 2022,
+    licensingExpiration: null,
+    status: 'AVAILABLE',
+    createdDate: '2026-01-01',
+  };
+  const MOTORISTA_A = {
+    id: 'drv-a',
+    name: 'Ana',
+    email: null,
+    phone: null,
+    licenseNumber: '1',
+    licenseCategory: 'B',
+    licenseExpiry: '2030-01-01',
+    status: 'AVAILABLE',
+  };
+
+  let vehiclesList: Mock;
+  let driversList: Mock;
+
+  async function afterDebounce(fixture: { detectChanges: () => void }): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    fixture.detectChanges();
+  }
+
+  /** Primeira busca devolve A; a partir da segunda, listas vazias. */
+  function mountWithVanishingOptions(): ReturnType<typeof TestBed.createComponent<RentalForm>> {
+    TestBed.resetTestingModule();
+    const paged = (content: unknown[]) => of({ content, page: 0, size: 500, total: content.length });
+    vehiclesList = vi
+      .fn()
+      .mockReturnValueOnce(paged([VEICULO_A]))
+      .mockReturnValue(paged([]));
+    driversList = vi
+      .fn()
+      .mockReturnValueOnce(paged([MOTORISTA_A]))
+      .mockReturnValue(paged([]));
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        { provide: VehiclesService, useValue: { list: vehiclesList } },
+        { provide: DriverService, useValue: { list: driversList } },
+        { provide: RentalService, useValue: { getById: () => EMPTY, create: vi.fn() } },
+        { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalForm);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  type SelectionFormLike = {
+    form: {
+      patchValue: (v: Record<string, unknown>) => void;
+      getRawValue: () => Record<string, unknown>;
+      invalid: boolean;
+    };
+  };
+
+  it('limpa a escolha que sumiu da lista, invalida o form e explica o motivo', async () => {
+    const fixture = mountWithVanishingOptions();
+    const cmp = fixture.componentInstance as unknown as SelectionFormLike;
+
+    cmp.form.patchValue({ vehicleId: 'veh-a', driverId: 'drv-a' });
+    fixture.detectChanges();
+    expect(cmp.form.getRawValue()['vehicleId']).toBe('veh-a');
+
+    // Usuário escolhe o período DEPOIS de selecionar — as listas encolhem.
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+
+    expect(cmp.form.getRawValue()['vehicleId']).toBe('');
+    expect(cmp.form.getRawValue()['driverId']).toBe('');
+    expect(cmp.form.invalid).toBe(true);
+
+    const text = fixture.nativeElement.textContent ?? '';
+    expect(text).toContain('O veículo escolhido não está livre no período informado.');
+    expect(text).toContain('O motorista escolhido não está livre no período informado.');
+
+    // O aviso é assertivo: a mudança no formulário não partiu destes campos.
+    const alerts = [...fixture.nativeElement.querySelectorAll('[role="alert"]')].map((el) =>
+      (el.textContent ?? '').trim(),
+    );
+    expect(alerts.some((t: string) => t.startsWith('O veículo escolhido'))).toBe(true);
+  });
+
+  it('o aviso some assim que o usuário escolhe outro item', async () => {
+    const fixture = mountWithVanishingOptions();
+    const cmp = fixture.componentInstance as unknown as SelectionFormLike;
+
+    cmp.form.patchValue({ vehicleId: 'veh-a' });
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+    expect(fixture.nativeElement.textContent).toContain('O veículo escolhido não está livre');
+
+    cmp.form.patchValue({ vehicleId: 'veh-b' });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('O veículo escolhido não está livre');
+  });
+
+  it('o estado vazio explica o período em vez de culpar aluguel ativo', async () => {
+    const fixture = mountWithVanishingOptions();
+    const cmp = fixture.componentInstance as unknown as SelectionFormLike;
+
+    cmp.form.patchValue({ startDate: '2026-09-01', endDate: '2026-09-10' });
+    await afterDebounce(fixture);
+
+    const text = fixture.nativeElement.textContent ?? '';
+    expect(text).toContain('Nenhum veículo livre no período informado');
+    expect(text).not.toContain('todos estão em aluguel ativo');
+  });
+});
+
+/**
  * Espelho da regra do backend: `pickupDate` tem que cair dentro de
  * `[startDate, endDate]`, inclusivo nas duas pontas e comparado por dia.
  * O backend responde 400 quando isso é violado — o form não pode deixar chegar lá.
@@ -313,6 +644,35 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
     removeItem: (k: string) => store.delete(k),
   });
 
+  /**
+   * O picker precisa devolver JUSTAMENTE o par que o rascunho restaura: desde
+   * que o período vai junto na busca, uma lista vazia significa "esse veículo
+   * não está livre" e o formulário limpa a seleção de propósito (ver
+   * `applyVehicles`). Com a lista vazia daqui, estes casos mediriam a
+   * reconciliação em vez do round-trip do rascunho.
+   */
+  const DRAFT_VEHICLE = {
+    id: 'veh-1',
+    plate: 'AAA1A11',
+    type: 'CAR',
+    brand: 'Fiat',
+    model: 'Mobi',
+    yearModel: 2022,
+    licensingExpiration: null,
+    status: 'AVAILABLE',
+    createdDate: '2026-01-01',
+  };
+  const DRAFT_DRIVER = {
+    id: 'drv-1',
+    name: 'Ana',
+    email: null,
+    phone: null,
+    licenseNumber: '1',
+    licenseCategory: 'B',
+    licenseExpiry: '2030-01-01',
+    status: 'AVAILABLE',
+  };
+
   function visitNewRentalPage(): ReturnType<typeof TestBed.createComponent<RentalForm>> {
     TestBed.resetTestingModule();
     createSpy = vi.fn().mockReturnValue(of({ id: 'rental-novo' }));
@@ -327,11 +687,15 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
         { provide: SessionService, useValue: fakeSession() },
         {
           provide: VehiclesService,
-          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+          useValue: {
+            list: () => of({ content: [DRAFT_VEHICLE], page: 0, size: 500, total: 1 }),
+          },
         },
         {
           provide: DriverService,
-          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+          useValue: {
+            list: () => of({ content: [DRAFT_DRIVER], page: 0, size: 500, total: 1 }),
+          },
         },
         { provide: RentalService, useValue: { getById: () => EMPTY, create: createSpy } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
@@ -606,18 +970,23 @@ describe('RentalForm CTAs de configuração por papel', () => {
 /**
  * Prévia de valor × total gravado pelo backend.
  *
- * REGRA (fonte da verdade: `RentalService.java`): o período do aluguel é
- * INCLUSIVO nas duas pontas — `ChronoUnit.DAYS.between(start, end) + 1`.
- * Logo `start == end` é 1 diária, e 08/08→09/08 são DUAS diárias.
- * `computeTotalAmount` cobra `rate * days` (DAILY), `rate * ceil(days/7)`
- * (WEEKLY) e `rate * ceil(days/30)` (MONTHLY) em cima desse mesmo número.
+ * REGRA — o fim do período é EXCLUSIVO: o dia da devolução não é cobrado, então
+ * 05/08 → 12/08 são 7 diárias (05 a 11), não 8. Decisão do dono do produto
+ * tomada em 2026-08-04 e registrada em `documentation/FIXES.md`, que elege esta
+ * prévia como REFERÊNCIA do cálculo correto — quem se alinha é o backend.
+ * `start == end` é o único caso com piso: a diferença dá zero, mas um aluguel de
+ * um dia não pode custar R$ 0, então conta 1 diária. Mesma regra do backend em
+ * `RentalPeriodPlanner.billableDays()` (`Math.max(1, end - start)`).
  *
- * O form tem que espelhar isso EXATAMENTE: enquanto ele calculava o período de
- * forma exclusiva, a tela mostrava R$100 e o banco gravava R$200 (medido em
- * produção em 07/08/2026, três aluguéis). Se um dia a semântica for invertida,
- * inverta ESTES números junto com o backend — não só o componente.
+ * A prévia cobra `rate * days` (DAILY), `rate * ceil(days/7)` (WEEKLY) e
+ * `rate * ceil(days/30)` (MONTHLY) em cima desse número.
+ *
+ * ATENÇÃO ao histórico: em 08/08/2026 estes testes foram invertidos para o
+ * inclusivo (`+1`) sem consultar a fila, e subiram para produção no `cce0203`.
+ * Foi revertido. Se alguém propuser o `+1` de novo, o que está errado é a
+ * proposta — confira `documentation/FIXES.md` antes de mexer nestes números.
  */
-describe('RentalForm prévia de valor (período inclusivo, espelho do backend)', () => {
+describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)', () => {
   type MoneyFormLike = {
     form: { patchValue: (v: Record<string, unknown>) => void };
     totalDays: () => number;
@@ -670,7 +1039,7 @@ describe('RentalForm prévia de valor (período inclusivo, espelho do backend)',
     return cmp;
   }
 
-  it('start == end conta 1 diária', () => {
+  it('start == end conta 1 diária (piso: um aluguel de um dia não custa R$ 0)', () => {
     const cmp = preview('2026-08-08', '2026-08-08', 'DAILY', 100);
 
     expect(cmp.totalDays()).toBe(1);
@@ -678,53 +1047,61 @@ describe('RentalForm prévia de valor (período inclusivo, espelho do backend)',
     expect(cmp.totalAmountCents()).toBe(10_000);
   });
 
-  it('start → start+1 conta 2 diárias (caso medido em produção: R$100/dia = R$200)', () => {
+  it('start → start+1 conta 1 diária: o dia da devolução não é cobrado', () => {
     const cmp = preview('2026-08-08', '2026-08-09', 'DAILY', 100);
 
-    expect(cmp.totalDays()).toBe(2);
-    expect(cmp.billingUnits()).toBe(2);
-    expect(cmp.totalAmountCents()).toBe(20_000);
-    expect(cmp.totalAmountLabel()).toContain('200,00');
+    expect(cmp.totalDays()).toBe(1);
+    expect(cmp.billingUnits()).toBe(1);
+    expect(cmp.totalAmountCents()).toBe(10_000);
+    expect(cmp.totalAmountLabel()).toContain('100,00');
   });
 
-  it('05/08 → 07/08 conta 3 diárias (caso medido em produção: R$150/dia = R$450)', () => {
-    const cmp = preview('2026-08-05', '2026-08-07', 'DAILY', 150);
+  it('05/08 → 12/08 conta 7 diárias, não 8 (caso da FIXES.md: R$180/dia = R$1.260)', () => {
+    const cmp = preview('2026-08-05', '2026-08-12', 'DAILY', 180);
 
-    expect(cmp.totalDays()).toBe(3);
-    expect(cmp.totalAmountCents()).toBe(45_000);
+    expect(cmp.totalDays()).toBe(7);
+    expect(cmp.billingUnits()).toBe(7);
+    expect(cmp.totalAmountCents()).toBe(126_000);
   });
 
-  it('faixa de 30 dias corridos conta 31 diárias', () => {
+  it('20/08 → 25/08 conta 5 diárias, não 6', () => {
+    const cmp = preview('2026-08-20', '2026-08-25', 'DAILY', 150);
+
+    expect(cmp.totalDays()).toBe(5);
+    expect(cmp.totalAmountCents()).toBe(75_000);
+  });
+
+  it('faixa de 01/08 a 31/08 conta 30 diárias', () => {
     const cmp = preview('2026-08-01', '2026-08-31', 'DAILY', 100);
 
-    expect(cmp.totalDays()).toBe(31);
-    expect(cmp.billingUnits()).toBe(31);
-    expect(cmp.totalAmountCents()).toBe(310_000);
+    expect(cmp.totalDays()).toBe(30);
+    expect(cmp.billingUnits()).toBe(30);
+    expect(cmp.totalAmountCents()).toBe(300_000);
   });
 
-  it('SEMANAL: 8 dias inclusivos são 2 semanas (produção: R$100/sem = R$200)', () => {
-    const cmp = preview('2026-08-08', '2026-08-15', 'WEEKLY', 100);
-
-    expect(cmp.totalDays()).toBe(8);
-    expect(cmp.billingUnits()).toBe(2);
-    expect(cmp.totalAmountCents()).toBe(20_000);
-  });
-
-  it('SEMANAL: 7 dias inclusivos continuam 1 semana (a semana cheia não vira duas)', () => {
-    const cmp = preview('2026-08-08', '2026-08-14', 'WEEKLY', 100);
+  it('SEMANAL: 05/08 → 12/08 são 7 dias = 1 semana (o inclusivo cobrava o dobro)', () => {
+    const cmp = preview('2026-08-05', '2026-08-12', 'WEEKLY', 100);
 
     expect(cmp.totalDays()).toBe(7);
     expect(cmp.billingUnits()).toBe(1);
     expect(cmp.totalAmountCents()).toBe(10_000);
   });
 
-  it('MENSAL: 30 dias inclusivos são 1 mês; 31 cruzam o limite e viram 2', () => {
-    const umMes = preview('2026-08-01', '2026-08-30', 'MONTHLY', 2500);
+  it('SEMANAL: 8 dias estouram a semana cheia e viram 2 semanas', () => {
+    const cmp = preview('2026-08-08', '2026-08-16', 'WEEKLY', 100);
+
+    expect(cmp.totalDays()).toBe(8);
+    expect(cmp.billingUnits()).toBe(2);
+    expect(cmp.totalAmountCents()).toBe(20_000);
+  });
+
+  it('MENSAL: 30 dias são 1 mês; 31 cruzam o limite e viram 2', () => {
+    const umMes = preview('2026-08-01', '2026-08-31', 'MONTHLY', 2500);
     expect(umMes.totalDays()).toBe(30);
     expect(umMes.billingUnits()).toBe(1);
     expect(umMes.totalAmountCents()).toBe(250_000);
 
-    const doisMeses = preview('2026-08-01', '2026-08-31', 'MONTHLY', 2500);
+    const doisMeses = preview('2026-08-01', '2026-09-01', 'MONTHLY', 2500);
     expect(doisMeses.totalDays()).toBe(31);
     expect(doisMeses.billingUnits()).toBe(2);
     expect(doisMeses.totalAmountCents()).toBe(500_000);

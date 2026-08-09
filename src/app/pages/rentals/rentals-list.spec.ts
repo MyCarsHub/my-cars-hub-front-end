@@ -125,6 +125,38 @@ describe('RentalsList — menu de ações', () => {
     expect(panel?.className).toContain('fixed');
   });
 
+  /**
+   * Teste de integração da tela que originou o relato. A trava da regra em si
+   * vive em `actions-menu.spec.ts` — aqui só garantimos que ESTA listagem entrega
+   * os itens no formato que o painel consegue empilhar.
+   *
+   * Regressão real: no desktop, um aluguel RESERVED (4 ações — o máximo) mostrava
+   * só "Editar" e "Iniciar aluguel"; "Cancelar" e "Excluir" ficavam fora da vista,
+   * lado a lado, atrás de uma barra de rolagem horizontal.
+   */
+  it.each(['mobile', 'desktop'] as const)(
+    'entrega os itens como filhos diretos do painel que empilha (%s)',
+    (scope) => {
+      const fixture = TestBed.createComponent(RentalsList);
+      fixture.detectChanges();
+
+      const items = openMenuItems(fixture, scope);
+      const panel = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+        '[role="menu"]',
+      );
+
+      expect(items.length).toBeGreaterThan(1);
+      expect(panel?.classList.contains('flex-col')).toBe(true);
+      for (const item of items) {
+        // A blockificação do container de coluna só alcança filhos DIRETOS.
+        expect(
+          item.parentElement,
+          `"${item.textContent?.trim()}" (${scope}) está aninhado e escaparia do empilhamento`,
+        ).toBe(panel);
+      }
+    },
+  );
+
   it('"Excluir" abre a confirmação e NÃO chama o service antes de confirmar', () => {
     const fixture = TestBed.createComponent(RentalsList);
     fixture.detectChanges();

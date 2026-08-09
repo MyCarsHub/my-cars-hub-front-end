@@ -7,9 +7,10 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { debounceTime } from 'rxjs';
 import {
   AbstractControl,
   FormBuilder,
@@ -141,6 +142,23 @@ export class RentalForm implements OnInit {
   protected readonly vehicles = signal<VehicleListItem[]>([]);
   protected readonly drivers = signal<DriverListItem[]>([]);
 
+  /**
+   * Ligados quando o refresh do picker derruba a escolha que já estava feita
+   * (ver `applyVehicles` / `applyDrivers`). Sempre refletem o ÚLTIMO refresh.
+   */
+  private readonly vehicleClearedByPeriod = signal(false);
+  private readonly driverClearedByPeriod = signal(false);
+
+  /**
+   * Sequência das buscas de picker: o período pode mudar com uma requisição em
+   * voo e a resposta velha chegar por último. Sem isso, a lista antiga venceria
+   * a nova — e ainda limparia uma seleção que era válida.
+   */
+  private pickerRequestId = 0;
+
+  /** Última chave de período efetivamente buscada — evita refetch redundante. */
+  private loadedPeriodKey = '';
+
   protected readonly billingFrequencyOptions = BILLING_FREQUENCY_OPTIONS;
 
   // Asaas integration status; loaded on init so we can warn the user if they
@@ -193,18 +211,90 @@ export class RentalForm implements OnInit {
     initialValue: this.form.getRawValue(),
   });
 
+  /**
+   * Período pretendido, reduzido a uma CHAVE estável `start|end` — ou `''`
+   * enquanto ele não estiver completo e coerente.
+   *
+   * A chave é string de propósito: `computed` só propaga quando o valor muda de
+   * verdade (`Object.is`), então mexer em qualquer outro campo do formulário não
+   * refaz busca nenhuma, e um objeto novo a cada emissão faria justamente isso.
+   *
+   * `''` cobre os três casos em que o backend responderia 400 ou pior:
+   * vazio, pela metade (só uma das pontas) e fim antes do início. É esse `''`
+   * que garante que NENHUM dos dois parâmetros sai do navegador enquanto o
+   * usuário ainda está digitando.
+   */
+  private readonly periodKey = computed(() => {
+    const v = this.formValue();
+    const start = asDay(v?.startDate);
+    const end = asDay(v?.endDate);
+    if (!start || !end || end < start) return '';
+    // `asDay` só valida o FORMATO — "2026-13-45" passaria e viraria 400 no
+    // parse do backend. Aqui exigimos uma data que existe no calendário.
+    if (!isRealDay(start) || !isRealDay(end)) return '';
+    return `${start}|${end}`;
+  });
+
+  /**
+   * Recarrega os dois pickers quando o período muda.
+   *
+   * `debounceTime` porque `<input type="date">` emite por SEGMENTO digitado:
+   * trocar o ano de 2026 pra 2027 passa por 0002/0020/0202 — três datas válidas
+   * e três buscas inúteis. 300 ms é o mesmo intervalo já usado na busca da
+   * `rentals-list`.
+   *
+   * O guard contra `loadedPeriodKey` existe porque a primeira emissão repete o
+   * que o `ngOnInit` já buscou (e, na edição, o `getById` pode ter preenchido as
+   * datas antes disso). Comparar com o que foi buscado — em vez de contar
+   * emissões — cobre as duas ordens sem depender de timing.
+   */
+  private readonly periodReload = toObservable(this.periodKey)
+    .pipe(debounceTime(PICKER_RELOAD_DEBOUNCE_MS), takeUntilDestroyed())
+    .subscribe((key) => {
+      if (key === this.loadedPeriodKey) return;
+      this.loadPickers();
+    });
+
+  /**
+   * Avisos de "sua escolha saiu da lista". Somem sozinhos assim que o usuário
+   * escolhe outro item — a mensagem não sobrevive ao problema que ela descreve.
+   */
+  protected readonly vehicleUnavailableNotice = computed(
+    () => this.vehicleClearedByPeriod() && !this.formValue()?.vehicleId,
+  );
+  protected readonly driverUnavailableNotice = computed(
+    () => this.driverClearedByPeriod() && !this.formValue()?.driverId,
+  );
+
+  /**
+   * Copy do estado vazio. Com período escolhido, "todos estão em aluguel ativo"
+   * seria mentira — o que falta é alguém livre NAQUELE intervalo.
+   */
+  protected readonly emptyVehiclesMessage = computed(() =>
+    this.periodKey()
+      ? 'Nenhum veículo livre no período informado — tente outras datas.'
+      : 'Nenhum veículo disponível — todos estão em aluguel ativo.',
+  );
+  protected readonly emptyDriversMessage = computed(() =>
+    this.periodKey()
+      ? 'Nenhum motorista livre no período informado — tente outras datas.'
+      : 'Nenhum motorista disponível — todos estão em aluguel ativo.',
+  );
+
   protected readonly totalDays = computed(() => {
     const v = this.formValue();
     if (!v?.startDate || !v?.endDate) return 0;
     const s = new Date(v.startDate + 'T00:00:00').getTime();
     const e = new Date(v.endDate + 'T00:00:00').getTime();
     if (Number.isNaN(s) || Number.isNaN(e) || e < s) return 0;
-    // Período INCLUSIVO nas duas pontas — espelha `RentalService.create()`, que
-    // usa `ChronoUnit.DAYS.between(start, end) + 1` e alimenta com esse número o
-    // `computeTotalAmount`. Sem o `+1` a prévia mostrava metade do que o backend
-    // gravava (medido em produção). O piso artificial de 1 saiu junto: com o
-    // guard de `e < s` acima, `diff` nunca é negativo, então o resultado já é >= 1.
-    return Math.round((e - s) / 86_400_000) + 1;
+    // Fim EXCLUSIVO: o dia da devolução não é cobrado, então 05/08 → 12/08 são
+    // 7 diárias (05 a 11). Decisão do dono do produto de 2026-08-04 registrada em
+    // `documentation/FIXES.md`, que elege esta prévia como referência do cálculo.
+    // O piso de 1 cobre `start == end`: com fim exclusivo a diferença é zero, e um
+    // aluguel de um dia não pode custar R$ 0 — mesma regra do backend em
+    // `RentalPeriodPlanner.billableDays()` (`Math.max(1, end - start)`).
+    const diff = Math.round((e - s) / 86_400_000);
+    return diff > 0 ? diff : 1;
   });
 
   protected readonly billingFrequency = computed<RentalBillingFrequency>(
@@ -418,11 +508,15 @@ export class RentalForm implements OnInit {
     // the current rental's vehicle/driver (edit escape hatch).
     const id = this.route.snapshot.paramMap.get('id');
     if (id) this.editingId.set(id);
-    this.loadPickers(id);
 
     // Create-only: recupera o que o usuário já tinha digitado antes de sair pra
     // configurar uma integração. Em edição o backend é a fonte da verdade.
+    // ANTES da primeira busca de propósito: o rascunho pode trazer o período
+    // junto, e assim ele já entra na primeira chamada em vez de custar um
+    // segundo round-trip.
     if (!id) this.restoreDraft();
+
+    this.loadPickers();
 
     // Load Asaas integration status so we can show a warning when the user
     // toggles automatic charge without a connected integration.
@@ -499,31 +593,89 @@ export class RentalForm implements OnInit {
    * motoristas já em rentals RESERVED/ACTIVE do tenant. Em modo edição, também
    * enviamos `includeCurrentRentalId` — assim o veículo/motorista atualmente
    * vinculado ao rental sendo editado permanece visível na lista.
+   *
+   * Com período completo, `periodStart`/`periodEnd` entram nas DUAS chamadas e
+   * o corte passa a ser por colisão real de intervalo: um carro alugado hoje
+   * volta a aparecer para uma reserva futura. Sem período, o backend mantém o
+   * comportamento antigo (qualquer aluguel aberto esconde o registro).
    */
-  private loadPickers(currentRentalId: string | null): void {
+  private loadPickers(): void {
+    const currentRentalId = this.editingId();
+    const requestId = ++this.pickerRequestId;
+    this.loadedPeriodKey = this.periodKey();
+    const availability = {
+      availableForRental: true,
+      ...(currentRentalId ? { includeCurrentRentalId: currentRentalId } : {}),
+      ...this.periodParams(),
+    };
     this.vehiclesService
-      .list({
-        size: 500,
-        sort: 'plate_asc',
-        availableForRental: true,
-        ...(currentRentalId ? { includeCurrentRentalId: currentRentalId } : {}),
-      })
+      .list({ size: 500, sort: 'plate_asc', ...availability })
       .subscribe({
-        next: (res) => this.vehicles.set(res.content ?? []),
-        error: () => this.vehicles.set([]),
+        next: (res) => {
+          if (requestId !== this.pickerRequestId) return;
+          this.applyVehicles(res.content ?? []);
+        },
+        // Falha de rede não é "frota vazia": zerar a lista aqui apagaria as
+        // opções (e a escolha renderizável) por causa de um blip.
+        error: () => {},
       });
     this.driverService
-      .list({
-        size: 500,
-        sort: 'name_asc',
-        availableForRental: true,
-        ...(currentRentalId ? { includeCurrentRentalId: currentRentalId } : {}),
-      })
+      .list({ size: 500, sort: 'name_asc', ...availability })
       .subscribe({
-        next: (res) =>
-          this.drivers.set((res.content ?? []).filter((d) => d.status !== 'SUSPENDED')),
-        error: () => this.drivers.set([]),
+        next: (res) => {
+          if (requestId !== this.pickerRequestId) return;
+          this.applyDrivers((res.content ?? []).filter((d) => d.status !== 'SUSPENDED'));
+        },
+        error: () => {},
       });
+  }
+
+  /**
+   * `periodStart`/`periodEnd` prontos pro filtro, ou `{}`.
+   *
+   * Tudo ou nada: o backend responde 400 quando recebe só uma das pontas, e
+   * `periodKey()` já devolve `''` em todo estado incompleto ou incoerente.
+   */
+  private periodParams(): { periodStart: string; periodEnd: string } | Record<string, never> {
+    const key = this.periodKey();
+    if (!key) return {};
+    const [periodStart, periodEnd] = key.split('|');
+    return { periodStart, periodEnd };
+  }
+
+  /**
+   * Reconciliação da seleção depois de um refresh da lista.
+   *
+   * DECISÃO: quando o veículo/motorista escolhido sai da lista nova, a seleção é
+   * LIMPA (e o aviso explica o porquê) em vez de mantida.
+   *
+   * Manter não era opção: um `<select>` não consegue exibir um valor sem
+   * `<option>` correspondente. O campo ficaria em branco segurando o id por
+   * baixo — visualmente "não escolhido", mas aprovado pelo `required` — e o
+   * usuário só descobriria no 409 do submit. Limpando, o `required` volta a
+   * acusar, o campo fica honestamente vazio e o aviso diz o que aconteceu.
+   *
+   * Controle DESABILITADO nunca é limpo: em rental ACTIVE o veículo/motorista
+   * não é reescolhível, então apagá-lo só destruiria o payload do PUT. Na
+   * prática o caso não chega aqui — `includeCurrentRentalId` garante que o par
+   * do próprio aluguel continua na lista, mesmo com período.
+   */
+  private applyVehicles(list: VehicleListItem[]): void {
+    this.vehicles.set(list);
+    const control = this.form.controls.vehicleId;
+    const selected = control.value;
+    const lost = !!selected && control.enabled && !list.some((v) => v.id === selected);
+    if (lost) control.setValue('');
+    this.vehicleClearedByPeriod.set(lost);
+  }
+
+  private applyDrivers(list: DriverListItem[]): void {
+    this.drivers.set(list);
+    const control = this.form.controls.driverId;
+    const selected = control.value;
+    const lost = !!selected && control.enabled && !list.some((d) => d.id === selected);
+    if (lost) control.setValue('');
+    this.driverClearedByPeriod.set(lost);
   }
 
   /**
@@ -756,6 +908,12 @@ function pickupWithinPeriodValidator(group: AbstractControl): ValidationErrors |
   return isPickupOutsidePeriod(start, end, pickup) ? { pickupOutsidePeriod: true } : null;
 }
 
+/**
+ * Janela pra colapsar a rajada de emissões do `<input type="date">` antes de
+ * refazer as buscas dos pickers. Mesmo valor da busca da `rentals-list`.
+ */
+const PICKER_RELOAD_DEBOUNCE_MS = 300;
+
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** `yyyy-MM-dd` normalizado, ou `null` se o valor não for uma data utilizável. */
@@ -763,6 +921,16 @@ function asDay(value: unknown): string | null {
   if (typeof value !== 'string' || value.length < 10) return null;
   const day = value.slice(0, 10);
   return DAY_PATTERN.test(day) ? day : null;
+}
+
+/**
+ * Data que existe no calendário, e não só no formato: `DAY_PATTERN` aprova
+ * `2026-13-45`, que o backend rejeitaria com 400 no parse. Comparação em UTC
+ * pra não deixar o fuso deslocar o dia no round-trip.
+ */
+function isRealDay(day: string): boolean {
+  const parsed = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === day;
 }
 
 /** `dd/MM/yyyy` a partir de `yyyy-MM-dd` — sem `Date`, sem surpresa de fuso. */
