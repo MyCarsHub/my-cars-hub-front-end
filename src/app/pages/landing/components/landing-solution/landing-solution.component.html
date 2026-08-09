@@ -12,7 +12,7 @@
   <div class="relative z-10 max-w-[1200px] mx-auto flex flex-col gap-8">
     <header class="flex flex-col gap-3.5 max-w-[680px]">
       <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] text-white m-0">
-        Locadoras que operam sem <span class="hl">madrugada de fechamento</span>.
+        Feche o mês sem <span class="hl">madrugada de planilha</span>.
       </h2>
       <p class="reveal text-[15.5px] text-white/85 m-0 max-w-[52ch]">
         Três promessas concretas — nenhuma envolve abrir planilha.
@@ -74,6 +74,17 @@
                 </div>
               }
             }
+
+            <!--
+              Rótulo ÚNICO para as três prévias, não só para a dos KPIs ("R$ 84,2k",
+              "92%"): marcar um cartão e deixar os outros dois sem marca sugeriria que
+              "75% concluído" e a revisão do Civic são dados reais. Fora de `aria-hidden`
+              de propósito — as visualizações decorativas escondem o gráfico do leitor de
+              tela, mas os valores em si são texto lido, então a ressalva também precisa
+              ser. Vive no contêiner compartilhado do `@switch`, então não há caso especial
+              de layout: entra como mais uma linha do mesmo `flex flex-col gap-2.5`.
+            -->
+            <small class="mono text-[11px] leading-[1.4] text-white/80">Exemplo ilustrativo da interface</small>
           </div>
         </article>
       }

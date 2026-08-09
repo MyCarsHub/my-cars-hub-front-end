@@ -6,6 +6,30 @@ import {
   inject,
 } from '@angular/core';
 
+/**
+ * Faixa de estatísticas — números sobre o PRODUTO, nunca sobre tração.
+ *
+ * Esta seção JÁ PUBLICOU três alegações falsas: "180+ frotas ativas" (havia 18 empresas),
+ * "R$ 12M em contratos ativos/mês" (R$ 112.950 somando todo o histórico) e "99,9% de
+ * uptime nos últimos 12 meses" (não existe monitoramento que sustente). Um número falso é
+ * pior que um depoimento falso — passa impressão de fato aferido — e ainda contradizia a
+ * seção "Construído em público", que admite não haver cliente para depor.
+ *
+ * Os três números que ficaram são verdades sobre o que o sistema faz, com fonte no código:
+ *
+ * - `14` dias de teste  → `landing-plans.ts` (`PLAN_PRICES.trialDays`), mesmo número que o
+ *   hero, o CTA, a tabela de planos e o FAQ anunciam.
+ * - `9` áreas da operação → `components/sidebar/sidebar.ts`: aluguéis, veículos,
+ *   motoristas, manutenções, multas, sinistros, financiamentos, seguros e relatórios.
+ * - `5` tipos de alerta → `types/notification-feed.types.ts` (`NotificationType`):
+ *   CNH_DUE_SOON, LICENSING_DUE_SOON, IPVA_DUE_SOON, INSURANCE_DUE_SOON e
+ *   FINANCING_INSTALLMENT_DUE.
+ *
+ * REGRA: nenhum número entra aqui sem fonte no código, e nenhum número de ADOÇÃO entra —
+ * nem contagem de empresas, nem volume financeiro, nem uptime. Se um módulo ou um tipo de
+ * alerta nascer, atualize o número E a lista enumerada no HTML, que é o que torna a
+ * afirmação auditável pelo visitante.
+ */
 @Component({
   selector: 'app-landing-stats',
   templateUrl: './landing-stats.component.html',

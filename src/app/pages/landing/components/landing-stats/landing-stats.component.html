@@ -9,38 +9,50 @@
   <div class="max-w-[1200px] mx-auto flex flex-col gap-7">
     <header class="flex flex-col gap-3.5 max-w-[640px]">
       <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] text-ink m-0">
-        Locadoras que já saíram <span class="hl">da planilha</span>.
+        Números do sistema, <span class="hl">não da nossa vitrine</span>.
       </h2>
       <p class="reveal text-[15px] text-ink/70 m-0 max-w-[48ch]">
-        Alguns números do que o MyCarsHub gerencia agora mesmo, em produção.
+        Os três números abaixo descrevem o que o sistema faz: o tamanho do teste, as áreas
+        que ele cobre e os avisos que ele dispara. Você confere cada um no teste grátis.
       </p>
     </header>
 
     <div class="reveal grid grid-cols-3 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-3 sm:gap-6 md:gap-12 items-start" data-counters="1">
       <article class="flex flex-col gap-2 sm:gap-3.5 min-w-0">
         <div class="mono font-bold text-[clamp(1.4rem,7vw,3.75rem)] leading-[0.95] tracking-[-0.03em] flex items-baseline gap-1 text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); -webkit-background-clip: text;">
-          <span data-count="180">0</span><span class="text-[0.5em] font-semibold tracking-wide">+</span>
+          <span data-count="14">14</span>
         </div>
-        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Frotas ativas na plataforma</span>
+        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Dias de teste, sem cartão</span>
       </article>
 
       <hr aria-hidden="true" class="hidden md:block w-px h-full min-h-[140px] bg-rule border-0 m-0" />
 
       <article class="flex flex-col gap-2 sm:gap-3.5 min-w-0">
         <div class="mono font-bold text-[clamp(1.4rem,7vw,3.75rem)] leading-[0.95] tracking-[-0.03em] flex items-baseline gap-1 text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); -webkit-background-clip: text;">
-          R$<span data-count="12">0</span><span class="text-[0.5em] font-semibold tracking-wide">M</span>
+          <span data-count="9">9</span>
         </div>
-        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Em contratos ativos/mês</span>
+        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Áreas da operação num só lugar</span>
       </article>
 
       <hr aria-hidden="true" class="hidden md:block w-px h-full min-h-[140px] bg-rule border-0 m-0" />
 
       <article class="flex flex-col gap-2 sm:gap-3.5 min-w-0">
         <div class="mono font-bold text-[clamp(1.4rem,7vw,3.75rem)] leading-[0.95] tracking-[-0.03em] flex items-baseline gap-1 text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%); -webkit-background-clip: text;">
-          <span data-count="99">0</span><span class="text-[0.5em] font-semibold tracking-wide">,9%</span>
+          <span data-count="5">5</span>
         </div>
-        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Uptime nos últimos 12 meses</span>
+        <span class="text-xs sm:text-sm text-ink/70 leading-[1.4] max-w-[30ch] tracking-wide">Tipos de alerta automático</span>
       </article>
     </div>
+
+    <!--
+      A linha que torna os três números auditáveis: sem ela, "9 áreas" e "5 alertas" são
+      só afirmações. Enumerada aqui, qualquer visitante confere item por item no teste.
+      As fontes estão no `.ts` — não edite um lado sem o outro.
+    -->
+    <p class="reveal text-[13px] leading-[1.6] text-ink/60 m-0 max-w-[72ch]">
+      As nove áreas: aluguéis, veículos, motoristas, manutenções, multas, sinistros,
+      financiamentos, seguros e relatórios. Os cinco alertas: CNH, licenciamento, IPVA,
+      seguro e parcela de financiamento.
+    </p>
   </div>
 </section>

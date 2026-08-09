@@ -43,7 +43,7 @@ export class LandingSolutionComponent {
       titleBefore: 'Decide com',
       emphasis: 'dados',
       titleAfter: ', não com chutes.',
-      body: 'Receita, ocupação e inadimplência num painel só — em tempo real, por veículo e por motorista.',
+      body: 'Receita, ocupação e inadimplência num painel só — em tempo real, por carro e por motorista.',
       iconHtml: this.sanitizer.bypassSecurityTrustHtml(
         '<svg viewBox="0 0 24 24" fill="none" class="w-[22px] h-[22px]"><path d="M3 17l5-5 4 4 7-7M15 9h6V3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
       ),
@@ -51,10 +51,10 @@ export class LandingSolutionComponent {
       mid: true,
     },
     {
-      titleBefore: 'Frota',
-      emphasis: 'não para',
+      titleBefore: 'Seus carros',
+      emphasis: 'não param',
       titleAfter: ' sem você saber.',
-      body: 'Manutenções agendadas com alerta antecipado. Vistoria digital antes e depois da locação.',
+      body: 'Manutenções agendadas com alerta antecipado. Vistoria digital antes e depois de cada aluguel.',
       iconHtml: this.sanitizer.bypassSecurityTrustHtml(
         '<svg viewBox="0 0 24 24" fill="none" class="w-[22px] h-[22px]"><path d="M12 3a6 6 0 0 0-6 6c0 4-2 5-2 7h16c0-2-2-3-2-7a6 6 0 0 0-6-6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
       ),

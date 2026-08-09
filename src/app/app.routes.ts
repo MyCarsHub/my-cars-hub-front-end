@@ -25,12 +25,12 @@ export const routes: Routes = [
                 (m) => m.LandingComponent
             ),
         data: {
-            pageTitle: 'Gestão inteligente para locadoras',
+            pageTitle: 'Aluguel de carros para motoristas de aplicativo',
             seo: {
                 description:
-                    'Sistema de gestão para locadoras de veículos: frota, motoristas, ' +
-                    'aluguéis, contratos, cobranças automáticas e relatórios em uma plataforma só. ' +
-                    'Teste 14 dias grátis, sem cartão.',
+                    'Gerencie o aluguel dos seus carros para motoristas de aplicativo: ' +
+                    'contratos, cobranças, multas, manutenções e vistorias num sistema só — ' +
+                    'mesmo que você tenha só 1 carro. Teste 14 dias grátis, sem cartão.',
                 canonicalPath: '/',
             },
         },

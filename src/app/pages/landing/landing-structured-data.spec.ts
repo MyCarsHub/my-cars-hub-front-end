@@ -2,9 +2,15 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, it, expect, beforeEach } from 'vitest';
 
+import { LandingFaqComponent } from './components/landing-faq/landing-faq.component';
 import { LandingPricingComponent } from './components/landing-pricing/landing-pricing.component';
+import { LANDING_FAQS } from './landing-faqs';
 import { PLAN_PRICES } from './landing-plans';
-import { organizationJsonLd, softwareApplicationJsonLd } from './landing-structured-data';
+import {
+  faqPageJsonLd,
+  organizationJsonLd,
+  softwareApplicationJsonLd,
+} from './landing-structured-data';
 
 class IntersectionObserverStub {
   observe(): void {}
@@ -124,6 +130,66 @@ describe('landing structured data', () => {
       // O trial sai como "R$ 0" no card e como offer de preço zero no JSON-LD.
       expect(advertised).toContain('0.00');
       expect(rendered).toContain('R$ 0');
+    });
+  });
+
+  /**
+   * FAQ marcada que a página não mostra é violação de política do Google, não só um
+   * detalhe. Este bloco renderiza a FAQ de verdade e confere par a par.
+   */
+  describe('FAQPage', () => {
+    interface Question {
+      readonly '@type': string;
+      readonly name: string;
+      readonly acceptedAnswer: { readonly '@type': string; readonly text: string };
+    }
+
+    function questions(): readonly Question[] {
+      return (faqPageJsonLd() as { mainEntity: readonly Question[] }).mainEntity;
+    }
+
+    it('emits one Question per FAQ entry, each with an Answer', () => {
+      const node = faqPageJsonLd() as Record<string, unknown>;
+
+      expect(node['@type']).toBe('FAQPage');
+      expect(questions().length).toBe(LANDING_FAQS.length);
+      for (const question of questions()) {
+        expect(question['@type']).toBe('Question');
+        expect(question.acceptedAnswer['@type']).toBe('Answer');
+        expect(question.acceptedAnswer.text.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('marks up the question the ICP with a single car asks', () => {
+      expect(questions().map((q) => q.name)).toContain(
+        'Tenho só 1 carro alugado. O MyCarsHub é pra mim?',
+      );
+    });
+
+    it('marks up nothing the FAQ section does not actually render', async () => {
+      (
+        globalThis as unknown as { IntersectionObserver: typeof IntersectionObserverStub }
+      ).IntersectionObserver = IntersectionObserverStub;
+      await TestBed.configureTestingModule({ imports: [LandingFaqComponent] }).compileComponents();
+      const fixture = TestBed.createComponent(LandingFaqComponent);
+      fixture.detectChanges();
+      const rendered = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+      for (const question of questions()) {
+        expect(rendered).toContain(question.name);
+        expect(rendered).toContain(question.acceptedAnswer.text);
+      }
+    });
+
+    /**
+     * O trial anuncia 3 veículos em `plan-limits.ts`; a resposta ao dono de 1 carro só
+     * convence se o número bater. Se a `plans` mudar, este teste quebra junto.
+     */
+    it('keeps the single-car answer consistent with the advertised trial capacity', () => {
+      const answer = questions().find((q) => q.name.startsWith('Tenho só 1 carro'))?.acceptedAnswer
+        .text;
+
+      expect(answer).toContain('até 3 veículos');
     });
   });
 });
