@@ -68,6 +68,10 @@ export class VehiclesService {
     if (filters.availableForRental) params = params.set('availableForRental', 'true');
     if (filters.includeCurrentRentalId)
       params = params.set('includeCurrentRentalId', filters.includeCurrentRentalId);
+    // Par indivisível: o backend responde 400 se receber só uma das pontas.
+    // Quem chama é responsável por mandar as duas ou nenhuma.
+    if (filters.periodStart) params = params.set('periodStart', filters.periodStart);
+    if (filters.periodEnd) params = params.set('periodEnd', filters.periodEnd);
 
     return this.http.get<PagedResponse<VehicleListItem>>(BASE, { params }).pipe(
       tap((res) => {

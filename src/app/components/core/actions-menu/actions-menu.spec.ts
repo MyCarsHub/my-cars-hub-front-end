@@ -91,6 +91,48 @@ describe('ActionsMenu', () => {
     expect(parseFloat(style.maxHeight)).toBeGreaterThan(0);
   });
 
+  /**
+   * Stacking contract. `<button>` is `display: inline-block` by default and the
+   * Angular compiler strips the whitespace between projected nodes, so items
+   * with no display class had NO soft-wrap opportunity and laid out SIDE BY
+   * SIDE, blowing past the panel width (horizontal scrollbar, items off-view).
+   *
+   * The host fixture above projects bare `<button role="menuitem">` with no
+   * classes at all — exactly the shape that broke. The rule lives on the panel
+   * so no consumer has to remember `flex`/`block` on every button.
+   */
+  it('stacks projected items vertically even when they carry no display class', () => {
+    trigger(fixture).click();
+    fixture.detectChanges();
+
+    const panel = menu(fixture) as HTMLElement;
+    // Tailwind utilities are not compiled in jsdom, so assert the class itself.
+    expect(panel.classList.contains('flex')).toBe(true);
+    expect(panel.classList.contains('flex-col')).toBe(true);
+
+    // Blockification only reaches DIRECT children of the flex container, so the
+    // items must not be wrapped in an intermediate element.
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    expect(items.length).toBeGreaterThan(1);
+    for (const projected of items) {
+      expect(projected.classList.contains('flex') || projected.className === '').toBe(true);
+      expect(projected.parentElement).toBe(panel);
+    }
+  });
+
+  /**
+   * Flex items shrink by default. Without this, a menu taller than the computed
+   * `max-height` would squash its items instead of scrolling — measured in a
+   * real browser, an item whose label wraps to two lines collapsed from 64px to
+   * its 44px `min-h` floor, clipping the second line.
+   */
+  it('keeps items from shrinking when the menu is taller than max-height', () => {
+    trigger(fixture).click();
+    fixture.detectChanges();
+
+    expect((menu(fixture) as HTMLElement).classList.contains('[&>*]:shrink-0')).toBe(true);
+  });
+
   it('focuses the first enabled item on open', () => {
     trigger(fixture).click();
     fixture.detectChanges();
