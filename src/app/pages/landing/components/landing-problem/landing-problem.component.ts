@@ -20,20 +20,20 @@ export class LandingProblemComponent {
 
   readonly cadernoItems = [
     'Vencimentos e devoluções no escuro',
-    'Multas esquecidas no CNPJ',
+    'Multas esquecidas no seu nome',
     'Zero automação',
-    'Se o dono some, a operação some junto',
+    'Se você some, a operação some junto',
   ];
 
   readonly planilhaItems = [
     'Só uma pessoa edita por vez',
     'Sem integração com gateway',
     'Qualquer erro derruba tudo',
-    'Não sobrevive a 100+ contratos',
+    'Quebra no primeiro mês com 3 carros rodando',
   ];
 
   readonly ourItems = [
-    'Contratos, veículos e locatários num lugar só',
+    'Contratos, carros e motoristas num lugar só',
     'Cobranças via Asaas/Stripe com status por webhook',
     'Multas vinculadas ao motorista certo',
     'Manutenções com alerta antecipado',

@@ -28,12 +28,12 @@
     <!-- Copy -->
     <div class="relative z-10 flex flex-col gap-[22px]">
       <h1
-        class="reveal font-display font-bold text-[clamp(1.85rem,4.6vw,3.25rem)] leading-[1.08] tracking-[-0.028em] text-ink max-w-[17ch] mt-1 m-0"
+        class="reveal font-display font-bold text-[clamp(1.85rem,4.6vw,3.25rem)] leading-[1.08] tracking-[-0.028em] text-ink max-w-[22ch] mt-1 m-0"
         style="transition-delay: 0ms;"
       >
-        Menos planilha.
+        Aluga seus carros pra motorista de app?
         <span class="block italic text-brand relative">
-          Mais frota rodando.
+          Gerencie tudo sem planilha.
           <span
             aria-hidden="true"
             class="inline-block w-2.5 h-2.5 rounded-full bg-brand ml-1.5 -translate-y-1.5 align-baseline animate-[heroDotPulse_2.4s_ease-in-out_infinite]"
@@ -45,8 +45,8 @@
         class="reveal font-body text-[clamp(15px,1.05vw,17px)] leading-[1.55] text-ink/70 max-w-[40ch] m-0"
         style="transition-delay: 90ms;"
       >
-        Contratos, cobranças, vistorias e assinatura eletrônica — tudo integrado num sistema
-        desenhado pra locadoras que querem escalar sem virar refém de planilha.
+        Contratos, cobranças, multas e vistorias dos seus carros num sistema só — mesmo que
+        você tenha só 1.
       </p>
 
       <div class="reveal flex flex-wrap items-center gap-4 mt-1" style="transition-delay: 180ms;">
@@ -85,43 +85,62 @@
       </ul>
     </div>
 
-    <!-- Visual: mockup (mobile + tablet) + chips flutuantes -->
-    <div class="reveal relative isolate" style="transition-delay: 200ms;">
-      <div
-        class="group relative transition-transform duration-500 hover:-translate-y-1 lg:scale-110 lg:origin-left"
-      >
-        <img
-          ngSrc="png/header-image.png"
-          width="1333"
-          height="931"
-          alt="MyCarsHub em mobile e tablet — dashboard com veículos, motoristas ativos e faturamento"
-          priority
-          class="w-full h-auto block"
-        />
+    <!-- Visual: mockup (mobile + tablet) + chips flutuantes + legenda de demonstração -->
+    <div class="flex flex-col gap-3 lg:gap-14">
+      <div class="reveal relative isolate" style="transition-delay: 200ms;">
+        <div
+          class="group relative transition-transform duration-500 hover:-translate-y-1 lg:scale-110 lg:origin-left"
+        >
+          <img
+            ngSrc="png/header-image.png"
+            width="1333"
+            height="931"
+            alt="MyCarsHub em mobile e tablet — dashboard de demonstração com veículos, motoristas ativos e faturamento"
+            priority
+            class="w-full h-auto block"
+          />
+        </div>
+
+        <!-- Chip live (contratos ativos) -->
+        <aside
+          class="absolute -top-0 -left-3 md:-left-3.5 z-[2] bg-paper border border-rule-strong rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 shadow-[0_14px_32px_-12px_rgba(10,10,10,0.18)] max-w-[44%] md:max-w-none will-change-transform transition-transform duration-300"
+          [style.transform]="'translate3d(' + chipParallax(1, 'x') + ',' + chipParallax(1, 'y') + ',0)'"
+          aria-hidden="true"
+        >
+          <span class="w-2 h-2 rounded-full bg-brand shrink-0 animate-[heroChipPulse_2.2s_ease-in-out_infinite]" style="box-shadow: 0 0 0 4px rgba(235,63,0,0.18);"></span>
+          <div class="flex flex-col gap-0.5 leading-tight">
+            <span class="font-mono font-bold text-[15px] md:text-[15px] text-ink tabular-nums">27</span>
+            <small class="text-muted text-[10.5px] tracking-wide">contratos ativos</small>
+          </div>
+        </aside>
+
+        <!-- Chip money (recebidos hoje) -->
+        <aside
+          class="absolute bottom-3 -right-3 md:-right-4 z-[2] bg-paper border border-rule-strong rounded-xl px-3.5 py-2.5 flex flex-col items-start gap-1 shadow-[0_14px_32px_-12px_rgba(10,10,10,0.18)] max-w-[44%] md:max-w-none will-change-transform transition-transform duration-300"
+          [style.transform]="'translate3d(' + chipParallax(2, 'x') + ',' + chipParallax(2, 'y') + ',0)'"
+          aria-hidden="true"
+        >
+          <span class="text-[10.5px] text-muted uppercase tracking-[0.1em] font-medium">Recebidos hoje</span>
+          <span class="font-mono font-bold text-[17px] text-brand tabular-nums">R$ 14.230</span>
+        </aside>
       </div>
 
-      <!-- Chip live (contratos ativos) -->
-      <aside
-        class="absolute -top-0 -left-3 md:-left-3.5 z-[2] bg-paper border border-rule-strong rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 shadow-[0_14px_32px_-12px_rgba(10,10,10,0.18)] max-w-[44%] md:max-w-none will-change-transform transition-transform duration-300"
-        [style.transform]="'translate3d(' + chipParallax(1, 'x') + ',' + chipParallax(1, 'y') + ',0)'"
-        aria-hidden="true"
+      <!--
+        Os dois chips ("27 contratos ativos", "R$ 14.230 recebidos hoje") e o print são de
+        uma conta de demonstração. O rótulo NÃO pode morar dentro dos chips: eles são
+        `aria-hidden`, então quem usa leitor de tela nunca chegaria nele. Por isso a
+        ressalva é legenda no fluxo — lida na ordem natural — e o `alt` da imagem já diz
+        "dashboard de demonstração". Ela é IRMÃ do bloco posicionado, não filha: os chips
+        são `absolute` ancorados naquele bloco, e um parágrafo dentro dele empurraria o
+        chip de baixo para fora do print.
+      -->
+      <p
+        class="reveal text-[12.5px] leading-[1.5] text-ink/60 m-0 max-w-[46ch]"
+        style="transition-delay: 260ms;"
       >
-        <span class="w-2 h-2 rounded-full bg-brand shrink-0 animate-[heroChipPulse_2.2s_ease-in-out_infinite]" style="box-shadow: 0 0 0 4px rgba(235,63,0,0.18);"></span>
-        <div class="flex flex-col gap-0.5 leading-tight">
-          <span class="font-mono font-bold text-[15px] md:text-[15px] text-ink tabular-nums">27</span>
-          <small class="text-muted text-[10.5px] tracking-wide">contratos ativos</small>
-        </div>
-      </aside>
-
-      <!-- Chip money (recebidos hoje) -->
-      <aside
-        class="absolute bottom-3 -right-3 md:-right-4 z-[2] bg-paper border border-rule-strong rounded-xl px-3.5 py-2.5 flex flex-col items-start gap-1 shadow-[0_14px_32px_-12px_rgba(10,10,10,0.18)] max-w-[44%] md:max-w-none will-change-transform transition-transform duration-300"
-        [style.transform]="'translate3d(' + chipParallax(2, 'x') + ',' + chipParallax(2, 'y') + ',0)'"
-        aria-hidden="true"
-      >
-        <span class="text-[10.5px] text-muted uppercase tracking-[0.1em] font-medium">Recebidos hoje</span>
-        <span class="font-mono font-bold text-[17px] text-brand tabular-nums">R$ 14.230</span>
-      </aside>
+        Imagem de demonstração da interface — os números exibidos são exemplos, não
+        resultados reais.
+      </p>
     </div>
   </div>
 </section>

@@ -53,7 +53,7 @@ export class LandingFeaturesComponent {
     },
     {
       title: 'Saldo devedor à vista.',
-      description: 'Parcelas, juros e calendário consolidados por veículo da frota.',
+      description: 'Parcelas, juros e calendário consolidados carro por carro.',
       viz: 'bar',
       barLabel: 'Civic 2024 · 18 de 48 parcelas · R$ 61.580 restantes',
     },

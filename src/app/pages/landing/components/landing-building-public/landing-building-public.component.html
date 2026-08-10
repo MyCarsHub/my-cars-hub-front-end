@@ -1,0 +1,56 @@
+<section class="relative isolate overflow-hidden bg-paper-2 border-t border-rule px-5 md:px-8 py-10 md:py-12">
+  <div class="max-w-[1200px] mx-auto flex flex-col md:flex-row md:items-center gap-6 md:gap-10">
+    <div class="flex flex-col gap-2 md:flex-1">
+      <h2 class="font-display font-bold text-[clamp(1.25rem,2.4vw,1.65rem)] tracking-[-0.025em] text-ink m-0">
+        Estamos construindo em público.
+      </h2>
+      <p class="text-[14.5px] leading-[1.55] text-ink/70 m-0 max-w-[52ch]">
+        Cada funcionalidade nasce de uma conversa com quem aluga carro pra motorista de app.
+        Acompanhe os bastidores e opine antes de a gente escrever o código.
+      </p>
+    </div>
+
+    <!--
+      Sem nenhum canal publicado a linha de botões inteira sai: um flex vazio com
+      `gap-3` ainda ocupa espaço e abre um buraco ao lado do texto.
+    -->
+    @if (hasAnyChannel) {
+    <div class="flex flex-col sm:flex-row gap-3 md:shrink-0">
+      @if (communityUrl) {
+        <a
+          [href]="communityUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="group inline-flex items-center justify-center gap-2 px-[22px] py-3 rounded-full font-body font-semibold text-[14.5px] text-white no-underline min-h-[48px] shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_8px_22px_-6px_rgba(235,63,0,0.45)] hover:-translate-y-px hover:text-white hover:shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_14px_32px_-8px_rgba(235,63,0,0.55)] active:translate-y-0 transition-all duration-300"
+          style="background: linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%);"
+        >
+          Comunidade dos Locadores
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="transition-transform duration-200 group-hover:translate-x-1">
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </a>
+      }
+      <!--
+        URL vazia = canal omitido em silêncio, nunca um aviso no lugar. O marcador
+        que ficava aqui expunha nome de arquivo do repositório para o visitante.
+      -->
+
+      @if (instagramUrl) {
+        <a
+          [href]="instagramUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center justify-center gap-2 px-[22px] py-3 rounded-full bg-paper border border-rule-strong font-body font-semibold text-[14.5px] text-ink no-underline min-h-[48px] hover:-translate-y-px hover:border-brand/40 hover:text-brand-strong transition-all duration-300"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="1.8" />
+            <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8" />
+            <circle cx="17.2" cy="6.8" r="1.2" fill="currentColor" />
+          </svg>
+          {{ instagramHandle }} no Instagram
+        </a>
+      }
+    </div>
+    }
+  </div>
+</section>

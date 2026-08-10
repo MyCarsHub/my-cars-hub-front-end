@@ -8,7 +8,11 @@ import {
   signal,
 } from '@angular/core';
 import { SeoService } from '../../../services/seo.service';
-import { organizationJsonLd, softwareApplicationJsonLd } from '../landing-structured-data';
+import {
+  faqPageJsonLd,
+  organizationJsonLd,
+  softwareApplicationJsonLd,
+} from '../landing-structured-data';
 import { enableRevealAnimations } from '../reveal-ready';
 import { LandingNavComponent } from '../components/landing-nav/landing-nav.component';
 import { LandingHeroComponent } from '../components/landing-hero/landing-hero.component';
@@ -21,6 +25,7 @@ import { LandingStatsComponent } from '../components/landing-stats/landing-stats
 import { LandingPricingComponent } from '../components/landing-pricing/landing-pricing.component';
 import { LandingFaqComponent } from '../components/landing-faq/landing-faq.component';
 import { LandingCtaComponent } from '../components/landing-cta/landing-cta.component';
+import { LandingBuildingPublicComponent } from '../components/landing-building-public/landing-building-public.component';
 import { LandingFooterComponent } from '../components/landing-footer/landing-footer.component';
 
 @Component({
@@ -37,6 +42,7 @@ import { LandingFooterComponent } from '../components/landing-footer/landing-foo
     LandingPricingComponent,
     LandingFaqComponent,
     LandingCtaComponent,
+    LandingBuildingPublicComponent,
     LandingFooterComponent,
   ],
   templateUrl: './landing.component.html',
@@ -55,6 +61,7 @@ export class LandingComponent implements OnDestroy {
     // serializes the document — that is what puts them in the static HTML Google reads.
     this.seo.setJsonLd('organization', organizationJsonLd());
     this.seo.setJsonLd('software-application', softwareApplicationJsonLd());
+    this.seo.setJsonLd('faq', faqPageJsonLd());
 
     // Só depois que o cliente renderizou o CSS pode esconder o que vai entrar animado —
     // até lá o HTML prerenderizado fica visível. Ver `reveal-ready.ts`.
@@ -70,6 +77,7 @@ export class LandingComponent implements OnDestroy {
     // Navigating away in the SPA must not leave the landing's schema on other pages.
     this.seo.removeJsonLd('organization');
     this.seo.removeJsonLd('software-application');
+    this.seo.removeJsonLd('faq');
   }
 
   protected onScroll(): void {
