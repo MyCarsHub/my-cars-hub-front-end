@@ -6,24 +6,29 @@
       <a class="inline-flex items-center no-underline" href="#top" aria-label="MyCarsHub - voltar ao topo" style="filter: brightness(0) invert(1);">
         <img src="svg/logo-my-cars-hub-complete.svg" alt="MyCarsHub" class="h-6 md:h-7 w-auto block" />
       </a>
-      <p class="text-white/55 text-sm mt-3.5 max-w-[300px] leading-[1.55]">O ERP definitivo para locadoras de veículos.</p>
+      <p class="text-white/55 text-sm mt-3.5 max-w-[300px] leading-[1.55]">O sistema de quem aluga carro pra motorista de aplicativo.</p>
     </div>
 
     <nav class="grid grid-cols-3 gap-4 sm:gap-8 max-[480px]:grid-cols-1 max-[480px]:gap-5" aria-label="Links do rodapé">
       <div>
-        <h4 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Produto</h4>
+        <h3 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Produto</h3>
         <a href="#funcionalidades" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Funcionalidades</a>
         <a href="#planos" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Planos</a>
         <a routerLink="/login" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Trial gratuito</a>
       </div>
       <div>
-        <h4 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Empresa</h4>
-        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Sobre</a>
-        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Contato</a>
-        <a href="#" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Blog</a>
+        <h3 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Empresa</h3>
+        <!--
+          "Sobre" saiu porque a página não existe — um link para `#` recarrega o topo e
+          parece defeito. Volta quando a rota existir, não antes. "Contato" abre o mesmo
+          e-mail que o FAQ publica (`landing-faq.component.html`); se o endereço mudar,
+          os dois lugares mudam juntos.
+        -->
+        <a href="mailto:mycarshubcompany@gmail.com" aria-label="Contato por e-mail: mycarshubcompany&#64;gmail.com" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Contato</a>
+        <a routerLink="/blog" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Blog</a>
       </div>
       <div>
-        <h4 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Legal</h4>
+        <h3 class="font-display font-bold text-[11px] tracking-[0.12em] uppercase text-brand m-0 mb-4">Legal</h3>
         <a routerLink="/termos-de-uso" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Termos de Uso</a>
         <a routerLink="/politica-de-privacidade" class="block text-white/70 no-underline text-sm py-1.5 hover:text-white hover:translate-x-0.5 transition-all duration-200">Política de Privacidade</a>
       </div>

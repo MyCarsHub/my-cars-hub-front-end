@@ -6,13 +6,28 @@ import {
   inject,
 } from '@angular/core';
 
-interface Testimonial {
-  initials: string;
-  name: string;
-  location: string;
-  quote: string;
+import { COMMUNITY_WHATSAPP_URL } from '../../landing-community';
+
+/** Um fato verificável sobre como o produto é construído — nunca um depoimento. */
+interface ProofPoint {
+  title: string;
+  body: string;
 }
 
+/**
+ * Prova social honesta de pré-lançamento.
+ *
+ * Esta seção JÁ EXIBIU seis depoimentos com nome, cidade e tamanho de frota. Nenhum
+ * deles vinha de cliente real — decisão do dono do produto de removê-los. O que ficou
+ * no lugar só afirma coisas checáveis no próprio produto (roadmap com sugestão e voto,
+ * trial de 14 dias sem cartão) mais o convite para a comunidade.
+ *
+ * Esse histórico é memória de manutenção, e NÃO texto de página: a copy não narra mais a
+ * remoção ao visitante (decisão do dono). O que ela afirma é a regra em vigor, no futuro.
+ *
+ * REGRA: nada entra aqui sem fonte. Nem número de usuários, nem citação, nem nome.
+ * Quando existir depoimento real e autorizado, ele volta com nome — não antes.
+ */
 @Component({
   selector: 'app-landing-testimonials',
   templateUrl: './landing-testimonials.component.html',
@@ -22,48 +37,21 @@ interface Testimonial {
 export class LandingTestimonialsComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
 
-  readonly testimonials: Testimonial[] = [
+  /** Vazio enquanto o convite real não for colado em `landing-community.ts`. */
+  readonly communityUrl = COMMUNITY_WHATSAPP_URL;
+
+  readonly proofPoints: ProofPoint[] = [
     {
-      initials: 'AM',
-      name: 'André M.',
-      location: 'Goiânia/GO · 24 carros',
-      quote:
-        'O fechamento do mês era o pesadelo do domingo. Hoje abro o sistema, dou OK em duas coisas e vou jantar.',
+      title: 'Depoimento só com nome e autorização.',
+      body: 'Quando quem usa o sistema quiser falar, o depoimento entra aqui com o nome de quem falou. Até lá, esta seção só afirma o que você confere dentro do produto.',
     },
     {
-      initials: 'MS',
-      name: 'Mariana S.',
-      location: 'Curitiba/PR · 11 carros',
-      quote:
-        'Pagava multa do locatário do meu bolso porque não conseguia rastrear quem usou o carro. Acabou esse pesadelo.',
+      title: 'Roadmap aberto dentro do produto.',
+      body: 'Qualquer conta manda uma sugestão e vota no que entra primeiro. A fila de prioridade é a que você vê, não uma versão de marketing dela.',
     },
     {
-      initials: 'FL',
-      name: 'Felipe L.',
-      location: 'Porto Alegre/RS · 17 carros',
-      quote:
-        'Cobrança no WhatsApp consumia minha tarde inteira. Agora o gateway emite, o cliente paga, o sistema baixa.',
-    },
-    {
-      initials: 'BR',
-      name: 'Beatriz R.',
-      location: 'Recife/PE · 28 carros',
-      quote:
-        'Comecei com 6 carros numa planilha. Hoje tenho 28 e o sistema escala junto sem precisar migrar de novo.',
-    },
-    {
-      initials: 'LC',
-      name: 'Lucas C.',
-      location: 'São Paulo/SP · 47 carros',
-      quote:
-        'Sou sócio de uma locadora e gestor de outra. Mesmo login, troca em 1 clique. Esse detalhe sozinho já valia a assinatura.',
-    },
-    {
-      initials: 'CB',
-      name: 'Camila B.',
-      location: 'Florianópolis/SC · 14 carros',
-      quote:
-        'Migrei de um sistema que tinha 200 telas e eu usava 5. Aqui é minimalista, faz o que precisa, sem firula.',
+      title: '14 dias grátis, sem cartão.',
+      body: 'Você julga o produto rodando com os seus carros e os seus contratos, não a propaganda dele.',
     },
   ];
 

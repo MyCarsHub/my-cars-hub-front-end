@@ -9,8 +9,8 @@ export const SITE_ORIGIN = 'https://mycarshub.app.br';
 
 /** Fallback description — mirrors the static one in `src/index.html`. */
 export const DEFAULT_DESCRIPTION =
-  'MyCarsHub — plataforma completa para gestão de locadoras: veículos, motoristas, ' +
-  'aluguéis, cobranças e relatórios em um só lugar.';
+  'MyCarsHub — sistema para quem aluga carros para motoristas de aplicativo: ' +
+  'contratos, cobranças, multas, manutenções e vistorias em um só lugar.';
 
 /** Per-route SEO payload, carried in `Route.data.seo`. */
 export interface RouteSeo {
