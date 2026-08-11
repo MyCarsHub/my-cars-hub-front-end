@@ -28,7 +28,7 @@ import { Meta, Title } from '@angular/platform-browser';
  * `services/seo-origin.spec.ts` fails if any of the three drifts, so a missed edit shows
  * up as a named test failure instead of a split ranking signal in production.
  */
-export const SITE_ORIGIN = 'https://mycarshub.app.br';
+export const SITE_ORIGIN = 'https://www.mycarshub.app.br';
 
 /**
  * Brand suffix appended to EVERY `<title>`. Declared here rather than in
@@ -248,7 +248,7 @@ function clampText(raw: string, max: number): string {
   return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:.\s]+$/, '')}…`;
 }
 
-/** `/precos` → `https://mycarshub.app.br/precos`; `/` → `https://mycarshub.app.br/`. */
+/** `/precos` → `https://www.mycarshub.app.br/precos`; `/` → `https://www.mycarshub.app.br/`. */
 function absoluteUrl(path: string): string {
   const clean = path.split('?')[0].split('#')[0];
   return `${SITE_ORIGIN}${clean.startsWith('/') ? clean : `/${clean}`}`;

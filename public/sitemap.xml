@@ -21,23 +21,23 @@
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://mycarshub.app.br/</loc>
+    <loc>https://www.mycarshub.app.br/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://mycarshub.app.br/blog</loc>
+    <loc>https://www.mycarshub.app.br/blog</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://mycarshub.app.br/termos-de-uso</loc>
+    <loc>https://www.mycarshub.app.br/termos-de-uso</loc>
     <lastmod>2026-07-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://mycarshub.app.br/politica-de-privacidade</loc>
+    <loc>https://www.mycarshub.app.br/politica-de-privacidade</loc>
     <lastmod>2026-07-21</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

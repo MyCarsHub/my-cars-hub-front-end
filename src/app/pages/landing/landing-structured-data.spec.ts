@@ -39,15 +39,15 @@ describe('landing structured data', () => {
     const org = organizationJsonLd() as Record<string, unknown>;
 
     expect(org['@type']).toBe('Organization');
-    expect(org['url']).toBe('https://mycarshub.app.br/');
-    expect(String(org['logo'])).toMatch(/^https:\/\/mycarshub\.app\.br\//);
+    expect(org['url']).toBe('https://www.mycarshub.app.br/');
+    expect(String(org['logo'])).toMatch(/^https:\/\/www\.mycarshub\.app\.br\//);
   });
 
   it('emits SoftwareApplication that points back at the Organization node', () => {
     const app = softwareApplicationJsonLd() as Record<string, unknown>;
 
     expect(app['@type']).toBe('SoftwareApplication');
-    expect(app['publisher']).toEqual({ '@id': 'https://mycarshub.app.br/#organization' });
+    expect(app['publisher']).toEqual({ '@id': 'https://www.mycarshub.app.br/#organization' });
     expect(Array.isArray(app['offers'])).toBe(true);
   });
 
@@ -56,10 +56,10 @@ describe('landing structured data', () => {
       const site = webSiteJsonLd() as Record<string, unknown>;
 
       expect(site['@type']).toBe('WebSite');
-      expect(site['@id']).toBe('https://mycarshub.app.br/#website');
-      expect(site['url']).toBe('https://mycarshub.app.br/');
+      expect(site['@id']).toBe('https://www.mycarshub.app.br/#website');
+      expect(site['url']).toBe('https://www.mycarshub.app.br/');
       expect(site['name']).toBe('MyCarsHub');
-      expect(site['publisher']).toEqual({ '@id': 'https://mycarshub.app.br/#organization' });
+      expect(site['publisher']).toEqual({ '@id': 'https://www.mycarshub.app.br/#organization' });
     });
 
     /**

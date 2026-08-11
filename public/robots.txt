@@ -1,4 +1,4 @@
-# MyCarsHub — https://mycarshub.app.br
+# MyCarsHub — https://www.mycarshub.app.br
 #
 # Served from the domain ROOT: everything in `public/` is copied verbatim into the build
 # output root by the `assets` glob in angular.json — the same mechanism that already
@@ -49,4 +49,4 @@ Disallow: /api/
 # as a separate URL.
 Disallow: /*?lang=
 
-Sitemap: https://mycarshub.app.br/sitemap.xml
+Sitemap: https://www.mycarshub.app.br/sitemap.xml
