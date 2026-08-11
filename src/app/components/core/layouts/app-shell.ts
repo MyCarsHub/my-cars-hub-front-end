@@ -19,11 +19,13 @@ import { SessionService } from '../../../services/session.service';
 import { PaywallDialog } from '../../paywall-dialog/paywall-dialog';
 import { NotificationBell } from '../../notification-bell/notification-bell';
 import { ImpersonationService } from '../../../services/impersonation.service';
+import { TourSpotlight } from '../../tour/tour-spotlight';
+import { TourService } from '../../tour/tour.service';
 
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell],
+  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell, TourSpotlight],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -74,6 +76,13 @@ import { ImpersonationService } from '../../../services/impersonation.service';
       [hardBlock]="true"
       (confirmed)="goToBilling()"
     />
+    <!--
+      Fora do main de propósito: o holofote usa coordenadas de viewport
+      (position: fixed) e precisa cobrir o drawer do mobile, que também é
+      fixed. Aninhá-lo no scroller do conteúdo o colocaria abaixo da sidebar na
+      pilha de empilhamento.
+    -->
+    <app-tour-spotlight />
   `,
   styles: `
     :host {
@@ -87,6 +96,7 @@ export class AppShell implements OnInit, OnDestroy {
   protected readonly access = inject(BillingAccessService);
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
+  private readonly tour = inject(TourService);
 
   /** Reserva de espaço para a barra de impersonação — ver o comentário no template. */
   protected readonly impersonating = inject(ImpersonationService).active;
@@ -131,6 +141,15 @@ export class AppShell implements OnInit, OnDestroy {
       if (this.wasShownThisSession()) return;
       this.markShown();
       this.paywallOpen.set(true);
+    });
+
+    // Tour guiado: só no dashboard, nunca dentro de `/onboarding` (o wizard
+    // obrigatório) — a checagem de URL cobre os dois casos de uma vez. O
+    // efeito reavalia a cada navegação; a trava de "uma vez por aba" e a
+    // decisão de quem merece ver o tour vivem no próprio serviço.
+    effect(() => {
+      if (!this.currentUrl().startsWith('/dashboard')) return;
+      this.tour.maybeAutoStart();
     });
   }
 

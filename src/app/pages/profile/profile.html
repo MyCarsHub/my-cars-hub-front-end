@@ -111,6 +111,14 @@
                         </div>
                     </div>
                     <div class="pt-4 border-t border-neutral-50 flex items-center justify-between gap-3">
+                        <span class="text-sm text-neutral-500">Rever o tour do app</span>
+                        <button type="button" (click)="replayTour()"
+                            class="text-sm font-medium text-primary-700 hover:bg-primary-50 px-4 py-2 rounded-lg transition-colors
+                                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 focus-visible:ring-offset-2">
+                            Ver de novo
+                        </button>
+                    </div>
+                    <div class="pt-4 mt-4 border-t border-neutral-50 flex items-center justify-between gap-3">
                         <span class="text-sm text-neutral-500">Encerrar sessão</span>
                         <button type="button" (click)="logout()"
                             class="text-sm font-medium text-rose-600 hover:bg-rose-50 px-4 py-2 rounded-lg transition-colors

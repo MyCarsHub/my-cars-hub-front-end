@@ -44,7 +44,7 @@ export interface ImpersonationState {
 /**
  * Contexto do admin congelado no início da sessão e restaurado no fim.
  *
- * Congela TODAS as chaves que `AuthService.writeSession()` escreve — as nove
+ * Congela TODAS as chaves que `AuthService.writeSession()` escreve — as dez
  * de `IMPERSONATION_FROZEN_KEYS` —, não só as quatro do tenant. A identidade (`id`, `name`, `email`, `systemRole`) entra
  * porque `getMe()` / `hydrateSession()` podem rodar durante a sessão e gravar a
  * identidade do usuário impersonado por cima da do admin — e como
@@ -65,6 +65,15 @@ export interface ImpersonationAdminContext {
   systemRole: string | null;
   /** `'true'` / `'false'` crus, como `SessionService.setOnboardingCompleted` grava. */
   onboardingCompleted: string | null;
+  /**
+   * `'true'` / `'false'` crus, como `SessionService.setTourSeen` grava.
+   *
+   * Congelar é obrigatório nas DUAS direções: `hydrateSession()` rodando
+   * durante a sessão traz o `hasSeenTour` do CLIENTE e apagaria o do admin —
+   * que voltaria a ver o tour do zero —, e qualquer gravação feita enquanto a
+   * sessão dura ficaria no lugar do valor do admin depois que ela termina.
+   */
+  tourSeen: string | null;
 }
 
 /** As chaves de `sessionStorage` congeladas e restauradas — fonte única da lista. */
@@ -78,4 +87,5 @@ export const IMPERSONATION_FROZEN_KEYS = [
   'email',
   'systemRole',
   'onboardingCompleted',
+  'tourSeen',
 ] as const satisfies ReadonlyArray<keyof ImpersonationAdminContext>;

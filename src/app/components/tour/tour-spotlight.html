@@ -1,0 +1,110 @@
+@if (mounted()) {
+  <!--
+    Container `inset-0`: escurece nada por si só (é transparente), mas engole
+    TODOS os cliques, inclusive os de dentro do recorte. Ver o comentário de
+    classe sobre por que o buraco não é clicável.
+  -->
+  <div
+    class="fixed inset-0 z-[100] transition-opacity duration-150"
+    [class.opacity-0]="!positioned()"
+    (keydown)="onKeydown($event)"
+    (mousedown)="onOverlayMousedown($event)"
+  >
+    <!--
+      O recorte. A `box-shadow` de 9999px é o escurecimento da tela inteira; o
+      retângulo em si fica transparente, então o elemento real embaixo aparece
+      iluminado sem precisar ser clonado.
+    -->
+    <div
+      class="pointer-events-none fixed rounded-xl shadow-[0_0_0_9999px_rgba(15,23,42,0.72)] ring-2 ring-white/70 transition-all duration-200"
+      [style.top.px]="hole().top"
+      [style.left.px]="hole().left"
+      [style.width.px]="hole().width"
+      [style.height.px]="hole().height"
+      aria-hidden="true"
+    ></div>
+
+    <div
+      #panel
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      [attr.aria-labelledby]="titleId"
+      [attr.aria-describedby]="bodyId"
+      class="fixed rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:p-5"
+      [style.top.px]="balloon().top"
+      [style.left.px]="balloon().left"
+      [style.width.px]="balloon().width"
+    >
+      <span
+        class="absolute h-3 w-3 rotate-45 rounded-[2px] bg-white"
+        [style.top.px]="balloon().arrowTop"
+        [style.left.px]="balloon().arrowLeft"
+        aria-hidden="true"
+      ></span>
+
+      <div class="flex items-center justify-between gap-3">
+        <!-- Progresso: pontos, não a barra do onboarding — aquela é acoplada ao
+             STEP_CONFIGS do wizard de cadastro e traria o título dele junto. -->
+        <div class="flex items-center gap-1.5" aria-hidden="true">
+          @for (dot of dots(); track dot) {
+            <span
+              class="h-1.5 rounded-full transition-all duration-300"
+              [class.w-5]="dot === tour.index()"
+              [class.w-2]="dot !== tour.index()"
+              [class.bg-primary-500]="dot <= tour.index()"
+              [class.bg-gray-200]="dot > tour.index()"
+            ></span>
+          }
+        </div>
+        <span class="shrink-0 text-xs font-medium tabular-nums text-gray-500">
+          {{ stepLabel() }}
+        </span>
+      </div>
+
+      <h2 [id]="titleId" class="mt-3 text-base font-semibold text-gray-900">
+        {{ tour.currentStep()?.title }}
+      </h2>
+      <p [id]="bodyId" class="mt-1.5 text-sm leading-relaxed text-gray-600">
+        {{ tour.currentStep()?.body }}
+      </p>
+
+      <div class="mt-4 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          (click)="onSkip()"
+          class="min-h-11 rounded-lg px-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+        >
+          Pular
+        </button>
+
+        <!--
+          `disabled` enquanto o próximo passo é resolvido: pode envolver abrir o
+          drawer e esperar animação, e um segundo toque nesse intervalo iniciaria
+          um percurso paralelo que clicaria no acordeão de novo, FECHANDO o grupo
+          que o primeiro abriu. "Pular" fica de fora — a saída nunca trava.
+        -->
+        <div class="flex items-center gap-2">
+          @if (!tour.isFirst()) {
+            <button
+              type="button"
+              (click)="onBack()"
+              [disabled]="tour.busy()"
+              class="min-h-11 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Voltar
+            </button>
+          }
+          <button
+            type="button"
+            (click)="onNext()"
+            [disabled]="tour.busy()"
+            class="min-h-11 rounded-lg bg-primary-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {{ nextLabel() }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

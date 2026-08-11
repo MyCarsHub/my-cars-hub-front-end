@@ -6,6 +6,7 @@ import { SessionService } from './session.service';
 import { NotificationService } from './notification.service';
 import { ApiErrorService } from './api-error.service';
 import { ParsedApiError, parseApiError } from './api-error';
+import { SILENT_HTTP_ERRORS } from './http-errors.context';
 import { ImpersonationService } from './impersonation.service';
 import {
   IMPERSONATION_ERROR_CODES,
@@ -53,6 +54,10 @@ function isReadOnlyRefusal(parsed: ParsedApiError, sessionActive: boolean): bool
  * safety net (`ApiErrorService.scheduleSafetyNet`): if no screen claims the error, a
  * toast still fires so nothing is swallowed silently.
  *
+ * Uma requisição marcada com `SILENT_HTTP_ERRORS` fica FORA de tudo isso: nem
+ * toast, nem rede de segurança, nem desvio de sessão. É para chamada
+ * fire-and-forget, cujo fracasso o usuário não pediu e não pode agir sobre.
+ *
  * Always re-throws so component-level handlers still see the error.
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
@@ -64,6 +69,14 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
+      // Requisição que declarou ser dona do próprio fracasso (fire-and-forget):
+      // nada de toast, de rede de segurança nem de desvio de sessão. Precede
+      // TODO o resto — inclusive a impersonação — porque a marca é a decisão de
+      // quem chamou, e não uma exceção a uma política. Ver `SILENT_HTTP_ERRORS`.
+      if (req.context.get(SILENT_HTTP_ERRORS)) {
+        return throwError(() => error);
+      }
+
       const status = error.status;
       const parsed = parseApiError(error);
       const backendMessage = parsed.message;

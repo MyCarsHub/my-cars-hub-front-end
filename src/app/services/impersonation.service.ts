@@ -450,7 +450,7 @@ export class ImpersonationService {
     }
   }
 
-  /** Congela as nove chaves de `IMPERSONATION_FROZEN_KEYS` como estão agora. */
+  /** Congela as dez chaves de `IMPERSONATION_FROZEN_KEYS` como estão agora. */
   private snapshotAdminContext(): ImpersonationAdminContext {
     const snapshot = {} as Record<string, string | null>;
     for (const key of IMPERSONATION_FROZEN_KEYS) {
