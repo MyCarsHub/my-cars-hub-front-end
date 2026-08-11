@@ -51,6 +51,16 @@ export default tseslint.config(
     },
   },
   {
+    // Build-time only: `prerender-blog.ts` runs inside `ng build`, in Node, before any
+    // injector exists — there is no LoggerService and no Sentry to route to. Its warnings
+    // are the ONLY signal that the blog silently fell back to client rendering, so losing
+    // them would make a degraded build indistinguishable from a good one.
+    files: ['src/app/prerender-blog.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['**/*.html'],
     extends: [...angular.configs.templateRecommended],
     rules: {

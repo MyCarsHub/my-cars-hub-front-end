@@ -8,8 +8,16 @@
   pages declare `lastUpdated` in their components); it is omitted elsewhere rather than
   invented, since a false lastmod trains Google to ignore the signal.
 
-  /blog/:slug entries are intentionally absent: posts are fetched at runtime, so there is
-  no build-time list of slugs. Add them here once the blog has a static index.
+  THIS FILE IS THE STATIC BASE, NOT THE SHIPPED SITEMAP. `scripts/generate-sitemap.mjs`
+  (the `postbuild` hook) re-emits it into the build output with two changes:
+    - every origin is substituted with `SITE_ORIGIN` from `services/seo.service.ts`, so
+      changing the canonical host really is one line;
+    - one `<url>` is appended per blog post that PRERENDERED successfully, with a real
+      `lastmod` read from that page's own `BlogPosting` JSON-LD.
+  Edit this file for the static routes; do not hand-add /blog/:slug entries here.
+
+  If the generator cannot run or the API was unreachable at build time, this file ships
+  verbatim — an out-of-date sitemap, never a broken one.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
