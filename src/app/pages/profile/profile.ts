@@ -20,10 +20,12 @@ import { AuthService } from '../../services/auth.service';
 import { SessionService } from '../../services/session.service';
 import { BillingService, isFreePlanInForce } from '../../services/billing.service';
 import { LoggerService } from '../../services/logger.service';
+import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 import { SubscriptionResponse } from '../../types/billing.types';
 import { UserCompanies } from '../../types/user-companies';
 import { MeResponse, UserDocument } from '../../types/me-response.type';
+import { TourService } from '../../components/tour/tour.service';
 
 @Component({
   selector: 'app-profile',
@@ -40,7 +42,9 @@ export class Profile implements OnInit, OnDestroy {
   private readonly billingService = inject(BillingService);
   private readonly router = inject(Router);
   private readonly logger = inject(LoggerService);
+  private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly tour = inject(TourService);
   private meSub: Subscription | null = null;
 
   protected readonly subscription = this.billingService.subscription;
@@ -264,6 +268,32 @@ export class Profile implements OnInit, OnDestroy {
 
   protected goToBilling(): void {
     this.router.navigate(['/billing']);
+  }
+
+  /**
+   * Ponto de reentrada do tour. Fica no Perfil, e não no Suporte, por dois
+   * motivos: o Perfil é fixado no rodapé da barra lateral (logo, alcançável de
+   * qualquer tela, inclusive no mobile) e já é a casa das ações de conta,
+   * enquanto o Suporte é sobre um problema acontecendo agora — lugar errado
+   * para uma revisão de produto.
+   *
+   * Navega antes de começar: o primeiro passo é o Dashboard, e reabrir o tour
+   * deixando o usuário parado no Perfil mostraria um holofote no menu com o
+   * conteúdo errado atrás.
+   *
+   * Navegação recusada (um guard barrando, uma rota redirecionada) não pode
+   * virar um botão que não faz nada: sem aviso o usuário toca de novo achando
+   * que errou o alvo.
+   */
+  protected replayTour(): void {
+    void this.router.navigate(['/dashboard']).then((navigated) => {
+      if (navigated) {
+        this.tour.restart();
+        return;
+      }
+      this.logger.warn('[profile] navegação para /dashboard recusada; tour não reaberto');
+      this.notifications.warning('Não foi possível abrir o tour agora. Tente pelo Dashboard.');
+    });
   }
 
   protected logout(): void {

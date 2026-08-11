@@ -82,6 +82,20 @@ export class SessionService {
     return this.getItem('onboardingCompleted') === 'true';
   }
 
+  /**
+   * Tour de produto — NÃO confundir com `onboardingCompleted`. Aquele é o wizard
+   * obrigatório de cadastro (`pages/onboarding/`, coluna `onboardings.is_completed`);
+   * este é o passeio guiado pelas funcionalidades, que o usuário pode pular.
+   * Espelha o mesmo formato de gravação por simetria.
+   */
+  setTourSeen(seen: boolean): void {
+    this.setItem('tourSeen', seen ? 'true' : 'false');
+  }
+
+  hasSeenTour(): boolean {
+    return this.getItem('tourSeen') === 'true';
+  }
+
   getUserId(): string | null {
     return this.getItem('id');
   }

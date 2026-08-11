@@ -24,5 +24,13 @@ export type MeResponse = {
      * Replaces the previous derivation-only approach (BUG-15).
      */
     hasCompletedOnboarding?: boolean | null;
+    /**
+     * Se o usuário já viu o tour guiado das funcionalidades. Independente de
+     * `hasCompletedOnboarding` — o wizard de cadastro é obrigatório, o tour é
+     * dispensável. Opcional para tolerar um backend anterior ao endpoint:
+     * `null`/`undefined` significa "o backend não opinou", e nesse caso
+     * `AuthService.writeSession()` preserva o que a sessão já sabe.
+     */
+    hasSeenTour?: boolean | null;
     systemRole: SystemRole;
 };

@@ -125,7 +125,8 @@
                  text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors group"
           [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
           [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''"
-          [attr.aria-expanded]="isExpanded(item)" [attr.aria-label]="item.label">
+          [attr.aria-expanded]="isExpanded(item)" [attr.aria-label]="item.label"
+          [attr.data-tour]="item.tourKey ?? null">
           <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
 
           @if (!layout.isCollapsed() || layout.isMobile()) {
@@ -145,7 +146,8 @@
             [routerLinkActiveOptions]="child.exactMatch ? { exact: true } : { exact: false }"
             class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl
                    text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors group"
-            (click)="onNavClick()" [attr.aria-label]="child.label">
+            (click)="onNavClick()" [attr.aria-label]="child.label"
+            [attr.data-tour]="child.tourKey ?? null">
             <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(child.icon)"></span>
             <span class="text-sm font-medium truncate">{{ child.label }}</span>
           </a>
@@ -157,7 +159,7 @@
                  text-gray-600 hover:bg-gray-100 hover:text-gray-900
                  transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
           [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
-          [attr.aria-label]="item.label">
+          [attr.aria-label]="item.label" [attr.data-tour]="item.tourKey ?? null">
           <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
 
           @if (!layout.isCollapsed() || layout.isMobile()) {
@@ -176,7 +178,7 @@
                text-gray-600 hover:bg-gray-100 hover:text-gray-900
                transition-colors group" [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
       [title]="layout.isCollapsed() && !layout.isMobile() ? item.label : ''" (click)="onNavClick()"
-      [attr.aria-label]="item.label">
+      [attr.aria-label]="item.label" [attr.data-tour]="item.tourKey ?? null">
       <span class="shrink-0 flex items-center justify-center w-5 h-5" [innerHTML]="safeIcon(item.icon)"></span>
 
       @if (!layout.isCollapsed() || layout.isMobile()) {

@@ -148,6 +148,22 @@ export class AuthService {
         }
         const isCompleted = isPlatformAdmin || (explicitFlag ?? derivedFlag);
         this.sessionService.setOnboardingCompleted(isCompleted);
+
+        // Tour guiado — mesma mecânica do flag acima, com uma diferença que
+        // importa: quando o backend NÃO envia o campo (deploy skew, o endpoint
+        // ainda não está em produção), não escrevemos `false` por cima de um
+        // `true` que a própria sessão gravou ao concluir o tour. Sobrescrever
+        // reabriria o balão na cara de quem acabou de fechá-lo em qualquer
+        // re-hidratação de sessão.
+        const seenTour = user.hasSeenTour;
+        if (seenTour === undefined || seenTour === null) {
+            if (this.sessionService.getItem('tourSeen') === null) {
+                this.sessionService.setTourSeen(false);
+            }
+        } else {
+            this.sessionService.setTourSeen(seenTour);
+        }
+
         this.sessionService.setItem('userCompanies', JSON.stringify(companies));
         // Do NOT persist `user.document` — CPF/CNPJ is PII. Any consumer that
         // needs it must fetch /auth/me on demand and hold it in component memory.
