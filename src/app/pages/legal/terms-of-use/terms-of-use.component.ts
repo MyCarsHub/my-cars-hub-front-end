@@ -10,6 +10,8 @@ import {
 import { LegalNavComponent } from '../legal-nav/legal-nav.component';
 import { LandingFooterComponent } from '../../landing/components/landing-footer/landing-footer.component';
 import { HTML_LANG, LegalLang, legalLangSync } from '../legal-lang';
+import { SeoService } from '../../../services/seo.service';
+import { BREADCRUMB_JSONLD_ID, breadcrumbListJsonLd } from '../../../services/structured-data';
 
 @Component({
   selector: 'app-terms-of-use',
@@ -29,6 +31,7 @@ export class TermsOfUseComponent implements OnDestroy {
   private readonly renderer = inject(Renderer2);
   private readonly document = inject(DOCUMENT);
   private readonly langSync = legalLangSync();
+  private readonly seo = inject(SeoService);
 
   /** Driven by `?lang` — `pt` when the param is absent. */
   protected readonly lang = this.langSync.lang;
@@ -36,11 +39,21 @@ export class TermsOfUseComponent implements OnDestroy {
 
   constructor() {
     effect(() => this.applyHtmlLang(this.lang()));
+    // No construtor para o bloco já estar no <head> quando o prerender serializa o
+    // documento. A trilha usa o canonical PT — `?lang=en` não cria uma URL nova.
+    this.seo.setJsonLd(
+      BREADCRUMB_JSONLD_ID,
+      breadcrumbListJsonLd([
+        { name: 'Início', path: '/' },
+        { name: 'Termos de Uso', path: '/termos-de-uso' },
+      ]),
+    );
   }
 
   ngOnDestroy(): void {
     // Restaura o padrão do site (`pt-BR`, ver `src/index.html`) ao sair da página.
     this.applyHtmlLang('pt');
+    this.seo.removeJsonLd(BREADCRUMB_JSONLD_ID);
   }
 
   protected setLang(next: LegalLang): void {

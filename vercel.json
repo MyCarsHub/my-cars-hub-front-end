@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
   "rewrites": [
     {
       "source": "/api/v1/:path*",
@@ -12,6 +13,14 @@
     {
       "source": "/termos-de-uso",
       "destination": "/termos-de-uso/index.html"
+    },
+    {
+      "source": "/blog",
+      "destination": "/blog/index.html"
+    },
+    {
+      "source": "/blog/:slug",
+      "destination": "/blog/:slug/index.html"
     },
     {
       "source": "/((?!api).*)",

@@ -13,8 +13,9 @@ import { ENTERPRISE_YEARLY_TOTAL, PLAN_PRICES } from './landing-plans';
  * number only appears on authenticated screens, never on the landing itself).
  */
 
-const ORGANIZATION_ID = `${SITE_ORIGIN}/#organization`;
+export const ORGANIZATION_ID = `${SITE_ORIGIN}/#organization`;
 const SOFTWARE_ID = `${SITE_ORIGIN}/#software`;
+const WEBSITE_ID = `${SITE_ORIGIN}/#website`;
 const FAQ_ID = `${SITE_ORIGIN}/#faq`;
 const PRICING_URL = `${SITE_ORIGIN}/#planos`;
 
@@ -33,6 +34,47 @@ export function organizationJsonLd(): unknown {
     logo: `${SITE_ORIGIN}/icons/icon-512.png`,
     image: `${SITE_ORIGIN}/png/og-image.png`,
     description: SOFTWARE_DESCRIPTION,
+  };
+}
+
+/**
+ * `WebSite` — the node that names the site as a whole, so Google can attach the brand to
+ * the domain instead of inferring it per page. Emitted from the home page, the only URL
+ * whose `@id` the rest of the graph points at.
+ *
+ * NO `potentialAction`/`SearchAction`: the site has no search URL to declare. `/blog`
+ * filters by category through component state, not a query parameter, and there is no
+ * `?q=` endpoint anywhere. Declaring one would advertise a URL template that 404s — the
+ * sitelinks searchbox is earned by having search, not by claiming it.
+ */
+export function webSiteJsonLd(): unknown {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': WEBSITE_ID,
+    name: 'MyCarsHub',
+    url: `${SITE_ORIGIN}/`,
+    inLanguage: 'pt-BR',
+    description: SOFTWARE_DESCRIPTION,
+    publisher: { '@id': ORGANIZATION_ID },
+  };
+}
+
+/**
+ * The Organization as a REFERENCEABLE node for pages that do not emit the full block.
+ *
+ * `/blog/:slug` needs a `publisher` (and an `author`, see `blog-structured-data.ts`), but
+ * the full `organizationJsonLd()` lives only on the landing. Repeating the id plus the
+ * two fields Google actually reads keeps the blog block self-contained without creating a
+ * second, contradictory Organization entity.
+ */
+export function organizationRef(): unknown {
+  return {
+    '@type': 'Organization',
+    '@id': ORGANIZATION_ID,
+    name: 'MyCarsHub',
+    url: `${SITE_ORIGIN}/`,
+    logo: `${SITE_ORIGIN}/icons/icon-512.png`,
   };
 }
 

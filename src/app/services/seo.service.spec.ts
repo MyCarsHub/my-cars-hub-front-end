@@ -1,5 +1,6 @@
 import { DOCUMENT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Title } from '@angular/platform-browser';
 
 import { DEFAULT_DESCRIPTION, SITE_ORIGIN, SeoService } from './seo.service';
 
@@ -84,6 +85,60 @@ describe('SeoService', () => {
       seo.applyRouteSeo({ title: 'Dashboard — MyCarsHub', urlPath: '/dashboard' });
 
       expect(meta('meta[name="description"]')).toBe(DEFAULT_DESCRIPTION);
+    });
+  });
+
+  /**
+   * `/blog/:slug` resolves its title from `data.pageTitle`, which is `Blog` for every
+   * post. Without a runtime override every prerendered post ships the same `<title>` —
+   * the strongest on-page signal there is, wasted on a generic string.
+   */
+  describe('runtime title (setTitle)', () => {
+    beforeEach(() => {
+      seo.applyRouteSeo({
+        title: 'Blog — MyCarsHub',
+        urlPath: '/blog/como-cobrar-aluguel',
+        seo: { description: 'Artigo do blog MyCarsHub.' },
+      });
+      TestBed.inject(Title).setTitle('Blog — MyCarsHub');
+    });
+
+    it('appends the brand itself, so callers pass the bare headline', () => {
+      seo.setTitle('Como cobrar o aluguel sem atrito');
+
+      expect(TestBed.inject(Title).getTitle()).toBe('Como cobrar o aluguel sem atrito — MyCarsHub');
+    });
+
+    it('mirrors the new title into og:title and twitter:title', () => {
+      seo.setTitle('Como cobrar o aluguel sem atrito');
+
+      const expected = 'Como cobrar o aluguel sem atrito — MyCarsHub';
+      expect(meta('meta[property="og:title"]')).toBe(expected);
+      expect(meta('meta[name="twitter:title"]')).toBe(expected);
+    });
+
+    it('keeps the route title when the post has none, never emitting an empty one', () => {
+      seo.setTitle('   ');
+
+      expect(TestBed.inject(Title).getTitle()).toBe('Blog — MyCarsHub');
+      expect(meta('meta[property="og:title"]')).toBe('Blog — MyCarsHub');
+    });
+
+    it('clamps an overlong headline at a word boundary, keeping the brand suffix', () => {
+      seo.setTitle(`${'palavra '.repeat(20)}fim`);
+
+      const applied = TestBed.inject(Title).getTitle();
+      expect(applied.endsWith('… — MyCarsHub')).toBe(true);
+      expect(applied).not.toContain('palav… ');
+      expect(applied.replace(' — MyCarsHub', '').length).toBeLessThanOrEqual(60);
+    });
+
+    it('does not clamp a headline that already fits', () => {
+      const headline = 'Como precificar a diária da frota sem perder margem';
+
+      seo.setTitle(headline);
+
+      expect(TestBed.inject(Title).getTitle()).toBe(`${headline} — MyCarsHub`);
     });
   });
 
