@@ -162,7 +162,7 @@ describe('BlogDetail — head tags', () => {
     expect(meta('meta[name="robots"]')).toBe('index, follow');
     expect(
       TestBed.inject(DOCUMENT).head.querySelector('link[rel="canonical"]')?.getAttribute('href'),
-    ).toBe(`https://mycarshub.app.br/blog/${POST.slug}`);
+    ).toBe(`https://www.mycarshub.app.br/blog/${POST.slug}`);
   });
 
   /** The same for a 502 and for the status-0 abort a client timeout surfaces as. */
@@ -186,6 +186,6 @@ describe('BlogDetail — head tags', () => {
     expect(meta('meta[name="robots"]')).toBe('index, follow');
     expect(
       TestBed.inject(DOCUMENT).head.querySelector('link[rel="canonical"]')?.getAttribute('href'),
-    ).toBe(`https://mycarshub.app.br/blog/${POST.slug}`);
+    ).toBe(`https://www.mycarshub.app.br/blog/${POST.slug}`);
   });
 });
