@@ -188,6 +188,23 @@ export class TourService {
     this.shownAnyStep = false;
     this.drawerWasOpen = this.layout.isMobileOpen();
 
+    // Sai da passada de detecção de mudanças ANTES de consultar o DOM.
+    //
+    // Quem chama é o `effect` do `AppShell`, e um efeito de componente roda
+    // DENTRO da detecção de mudanças, antes de a própria view ser atualizada e
+    // muito antes de a `app-sidebar` filha renderizar. O `billingAccessGuard`
+    // já resolveu `access.loaded()` durante a ativação da rota, então na
+    // PRIMEIRA passada o efeito passa direto pelas guardas e `settle()` chega
+    // ao `querySelector` de forma síncrona — com a barra lateral ainda vazia.
+    // O primeiro passo era pulado por "alvo ausente"; o `await` seguinte
+    // deixava a passada terminar, o menu aparecia, e o segundo passo achava a
+    // âncora: o tour abria em "2 de 6".
+    //
+    // Um quadro é o bastante: a passada é síncrona, e o `requestAnimationFrame`
+    // pedido lá de dentro só corre depois que ela termina e o DOM está pintado.
+    await this.nextFrame();
+    if (!this._active()) return;
+
     await this.settle(0, 1);
   }
 

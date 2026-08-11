@@ -19,6 +19,11 @@ export const TOUR_ANCHORS = {
   drivers: 'drivers',
   alerts: 'alerts',
   reports: 'reports',
+  roadmap: 'roadmap',
+  /** Botão do acordeão "Configurações" — mesmo papel de `fleetGroup`. */
+  settingsGroup: 'settings-group',
+  integrations: 'integrations',
+  contractTemplate: 'contract-template',
 } as const;
 
 export type TourAnchor = (typeof TOUR_ANCHORS)[keyof typeof TOUR_ANCHORS];
@@ -97,6 +102,28 @@ export const TOUR_STEPS: readonly TourStep[] = [
     title: 'Feche o mês sem planilha',
     body: 'Exporte receitas, despesas e o resultado da frota no período que você escolher.',
     roles: ['OWNER'],
+    inSidebar: true,
+  },
+  {
+    key: TOUR_ANCHORS.roadmap,
+    title: 'Peça o que falta',
+    body: 'Sugira melhorias e vote nas ideias dos outros — é daí que sai o que construímos.',
+    inSidebar: true,
+  },
+  {
+    key: TOUR_ANCHORS.integrations,
+    title: 'Cobrança no automático',
+    body: 'Conecte o Asaas e as cobranças do aluguel passam a sair sozinhas.',
+    roles: ['OWNER'],
+    expandGroup: TOUR_ANCHORS.settingsGroup,
+    inSidebar: true,
+  },
+  {
+    key: TOUR_ANCHORS.contractTemplate,
+    title: 'Contrato pronto',
+    body: 'Monte o modelo uma vez e cada novo aluguel já nasce com o contrato gerado.',
+    roles: ['OWNER'],
+    expandGroup: TOUR_ANCHORS.settingsGroup,
     inSidebar: true,
   },
 ];

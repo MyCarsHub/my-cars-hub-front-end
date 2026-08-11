@@ -32,5 +32,6 @@ describe('Sidebar', () => {
     const host: HTMLElement = fixture.nativeElement;
     expect(host.querySelector('[data-tour="dashboard"]')).not.toBeNull();
     expect(host.querySelector('[data-tour="alerts"]')).not.toBeNull();
+    expect(host.querySelector('[data-tour="roadmap"]')).not.toBeNull();
   });
 });

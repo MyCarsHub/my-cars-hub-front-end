@@ -94,11 +94,12 @@ const NAV_ITEMS: NavItem[] = [
   // Transversal (CNH, CRLV, seguro, financiamento) — fica fora do grupo "Frota"
   // e sem restrição de papel, como a rota `/alertas`.
   { route: '/alertas', label: 'Alertas', icon: ICON_ALERTS, tourKey: TOUR_ANCHORS.alerts },
-  { route: '/roadmap', label: 'Roadmap', icon: ICON_ROADMAP },
+  { route: '/roadmap', label: 'Roadmap', icon: ICON_ROADMAP, tourKey: TOUR_ANCHORS.roadmap },
   { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'] },
   {
     label: 'Configurações',
     icon: ICON_SETTINGS,
+    tourKey: TOUR_ANCHORS.settingsGroup,
     children: [
       // "Avisos de vencimento" e "Devolução com atraso" saíram daqui: o primeiro
       // virou seção de `/alertas`; o segundo saiu do produto — a regra da multa
@@ -108,8 +109,20 @@ const NAV_ITEMS: NavItem[] = [
       // nenhum filho passa, marcar os filhos basta para o MANAGER nunca ver
       // "Configurações" — e assim nenhum link leva a um guard que o rejeita.
       { route: '/configuracoes', label: 'Empresa', icon: ICON_COMPANY, roles: ['OWNER'], exactMatch: true },
-      { route: '/configuracoes/integracoes', label: 'Integrações', icon: ICON_INTEGRATIONS, roles: ['OWNER'] },
-      { route: '/configuracoes/contratos', label: 'Contratos', icon: ICON_COMPANY, roles: ['OWNER'] },
+      {
+        route: '/configuracoes/integracoes',
+        label: 'Integrações',
+        icon: ICON_INTEGRATIONS,
+        roles: ['OWNER'],
+        tourKey: TOUR_ANCHORS.integrations,
+      },
+      {
+        route: '/configuracoes/contratos',
+        label: 'Contratos',
+        icon: ICON_COMPANY,
+        roles: ['OWNER'],
+        tourKey: TOUR_ANCHORS.contractTemplate,
+      },
     ],
   },
   { route: '/suporte', label: 'Suporte', icon: ICON_SUPPORT, pinBottom: true },

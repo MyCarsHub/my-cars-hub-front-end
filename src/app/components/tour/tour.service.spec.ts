@@ -299,6 +299,38 @@ describe('TourService', () => {
     http.expectNone(TOUR_SEEN_URL);
   });
 
+  // ---- Primeiro passo -------------------------------------------------
+
+  /**
+   * Regressão: em produção o tour abria em "2 de 6".
+   *
+   * `maybeAutoStart()` é chamado do `effect` do `AppShell`, e um efeito de
+   * componente roda DENTRO da detecção de mudanças — antes de a `app-sidebar`
+   * filha renderizar os itens de menu. Como o `billingAccessGuard` já deixou
+   * `access.loaded()` verdadeiro durante a ativação da rota, a PRIMEIRA passada
+   * atravessa todas as guardas e `settle()` chega ao `querySelector` de forma
+   * síncrona, com o menu ainda vazio: o passo 1 era pulado por "alvo ausente",
+   * e o `await` seguinte — que deixa a passada terminar e o menu aparecer — já
+   * encontrava a âncora do passo 2.
+   *
+   * O teste reproduz exatamente essa janela: as âncoras entram no DOM depois da
+   * parte SÍNCRONA de `start()`.
+   */
+  it('não pula o primeiro passo quando as âncoras entram no DOM logo depois do início', async () => {
+    const started = service.start();
+
+    // A barra lateral só renderiza no fim da passada de detecção de mudanças,
+    // com o tour já iniciado.
+    const dashboard = anchor(TOUR_ANCHORS.dashboard);
+    anchor(TOUR_ANCHORS.rentals);
+
+    await started;
+
+    expect(service.index()).toBe(0);
+    expect(service.currentStep()?.key).toBe(TOUR_ANCHORS.dashboard);
+    expect(service.target()).toBe(dashboard);
+  });
+
   // ---- Alvo dentro do scroller da barra lateral -----------------------
 
   /**
@@ -541,13 +573,16 @@ describe('TourService', () => {
 
   // ---- Papéis ---------------------------------------------------------
 
-  it('filtra o roteiro por papel — MANAGER não vê o passo de Relatórios', async () => {
+  it('filtra o roteiro por papel — MANAGER não vê Relatórios nem Configurações', async () => {
     session.setItem('selectedRole', 'MANAGER');
     Object.values(TOUR_ANCHORS).forEach((key) => anchor(key));
 
     await service.start();
 
-    expect(service.total()).toBe(5);
+    // Dashboard, Aluguéis, Veículos, Motoristas, Alertas e Roadmap. Ficam de
+    // fora Relatórios, Integrações e Contratos — todos OWNER-only, como as
+    // rotas correspondentes (`roleGuard(['OWNER'])` em `app.routes.ts`).
+    expect(service.total()).toBe(6);
     const keys: string[] = [];
     while (!service.isLast()) {
       keys.push(service.currentStep()!.key);
