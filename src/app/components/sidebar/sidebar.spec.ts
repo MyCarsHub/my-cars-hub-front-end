@@ -21,4 +21,16 @@ describe('Sidebar', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  /**
+   * Contrato com o tour guiado. As âncoras são `data-tour`, e não `aria-label`,
+   * justamente para sobreviverem a mudanças de copy — mas isso só vale se
+   * alguém verificar que elas continuam sendo emitidas. Sem papel selecionado,
+   * os itens abertos a todos são os que devem estar no DOM.
+   */
+  it('emite as âncoras data-tour que o tour guiado procura', () => {
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.querySelector('[data-tour="dashboard"]')).not.toBeNull();
+    expect(host.querySelector('[data-tour="alerts"]')).not.toBeNull();
+  });
 });

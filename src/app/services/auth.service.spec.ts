@@ -25,6 +25,7 @@ describe('AuthService', () => {
     getItem: ReturnType<typeof vi.fn>;
     setToken: ReturnType<typeof vi.fn>;
     setOnboardingCompleted: ReturnType<typeof vi.fn>;
+    setTourSeen: ReturnType<typeof vi.fn>;
     getToken: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
   };
@@ -43,6 +44,9 @@ describe('AuthService', () => {
       }),
       setOnboardingCompleted: vi.fn((completed: boolean) => {
         store['onboardingCompleted'] = completed ? 'true' : 'false';
+      }),
+      setTourSeen: vi.fn((seen: boolean) => {
+        store['tourSeen'] = seen ? 'true' : 'false';
       }),
       getToken: vi.fn(() => store['token'] ?? null),
       clear: vi.fn(() => {
@@ -109,6 +113,48 @@ describe('AuthService', () => {
     it('defaults role to OWNER when missing', () => {
       service.applyFinishResponse({ companyId: 'c-1', companyName: 'A' });
       expect(store['selectedRole']).toBe('OWNER');
+    });
+  });
+
+  /**
+   * O flag do TOUR guiado (`tourSeen`) — não confundir com `onboardingCompleted`,
+   * que é o wizard obrigatório de cadastro. O caso que importa é o deploy skew:
+   * enquanto `/auth/me` não devolver `hasSeenTour`, uma re-hidratação de sessão
+   * não pode apagar o `true` que o próprio tour gravou ao ser concluído.
+   */
+  describe('writeSession — flag do tour guiado', () => {
+    function buildMe(extra: Partial<MeResponse> = {}): MeResponse {
+      return {
+        id: 'u-1',
+        name: 'Lorran',
+        email: 'l@x.com',
+        document: null,
+        onboardingCompleted: true,
+        systemRole: 'USER',
+        companies: [{ companyId: 'c-1', companyName: 'Alpha', role: 'OWNER' }],
+        ...extra,
+      };
+    }
+
+    it('usa o valor do backend quando ele opina', () => {
+      httpGet.mockReturnValue(of(buildMe({ hasSeenTour: true })));
+      service.hydrateSession().subscribe();
+      expect(store['tourSeen']).toBe('true');
+    });
+
+    it('trata a ausência do campo como "ainda não viu" numa sessão nova', () => {
+      httpGet.mockReturnValue(of(buildMe()));
+      service.hydrateSession().subscribe();
+      expect(store['tourSeen']).toBe('false');
+    });
+
+    it('NÃO apaga o "já viu" da sessão quando o backend ainda não envia o campo', () => {
+      store['tourSeen'] = 'true';
+      httpGet.mockReturnValue(of(buildMe()));
+
+      service.hydrateSession().subscribe();
+
+      expect(store['tourSeen']).toBe('true');
     });
   });
 

@@ -8,6 +8,7 @@ import { filter, map, startWith } from 'rxjs';
 import { signal } from '@angular/core';
 import { LayoutStore, Tenant } from '../core/layouts/layout.store';
 import { SessionService } from '../../services/session.service';
+import { TOUR_ANCHORS } from '../tour/tour.types';
 
 interface NavItem {
   route?: string;
@@ -18,6 +19,13 @@ interface NavItem {
   pinBottom?: boolean;
   children?: NavItem[];
   exactMatch?: boolean;
+  /**
+   * Âncora do tour guiado, emitida como `data-tour` no template. Só os itens que
+   * algum passo destaca precisam de uma — ver `components/tour/tour.types.ts`.
+   * Deliberadamente um atributo próprio, e não `aria-label`: o rótulo é copy e
+   * muda; a âncora é contrato.
+   */
+  tourKey?: string;
 }
 
 const ICON_ADMIN = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`;
@@ -42,13 +50,26 @@ const ICON_SUPPORT = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height=
 
 const NAV_ITEMS: NavItem[] = [
   { route: '/admin', label: 'Administração', icon: ICON_ADMIN, requiresPlatformAdmin: true },
-  { route: '/dashboard', label: 'Dashboard', icon: ICON_DASHBOARD },
-  { route: '/alugueis', label: 'Aluguéis', icon: ICON_RENTALS, roles: ['OWNER', 'MANAGER'] },
+  { route: '/dashboard', label: 'Dashboard', icon: ICON_DASHBOARD, tourKey: TOUR_ANCHORS.dashboard },
+  {
+    route: '/alugueis',
+    label: 'Aluguéis',
+    icon: ICON_RENTALS,
+    roles: ['OWNER', 'MANAGER'],
+    tourKey: TOUR_ANCHORS.rentals,
+  },
   {
     label: 'Frota',
     icon: ICON_VEHICLES,
+    tourKey: TOUR_ANCHORS.fleetGroup,
     children: [
-      { route: '/veiculos', label: 'Veículos', icon: ICON_VEHICLES, roles: ['OWNER', 'MANAGER'] },
+      {
+        route: '/veiculos',
+        label: 'Veículos',
+        icon: ICON_VEHICLES,
+        roles: ['OWNER', 'MANAGER'],
+        tourKey: TOUR_ANCHORS.vehicles,
+      },
       { route: '/manutencoes', label: 'Manutenções', icon: ICON_MAINT, roles: ['OWNER', 'MANAGER'] },
       { route: '/multas', label: 'Multas', icon: ICON_FINES, roles: ['OWNER', 'MANAGER'] },
       { route: '/sinistros', label: 'Sinistros', icon: ICON_INCIDENTS, roles: ['OWNER', 'MANAGER'] },
@@ -56,11 +77,23 @@ const NAV_ITEMS: NavItem[] = [
       { route: '/seguros', label: 'Seguros', icon: ICON_INSURANCE, roles: ['OWNER', 'MANAGER'] },
     ],
   },
-  { route: '/motoristas', label: 'Motoristas', icon: ICON_DRIVERS, roles: ['OWNER', 'MANAGER'] },
-  { route: '/relatorios', label: 'Relatórios', icon: ICON_REPORTS, roles: ['OWNER'] },
+  {
+    route: '/motoristas',
+    label: 'Motoristas',
+    icon: ICON_DRIVERS,
+    roles: ['OWNER', 'MANAGER'],
+    tourKey: TOUR_ANCHORS.drivers,
+  },
+  {
+    route: '/relatorios',
+    label: 'Relatórios',
+    icon: ICON_REPORTS,
+    roles: ['OWNER'],
+    tourKey: TOUR_ANCHORS.reports,
+  },
   // Transversal (CNH, CRLV, seguro, financiamento) — fica fora do grupo "Frota"
   // e sem restrição de papel, como a rota `/alertas`.
-  { route: '/alertas', label: 'Alertas', icon: ICON_ALERTS },
+  { route: '/alertas', label: 'Alertas', icon: ICON_ALERTS, tourKey: TOUR_ANCHORS.alerts },
   { route: '/roadmap', label: 'Roadmap', icon: ICON_ROADMAP },
   { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'] },
   {
