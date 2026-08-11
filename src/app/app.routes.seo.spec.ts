@@ -66,11 +66,63 @@ describe('public/private SEO boundary in app.routes', () => {
       .filter((route) => route.renderMode === 2 /* RenderMode.Prerender */)
       .map((route) => route.path);
 
-    expect(prerendered).toEqual(['', 'politica-de-privacidade', 'termos-de-uso']);
+    expect(prerendered).toEqual([
+      '',
+      'blog',
+      'blog/:slug',
+      'politica-de-privacidade',
+      'termos-de-uso',
+    ]);
 
     const catchAll = serverRoutes.at(-1);
     expect(catchAll?.path).toBe('**');
     expect(catchAll?.renderMode).toBe(1 /* RenderMode.Client */);
+  });
+
+  /**
+   * `PrerenderFallback.Server` is the @angular/ssr DEFAULT and would be a lie: the build
+   * uses `outputMode: static`, so no server exists to render the miss. A post published
+   * after the last deploy — or one the API could not serve at build time — must reach the
+   * client shell, which is what `/blog/:slug` already does today.
+   */
+  it('falls back to client rendering for a blog slug that was not prerendered', () => {
+    const slugRoute = serverRoutes.find((route) => route.path === 'blog/:slug');
+
+    expect(slugRoute?.renderMode).toBe(2 /* RenderMode.Prerender */);
+    expect((slugRoute as { fallback?: number }).fallback).toBe(1 /* PrerenderFallback.Client */);
+    expect(typeof (slugRoute as { getPrerenderParams?: unknown }).getPrerenderParams).toBe(
+      'function',
+    );
+  });
+
+  /**
+   * `redirectTo: 'login'` here used to soft-404 every unknown URL onto a robots-Disallowed
+   * path: HTTP 200, wrong content, and a destination Google is explicitly told not to
+   * crawl. The catch-all must render a real not-found page instead.
+   */
+  it('renders a not-found page on the catch-all instead of redirecting', () => {
+    const catchAll = routes.find((route) => route.path === '**');
+
+    expect(catchAll).toBeDefined();
+    expect(catchAll?.redirectTo).toBeUndefined();
+    expect(typeof catchAll?.loadComponent).toBe('function');
+  });
+
+  /**
+   * No `data.seo` is what makes `SeoService` fail closed to `noindex, nofollow` with no
+   * canonical — the only de-indexing signal a static build can emit for a URL that does
+   * not exist, since it cannot change the HTTP status.
+   */
+  it('leaves the catch-all without seo, so an invalid URL fails closed to noindex', () => {
+    const catchAll = routes.find((route) => route.path === '**');
+
+    expect(hasSeo(catchAll as Route)).toBe(false);
+  });
+
+  /** The not-found page must be reachable logged out, so it cannot live inside the shell. */
+  it('keeps the catch-all outside the authenticated AppShell tree', () => {
+    expect(routes.at(-1)?.path).toBe('**');
+    expect(routes.at(-1)?.canActivate).toBeUndefined();
   });
 
   it('prerenders nothing that is not also marked public in app.routes', () => {
