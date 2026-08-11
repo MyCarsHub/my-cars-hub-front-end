@@ -23,6 +23,7 @@ import { authInterceptor } from './services/auth.interceptor';
 import { errorInterceptor } from './services/error.interceptor';
 import { impersonationInterceptor } from './services/impersonation.interceptor';
 import { PageTitleStrategy } from './services/page-title.strategy';
+import { prerenderApiBaseInterceptor } from './services/prerender-api-base.interceptor';
 import { ImpersonationService } from './services/impersonation.service';
 import { TenantCachesService } from './services/tenant-caches.service';
 import { environment } from '../environments/environment';
@@ -40,9 +41,18 @@ export const appConfig: ApplicationConfig = {
     // a recusa de escrita durante uma sessão somente-leitura nem chega a montar
     // a requisição — e o erro sintético que ele devolve não passa pelo
     // `errorInterceptor`, que senão duplicaria o aviso.
+    // `prerenderApiBaseInterceptor` vem POR ÚLTIMO de propósito: ele reescreve a URL
+    // relativa da API para uma base absoluta durante o prerender, e os três acima
+    // precisam ver a URL original — `isApiRequest` ancora em `environment.apiUrl`. No
+    // browser o token não está provido e ele é um pass-through.
     provideHttpClient(
       withFetch(),
-      withInterceptors([impersonationInterceptor, authInterceptor, errorInterceptor]),
+      withInterceptors([
+        impersonationInterceptor,
+        authInterceptor,
+        errorInterceptor,
+        prerenderApiBaseInterceptor,
+      ]),
     ),
     provideAnimations(),
     // Instancia no boot os dois donos de estado que se registram no

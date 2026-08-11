@@ -7,16 +7,18 @@ import {
   TitleStrategy,
 } from '@angular/router';
 
-import { RouteSeo, SeoService } from './seo.service';
-
-const BRAND = 'MyCarsHub';
+import { RouteSeo, SeoService, brandedTitle } from './seo.service';
 
 /**
  * Routes in this app carry their label in `data.pageTitle` (also used by `ConstructorPage`),
  * not in the router's own `title` property, so the default strategy never fired.
  *
  * Resolution order: `Route.title` → deepest primary `data.pageTitle` → brand only.
- * The brand suffix is always appended here, so route labels stay bare.
+ * The brand suffix is always appended (via `brandedTitle`), so route labels stay bare.
+ *
+ * This runs on NAVIGATION, so it only ever knows the static route label. A page whose
+ * real headline arrives with its data — `/blog/:slug` — overwrites it afterwards through
+ * `SeoService.setTitle`, which reuses the same `brandedTitle` helper.
  *
  * Also the single place that drives `SeoService`: title, description, canonical, Open
  * Graph and robots all change together on navigation, so they are written together.
@@ -30,7 +32,7 @@ export class PageTitleStrategy extends TitleStrategy {
 
   override updateTitle(snapshot: RouterStateSnapshot): void {
     const pageTitle = this.buildTitle(snapshot) ?? deepestPageTitle(snapshot.root);
-    const fullTitle = pageTitle ? `${pageTitle} — ${BRAND}` : BRAND;
+    const fullTitle = brandedTitle(pageTitle);
     this.title.setTitle(fullTitle);
     this.seo.applyRouteSeo({
       title: fullTitle,

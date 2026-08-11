@@ -9,7 +9,9 @@ import { PLAN_PRICES } from './landing-plans';
 import {
   faqPageJsonLd,
   organizationJsonLd,
+  organizationRef,
   softwareApplicationJsonLd,
+  webSiteJsonLd,
 } from './landing-structured-data';
 
 class IntersectionObserverStub {
@@ -47,6 +49,41 @@ describe('landing structured data', () => {
     expect(app['@type']).toBe('SoftwareApplication');
     expect(app['publisher']).toEqual({ '@id': 'https://mycarshub.app.br/#organization' });
     expect(Array.isArray(app['offers'])).toBe(true);
+  });
+
+  describe('WebSite', () => {
+    it('names the site and points back at the Organization node', () => {
+      const site = webSiteJsonLd() as Record<string, unknown>;
+
+      expect(site['@type']).toBe('WebSite');
+      expect(site['@id']).toBe('https://mycarshub.app.br/#website');
+      expect(site['url']).toBe('https://mycarshub.app.br/');
+      expect(site['name']).toBe('MyCarsHub');
+      expect(site['publisher']).toEqual({ '@id': 'https://mycarshub.app.br/#organization' });
+    });
+
+    /**
+     * A sitelinks searchbox is earned by HAVING search. `/blog` filters by category in
+     * component state and there is no `?q=` route anywhere, so a `SearchAction` would
+     * publish a URL template that resolves to the 404 page.
+     */
+    it('omits SearchAction — the site has no search URL to declare', () => {
+      const site = webSiteJsonLd() as Record<string, unknown>;
+
+      expect(site['potentialAction']).toBeUndefined();
+    });
+  });
+
+  /** Pages that do not emit the full Organization still need a resolvable publisher. */
+  it('exposes an Organization reference that reuses the canonical @id', () => {
+    const ref = organizationRef() as Record<string, unknown>;
+    const org = organizationJsonLd() as Record<string, unknown>;
+
+    expect(ref['@type']).toBe('Organization');
+    expect(ref['@id']).toBe(org['@id']);
+    expect(ref['name']).toBe(org['name']);
+    // Um nó de referência não pode declarar `@context`: ele é sempre embutido em outro.
+    expect(ref['@context']).toBeUndefined();
   });
 
   it('omits aggregateRating and review — there is no verified review data to back them', () => {

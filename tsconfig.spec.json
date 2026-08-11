@@ -4,8 +4,14 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
+    // DEV-ONLY. Two specs read build-time surfaces that only exist in Node:
+    // `app/prerender-blog.spec.ts` drives `process.env`, and `app/services/seo-origin.spec.ts`
+    // reads `public/robots.txt` / `public/sitemap.xml` / `src/index.html` off disk to catch
+    // canonical-origin drift. `tsconfig.app.json` keeps `"types": []`, so `@types/node`
+    // never reaches production code.
     "types": [
-      "vitest/globals"
+      "vitest/globals",
+      "node"
     ]
   },
   "include": [

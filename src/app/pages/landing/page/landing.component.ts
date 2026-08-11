@@ -12,6 +12,7 @@ import {
   faqPageJsonLd,
   organizationJsonLd,
   softwareApplicationJsonLd,
+  webSiteJsonLd,
 } from '../landing-structured-data';
 import { enableRevealAnimations } from '../reveal-ready';
 import { LandingNavComponent } from '../components/landing-nav/landing-nav.component';
@@ -60,6 +61,7 @@ export class LandingComponent implements OnDestroy {
     // Written in the constructor so the blocks are already in <head> when the prerender
     // serializes the document — that is what puts them in the static HTML Google reads.
     this.seo.setJsonLd('organization', organizationJsonLd());
+    this.seo.setJsonLd('website', webSiteJsonLd());
     this.seo.setJsonLd('software-application', softwareApplicationJsonLd());
     this.seo.setJsonLd('faq', faqPageJsonLd());
 
@@ -76,6 +78,7 @@ export class LandingComponent implements OnDestroy {
   ngOnDestroy(): void {
     // Navigating away in the SPA must not leave the landing's schema on other pages.
     this.seo.removeJsonLd('organization');
+    this.seo.removeJsonLd('website');
     this.seo.removeJsonLd('software-application');
     this.seo.removeJsonLd('faq');
   }

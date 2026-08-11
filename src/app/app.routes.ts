@@ -746,7 +746,15 @@ export const routes: Routes = [
         ],
     },
     {
+        // Catch-all. NÃO redireciona: `redirectTo: 'login'` transformava toda URL
+        // inexistente num soft-404 servido a partir de um caminho que o robots.txt
+        // bloqueia. Renderiza uma página "não encontrada" de verdade.
+        //
+        // Sem `data.seo` DE PROPÓSITO: o `SeoService` falha-fechado e emite
+        // `noindex, nofollow` sem canonical — o sinal certo para uma URL inválida.
+        // O status HTTP continua 200 (build estático, sem servidor); ver `pages/not-found`.
         path: '**',
-        redirectTo: 'login',
+        loadComponent: () => import('./pages/not-found/not-found').then((m) => m.NotFound),
+        data: { pageTitle: 'Página não encontrada' },
     },
 ];
