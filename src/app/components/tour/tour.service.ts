@@ -109,6 +109,18 @@ export class TourService {
   private settleGeneration = 0;
 
   /**
+   * Um `resize` chegou enquanto um percurso estava em voo.
+   *
+   * Descartar e esquecer não serve: o alvo é guardado DEPOIS da consulta ao DOM
+   * (`resolve()` ainda espera um quadro no meio), então a troca de barra lateral
+   * que acontece nessa fresta faz `_target` nascer já morto. O pedido descartado
+   * era justamente o único aviso de que isso aconteceu — sem reconsiderá-lo ao
+   * fim do percurso, o holofote fica ancorado num nó órfão até o próximo evento,
+   * que no celular pode nunca vir (uma rotação = UM `resize`).
+   */
+  private revalidationPending = false;
+
+  /**
    * Chamado a cada navegação para `/dashboard` pelo `AppShell`.
    *
    * `PLATFORM_ADMIN` fica de fora de propósito, pelo mesmo motivo que já o tira
@@ -210,7 +222,14 @@ export class TourService {
    * "acabou" — daí `persistOnExhaustion: false`.
    */
   async revalidateTarget(): Promise<void> {
-    if (!this._active() || this._busy()) return;
+    if (!this._active()) return;
+    // Percurso em voo: não dá para conferir agora (o alvo definitivo ainda nem
+    // foi guardado), mas ESQUECER seria pior — ver `revalidationPending`. Fica
+    // anotado e o próprio `settle()` reconsidera ao terminar.
+    if (this._busy()) {
+      this.revalidationPending = true;
+      return;
+    }
     if (this._target()?.isConnected) return;
     await this.settle(this._index(), 1, false);
   }
@@ -228,6 +247,7 @@ export class TourService {
   abandon(): void {
     this.settleGeneration++;
     this._busy.set(false);
+    this.revalidationPending = false;
     this.close();
     this.autoStartAttempted = false;
   }
@@ -301,8 +321,22 @@ export class TourService {
       this.logger.warn('[tour] nenhum alvo alcançável; fechando sem marcar como visto');
       this.close();
     } finally {
-      if (generation === this.settleGeneration) this._busy.set(false);
+      if (generation === this.settleGeneration) {
+        this._busy.set(false);
+        await this.flushPendingRevalidation();
+      }
     }
+  }
+
+  /**
+   * Atende o `resize` que chegou com o percurso ocupado. A bandeira é baixada
+   * ANTES da nova re-resolução: o `settle()` que ela dispara passa por este
+   * mesmo `finally`, e reconsiderar um pedido já atendido faria laço.
+   */
+  private async flushPendingRevalidation(): Promise<void> {
+    if (!this.revalidationPending) return;
+    this.revalidationPending = false;
+    await this.revalidateTarget();
   }
 
   private async resolve(step: TourStep): Promise<HTMLElement | null> {

@@ -141,6 +141,33 @@ describe('TourSpotlight', () => {
     expect(tour.skip).toHaveBeenCalledOnce();
   });
 
+  /**
+   * Uma rotação de celular é UM `resize`, não uma rajada. O evento chega antes
+   * da detecção de mudanças, quando o `<aside>` condenado ainda está no DOM: se
+   * a re-resolução for pedida nesse instante, ela vê o alvo "vivo", desiste, e
+   * ninguém mais pergunta — o holofote fica preso ao nó destruído. No desktop
+   * arrastar a janela mascara isso com dezenas de eventos; no celular, não.
+   */
+  it('re-resolve o alvo DEPOIS da troca do DOM, com um ÚNICO evento de resize', async () => {
+    tour.target.set(anchorEl);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    let connectedAoPerguntar: boolean | null = null;
+    tour.revalidateTarget.mockImplementation(async () => {
+      connectedAoPerguntar = anchorEl.isConnected;
+    });
+
+    window.dispatchEvent(new Event('resize'));
+    // A troca do `@if` da barra lateral só acontece na passada de detecção que
+    // vem DEPOIS do evento — é exatamente essa a ordem que derruba o alvo.
+    anchorEl.remove();
+    await fixture.whenStable();
+
+    expect(tour.revalidateTarget).toHaveBeenCalledOnce();
+    expect(connectedAoPerguntar).toBe(false);
+  });
+
   it('Tab a partir do último botão volta para o primeiro — o foco não escapa para o fundo', async () => {
     tour.target.set(anchorEl);
     fixture.detectChanges();

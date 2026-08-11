@@ -164,6 +164,11 @@ describe('TourService', () => {
     service.skip();
     http.expectOne(TOUR_SEEN_URL).flush(null);
 
+    // Sem desfazer o flag, quem barraria a segunda chamada seria a guarda de
+    // `hasSeenTour()` — e apagar `autoStartAttempted` inteiro deixaria o teste
+    // verde. Zerado, só a trava de uma tentativa por aba explica o resultado.
+    session.setTourSeen(false);
+
     service.maybeAutoStart();
     await Promise.resolve();
 
@@ -178,9 +183,15 @@ describe('TourService', () => {
     await Promise.resolve();
 
     expect(service.active()).toBe(false);
-    // E não gasta a tentativa: quem regularizar a assinatura nesta mesma aba
-    // ainda merece ver o tour.
     expect(session.hasSeenTour()).toBe(false);
+
+    // E não gasta a tentativa: quem regularizar a assinatura nesta mesma aba
+    // ainda merece ver o tour. Só isto prova onde `autoStartAttempted` está —
+    // o flag não gravado sozinho não diz nada.
+    access.isBlocked.set(false);
+    service.maybeAutoStart();
+
+    await vi.waitFor(() => expect(service.active()).toBe(true));
   });
 
   it('espera a resposta de acesso antes de decidir, sem gastar a tentativa', async () => {
@@ -268,6 +279,26 @@ describe('TourService', () => {
     expect(session.hasSeenTour()).toBe(false);
   });
 
+  /**
+   * O atalho do Perfil ignora as guardas de disparo, então é por ele que um
+   * token TEMPORALLY chega ao fechamento. Gravar ali marcaria como visto um
+   * tour cujo registro remoto o backend recusa com 401 (`JwtAuthFilter` só
+   * libera `/v1/auth/*`, `/v1/onboarding*` e o convite): a conta ficaria com o
+   * flag local sem nada no banco, e o tour sumiria em silêncio na próxima aba.
+   */
+  it('o atalho manual sob token TEMPORALLY abre, mas fechar não grava nada — nem local, nem no backend', async () => {
+    anchor(TOUR_ANCHORS.dashboard);
+    session.setToken(TEMPORALLY_TOKEN);
+
+    service.restart();
+    await vi.waitFor(() => expect(service.active()).toBe(true));
+    service.finish();
+
+    expect(service.active()).toBe(false);
+    expect(session.hasSeenTour()).toBe(false);
+    http.expectNone(TOUR_SEEN_URL);
+  });
+
   // ---- Alvo dentro do scroller da barra lateral -----------------------
 
   /**
@@ -350,6 +381,32 @@ describe('TourService', () => {
     expect(service.active()).toBe(false);
     expect(session.hasSeenTour()).toBe(false);
     http.expectNone(TOUR_SEEN_URL);
+  });
+
+  /**
+   * O alvo é GUARDADO depois de consultado — `resolve()` ainda rola o elemento
+   * para a vista e espera um quadro no meio do caminho. Uma rotação de tela
+   * nessa fresta troca a barra lateral e faz `_target` nascer morto, e o pedido
+   * de re-resolução que chegou junto encontra o percurso ocupado. Descartá-lo
+   * ali sem reconsiderar depois deixa o holofote preso ao nó órfão até o
+   * PRÓXIMO `resize` — que numa rotação de celular não vem.
+   */
+  it('re-resolução pedida com o percurso ocupado não é perdida', async () => {
+    const first = anchor(TOUR_ANCHORS.dashboard);
+    let rebuilt: HTMLElement | null = null;
+
+    // `centre()` roda entre a consulta ao DOM e a gravação do alvo: é a fresta.
+    vi.mocked(first.scrollIntoView).mockImplementation(() => {
+      first.remove();
+      rebuilt = anchor(TOUR_ANCHORS.dashboard);
+      void service.revalidateTarget();
+    });
+
+    await service.start();
+
+    expect(service.busy()).toBe(false);
+    expect(service.target()).toBe(rebuilt);
+    expect(service.target()?.isConnected).toBe(true);
   });
 
   it('não mexe em nada quando o alvo continua vivo', async () => {

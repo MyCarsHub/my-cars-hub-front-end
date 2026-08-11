@@ -142,14 +142,35 @@ export class TourSpotlight {
   /**
    * Redimensionar NÃO é o mesmo caso que rolar. Cruzar os 1024px troca a barra
    * lateral inteira por outra (`@if` em `sidebar.html`), e o alvo guardado vira
-   * um nó órfão que mede zero. Antes de reposicionar é preciso perguntar ao
-   * serviço se o alvo ainda é o elemento vivo — e enquanto ele resolve, não se
-   * mede nada, para não pintar o buraco de 12×12px no canto.
+   * um nó órfão que mede zero.
+   *
+   * O adiamento é o ponto: o `resize` roda ANTES da detecção de mudanças, e
+   * nesse instante o `<aside>` condenado AINDA está no DOM. Perguntar ali se o
+   * alvo continua vivo devolve "sim" — a re-resolução cai na própria guarda de
+   * `isConnected` (`tour.service.ts`) e não faz nada, enquanto a medição pega o
+   * nó que está prestes a morrer. Registrar o ouvinte mais cedo ou mais tarde
+   * não muda nada: a troca do `@if` precisa de uma passada de detecção de
+   * qualquer maneira. `afterNextRender` põe a conferência DEPOIS dela.
+   *
+   * No desktop o defeito se escondia porque arrastar a janela dispara dezenas
+   * de eventos e o segundo já encontra o DOM novo; girar um celular dispara UM.
    */
   private readonly onResize = (): void => {
     if (!this.tour.active()) return;
-    void this.tour.revalidateTarget();
-    if (this.tour.target()?.isConnected) this.reposition();
+    afterNextRender(
+      () => {
+        if (!this.mounted()) return;
+        // Alvo vivo: só mudou o tamanho da janela, basta remedir. Alvo morto: a
+        // barra lateral trocou, e quem repõe a medida é o efeito que observa
+        // `target()`, depois que o serviço achar o nó novo.
+        if (this.tour.target()?.isConnected) {
+          this.reposition();
+          return;
+        }
+        void this.tour.revalidateTarget();
+      },
+      { injector: this.injector },
+    );
   };
 
   constructor() {
