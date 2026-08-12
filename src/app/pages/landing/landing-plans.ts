@@ -11,11 +11,19 @@
 export const PLAN_PRICES = {
   /** Free trial, no card. Duration is advertised in the card as "14 dias". */
   trialDays: 14,
-  proMonthly: 79.9,
-  /** PRO yearly TOTAL. Matches the billing spec target R$ 795,80/ano (~17% off). */
-  proYearlyTotal: 795.8,
+  /** V59 `PRO_MONTHLY_*` — 149.90. */
+  proMonthly: 149.9,
+  /** PRO yearly TOTAL. V59 `PRO_YEARLY_*` — 1499.00 (~17% off 12× monthly). */
+  proYearlyTotal: 1499.0,
+  /** V59 `ENTERPRISE_MONTHLY_*` — 299.00. */
   enterpriseMonthly: 299,
 } as const;
 
-/** ENTERPRISE yearly total = 12 × monthly × (1 − 0.15) = 3049.80 (15% off). */
-export const ENTERPRISE_YEARLY_TOTAL = PLAN_PRICES.enterpriseMonthly * 12 * 0.85;
+/**
+ * ENTERPRISE yearly TOTAL. V59 `ENTERPRISE_YEARLY_*` — 2990.00 (~17% off 12× monthly).
+ *
+ * A literal, NOT `monthly × 12 × discount`: V59 prices each (name, period) row
+ * independently, so a derived figure silently advertised 3049,80 while the API charged
+ * 2990,00. The number is the source of truth; the discount is a consequence of it.
+ */
+export const ENTERPRISE_YEARLY_TOTAL = 2990.0;
