@@ -1,0 +1,58 @@
+<!--
+  MyCarsHub llms.txt — https://mycarshub.app.br/llms.txt
+
+  Served from the domain ROOT via the `public/` assets glob in angular.json, the same
+  mechanism that already serves /robots.txt, /sitemap.xml and /manifest.webmanifest.
+  No ngsw-config change is needed: the service worker's asset groups do not glob `.txt`.
+
+  Only PUBLIC, indexable URLs belong here — the same set that carries `data.seo` in
+  src/app/app.routes.ts and that appears in /sitemap.xml. The authenticated application,
+  its administrative area and the API are deliberately absent: this file is public, so
+  naming a private path here would publish the very path it describes. Descriptions below
+  reuse the meta-description copy already shipped on each page rather than inventing new
+  product claims.
+
+  Written in pt-BR to match `lang="pt-BR"` on every public page.
+-->
+
+# MyCarsHub
+
+> Plataforma brasileira de gestão para locadoras de veículos. Reúne frota, motoristas,
+> aluguéis, contratos, cobranças automáticas e relatórios em um só lugar.
+
+MyCarsHub é um SaaS voltado a locadoras de veículos que precisam controlar, em uma única
+plataforma, o ciclo completo da operação: o cadastro do carro, o motorista que o aluga, o
+contrato que formaliza o aluguel, a cobrança recorrente e o fechamento do mês.
+
+O conteúdo público do site é todo em português do Brasil. As páginas legais (Termos de Uso
+e Política de Privacidade) são as únicas bilíngues: a versão em português é a canônica e a
+tradução é aplicada em runtime.
+
+## Páginas
+
+- [Início](https://mycarshub.app.br/): apresentação do produto — gestão de frota,
+  motoristas, aluguéis, contratos, cobranças automáticas e relatórios, com teste gratuito
+  de 14 dias sem cartão.
+- [Blog](https://mycarshub.app.br/blog): conteúdo prático sobre gestão de locadoras de
+  veículos — contratos, cobrança, manutenção de frota e controle de motoristas. Os artigos
+  ficam em `/blog/{slug}`.
+
+## Legal
+
+- [Termos de Uso](https://mycarshub.app.br/termos-de-uso): condições de uso da plataforma —
+  contratação, planos, responsabilidades das partes e regras de cancelamento.
+- [Política de Privacidade](https://mycarshub.app.br/politica-de-privacidade): como o
+  MyCarsHub coleta, usa, armazena e protege os dados pessoais de locadoras e motoristas,
+  em conformidade com a LGPD.
+
+## Notas para agentes
+
+- O mapa completo das URLs públicas está em
+  [sitemap.xml](https://mycarshub.app.br/sitemap.xml); as regras de rastreamento estão em
+  [robots.txt](https://mycarshub.app.br/robots.txt).
+- Tudo o que não está listado acima faz parte da aplicação autenticada e exige sessão de
+  usuário. Essas páginas não são públicas, não são indexáveis e não devem ser rastreadas
+  nem acessadas por agentes automatizados.
+- Não há API pública. Toda a API exige autenticação e não é destinada a consumo por
+  agentes; este arquivo não documenta endpoints.
+- Para falar com a empresa, use os canais de contato indicados nas páginas públicas acima.

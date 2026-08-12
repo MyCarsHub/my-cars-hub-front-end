@@ -30,17 +30,28 @@
   --color-white: #FFFFFF;
   --color-gray-50: #F0F0F0; /* Hub Gray — canvas padrão */
 
-  /* Line — borda/divisor canônico de card (#DDDDDD no guia de identidade). */
+  /* Line — o #DDDDDD que o guia de identidade chama de borda de card.
+     PRECEDÊNCIA (ver o bloco de `rule-contrast` lá embaixo): sobre `gray-50`
+     ele dá 1,19:1 e sobre branco 1,36:1, então NÃO serve onde a borda é o que
+     identifica o componente — ali quem vale é `rule-contrast`. Hoje nenhum
+     componente o referencia; fica só como registro do valor da doc. */
   --color-line: #DDDDDD;
 
   /* Rampa verde canônica — Apêndice `--green-050..900`.
      success-500 (Hub Green) sobre branco = 2,54:1 → só fundo/preenchimento,
-     nunca texto. Texto "confirmado" usa success-700 (4,36:1) em tamanho
-     grande ou success-900 (9,12:1) em texto pequeno. */
+     nunca texto. Texto "confirmado" usa success-700 (4,35:1) em tamanho
+     grande ou success-900 (9,76:1) em texto pequeno.
+     ATENÇÃO: success-700 com TEXTO BRANCO EM CIMA dá 4,35:1 e reprova o AA
+     por 0,15 — ele serve como texto sobre branco, não como superfície de
+     texto branco. Para isso existe o 800 (interpolado, doc omissa, mesma
+     licença dos primary-200/400/800): 5,49:1 com branco nos dois sentidos,
+     que é o piso de qualquer preenchimento verde com texto branco em cima
+     (card Pro anual, badge "Seu plano", badge do toggle). */
   --color-success-50: #E7FBF3;
   --color-success-100: #BFF3DE;
   --color-success-500: #10B981; /* Hub Green */
   --color-success-700: #0B8A61;
+  --color-success-800: #0A7854; /* interpolado (doc omissa) — 5,49:1 c/ branco */
   --color-success-900: #064E37;
 
   /* ==========================================================
@@ -82,6 +93,23 @@
   --color-paper-2: #F5F5F5;
   --color-rule: #ECECEC;
   --color-rule-strong: #D6D6D6;
+  /* PRECEDÊNCIA DAS BORDAS NEUTRAS — quatro tokens, uma regra só:
+     onde a borda É o que identifica o componente (moldura de card, contorno
+     de botão outline, divisor que separa blocos) vale SEMPRE `rule-contrast`,
+     e só ele. `rule`, `rule-strong` e `line` são hairline decorativo — sombra
+     de separação, nunca o contorno que dá forma ao componente.
+     Sobre branco: `rule` 1,18:1 · `line` 1,36:1 · `rule-strong` 1,45:1 — todos
+     MUITO abaixo do piso de 3:1 de elemento não-textual (WCAG 1.4.11).
+
+     `rule-contrast` foi medido em TODAS as superfícies claras que o app pinta,
+     não só no branco — o canvas padrão é `gray-50` (#F0F0F0, ver acima), e é
+     nele que a borda tem menos contraste:
+       gray-50 #F0F0F0 3,11:1 · paper-2 #F5F5F5 3,25:1
+       paper-alt #FAFAFA 3,40:1 · branco #FFFFFF 3,54:1
+     O #8F8F8F anterior estava medido SÓ contra o branco (3,23:1): no canvas
+     padrão ele dava 2,84:1 e REPROVAVA, e no paper-alt raspava em 3,10:1.
+     Qualquer troca aqui tem de ser reconferida contra `gray-50`, não branco. */
+  --color-rule-contrast: #888888;
   --color-ink: #0A0A0A;
   --color-ink-dark: #050505;
   --color-muted: #6E6E6E; /* Smoke */
@@ -125,6 +153,25 @@ body {
      Keep the recipe identical to .landing-root for visual consistency. */
   --brand-gradient: linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%);
   --brand-gradient-vertical: linear-gradient(180deg, #FA602E 0%, #F63B04 60%, #C22F00 100%);
+
+  /* ---------------------------------------------------------------
+     PREENCHIMENTOS QUE CARREGAM TEXTO BRANCO.
+     `--brand-gradient` acima começa no primary-400 (#FA602E), que com
+     texto branco dá 3,10:1 — decorativo, nunca superfície de leitura.
+     Medido no PONTO MAIS CLARO (é onde a falha mora), a rampa canônica
+     só cruza o AA a partir do primary-700:
+       primary-500 #F63B04 3,79 · primary-600 #EA3E00 4,05 · 700 #C22F00 5,67
+     Por isso o degradê "deep" começa no 700 e escurece: 5,67:1 no pior
+     ponto, texto pequeno branco incluso. Mesma lógica no verde, que
+     parte do success-800 (5,49:1).
+     Quem pinta texto branco sobre a marca usa ESTES dois — é o que
+     impede um quarto laranja de nascer solto num componente.
+     Nada de véu branco por cima (radial de brilho, glow, bg-white/20):
+     ele clareia justamente o canto onde o texto está e derruba o ponto
+     mais claro abaixo do AA. Sombra/vinheta escura pode.
+     --------------------------------------------------------------- */
+  --brand-gradient-deep: linear-gradient(135deg, #C22F00 0%, #982500 55%, #6E1B00 100%);
+  --success-gradient-deep: linear-gradient(135deg, #0A7854 0%, #064E37 100%);
   --brand-gradient-radial-hero: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(246,59,4,0.06), transparent 65%);
   --brand-gradient-radial-hero-soft: radial-gradient(ellipse 55% 40% at 50% 0%, rgba(246,59,4,0.05), transparent 65%);
   --brand-gradient-shine: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);

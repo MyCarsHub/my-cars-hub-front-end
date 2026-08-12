@@ -13,6 +13,7 @@ import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { PlanResponse, SubscriptionResponse } from '../../types/billing.types';
+import { PLAN_CAPACITY } from '../../utils/plan-limits';
 
 const plan = (over: Partial<PlanResponse>): PlanResponse => ({
   id: 'id-free',
@@ -135,9 +136,25 @@ type Probe = {
   accountActionError(): string | null;
   formatLimit(value: number | null, planName: string): string;
   planFeatures(p: PlanResponse): readonly string[];
+  hasPrioritySupport(p: PlanResponse): boolean;
+  prioritySupportLabel: string;
   toggleCompare(): void;
   toggleExpanded(planId: string): void;
+  cycleOptions(): readonly {
+    value: string;
+    activeBackground?: string;
+    badge?: string;
+  }[];
 };
+
+/**
+ * Os DOIS únicos preenchimentos medidos para carregar texto branco
+ * (`styles.css`). A string é comparada inteira de propósito: um `var(--typo)`
+ * não resolve para nada, o pill ativo fica branco sobre o trilho neutro
+ * (1,09:1) e nenhuma asserção de "contém linear-gradient" pegaria isso.
+ */
+const BRAND_DEEP_TOKEN = 'var(--brand-gradient-deep)';
+const SUCCESS_DEEP_TOKEN = 'var(--success-gradient-deep)';
 
 describe('Billing', () => {
   let subscriptionSignal: ReturnType<typeof signal<SubscriptionResponse | null>>;
@@ -1535,9 +1552,16 @@ describe('Billing', () => {
   });
 
   /**
-   * Tabela comparativa de planos. Depois da V44 a API devolve teto real em
-   * TODOS os planos — inclusive 500/1000 no ENTERPRISE, que mesmo assim é
-   * apresentado como ilimitado (decisão de produto, `utils/plan-limits.ts`).
+   * Tabela comparativa de planos. A API devolve teto real em TODOS os planos —
+   * inclusive no ENTERPRISE, que mesmo assim é apresentado como ilimitado
+   * (decisão de produto, `utils/plan-limits.ts`).
+   *
+   * O fixture carrega os tetos da GERAÇÃO ATUAL, e é isso que dá valor às
+   * asserções negativas daqui. Ele ficou parado em 500/1000 (V44) depois que a
+   * V59 passou o ENTERPRISE para 100/300: a guarda continuava verde procurando
+   * dois números que o backend não devolve mais, então a maquiagem podia
+   * quebrar e vazar "100"/"300" na tela sem derrubar teste nenhum. Se a V60
+   * mexer nos tetos, este par tem de andar junto com `PLAN_CAPACITY`.
    */
   describe('limites na tabela de planos', () => {
     const ENTERPRISE = plan({
@@ -1545,8 +1569,8 @@ describe('Billing', () => {
       code: 'ENTERPRISE_MONTHLY_STRIPE',
       name: 'ENTERPRISE',
       price: 299,
-      vehicleLimit: 500,
-      driverLimit: 1000,
+      vehicleLimit: PLAN_CAPACITY.ENTERPRISE.vehicles,
+      driverLimit: PLAN_CAPACITY.ENTERPRISE.drivers,
       trialDays: 0,
     });
     const PRO_V44 = plan({
@@ -1567,6 +1591,27 @@ describe('Billing', () => {
       expect(c.formatLimit(ENTERPRISE.driverLimit, ENTERPRISE.name)).toBe('∞');
     });
 
+    /**
+     * CONTROLE POSITIVO das asserções negativas deste bloco.
+     *
+     * Sem ele, "o número não aparece" é ambíguo: pode ser a maquiagem fazendo o
+     * trabalho, ou pode ser que aquele número nunca fosse aparecer de qualquer
+     * jeito — que é exatamente o que acontecia quando o fixture procurava os
+     * tetos da V44. Aqui os MESMOS 100/300 são impressos crus assim que o nome
+     * deixa de ser ENTERPRISE, o que prova que quem os suprime é a maquiagem e
+     * não a ausência do dado.
+     */
+    it('imprime os mesmos números quando o plano não tem maquiagem', () => {
+      const c = build();
+
+      expect(c.formatLimit(PLAN_CAPACITY.ENTERPRISE.vehicles, 'PRO')).toBe(
+        String(PLAN_CAPACITY.ENTERPRISE.vehicles),
+      );
+      expect(c.formatLimit(PLAN_CAPACITY.ENTERPRISE.drivers, 'PRO')).toBe(
+        String(PLAN_CAPACITY.ENTERPRISE.drivers),
+      );
+    });
+
     it('mostra os números reais de TRIAL e PRO', () => {
       const c = build();
 
@@ -1583,23 +1628,35 @@ describe('Billing', () => {
       expect(c.formatLimit(null, 'PRO')).toBe('∞');
     });
 
-    it('não vaza 500/1000 nos bullets do card ENTERPRISE', () => {
+    it('não vaza o teto real do ENTERPRISE nos bullets do card', () => {
       const c = build();
       const features = c.planFeatures(ENTERPRISE).join(' | ');
 
       expect(features).toContain('veículos ilimitados');
       expect(features).toContain('motoristas ilimitados');
-      expect(features).not.toContain('500');
-      expect(features).not.toContain('1000');
+      expect(features).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.vehicles));
+      expect(features).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.drivers));
     });
 
+    /**
+     * Os bullets de CAPACIDADE do PRO saem em número; a maquiagem é só do
+     * ENTERPRISE. Os limites vêm da linha da API (o fixture), nunca de
+     * `PLAN_CAPACITY` — esta tela é autenticada e recebe os tetos reais, e o
+     * card não pode contradizer o plano que o backend vende.
+     *
+     * A asserção negativa é sobre as frases de FROTA, não sobre a palavra
+     * "ilimitados" solta: `PLAN_FEATURES` traz "Usuários e papéis ilimitados",
+     * que vale para os quatro tiers e não fala de teto de frota. Procurar a
+     * palavra crua reprovava um bullet correto.
+     */
     it('anuncia os tetos reais nos bullets do card PRO', () => {
       const c = build();
       const features = c.planFeatures(PRO_V44).join(' | ');
 
       expect(features).toContain('Até 20 veículos');
       expect(features).toContain('Até 40 motoristas');
-      expect(features).not.toContain('ilimitados');
+      expect(features).not.toContain('veículos ilimitados');
+      expect(features).not.toContain('motoristas ilimitados');
     });
 
     /**
@@ -1641,6 +1698,174 @@ describe('Billing', () => {
       expect(srTexts.filter((t) => t === 'Ilimitado').length).toBe(4);
       expect(host.textContent).toContain('20');
       expect(host.textContent).toContain('40');
+    });
+  });
+
+  /**
+   * A tabela comparativa e os CARDS ficam na mesma tela, a um scroll um do
+   * outro, e chegaram a discordar: o card do ENTERPRISE prometia atendimento
+   * prioritário enquanto a coluna do ENTERPRISE marcava travessão na linha de
+   * suporte, porque a tabela decidia isso com `isRecommended()` (só o PRO). A
+   * linha "Relatórios avançados" era pior — capacidade de software que o
+   * backend não gateia em lugar nenhum.
+   */
+  describe('linhas qualitativas da tabela comparativa', () => {
+    /**
+     * Rende a tela com a comparação aberta e um plano expandido no acordeão.
+     *
+     * O catálogo é parametrizável porque a guarda de maquiagem lá embaixo
+     * precisa de um plano com TETO REAL, e o `BUSINESS` do fixture padrão tem
+     * `vehicleLimit`/`driverLimit` nulos — nele o `∞` sai do sentinela de
+     * coluna, não da maquiagem.
+     */
+    const renderCompare = (expandPlanId: string, plans: readonly PlanResponse[] = [
+      FREE,
+      BASIC,
+      PRO,
+      BUSINESS,
+    ]) => {
+      plansSignal.set([...plans]);
+      const fixture = TestBed.createComponent(Billing);
+      const c = fixture.componentInstance as unknown as Probe;
+      fixture.detectChanges();
+      c.toggleCompare();
+      c.toggleExpanded(expandPlanId);
+      fixture.detectChanges();
+      return { fixture, c, host: fixture.nativeElement as HTMLElement };
+    };
+
+    /**
+     * O predicado que a tabela consulta. `BUSINESS` é o nome legado da linha
+     * que hoje se chama ENTERPRISE e precisa cair no mesmo tier — era
+     * exatamente o plano que levava travessão.
+     */
+    it('concede prioridade ao PRO e ao ENTERPRISE, e a mais ninguém', () => {
+      const c = build();
+
+      expect(c.hasPrioritySupport(PRO)).toBe(true);
+      expect(c.hasPrioritySupport(BUSINESS)).toBe(true);
+      expect(c.hasPrioritySupport(FREE)).toBe(false);
+      expect(c.hasPrioritySupport(BASIC)).toBe(false);
+    });
+
+    /**
+     * O rótulo da linha é a MESMA frase do bullet do card. Se as duas grafias
+     * voltarem a divergir ("Suporte prioritário" na tabela, "Atendimento
+     * prioritário no WhatsApp" no card), a tela volta a nomear a mesma entrega
+     * de dois jeitos — e um deles não cita o canal.
+     */
+    it('rotula a linha com a mesma frase que o card imprime', () => {
+      const c = build();
+
+      expect(c.prioritySupportLabel).toBe('Atendimento prioritário no WhatsApp');
+      expect(c.planFeatures(PRO)).toContain(c.prioritySupportLabel);
+      expect(c.planFeatures(BUSINESS)).toContain(c.prioritySupportLabel);
+      expect(c.planFeatures(FREE)).not.toContain(c.prioritySupportLabel);
+    });
+
+    /**
+     * A prova no DOM: coluna a coluna, na ordem em que a tabela as desenha.
+     * `hasPrioritySupport()` poderia estar certo e o template continuar amarrado
+     * ao gate antigo — foi assim que o bug existiu.
+     */
+    it('marca ✓ nas colunas do PRO e do ENTERPRISE na tabela desktop', () => {
+      const { host, c } = renderCompare(BUSINESS.id);
+
+      const rows = Array.from(host.querySelectorAll('tbody tr'));
+      const row = rows.find(
+        (tr) => tr.querySelector('td')?.textContent?.trim() === c.prioritySupportLabel,
+      );
+      expect(row, 'a linha de atendimento prioritário sumiu da tabela').toBeTruthy();
+
+      // Uma célula por plano visível, na ordem [TRIAL, BASIC, PRO, ENTERPRISE].
+      const marks = Array.from(row!.querySelectorAll('td'))
+        .slice(1)
+        .map((td) => td.querySelector('.sr-only')?.textContent?.trim());
+
+      expect(marks).toEqual(['Não incluído', 'Não incluído', 'Incluído', 'Incluído']);
+    });
+
+    /**
+     * Mesma asserção na superfície do telefone, que é onde a maioria dos donos
+     * de frota abre esta tela. O acordeão carregava uma cópia das mesmas duas
+     * linhas, com o mesmo gate errado.
+     */
+    it('marca ✓ no acordeão mobile do ENTERPRISE e travessão no do TRIAL', () => {
+      for (const [plan, expected] of [
+        [BUSINESS, 'Incluído'],
+        [FREE, 'Não incluído'],
+      ] as const) {
+        const { host, c } = renderCompare(plan.id);
+
+        const item = Array.from(host.querySelectorAll('li')).find(
+          (li) => li.querySelector('span')?.textContent?.trim() === c.prioritySupportLabel,
+        );
+        expect(item, `linha de prioridade ausente no acordeão de ${plan.name}`).toBeTruthy();
+        expect(item!.querySelector('.sr-only')?.textContent?.trim()).toBe(expected);
+      }
+    });
+
+    /**
+     * A linha que saiu de vez. Ela não pode voltar por nenhuma das duas
+     * superfícies: é função de software anunciada por tier, e o backend só
+     * aplica `vehicle_limit` e `driver_limit`.
+     */
+    it('não renderiza nenhuma linha de "Relatórios avançados"', () => {
+      const { host } = renderCompare(BUSINESS.id);
+
+      expect(host.textContent).not.toContain('Relatórios avançados');
+      expect(host.textContent).not.toContain('Suporte prioritário');
+    });
+
+    /**
+     * O ENTERPRISE continua sem número de teto — a maquiagem vale para a tabela
+     * inteira, e mexer nas linhas qualitativas não pode ter reaberto o teto real
+     * nas células de capacidade.
+     *
+     * Duas coisas estavam erradas nesta guarda e as duas a deixavam VAZIA:
+     * ela procurava 500/1000 (tetos da V44, que a V59 substituiu por 100/300),
+     * e renderizava o `BUSINESS`, cujos limites são nulos — ou seja, um plano
+     * que nem passa pela maquiagem e cujo `∞` vem do sentinela de coluna. Duas
+     * razões independentes para nunca falhar. Agora o catálogo traz um plano
+     * com o NOME que a maquiagem reconhece (`UNLIMITED_FACADE_PLANS`) e o TETO
+     * que o backend devolve hoje, lidos de `PLAN_CAPACITY`.
+     */
+    it('mantém o ENTERPRISE sem número de teto na comparação', () => {
+      const ENTERPRISE_REAL = plan({
+        id: 'id-ent-real',
+        code: 'ENTERPRISE_MONTHLY_STRIPE',
+        name: 'ENTERPRISE',
+        price: 499,
+        vehicleLimit: PLAN_CAPACITY.ENTERPRISE.vehicles,
+        driverLimit: PLAN_CAPACITY.ENTERPRISE.drivers,
+        trialDays: 0,
+      });
+      const { host } = renderCompare(ENTERPRISE_REAL.id, [FREE, BASIC, PRO, ENTERPRISE_REAL]);
+
+      expect(host.textContent).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.vehicles));
+      expect(host.textContent).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.drivers));
+      expect(host.textContent).toContain('∞');
+    });
+  });
+
+  describe('acento do toggle de ciclo', () => {
+    // O `SegmentedToggle` só ecoa o acento que recebe, então a suíte DELE não
+    // consegue distinguir `var(--brand-gradient-deep)` de `var(--typo)`. Aqui,
+    // no consumidor, o nome do token é comparado por inteiro: se ele for
+    // renomeado em `styles.css` ou digitado errado aqui, o `var()` não resolve,
+    // o pill ativo fica branco sobre o trilho neutro (1,09:1) e este teste cai.
+    it('pinta os pills com os tokens de gradiente medidos, e não com hex solto', () => {
+      const options = build().cycleOptions();
+
+      expect(options.map((o) => o.value)).toEqual(['MONTHLY', 'YEARLY']);
+      expect(options[0].activeBackground).toBe(BRAND_DEEP_TOKEN);
+      expect(options[1].activeBackground).toBe(SUCCESS_DEEP_TOKEN);
+
+      // Nenhum hex literal: o laranja de fora do sistema (#FF5722/#EB3F00)
+      // voltar por aqui é exatamente o que esta asserção impede.
+      for (const option of options) {
+        expect(option.activeBackground).not.toMatch(/#[0-9a-f]{3,8}/i);
+      }
     });
   });
 });

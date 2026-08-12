@@ -4,49 +4,72 @@
 # output root by the `assets` glob in angular.json — the same mechanism that already
 # serves /manifest.webmanifest in production.
 #
-# A denylist, not `Disallow: /` + allowlist, on purpose: Googlebot must be able to fetch
-# the JS/CSS bundles to render the client-side routes. Blocking them breaks rendering.
-# The authenticated paths below mirror the children of the `AppShell` route in
-# `src/app/app.routes.ts`. They ALSO emit `noindex, nofollow` at runtime (any route
-# without `data.seo` does — see `services/seo.service.ts`), and that runtime tag is the
-# stronger guarantee: `Disallow` only stops the crawl, and a page Google never crawls is
-# a page whose `noindex` Google never reads — it can still be indexed from an external
-# link, URL only. So the two mechanisms do NOT back each other up: this list covers paths
-# from being crawled, and the meta tag covers paths from being indexed. A path that drifts
-# out of this list keeps the meta tag; a path that loses `data.seo` keeps this list.
+# --------------------------------------------------------------------------------------
+# WHY THIS FILE NAMES NO APPLICATION PATHS — read before "restoring" anything.
+# --------------------------------------------------------------------------------------
+#
+# This file used to enumerate every authenticated route, one `Disallow` per path. That
+# list was deleted ON PURPOSE and must not come back.
+#
+# robots.txt is world-readable and unauthenticated — the first URL anyone probing the site
+# fetches. A `Disallow` line does not hide a path, it PUBLISHES it, as a machine-readable
+# inventory, to whoever asks. Naming the private surface here hands out a map of the app in
+# exchange for a directive that was never an access control: `Disallow` asks well-behaved
+# crawlers not to FETCH a URL, and is ignored outright by everything else.
+#
+# `Disallow` was not what kept those pages out of Google either. Two things do, and both
+# survive this change:
+#
+#   1. `noindex, nofollow`, written at runtime by `services/seo.service.ts` on every
+#      navigation (driven by `services/page-title.strategy.ts`). It is FAIL-CLOSED: a route
+#      is indexable only if it opts in via `data.seo` in `src/app/app.routes.ts`, so a page
+#      that declares nothing gets `noindex` by default. `app.routes.seo.spec.ts` fails the
+#      suite if that boundary ever moves.
+#   2. The server. Those pages need a session; a crawler has none and is served nothing.
+#
+# Against *indexing* the old list was in fact counter-productive: a URL Google may not crawl
+# is a URL whose `noindex` Google can never read, so it could still be indexed URL-only from
+# an external link. Letting the crawler fetch the page means it reads the `noindex` and drops
+# the URL properly.
+#
+# Two rules this file must keep:
+#
+#   * NEVER `Disallow: /` plus an allowlist. Googlebot has to fetch the JS/CSS bundles to
+#     render client-side routes; block them and the public pages render blank to the crawler.
+#     Bundles, fonts and images stay crawlable — deliberate, not an oversight.
+#   * NEVER add a path here to "protect" it. If a page must stay out of Google, leave
+#     `data.seo` off its route so it inherits `noindex`. That is the control that works.
+#
+# THE ONE EXCEPTION, and what earns it: a path whose mere FETCH has a side effect. See
+# `Disallow: /invite/` below. That rule is not hiding a URL and is not about indexing —
+# do not delete it as "a path leak".
 
 User-agent: *
 
-# Authenticated application — unreachable without a session, useless to a crawler.
-Disallow: /dashboard
-Disallow: /veiculos
-Disallow: /motoristas
-Disallow: /alugueis
-Disallow: /manutencoes
-Disallow: /multas
-Disallow: /financiamentos
-Disallow: /seguros
-Disallow: /alertas
-Disallow: /relatorios
-Disallow: /perfil
-Disallow: /configuracoes
-Disallow: /suporte
-Disallow: /roadmap
-Disallow: /billing
-Disallow: /admin
-Disallow: /onboarding
-
-# Auth and one-time token flows. Indexing these is useless and leaks invite URLs.
-Disallow: /login
-Disallow: /signup
-Disallow: /oauth-success
-Disallow: /invite/
-
-# Backend, proxied through the SPA origin (see the rewrite in vercel.json).
+# Backend, proxied through the SPA origin (see the rewrite in vercel.json). Not a secret —
+# any browser network tab shows it — but JSON responses are worthless in an index, and
+# Google does pull URL-shaped strings out of JS bundles.
 Disallow: /api/
 
-# Legal pages have a single canonical (PT); the ?lang=en variant must not be crawled
-# as a separate URL.
+# The public legal pages have a single canonical (PT); the ?lang=en variant must not be
+# crawled as a separate URL.
 Disallow: /*?lang=
+
+# CONVITES — a única rota do app nomeada aqui, e NÃO por causa de indexação.
+#
+# `/invite/accept?token=…` (app.routes.ts:60) é pública de propósito: o convidado ainda
+# não tem sessão. Só que `pages/invites/invite-accept.ts` dispara a validação e o
+# `POST /invites/accept/{token}` do próprio `ngOnInit`, sem nenhum gesto do usuário — ou
+# seja, BUSCAR a URL já GASTA o convite, que é de uso único. Um crawler que siga o link
+# de um e-mail encaminhado ou de um print colado em fórum queima o convite de um cliente
+# real antes de ele clicar.
+#
+# `noindex` NÃO resolve: ele governa a indexação, e o estrago acontece no fetch, antes de
+# qualquer meta tag ser lida. `Disallow` é a única diretiva que pede para não BUSCAR.
+#
+# Não é contradição com o bloco do topo: lá a regra é sobre esconder caminho, o que
+# `Disallow` não faz mesmo. Aqui o que se pede é abstenção de um GET com efeito colateral.
+# Se um dia o accept passar a exigir clique explícito, esta linha pode sair.
+Disallow: /invite/
 
 Sitemap: https://www.mycarshub.app.br/sitemap.xml

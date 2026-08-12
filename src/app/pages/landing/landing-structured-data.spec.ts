@@ -150,13 +150,19 @@ describe('landing structured data', () => {
     });
 
     it('shows every plan the JSON-LD advertises', () => {
-      for (const plan of ['Trial', 'Pro', 'Enterprise']) {
+      // Starter entrou na V59 e a landing precisa exibi-lo: uma offer sem card
+      // é preço anunciado só para o crawler.
+      for (const plan of ['Trial', 'Starter', 'Pro', 'Enterprise']) {
         expect(rendered).toContain(plan);
       }
     });
 
     it('shows the monthly price of every paid plan', () => {
-      const monthly = [PLAN_PRICES.proMonthly, PLAN_PRICES.enterpriseMonthly];
+      const monthly = [
+        PLAN_PRICES.starterMonthly,
+        PLAN_PRICES.proMonthly,
+        PLAN_PRICES.enterpriseMonthly,
+      ];
       // Todo preço mensal do JSON-LD tem de estar entre os que os cards exibem.
       const advertised = offers().map((o) => o.price);
 

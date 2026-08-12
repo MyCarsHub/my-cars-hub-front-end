@@ -153,7 +153,9 @@ function offer(price: number, unit?: 'MONTH' | 'YEAR'): unknown {
  */
 function planOffers(): unknown[] {
   return [
-    offer(0),
+    offer(PLAN_PRICES.trialMonthly),
+    offer(PLAN_PRICES.starterMonthly, 'MONTH'),
+    offer(PLAN_PRICES.starterYearlyTotal, 'YEAR'),
     offer(PLAN_PRICES.proMonthly, 'MONTH'),
     offer(PLAN_PRICES.proYearlyTotal, 'YEAR'),
     offer(PLAN_PRICES.enterpriseMonthly, 'MONTH'),

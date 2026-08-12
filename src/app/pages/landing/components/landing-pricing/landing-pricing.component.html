@@ -1,36 +1,55 @@
 <section id="planos" class="relative isolate overflow-hidden bg-paper px-5 md:px-8 py-14 sm:py-8 lg:py-9">
-  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 50% 40% at 50% 30%, rgba(235,63,0,0.08), transparent 60%);"></div>
+  <!-- rgba do primary-500 canônico (#F63B04), não do #EB3F00 fora do sistema. -->
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 50% 40% at 50% 30%, rgba(246,59,4,0.08), transparent 60%);"></div>
 
   <div class="max-w-[1200px] mx-auto flex flex-col gap-5">
     <header class="flex flex-col gap-2.5 max-w-[720px] text-center items-center mx-auto">
       <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] m-0">
-        Do primeiro carro <span class="hl">aos 20</span>.
+        Do primeiro carro <span class="hl">aos {{ headlineTopCap }}</span>.
       </h2>
       <p class="reveal text-[15.5px] text-ink/70 m-0 max-w-[52ch]">
         14 dias de trial completo, sem cartão. Depois escolha o plano que cabe na sua operação.
       </p>
 
-      <!-- Toggle mensal/anual -->
+      <!-- Toggle mensal/anual. Borda em `rule-contrast`, não `rule`: o trilho é
+           `paper-alt` (#FAFAFA) sobre `paper` branco e a borda é a única coisa
+           que o desenha. #ECECEC dá 1,13:1 ali; #888888 dá 3,40:1. -->
       <app-segmented-toggle
         class="reveal mt-3"
         [options]="cycleOptions()"
         [value]="cycle()"
         ariaLabel="Ciclo de cobrança"
-        containerClass="bg-paper-alt border border-rule shadow-[0_8px_24px_-18px_rgba(10,10,10,0.14)]"
+        containerClass="bg-paper-alt border border-rule-contrast shadow-[0_8px_24px_-18px_rgba(10,10,10,0.14)]"
         inactiveClass="text-ink/70 hover:text-ink"
         textClass="text-[13.5px]"
         (selectionChange)="setCycle($event)"
       />
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.15fr_0.9fr] gap-5 lg:gap-6 items-stretch lg:items-center">
+    <!-- A paridade dita UMA vez, antes da grade: os quatro cards listam as
+         mesmas funções porque o produto é o mesmo em todo plano, e a nota nomeia
+         a única gradação real (a fila do atendimento, do Pro em diante). Sem
+         esta frase, quatro listas quase idênticas leem como erro de copy em vez
+         do argumento de venda que são. -->
+    <p class="reveal mx-auto max-w-[58ch] rounded-2xl border border-rule-contrast bg-paper-alt px-5 py-3 text-center text-sm font-semibold text-ink">
+      {{ parityNote }}
+    </p>
+
+    <!-- Empilhado no telefone, 2x2 a partir de `md`. NÃO são 4 colunas numa
+         linha só: com o container em 1200px cada coluna cairia para ~282px e o
+         preço anual do Pro ("R$ 1499,00", tabular) fica apertado nessa largura.
+         A grade de 4 colunas é decisão de design, não consequência da V59 — a
+         tela de billing, que reusa `app-plan-card`, roda em 4 porque o container
+         dela é mais largo. `items-stretch` porque num 2x2 as duas linhas
+         precisam de cards de mesma altura. -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6 items-stretch">
       <div class="reveal">
         <app-plan-card
-          variant="trial"
+          [tone]="trialTone"
           name="Trial gratuito"
           price="R$ 0"
           cycleSuffix="14 dias"
-          description="Pra testar com os carros que você já aluga, sem compromisso."
+          [description]="trialDescription"
           [features]="trialItems"
           ctaLabel="Criar conta grátis"
           (ctaClick)="goToLogin()"
@@ -39,16 +58,27 @@
 
       <div class="reveal">
         <app-plan-card
-          variant="pro"
+          [tone]="starterTone"
+          name="Starter"
+          [price]="starterPriceLabel()"
+          [cycleSuffix]="priceCycleSuffix()"
+          [subtitleText]="starterSubtitle()"
+          [description]="starterDescription"
+          [features]="starterItems"
+          ctaLabel="Assinar Starter"
+          (ctaClick)="goToLogin()"
+        />
+      </div>
+
+      <div class="reveal">
+        <app-plan-card
+          [tone]="proTone"
           name="Pro"
           [price]="proPriceLabel()"
-          [cycleSuffix]="proCycleSuffix()"
+          [cycleSuffix]="priceCycleSuffix()"
           [subtitleText]="proSubtitle()"
-          description="Do primeiro carro aos 20, com cobrança no automático."
+          [description]="proDescription"
           [features]="proItems"
-          [gradientCss]="proGradient()"
-          [shadowCss]="proShadow()"
-          [accentTextClass]="proAccentText()"
           ribbonText="Mais popular"
           ctaLabel="Assinar Pro"
           (ctaClick)="goToLogin()"
@@ -57,14 +87,13 @@
 
       <div class="reveal">
         <app-plan-card
-          variant="business"
+          [tone]="enterpriseTone"
           name="Enterprise"
           [price]="enterprisePriceLabel()"
-          [cycleSuffix]="proCycleSuffix()"
+          [cycleSuffix]="priceCycleSuffix()"
           [subtitleText]="enterpriseSubtitle()"
-          description="Frota grande, integrações premium, suporte dedicado."
+          [description]="enterpriseDescription"
           [features]="enterpriseItems"
-          beforeFeaturesText="Tudo que o plano Pro tem +"
           ribbonText="Sua frota cresceu?"
           ctaLabel="Assinar Enterprise"
           (ctaClick)="goToLogin()"
