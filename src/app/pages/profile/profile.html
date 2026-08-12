@@ -198,8 +198,13 @@
                             <p class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Assinatura</p>
                             <h3 class="text-2xl font-black text-white italic tracking-tight">Sem plano ativo</h3>
                         </div>
+                        <!-- Sem promessa de "desbloquear recursos": todo plano
+                             tem as mesmas funcionalidades, só muda a capacidade.
+                             Ver `utils/plan-features.ts` — esta era a terceira
+                             tela a vender um gate que o backend não aplica. -->
                         <p class="text-sm text-neutral-400">
-                            Escolha um plano para desbloquear todos os recursos da plataforma.
+                            Escolha um plano do tamanho da sua frota para voltar a cadastrar veículos e
+                            motoristas.
                         </p>
                         <button type="button" (click)="goToBilling()"
                             class="w-full py-3 bg-white text-neutral-950 font-bold rounded-xl

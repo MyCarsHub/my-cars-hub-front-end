@@ -4,8 +4,17 @@ import { SegmentedToggle, SegmentedToggleOption } from './segmented-toggle';
 
 type Cycle = 'monthly' | 'yearly';
 
-const MONTHLY_BG = 'linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%)';
-const YEARLY_BG = 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)';
+// Hex literal de propósito: o `[style.background]` precisa continuar chegando
+// cru no DOM, e `var(--…)` não resolve dentro do jsdom. Os consumidores reais
+// passam `var(--brand-gradient-deep)` / `var(--success-gradient-deep)`.
+//
+// Logo esta suíte prova só que o componente ECOA o acento que recebe — ela
+// ficaria verde com `var(--typo)`, que não resolve para nada e deixaria o pill
+// ativo branco sobre o trilho neutro (1,09:1). Quem guarda o NOME do token é o
+// consumidor: ver `billing.spec.ts` e `landing-pricing.component.spec.ts`,
+// que comparam o `activeBackground` emitido com a string exata do token.
+const MONTHLY_BG = 'linear-gradient(135deg, #C22F00 0%, #982500 55%, #6E1B00 100%)';
+const YEARLY_BG = 'linear-gradient(135deg, #0A7854 0%, #064E37 100%)';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -175,13 +184,24 @@ describe('SegmentedToggle', () => {
     expect(segments()[1].contains(badges[0])).toBe(true);
   });
 
+  // Os dois estados do chip são texto branco de 10,5px, logo AA cheio (4,5:1).
+  // Inativo: `success-800` = 5,49:1. Ativo: o fundo é o pill já pintado, então
+  // o chip precisa ESCURECER (`bg-black/25` = 8,55:1 sobre o acento laranja);
+  // um véu branco por cima do acento derrubava para 3,77:1.
   it('restyles the badge when its option becomes selected', () => {
     const badge = (): Element | null => host.querySelector('[role="radio"] span');
-    expect(badge()?.className).toContain('bg-emerald-600');
+    expect(badge()?.className).toContain('bg-success-800');
 
     fixture.componentInstance.value.set('yearly');
     fixture.detectChanges();
-    expect(badge()?.className).toContain('bg-white/25');
+    expect(badge()?.className).toContain('bg-black/25');
+  });
+
+  it('never tints the active badge with a translucent WHITE, which fails AA', () => {
+    fixture.componentInstance.value.set('yearly');
+    fixture.detectChanges();
+    const badge = host.querySelector('[role="radio"] span');
+    expect(badge?.className).not.toMatch(/bg-white\//);
   });
 
   it('drops the badge when the consumer omits it', () => {

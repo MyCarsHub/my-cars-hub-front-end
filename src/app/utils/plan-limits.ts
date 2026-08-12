@@ -9,31 +9,38 @@
  * escrita uma vez e as três consomem.
  *
  * <h4>Fonte de verdade</h4>
- * A tabela `plans` do backend (migration `V44__plans_real_limits_all_plans.sql`).
- * `PLAN_CAPACITY` é uma CÓPIA desses números, necessária só porque a landing é
- * pública e `GET /v1/billing/plans` exige autenticação — billing e dashboard
- * recebem os limites reais da API e não devem ler daqui. Se a `plans` mudar,
- * atualize `PLAN_CAPACITY` junto (o spec da landing quebra para lembrar).
+ * A tabela `plans` do backend (migration `V59__plans_starter_pro_restructure.sql`,
+ * que sucede a V44). `PLAN_CAPACITY` é uma CÓPIA desses números, necessária só
+ * porque a landing é pública e `GET /v1/billing/plans` exige autenticação —
+ * billing e dashboard recebem os limites reais da API e não devem ler daqui. Se
+ * a `plans` mudar, atualize `PLAN_CAPACITY` junto (o spec da landing quebra
+ * para lembrar).
  *
  * <h4>Maquiagem do ENTERPRISE</h4>
- * O backend guarda e APLICA 500 veículos / 1000 motoristas no ENTERPRISE; a
- * apresentação como "ilimitado" é decisão de produto, deliberada, e vale só na
- * UI. Nenhuma guarda de limite consulta este arquivo.
+ * O backend guarda e APLICA 100 veículos / 300 motoristas no ENTERPRISE (V59;
+ * eram 500/1000 na V44); a apresentação como "ilimitado" é decisão de produto,
+ * deliberada, e vale só na UI. Nenhuma guarda de limite consulta este arquivo.
  */
 
-/** Planos do catálogo, pelo `name` da tabela `plans`. */
-export type PlanTier = 'TRIAL' | 'PRO' | 'ENTERPRISE';
+/** Planos do catálogo, pelo `name` da tabela `plans` (V59:7-15). */
+export type PlanTier = 'TRIAL' | 'STARTER' | 'PRO' | 'ENTERPRISE';
 
 export interface PlanCapacity {
   vehicles: number;
   drivers: number;
 }
 
-/** Tetos reais aplicados pelo backend após a V44. */
+/**
+ * Tetos reais aplicados pelo backend após a V59. Cada par vem dos UPDATEs de
+ * limite da própria migration, não da tabela do cabeçalho dela:
+ * TRIAL V59:325-328 · STARTER V59:330-333 · PRO V59:335-338 ·
+ * ENTERPRISE V59:340-343 (conferem com o estado-alvo em V59:9-15).
+ */
 export const PLAN_CAPACITY: Readonly<Record<PlanTier, PlanCapacity>> = {
   TRIAL: { vehicles: 3, drivers: 4 },
-  PRO: { vehicles: 20, drivers: 40 },
-  ENTERPRISE: { vehicles: 500, drivers: 1000 },
+  STARTER: { vehicles: 15, drivers: 45 },
+  PRO: { vehicles: 25, drivers: 75 },
+  ENTERPRISE: { vehicles: 100, drivers: 300 },
 };
 
 /**
@@ -41,6 +48,20 @@ export const PLAN_CAPACITY: Readonly<Record<PlanTier, PlanCapacity>> = {
  * número. Hoje só o ENTERPRISE; incluir um plano aqui é decisão de produto.
  */
 const UNLIMITED_FACADE_PLANS: readonly string[] = ['ENTERPRISE'];
+
+/**
+ * Forma canônica do `name` vindo da API, antes de qualquer comparação.
+ *
+ * EXPORTADA de propósito. A normalização não é exclusividade da maquiagem: o
+ * tier de um plano é decidido em `utils/plan-features.ts` (`planTierOf`) e a
+ * partir dele saem o tom do card, a fita, a descrição e o hero do billing. Se
+ * cada ponto normalizasse por conta própria, dois deles acabariam discordando
+ * sobre o que é `" enterprise "` — e a divergência apareceria como um card
+ * pintado errado, não como erro.
+ */
+export function normalizePlanName(planName: string | null | undefined): string {
+  return (planName ?? '').trim().toUpperCase();
+}
 
 /**
  * A maquiagem, isolada: `true` quando o plano se apresenta como ilimitado
@@ -51,8 +72,9 @@ const UNLIMITED_FACADE_PLANS: readonly string[] = ['ENTERPRISE'];
  * é a política de produto.
  */
 export function planPresentsAsUnlimited(planName: string | null | undefined): boolean {
-  if (!planName) return false;
-  return UNLIMITED_FACADE_PLANS.includes(planName.trim().toUpperCase());
+  const name = normalizePlanName(planName);
+  if (!name) return false;
+  return UNLIMITED_FACADE_PLANS.includes(name);
 }
 
 /**

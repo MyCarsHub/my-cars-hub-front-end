@@ -99,7 +99,8 @@
           class="pointer-events-none absolute -top-24 -right-24 w-56 h-56 blur-[90px] rounded-full"
           [style.background]="currentHeroGlow()"></div>
         <div aria-hidden="true"
-          class="pointer-events-none absolute -bottom-28 -left-24 w-56 h-56 bg-white/5 blur-[90px] rounded-full"></div>
+          class="pointer-events-none absolute -bottom-28 -left-24 w-56 h-56 blur-[90px] rounded-full"
+          [style.background]="currentHeroGlowSecondary()"></div>
 
         <div class="relative p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
 
@@ -268,7 +269,7 @@
                   type="button"
                   (click)="openCancel()"
                   [disabled]="accountActionBusy() || loading()"
-                  class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white/90
+                  class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white
                          bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
@@ -309,7 +310,13 @@
                 </svg>
               </div>
               <p class="text-base font-semibold text-neutral-900">Você ainda não tem uma assinatura ativa</p>
-              <p class="text-sm text-neutral-500 max-w-md">Escolha um plano abaixo para desbloquear os recursos da plataforma.</p>
+              <!-- "Desbloquear os recursos" não descreve nada que aconteça: os
+                   recursos são os mesmos em todo plano, e a nota de paridade
+                   logo abaixo da grade dizia o contrário desta frase na mesma
+                   tela. O que se escolhe aqui é tamanho de frota.
+                   `neutral-600` (#525252) dá 7,82:1 sobre o branco do card,
+                   contra 4,74:1 do `neutral-500` — os dois passam, este sobra. -->
+              <p class="text-sm text-neutral-600 max-w-md">Escolha abaixo o plano do tamanho da sua frota.</p>
             </div>
           }
         </div>
@@ -336,24 +343,37 @@
             (selectionChange)="setCycle($event)" />
         </div>
 
-        <!-- Plans grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.15fr_0.9fr] gap-6 lg:gap-6 items-stretch lg:items-center pt-4">
+        <!-- A paridade dita uma vez, antes da grade: os cards listam as mesmas
+             funções porque o produto é o mesmo em todo plano, e a nota nomeia a
+             única gradação real — a fila do atendimento, do Pro em diante. -->
+        <p class="mx-auto max-w-[58ch] rounded-2xl border border-rule-contrast bg-neutral-50 px-5 py-3 text-center text-sm font-semibold text-neutral-900">
+          {{ parityNote }}
+        </p>
+
+        <!-- Plans grid — 1 coluna no telefone, 2x2 a partir de 640px, 4 colunas
+             iguais a partir de 1024px. Eram três colunas
+             (`[0.9fr_1.15fr_0.9fr]`) para três tiers; a V59 trouxe o quarto, e o
+             STARTER passou a quebrar a linha sozinho.
+
+             Na COLUNA ÚNICA o card que importa para ESTE usuário (pagamento
+             pendente ou plano atual) sobe para o topo — na ordem de preço ele
+             pode ficar dois scrolls abaixo. De 640px pra cima o reordenamento
+             sai (`sm:order-none`): numa grade 2x2 ele descolaria a ordem visual
+             da ordem do DOM e mandaria o anel de foco pular de canto a canto, o
+             que é falha de 1.3.2 / 2.4.3 e não ganho nenhum de leitura. -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch pt-4">
           @for (plan of visiblePlans(); track plan.id) {
             <app-plan-card
-              class="lg:order-none"
+              class="sm:order-none"
               [class.order-first]="isPrioritized(plan)"
-              [variant]="planVariant(plan)"
+              [tone]="planTone(plan)"
               [name]="plan.name"
               [price]="formatPrice(plan.price)"
               [cycleSuffix]="planCycleSuffix()"
               [subtitleText]="planSubtitle(plan)"
               [description]="planDescription(plan)"
               [features]="planFeatures(plan)"
-              [beforeFeaturesText]="planBeforeFeaturesText(plan)"
               [ribbonText]="planRibbon(plan)"
-              [gradientCss]="planGradient(plan)"
-              [shadowCss]="planShadow(plan)"
-              [accentTextClass]="planAccentClass(plan)"
               [isCurrent]="isCurrent(plan)"
               [ctaLabel]="planCtaLabel(plan)"
               [ctaNote]="planCtaNote(plan)"
@@ -469,6 +489,7 @@
                     @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span class="sr-only">Incluído</span>
                       </td>
                     }
                   </tr>
@@ -477,29 +498,33 @@
                     @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span class="sr-only">Incluído</span>
                       </td>
                     }
                   </tr>
+                  <!--
+                    "Relatórios avançados" saiu daqui: era capacidade de SOFTWARE
+                    anunciada por tier, e o backend não tem gate de funcionalidade
+                    nenhum — só `vehicle_limit` e `driver_limit`. A linha marcava ✓
+                    no PRO por `isRecommended()` e travessão no resto, vendendo uma
+                    escada que o código não implementa.
+
+                    A de atendimento prioritário FICA, porque é compromisso
+                    operacional e não software, mas agora pergunta ao mesmo
+                    `utils/plan-features.ts` que monta os bullets do card. Antes ela
+                    também dependia de `isRecommended()` e deixava o ENTERPRISE, que
+                    paga por prioridade, com um travessão.
+                  -->
                   <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">Relatórios avançados</td>
+                    <td class="py-3.5 px-4 font-medium text-neutral-700">{{ prioritySupportLabel }}</td>
                     @for (plan of visiblePlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
-                        @if (isRecommended(plan)) {
+                        @if (hasPrioritySupport(plan)) {
                           <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                          <span class="sr-only">Incluído</span>
                         } @else {
-                          <span class="text-neutral-400">—</span>
-                        }
-                      </td>
-                    }
-                  </tr>
-                  <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">Suporte prioritário</td>
-                    @for (plan of visiblePlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center">
-                        @if (isRecommended(plan)) {
-                          <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                        } @else {
-                          <span class="text-neutral-400">—</span>
+                          <span aria-hidden="true" class="text-neutral-400">—</span>
+                          <span class="sr-only">Não incluído</span>
                         }
                       </td>
                     }
@@ -569,25 +594,22 @@
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Cobrança automática</span>
                         <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span class="sr-only">Incluído</span>
                       </li>
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Dashboard completo</span>
                         <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span class="sr-only">Incluído</span>
                       </li>
-                      <li class="flex items-center justify-between">
-                        <span class="text-neutral-500">Relatórios avançados</span>
-                        @if (isRecommended(plan)) {
-                          <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                      <!-- Espelho móvel das linhas acima; ver o comentário na tabela. -->
+                      <li class="flex items-center justify-between gap-3">
+                        <span class="text-neutral-500 min-w-0">{{ prioritySupportLabel }}</span>
+                        @if (hasPrioritySupport(plan)) {
+                          <svg class="shrink-0 text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                          <span class="sr-only">Incluído</span>
                         } @else {
-                          <span class="text-neutral-400">—</span>
-                        }
-                      </li>
-                      <li class="flex items-center justify-between">
-                        <span class="text-neutral-500">Suporte prioritário</span>
-                        @if (isRecommended(plan)) {
-                          <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                        } @else {
-                          <span class="text-neutral-400">—</span>
+                          <span aria-hidden="true" class="shrink-0 text-neutral-400">—</span>
+                          <span class="sr-only">Não incluído</span>
                         }
                       </li>
                     </ul>

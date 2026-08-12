@@ -18,14 +18,27 @@ import { timeout } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../components/core/page-card/page-card';
-import { PlanCardComponent } from '../../components/core/plan-card/plan-card';
+import {
+  PlanCardComponent,
+  PlanCardTone,
+  RECOMMENDED_PLAN_TIER,
+  planCardTone,
+} from '../../components/core/plan-card/plan-card';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import {
   SegmentedToggle,
   SegmentedToggleOption,
 } from '../../components/segmented-toggle/segmented-toggle';
 import { ApiErrorService } from '../../services/api-error.service';
-import { showsAsUnlimited } from '../../utils/plan-limits';
+import { PlanTier, showsAsUnlimited } from '../../utils/plan-limits';
+import {
+  PLAN_DESCRIPTION,
+  PLAN_PARITY_NOTE,
+  PRIORITY_SUPPORT_FEATURE,
+  hasPrioritySupport,
+  planFeaturesFor,
+  planTierOf,
+} from '../../utils/plan-features';
 import {
   BillingService,
   CHECKOUT_PENDING_KEY,
@@ -109,11 +122,20 @@ const CHECKOUT_REQUEST_TIMEOUT_MS = 20000;
  */
 type AwaitMode = 'returned' | 'checkout-open';
 
-/** Acento do toggle de ciclo: laranja da marca no Mensal, Hub Green no Anual. */
-const CYCLE_MONTHLY_BACKGROUND = 'linear-gradient(135deg, #FA602E 0%, #F63B04 55%, #C22F00 100%)';
-const CYCLE_MONTHLY_SHADOW = '0 6px 18px -6px rgba(235,63,0,0.4)';
-const CYCLE_YEARLY_BACKGROUND = 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)';
-const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(16,185,129,0.45)';
+/**
+ * Acento único desta tela: pill ativo do toggle, card recomendado e hero da
+ * assinatura vigente pintam TODOS a partir daqui. Antes o toggle usava a rampa
+ * canônica e o card ao lado dele um laranja que não existia em `@theme`
+ * (#FF5722 → #EB3F00 → #C93300) — dois laranjas a 20px de distância.
+ *
+ * `--brand-gradient-deep` / `--success-gradient-deep` são os preenchimentos
+ * medidos para carregar TEXTO BRANCO (5,67:1 e 5,49:1 no ponto mais claro);
+ * `--brand-gradient` começa no primary-400 e é decorativo. Ver `styles.css`.
+ */
+const CYCLE_MONTHLY_BACKGROUND = 'var(--brand-gradient-deep)';
+const CYCLE_MONTHLY_SHADOW = '0 6px 18px -6px rgba(194,47,0,0.4)';
+const CYCLE_YEARLY_BACKGROUND = 'var(--success-gradient-deep)';
+const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(10,120,84,0.45)';
 
 @Component({
   selector: 'app-billing',
@@ -196,7 +218,13 @@ export class Billing implements OnInit, OnDestroy {
   /** Mensal↔Anual target awaiting an explicit, informed confirmation. */
   protected readonly periodSwitchTarget = signal<PlanResponse | null>(null);
 
-  protected readonly recommendedName = 'PRO';
+  /**
+   * O tier recomendado, vindo do MESMO lugar que a landing lê (`plan-card.ts`)
+   * em vez do literal `'PRO'` que morava aqui. A comparação passa por
+   * `planTierOf()`, que normaliza o `plans.name` da API — então uma linha
+   * legada (`BUSINESS`, `FREE`) cai no tier certo sem um `if` extra aqui.
+   */
+  protected readonly recommendedName: PlanTier = RECOMMENDED_PLAN_TIER;
 
   private visibilityListener: (() => void) | null = null;
   private focusListener: (() => void) | null = null;
@@ -215,25 +243,6 @@ export class Billing implements OnInit, OnDestroy {
    */
   protected readonly activeGateway = computed<PlanGateway>(() =>
     this.isPlatformAdmin ? this.adminGateway() : 'stripe',
-  );
-
-  /** Gradient do card recomendado — orange no Mensal, Hub Green no Anual. */
-  protected readonly recommendedGradient = computed<string>(() =>
-    this.cycle() === 'YEARLY'
-      ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)'
-      : 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)',
-  );
-
-  /** Sombra colorida do card recomendado, casando com o gradient ativo. */
-  protected readonly recommendedShadow = computed<string>(() =>
-    this.cycle() === 'YEARLY'
-      ? '0 1px 0 0 rgba(255,255,255,0.22) inset, 0 32px 72px -22px rgba(16,185,129,0.45)'
-      : '0 1px 0 0 rgba(255,255,255,0.22) inset, 0 32px 72px -22px rgba(235,63,0,0.45)',
-  );
-
-  /** Cor do texto no botão branco do card recomendado (matching gradient). */
-  protected readonly recommendedAccentText = computed<string>(() =>
-    this.cycle() === 'YEARLY' ? 'text-emerald-700' : 'text-brand-strong',
   );
 
   // ---------------------------------------------------------------------------
@@ -270,7 +279,7 @@ export class Billing implements OnInit, OnDestroy {
    * `TRIALING` while the plan in force is still PRO, with PRO's limits. Reading
    * this status as "the customer is on the TRIAL plan" is what made a PRO trial
    * render the TRIAL card as "Plano atual" — and turned a perfectly legal 4th
-   * vehicle (PRO allows 15) into a reported bug. Plan comes from the plan;
+   * vehicle (PRO allows 25 after V59; 15 is STARTER) into a reported bug. Plan comes from the plan;
    * this signal only ever answers "está em período de teste?".
    */
   protected readonly isTrialingStatus = computed(() => this.status() === 'TRIALING');
@@ -364,7 +373,11 @@ export class Billing implements OnInit, OnDestroy {
     const sub = this.subscription();
     if (!sub) return null;
     if (this.isFreeActive()) {
-      return 'Você está no plano gratuito, sem cobranças. Escolha um plano pago para liberar todos os recursos.';
+      // NUNCA "liberar todos os recursos": não existe gate de funcionalidade no
+      // backend, então a frase prometia destravar o que já está destravado — e
+      // era desmentida um scroll abaixo pela nota de paridade da grade. O que um
+      // plano pago compra é ESPAÇO: mais veículos e mais motoristas.
+      return 'Você está no plano gratuito, sem cobranças. Escolha um plano pago para cadastrar mais veículos e motoristas.';
     }
     switch (sub.status) {
       case 'ACTIVE':
@@ -547,17 +560,40 @@ export class Billing implements OnInit, OnDestroy {
     if (!sub) return null;
     const name = (sub.planName ?? '').toUpperCase();
     if (name !== 'PRO' && name !== 'ENTERPRISE' && name !== 'BUSINESS') return null;
-    return sub.billingCycle === 'YEARLY'
-      ? 'linear-gradient(135deg, #34D399 0%, #10B981 55%, #059669 100%)'
-      : 'linear-gradient(135deg, #FF5722 0%, #EB3F00 55%, #C93300 100%)';
+    return sub.billingCycle === 'YEARLY' ? CYCLE_YEARLY_BACKGROUND : CYCLE_MONTHLY_BACKGROUND;
   });
 
+  /**
+   * Rótulos secundários do hero. Sobre o `bg-neutral-900` o cinza continua
+   * legível (neutral-400 = 7,4:1); sobre o gradiente da marca não sobra
+   * translucidez utilizável — no ponto mais claro (#C22F00) o branco a 85% dá
+   * 4,47:1 e reprova, e a 90% dá 4,85:1, que passa por 0,35 e é consumido pela
+   * primeira vinheta que clarear o canto. Ali a hierarquia sai do tamanho e do
+   * peso, com branco cheio (5,67:1).
+   */
   protected readonly currentHeroMutedClass = computed<string>(() =>
-    this.currentHeroBackground() ? 'text-white/80' : 'text-neutral-400',
+    this.currentHeroBackground() ? 'text-white' : 'text-neutral-400',
   );
 
+  /**
+   * Halo do canto do hero. Sobre o gradiente ele ESCURECE em vez de clarear:
+   * o `rgba(255,255,255,0.20)` de antes lavava o canto superior direito, onde
+   * mora a pílula de status, e levava o branco a 4,12:1. Escurecer só melhora.
+   */
   protected readonly currentHeroGlow = computed<string>(() =>
-    this.currentHeroBackground() ? 'rgba(255,255,255,0.20)' : 'rgba(235,63,0,0.25)',
+    this.currentHeroBackground() ? 'rgba(0,0,0,0.18)' : 'rgba(246,59,4,0.25)',
+  );
+
+  /**
+   * Halo do canto inferior esquerdo. Era um `bg-white/5` fixo: mesmo véu branco
+   * que o resto desta tela já tinha eliminado, e num card de 375px um blob de
+   * 224px passa por baixo dos rótulos. Sobre o gradiente ele derrubava o ponto
+   * mais claro de 5,67:1 para 5,28:1 (laranja) e de 5,49:1 para 4,98:1 (verde)
+   * — ainda AA, mas indo na direção errada. Escurecido/tingido de marca, como o
+   * irmão do canto oposto, o contraste só sobe.
+   */
+  protected readonly currentHeroGlowSecondary = computed<string>(() =>
+    this.currentHeroBackground() ? 'rgba(0,0,0,0.14)' : 'rgba(246,59,4,0.14)',
   );
 
   // ---------------------------------------------------------------------------
@@ -867,48 +903,27 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   protected isRecommended(plan: PlanResponse): boolean {
-    return plan.name === this.recommendedName;
+    return planTierOf(plan.name) === this.recommendedName;
   }
 
   protected isBusinessPlan(plan: PlanResponse): boolean {
-    return plan.name === 'BUSINESS' || plan.name === 'ENTERPRISE';
+    return planTierOf(plan.name) === 'ENTERPRISE';
   }
 
-  protected planVariant(plan: PlanResponse): 'trial' | 'pro' | 'business' {
-    if (this.isRecommended(plan)) return 'pro';
-    if (this.isBusinessPlan(plan)) return 'business';
-    return 'trial';
+  /**
+   * Degrau visual do card. A escolha mora em `plan-card.ts` e é a MESMA que a
+   * landing usa, então o Pro autenticado e o Pro público não podem mais ser
+   * pintados por regras diferentes.
+   *
+   * Substitui `planVariant()`, que devolvia `'trial' | 'pro' | 'business'` e
+   * não tinha ramo para o STARTER: a V59 criou o tier, o card caiu no default e
+   * o STARTER passou a ser renderizado idêntico ao TRIAL. `planTierOf()`
+   * normaliza o `plans.name` antes, então uma linha legada (`BUSINESS`, `FREE`)
+   * cai no tier certo sem um `if` extra nesta página.
+   */
+  protected planTone(plan: PlanResponse): PlanCardTone {
+    return planCardTone(planTierOf(plan.name));
   }
-
-  /** Fallback feature lists, used only when the API carries no limits. */
-  private readonly trialFeatures: readonly string[] = [
-    'Contratos, cobranças, multas, manutenções',
-    'Suporte por email',
-  ];
-
-  private readonly proFeatures: readonly string[] = [
-    'Cobranças automáticas por Asaas e Stripe',
-    'Assinatura eletrônica com validade jurídica',
-    'Vistoria digital completa em 14 ângulos por veículo',
-    'Multi-usuário com controle de acesso',
-    'Suporte prioritário',
-  ];
-
-  private readonly businessFeatures: readonly string[] = [
-    'Multi-empresa ilimitado (cadastre suas filiais)',
-    'Usuários e papéis ilimitados',
-    'Relatórios avançados exportáveis',
-    'Onboarding assistido dedicado',
-    'Suporte prioritário com SLA',
-  ];
-
-  private readonly enterpriseFeatures: readonly string[] = [
-    'Multi-marca / multi-filial',
-    'Usuários e papéis ilimitados',
-    'Integrações premium (ERP, telemetria)',
-    'Suporte dedicado com SLA',
-    'Gerente de conta',
-  ];
 
   /**
    * Human label for a plan limit. Mesma decisão de maquiagem da tabela
@@ -931,7 +946,7 @@ export class Billing implements OnInit, OnDestroy {
   /**
    * Feature bullets. The capacity lines come from the API row (so the card
    * can't contradict the plan the backend actually sells); the qualitative
-   * lines stay curated per tier.
+   * lines are the SAME for every plan, because the product is.
    */
   protected planFeatures(plan: PlanResponse): readonly string[] {
     const out: string[] = [];
@@ -941,10 +956,14 @@ export class Billing implements OnInit, OnDestroy {
     if (drivers) out.push(drivers);
     if (plan.trialDays > 0) out.push(`${plan.trialDays} dias de teste grátis`);
 
-    if (this.isRecommended(plan)) return [...out, ...this.proFeatures];
-    if (plan.name === 'ENTERPRISE') return [...out, ...this.enterpriseFeatures];
-    if (this.isBusinessPlan(plan)) return [...out, ...this.businessFeatures];
-    return [...out, ...this.trialFeatures];
+    // Frases qualitativas compartilhadas com a landing (`utils/plan-features.ts`).
+    // As de FUNÇÃO são iguais em todo plano — o backend só aplica teto de
+    // veículo e de motorista, então uma lista de features por tier venderia uma
+    // diferença que não existe, como o "Gerente de conta" do ENTERPRISE que
+    // ninguém implementou. O único acréscimo por tier é a prioridade de
+    // atendimento (PRO e ENTERPRISE), que é compromisso operacional, não
+    // software. Um `name` que não normaliza recebe só o compartilhado.
+    return [...out, ...planFeaturesFor(planTierOf(plan.name))];
   }
 
   protected planSubtitle(plan: PlanResponse): string | null {
@@ -971,12 +990,15 @@ export class Billing implements OnInit, OnDestroy {
     return null;
   }
 
+  /**
+   * Linha de posicionamento do card — a MESMA que a landing imprime, e que só
+   * fala de TAMANHO. As três frases que moravam aqui citavam recurso
+   * ("integrações premium, suporte dedicado", "integrações customizadas") e
+   * eram desmentidas pela nota de paridade um scroll abaixo.
+   */
   protected planDescription(plan: PlanResponse): string | null {
-    if (this.isRecommended(plan)) return 'Pra operações que precisam de mais capacidade.';
-    if (plan.name === 'ENTERPRISE') return 'Frota grande, integrações premium, suporte dedicado.';
-    if (this.isBusinessPlan(plan))
-      return 'Pra frotas grandes, multi-filial, com integrações customizadas.';
-    return null;
+    const tier = planTierOf(plan.name);
+    return tier ? PLAN_DESCRIPTION[tier] : null;
   }
 
   protected planRibbon(plan: PlanResponse): string | null {
@@ -1161,25 +1183,47 @@ export class Billing implements OnInit, OnDestroy {
     return err && err.planId === plan.id ? err.message : null;
   }
 
-  protected planAccentClass(plan: PlanResponse): string {
-    return this.isRecommended(plan) ? this.recommendedAccentText() : 'text-brand-strong';
-  }
-
-  protected planBeforeFeaturesText(plan: PlanResponse): string | null {
-    return this.isBusinessPlan(plan) ? 'Tudo que o plano Pro tem +' : null;
-  }
-
-  protected planGradient(plan: PlanResponse): string | null {
-    return this.isRecommended(plan) ? this.recommendedGradient() : null;
-  }
-
-  protected planShadow(plan: PlanResponse): string | null {
-    return this.isRecommended(plan) ? this.recommendedShadow() : null;
-  }
+  /**
+   * Frase de paridade, impressa UMA vez acima da grade. Substitui a linha de
+   * herança que ficava DENTRO do card ("Tudo que o plano Pro tem +"): não há
+   * herança a anunciar quando os quatro planos rodam o mesmo produto — o que
+   * muda é quantos veículos e motoristas cabem.
+   *
+   * Com ela saem também `planAccentClass` / `planGradient` / `planShadow`: os
+   * três alimentavam inputs de estilo de `app-plan-card` que não existem mais.
+   * O tratamento vem de `planTone()`, e o contraste de cada degrau é medido
+   * dentro de `plan-card.ts`.
+   */
+  protected readonly parityNote = PLAN_PARITY_NOTE;
 
   /** Human period label for the comparison tables — never the raw plan code. */
   protected planPeriodLabel(plan: PlanResponse): string {
     return plan.period === 'YEARLY' ? 'Cobrança anual' : 'Cobrança mensal';
+  }
+
+  /**
+   * Rótulo da única linha qualitativa que sobrou na tabela comparativa.
+   *
+   * Vem da constante compartilhada em vez de ser digitado no HTML: a tabela
+   * dizia "Suporte prioritário" enquanto o card ao lado prometia "Atendimento
+   * prioritário no WhatsApp". Sendo a MESMA string, uma reescrita da promessa
+   * pelo dono muda as duas superfícies de uma vez, e nenhuma delas pode
+   * prometer um canal que a outra não prometeu.
+   */
+  protected readonly prioritySupportLabel = PRIORITY_SUPPORT_FEATURE;
+
+  /**
+   * A coluna deste plano leva ✓ na linha de atendimento prioritário?
+   *
+   * Delega a `utils/plan-features.ts` — a mesma fonte que monta os bullets do
+   * card — em vez de reusar `isRecommended()`, que responde outra pergunta
+   * ("qual card ganha a fita 'Mais popular'?", só o PRO) e por isso negava ao
+   * ENTERPRISE uma prioridade que o card dele anuncia. A normalização do
+   * `plans.name` passa por `planTierOf()`, então uma linha legada (`BUSINESS`)
+   * cai no tier certo sem um `if` extra aqui.
+   */
+  protected hasPrioritySupport(plan: PlanResponse): boolean {
+    return hasPrioritySupport(planTierOf(plan.name));
   }
 
   protected planCycleSuffix(): string {
@@ -1670,7 +1714,10 @@ export class Billing implements OnInit, OnDestroy {
       error: (err: unknown) => {
         this.accountActionBusy.set(false);
         this.accountActionError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível cancelar a assinatura. Tente novamente.'),
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível cancelar a assinatura. Tente novamente.',
+          ),
         );
         this.billingService.clearError();
       },
