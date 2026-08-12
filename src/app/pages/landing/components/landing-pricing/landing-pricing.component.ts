@@ -82,6 +82,14 @@ export class LandingPricingComponent {
   protected readonly proSavings = computed(() =>
     Math.round((1 - this.proYearlyTotal / (this.proMonthly * 12)) * 100),
   );
+  /**
+   * Derivado do total anual, igual ao PRO — não uma taxa de desconto escrita à mão. A V59
+   * precifica cada (plano, período) de forma independente, então assumir "15%" fazia a
+   * landing anunciar um valor que a API não cobra.
+   */
+  protected readonly enterpriseSavings = computed(() =>
+    Math.round((1 - this.enterpriseYearlyTotal / (this.enterpriseMonthly * 12)) * 100),
+  );
   protected readonly proCycleSuffix = computed(() => (this.cycle() === 'monthly' ? 'mês' : 'ano'));
 
   /** Gradiente do card Pro — laranja no Mensal, Hub Green no Anual. */
@@ -151,14 +159,14 @@ export class LandingPricingComponent {
       const monthlyEq = this.proYearlyTotal / 12;
       return `Equivale a R$ ${this.formatBRL(monthlyEq)}/mês · economiza ${this.proSavings()}%`;
     }
-    return `ou R$ ${this.formatBRL(this.proMonthly * 0.8)}/mês no anual`;
+    return `ou R$ ${this.formatBRL(this.proYearlyTotal / 12)}/mês no anual`;
   });
   protected readonly enterpriseSubtitle = computed<string>(() => {
     if (this.cycle() === 'yearly') {
       const monthlyEq = this.enterpriseYearlyTotal / 12;
-      return `Equivale a R$ ${this.formatBRL(monthlyEq)}/mês · economiza 15%`;
+      return `Equivale a R$ ${this.formatBRL(monthlyEq)}/mês · economiza ${this.enterpriseSavings()}%`;
     }
-    return `ou R$ ${this.formatBRL(this.enterpriseMonthly * 0.85)}/mês no anual`;
+    return `ou R$ ${this.formatBRL(this.enterpriseYearlyTotal / 12)}/mês no anual`;
   });
 
   protected setCycle(c: BillingCycle): void { this.cycle.set(c); }
