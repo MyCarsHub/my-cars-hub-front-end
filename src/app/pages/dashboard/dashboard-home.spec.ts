@@ -10,6 +10,7 @@ import { BillingAccessService } from '../../services/billing-access.service';
 import { DashboardService } from '../../services/dashboard.service';
 import type { AccessStatus } from '../../types/billing-access.types';
 import type { DashboardSummaryDto, FleetDto } from '../../types/dashboard.types';
+import { PLAN_CAPACITY } from '../../utils/plan-limits';
 
 /**
  * Cobre o KPI de motoristas do dashboard:
@@ -20,9 +21,19 @@ import type { DashboardSummaryDto, FleetDto } from '../../types/dashboard.types'
  *
  * E o KPI de veículos, que divide a mesma grade e precisa ler igual.
  *
- * Depois da V44 nenhum plano tem limite nulo em produção: quem dispara o
+ * Depois da V59 nenhum plano tem limite nulo em produção: quem dispara o
  * "ilimitado" é o PLANO (ENTERPRISE, maquiado), não o nulo. Os dois ramos são
  * testados — o nulo segue sendo a semântica documentada da coluna.
+ *
+ * <h4>Os tetos saem de `PLAN_CAPACITY`, nunca redigitados</h4>
+ * A cópia à mão que morava aqui descrevia um catálogo pré-V59 (PRO 20/40) que
+ * contradizia `plan-limits.spec.ts` (PRO 25/75) — e os dois arquivos ficavam
+ * VERDES ao mesmo tempo, porque nenhum lia o outro. Derivar da constante faz a
+ * próxima migration quebrar um lugar só, em vez de deixar dois discordando em
+ * silêncio.
+ *
+ * Vale inclusive para o ENTERPRISE maquiado: o teto real vem de
+ * `PLAN_CAPACITY`, e o que se afirma é que ele NÃO aparece na tela.
  */
 describe('DashboardHome — KPIs de frota', () => {
     /** Plano vigente devolvido pelo access-status; `null` = sem plano conhecido. */
@@ -168,46 +179,55 @@ describe('DashboardHome — KPIs de frota', () => {
         expect(text).not.toContain('12 de 0');
     });
 
-    // Maquiagem por PLANO: depois da V44 o ENTERPRISE tem teto real (500/1000)
-    // e a API manda esses números; a UI precisa dizer "ilimitado" mesmo assim.
-    it('maquia o ENTERPRISE como ilimitado, sem vazar 500 no card de veículos', () => {
-        const text = vehiclesCardText({ vehiclesTotal: 40, vehicleLimit: 500 }, 'ENTERPRISE');
+    // Maquiagem por PLANO: o ENTERPRISE tem teto real na V59 e a API manda esse
+    // número; a UI precisa dizer "ilimitado" mesmo assim. O teto é guarda-corpo
+    // técnico — existe para que uma entrada absurda não quebre o sistema — e
+    // não limite comercial, então ele não vai para a tela. O valor vem de
+    // `PLAN_CAPACITY` justamente para que o teste continue provando o
+    // NÃO-VAZAMENTO se a migration mudar o número.
+    it('maquia o ENTERPRISE como ilimitado, sem vazar o teto no card de veículos', () => {
+        const cap = PLAN_CAPACITY.ENTERPRISE.vehicles;
+        const text = vehiclesCardText({ vehiclesTotal: 40, vehicleLimit: cap }, 'ENTERPRISE');
 
         expect(text).toContain('veículos ilimitados no plano');
-        expect(text).not.toContain('500');
-        expect(text).not.toContain('de 500');
+        expect(text).not.toContain(String(cap));
+        expect(text).not.toContain(`de ${cap}`);
     });
 
-    it('maquia o ENTERPRISE como ilimitado, sem vazar 1000 no card de motoristas', () => {
+    it('maquia o ENTERPRISE como ilimitado, sem vazar o teto no card de motoristas', () => {
+        const cap = PLAN_CAPACITY.ENTERPRISE.drivers;
         const text = driversCardText(
-            { driversActive: 30, driversTotal: 80, driverLimit: 1000 },
+            { driversActive: 30, driversTotal: 80, driverLimit: cap },
             'ENTERPRISE',
         );
 
         expect(text).toContain('motoristas ilimitados no plano');
-        expect(text).not.toContain('1000');
+        expect(text).not.toContain(String(cap));
     });
 
-    // O PRO deixou de ser ilimitado na V44: 20/40 são números reais e aparecem.
+    // O PRO nunca foi maquiado: o teto real é número e aparece.
     it('mostra o teto real de veículos do PRO em vez de "ilimitado"', () => {
-        const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: 20 }, 'PRO');
+        const cap = PLAN_CAPACITY.PRO.vehicles;
+        const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: cap }, 'PRO');
 
-        expect(text).toContain('7 de 20 do plano');
+        expect(text).toContain(`7 de ${cap} do plano`);
         expect(text).not.toContain('ilimitados');
     });
 
     it('mostra o teto real de motoristas do PRO em vez de "ilimitado"', () => {
-        const text = driversCardText({ driversActive: 5, driversTotal: 9, driverLimit: 40 }, 'PRO');
+        const cap = PLAN_CAPACITY.PRO.drivers;
+        const text = driversCardText({ driversActive: 5, driversTotal: 9, driverLimit: cap }, 'PRO');
 
-        expect(text).toContain('9 de 40 do plano');
+        expect(text).toContain(`9 de ${cap} do plano`);
         expect(text).not.toContain('ilimitados');
     });
 
     // Sem access-status (admin de plataforma, falha de rede) a maquiagem some,
     // mas o card não pode quebrar: cai no número real.
     it('sem plano conhecido, mostra o número real', () => {
-        const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: 20 }, null);
+        const cap = PLAN_CAPACITY.PRO.vehicles;
+        const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: cap }, null);
 
-        expect(text).toContain('7 de 20 do plano');
+        expect(text).toContain(`7 de ${cap} do plano`);
     });
 });
