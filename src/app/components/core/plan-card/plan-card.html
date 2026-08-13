@@ -4,15 +4,39 @@
   ficou com contraste diferente dos outros dois sem ninguém notar. Agora o que
   varia é só a linha da tabela `TONE_STYLES` — ver `plan-card.ts`.
 -->
-<article [class]="styles().article" [attr.aria-label]="'Plano ' + name()">
-  @if (isCurrent()) {
-    <span [class]="currentBadgeClass">
-      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-      Seu plano
-    </span>
-  } @else if (ribbonText()) {
-    <span [class]="styles().ribbon">{{ ribbonText() }}</span>
-  }
+<!--
+  `#card` é o alvo da luz de aresta: `plan-card.ts:trackPointer()` escuta o
+  ponteiro NESTE elemento e escreve `--spot-x`/`--spot-y` nele. Tem de ser o
+  article e não o host — o card em destaque tem `translate` permanente, então a
+  caixa do host e a do article não coincidem e o holofote sairia deslocado
+  justamente no card que mais se olha.
+-->
+<article #card [class]="styles().article" [style.background-image]="styles().backgroundImage"
+  [attr.aria-label]="'Plano ' + name()">
+  <!--
+    FAIXA DA FITA — reservada nos quatro cards, mesmo nos que não têm fita.
+
+    A fita e o selo "Seu plano" eram `absolute -top-3.5` e transbordavam metade
+    do card. Chegavam CORTADOS na tela: o card em destaque tem `transform`
+    permanente, o que abre um contexto de empilhamento próprio e prende o
+    `z-index` da fita dentro dele. Em fluxo normal, dentro da caixa, não existe
+    corte possível.
+
+    A faixa existe nos quatro porque a alternativa — só os cards com fita
+    ganharem altura no topo — desalinharia o nome do plano e o preço ao longo da
+    fileira. `min-h` em vez de `h` para a pílula nunca ser espremida se a fonte
+    do usuário for maior que a nossa.
+  -->
+  <div class="flex justify-center items-center min-h-[26px] shrink-0">
+    @if (isCurrent()) {
+      <span [class]="currentBadgeClass">
+        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+        Seu plano
+      </span>
+    } @else if (ribbonText()) {
+      <span [class]="styles().ribbon">{{ ribbonText() }}</span>
+    }
+  </div>
 
   <header class="flex flex-col gap-2">
     <span class="inline-flex items-center gap-2 self-start font-display font-bold text-[15px] tracking-[-0.01em] mb-1"
@@ -20,8 +44,18 @@
       <span aria-hidden="true" class="inline-block w-1.5 h-1.5 rounded-full" [class]="styles().dot"></span>
       {{ name() }}
     </span>
+    <!--
+      O preço encolhe SÓ em `lg`, que é onde as duas telas passam a mostrar os
+      quatro cards numa linha. Em `xl` a grade volta a caber no container de
+      1200px e o preço volta ao tamanho cheio. Continua em `font-display`
+      (Sora): o sistema reserva Sora para display, títulos e PREÇOS, e encolher
+      não é motivo para trocar a fonte.
+
+      Larguras de coluna e a conta que justifica o 26px estão em
+      `landing-pricing.component.html`.
+    -->
     <div class="flex items-baseline gap-1.5 flex-wrap">
-      <strong class="font-display font-extrabold text-4xl tracking-[-0.03em] tabular-nums"
+      <strong class="font-display font-extrabold text-4xl lg:text-[26px] xl:text-4xl tracking-[-0.03em] tabular-nums"
         [class]="styles().price">{{ price() }}</strong>
       <small class="text-[13.5px] font-medium" [class]="styles().suffix">/ {{ cycleSuffix() }}</small>
     </div>
@@ -34,11 +68,12 @@
   </header>
 
   <!--
-    Sem linha de herança ("Tudo que o plano X tem +"): não existe herança. Os
-    quatro tiers rodam as MESMAS funções; o que muda é o teto de frota e, do PRO
-    em diante, a prioridade do atendimento — ver `utils/plan-features.ts`. As
-    listas saem quase idênticas de propósito, e quem explica a semelhança é a
-    frase única impressa acima da grade.
+    A lista chega pronta de `planCardFeatureLines()` — o card não decide o que
+    entra nela. Do STARTER para cima a primeira linha é a herança ("Tudo o que o
+    plano anterior tem") e o resto é só o DELTA daquele degrau; o TRIAL, sendo o
+    de baixo, mostra tudo. Repetir os sete bullets nos quatro cards era o excesso
+    de informação que esta tela tinha, e a nota de paridade que pedia desculpa
+    por ele saiu junto. Ver `utils/plan-features.ts`.
   -->
   <ul class="list-none p-0 m-0 flex-1 flex flex-col gap-2.5">
     @for (item of features(); track item) {

@@ -33,12 +33,14 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { PlanTier, showsAsUnlimited } from '../../utils/plan-limits';
 import {
   PLAN_DESCRIPTION,
-  PLAN_PARITY_NOTE,
+  PLAN_TIER_ORDER,
   PRIORITY_SUPPORT_FEATURE,
+  PlanLadderArrangement,
   hasPrioritySupport,
-  planFeaturesFor,
+  planCardFeatureLines,
   planTierOf,
 } from '../../utils/plan-features';
+import { mediaQuerySignal } from '../../utils/viewport';
 import {
   BillingService,
   CHECKOUT_PENDING_KEY,
@@ -479,8 +481,59 @@ export class Billing implements OnInit, OnDestroy {
       seen.add(p.name);
       out.push(p);
     }
-    return out;
+    // A ordem do CATÁLOGO, imposta aqui e não herdada da API. A grade seguia o
+    // que `GET /v1/billing/plans` devolvesse, que é ordem de tabela e não
+    // promessa nenhuma — e a landing, com a lista escrita à mão, já estava numa
+    // ordem diferente. Agora as duas telas sobem o mesmo degrau na mesma
+    // direção, que é o que a linha de herança ("tudo o que o plano anterior
+    // tem") precisa para significar alguma coisa. Um `name` que não normaliza
+    // vai para o fim em vez de embaralhar a escada.
+    const rank = (plan: PlanResponse): number => {
+      const tier = planTierOf(plan.name);
+      return tier ? PLAN_TIER_ORDER.indexOf(tier) : PLAN_TIER_ORDER.length;
+    };
+    return out.sort((a, b) => rank(a) - rank(b));
   });
+
+  /**
+   * `true` a partir de `sm` — a largura em que esta grade deixa de ser uma
+   * coluna.
+   *
+   * A query é em `rem` porque o breakpoint do Tailwind v4 é `40rem` e nada neste
+   * projeto redefine `--breakpoint-sm`. Escrita em `px` ela batia com a classe
+   * só em quem usa 16px de fonte-raiz; para todo mundo que aumentou a fonte do
+   * navegador, o signal e o `sm:` do template discordavam numa faixa de larguras
+   * — exatamente a divergência que `utils/viewport.ts` existe para impedir.
+   *
+   * Diferente da landing, esta rota é `RenderMode.Client` (ver
+   * `app.routes.server.ts`): não há documento prerenderizado com que este signal
+   * possa discordar, então aqui a decisão pode continuar em JS.
+   */
+  private readonly showsLadderOrder = mediaQuerySignal('(min-width: 40rem)');
+
+  /**
+   * O arranjo em que a grade está desenhada, para a CÓPIA da herança acompanhar
+   * a ordem. Sai do mesmo signal que `orderedPlans()` — se um dia a ordem mudar
+   * de fonte, a frase muda junto ou nenhuma das duas muda.
+   */
+  private readonly ladderArrangement = computed<PlanLadderArrangement>(() =>
+    this.showsLadderOrder() ? 'catalog' : 'reversed',
+  );
+
+  /**
+   * A ordem que a grade imprime: catálogo a partir de `sm`, INVERTIDA no
+   * telefone (ENTERPRISE primeiro, TRIAL por último), por decisão do dono e
+   * igual à da landing.
+   *
+   * Substitui o `[class.order-first]="isPrioritized(plan)"`, que subia o card do
+   * plano atual no telefone. Duas regras disputando a primeira posição na mesma
+   * largura só podiam terminar com uma delas calada, e a que o dono especificou
+   * ganha. O `order-*` também reordenava só o pixel: o Tab continuava na ordem
+   * do DOM. Aqui quem inverte é o array — ver `utils/viewport.ts`.
+   */
+  protected readonly orderedPlans = computed<readonly PlanResponse[]>(() =>
+    this.showsLadderOrder() ? this.visiblePlans() : [...this.visiblePlans()].reverse(),
+  );
 
   /**
    * Percent savings for a given `name`, based on YEARLY vs MONTHLY row of
@@ -897,11 +950,6 @@ export class Billing implements OnInit, OnDestroy {
     return this.pendingPlanCode() === plan.code;
   }
 
-  /** Mobile ordering: the card that matters to this user comes first. */
-  protected isPrioritized(plan: PlanResponse): boolean {
-    return this.isPending(plan) || this.isCurrent(plan);
-  }
-
   protected isRecommended(plan: PlanResponse): boolean {
     return planTierOf(plan.name) === this.recommendedName;
   }
@@ -922,7 +970,11 @@ export class Billing implements OnInit, OnDestroy {
    * cai no tier certo sem um `if` extra nesta página.
    */
   protected planTone(plan: PlanResponse): PlanCardTone {
-    return planCardTone(planTierOf(plan.name));
+    // O `PlanPeriod` da API (`MONTHLY`/`YEARLY`) é traduzido aqui, na fronteira,
+    // para o vocabulário de ciclo do card. O card não conhece o enum do backend
+    // e a landing não conhece o dela — as duas telas encontram `planCardTone()`
+    // falando a mesma língua.
+    return planCardTone(planTierOf(plan.name), this.cycle() === 'YEARLY' ? 'yearly' : 'monthly');
   }
 
   /**
@@ -944,26 +996,25 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   /**
-   * Feature bullets. The capacity lines come from the API row (so the card
-   * can't contradict the plan the backend actually sells); the qualitative
-   * lines are the SAME for every plan, because the product is.
+   * Bullets do card. A CAPACIDADE sai da linha da API (o card autenticado nunca
+   * pode contradizer o plano que o backend realmente vende); a composição da
+   * lista sai de `planCardFeatureLines()`, a mesma regra que a landing usa.
+   *
+   * Antes esta tela somava `planFeaturesFor()` e imprimia as sete frases
+   * qualitativas em TODO card, mais a nota de paridade acima da grade explicando
+   * a repetição. Era informação demais para quem só quer escolher um plano. Do
+   * STARTER para cima o card agora abre com a herança e mostra só o seu delta —
+   * que é, honestamente, quase só o teto novo.
    */
   protected planFeatures(plan: PlanResponse): readonly string[] {
-    const out: string[] = [];
+    const capacity: string[] = [];
     const vehicles = this.limitLabel(plan.name, plan.vehicleLimit, 'veículo', 'veículos');
-    if (vehicles) out.push(vehicles);
+    if (vehicles) capacity.push(vehicles);
     const drivers = this.limitLabel(plan.name, plan.driverLimit, 'motorista', 'motoristas');
-    if (drivers) out.push(drivers);
-    if (plan.trialDays > 0) out.push(`${plan.trialDays} dias de teste grátis`);
+    if (drivers) capacity.push(drivers);
+    if (plan.trialDays > 0) capacity.push(`${plan.trialDays} dias de teste grátis`);
 
-    // Frases qualitativas compartilhadas com a landing (`utils/plan-features.ts`).
-    // As de FUNÇÃO são iguais em todo plano — o backend só aplica teto de
-    // veículo e de motorista, então uma lista de features por tier venderia uma
-    // diferença que não existe, como o "Gerente de conta" do ENTERPRISE que
-    // ninguém implementou. O único acréscimo por tier é a prioridade de
-    // atendimento (PRO e ENTERPRISE), que é compromisso operacional, não
-    // software. Um `name` que não normaliza recebe só o compartilhado.
-    return [...out, ...planFeaturesFor(planTierOf(plan.name))];
+    return planCardFeatureLines(planTierOf(plan.name), capacity, this.ladderArrangement());
   }
 
   protected planSubtitle(plan: PlanResponse): string | null {
@@ -1182,19 +1233,6 @@ export class Billing implements OnInit, OnDestroy {
     const err = this.ctaError();
     return err && err.planId === plan.id ? err.message : null;
   }
-
-  /**
-   * Frase de paridade, impressa UMA vez acima da grade. Substitui a linha de
-   * herança que ficava DENTRO do card ("Tudo que o plano Pro tem +"): não há
-   * herança a anunciar quando os quatro planos rodam o mesmo produto — o que
-   * muda é quantos veículos e motoristas cabem.
-   *
-   * Com ela saem também `planAccentClass` / `planGradient` / `planShadow`: os
-   * três alimentavam inputs de estilo de `app-plan-card` que não existem mais.
-   * O tratamento vem de `planTone()`, e o contraste de cada degrau é medido
-   * dentro de `plan-card.ts`.
-   */
-  protected readonly parityNote = PLAN_PARITY_NOTE;
 
   /** Human period label for the comparison tables — never the raw plan code. */
   protected planPeriodLabel(plan: PlanResponse): string {

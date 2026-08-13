@@ -343,29 +343,20 @@
             (selectionChange)="setCycle($event)" />
         </div>
 
-        <!-- A paridade dita uma vez, antes da grade: os cards listam as mesmas
-             funções porque o produto é o mesmo em todo plano, e a nota nomeia a
-             única gradação real — a fila do atendimento, do Pro em diante. -->
-        <p class="mx-auto max-w-[58ch] rounded-2xl border border-rule-contrast bg-neutral-50 px-5 py-3 text-center text-sm font-semibold text-neutral-900">
-          {{ parityNote }}
-        </p>
-
         <!-- Plans grid — 1 coluna no telefone, 2x2 a partir de 640px, 4 colunas
              iguais a partir de 1024px. Eram três colunas
              (`[0.9fr_1.15fr_0.9fr]`) para três tiers; a V59 trouxe o quarto, e o
              STARTER passou a quebrar a linha sozinho.
 
-             Na COLUNA ÚNICA o card que importa para ESTE usuário (pagamento
-             pendente ou plano atual) sobe para o topo — na ordem de preço ele
-             pode ficar dois scrolls abaixo. De 640px pra cima o reordenamento
-             sai (`sm:order-none`): numa grade 2x2 ele descolaria a ordem visual
-             da ordem do DOM e mandaria o anel de foco pular de canto a canto, o
-             que é falha de 1.3.2 / 2.4.3 e não ganho nenhum de leitura. -->
+             A ORDEM vem pronta de `orderedPlans()`: catálogo (TRIAL → STARTER →
+             PRO → ENTERPRISE) a partir de 640px, invertida no telefone. Nenhuma
+             classe `order-*` participa disso — elas reordenam o pixel e deixam o
+             Tab e o leitor de tela na ordem do DOM, que é falha de 1.3.2 / 2.4.3
+             justamente numa grade cujos cards dizem "tudo o que o plano anterior
+             tem". Ver `billing.ts` e `utils/viewport.ts`. -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch pt-4">
-          @for (plan of visiblePlans(); track plan.id) {
+          @for (plan of orderedPlans(); track plan.id) {
             <app-plan-card
-              class="sm:order-none"
-              [class.order-first]="isPrioritized(plan)"
               [tone]="planTone(plan)"
               [name]="plan.name"
               [price]="formatPrice(plan.price)"
@@ -430,13 +421,21 @@
 
         @if (showCompare()) {
           <div class="px-4 sm:px-6 pb-6 min-w-0">
+            <!-- A comparação segue `orderedPlans()`, a MESMA sequência dos
+                 cards. Ela lia `visiblePlans()` (sempre catálogo) enquanto a
+                 grade acima invertia no telefone: a mesma tela mostrava a escada
+                 nas duas direções, com um scroll de distância, e a lista
+                 comparativa de telefone logo abaixo é justamente onde a
+                 divergência aparecia. Acima de `sm` as duas ordens coincidem,
+                 então no desktop nada muda. -->
+
             <!-- Desktop: table -->
             <div class="hidden lg:block overflow-x-auto rounded-xl border border-neutral-200">
               <table class="w-full text-sm">
                 <thead class="bg-neutral-50">
                   <tr class="border-b border-neutral-200">
                     <th class="text-left text-[11px] font-semibold text-neutral-500 uppercase tracking-wide px-4 py-3.5">Recurso</th>
-                    @for (plan of visiblePlans(); track plan.id) {
+                    @for (plan of orderedPlans(); track plan.id) {
                       <th class="text-center px-3 py-3.5">
                         <div class="flex flex-col items-center gap-1.5">
                           <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
@@ -454,7 +453,7 @@
                 <tbody class="divide-y divide-neutral-100 bg-white">
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Veículos</td>
-                    @for (plan of visiblePlans(); track plan.id) {
+                    @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">
                         @if (isUnlimited(plan.vehicleLimit, plan.name)) {
                           <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
@@ -466,7 +465,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Motoristas</td>
-                    @for (plan of visiblePlans(); track plan.id) {
+                    @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">
                         @if (isUnlimited(plan.driverLimit, plan.name)) {
                           <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
@@ -478,7 +477,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Dias de teste grátis</td>
-                    @for (plan of visiblePlans(); track plan.id) {
+                    @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center text-neutral-900 tabular-nums">
                         @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-neutral-400">—</span> }
                       </td>
@@ -486,7 +485,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Cobrança automática</td>
-                    @for (plan of visiblePlans(); track plan.id) {
+                    @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                         <span class="sr-only">Incluído</span>
@@ -495,7 +494,7 @@
                   </tr>
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Dashboard completo</td>
-                    @for (plan of visiblePlans(); track plan.id) {
+                    @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                         <span class="sr-only">Incluído</span>
@@ -517,7 +516,7 @@
                   -->
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">{{ prioritySupportLabel }}</td>
-                    @for (plan of visiblePlans(); track plan.id) {
+                    @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         @if (hasPrioritySupport(plan)) {
                           <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
@@ -535,7 +534,7 @@
 
             <!-- Mobile: accordion per plan -->
             <div class="lg:hidden space-y-3">
-              @for (plan of visiblePlans(); track plan.id) {
+              @for (plan of orderedPlans(); track plan.id) {
                 <div class="border border-neutral-200 rounded-2xl overflow-hidden bg-white">
                   <button
                     type="button"
