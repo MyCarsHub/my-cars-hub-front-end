@@ -7,21 +7,95 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { ENTERPRISE_YEARLY_TOTAL, PLAN_PRICES } from '../../landing-plans';
-import { PlanCardComponent, planCardTone } from '../../../../components/core/plan-card/plan-card';
+import {
+  PlanCardComponent,
+  PlanCardTone,
+  planCardTone,
+} from '../../../../components/core/plan-card/plan-card';
 import {
   SegmentedToggle,
   SegmentedToggleOption,
 } from '../../../../components/segmented-toggle/segmented-toggle';
-import { PLAN_CAPACITY, planCapacityLine } from '../../../../utils/plan-limits';
+import { PlanTier, planCapacityLine } from '../../../../utils/plan-limits';
 import {
   PLAN_DESCRIPTION,
-  PLAN_PARITY_NOTE,
-  planFeaturesFor,
+  PlanLadderArrangement,
+  planCardFeatureLines,
 } from '../../../../utils/plan-features';
 
 type BillingCycle = 'monthly' | 'yearly';
+
+/**
+ * O card de plano já montado, pronto para o `@for`.
+ *
+ * Os quatro cards eram quatro blocos `<app-plan-card>` escritos à mão no
+ * template. Não dava para reordená-los sem `order-*`, que reordena só o
+ * PIXEL — e a ordem desta grade carrega sentido desde que cada card acima do
+ * TRIAL passou a dizer "tudo o que o plano anterior tem". Com os cards num
+ * array, a ordem do DOM e a ordem que se vê são a mesma coisa, nos dois
+ * arranjos.
+ */
+interface PlanCardView {
+  readonly tier: PlanTier;
+  readonly tone: PlanCardTone;
+  readonly name: string;
+  readonly price: string;
+  readonly cycleSuffix: string;
+  readonly subtitle: string | null;
+  readonly description: string;
+  readonly features: readonly string[];
+  readonly ribbon: string | null;
+  readonly ctaLabel: string;
+}
+
+/**
+ * ═══ POR QUE ESTA TELA NÃO ESCOLHE A ORDEM EM TEMPO DE EXECUÇÃO ═══
+ *
+ * A grade tinha um `orderedPlans()` que lia uma media query via signal e
+ * invertia o array no telefone. Numa tela comum isso está certo; nesta está
+ * errado, e o build provava: `/` é PRERENDERIZADA (`RenderMode.Prerender` em
+ * `app.routes.server.ts`). No servidor não há `matchMedia`, então o signal
+ * congela em `false` — o arranjo de TELEFONE — e o `index.html` estático saía
+ * com ENTERPRISE, PRO, STARTER, TRIAL para TODO visitante.
+ *
+ * E falhava calado. Com hidratação ligada, a contagem de nós e o template batem,
+ * então o Angular reivindica as views desidratadas por POSIÇÃO e só reescreve os
+ * bindings: nenhum NG0500, nenhum aviso. O que o visitante de desktop via era a
+ * fileira se reordenando sozinha no meio da hidratação.
+ *
+ * A correção é tirar a decisão do JS. As DUAS ordens vão no DOM e o CSS escolhe
+ * qual existe — `hidden md:grid` / `md:hidden`, o mesmo 768px do `md:` do
+ * Tailwind. O bloco escondido é `display: none`, que o tira da árvore de
+ * acessibilidade E da ordem de Tab; então o que o leitor de tela percorre e o
+ * que o olho vê são sempre o mesmo bloco. Nada é reordenado só no pixel, que era
+ * a falha de WCAG 1.3.2 / 2.4.3 que o array evitava — e agora não há mais nada
+ * a hidratar de forma divergente, porque não há signal na decisão.
+ *
+ * É também o que faz a CÓPIA fechar: cada bloco monta os bullets com o seu
+ * próprio `PlanLadderArrangement`, então o card que aparece em cima com planos
+ * ABAIXO dele diz "tudo o que os planos abaixo têm", e o do catálogo diz "tudo o
+ * que o plano anterior tem". Uma ordem, uma frase, o mesmo bloco.
+ */
+const CATALOG: PlanLadderArrangement = 'catalog';
+const REVERSED: PlanLadderArrangement = 'reversed';
+
+/**
+ * Preço em pt-BR, com o separador de milhar que o `toFixed(2)` não tem.
+ *
+ * `v.toFixed(2).replace('.', ',')` imprimia "R$ 1499,00" e "R$ 2990,00". Passou
+ * despercebido porque, até a V59, nenhum preço da landing chegava a quatro
+ * dígitos. `Intl` em `decimal` (e não em `currency`) de propósito: o `style:
+ * 'currency'` insere um espaço NÃO-QUEBRÁVEL entre "R$" e o número, e é o "R$ "
+ * com espaço comum que o resto da página e o guarda de `landing-structured-data`
+ * procuram no texto renderizado.
+ */
+const BRL = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 /**
  * Acento do toggle de ciclo e do card Pro — laranja da marca no Mensal, verde
@@ -43,7 +117,7 @@ const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(10,120,84,0.45)';
  */
 @Component({
   selector: 'app-landing-pricing',
-  imports: [RouterModule, PlanCardComponent, SegmentedToggle],
+  imports: [NgTemplateOutlet, RouterModule, PlanCardComponent, SegmentedToggle],
   templateUrl: './landing-pricing.component.html',
   styleUrls: ['./landing-pricing.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -142,61 +216,56 @@ export class LandingPricingComponent {
    * decisão de exibir o ENTERPRISE como ilimitado vem do mesmo arquivo, para
    * não divergir de billing e dashboard.
    *
-   * O que MUDA entre as quatro listas são as duas primeiras linhas — a
-   * capacidade — e, do PRO em diante, a linha de atendimento prioritário. O
-   * resto é `PLAN_FEATURES`, idêntico de propósito: a `plans` não tem uma única
-   * coluna de feature e o backend não porteia nada além dos dois tetos, então
-   * uma lista de FUNÇÕES por tier venderia uma escada que o código não
-   * implementa. Ver `utils/plan-features.ts`; quem explica a semelhança ao
-   * visitante é `parityNote`, impresso uma vez acima da grade.
+   * A COMPOSIÇÃO da lista não é decidida aqui: `planCardFeatureLines()` monta o
+   * TRIAL com tudo e todo degrau acima com a herança mais o delta dele — ver
+   * `utils/plan-features.ts`. Esta tela só entrega a capacidade, porque é a
+   * única que precisa escrevê-la à mão.
+   *
+   * A `plans` não tem uma única coluna de feature e o backend não porteia nada
+   * além dos dois tetos, então uma lista de FUNÇÕES por tier continua proibida —
+   * venderia uma escada que o código não implementa.
    */
-  readonly trialItems = [
-    planCapacityLine('TRIAL', 'vehicles'),
-    planCapacityLine('TRIAL', 'drivers'),
-    ...planFeaturesFor('TRIAL'),
-  ];
+  private readonly capacityLines: Readonly<Record<PlanTier, readonly string[]>> = {
+    TRIAL: [planCapacityLine('TRIAL', 'vehicles'), planCapacityLine('TRIAL', 'drivers')],
+    STARTER: [planCapacityLine('STARTER', 'vehicles'), planCapacityLine('STARTER', 'drivers')],
+    PRO: [planCapacityLine('PRO', 'vehicles'), planCapacityLine('PRO', 'drivers')],
+    ENTERPRISE: [
+      planCapacityLine('ENTERPRISE', 'vehicles'),
+      planCapacityLine('ENTERPRISE', 'drivers'),
+    ],
+  };
 
-  readonly starterItems = [
-    planCapacityLine('STARTER', 'vehicles'),
-    planCapacityLine('STARTER', 'drivers'),
-    ...planFeaturesFor('STARTER'),
-  ];
+  /**
+   * Os bullets de um tier NO ARRANJO pedido. O arranjo só muda a redação da
+   * herança; a composição é sempre a mesma — ver `planCardFeatureLines()`.
+   */
+  private items(tier: PlanTier, arrangement: PlanLadderArrangement): readonly string[] {
+    return planCardFeatureLines(tier, this.capacityLines[tier], arrangement);
+  }
 
-  readonly proItems = [
-    planCapacityLine('PRO', 'vehicles'),
-    planCapacityLine('PRO', 'drivers'),
-    ...planFeaturesFor('PRO'),
-  ];
+  /** As listas do arranjo do CATÁLOGO, que é o que o spec desta tela inspeciona. */
+  readonly trialItems = this.items('TRIAL', CATALOG);
+  readonly starterItems = this.items('STARTER', CATALOG);
+  readonly proItems = this.items('PRO', CATALOG);
+  readonly enterpriseItems = this.items('ENTERPRISE', CATALOG);
 
-  readonly enterpriseItems = [
-    planCapacityLine('ENTERPRISE', 'vehicles'),
-    planCapacityLine('ENTERPRISE', 'drivers'),
-    ...planFeaturesFor('ENTERPRISE'),
-  ];
-
-  /** Degrau visual de cada card — a MESMA tabela que o billing autenticado lê. */
-  protected readonly trialTone = planCardTone('TRIAL');
-  protected readonly starterTone = planCardTone('STARTER');
-  protected readonly proTone = planCardTone('PRO');
-  protected readonly enterpriseTone = planCardTone('ENTERPRISE');
+  /**
+   * Degrau visual de cada card — a MESMA tabela que o billing autenticado lê.
+   *
+   * Deixaram de ser constantes porque o tratamento passou a depender do ciclo: o
+   * anual pinta de verde os três degraus coloridos. Quem decide continua sendo
+   * `planCardTone()`, nunca esta tela.
+   */
+  protected readonly trialTone = computed(() => planCardTone('TRIAL', this.cycle()));
+  protected readonly starterTone = computed(() => planCardTone('STARTER', this.cycle()));
+  protected readonly proTone = computed(() => planCardTone('PRO', this.cycle()));
+  protected readonly enterpriseTone = computed(() => planCardTone('ENTERPRISE', this.cycle()));
 
   /** Descrições por tier — só TAMANHO, nunca recurso. Ver `plan-features.ts`. */
   protected readonly trialDescription = PLAN_DESCRIPTION.TRIAL;
   protected readonly starterDescription = PLAN_DESCRIPTION.STARTER;
   protected readonly proDescription = PLAN_DESCRIPTION.PRO;
   protected readonly enterpriseDescription = PLAN_DESCRIPTION.ENTERPRISE;
-
-  /** Frase que explica por que as quatro listas saem iguais. */
-  protected readonly parityNote = PLAN_PARITY_NOTE;
-
-  /**
-   * Teto do PRO no título da seção — o maior número que a grade REALMENTE
-   * mostra, já que o ENTERPRISE aparece como ilimitado e não tem número.
-   * Interpolado, não digitado: a manchete dizia "aos 20" (teto do PRO na V44)
-   * enquanto a grade logo abaixo já anunciava 25, e a landing voltou a
-   * contradizer a si mesma exatamente como o cabeçalho de `trialItems` avisa.
-   */
-  protected readonly headlineTopCap = PLAN_CAPACITY.PRO.vehicles;
 
   protected readonly starterPriceLabel = computed<string>(
     () => `R$ ${this.formatBRL(this.starterPrice())}`,
@@ -218,11 +287,81 @@ export class LandingPricingComponent {
     this.subtitleFor(this.enterpriseYearlyTotal, this.enterpriseSavings()),
   );
 
+  /**
+   * Os quatro cards na ordem do CATÁLOGO, montados PARA o arranjo pedido — é a
+   * mesma chamada que decide a sequência e a redação da herança, então elas não
+   * têm por onde divergir.
+   */
+  private ladder(arrangement: PlanLadderArrangement): readonly PlanCardView[] {
+    return [
+      {
+        tier: 'TRIAL',
+        tone: this.trialTone(),
+        name: 'Trial gratuito',
+        price: 'R$ 0',
+        cycleSuffix: '14 dias',
+        subtitle: null,
+        description: this.trialDescription,
+        features: this.items('TRIAL', arrangement),
+        ribbon: null,
+        ctaLabel: 'Criar conta grátis',
+      },
+      {
+        tier: 'STARTER',
+        tone: this.starterTone(),
+        name: 'Starter',
+        price: this.starterPriceLabel(),
+        cycleSuffix: this.priceCycleSuffix(),
+        subtitle: this.starterSubtitle(),
+        description: this.starterDescription,
+        features: this.items('STARTER', arrangement),
+        ribbon: null,
+        ctaLabel: 'Assinar Starter',
+      },
+      {
+        tier: 'PRO',
+        tone: this.proTone(),
+        name: 'Pro',
+        price: this.proPriceLabel(),
+        cycleSuffix: this.priceCycleSuffix(),
+        subtitle: this.proSubtitle(),
+        description: this.proDescription,
+        features: this.items('PRO', arrangement),
+        ribbon: 'Mais popular',
+        ctaLabel: 'Assinar Pro',
+      },
+      {
+        tier: 'ENTERPRISE',
+        tone: this.enterpriseTone(),
+        name: 'Enterprise',
+        price: this.enterprisePriceLabel(),
+        cycleSuffix: this.priceCycleSuffix(),
+        subtitle: this.enterpriseSubtitle(),
+        description: this.enterpriseDescription,
+        features: this.items('ENTERPRISE', arrangement),
+        ribbon: 'Sua frota cresceu?',
+        ctaLabel: 'Assinar Enterprise',
+      },
+    ];
+  }
+
+  /** A escada do catálogo — o bloco que o CSS mostra a partir de `md`. */
+  protected readonly catalogPlans = computed<readonly PlanCardView[]>(() => this.ladder(CATALOG));
+
+  /**
+   * A escada de TELEFONE — ENTERPRISE primeiro, TRIAL por último, e a herança
+   * apontando para BAIXO, que é onde os planos menores realmente estão neste
+   * arranjo. O CSS mostra este bloco abaixo de `md`.
+   */
+  protected readonly phonePlans = computed<readonly PlanCardView[]>(() =>
+    [...this.ladder(REVERSED)].reverse(),
+  );
+
   protected setCycle(c: BillingCycle): void {
     this.cycle.set(c);
   }
   protected formatBRL(v: number): string {
-    return v.toFixed(2).replace('.', ',');
+    return BRL.format(v);
   }
 
   /**
