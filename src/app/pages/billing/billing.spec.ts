@@ -1753,14 +1753,31 @@ describe('Billing', () => {
      * voltarem a divergir ("Suporte prioritário" na tabela, "Atendimento
      * prioritário no WhatsApp" no card), a tela volta a nomear a mesma entrega
      * de dois jeitos — e um deles não cita o canal.
+     *
+     * O card do ENTERPRISE não repete mais a frase, e isso é o desenho novo, não
+     * uma regressão: os bullets passaram a mostrar só o DELTA de cada degrau, e
+     * a prioridade ESTREIA no PRO. Quem a entrega ao ENTERPRISE é a linha de
+     * herança. A tabela, que precisa de ✓ por coluna e não de uma lista, segue
+     * marcando os dois — via `hasPrioritySupport()`, conferido logo acima.
      */
     it('rotula a linha com a mesma frase que o card imprime', () => {
       const c = build();
 
       expect(c.prioritySupportLabel).toBe('Atendimento prioritário no WhatsApp');
       expect(c.planFeatures(PRO)).toContain(c.prioritySupportLabel);
-      expect(c.planFeatures(BUSINESS)).toContain(c.prioritySupportLabel);
       expect(c.planFeatures(FREE)).not.toContain(c.prioritySupportLabel);
+
+      // O ENTERPRISE herda em vez de reanunciar — e é a herança que a coluna ✓
+      // dele está cobrindo.
+      //
+      // A REDAÇÃO segue o arranjo em que a grade está desenhada, não o tier. O
+      // jsdom não casa com media query nenhuma, então esta suíte observa o
+      // arranjo de TELEFONE, onde a escada desce e a frase aponta para baixo —
+      // é o mesmo signal que inverte a ordem dos cards que escolhe a frase, de
+      // propósito, para as duas não poderem divergir.
+      expect(c.planFeatures(BUSINESS)).not.toContain(c.prioritySupportLabel);
+      expect(c.planFeatures(BUSINESS)[0]).toBe('Tudo o que os planos abaixo têm');
+      expect(c.hasPrioritySupport(BUSINESS)).toBe(true);
     });
 
     /**
@@ -1777,12 +1794,21 @@ describe('Billing', () => {
       );
       expect(row, 'a linha de atendimento prioritário sumiu da tabela').toBeTruthy();
 
-      // Uma célula por plano visível, na ordem [TRIAL, BASIC, PRO, ENTERPRISE].
+      // Uma célula por plano visível, na ORDEM DO CATÁLOGO, que a tela agora
+      // impõe em vez de herdar de `GET /v1/billing/plans`:
+      //
+      //   [FREE→TRIAL, PRO, BUSINESS→ENTERPRISE, BASIC]
+      //
+      // `BASIC` fecha a fila porque não é nome do catálogo (a V59 tem TRIAL,
+      // STARTER, PRO, ENTERPRISE) e `planTierOf('BASIC')` devolve `null` — é o
+      // plano pago-mais-barato sintético deste fixture. Um nome que a UI não
+      // reconhece vai para o fim em vez de embaralhar a escada, e continua sem
+      // prioridade, que é o que se paga para ter.
       const marks = Array.from(row!.querySelectorAll('td'))
         .slice(1)
         .map((td) => td.querySelector('.sr-only')?.textContent?.trim());
 
-      expect(marks).toEqual(['Não incluído', 'Não incluído', 'Incluído', 'Incluído']);
+      expect(marks).toEqual(['Não incluído', 'Incluído', 'Incluído', 'Não incluído']);
     });
 
     /**

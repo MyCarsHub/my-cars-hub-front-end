@@ -1,19 +1,88 @@
-<section id="planos" class="relative isolate overflow-hidden bg-paper px-5 md:px-8 py-14 sm:py-8 lg:py-9">
-  <!-- rgba do primary-500 canônico (#F63B04), não do #EB3F00 fora do sistema. -->
-  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10" style="background: radial-gradient(ellipse 50% 40% at 50% 30%, rgba(246,59,4,0.08), transparent 60%);"></div>
+<!--
+  ═══ O CHÃO DA SEÇÃO — E POR QUE ELE É `gray-50`, NÃO `paper` ═══
+
+  DESVIO CONSCIENTE DO SISTEMA, registrado aqui de propósito: o sistema descreve
+  o registro da landing como papel branco quente e reserva o Hub Gray (#F0F0F0)
+  para o shell autenticado. Esta seção passa a usar o Hub Gray mesmo assim. O
+  motivo é que dois dos quatro cards SÃO brancos (TRIAL `plain` e STARTER
+  `accent`), e sombra nenhuma separa branco de branco: a profundidade em camadas
+  do `plan-card.ts` estava tecnicamente correta e mesmo assim não aparecia, pelo
+  simples fato de não haver chão de onde descolar. PRO e ENTERPRISE ganhavam
+  volume só porque carregam cor própria.
+
+  Os três candidatos foram MEDIDOS, não escolhidos por gosto:
+
+    chão            card branco em cima   borda `rule-contrast` #888888
+    branco #FFFFFF        1,00:1          3,54:1   ← hoje: separação zero
+    paper-alt #FAFAFA     1,04:1          3,40:1   ← invisível
+    paper-2 #F5F5F5       1,09:1          3,25:1   ← fraco
+    rule #ECECEC          1,18:1          3,00:1   ← REPROVA na prática
+    Hub Gray #F0F0F0      1,14:1          3,11:1   ← escolhido
+
+  `paper-alt`, o primeiro candidato do sistema, dá 1,04:1 — não é chão, é branco
+  com outro nome. `rule` #ECECEC separa melhor que o Hub Gray (1,18 contra 1,14),
+  e foi por isso que quase venceu; o que o derruba é a coluna da direita: com ele
+  a moldura do card `plain` cai para 3,0007:1 contra o piso de 3:1 do WCAG
+  1.4.11. Passar por sete décimos de milésimo não é passar. O Hub Gray custa
+  0,04 de separação e devolve 3,11:1 — que não é um número novo: é EXATAMENTE a
+  superfície contra a qual todo o bloco de contraste do `plan-card.ts` já havia
+  sido medido, porque o billing sempre desenhou estes mesmos cards sobre o canvas
+  do shell. Quem estava fora do padrão era a landing branca, não o Hub Gray.
+
+  ═══ E POR QUE O TINTE RADIAL SAIU ═══
+
+  Aqui havia `radial-gradient(ellipse 50% 40% at 50% 30%, rgba(246,59,4,0.08),
+  transparent 60%)`. Aprofundá-lo era a primeira saída tentada, e ela não fecha
+  por três contas independentes:
+
+  1. GEOMETRIA — um radial tem pico no centro e morre nas bordas, então ele nunca
+     dá chão IGUAL para uma fileira de quatro. Pior no telefone, onde a seção
+     fica ~2280px de altura e o `at 50% 30%` cai DENTRO da coluna de cards: o
+     tinte pinta de 137px a 1231px, ou seja, os cards 1, 2 e metade do 3 ficam
+     sobre tinte e o 4 sobre chão limpo.
+  2. CONTRASTE — sobre o Hub Gray o tinte a 0,08 leva a moldura `rule-contrast`
+     a 2,81:1 e o `.hl` do título a 3,00:1. Os dois REPROVAM. A 0,05 ainda é
+     2,91:1. O maior alfa que mantém #888888 acima de 3:1 é ~0,015, que não é
+     tinte nenhum. Sobre branco isso não aparecia (3,17:1), então o problema
+     nasce junto com o chão — tinte e chão são mutuamente exclusivos NESTE token
+     de borda.
+  3. DISCIPLINA — a proporção do sistema é ~55% canvas / 8% laranja, com "se a
+     tela lê laranja, está errado". Escurecer o tinte até ele virar chão seria
+     pagar profundidade com saturação, que é exatamente o que a regra proíbe.
+
+  O chão chapado resolve as três: é canvas, é igual embaixo dos quatro cards, e
+  não recompõe par de contraste nenhum.
+-->
+<section id="planos" class="relative isolate overflow-hidden bg-gray-50 px-5 md:px-8 py-14 sm:py-8 lg:py-9">
 
   <div class="max-w-[1200px] mx-auto flex flex-col gap-5">
     <header class="flex flex-col gap-2.5 max-w-[720px] text-center items-center mx-auto">
-      <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] m-0">
-        Do primeiro carro <span class="hl">aos {{ headlineTopCap }}</span>.
+      <!-- `text-balance` porque a quebra natural a 375px deixava "inteira." órfã na
+           segunda linha, E a quebra caía DENTRO do `.hl`: o traço do destaque é um
+           `background-image` do span, então uma quebra no meio dele pinta dois
+           segmentos desconectados, um em cada linha. Balanceado, o texto parte em
+           "Do primeiro carro / à frota inteira." — o `.hl` inteiro numa linha só e o
+           traço volta a ser um traço. Vale só para títulos curtos como este; o
+           navegador desiste de balancear acima de ~6 linhas, o que aqui nunca ocorre. -->
+      <h2 class="reveal font-display font-bold text-[clamp(1.5rem,3vw,2.15rem)] tracking-[-0.028em] m-0 text-balance">
+        Do primeiro carro <span class="hl">à frota inteira</span>.
       </h2>
       <p class="reveal text-[15.5px] text-ink/70 m-0 max-w-[52ch]">
         14 dias de trial completo, sem cartão. Depois escolha o plano que cabe na sua operação.
       </p>
 
       <!-- Toggle mensal/anual. Borda em `rule-contrast`, não `rule`: o trilho é
-           `paper-alt` (#FAFAFA) sobre `paper` branco e a borda é a única coisa
-           que o desenha. #ECECEC dá 1,13:1 ali; #888888 dá 3,40:1. -->
+           `paper-alt` (#FAFAFA) e a borda é a única coisa que o desenha.
+           #ECECEC dá 1,13:1 ali; #888888 dá 3,40:1 contra o trilho.
+
+           REMEDIDO com o chão da seção em Hub Gray: a borda tem DUAS faces e as
+           duas importam. Por DENTRO ela continua sobre `paper-alt` — 3,40:1,
+           intocado, porque o trilho tem preenchimento próprio. Por FORA ela
+           deixou de encostar em branco (3,54:1) e passou a encostar no #F0F0F0
+           — 3,11:1. As duas faces seguem acima do piso de 3:1 do WCAG 1.4.11.
+           O trilho contra o chão dá 1,09:1, o que é justamente por que a borda
+           precisa ser `rule-contrast`: o preenchimento não desenha nada sozinho,
+           nem antes nem agora. -->
       <app-segmented-toggle
         class="reveal mt-3"
         [options]="cycleOptions()"
@@ -26,79 +95,82 @@
       />
     </header>
 
-    <!-- A paridade dita UMA vez, antes da grade: os quatro cards listam as
-         mesmas funções porque o produto é o mesmo em todo plano, e a nota nomeia
-         a única gradação real (a fila do atendimento, do Pro em diante). Sem
-         esta frase, quatro listas quase idênticas leem como erro de copy em vez
-         do argumento de venda que são. -->
-    <p class="reveal mx-auto max-w-[58ch] rounded-2xl border border-rule-contrast bg-paper-alt px-5 py-3 text-center text-sm font-semibold text-ink">
-      {{ parityNote }}
-    </p>
+    <!-- QUATRO NUMA LINHA a partir de `lg`, e a conta que prova que cabe.
 
-    <!-- Empilhado no telefone, 2x2 a partir de `md`. NÃO são 4 colunas numa
-         linha só: com o container em 1200px cada coluna cairia para ~282px e o
-         preço anual do Pro ("R$ 1499,00", tabular) fica apertado nessa largura.
-         A grade de 4 colunas é decisão de design, não consequência da V59 — a
-         tela de billing, que reusa `app-plan-card`, roda em 4 porque o container
-         dela é mais largo. `items-stretch` porque num 2x2 as duas linhas
-         precisam de cards de mesma altura. -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6 items-stretch">
-      <div class="reveal">
-        <app-plan-card
-          [tone]="trialTone"
-          name="Trial gratuito"
-          price="R$ 0"
-          cycleSuffix="14 dias"
-          [description]="trialDescription"
-          [features]="trialItems"
-          ctaLabel="Criar conta grátis"
-          (ctaClick)="goToLogin()"
-        />
+         O container tem `max-w-[1200px]` e a seção `px-5 md:px-8`, então a
+         largura útil é `min(1200, viewport − 64)`. Com `lg:gap-6` (24px) cada
+         coluna vale `(útil − 72) / 4`:
+
+           1024px (entrada do `lg`) → útil  960px → coluna 222px
+           1264px em diante ........ → útil 1200px → coluna 282px
+
+         Descontando o `lg:p-[18px]` do card (36px), sobram 186px de texto no
+         pior caso. O item mais largo é o preço anual do Pro, "R$ 1499,00", em
+         Sora extrabold tabular com `tracking-[-0.03em]`: ~5,4em somando os dez
+         glifos e descontando o tracking, ou seja ~140px a 26px de corpo, mais
+         ~31px do sufixo "/ ano" e 6px de gap = ~177px em 186px disponíveis.
+
+         A folga de ~9px é deliberada: as métricas da Sora foram ESTIMADAS (a
+         fonte vem do Google Fonts, não há arquivo no repo para medir), então a
+         conta carrega margem para um erro de ~5%. E o bloco do preço é
+         `flex-wrap`: se ainda assim faltar espaço — fallback mais largo antes de
+         a Sora carregar, por exemplo —, o sufixo desce uma linha em vez de
+         estourar a coluna. Nenhum caminho leva a overflow horizontal.
+
+         Daí o `lg:text-[26px]` do preço, que volta a `text-4xl` em `xl`, onde a
+         coluna já é 282px e o preço cheio (~194px) sobra em 246px.
+
+         Foi por essa conta que a versão anterior parou no 2x2 — a 44px o preço
+         pedia ~262px de linha e realmente não cabia. A 26px, cabe.
+
+         Abaixo de `md` a grade é uma coluna só e a ORDEM inverte (ENTERPRISE
+         primeiro). `items-stretch` mantém os cards da mesma altura em qualquer
+         arranjo.
+
+         AS DUAS ORDENS ESTÃO NO DOM E QUEM ESCOLHE É O CSS. Esta página é
+         prerenderizada; um signal de media query decidindo a ordem congela em
+         "telefone" no build e faz a fileira se reordenar sozinha na hidratação,
+         calada, para todo visitante de desktop. O bloco que não vale é
+         `display: none`, o que o tira JUNTO da ordem de Tab e da árvore de
+         acessibilidade — então o leitor de tela percorre exatamente a sequência
+         que está na tela, sem o `order-*` que reordenaria só o pixel. A conta
+         está em `landing-pricing.component.ts`. -->
+
+    <!-- Um único `.reveal` para a grade inteira, e não um por card: o bloco
+         escondido nunca cruza o IntersectionObserver, então um `.reveal` dentro
+         dele ficaria preso em `opacity: 0` e apareceria vazio se o visitante
+         alargasse a janela depois de carregar. -->
+    <div class="reveal flex flex-col">
+      <!-- md+ · ordem do catálogo -->
+      <div class="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 items-stretch">
+        @for (plan of catalogPlans(); track plan.tier) {
+          <ng-container [ngTemplateOutlet]="planCard" [ngTemplateOutletContext]="{ $implicit: plan }" />
+        }
       </div>
 
-      <div class="reveal">
-        <app-plan-card
-          [tone]="starterTone"
-          name="Starter"
-          [price]="starterPriceLabel()"
-          [cycleSuffix]="priceCycleSuffix()"
-          [subtitleText]="starterSubtitle()"
-          [description]="starterDescription"
-          [features]="starterItems"
-          ctaLabel="Assinar Starter"
-          (ctaClick)="goToLogin()"
-        />
-      </div>
-
-      <div class="reveal">
-        <app-plan-card
-          [tone]="proTone"
-          name="Pro"
-          [price]="proPriceLabel()"
-          [cycleSuffix]="priceCycleSuffix()"
-          [subtitleText]="proSubtitle()"
-          [description]="proDescription"
-          [features]="proItems"
-          ribbonText="Mais popular"
-          ctaLabel="Assinar Pro"
-          (ctaClick)="goToLogin()"
-        />
-      </div>
-
-      <div class="reveal">
-        <app-plan-card
-          [tone]="enterpriseTone"
-          name="Enterprise"
-          [price]="enterprisePriceLabel()"
-          [cycleSuffix]="priceCycleSuffix()"
-          [subtitleText]="enterpriseSubtitle()"
-          [description]="enterpriseDescription"
-          [features]="enterpriseItems"
-          ribbonText="Sua frota cresceu?"
-          ctaLabel="Assinar Enterprise"
-          (ctaClick)="goToLogin()"
-        />
+      <!-- telefone · ordem invertida -->
+      <div class="grid md:hidden grid-cols-1 gap-5 items-stretch">
+        @for (plan of phonePlans(); track plan.tier) {
+          <ng-container [ngTemplateOutlet]="planCard" [ngTemplateOutletContext]="{ $implicit: plan }" />
+        }
       </div>
     </div>
+
+    <!-- Uma definição de card para os dois arranjos: duplicar as dez ligações
+         seria a porta para elas divergirem card a card. -->
+    <ng-template #planCard let-plan>
+      <app-plan-card
+        [tone]="plan.tone"
+        [name]="plan.name"
+        [price]="plan.price"
+        [cycleSuffix]="plan.cycleSuffix"
+        [subtitleText]="plan.subtitle"
+        [description]="plan.description"
+        [features]="plan.features"
+        [ribbonText]="plan.ribbon"
+        [ctaLabel]="plan.ctaLabel"
+        (ctaClick)="goToLogin()"
+      />
+    </ng-template>
   </div>
 </section>

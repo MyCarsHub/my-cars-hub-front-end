@@ -172,6 +172,147 @@ body {
      --------------------------------------------------------------- */
   --brand-gradient-deep: linear-gradient(135deg, #C22F00 0%, #982500 55%, #6E1B00 100%);
   --success-gradient-deep: linear-gradient(135deg, #0A7854 0%, #064E37 100%);
+
+  /* ---------------------------------------------------------------
+     DEGRADÊS DOS CARDS DE PLANO.
+
+     O sistema permite gradiente em exatamente quatro coisas — CTA,
+     card do plano EM DESTAQUE, FAB de voltar-ao-topo e brilho do hero.
+     Os quatro degradês abaixo são consumidos só por
+     `components/core/plan-card/plan-card.ts`, mas eles NÃO são todos a
+     mesma permissão, e vale dizer isso em voz alta:
+
+       · `--plan-gradient-pro` e `--plan-gradient-pro-yearly` são o
+         card em destaque, e cabem na regra.
+       · `--plan-gradient-enterprise` e `-yearly` são um DESVIO. O
+         ENTERPRISE não é o card em destaque; o dono pediu o carbono
+         que esquenta explicitamente e a decisão fica, mas registrada
+         como exceção e não disfarçada de regra. Um quinto tier não
+         herda esta licença por analogia.
+
+     A REGRA DE MEDIÇÃO É A MESMA DOS "deep" ACIMA, mas o ponto crítico
+     INVERTE conforme a cor do texto, e é onde quase todo mundo erra:
+       · texto BRANCO reprova no stop mais CLARO;
+       · texto ESCURO (ink #0A0A0A) reprova no stop mais ESCURO.
+     Cada degradê abaixo declara o pior stop e a razão medida nele.
+
+     Os dois "vivid" existem porque o dono pediu a marca de verdade no
+     card em destaque, e branco pequeno não passa nem sobre o Signal
+     Orange #F63B04 (3,79:1) nem sobre o Hub Green #10B981 (2,54:1) —
+     os dois são preenchimento, nunca texto. A saída é ancorar a cor da
+     marca no stop MAIS ESCURO e clarear a partir dela, com tinta ink em
+     cima: aí o pior ponto é a própria cor do dono, e ela passa.
+     --------------------------------------------------------------- */
+
+  /* ---------------------------------------------------------------
+     A POÇA DE CANTO — o que veio da linguagem da landing.
+
+     O dono apontou a faixa "Feche o mês sem madrugada de planilha"
+     (`landing-solution`) e pediu aquele caráter no card em destaque: a
+     superfície viaja de verdade, clareia num canto e aprofunda nos
+     outros. A receita de lá é uma linear de 135deg MAIS duas poças
+     radiais — branco 0,22 no canto superior-esquerdo, preto 0,22 no
+     inferior-direito — e uma grade de 56px a 5% por baixo.
+
+     DUAS COISAS NÃO ATRAVESSAM, e o motivo é medido:
+
+     1. A POÇA BRANCA NÃO VEM. Na faixa ela é inofensiva porque o texto
+        de lá é branco sobre laranja legado; aqui o card carrega tinta
+        ESCURA justamente para o #F63B04 do dono poder ficar embaixo de
+        texto (5,23:1). Clarear o canto superior-esquerdo lavaria o
+        #F63B04 — a própria cor que o dono pediu — para um rosa. O
+        `styles.css` já proíbe véu branco alguns blocos acima; aqui ele
+        seria proibido por um segundo motivo.
+
+     2. O ALFA CAI DE 0,22 PARA 0,16. Varrendo o trecho da rampa que a
+        poça alcança (canto inferior-direito ⇒ t ≥ ~0,72), com ink em
+        cima:
+             t      cor        preto 0,16   preto 0,22
+             0,62   #FA602E    4,66:1 ok    4,10:1 REPROVA
+             0,72   #FB6A39    4,94:1 ok    4,36:1 REPROVA
+             0,80   #FC7242    5,21:1 ok    4,57:1 ok
+             1,00   #FF8558    5,92:1 ok    5,18:1 ok
+        A 0,22 a poça reprova em todo o trecho que ela realmente cobre.
+        A 0,16 o pior caso ABSOLUTO — se ela vazasse até #FA602E, o que
+        a geometria não permite — ainda dá 4,66:1. É o alfa que é seguro
+        por construção, não por sorte.
+
+     POR QUE ELA VAI NO CANTO INFERIOR-DIREITO. Regra geral: a poça vai
+     onde a rampa TEM FOLGA de contraste. Nestes dois degradês a folga
+     está no fim CLARO (8,25:1 no #FF8558), que o 135deg deposita no
+     canto inferior-direito — o mesmo canto da faixa da landing, por
+     coincidência feliz de geometria. Escurecer ali dá o volume pedido e
+     não encosta na âncora: **o pior ponto do card segue sendo ink sobre
+     #F63B04 puro, 5,23:1, exatamente como antes.**
+
+     Sobre o `#F63B04` × legado: a faixa da landing está na rampa LEGADA
+     (#FF5722 → #EB3F00 → #C93300), e ela não é copiada. Estes degradês
+     ficam na rampa canônica; o que atravessou foi a técnica.
+     --------------------------------------------------------------- */
+
+  /* PRO mensal. Rampa laranja 500 → 400 → 300, texto ink, mais a poça de
+     canto. Pior stop = #F63B04 (o mais escuro, e a poça não o alcança):
+     ink 5,23:1. Depois só melhora — #FA602E 6,39:1, #FF8558 8,25:1, e
+     4,94:1 no ponto mais fundo da poça. */
+  --plan-gradient-pro:
+    radial-gradient(ellipse 45% 38% at 88% 92%, rgba(0,0,0,0.16), transparent 55%),
+    linear-gradient(135deg, #F63B04 0%, #FA602E 62%, #FF8558 100%);
+
+  /* PRO anual. A rampa verde não tem 300/400, então o Hub Green segura
+     os primeiros 45% e só depois abre para o success-100 — sem isso o
+     card lavava em menta. Pior stop = #10B981: ink 7,80:1
+     (#BFF3DE, o mais claro, dá 16,11:1; com a poça, 10,98:1). */
+  --plan-gradient-pro-yearly:
+    radial-gradient(ellipse 45% 38% at 88% 92%, rgba(0,0,0,0.16), transparent 55%),
+    linear-gradient(135deg, #10B981 0%, #10B981 45%, #BFF3DE 100%);
+
+  /* ---------------------------------------------------------------
+     SUPERFÍCIE DOS CARDS NEUTROS — a mesma linguagem, sem degradê.
+
+     TRIAL e STARTER são brancos e não têm matiz para carregar viagem,
+     então a tradução não é gradiente colorido: é a MESMA viagem de
+     160deg que a landing usa no brilho interno dos cards da faixa
+     (`landing-solution.component.html:31`), aplicada em neutro. Branco
+     puro nos primeiros 42% e o canto inferior-direito assentando num
+     token que já existe — nenhum hex novo nasce aqui.
+
+     A translucidez da landing (`bg-white/10` + `backdrop-blur`) NÃO
+     atravessa: lá ela funciona porque há uma faixa colorida por baixo;
+     sobre o chão Hub Gray um card translúcido viraria cinza-claro e
+     destruiria justamente a separação de 1,14:1 que o chão acabou de
+     comprar. O que atravessa é a sensação de superfície viva, não a
+     técnica.
+
+     Medido no canto 100% (o mais escuro, que é onde tinta escura
+     reprova) — todos folgados:
+       #F5F5F5  ink 18,16 · ink/70 7,28 · ink/60 5,11 · muted 4,68
+       #FFF0EA  ink 17,82 · ink/70 7,26 · ink/60 5,08 · muted 4,59
+       #E7FBF3  ink 18,38 · ink/70 7,41 · ink/60 5,16 · muted 4,73
+     O `muted` é o sufixo "/ mês", e ele vive no CABEÇALHO — onde a
+     viagem ainda é branco puro (5,10:1). Os números acima são o pior
+     caso defensivo, não a posição real.
+     --------------------------------------------------------------- */
+  --plan-surface-plain: linear-gradient(160deg, #FFFFFF 0%, #FFFFFF 42%, #F5F5F5 100%);
+  --plan-surface-accent: linear-gradient(160deg, #FFFFFF 0%, #FFFFFF 42%, #FFF0EA 100%);
+  --plan-surface-accent-success: linear-gradient(160deg, #FFFFFF 0%, #FFFFFF 42%, #E7FBF3 100%);
+
+  /* ENTERPRISE. Preto que ESQUENTA — carbono ancorado, viagem curta até
+     o fim escuro da rampa da marca, texto branco. Aqui o pior stop é o
+     mais CLARO: #982500 dá 8,08:1 no mensal, #0A7854 dá 5,49:1 no anual.
+     Ir mais longe (#C22F00 5,67:1 / #10B981 2,54:1) deixaria de ser
+     "leve" e, no verde, reprovaria.
+
+     SEM POÇA DE CANTO, de propósito. Foi tentado e medido: este degradê
+     já viaja MAIS do que a faixa que serviu de referência — 19,03:1 no
+     #101010 contra 8,08:1 no #982500 é um salto de luminância maior que
+     o da própria `landing-solution`. A poça só teria dois lugares para
+     ir, e os dois pioram: no canto escuro ela é invisível (#101010 →
+     #0C0C0C, 19,03 → 19,56, diferença que ninguém enxerga), e no canto
+     claro ela apaga exatamente o "carbono que ESQUENTA" que o dono
+     pediu, levando #982500 a #771D00. O ENTERPRISE não estava chapado;
+     quem estava era o PRO. */
+  --plan-gradient-enterprise: linear-gradient(135deg, #101010 0%, #6E1B00 62%, #982500 100%);
+  --plan-gradient-enterprise-yearly: linear-gradient(135deg, #101010 0%, #064E37 62%, #0A7854 100%);
   --brand-gradient-radial-hero: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(246,59,4,0.06), transparent 65%);
   --brand-gradient-radial-hero-soft: radial-gradient(ellipse 55% 40% at 50% 0%, rgba(246,59,4,0.05), transparent 65%);
   --brand-gradient-shine: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
@@ -218,6 +359,139 @@ body {
   letter-spacing: -0.025em;
   line-height: 1.1;
   color: var(--ink);
+}
+
+/* =========================================================
+   A LUZ DE ARESTA DO CARD DE PLANO (`.plan-rim`)
+   =========================================================
+
+   O dono recusou quatro tratamentos 3D parados e pediu "hover (leve) dentro
+   dos cards". Isto é UMA ideia em movimento: sob o cursor, uma luz curta
+   percorre a ARESTA INTERNA do card. Nada mais se move além do que já se movia
+   (os 6px de elevação do sistema, que ficam como estavam).
+
+   ─── NÃO É TÉCNICA NOVA ───────────────────────────────────────────────────
+   É o mesmo holofote que segue o mouse do hero
+   (`landing-hero.component.css:13`, `radial-gradient(... at var(--spotlight-x)
+   var(--spotlight-y))`), na escala do card. Mesmas custom properties escritas
+   pelo ponteiro, mesmos dois portões (`pointer: fine` e `prefers-reduced-motion`).
+
+   ─── POR QUE A LUZ VIVE NA ARESTA, E NÃO NA FACE ──────────────────────────
+   Um holofote na FACE do card é o defeito que esta branch já removeu duas
+   vezes, e a razão é aritmética, não estética: NÃO EXISTE direção de luminância
+   segura para os quatro tons ao mesmo tempo.
+
+     · nos cards brancos o texto é escuro → ESCURECER a face derruba o contraste;
+     · no PRO (ink sobre #F63B04) o texto é escuro sobre fundo claro → escurecer
+       derruba os 5,23:1 que são a âncora da tela;
+     · no ENTERPRISE (branco sobre #101010) é o oposto → CLAREAR derruba.
+
+   Clarear salva um card e reprova o outro, e escurecer também. Logo a luz não
+   pode passar por baixo de glifo nenhum — e a saída é geométrica: ela mora numa
+   faixa de 1,5px a 2px da aresta, dentro do padding de 22px (18px em `lg`). O
+   glifo mais próximo está a ~19px. NENHUM par texto/superfície é recomposto,
+   em nenhum tom, em nenhum ciclo.
+
+   ─── E POR QUE ELA NÃO ENCOSTA NA BORDA TAMBÉM ────────────────────────────
+   `inset: 2px` (e não 0). O `::after` absoluto já nasce dentro da CAIXA DE
+   PADDING, isto é, por dentro da borda; os 2px extras deixam ainda uma faixa da
+   superfície REAL entre a borda e a luz. Os dois pares não-textuais medidos no
+   `plan-card.ts` — borda contra o chão da seção e borda contra a superfície do
+   card — continuam encostando exatamente nas cores de antes:
+   `rule-contrast` 3,54:1 / 3,11:1 · `brand` 3,32:1 · `success-700` 3,82:1.
+   Nos tons SEM borda (`filled`, `carbon`) o mesmo `inset` preserva a aresta
+   externa na cor cheia do card, então o limite card/chão também não se mexe.
+
+   ─── O QUE A LUZ ENCOSTA, MEDIDO NO PICO DO RADIAL ────────────────────────
+   Sobra um único par novo, e ele é DECORATIVO (faixa contra a própria
+   superfície do card — não carrega texto, não identifica componente nem
+   estado, não tem piso WCAG). Fica registrado assim mesmo:
+
+     tom              composto no pico       contra a face
+     plain            #FCC8B9 sobre branco       1,49:1
+     accent           #FB9D82 sobre branco       2,05:1
+     accent-success   #88DCC0 sobre branco       1,61:1
+     filled           #FA9375 sobre #F63B04      1,71:1
+     filled-success   #7CD9BA sobre #10B981      1,50:1
+     carbon           #7C7C7C sobre #101010      4,53:1
+     carbon-success   #7C7C7C sobre #101010      4,53:1
+
+   O CARBONO É ONDE ISTO MAIS RENDE, e não por acaso: o card preto foi
+   justamente onde a profundidade por SOMBRA morreu (sombra escura sobre face
+   escura não tem para onde ir). Luz tem — 4,53:1 de faixa contra face é a maior
+   leitura da tabela, quase o triplo do card branco. O tratamento que fracassava
+   no escuro é o que funciona melhor ali.
+
+   ─── VOCABULÁRIO DE MOVIMENTO ────────────────────────────────────────────
+   180ms (`--dur-fast`, escrito literal porque o token só existe dentro de
+   `.landing-root` e este card também roda em `.pricing-scope`) com o
+   `--ease-out` da marca. Só a OPACIDADE transiciona: a posição acompanha o
+   cursor no quadro, como um holofote — atrasá-la faria a luz arrastar.
+
+   ─── DEGRADAÇÃO ──────────────────────────────────────────────────────────
+   `(hover: hover) and (pointer: fine)`: o telefone, que é a plataforma
+   principal, nunca vê isto e não perde nada — o repouso do card já é completo
+   por si (superfície, sombra em camadas, borda). `prefers-reduced-motion`
+   desliga. E o `@supports` importa: sem `mask-composite` a máscara de duas
+   camadas somaria em vez de subtrair e o radial pintaria a FACE INTEIRA,
+   justamente por baixo do texto. Navegador sem suporte não recebe efeito
+   nenhum — que é a falha honesta. */
+.plan-rim::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: radial-gradient(
+    180px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    var(--plan-rim-light),
+    transparent 62%
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+@supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  @media (hover: hover) and (pointer: fine) {
+    .plan-rim::after {
+      /* O shorthand `mask` reseta `mask-composite`, então ele vem ANTES. Duas
+         camadas idênticas, uma limitada ao content-box: subtraindo uma da outra
+         sobra só a faixa do padding, ou seja, o anel. */
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      transition: opacity 180ms var(--ease-out);
+    }
+
+    .plan-rim:hover::after {
+      opacity: 1;
+    }
+  }
+}
+
+/* Um valor por tom, escolhido no token que aquele degrau JÁ usa para se
+   destacar — nenhum hex novo nasce aqui. O `plain` leva o mesmo laranja do
+   `accent` com pouco mais da metade do alfa: no degrau "vazio" da escada de
+   preenchimento a luz precisa existir sem inventar matiz, e a 0,28 sobre branco
+   ela compõe #FCC8B9, que lê como branco quente. */
+.plan-rim--tint {
+  --plan-rim-light: rgba(246, 59, 4, 0.28);
+}
+.plan-rim--brand {
+  --plan-rim-light: rgba(246, 59, 4, 0.5);
+}
+.plan-rim--green {
+  --plan-rim-light: rgba(16, 185, 129, 0.5);
+}
+/* Sobre superfície saturada ou carbono a luz é branca: o laranja sobre laranja
+   e o verde sobre verde seriam invisíveis. */
+.plan-rim--white {
+  --plan-rim-light: rgba(255, 255, 255, 0.45);
 }
 
 .landing-root {
@@ -391,6 +665,14 @@ body.app-shell-active {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+
+  /* A luz de aresta do card de plano é movimento contínuo preso ao ponteiro —
+     exatamente o que este modo pede para não existir. `display: none` e não
+     `opacity: 0`: sem o nó pintado não sobra nem o custo de composição. O card
+     em repouso continua completo, que é a mesma coisa que o telefone recebe. */
+  .plan-rim::after {
+    display: none;
   }
 
   /* Anula o `scroll-behavior: smooth` global (ver `html`, acima). Scroll
