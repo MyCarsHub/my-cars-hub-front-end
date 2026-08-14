@@ -3,7 +3,8 @@ import { provideRouter, Router } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
 import { signal } from '@angular/core';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, EMPTY } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { of, EMPTY, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 
 import { RentalForm } from './rental-form';
@@ -13,6 +14,7 @@ import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../company-settings/contract-template/contract-template-service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 /**
  * Guarantees the "novo aluguel" picker calls the backend with the correct
@@ -1131,5 +1133,56 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
 
     expect(cmp.totalDays()).toBe(0);
     expect(cmp.totalAmountLabel()).toBe('--');
+  });
+});
+
+/**
+ * `ngOnInit` fazia `this.asaasService.load().subscribe({ error: () => {} })` —
+ * um 402 (usuário abaixo de MANAGER, ver `CompanyAsaasIntegrationService.getStatus`)
+ * ou qualquer outra falha ficava sem callback nenhum. `asaasStatus()` permanecia
+ * `null`, e o template não distingue "erro ao carregar" de "integração nunca
+ * configurada": o banner "Nenhuma integração Asaas configurada" + o diálogo
+ * bloqueante apareciam sobre uma integração saudável.
+ */
+describe('RentalForm carregamento do status Asaas', () => {
+  function mountWithAsaasLoadError(): ReturnType<typeof TestBed.createComponent<RentalForm>> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: () => of({ content: [], page: 0, size: 500, total: 0 }) },
+        },
+        { provide: RentalService, useValue: { getById: () => EMPTY, create: vi.fn() } },
+        {
+          provide: AsaasIntegrationService,
+          useValue: {
+            status: signal(null),
+            load: vi.fn().mockReturnValue(throwError(() => new HttpErrorResponse({ status: 402 }))),
+          },
+        },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    return TestBed.createComponent(RentalForm);
+  }
+
+  it('surfaces a failed integration-status load instead of swallowing it', () => {
+    const fixture = mountWithAsaasLoadError();
+    const claim = vi.spyOn(TestBed.inject(ApiErrorService), 'claim');
+
+    fixture.detectChanges();
+
+    expect(claim).toHaveBeenCalled();
   });
 });
