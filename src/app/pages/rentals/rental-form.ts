@@ -519,8 +519,14 @@ export class RentalForm implements OnInit {
     this.loadPickers();
 
     // Load Asaas integration status so we can show a warning when the user
-    // toggles automatic charge without a connected integration.
-    this.asaasService.load().subscribe({ error: () => {} });
+    // toggles automatic charge without a connected — or with a broken —
+    // integration. O erro é RECLAMADO, nunca engolido: uma falha não lida deixa
+    // asaasStatus() null, o que o template não distingue de "não configurada" e
+    // que produzia o diálogo bloqueante sobre uma integração saudável para todo
+    // usuário abaixo de MANAGER.
+    this.asaasService.load().subscribe({
+      error: (err: HttpErrorResponse) => this.apiErrors.claim(err),
+    });
 
     // V29: descobre se a company tem template de contrato — habilita o toggle
     // "Gerar contrato do template" e o pré-marca por default. 404 = sem template.
