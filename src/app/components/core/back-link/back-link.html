@@ -1,0 +1,13 @@
+<!-- `min-h-[44px]` (alvo de toque) + anel de foco visível são o piso de
+     acessibilidade (WCAG AA) para este link. Por enquanto só a tela de contato
+     da empresa usa este componente; as outras telas com link de "Voltar" próprio
+     são candidatas a migrar, uma a uma, e só então herdam o piso. A seta é
+     `aria-hidden` porque leitor de tela anunciaria "seta para a esquerda"
+     antes do rótulo, que já diz "Voltar". -->
+<a
+  [routerLink]="link()"
+  class="inline-flex items-center gap-1 min-h-[44px] text-sm font-medium text-primary-700 hover:text-primary-800 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+>
+  <span aria-hidden="true">←</span>
+  {{ label() }}
+</a>
