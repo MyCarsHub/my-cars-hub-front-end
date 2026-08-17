@@ -2,16 +2,9 @@
   title="Dados de contato da empresa"
   description="Telefone, e-mail, endereço da sede e quem assina pela locadora. É o que o contrato gerado usa para identificar a sua empresa."
 >
-  <div class="space-y-4 sm:space-y-6">
-    <div>
-      <a
-        routerLink="/configuracoes"
-        class="inline-flex items-center min-h-[44px] text-sm font-medium text-primary-700 hover:text-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 rounded-lg"
-      >
-        ← Voltar para Configurações
-      </a>
-    </div>
+  <app-back-link link="/configuracoes" label="Voltar para Configurações" placement="top" />
 
+  <div class="space-y-4 sm:space-y-6">
     @if (loading()) {
       <div class="space-y-3" aria-hidden="true">
         <div class="h-32 rounded-xl bg-neutral-100 animate-pulse"></div>
@@ -35,8 +28,10 @@
       <form [formGroup]="form" (ngSubmit)="save()" class="space-y-4 sm:space-y-6">
         @if (neverFilled()) {
           <app-alert-banner variant="info">
-            Esta empresa ainda não tem dados de contato. Enquanto isso, o contrato gerado sai
-            com as lacunas da locadora em branco.
+            Esta empresa ainda não tem dados de contato, e por isso o contrato gerado sai com
+            as lacunas da locadora em branco. Preencha <b>todos os campos</b> — só o
+            complemento é opcional — ou deixe o bloco inteiro em branco: pela metade, o
+            contrato sairia com buracos no meio do texto.
           </app-alert-banner>
         }
 
@@ -47,6 +42,7 @@
                 label="Telefone"
                 controlId="empresa-telefone"
                 hint="Com DDD. Aparece no contrato como {{ '{{companyPhone}}' }}."
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.phone"
                 [messages]="phoneMessages"
               >
@@ -67,6 +63,7 @@
                 label="E-mail"
                 controlId="empresa-email"
                 hint="Aparece no contrato como {{ '{{companyEmail}}' }}."
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.email"
                 [messages]="emailMessages"
               >
@@ -90,6 +87,9 @@
                 class="md:col-span-2"
                 label="CEP"
                 controlId="empresa-cep"
+                [hint]="cepHint()"
+                [describedByExtra]="cepDescribedByExtra()"
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.addressCep"
                 [messages]="cepMessages"
               >
@@ -102,14 +102,70 @@
                   placeholder="00000-000"
                   maxlength="9"
                   (input)="onCepInput($event)"
+                  (blur)="onCepBlur($event)"
                   class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
+                <!--
+                  Linha de status da consulta (WCAG 4.1.3), sempre montada.
+
+                  É ela, e só ela, que anuncia os três momentos: a busca começando, o
+                  endereço que entrou nos quatro campos (que mudam de valor sem o foco
+                  sair do lugar) e a falha — inclusive a repetida, porque entre uma
+                  tentativa e outra o texto passa por "Buscando endereço…" e portanto
+                  MUDA. Uma região que entra e sai do DOM não é anunciada de forma
+                  confiável, daí ficar fora do `@if`. E fica FORA do `aria-describedby`
+                  do campo: ali ela seria relida a cada re-foco, dizendo "endereço
+                  preenchido" muito depois de ter sido.
+                -->
+                <p class="sr-only" role="status" aria-live="polite" data-cep-status>
+                  {{ cepStatusMessage() }}
+                </p>
+                <!--
+                  Aviso, não erro: um CEP novo que o ViaCEP ainda não conhece continua
+                  salvável, então isto não pode invalidar o controle. É puramente visual —
+                  quem anuncia é a região acima; um `role="alert"` aqui diria a mesma coisa
+                  duas vezes na primeira falha e nenhuma vez na segunda, já montado com o
+                  texto idêntico. O `id` fixo entra no `aria-describedby` do input, senão o
+                  texto sumiria da tecnologia assistiva e conviveria mal com o erro de
+                  `pattern`.
+                -->
+                @if (cepLookupError(); as message) {
+                  <p class="text-xs text-amber-700 mt-1" [id]="cepWarningId" data-cep-lookup-error>
+                    {{ message }}
+                  </p>
+                  <!--
+                    Sem isto a mensagem só constata a falha: o mesmo CEP não voltava a ser
+                    consultado e a única saída era apagar um dígito e redigitar.
+
+                    Ocupado é `aria-disabled`, não `disabled`: desabilitar o botão que
+                    ACABOU de ser clicado faz o navegador jogar o foco no `<body>` — o
+                    mesmo buraco que esta tela evita quando o botão some por sucesso. Ele
+                    continua focável, muda de rótulo, e `retryCepLookup()` ignora o clique
+                    enquanto a consulta está em voo.
+                  -->
+                  <button
+                    type="button"
+                    class="mt-1 inline-flex items-center min-h-[44px] text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 rounded"
+                    [class.opacity-60]="cepLoading()"
+                    [class.cursor-not-allowed]="cepLoading()"
+                    [attr.aria-disabled]="cepLoading() ? 'true' : null"
+                    (click)="retryCepLookup()"
+                    data-cep-retry
+                  >
+                    @if (cepLoading()) {
+                      Buscando endereço…
+                    } @else {
+                      Tentar buscar o CEP de novo
+                    }
+                  </button>
+                }
               </app-form-field>
 
               <app-form-field
                 class="md:col-span-4"
                 label="Logradouro"
                 controlId="empresa-logradouro"
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.addressStreet"
                 [messages]="streetMessages"
               >
@@ -128,6 +184,7 @@
                 class="md:col-span-2"
                 label="Número"
                 controlId="empresa-numero"
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.addressNumber"
                 [messages]="numberMessages"
               >
@@ -145,6 +202,7 @@
                 class="md:col-span-4"
                 label="Complemento"
                 controlId="empresa-complemento"
+                hint="Opcional, mesmo com o resto preenchido."
                 [control]="contactGroup.controls.addressComplement"
                 [messages]="complementMessages"
               >
@@ -163,6 +221,7 @@
                 class="md:col-span-3"
                 label="Bairro"
                 controlId="empresa-bairro"
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.addressDistrict"
                 [messages]="districtMessages"
               >
@@ -180,6 +239,7 @@
                 class="md:col-span-2"
                 label="Cidade"
                 controlId="empresa-cidade"
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.addressCity"
                 [messages]="cityMessages"
               >
@@ -198,6 +258,7 @@
                 class="md:col-span-1"
                 label="UF"
                 controlId="empresa-uf"
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.addressUf"
                 [messages]="ufMessages"
               >
@@ -220,6 +281,7 @@
                 label="Nome"
                 controlId="empresa-representante"
                 hint="Aparece no contrato como {{ '{{companyRepresentative}}' }}."
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.representativeName"
                 [messages]="representativeMessages"
               >
@@ -238,6 +300,7 @@
                 label="Cargo"
                 controlId="empresa-cargo"
                 hint="Aparece no contrato como {{ '{{companyRepresentativeRole}}' }}."
+                [required]="blockStarted()"
                 [control]="contactGroup.controls.representativeRole"
                 [messages]="roleMessages"
               >
@@ -254,6 +317,21 @@
           </app-page-card>
         </div>
 
+        <!--
+          Rede de segurança do erro de GRUPO. A cobrança normal aparece campo a campo
+          (é lá que o usuário de celular enxerga), mas sem isto um envio recusado sem
+          nenhum `required` aceso não mostraria nada em lugar nenhum. Só aparece depois
+          de uma tentativa de salvar, senão viraria barulho no meio da digitação.
+        -->
+        @if (blockIncomplete()) {
+          <div data-block-error>
+            <app-alert-banner variant="warning">
+              Faltam campos do bloco de contato. Preencha <b>todos</b> — só o complemento é
+              opcional — ou apague o bloco inteiro.
+            </app-alert-banner>
+          </div>
+        }
+
         @if (saveError(); as message) {
           <div data-save-error>
             <app-alert-banner variant="error" [message]="message" />
@@ -261,8 +339,9 @@
         }
 
         <app-alert-banner variant="info">
-          Salvar <b>substitui todos os dados de contato de uma vez</b>. Um campo deixado em
-          branco fica em branco também no cadastro — é assim que se apaga um valor.
+          Salvar <b>substitui todos os dados de contato de uma vez</b>. Por isso vale tudo ou
+          nada: preencha o bloco inteiro (o complemento é opcional) ou apague todos os campos
+          — esvaziar tudo é como se limpa o contato da empresa.
         </app-alert-banner>
 
         <!-- Mobile-first: botão de largura total, encolhe só a partir de sm. -->

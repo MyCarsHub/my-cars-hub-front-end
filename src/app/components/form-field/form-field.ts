@@ -62,6 +62,16 @@ export class FormField {
   readonly messages = input<Readonly<Record<string, string>>>({});
   /** `touched` (default) only shows after interaction; `always` shows immediately. */
   readonly showWhen = input<'touched' | 'always'>('touched');
+  /**
+   * Extra element ids to append to `aria-describedby`, space-separated.
+   *
+   * For content the consumer projects itself alongside the control — a lookup
+   * warning, a live counter — which is neither the hint nor a validation error. The
+   * hint/error slot is exclusive (one line at a time), so without this an extra
+   * message would either be silently unassociated or would have to displace the hint.
+   * Pass `''` (the default) to add nothing.
+   */
+  readonly describedByExtra = input('');
 
   private readonly autoId = `field-${++nextFieldId}`;
 
@@ -88,8 +98,14 @@ export class FormField {
   readonly invalid = computed(() => this.errorMessage() !== null);
 
   readonly describedBy = computed<string | null>(() => {
-    if (this.invalid()) return this.errorId();
-    return this.hint() ? this.hintId() : null;
+    const ids: string[] = [];
+    if (this.invalid()) ids.push(this.errorId());
+    else if (this.hint()) ids.push(this.hintId());
+
+    const extra = this.describedByExtra().trim();
+    if (extra) ids.push(extra);
+
+    return ids.length > 0 ? ids.join(' ') : null;
   });
 }
 
