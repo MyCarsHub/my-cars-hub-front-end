@@ -10,6 +10,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { animate, style, transition, trigger } from '@angular/animations';
+import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
@@ -36,6 +37,7 @@ import {
   selector: 'app-fine-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     RouterLink,
     FormsModule,
     DefaultPageLayout,

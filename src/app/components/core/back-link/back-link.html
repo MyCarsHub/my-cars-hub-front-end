@@ -1,12 +1,21 @@
 <!-- `min-h-[44px]` (alvo de toque) + anel de foco visível são o piso de
-     acessibilidade (WCAG AA) para este link. Por enquanto só a tela de contato
-     da empresa usa este componente; as outras telas com link de "Voltar" próprio
-     são candidatas a migrar, uma a uma, e só então herdam o piso. A seta é
+     acessibilidade (WCAG AA) para este link, e valem nas telas migradas — não
+     em toda a aplicação: os quatro links de recuperação em cartão de erro
+     (`financing-`, `fine-`, `insurance-` e `maintenance-detail`) seguem com o
+     styling antigo, sem alvo de 44px e sem anel de foco. É dívida aberta e já
+     registrada na fila (ver o docblock de `back-link.ts`). A seta é
      `aria-hidden` porque leitor de tela anunciaria "seta para a esquerda"
-     antes do rótulo, que já diz "Voltar". -->
+     antes do rótulo, que já diz "Voltar".
+
+     Sem `ring-offset-*`: o offset do Tailwind é pintado na cor de offset, que
+     sem token vira branco e desenhava um halo de 2px sobre o canvas `gray-50`
+     (#F0F0F0) do `default-page-layout`. Fixar a cor também não serve — o
+     componente aparece sobre superfícies diferentes (canvas das telas internas
+     e o fundo da landing, no `blog-detail`). Sem offset o anel encosta na borda
+     `rounded-lg` e fica correto em qualquer fundo. -->
 <a
   [routerLink]="link()"
-  class="inline-flex items-center gap-1 min-h-[44px] text-sm font-medium text-primary-700 hover:text-primary-800 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+  class="inline-flex items-center gap-1 min-h-[44px] text-sm font-medium text-primary-700 hover:text-primary-800 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
 >
   <span aria-hidden="true">←</span>
   {{ label() }}

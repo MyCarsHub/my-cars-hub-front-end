@@ -9,9 +9,10 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -37,8 +38,8 @@ const PAGE_SIZE = 20;
   selector: 'app-admin-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     ReactiveFormsModule,
-    RouterLink,
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,

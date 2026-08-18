@@ -11,11 +11,7 @@
 
   @if (error(); as loadError) {
     <app-alert-banner variant="error" [message]="loadError" />
-    <div class="pt-4">
-      <a routerLink="/sinistros" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
-        ← Voltar para a lista
-      </a>
-    </div>
+    <app-back-link link="/sinistros" label="Voltar para a lista" />
   }
 
   @if (incident(); as i) {
@@ -156,13 +152,9 @@
           (delete)="askDelete()"
         />
       </div>
-
-      <div class="pt-2">
-        <a routerLink="/sinistros" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
-          ← Voltar para a lista
-        </a>
-      </div>
     </div>
+
+    <app-back-link link="/sinistros" label="Voltar para a lista" />
   }
 </app-default-page-layout>
 

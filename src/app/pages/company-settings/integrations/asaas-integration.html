@@ -2,12 +2,11 @@
   title="Integração Asaas"
   description="Conecte sua conta Asaas para gerar cobranças de aluguéis e caução. O MyCarsHub não faz split — todos os pagamentos vão direto para a sua conta Asaas."
 >
-  <!-- Back to integrations hub (padrão do admin) -->
-  <div class="mb-4">
-    <a routerLink="/configuracoes/integracoes" class="text-sm text-primary-700 hover:text-primary-800 font-medium">
-      ← Voltar para integrações
-    </a>
-  </div>
+  <app-back-link
+    link="/configuracoes/integracoes"
+    label="Voltar para integrações"
+    placement="top"
+  />
 
   @if (loading() && !hasLoaded()) {
     <div class="space-y-3">

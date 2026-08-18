@@ -11,14 +11,11 @@
       <div class="blog-detail__error">
         <h1>Ops.</h1>
         <p>{{ error() }}</p>
-        <a routerLink="/blog" class="blog-detail__back">← Voltar para o blog</a>
+        <app-back-link link="/blog" label="Voltar para o blog" placement="none" />
       </div>
     } @else if (post(); as p) {
       <article class="blog-detail__article">
-        <a routerLink="/blog" class="blog-detail__back">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Voltar para o blog
-        </a>
+        <app-back-link link="/blog" label="Voltar para o blog" placement="none" />
 
         <header class="blog-detail__head">
           <span class="blog-detail__cat">{{ categoryLabel(p.category) }}</span>
@@ -44,7 +41,7 @@
         <div class="prose" [innerHTML]="safeBody()"></div>
 
         <footer class="blog-detail__foot">
-          <a routerLink="/blog" class="blog-detail__back">← Ver outros posts</a>
+          <app-back-link link="/blog" label="Ver outros posts" placement="none" />
         </footer>
       </article>
     }

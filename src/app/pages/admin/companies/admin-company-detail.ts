@@ -9,10 +9,11 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
@@ -79,13 +80,7 @@ const CONFIRMATION_WORD = 'SUSPENDER';
 @Component({
   selector: 'app-admin-company-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    ReactiveFormsModule,
-    RouterLink,
-    DefaultPageLayout,
-    PageCard,
-    AlertBanner,
-  ],
+  imports: [BackLink, ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner],
   templateUrl: './admin-company-detail.html',
 })
 export class AdminCompanyDetail implements OnInit, OnDestroy {
