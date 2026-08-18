@@ -7,8 +7,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { BackLink } from '../../components/core/back-link/back-link';
 import { LandingNavComponent } from '../landing/components/landing-nav/landing-nav.component';
 import { LandingFooterComponent } from '../landing/components/landing-footer/landing-footer.component';
 import { BlogPostDetail, blogCategoryLabel } from '../../types/blog.types';
@@ -38,7 +39,7 @@ function isMissing(status: number): boolean {
   selector: 'app-blog-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [RouterModule, LandingNavComponent, LandingFooterComponent],
+  imports: [BackLink, LandingNavComponent, LandingFooterComponent],
   templateUrl: './blog-detail.html',
   styleUrl: './blog-detail.css',
 })

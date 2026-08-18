@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -30,8 +30,8 @@ const ASAAS_CONFIG_URL = {
   selector: 'app-asaas-integration',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     ReactiveFormsModule,
-    RouterLink,
     DefaultPageLayout,
     PageCard,
     ConfirmDialog,

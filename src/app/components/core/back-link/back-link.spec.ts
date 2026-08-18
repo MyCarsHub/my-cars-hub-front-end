@@ -53,7 +53,15 @@ describe('BackLink', () => {
 
     expect(classes).toContain('min-h-[44px]');
     expect(classes).toContain('focus-visible:ring-2');
-    expect(classes).toContain('focus-visible:ring-offset-2');
+  });
+
+  // Sem offset de propósito: sem cor de offset o Tailwind pinta branco, e o
+  // halo aparecia sobre o canvas `gray-50` das telas internas.
+  it('draws the focus ring without an offset halo', () => {
+    const fixture = createHost();
+    const classes = fixture.debugElement.query(By.css('a')).nativeElement.className;
+
+    expect(classes).not.toContain('ring-offset');
   });
 
   it('applies mt-6 on the host when bottom-placed', () => {

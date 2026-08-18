@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import {
   VehicleSummaryChip,
@@ -55,6 +56,7 @@ const HORIZONTAL_TABLIST_KEYS: ReadonlySet<string> = new Set([
   selector: 'app-vehicle-gerencia-hub',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     RouterLink,
     DefaultPageLayout,
     VehicleSummaryChip,

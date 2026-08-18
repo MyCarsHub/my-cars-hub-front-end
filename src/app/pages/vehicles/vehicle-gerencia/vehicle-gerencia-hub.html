@@ -421,15 +421,6 @@
       }
     </div>
 
-    <!-- Mesma composição de "voltar" das telas de detalhe (veículo, motorista,
-         aluguel, multa, manutenção): âncora simples no fim do conteúdo. -->
-    <div class="mt-6">
-      <a
-        [routerLink]="['/veiculos', vehicleId()]"
-        class="text-sm text-primary-700 hover:text-primary-800 font-medium"
-      >
-        ← Voltar ao veículo
-      </a>
-    </div>
+    <app-back-link [link]="['/veiculos', vehicleId()]" label="Voltar ao veículo" />
   }
 </app-default-page-layout>

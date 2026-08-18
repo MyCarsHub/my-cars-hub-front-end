@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
@@ -32,8 +33,8 @@ import {
   selector: 'app-insurance-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     ReactiveFormsModule,
-    RouterLink,
     DefaultPageLayout,
     PageCard,
     AlertBanner,
