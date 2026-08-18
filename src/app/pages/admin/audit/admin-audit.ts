@@ -7,9 +7,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 
+import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
@@ -80,7 +80,7 @@ interface ActionOption {
 @Component({
   selector: 'app-admin-audit',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner],
+  imports: [BackLink, DefaultPageLayout, PageCard, AlertBanner],
   templateUrl: './admin-audit.html',
 })
 export class AdminAudit implements OnInit {

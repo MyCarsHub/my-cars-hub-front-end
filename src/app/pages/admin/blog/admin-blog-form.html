@@ -2,22 +2,20 @@
   [title]="editing() ? 'Editar post' : 'Novo post'"
   description="Escreva em markdown. O HTML é gerado e sanitizado no backend."
 >
-  <div class="space-y-4 sm:space-y-6">
-    <div class="flex items-center justify-between gap-2">
-      <a routerLink="/admin/blog" class="text-sm text-neutral-500 hover:text-primary-700 font-medium">
-        ← Voltar
-      </a>
-      @if (editing()) {
-        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-          [class.bg-emerald-100]="status() === 'PUBLISHED'"
-          [class.text-emerald-800]="status() === 'PUBLISHED'"
-          [class.bg-neutral-200]="status() !== 'PUBLISHED'"
-          [class.text-neutral-700]="status() !== 'PUBLISHED'">
-          {{ status() === 'PUBLISHED' ? 'Publicado' : 'Rascunho' }}
-        </span>
-      }
-    </div>
+  <div class="flex items-center justify-between gap-2">
+    <app-back-link link="/admin/blog" label="Voltar" placement="top" />
+    @if (editing()) {
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+        [class.bg-emerald-100]="status() === 'PUBLISHED'"
+        [class.text-emerald-800]="status() === 'PUBLISHED'"
+        [class.bg-neutral-200]="status() !== 'PUBLISHED'"
+        [class.text-neutral-700]="status() !== 'PUBLISHED'">
+        {{ status() === 'PUBLISHED' ? 'Publicado' : 'Rascunho' }}
+      </span>
+    }
+  </div>
 
+  <div class="space-y-4 sm:space-y-6">
     @if (loadError(); as msg) {
       <app-alert-banner variant="error" [message]="msg" />
     } @else if (loading()) {

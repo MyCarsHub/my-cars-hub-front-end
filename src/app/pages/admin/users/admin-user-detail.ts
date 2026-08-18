@@ -8,10 +8,11 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -28,7 +29,7 @@ interface PendingAction {
 @Component({
   selector: 'app-admin-user-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
+  imports: [BackLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
   templateUrl: './admin-user-detail.html',
 })
 export class AdminUserDetail implements OnInit, OnDestroy {

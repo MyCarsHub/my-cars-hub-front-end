@@ -21,23 +21,6 @@
   gap: 24px;
 }
 
-.blog-detail__back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 13.5px;
-  font-weight: 600;
-  align-self: flex-start;
-  padding: 8px 12px;
-  border-radius: 999px;
-  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
-}
-.blog-detail__back:hover { color: var(--brand); background: rgba(235,63,0,0.06); }
-.blog-detail__back svg { transition: transform var(--dur-fast) var(--ease-out); }
-.blog-detail__back:hover svg { transform: translateX(-2px); }
-
 /* ---------- Head ---------- */
 .blog-detail__head {
   display: flex;

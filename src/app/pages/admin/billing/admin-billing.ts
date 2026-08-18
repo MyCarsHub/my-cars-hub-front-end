@@ -10,6 +10,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 
+import { BackLink } from '../../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
@@ -138,7 +139,7 @@ interface StatusOption {
 @Component({
   selector: 'app-admin-billing',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DefaultPageLayout, PageCard, AlertBanner],
+  imports: [BackLink, RouterLink, DefaultPageLayout, PageCard, AlertBanner],
   templateUrl: './admin-billing.html',
 })
 export class AdminBilling implements OnInit {
