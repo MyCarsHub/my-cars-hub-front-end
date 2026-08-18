@@ -376,10 +376,10 @@ export type RentalPhotoAngle =
   | 'BACK'
   | 'LEFT'
   | 'RIGHT'
-  | 'FRONT_LEFT_PANEL'
-  | 'FRONT_RIGHT_PANEL'
-  | 'REAR_LEFT_PANEL'
-  | 'REAR_RIGHT_PANEL'
+  | 'FRONT_LEFT_TIRE'
+  | 'FRONT_RIGHT_TIRE'
+  | 'REAR_LEFT_TIRE'
+  | 'REAR_RIGHT_TIRE'
   | 'ENGINE'
   | 'TRUNK'
   | 'DASHBOARD'
@@ -396,10 +396,10 @@ export const RENTAL_PHOTO_ANGLES: Array<{ value: RentalPhotoAngle; label: string
   { value: 'BACK', label: 'Traseira' },
   { value: 'LEFT', label: 'Lateral esquerda' },
   { value: 'RIGHT', label: 'Lateral direita' },
-  { value: 'FRONT_LEFT_PANEL', label: 'Painel dianteiro esquerdo' },
-  { value: 'FRONT_RIGHT_PANEL', label: 'Painel dianteiro direito' },
-  { value: 'REAR_LEFT_PANEL', label: 'Painel traseiro esquerdo' },
-  { value: 'REAR_RIGHT_PANEL', label: 'Painel traseiro direito' },
+  { value: 'FRONT_LEFT_TIRE', label: 'Pneu dianteiro esquerdo' },
+  { value: 'FRONT_RIGHT_TIRE', label: 'Pneu dianteiro direito' },
+  { value: 'REAR_LEFT_TIRE', label: 'Pneu traseiro esquerdo' },
+  { value: 'REAR_RIGHT_TIRE', label: 'Pneu traseiro direito' },
   { value: 'ENGINE', label: 'Motor' },
   { value: 'TRUNK', label: 'Porta-malas' },
   { value: 'DASHBOARD', label: 'Painel' },
