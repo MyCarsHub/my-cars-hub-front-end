@@ -260,9 +260,9 @@
                 <div class="flex items-center gap-2 shrink-0">
                   <span
                     class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                    [class]="chargeStatusInfo(cc.status).chip"
+                    [class]="chargeStatusInfo(cc).chip"
                   >
-                    {{ chargeStatusInfo(cc.status).label }}
+                    {{ chargeStatusInfo(cc).label }}
                   </span>
                   @if (canMarkAsPaid(cc)) {
                     <button
@@ -327,8 +327,8 @@
                     </td>
                     <td class="py-2.5 pr-4">
                       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
-                        [class]="chargeStatusInfo(cc.status).chip">
-                        {{ chargeStatusInfo(cc.status).label }}
+                        [class]="chargeStatusInfo(cc).chip">
+                        {{ chargeStatusInfo(cc).label }}
                       </span>
                     </td>
                     <td class="py-2.5 pr-4 text-right">
@@ -585,9 +585,9 @@
                   <div class="flex items-center gap-2 shrink-0">
                     <span
                       class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                      [class]="chargeStatusInfo(charge.status).chip"
+                      [class]="chargeStatusInfo(charge).chip"
                     >
-                      {{ chargeStatusInfo(charge.status).label }}
+                      {{ chargeStatusInfo(charge).label }}
                     </span>
                     @if (canPayCharge(charge)) {
                       <button
@@ -689,9 +689,9 @@
                       <td class="py-2.5 pr-4">
                         <span
                           class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
-                          [class]="chargeStatusInfo(charge.status).chip"
+                          [class]="chargeStatusInfo(charge).chip"
                         >
-                          {{ chargeStatusInfo(charge.status).label }}
+                          {{ chargeStatusInfo(charge).label }}
                         </span>
                       </td>
                       <td class="py-2.5 pr-4 text-right">

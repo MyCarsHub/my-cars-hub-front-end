@@ -291,17 +291,67 @@ export function rentalStatusInfo(status: RentalStatus): { label: string; chip: s
   return { label: meta.label, chip: meta.chip };
 }
 
-export function chargeStatusInfo(status: ChargeStatus): { label: string; chip: string } {
-  const map: Record<ChargeStatus, { label: string; chip: string }> = {
-    PENDING: { label: 'Pendente', chip: 'bg-amber-100 text-amber-800' },
-    PAID: { label: 'Pago', chip: 'bg-emerald-100 text-emerald-800' },
-    PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 text-amber-700' },
-    FAILED: { label: 'Falhou', chip: 'bg-rose-100 text-rose-700' },
-    CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-    REFUNDED: { label: 'Reembolsado', chip: 'bg-blue-100 text-blue-800' },
-    RELEASED: { label: 'Liberado', chip: 'bg-neutral-200 text-neutral-700' },
-  };
-  return map[status];
+const CHARGE_STATUS_META: Record<ChargeStatus, { label: string; chip: string }> = {
+  PENDING: { label: 'Pendente', chip: 'bg-amber-100 text-amber-800' },
+  PAID: { label: 'Pago', chip: 'bg-emerald-100 text-emerald-800' },
+  PAST_DUE: { label: 'Atrasada', chip: 'bg-rose-100 text-rose-700' },
+  FAILED: { label: 'Falhou', chip: 'bg-rose-100 text-rose-700' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
+  REFUNDED: { label: 'Reembolsado', chip: 'bg-blue-100 text-blue-800' },
+  RELEASED: { label: 'Liberado', chip: 'bg-neutral-200 text-neutral-700' },
+};
+
+/** O par (status, vencimento) — o mínimo pra decidir se uma cobrança atrasou. */
+export type ChargeStatusSource = Pick<RentalChargeDto, 'status' | 'dueDate'>;
+
+/**
+ * Atraso derivado em tempo de LEITURA — nunca persistido.
+ *
+ * `rental_charges.status` só vira `PAST_DUE` pelo webhook `PAYMENT_OVERDUE` do
+ * Asaas, então aluguel manual (e qualquer linha que não passe pelo provedor)
+ * ficaria `PENDING` pra sempre mesmo vencida, e a tela de detalhes chamava isso
+ * de "Pendente".
+ *
+ * Mesmo precedente do `VehicleService.loadSchedule`, que deriva `OVERDUE` das
+ * parcelas de financiamento na leitura em vez de gravar a transição.
+ *
+ * Regra (espelha `AsaasChargeService.isHistorical` no backend):
+ *  - só `PENDING` pode virar atrasada — `PAID`/`CANCELED`/`REFUNDED`/
+ *    `RELEASED`/`FAILED` mandam no próprio chip;
+ *  - `dueDate` nulo NÃO é atraso (linhas legadas `RENTAL_TOTAL`/`CAUCAO`);
+ *  - estritamente ANTES de hoje — vencer hoje ainda não é atraso.
+ *
+ * DIVERGÊNCIA CONHECIDA, ainda aberta. O dashboard NÃO usa esta regra: lá o
+ * critério é `status='PENDING' AND COALESCE(due_date, created_date + INTERVAL
+ * '30 days') < CURRENT_DATE`. Ou seja, uma `PENDING` com `dueDate` nulo criada
+ * há mais de 30 dias conta como atrasada no dashboard e continua "Pendente"
+ * aqui. O frontend NÃO consegue fechar essa lacuna: `RentalChargeDto` não
+ * carrega data de criação. Unificar as duas regras é outro nó — não tente
+ * resolver aqui.
+ *
+ * `today` é OBRIGATÓRIO de propósito. Um default `= todayInBusinessTz()`
+ * deixaria qualquer chamador futuro reabrir um segundo relógio sem querer, que
+ * é exatamente o que faria o chip e o contador "N atrasada(s)" divergirem numa
+ * virada de meia-noite — e nenhum teste pegaria. Quem chama decide o "hoje", e
+ * decide UMA vez. Formato `yyyy-MM-dd` no fuso de negócio, o mesmo de
+ * `dueDate`, então comparar as strings já é comparar as datas.
+ */
+export function isChargeOverdue(charge: ChargeStatusSource, today: string): boolean {
+  if (charge.status !== 'PENDING') return false;
+  if (!charge.dueDate) return false;
+  return charge.dueDate < today;
+}
+
+/** Status que a UI deve exibir: o do backend, ou `PAST_DUE` quando derivado. */
+export function effectiveChargeStatus(charge: ChargeStatusSource, today: string): ChargeStatus {
+  return isChargeOverdue(charge, today) ? 'PAST_DUE' : charge.status;
+}
+
+export function chargeStatusInfo(
+  charge: ChargeStatusSource,
+  today: string,
+): { label: string; chip: string } {
+  return CHARGE_STATUS_META[effectiveChargeStatus(charge, today)];
 }
 
 export function chargeKindLabel(kind: ChargeKind): string {

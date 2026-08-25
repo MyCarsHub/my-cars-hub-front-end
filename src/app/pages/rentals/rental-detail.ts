@@ -46,11 +46,13 @@ import {
   caucaoRefundMethodLabel,
   chargeKindLabel,
   chargeStatusInfo,
+  effectiveChargeStatus,
   rentalRateLabel,
   rentalStatusInfo,
 } from '../../types/rental.types';
 import { EndRentalDialog, EndRentalDialogPayload } from './components/end-rental-dialog/end-rental-dialog';
 import { RENTAL_STATUS_META } from '../../utils/status-maps';
+import { todayInBusinessTz } from '../../utils/business-clock';
 
 @Component({
   selector: 'app-rental-detail',
@@ -270,10 +272,6 @@ export class RentalDetail implements OnInit {
     if (!r) return 0;
     const s = new Date(r.startDate + 'T00:00:00').getTime();
     const e = new Date(r.endDate + 'T00:00:00').getTime();
-    // Fim EXCLUSIVO, igual à prévia do form e ao backend (`RentalPeriodPlanner
-    // .billableDays()`): o dia da devolução não é cobrado. O piso de 1 cobre
-    // `start == end` — um aluguel de um dia custa uma diária, não R$ 0 — e de
-    // quebra segura período invertido vindo da API.
     const diff = Math.round((e - s) / 86_400_000);
     return diff > 0 ? diff : 1;
   });
@@ -365,8 +363,25 @@ export class RentalDetail implements OnInit {
 
   protected readonly totalCount = computed<number>(() => this.scheduleCharges().length);
 
+  /**
+   * Data de referência do atraso, congelada na montagem da tela.
+   *
+   * Um sinal (e não `todayInBusinessTz()` solto dentro do `computed`) pra que
+   * o chip e o contador leiam exatamente o MESMO "hoje": se cada leitura
+   * chamasse o relógio por conta própria, uma virada de meia-noite entre duas
+   * delas deixaria o badge "N atrasada(s)" discordando dos chips renderizados.
+   */
+  private readonly today = signal<string>(todayInBusinessTz());
+
+  /**
+   * Conta exatamente as cobranças que renderizam o chip "Atrasada" — inclui as
+   * derivadas por `dueDate`, não só as que o webhook do Asaas marcou.
+   */
   protected readonly overdueCount = computed<number>(
-    () => this.scheduleCharges().filter((c) => c.status === 'PAST_DUE').length,
+    () =>
+      this.scheduleCharges().filter(
+        (c) => effectiveChargeStatus(c, this.today()) === 'PAST_DUE',
+      ).length,
   );
 
   /**
@@ -618,12 +633,46 @@ export class RentalDetail implements OnInit {
     return rentalRateLabel(f);
   }
 
-  protected chargeStatusInfo(status: RentalChargeDto['status']): { label: string; chip: string } {
-    return chargeStatusInfo(status);
+  /**
+   * Ponte do template. Recebe a cobrança INTEIRA (e não só o status) porque o
+   * atraso é derivado de `dueDate` na leitura — ver `isChargeOverdue`.
+   */
+  protected chargeStatusInfo(charge: RentalChargeDto): { label: string; chip: string } {
+    return chargeStatusInfo(charge, this.today());
   }
 
+  /**
+   * Status que ainda podem ser pagos pelo link do provedor.
+   *
+   * `PAST_DUE` NÃO é terminal — o `checkoutUrl` do Asaas segue válido depois do
+   * vencimento, e é justamente a cobrança atrasada que mais precisa do botão.
+   * Gatear só em `PENDING` fazia "Pagar" sumir no instante em que vencia.
+   *
+   * QUEM ISTO RESGATA, concretamente: cobrança EMITIDA NO GATEWAY — ou seja, que
+   * TEM `checkoutUrl` — e que o backend passou a expor como `PAST_DUE`, seja
+   * porque o webhook `PAYMENT_OVERDUE` gravou, seja porque a derivação de
+   * leitura (`RentalService.toChargeDto`) carimba na resposta. Inclui a parcela
+   * de aluguel MANUAL (`automaticCharge=false`) que chegou ao gateway: sem
+   * webhook, ela ficava `PENDING` para sempre por mais vencida que estivesse.
+   *
+   * QUEM ISTO NÃO RESGATA, e nunca resgatou: a linha `provider='INTERNAL'` (a
+   * multa por atraso) nasce com `checkoutUrl` nulo e não tem link para abrir —
+   * o conjunto `!!charge.checkoutUrl` a exclui antes e depois desta mudança.
+   * Essa se acerta por "Marcar como paga". Não procure por ela aqui.
+   *
+   * Os DOIS `PAST_DUE` são indistinguíveis daqui, de propósito, e por isso o
+   * teste é no status CRU e não no efetivo: `effectiveChargeStatus` só mapeia
+   * `PENDING → PAST_DUE` e é identidade no resto, então com as DUAS pontas
+   * dentro do conjunto o predicado é invariante sob a derivação — sem precisar
+   * abrir um segundo relógio aqui dentro.
+   */
+  private readonly PAYABLE_STATUSES: ReadonlyArray<RentalChargeDto['status']> = [
+    'PENDING',
+    'PAST_DUE',
+  ];
+
   protected canPayCharge(charge: RentalChargeDto): boolean {
-    return charge.status === 'PENDING' && !!charge.checkoutUrl;
+    return this.PAYABLE_STATUSES.includes(charge.status) && !!charge.checkoutUrl;
   }
 
   protected canRetryCharge(charge: RentalChargeDto): boolean {
@@ -844,7 +893,9 @@ export class RentalDetail implements OnInit {
         : c.periodIndex != null
           ? `a cobrança do período ${c.periodIndex + 1}`
           : `a cobrança ${chargeKindLabel(c.kind)}`;
-    return `Desmarcar ${period} como paga? O status voltará para pendente e a data de pagamento será limpa.`;
+    // "em aberto" e não "pendente": a cobrança volta pro estado não-pago, mas se
+    // já passou do vencimento ela re-renderiza como "Atrasada", não "Pendente".
+    return `Desmarcar ${period} como paga? O status voltará para em aberto e a data de pagamento será limpa.`;
   });
 
   protected confirmUnmarkPaid(): void {
