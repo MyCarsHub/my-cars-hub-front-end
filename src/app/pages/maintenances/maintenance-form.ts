@@ -7,10 +7,18 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
@@ -25,11 +33,50 @@ import {
   CreateMaintenanceRequest,
   MAINTENANCE_STATUS_OPTIONS,
   MAINTENANCE_TYPE_OPTIONS,
+  MaintenanceItemRequest,
   MaintenanceStatus,
   MaintenanceType,
   UpdateMaintenanceRequest,
 } from '../../types/maintenance.types';
+import { formatBRL } from '../../types/dashboard.types';
 import { VehicleListItem } from '../../types/vehicle.types';
+import {
+  ITEMS_MAX,
+  QUANTITY_MAX,
+  UNIT_PRICE_MAX_CENTS,
+  computeCostBreakdown,
+  parseQuantityMilli,
+  quantityMilliToNumber,
+  quantityNumberToMilli,
+} from './maintenance-cost';
+
+/** Uma linha de peça do `FormArray`. */
+type ItemGroup = FormGroup<{
+  name: FormControl<string>;
+  quantity: FormControl<string>;
+  unitPriceReais: FormControl<number>;
+}>;
+
+/**
+ * Quantidade é texto, não `type="number"`.
+ *
+ * O contrato é `NUMERIC(10,3)` e o usuário digita com VÍRGULA — `<input type="number">`
+ * recusa a vírgula no teclado pt-BR e entrega `valueAsNumber = NaN`, o que apagaria o
+ * valor digitado em silêncio. O controle guarda o texto e este validador é quem decide
+ * se ele é uma quantidade.
+ */
+function quantityValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = control.value as string;
+  if (raw === null || raw === undefined || String(raw).trim() === '') {
+    return { required: true };
+  }
+
+  const milli = parseQuantityMilli(raw);
+  if (milli === null) return { quantityFormat: true };
+  if (milli <= 0) return { quantityMin: true };
+  if (milli > QUANTITY_MAX * 1000) return { quantityMax: { max: QUANTITY_MAX } };
+  return null;
+}
 
 @Component({
   selector: 'app-maintenance-form',
@@ -50,6 +97,8 @@ export class MaintenanceForm implements OnInit {
   protected readonly typeOptions = MAINTENANCE_TYPE_OPTIONS.filter((o) => o.value !== '');
   protected readonly statusOptions = MAINTENANCE_STATUS_OPTIONS.filter((o) => o.value !== '');
 
+  protected readonly itemsMax = ITEMS_MAX;
+
   protected readonly editingId = signal<string | null>(null);
   protected readonly isEdit = computed(() => this.editingId() !== null);
   protected readonly loading = signal(false);
@@ -64,7 +113,15 @@ export class MaintenanceForm implements OnInit {
     description: ['', [Validators.required, Validators.maxLength(300)]],
     serviceDate: ['', [Validators.required]],
     hodometerReading: [null as number | null, [Validators.min(0)]],
-    costReais: [0, [Validators.required, Validators.min(0)]],
+    /**
+     * Peças. Começa VAZIO de propósito: peça é opcional, e uma linha em branco
+     * obrigatória diria o contrário ao usuário logo na abertura da tela.
+     */
+    items: this.fb.array<ItemGroup>([]),
+    labourReais: [0, [Validators.required, Validators.min(0)]],
+    discountReais: [0, [Validators.required, Validators.min(0)]],
+    surchargeReais: [0, [Validators.required, Validators.min(0)]],
+    surchargeNote: ['', [Validators.maxLength(120)]],
     provider: ['', [Validators.maxLength(120)]],
     invoiceNumber: ['', [Validators.maxLength(60)]],
     nextServiceDate: [''],
@@ -72,6 +129,39 @@ export class MaintenanceForm implements OnInit {
     status: ['SCHEDULED' as MaintenanceStatus, [Validators.required]],
     notes: [''],
   });
+
+  protected get items() {
+    return this.form.controls.items;
+  }
+
+  /**
+   * Espelha `form.valueChanges` para que o resumo abaixo recompute sob OnPush.
+   * Reactive forms não são signals; este é o mesmo gatilho usado no `rental-form`.
+   */
+  private readonly formValue = toSignal(this.form.valueChanges);
+
+  /**
+   * O total ao vivo. Lê os controles direto — `formValue()` existe só como
+   * dependência que dispara o recálculo a cada mudança do formulário.
+   */
+  protected readonly breakdown = computed(() => {
+    this.formValue();
+    return this.readBreakdown();
+  });
+
+  protected readonly lineTotalLabels = computed(() =>
+    this.breakdown().lineTotals.map((cents) => formatBRL(cents)),
+  );
+  protected readonly itemsTotalLabel = computed(() => formatBRL(this.breakdown().itemsCents));
+  protected readonly totalLabel = computed(() => formatBRL(this.breakdown().totalCents));
+
+  /**
+   * O backend recusa desconto maior que `peças + mão de obra + acréscimos` — um total
+   * negativo não é um custo. Mostrado antes do round-trip.
+   */
+  protected readonly discountExceedsBase = computed(() => this.breakdown().totalCents < 0);
+
+  protected readonly hasItems = computed(() => this.breakdown().lineTotals.length > 0);
 
   /** Espelha o status escolhido para o template reagir sem lógica inline. */
   protected readonly currentStatus = signal<MaintenanceStatus>('SCHEDULED');
@@ -108,7 +198,22 @@ export class MaintenanceForm implements OnInit {
     required: 'Informe o hodômetro atual para registrar uma manutenção já realizada.',
     min: 'Informe um valor válido (≥ 0).',
   };
-  protected readonly costMessages: Readonly<Record<string, string>> = {
+  protected readonly itemNameMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o nome da peça.',
+    maxlength: 'Máximo de 120 caracteres.',
+  };
+  protected readonly quantityMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a quantidade.',
+    quantityFormat: 'Use até 3 casas decimais. Ex: 3,5',
+    quantityMin: 'A quantidade deve ser maior que zero.',
+    quantityMax: `Máximo de ${QUANTITY_MAX} por peça.`,
+  };
+  protected readonly unitPriceMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o valor unitário.',
+    min: 'Informe um valor válido (≥ 0).',
+    max: 'Valor unitário acima do limite aceito.',
+  };
+  protected readonly moneyMessages: Readonly<Record<string, string>> = {
     required: 'Informe um valor válido.',
     min: 'Informe um valor válido.',
   };
@@ -135,18 +240,77 @@ export class MaintenanceForm implements OnInit {
     }
   }
 
+  private newItemGroup(name = '', quantity = '1', unitPriceReais = 0): ItemGroup {
+    return this.fb.nonNullable.group({
+      name: [name, [Validators.required, Validators.maxLength(120)]],
+      quantity: [quantity, [quantityValidator]],
+      // Zero é legítimo (peça de cortesia, item incluso no serviço). O teto espelha a
+      // regra de serviço do backend e existe como guarda-corpo técnico, não como
+      // limite comercial — o usuário só o encontra se tentar ultrapassá-lo.
+      unitPriceReais: [
+        unitPriceReais,
+        [Validators.required, Validators.min(0), Validators.max(UNIT_PRICE_MAX_CENTS / 100)],
+      ],
+    }) as ItemGroup;
+  }
+
+  protected addItem(): void {
+    if (this.items.length >= ITEMS_MAX) return;
+    this.items.push(this.newItemGroup());
+  }
+
+  /**
+   * Remover a ÚLTIMA linha é permitido: peça é opcional, então zero peça precisa ser
+   * alcançável pelo formulário.
+   */
+  protected removeItem(index: number): void {
+    this.items.removeAt(index);
+  }
+
+  private centsOf(value: number | null): number {
+    return toCents(value) ?? 0;
+  }
+
+  private readBreakdown() {
+    const lines = this.items.controls.map((group) => ({
+      quantityMilli: parseQuantityMilli(group.controls.quantity.value) ?? 0,
+      unitPriceCents: this.centsOf(group.controls.unitPriceReais.value),
+    }));
+
+    return computeCostBreakdown({
+      lines,
+      labourCents: this.centsOf(this.form.controls.labourReais.value),
+      discountCents: this.centsOf(this.form.controls.discountReais.value),
+      surchargeCents: this.centsOf(this.form.controls.surchargeReais.value),
+    });
+  }
+
   private load(id: string): void {
     this.loading.set(true);
     this.error.set(null);
     this.maintenancesService.getOne(id).subscribe({
       next: (m) => {
+        this.items.clear();
+        for (const item of m.items ?? []) {
+          this.items.push(
+            this.newItemGroup(
+              item.name,
+              String(quantityNumberToMilli(item.quantity) / 1000).replace('.', ','),
+              item.unitPriceCents / 100,
+            ),
+          );
+        }
+
         this.form.patchValue({
           vehicleId: m.vehicleId,
           type: m.type,
           description: m.description,
           serviceDate: m.serviceDate,
           hodometerReading: m.hodometerReading,
-          costReais: m.costCents / 100,
+          labourReais: (m.labourCostCents ?? 0) / 100,
+          discountReais: (m.discountCents ?? 0) / 100,
+          surchargeReais: (m.surchargeCents ?? 0) / 100,
+          surchargeNote: m.surchargeNote ?? '',
           provider: m.provider ?? '',
           invoiceNumber: m.invoiceNumber ?? '',
           nextServiceDate: m.nextServiceDate ?? '',
@@ -165,6 +329,15 @@ export class MaintenanceForm implements OnInit {
     });
   }
 
+  /** As peças do payload. Lista vazia é válida e APAGA as peças no PUT full-replace. */
+  private itemsPayload(): MaintenanceItemRequest[] {
+    return this.items.controls.map((group) => ({
+      name: group.controls.name.value.trim(),
+      quantity: quantityMilliToNumber(parseQuantityMilli(group.controls.quantity.value) ?? 0),
+      unitPriceCents: this.centsOf(group.controls.unitPriceReais.value),
+    }));
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -172,11 +345,22 @@ export class MaintenanceForm implements OnInit {
       this.error.set('Verifique os campos destacados e tente novamente.');
       return;
     }
+    if (this.discountExceedsBase()) {
+      this.form.controls.discountReais.markAsTouched();
+      this.error.set(
+        'O desconto não pode ser maior que peças + mão de obra + acréscimos.',
+      );
+      return;
+    }
     this.saving.set(true);
     this.error.set(null);
     clearServerErrors(this.form);
     const raw = this.form.getRawValue();
-    const costCents = toCents(Number(raw.costReais)) ?? 0;
+    const items = this.itemsPayload();
+    const labourCostCents = this.centsOf(raw.labourReais);
+    const discountCents = this.centsOf(raw.discountReais);
+    const surchargeCents = this.centsOf(raw.surchargeReais);
+    const surchargeNote = raw.surchargeNote?.trim() || null;
 
     if (this.isEdit()) {
       const payload: UpdateMaintenanceRequest = {
@@ -184,7 +368,11 @@ export class MaintenanceForm implements OnInit {
         description: raw.description.trim(),
         serviceDate: raw.serviceDate,
         hodometerReading: this.hodometerForUpdate(raw.hodometerReading),
-        costCents,
+        items,
+        labourCostCents,
+        discountCents,
+        surchargeCents,
+        surchargeNote,
         provider: raw.provider?.trim() || null,
         invoiceNumber: raw.invoiceNumber?.trim() || null,
         nextServiceDate: raw.nextServiceDate || null,
@@ -203,7 +391,11 @@ export class MaintenanceForm implements OnInit {
         description: raw.description.trim(),
         serviceDate: raw.serviceDate,
         hodometerReading: this.normalizeHodometer(raw.hodometerReading),
-        costCents,
+        items,
+        labourCostCents,
+        discountCents,
+        surchargeCents,
+        surchargeNote,
         provider: raw.provider?.trim() || null,
         invoiceNumber: raw.invoiceNumber?.trim() || null,
         nextServiceDate: raw.nextServiceDate || null,
@@ -227,9 +419,7 @@ export class MaintenanceForm implements OnInit {
   private applyHodometerValidators(status: MaintenanceStatus): void {
     const ctrl = this.form.controls.hodometerReading;
     ctrl.setValidators(
-      status === 'DONE'
-        ? [Validators.required, Validators.min(0)]
-        : [Validators.min(0)],
+      status === 'DONE' ? [Validators.required, Validators.min(0)] : [Validators.min(0)],
     );
     ctrl.updateValueAndValidity({ emitEvent: false });
   }
@@ -259,6 +449,9 @@ export class MaintenanceForm implements OnInit {
   /**
    * Backend `fieldErrors` land inline under the matching control; only the leftover
    * goes to the form banner. Never a toast — `handleForm` claims the error.
+   *
+   * `items[0].name` chega aqui como caminho e o `applyFieldErrors` já o resolve para
+   * `items.0.name`, então o erro cai na LINHA certa do `FormArray` sem trabalho extra.
    */
   private handleError(err: HttpErrorResponse): void {
     this.saving.set(false);
