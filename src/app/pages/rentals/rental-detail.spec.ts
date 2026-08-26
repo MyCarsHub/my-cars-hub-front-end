@@ -760,3 +760,110 @@ describe('RentalDetail — "Pagar" continua visível na cobrança atrasada', () 
     expect(pastDue).toEqual(pending);
   });
 });
+
+/**
+ * `DISPUTED` — a oitava cobrança do enum do backend, ausente da união do
+ * frontend até FIX-0190.
+ *
+ * O modo de falha NÃO era um rótulo feio: `CHARGE_STATUS_META` é indexado por
+ * `Record<ChargeStatus, …>`, então um status fora da união devolvia
+ * `undefined`, e o template lê `.chip`/`.label` desse retorno. A exceção
+ * estoura DENTRO da detecção de mudanças do `RentalDetail`, que aborta a
+ * renderização da view inteira — a "tela branca" relatada em FIX-0122, não uma
+ * linha com o chip vazio. Por isso o teste é de COMPONENTE: um teste de unidade
+ * em `chargeStatusInfo` provaria o `undefined`, mas não que a tela cai.
+ *
+ * Contraste MEDIDO sobre a paleta real do Tailwind 4.2.1 (nenhum override de
+ * `--color-purple-*` em `styles.css`), OKLCH → sRGB → WCAG 2.x:
+ *   - `text-purple-700` sobre `bg-purple-100` → 5.99:1  PASSA AA (≥ 4.5:1)
+ * O par é o mesmo já usado nos chips do admin (`admin-users.ts:240`), então não
+ * introduz família nova. Roxo e não laranja de propósito: `bg-orange-100` é
+ * vizinho de `bg-amber-100` (Pendente) e ainda cai na família do Signal Orange
+ * da marca — as duas armadilhas que o chip "Atrasada" já pagou uma vez.
+ *
+ * Ao mexer na cor, MEÇA de novo — não confie no nome do tom.
+ */
+describe('RentalDetail — cobrança contestada (DISPUTED)', () => {
+  function charge(overrides: Partial<RentalChargeDto>): RentalChargeDto {
+    return {
+      id: 'c-1',
+      kind: 'RENTAL_PERIOD',
+      amount: 10_000,
+      status: 'PENDING',
+      provider: 'ASAAS',
+      externalId: null,
+      checkoutUrl: null,
+      paidAt: null,
+      dueDate: null,
+      periodIndex: 0,
+      ...overrides,
+    };
+  }
+
+  function chipsLabeled(fixture: ComponentFixture<RentalDetail>, label: string): HTMLElement[] {
+    const all = Array.from(fixture.nativeElement.querySelectorAll('span')) as HTMLElement[];
+    return all.filter((s) => (s.textContent ?? '').trim() === label);
+  }
+
+  it('renderiza a tela e o chip "Contestada" em vez de quebrar a detecção', async () => {
+    const { fixture } = await mount({
+      ...RESERVED_BASE,
+      status: 'ACTIVE',
+      charges: [charge({ id: 'c-disputed', periodIndex: 0, status: 'DISPUTED' })],
+    });
+
+    // Guarda anti-"tela branca": antes do fix o `undefined` estourava aqui e a
+    // view não chegava a existir. Um seletor qualquer do corpo já prova isso.
+    const rendered = fixture.nativeElement.querySelectorAll('span').length;
+    expect(rendered, 'a view renderizou').toBeGreaterThan(0);
+
+    // Mobile + desktop renderizam o mesmo chip — o template tem os dois ramos.
+    expect(chipsLabeled(fixture, 'Contestada').length, 'chip em mobile e desktop').toBe(2);
+  });
+
+  it('não deixa vazar rótulo vazio nem "undefined" para a tela', async () => {
+    const { fixture } = await mount({
+      ...RESERVED_BASE,
+      status: 'ACTIVE',
+      charges: [charge({ id: 'c-disputed', periodIndex: 0, status: 'DISPUTED' })],
+    });
+
+    // Escopo no CHIP, não na página: o harness responde `[]` ao GET de veículo
+    // (`flushAncillary`), então o cabeçalho imprime "Veículo — undefined
+    // undefined" por conta do stub. Asserir sobre a página inteira testaria o
+    // mock, não a cobrança.
+    const chips = chipsLabeled(fixture, 'Contestada');
+    expect(chips.length, 'chip em mobile e desktop').toBe(2);
+
+    for (const chip of chips) {
+      expect(chip.textContent?.trim()).toBe('Contestada');
+      expect(chip.className, 'classe do chip sem undefined').not.toContain('undefined');
+      expect(chip.className.trim(), 'chip não pode vir vazio').not.toBe('');
+    }
+  });
+
+  it('usa o par roxo medido em 5.99:1 e não divide a paleta com "Pendente"', async () => {
+    const { fixture } = await mount({
+      ...RESERVED_BASE,
+      status: 'ACTIVE',
+      charges: [
+        charge({ id: 'c-disputed', periodIndex: 0, status: 'DISPUTED' }),
+        charge({ id: 'c-open', periodIndex: 1, status: 'PENDING' }),
+      ],
+    });
+
+    const disputed = chipsLabeled(fixture, 'Contestada')[0];
+    const pending = chipsLabeled(fixture, 'Pendente')[0];
+    expect(disputed, 'chip Contestada renderizado').toBeTruthy();
+    expect(pending, 'chip Pendente renderizado').toBeTruthy();
+
+    // Par medido em 5.99:1. Trocar exige medir de novo.
+    expect(disputed.className).toContain('bg-purple-100');
+    expect(disputed.className).toContain('text-purple-700');
+    expect(
+      disputed.className,
+      'Contestada não pode dividir o fundo com Pendente',
+    ).not.toContain('amber');
+    expect(disputed.className).not.toBe(pending.className);
+  });
+});

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { RENTAL_PHOTO_ANGLES } from './rental.types';
+import { RENTAL_PHOTO_ANGLES, chargeStatusInfo } from './rental.types';
+import type { ChargeStatus } from './rental.types';
 
 /**
  * Os `value` de {@link RENTAL_PHOTO_ANGLES} são contrato com a API: viram o
@@ -49,5 +50,61 @@ describe('RENTAL_PHOTO_ANGLES', () => {
 
   it('preserva o painel de instrumentos, o único "painel" legítimo', () => {
     expect(RENTAL_PHOTO_ANGLES.find((a) => a.value === 'DASHBOARD')?.label).toBe('Painel');
+  });
+});
+
+/**
+ * Guarda de exaustividade do mapa de chips de cobrança.
+ *
+ * `CHARGE_STATUS_META` é module-private e indexado por `Record<ChargeStatus, …>`:
+ * um status que exista no enum do backend mas falte na união do frontend não dá
+ * erro de compilação em lugar nenhum — ele simplesmente devolve `undefined` no
+ * `chargeStatusInfo`, e a tela de detalhes do aluguel quebra na detecção de
+ * mudanças ao ler `.label`/`.chip`. Foi exatamente assim que `DISPUTED` passou
+ * (FIX-0190 / FIX-0122).
+ *
+ * `ALL_CHARGE_STATUSES` é um `Record<ChargeStatus, true>` de propósito: quando
+ * alguém acrescentar o nono status à união, ESTE arquivo para de compilar até
+ * que o mapa e este teste sejam atualizados juntos. É a única forma de tornar
+ * uma união de tipos verificável em runtime.
+ */
+describe('CHARGE_STATUS_META (via chargeStatusInfo)', () => {
+  const ALL_CHARGE_STATUSES: Record<ChargeStatus, true> = {
+    PENDING: true,
+    PAID: true,
+    PAST_DUE: true,
+    FAILED: true,
+    CANCELED: true,
+    REFUNDED: true,
+    RELEASED: true,
+    DISPUTED: true,
+  };
+
+  /** `dueDate` nulo nunca deriva atraso, então cada status se mapeia em si mesmo. */
+  const TODAY = '2026-08-25';
+
+  it('cobre os 8 status do enum do backend, sem nenhum undefined', () => {
+    const statuses = Object.keys(ALL_CHARGE_STATUSES) as ChargeStatus[];
+    expect(statuses).toHaveLength(8);
+
+    for (const status of statuses) {
+      const info = chargeStatusInfo({ status, dueDate: null }, TODAY);
+      expect(info, `status ${status} sem entrada no mapa`).toBeDefined();
+      expect(info.label, `status ${status} sem rótulo`).toBeTruthy();
+      expect(info.chip, `status ${status} sem chip`).toMatch(/^bg-\S+\s+text-\S+$/);
+    }
+  });
+
+  it('dá a DISPUTED o rótulo em português e o par roxo que passa AA (5.99:1)', () => {
+    expect(chargeStatusInfo({ status: 'DISPUTED', dueDate: null }, TODAY)).toEqual({
+      label: 'Contestada',
+      chip: 'bg-purple-100 text-purple-700',
+    });
+  });
+
+  it('não confunde DISPUTED com atraso, por mais vencida que esteja a data', () => {
+    expect(chargeStatusInfo({ status: 'DISPUTED', dueDate: '2020-01-05' }, TODAY).label).toBe(
+      'Contestada',
+    );
   });
 });
