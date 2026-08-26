@@ -125,6 +125,86 @@
         </div>
       </app-page-card>
 
+      <!--
+        Detalhamento de custo em modo LEITURA. Os valores vêm do backend já calculados
+        (`totalCents` de cada peça e o `costCents` total); esta tela não recalcula nada.
+      -->
+      <app-page-card title="Custos">
+        <div class="p-4 sm:p-6 space-y-4">
+          @if (costItems().length) {
+            <div>
+              <div
+                aria-hidden="true"
+                class="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_6rem_9rem_9rem] lg:gap-3 px-1 pb-2
+                       text-xs uppercase tracking-wide text-neutral-400">
+                <span>Peça</span>
+                <span>Qtd.</span>
+                <span>Valor unitário</span>
+                <span class="text-right">Total</span>
+              </div>
+
+              <ul class="space-y-2 lg:space-y-0">
+                @for (it of costItems(); track it.id) {
+                  <li
+                    class="rounded-xl border border-neutral-200 p-3 text-sm
+                           lg:rounded-none lg:border-0 lg:border-b lg:border-neutral-100 lg:p-0 lg:py-2
+                           lg:grid lg:grid-cols-[minmax(0,1fr)_6rem_9rem_9rem] lg:gap-3 lg:items-center">
+                    <p class="font-medium text-neutral-900">{{ it.name }}</p>
+                    <p class="text-neutral-600 tabular-nums mt-1 lg:mt-0">
+                      <span class="lg:hidden">Qtd.: </span>{{ formatQuantity(it.quantity) }}
+                    </p>
+                    <p class="text-neutral-600 tabular-nums lg:mt-0">
+                      <span class="lg:hidden">Unitário: </span>{{ formatCurrency(it.unitPriceCents) }}
+                    </p>
+                    <p class="font-semibold text-neutral-900 tabular-nums lg:text-right">
+                      {{ formatCurrency(it.totalCents) }}
+                    </p>
+                  </li>
+                }
+              </ul>
+            </div>
+          } @else {
+            <p class="text-sm text-neutral-500">
+              Nenhuma peça lançada — esta manutenção foi só de mão de obra.
+            </p>
+          }
+
+          <dl class="space-y-1.5 text-sm border-t border-neutral-100 pt-4">
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-neutral-500">Peças</dt>
+              <dd class="text-neutral-800 tabular-nums">{{ formatCurrency(itemsTotalCents()) }}</dd>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <dt class="text-neutral-500">Mão de obra</dt>
+              <dd class="text-neutral-800 tabular-nums">{{ formatCurrency(m.labourCostCents) }}</dd>
+            </div>
+            @if (m.discountCents) {
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-neutral-500">Desconto</dt>
+                <dd class="text-rose-600 tabular-nums">- {{ formatCurrency(m.discountCents) }}</dd>
+              </div>
+            }
+            @if (m.surchargeCents) {
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-neutral-500">
+                  Acréscimos
+                  @if (m.surchargeNote) {
+                    <span class="text-neutral-400">· {{ m.surchargeNote }}</span>
+                  }
+                </dt>
+                <dd class="text-neutral-800 tabular-nums">{{ formatCurrency(m.surchargeCents) }}</dd>
+              </div>
+            }
+            <div class="flex items-center justify-between gap-3 border-t border-neutral-100 pt-2 mt-2">
+              <dt class="font-semibold text-neutral-900">Total</dt>
+              <dd class="text-lg font-semibold text-primary-700 tabular-nums">
+                {{ formatCurrency(m.costCents) }}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </app-page-card>
+
       <!-- Mobile actions (bottom) -->
       <div class="lg:hidden flex flex-col gap-3 w-full">
         @if (canTransition()) {

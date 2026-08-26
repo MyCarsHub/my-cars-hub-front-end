@@ -106,7 +106,7 @@
         </div>
       </app-page-card>
 
-      <app-page-card title="Medições e custo">
+      <app-page-card title="Medições e fornecedor">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <app-form-field
             label="Hodômetro (km)"
@@ -122,24 +122,6 @@
               min="0"
               inputmode="numeric"
               formControlName="hodometerReading"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
-                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
-          </app-form-field>
-
-          <app-form-field
-            label="Custo (R$)"
-            controlId="maint-cost"
-            [required]="true"
-            [control]="form.controls.costReais"
-            [messages]="costMessages"
-          >
-            <input
-              appFieldControl
-              type="number"
-              step="0.01"
-              min="0"
-              inputmode="decimal"
-              formControlName="costReais"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
@@ -173,6 +155,235 @@
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
+        </div>
+      </app-page-card>
+
+      <app-page-card title="Custos">
+        <div class="p-4 sm:p-6 space-y-6">
+          <!--
+            Peças. O FormArray abre VAZIO de propósito: peça é opcional, e uma linha em
+            branco obrigatória diria o contrário ao usuário logo na abertura da tela.
+          -->
+          <div formArrayName="items" class="space-y-3">
+            <div class="flex items-baseline justify-between gap-3">
+              <h3 class="text-sm font-semibold text-neutral-800">Peças</h3>
+              <p class="text-xs text-neutral-500 tabular-nums">Subtotal {{ itemsTotalLabel() }}</p>
+            </div>
+
+            <!-- Cabeçalho de tabela: só a partir de lg, onde os rótulos dos campos somem. -->
+            @if (hasItems()) {
+              <div
+                aria-hidden="true"
+                class="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_7rem_10rem_9rem_3.5rem] lg:gap-3
+                       px-1 text-xs uppercase tracking-wide text-neutral-400">
+                <span>Peça</span>
+                <span>Qtd.</span>
+                <span>Valor unitário (R$)</span>
+                <span class="text-right">Total</span>
+                <span></span>
+              </div>
+            }
+
+            @for (item of items.controls; track item; let i = $index) {
+              <!--
+                Cartão empilhado no celular; a MESMA marcação vira linha de tabela em lg,
+                onde `[&_label]:sr-only` esconde os rótulos sem tirá-los do DOM — o
+                cabeçalho acima passa a ser o rótulo visual, e o leitor de tela continua
+                com o `<label for>` real associado a cada input.
+              -->
+              <div
+                [formGroupName]="i"
+                class="rounded-xl border border-neutral-200 p-4 space-y-3
+                       lg:rounded-none lg:border-0 lg:border-b lg:border-neutral-100 lg:p-0 lg:pb-3
+                       lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_7rem_10rem_9rem_3.5rem]
+                       lg:gap-3 lg:items-start lg:[&_label]:sr-only">
+                <app-form-field
+                  label="Peça"
+                  [required]="true"
+                  [control]="item.controls.name"
+                  [messages]="itemNameMessages"
+                >
+                  <input
+                    appFieldControl
+                    type="text"
+                    maxlength="120"
+                    formControlName="name"
+                    placeholder="Ex: Filtro de óleo"
+                    class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                           focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+                </app-form-field>
+
+                <app-form-field
+                  label="Qtd."
+                  [required]="true"
+                  [control]="item.controls.quantity"
+                  [messages]="quantityMessages"
+                >
+                  <!--
+                    type="text" e não type="number": a quantidade é NUMERIC(10,3) e o
+                    usuário digita com VÍRGULA, que o input numérico recusa no teclado
+                    pt-BR e entrega como NaN, apagando o valor em silêncio.
+                  -->
+                  <input
+                    appFieldControl
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    formControlName="quantity"
+                    placeholder="1"
+                    class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                           focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+                </app-form-field>
+
+                <app-form-field
+                  label="Valor unitário (R$)"
+                  [required]="true"
+                  [control]="item.controls.unitPriceReais"
+                  [messages]="unitPriceMessages"
+                >
+                  <input
+                    appFieldControl
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    inputmode="decimal"
+                    formControlName="unitPriceReais"
+                    class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                           focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+                </app-form-field>
+
+                <div class="flex items-center justify-between gap-2 lg:block lg:pt-3">
+                  <span class="text-xs uppercase tracking-wide text-neutral-400 lg:hidden">
+                    Total da peça
+                  </span>
+                  <span
+                    class="text-sm font-semibold text-neutral-900 tabular-nums lg:block lg:text-right">
+                    {{ lineTotalLabels()[i] }}
+                  </span>
+                </div>
+
+                <div class="flex lg:justify-end lg:pt-2">
+                  <button
+                    type="button"
+                    (click)="removeItem(i)"
+                    [attr.aria-label]="'Remover peça ' + (i + 1)"
+                    class="w-full lg:w-auto inline-flex items-center justify-center gap-2
+                           min-h-[44px] min-w-[44px] px-3 rounded-xl text-sm font-medium
+                           text-neutral-600 border border-neutral-200
+                           hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50
+                           focus:outline-none focus:ring-2 focus:ring-rose-400 lg:border-0">
+                    <span aria-hidden="true">✕</span>
+                    <span class="lg:sr-only">Remover</span>
+                  </button>
+                </div>
+              </div>
+            } @empty {
+              <p class="rounded-xl border border-dashed border-neutral-300 p-4 text-center text-sm text-neutral-500">
+                Nenhuma peça lançada. Manutenção só de mão de obra pode ser salva assim mesmo.
+              </p>
+            }
+
+            @if (items.length < itemsMax) {
+              <button
+                type="button"
+                (click)="addItem()"
+                class="w-full min-h-[44px] py-3 rounded-xl border border-dashed border-neutral-300
+                       text-sm font-medium text-neutral-600
+                       hover:border-primary-400 hover:text-primary-700
+                       focus:outline-none focus:ring-2 focus:ring-primary-600">
+                + Adicionar peça
+              </button>
+            }
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 border-t border-neutral-100 pt-5">
+            <app-form-field
+              label="Mão de obra (R$)"
+              controlId="maint-labour"
+              [control]="form.controls.labourReais"
+              [messages]="moneyMessages"
+            >
+              <input
+                appFieldControl
+                type="number"
+                step="0.01"
+                min="0"
+                inputmode="decimal"
+                formControlName="labourReais"
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+            </app-form-field>
+
+            <app-form-field
+              label="Desconto (R$)"
+              controlId="maint-discount"
+              [control]="form.controls.discountReais"
+              [messages]="moneyMessages"
+            >
+              <input
+                appFieldControl
+                type="number"
+                step="0.01"
+                min="0"
+                inputmode="decimal"
+                formControlName="discountReais"
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+            </app-form-field>
+
+            <app-form-field
+              label="Acréscimos (R$)"
+              controlId="maint-surcharge"
+              [control]="form.controls.surchargeReais"
+              [messages]="moneyMessages"
+            >
+              <input
+                appFieldControl
+                type="number"
+                step="0.01"
+                min="0"
+                inputmode="decimal"
+                formControlName="surchargeReais"
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+            </app-form-field>
+
+            <app-form-field
+              class="md:col-span-3"
+              label="Descrição do acréscimo"
+              controlId="maint-surcharge-note"
+              hint="Opcional."
+              [control]="form.controls.surchargeNote"
+            >
+              <input
+                appFieldControl
+                type="text"
+                maxlength="120"
+                formControlName="surchargeNote"
+                placeholder="Ex: Taxa de urgência"
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+            </app-form-field>
+          </div>
+
+          <!-- Total ao vivo: calculado a cada tecla, nunca digitado. -->
+          <div class="rounded-xl border border-primary-100 bg-primary-50/40 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-primary-700 font-semibold">Custo total</p>
+              <p class="text-xs text-neutral-500 mt-0.5">
+                Peças + mão de obra − desconto + acréscimos
+              </p>
+            </div>
+            <p class="text-2xl font-semibold text-primary-700 tabular-nums" aria-live="polite">
+              {{ totalLabel() }}
+            </p>
+          </div>
+
+          @if (discountExceedsBase()) {
+            <p class="text-xs text-rose-600" role="alert">
+              O desconto não pode ser maior que peças + mão de obra + acréscimos.
+            </p>
+          }
         </div>
       </app-page-card>
 

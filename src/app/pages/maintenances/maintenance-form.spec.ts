@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import type { AbstractControl } from '@angular/forms';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { EMPTY, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { MaintenanceForm } from './maintenance-form';
+import { formatBRL } from '../../types/dashboard.types';
 import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
@@ -19,7 +21,8 @@ interface FormApi {
   patchValue: (value: Record<string, unknown>) => void;
   valid: boolean;
   invalid: boolean;
-  controls: {
+  get: (path: string) => AbstractControl | null;
+  controls: Record<string, unknown> & {
     hodometerReading: { markAsDirty: () => void; setValue: (v: number | null) => void };
   };
 }
@@ -28,6 +31,11 @@ interface ExposedForm {
   form: FormApi;
   submit: () => void;
   hodometerRequired: () => boolean;
+  addItem: () => void;
+  removeItem: (index: number) => void;
+  items: { length: number };
+  totalLabel: () => string;
+  discountExceedsBase: () => boolean;
 }
 
 const BASE_VALUES = {
@@ -35,7 +43,6 @@ const BASE_VALUES = {
   type: 'PREVENTIVE',
   description: 'Revisão dos 10.000 km',
   serviceDate: '2026-08-10',
-  costReais: 350,
 };
 
 const DONE_MAINTENANCE: Maintenance = {
@@ -49,6 +56,11 @@ const DONE_MAINTENANCE: Maintenance = {
   serviceDate: '2026-01-01',
   hodometerReading: 45000,
   costCents: 20000,
+  items: [],
+  labourCostCents: 20000,
+  discountCents: 0,
+  surchargeCents: 0,
+  surchargeNote: null,
   provider: null,
   invoiceNumber: null,
   nextServiceDate: null,
@@ -267,5 +279,244 @@ describe('MaintenanceForm — erros de campo vindos do backend', () => {
     );
     expect(hodometerError()).toBeNull();
     expect(notifyError).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * FEAT-0025 — seção "Custos": FormArray de peças + mão de obra/desconto/acréscimo,
+ * com total calculado no cliente e NUNCA digitado.
+ */
+describe('MaintenanceForm — seção Custos', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  function setItem(
+    component: ExposedForm,
+    index: number,
+    name: string,
+    quantity: string,
+    unitPriceReais: number,
+  ): void {
+    component.form.get(`items.${index}.name`)?.setValue(name);
+    component.form.get(`items.${index}.quantity`)?.setValue(quantity);
+    component.form.get(`items.${index}.unitPriceReais`)?.setValue(unitPriceReais);
+  }
+
+  function totalText(fixture: { nativeElement: HTMLElement }): string {
+    return fixture.nativeElement.querySelector('[aria-live="polite"]')?.textContent?.trim() ?? '';
+  }
+
+  it('não expõe nenhum campo de custo total digitável', () => {
+    const { fixture, component } = configure(null);
+
+    expect('costReais' in component.form.controls).toBe(false);
+    expect(fixture.nativeElement.querySelector('#maint-cost')).toBeNull();
+  });
+
+  it('abre sem nenhuma linha de peça e mostra o estado vazio', () => {
+    const { fixture, component } = configure(null);
+
+    expect(component.items.length).toBe(0);
+    expect(fixture.nativeElement.textContent).toContain('Nenhuma peça lançada');
+  });
+
+  it('soma duas peças e a mão de obra no total exibido, sem round-trip', () => {
+    const { fixture, component, create, update } = configure(null);
+
+    component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    component.addItem();
+    component.addItem();
+    setItem(component, 0, 'Filtro de óleo', '2', 50);
+    setItem(component, 1, 'Óleo 5W30', '3,5', 40);
+    component.form.get('labourReais')?.setValue(80);
+    fixture.detectChanges();
+
+    // 2 × R$ 50,00 = R$ 100,00 | 3,5 × R$ 40,00 = R$ 140,00 | + R$ 80,00 de mão de obra
+    expect(totalText(fixture)).toBe(formatBRL(32_000));
+    expect(component.totalLabel()).toBe(formatBRL(32_000));
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('com a lista de peças vazia o total é a mão de obra, e o formulário salva', () => {
+    const { fixture, component, create } = configure(null);
+
+    component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    component.form.get('labourReais')?.setValue(150);
+    fixture.detectChanges();
+
+    expect(component.items.length).toBe(0);
+    expect(totalText(fixture)).toBe(formatBRL(15_000));
+    expect(component.form.valid).toBe(true);
+
+    component.submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.items).toEqual([]);
+    expect(payload.labourCostCents).toBe(15_000);
+    expect('costCents' in payload).toBe(false);
+  });
+
+  it('permite remover a ÚLTIMA peça — zero peça é estado salvável', () => {
+    const { fixture, component } = configure(null);
+
+    component.addItem();
+    fixture.detectChanges();
+    expect(component.items.length).toBe(1);
+
+    component.removeItem(0);
+    fixture.detectChanges();
+
+    expect(component.items.length).toBe(0);
+    expect(fixture.nativeElement.textContent).toContain('Nenhuma peça lançada');
+  });
+
+  it('envia quantidade FRACIONÁRIA digitada com vírgula', () => {
+    const { fixture, component, create } = configure(null);
+
+    component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    component.addItem();
+    setItem(component, 0, 'Óleo 5W30', '3,5', 40);
+    fixture.detectChanges();
+
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.items?.[0]).toEqual({
+      name: 'Óleo 5W30',
+      quantity: 3.5,
+      unitPriceCents: 4000,
+    });
+  });
+
+  it('recusa a 4ª casa decimal na quantidade', () => {
+    const { fixture, component } = configure(null);
+
+    component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    component.addItem();
+    setItem(component, 0, 'Óleo', '3,5555', 40);
+    fixture.detectChanges();
+
+    expect(component.form.get('items.0.quantity')?.errors).toEqual({ quantityFormat: true });
+    expect(component.form.invalid).toBe(true);
+  });
+
+  it('bloqueia o envio quando o desconto supera peças + mão de obra + acréscimos', () => {
+    const { fixture, component, create } = configure(null);
+
+    component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    component.form.get('labourReais')?.setValue(100);
+    component.form.get('discountReais')?.setValue(500);
+    fixture.detectChanges();
+
+    expect(component.discountExceedsBase()).toBe(true);
+
+    component.submit();
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('empilha no celular e vira tabela a partir de lg', () => {
+    const { fixture, component } = configure(null);
+
+    component.addItem();
+    fixture.detectChanges();
+
+    // `[formGroupName]` é property binding e nunca vira atributo no DOM; o botão de
+    // remover é a âncora estável de dentro da linha.
+    const remove = fixture.nativeElement.querySelector(
+      'button[aria-label="Remover peça 1"]',
+    ) as HTMLElement;
+    expect(remove).not.toBeNull();
+    expect(remove.className).toContain('min-h-[44px]');
+
+    const row = remove.closest('[class*="lg:grid-cols-"]') as HTMLElement;
+    expect(row).not.toBeNull();
+    // cartão empilhado por padrão…
+    expect(row.className).toContain('rounded-xl');
+    expect(row.className).toContain('space-y-3');
+    // …e linha de tabela só a partir de lg
+    expect(row.className).toContain('lg:grid');
+    expect(row.className).toContain('lg:grid-cols-[minmax(0,1fr)_7rem_10rem_9rem_3.5rem]');
+  });
+});
+
+/**
+ * O contrato de erro do backend é `items[<i>].<atributo>`; `applyFieldErrors` já o
+ * resolve para o caminho do controle, então a mensagem tem de cair na LINHA certa.
+ */
+describe('MaintenanceForm — fieldError do backend dentro do FormArray', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('posiciona items[0].name no controle da primeira peça', async () => {
+    const create = vi.fn();
+
+    await TestBed.configureTestingModule({
+      imports: [MaintenanceForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => null } } } },
+        { provide: MaintenancesService, useValue: { getOne: vi.fn(), create, update: vi.fn() } },
+        {
+          provide: VehiclesService,
+          useValue: {
+            list: vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 })),
+          },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(MaintenanceForm);
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as ExposedForm;
+
+    component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    component.addItem();
+    component.addItem();
+    component.form.get('items.0.name')?.setValue('Filtro');
+    component.form.get('items.0.quantity')?.setValue('1');
+    component.form.get('items.0.unitPriceReais')?.setValue(10);
+    component.form.get('items.1.name')?.setValue('Óleo');
+    component.form.get('items.1.quantity')?.setValue('1');
+    component.form.get('items.1.unitPriceReais')?.setValue(20);
+    fixture.detectChanges();
+
+    create.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            error: {
+              message: 'Dados inválidos.',
+              fieldErrors: { 'items[0].name': 'Nome da peça já usado nesta manutenção.' },
+            },
+          }),
+      ),
+    );
+
+    component.submit();
+    fixture.detectChanges();
+
+    const first = component.form.get('items.0.name');
+    const second = component.form.get('items.1.name');
+    expect(first?.errors?.['serverError']).toEqual({
+      message: 'Nome da peça já usado nesta manutenção.',
+    });
+    expect(second?.errors).toBeNull();
+
+    const alerts = Array.from(
+      fixture.nativeElement.querySelectorAll('[role="alert"]'),
+    ) as HTMLElement[];
+    const texts = alerts.map((el) => el.textContent?.trim());
+    expect(texts).toContain('Nome da peça já usado nesta manutenção.');
   });
 });
