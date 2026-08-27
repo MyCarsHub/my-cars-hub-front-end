@@ -5,6 +5,9 @@ import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
 import {
   CreateDriverRequest,
+  DriverDocument,
+  DriverDocumentKind,
+  DriverDocumentUrl,
   DriverFilters,
   DriverListItem,
   DriverResponse,
@@ -101,5 +104,45 @@ export class DriverService {
       map(() => void 0),
       tap(() => this._items.update((list) => list.filter((d) => d.id !== id))),
     );
+  }
+
+  // ------------------------------------------------------------------ anexos
+
+  listDocuments(driverId: string): Observable<DriverDocument[]> {
+    return this.http.get<DriverDocument[]>(`${BASE}/${driverId}/documents`);
+  }
+
+  /**
+   * Anexa um arquivo (multipart: `file` + `kind`). Sem `reportProgress` DE
+   * PROPÓSITO: o app usa `withFetch()` e o `FetchBackend` nunca emite
+   * `UploadProgress` — pedir progresso só produziria uma barra falsa. A UI
+   * mostra estado indeterminado com cancelamento real.
+   */
+  uploadDocument(
+    driverId: string,
+    kind: DriverDocumentKind,
+    file: File,
+  ): Observable<DriverDocument> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('kind', kind);
+    return this.http.post<DriverDocument>(`${BASE}/${driverId}/documents`, form);
+  }
+
+  /**
+   * URL assinada de TTL curto — o bucket é privado, o path nunca sai do
+   * backend. A rota é `/signed-url`, NÃO `/url`: todo endpoint de documento
+   * deste projeto usa `/signed-url`, e errar isso é um 404 silencioso.
+   */
+  documentSignedUrl(driverId: string, documentId: string): Observable<DriverDocumentUrl> {
+    return this.http.get<DriverDocumentUrl>(
+      `${BASE}/${driverId}/documents/${documentId}/signed-url`,
+    );
+  }
+
+  deleteDocument(driverId: string, documentId: string): Observable<void> {
+    return this.http
+      .delete(`${BASE}/${driverId}/documents/${documentId}`, { responseType: 'text' })
+      .pipe(map(() => void 0));
   }
 }

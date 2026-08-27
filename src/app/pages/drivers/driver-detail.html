@@ -201,6 +201,14 @@
 
     </div>
 
+    <!-- Documentos — largura cheia, como o histórico: as linhas de arquivo têm
+         nome + dois botões e ficariam espremidas em meia coluna no desktop.
+         Fica ACIMA do histórico porque a lista de aluguéis cresce sem teto e
+         enterraria o card no mobile. -->
+    <div class="mt-4 sm:mt-6">
+      <app-driver-documents-card [driverId]="d.id" [isAppDriver]="d.isAppDriver" />
+    </div>
+
     <!-- Rental history -->
     <div class="mt-4 sm:mt-6">
       <app-page-card title="Histórico de aluguéis">
