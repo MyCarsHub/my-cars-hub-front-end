@@ -158,6 +158,19 @@ export class DriverDocumentsCard implements OnInit, OnDestroy {
     target.value = '';
     if (!file) return;
 
+    // O portão vale no ENVIO, não só na exibição. Sem isto ele seria decorativo:
+    // esconder a `<option>` não impede que um `selectedKind` já apanhado antes
+    // do portão fechar suba um kind vedado. Recusa em vez de reclassificar em
+    // silêncio — arquivo arquivado sob o tipo errado é pior que envio negado.
+    if (this.selectedKind() === 'APP_RIDE_RECEIPT' && !this.showAppRideReceipt()) {
+      this.selectedKind.set('CNH');
+      this.error.set(
+        'Extrato de aplicativo não está disponível para este motorista. ' +
+          'Escolha outro tipo e envie de novo.',
+      );
+      return;
+    }
+
     if (!this.isAllowed(file)) {
       this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
       return;

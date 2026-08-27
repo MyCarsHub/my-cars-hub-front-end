@@ -464,6 +464,23 @@ describe('DriverDocumentsCard', () => {
     expect(errorToast).not.toHaveBeenCalled();
   });
 
+  /**
+   * O portão não pode ser decorativo. Esconder a `<option>` não basta: se o
+   * `selectedKind` já carregava o kind vedado, o envio tem de ser RECUSADO —
+   * e recusado sem reclassificar o arquivo em silêncio, porque documento
+   * arquivado sob o tipo errado é pior que envio negado.
+   */
+  it('recusa o envio de um kind vedado mesmo com o slot já escondido', async () => {
+    await setup(false);
+
+    api().selectedKind.set('APP_RIDE_RECEIPT');
+    api().onFileSelected(fileEvent(photo()));
+    fixture.detectChanges();
+
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(api().error()).toContain('Extrato de aplicativo não está disponível');
+  });
+
   /** Esquecer o binding também tem de falhar fechado. */
   it('esconde o slot quando o binding isAppDriver nem é passado', async () => {
     await setup();
