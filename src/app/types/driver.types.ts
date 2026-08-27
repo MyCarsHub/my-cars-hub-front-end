@@ -51,6 +51,21 @@ export interface DriverResponse {
   licenseCategory: LicenseCategory;
   licenseExpiry: string;
   status: DriverStatus;
+  /**
+   * Motorista de aplicativo (FEAT-0034, migration V69).
+   *
+   * A chave JSON é mesmo `isAppDriver`. O Jackson costuma comer o prefixo `is`
+   * de acessor boolean, e um rename silencioso para `appDriver` faria todo
+   * portão que lê este campo cair em `undefined` — o contrato está fixado por
+   * teste de duas vias no backend.
+   *
+   * Tipado como `boolean` porque é o que um backend ATUAL devolve. Só que em
+   * PRODUÇÃO o campo ainda não existe: o `main` do backend está congelado antes
+   * da V69, então o JSON chega SEM a chave e o valor real é `undefined`, não
+   * `false`. Quem lê este campo tem de falhar FECHADO — comparar com `=== true`,
+   * nunca confiar na truthiness de um opcional.
+   */
+  isAppDriver: boolean;
 }
 
 export interface CreateDriverRequest {
@@ -109,3 +124,55 @@ export interface DriverFilters {
   /** Fim do período pretendido, INCLUSIVO. Ver `periodStart`. */
   periodEnd?: string;
 }
+
+// ------------------------------------------------------- anexos do motorista
+
+/**
+ * Espelha `DriverDocumentKindEnum` (FEAT-0033).
+ *
+ * `CNH` é UM tipo, não FRENTE/VERSO: a tabela aceita N linhas do mesmo kind,
+ * então frente e verso da CNH são simplesmente dois arquivos `CNH`. Não existe
+ * unicidade por tipo.
+ */
+export type DriverDocumentKind =
+  | 'CNH'
+  | 'ADDRESS_PROOF'
+  | 'INCOME_PROOF'
+  | 'APP_RIDE_RECEIPT'
+  | 'OTHER';
+
+/** Espelha `DriverDocumentDto`. Sem `storagePath`: o bucket é privado. */
+export interface DriverDocument {
+  id: string;
+  driverId: string;
+  kind: DriverDocumentKind;
+  kindLabel: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedBy: string | null;
+  createdDate: string;
+}
+
+/** Espelha `DriverDocumentUrlDto` — URL assinada de TTL curto. */
+export interface DriverDocumentUrl {
+  url: string;
+  expiresInSeconds: number;
+}
+
+/** Rótulos do backend (`DriverDocumentKindEnum.label`), em pt-BR. */
+export const DRIVER_DOCUMENT_KIND_META: Record<DriverDocumentKind, string> = {
+  CNH: 'CNH',
+  ADDRESS_PROOF: 'Comprovante de residência',
+  INCOME_PROOF: 'Comprovante de renda',
+  APP_RIDE_RECEIPT: 'Extrato de aplicativo',
+  OTHER: 'Outro',
+};
+
+export const DRIVER_DOCUMENT_KIND_OPTIONS: ReadonlyArray<{
+  value: DriverDocumentKind;
+  label: string;
+}> = (Object.keys(DRIVER_DOCUMENT_KIND_META) as DriverDocumentKind[]).map((value) => ({
+  value,
+  label: DRIVER_DOCUMENT_KIND_META[value],
+}));

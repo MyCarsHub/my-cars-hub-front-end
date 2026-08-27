@@ -10,7 +10,8 @@ export type ChargeStatus =
   | 'FAILED'
   | 'CANCELED'
   | 'REFUNDED'
-  | 'RELEASED';
+  | 'RELEASED'
+  | 'DISPUTED';
 export type RentalBillingFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 /** Método de devolução da caução no fechamento (complete/cancel). */
 export type CaucaoRefundMethod = 'AUTOMATIC' | 'MANUAL' | 'NONE';
@@ -299,6 +300,7 @@ const CHARGE_STATUS_META: Record<ChargeStatus, { label: string; chip: string }> 
   CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
   REFUNDED: { label: 'Reembolsado', chip: 'bg-blue-100 text-blue-800' },
   RELEASED: { label: 'Liberado', chip: 'bg-neutral-200 text-neutral-700' },
+  DISPUTED: { label: 'Contestada', chip: 'bg-purple-100 text-purple-700' },
 };
 
 /** O par (status, vencimento) — o mínimo pra decidir se uma cobrança atrasou. */
@@ -317,7 +319,7 @@ export type ChargeStatusSource = Pick<RentalChargeDto, 'status' | 'dueDate'>;
  *
  * Regra (espelha `AsaasChargeService.isHistorical` no backend):
  *  - só `PENDING` pode virar atrasada — `PAID`/`CANCELED`/`REFUNDED`/
- *    `RELEASED`/`FAILED` mandam no próprio chip;
+ *    `RELEASED`/`FAILED`/`DISPUTED` mandam no próprio chip;
  *  - `dueDate` nulo NÃO é atraso (linhas legadas `RENTAL_TOTAL`/`CAUCAO`);
  *  - estritamente ANTES de hoje — vencer hoje ainda não é atraso.
  *

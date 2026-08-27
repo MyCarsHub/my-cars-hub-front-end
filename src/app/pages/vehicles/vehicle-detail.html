@@ -202,6 +202,14 @@
         </div>
       </app-page-card>
 
+      <!-- Documentos anexados. Título deliberadamente diferente de "Documentação":
+           aquele card mostra NÚMEROS (RENAVAM, chassi, licenciamento), este guarda
+           os ARQUIVOS. Dois cards com o mesmo nome na mesma tela seria ruído.
+           Largura total pelo idioma desta página (lg:col-span-2 DENTRO da grid):
+           cada linha carrega nome de arquivo mais dois botões e aperta em meia
+           coluna de desktop. -->
+      <app-vehicle-documents-card [vehicleId]="v.id" class="lg:col-span-2" />
+
       <!-- IPVA -->
       @if (hasIpva()) {
         <app-page-card title="IPVA" class="lg:col-span-2">

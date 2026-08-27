@@ -34,6 +34,7 @@ import {
   MaintenanceStatus,
 } from '../../types/maintenance.types';
 import { licensingBadge } from '../../utils/status-maps';
+import { formatQuantity } from './maintenance-cost';
 
 /** Transições de status disponíveis (backend: `/conclude`, `/cancel`). */
 type MaintenanceTransition = 'conclude' | 'cancel';
@@ -279,6 +280,25 @@ export class MaintenanceDetail implements OnInit {
     if (n == null) return '—';
     return new Intl.NumberFormat('pt-BR').format(n);
   }
+
+  /**
+   * Subtotal das peças. Soma os `totalCents` que o backend já gravou (coluna gerada) —
+   * não recalcula `quantity * unitPrice` no cliente, para não arriscar divergir do
+   * número exibido como total.
+   */
+  /**
+   * Peças da manutenção, normalizadas. O tipo já garante a lista, mas uma resposta
+   * de backend anterior à V64 não traz a chave — `?? []` evita quebrar a tela nesse
+   * intervalo de deploy.
+   */
+  protected readonly costItems = computed(() => this.item()?.items ?? []);
+
+  protected readonly itemsTotalCents = computed(() =>
+    this.costItems().reduce((sum, it) => sum + (it.totalCents ?? 0), 0),
+  );
+
+  /** Quantidade fracionária em pt-BR (`3.5` → `"3,5"`). */
+  protected readonly formatQuantity = formatQuantity;
 
   protected formatCurrency(cents: number | null | undefined): string {
     if (cents == null) return '—';

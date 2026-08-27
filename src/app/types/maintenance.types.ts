@@ -39,6 +39,41 @@ export const MAINTENANCE_SORT_OPTIONS = [
   { value: 'created_asc', label: 'Cadastro (antigo)' },
 ] as const;
 
+/**
+ * Uma peça na RESPOSTA da manutenção.
+ *
+ * `totalCents` vem da coluna gerada no banco (`quantity * unit_price_cents`), nunca
+ * de conta feita no cliente — a tela exibe o que foi gravado.
+ *
+ * `quantity` é fracionário: o backend guarda `NUMERIC(10,3)`, até 3 casas decimais
+ * (3,5 litros de óleo é o caso motivador).
+ */
+export interface MaintenanceItem {
+  id: string;
+  /** Ordem de exibição, base 1. */
+  position: number;
+  name: string;
+  /** Até 3 casas decimais. */
+  quantity: number;
+  unitPriceCents: number;
+  /** Coluna gerada no banco — somente resposta. */
+  totalCents: number;
+}
+
+/**
+ * Uma peça no payload de criar/atualizar.
+ *
+ * **Não existe `totalCents` aqui** — informá-lo reabriria a divergência que a coluna
+ * gerada tornou impossível. Os nomes destes atributos são contrato de erro: o backend
+ * devolve `fieldErrors["items[<i>].<atributo>"]` e a tela posiciona a mensagem por eles.
+ */
+export interface MaintenanceItemRequest {
+  name: string;
+  /** Até 3 casas decimais. */
+  quantity: number;
+  unitPriceCents: number;
+}
+
 export interface MaintenanceListItem {
   id: string;
   vehicleId: string;
@@ -67,7 +102,18 @@ export interface Maintenance {
   serviceDate: string;
   /** Null quando a manutenção não foi realizada (agendada/em andamento/cancelada). */
   hodometerReading: number | null;
+  /**
+   * Total CALCULADO pelo backend: `peças + mão de obra − desconto + acréscimos`.
+   * Somente resposta — saiu dos payloads de escrita.
+   */
   costCents: number;
+  /** Peças lançadas. Lista vazia é caso normal: manutenção só de mão de obra. */
+  items: MaintenanceItem[];
+  labourCostCents: number;
+  discountCents: number;
+  surchargeCents: number;
+  /** Opcional mesmo quando `surchargeCents > 0`. */
+  surchargeNote: string | null;
   provider: string | null;
   invoiceNumber: string | null;
   nextServiceDate: string | null;
@@ -83,7 +129,16 @@ export interface CreateMaintenanceRequest {
   serviceDate: string;
   /** Obrigatório apenas quando `status === 'DONE'` (o backend rejeita com 400). */
   hodometerReading?: number | null;
-  costCents: number;
+  /**
+   * Peças. OPCIONAL: manutenção só de mão de obra (alinhamento, revisão, lavagem) é
+   * caso normal. Ausente ou vazio APAGA as peças — o PUT é full-replace.
+   */
+  items?: MaintenanceItemRequest[];
+  /** Ausência é ZERO, não "não informado". */
+  labourCostCents?: number;
+  discountCents?: number;
+  surchargeCents?: number;
+  surchargeNote?: string | null;
   provider?: string | null;
   invoiceNumber?: string | null;
   nextServiceDate?: string | null;
@@ -102,7 +157,12 @@ export interface UpdateMaintenanceRequest {
   serviceDate: string;
   /** Obrigatório apenas quando `status === 'DONE'` (o backend rejeita com 400). */
   hodometerReading?: number | null;
-  costCents: number;
+  /** Ausente ou vazio APAGA as peças — o PUT é full-replace. */
+  items?: MaintenanceItemRequest[];
+  labourCostCents?: number;
+  discountCents?: number;
+  surchargeCents?: number;
+  surchargeNote?: string | null;
   provider?: string | null;
   invoiceNumber?: string | null;
   nextServiceDate?: string | null;
