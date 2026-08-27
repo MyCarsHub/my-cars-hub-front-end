@@ -254,3 +254,48 @@ export interface FinancingFilters {
   size?: number;
 }
 
+
+// --------------------------------------------------------- anexos do veículo
+
+/**
+ * Espelha `VehicleDocumentKindEnum` (FEAT-0035, migration V68).
+ *
+ * São só DOIS tipos. A tabela aceita N linhas do mesmo kind: o CRLV é
+ * reemitido a cada licenciamento, então o do ano passado e o deste ano
+ * convivem. Não existe unicidade por tipo, e enviar um CRLV novo NÃO
+ * substitui o anterior.
+ */
+export type VehicleDocumentKind = 'CRLV' | 'OTHER';
+
+/** Espelha `VehicleDocumentDto`. Sem `storagePath`: o bucket é privado. */
+export interface VehicleDocument {
+  id: string;
+  vehicleId: string;
+  kind: VehicleDocumentKind;
+  kindLabel: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedBy: string | null;
+  createdDate: string;
+}
+
+/** Espelha `VehicleDocumentUrlDto` — URL assinada de TTL curto. */
+export interface VehicleDocumentUrl {
+  url: string;
+  expiresInSeconds: number;
+}
+
+/** Rótulos do backend (`VehicleDocumentKindEnum.label`), em pt-BR. */
+export const VEHICLE_DOCUMENT_KIND_META: Record<VehicleDocumentKind, string> = {
+  CRLV: 'CRLV',
+  OTHER: 'Outro',
+};
+
+export const VEHICLE_DOCUMENT_KIND_OPTIONS: ReadonlyArray<{
+  value: VehicleDocumentKind;
+  label: string;
+}> = (Object.keys(VEHICLE_DOCUMENT_KIND_META) as VehicleDocumentKind[]).map((value) => ({
+  value,
+  label: VEHICLE_DOCUMENT_KIND_META[value],
+}));

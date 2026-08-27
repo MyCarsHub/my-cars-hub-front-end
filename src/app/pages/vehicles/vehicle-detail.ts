@@ -15,6 +15,7 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { VehicleDocumentsCard } from './vehicle-documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
@@ -44,6 +45,7 @@ const IPVA_STATUS_LABEL: Record<IpvaStatus, { label: string; chip: string }> = {
     ConfirmDialog,
     DetailActions,
     AlertBanner,
+    VehicleDocumentsCard,
   ],
   templateUrl: './vehicle-detail.html',
 })
