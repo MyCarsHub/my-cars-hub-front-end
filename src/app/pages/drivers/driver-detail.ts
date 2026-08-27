@@ -17,6 +17,7 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
+import { DriverDocumentsCard } from './driver-documents-card';
 import { DriverResponse, DriverStatus } from '../../types/driver.types';
 import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
 import { RentalService } from '../rentals/rental.service';
@@ -33,6 +34,7 @@ import { RentalListItemDto } from '../../types/rental.types';
     ConfirmDialog,
     DetailActions,
     AlertBanner,
+    DriverDocumentsCard,
   ],
   templateUrl: './driver-detail.html',
 })

@@ -106,6 +106,7 @@ describe('DriverForm — RG mask', () => {
       licenseCategory: 'B',
       licenseExpiry: '2030-01-01',
       status: 'AVAILABLE',
+      isAppDriver: false,
     };
     configure(driver);
 
