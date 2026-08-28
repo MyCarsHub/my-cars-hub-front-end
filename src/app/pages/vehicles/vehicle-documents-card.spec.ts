@@ -238,6 +238,42 @@ describe('VehicleDocumentsCard', () => {
     );
   });
 
+  /**
+   * DEFEITO REAL, encontrado usando a tela — a suite passava porque os testes
+   * disparavam o `change` logo apos o clique e nunca observavam o meio.
+   *
+   * Tocar no slot abre o dialogo NATIVO de arquivos, e o usuario pode dispensa-
+   * lo sem escolher nada. Nesse instante nenhum envio comecou. Se o card
+   * anunciar "Enviando…" ja no toque, ele mente: oferece um "Cancelar envio"
+   * que nao cancela coisa alguma (nao ha subscription) e trava todos os outros
+   * slots para sempre.
+   */
+  it('não anuncia envio só porque o slot foi tocado, sem arquivo escolhido', async () => {
+    await setup();
+
+    slotButton('CRLV').click();
+    fixture.detectChanges();
+
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(slotText('CRLV')).not.toContain('Enviando o documento…');
+    expect(host().textContent).not.toContain('Cancelar envio');
+    expect(slotButton('OTHER').disabled).toBe(false);
+  });
+
+  /** Dispensar o dialogo e tocar em OUTRO slot tem de funcionar normalmente. */
+  it('permite trocar de slot depois de dispensar o seletor de arquivos', async () => {
+    await setup();
+
+    slotButton('CRLV').click();
+    fixture.detectChanges();
+    dispatchFile(null);
+
+    attach('OTHER', photo('nota-fiscal.pdf', 2048));
+
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    expect((uploadDocument.mock.calls[0] as [string, string, File])[1]).toBe('OTHER');
+  });
+
   // ------------------------------------------------------------------- envio
 
   it('o clique no slot envia com o tipo DAQUELE slot', async () => {
@@ -601,5 +637,27 @@ describe('VehicleDocumentsCard', () => {
     expect(state().documents()).toEqual([]);
     expect(host().textContent).toContain('Não foi possível carregar os documentos.');
     expect(slotKinds()).toEqual(['CRLV', 'OTHER']);
+  });
+
+  /**
+   * O caminho de ERRO zera a lista, nao so mostra o banner. Sem isso um erro
+   * que chega DEPOIS de a lista ja ter conteudo deixaria na tela arquivos que
+   * a carga corrente nao confirmou — o usuario leria dado velho como atual.
+   * Aqui o fluxo emite e so entao falha, que e a unica forma de observar a
+   * guarda pela superficie publica do card.
+   */
+  it('limpa a lista quando a carga falha depois de ja ter emitido', async () => {
+    listDocuments.mockReturnValue(
+      new Observable<VehicleDocument[]>((subscriber) => {
+        subscriber.next([savedDocument]);
+        subscriber.error(new HttpErrorResponse({ status: 500, statusText: 'Server Error' }));
+      }),
+    );
+
+    await setup();
+
+    expect(state().documents()).toEqual([]);
+    expect(slotFileRows('CRLV')).toHaveLength(0);
+    expect(host().textContent).toContain('Não foi possível carregar os documentos.');
   });
 });

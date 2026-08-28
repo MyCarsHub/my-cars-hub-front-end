@@ -142,14 +142,23 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
   protected readonly error = signal<string | null>(null);
 
   /**
-   * Tipo do envio EM VOO — não uma escolha prévia do usuário.
+   * ALVO do seletor de arquivos — a intenção do gesto, não um estado de tela.
    *
-   * Substitui o antigo `selectedKind` do `<select>`. É escrito por
-   * `openPicker()` no instante do toque e lido por `onFileSelected()`, então
-   * carrega a intenção do gesto e nada mais. Nulo quando não há envio em voo, e
-   * é ele que decide DENTRO DE QUAL SLOT o estado "Enviando…" aparece.
+   * Substitui o antigo `selectedKind` do `<select>`: é escrito por
+   * `openPicker()` no instante do toque e lido por `onFileSelected()` quando o
+   * arquivo chega. NÃO indica envio em voo, e essa distinção é o conserto de um
+   * defeito real: o diálogo nativo de arquivos pode ser dispensado sem escolher
+   * nada, e nesse caso nenhum envio começou. Confundir os dois fazia o slot
+   * anunciar "Enviando…" no instante do toque e nunca mais sair disso.
    */
   protected readonly pendingKind = signal<VehicleDocumentKind | null>(null);
+
+  /**
+   * Tipo do envio REALMENTE em voo. Só é escrito quando o request começa e é
+   * limpo por `finishUpload()`. É ele que decide dentro de qual slot o estado
+   * "Enviando…" aparece e que trava os outros slots.
+   */
+  protected readonly uploadingKind = signal<VehicleDocumentKind | null>(null);
 
   private readonly picker = viewChild<ElementRef<HTMLInputElement>>('picker');
 
@@ -162,19 +171,19 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
    */
   protected readonly slots = computed<VehicleDocumentSlot[]>(() => {
     const docs = this.documents();
-    const pending = this.pendingKind();
+    const sending = this.uploadingKind();
     return VEHICLE_SLOT_DEFS.map((def) => ({
       kind: def.kind,
       label: VEHICLE_DOCUMENT_KIND_META[def.kind],
       hint: def.hint,
       required: def.required,
       files: docs.filter((d) => d.kind === def.kind),
-      uploading: pending === def.kind,
+      uploading: sending === def.kind,
     }));
   });
 
   /** Há um envio em voo (em qualquer slot). Trava os demais slots. */
-  protected readonly uploading = computed(() => this.pendingKind() !== null);
+  protected readonly uploading = computed(() => this.uploadingKind() !== null);
 
   /** Slots essenciais — `OTHER` fora, ver `VEHICLE_SLOT_DEFS`. */
   private readonly requiredSlots = computed(() => this.slots().filter((s) => s.required));
@@ -264,6 +273,9 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
     }
 
     this.error.set(null);
+    // O estado "Enviando…" nasce AQUI, junto do request, e não no toque do
+    // slot: o diálogo nativo pode ter sido dispensado sem escolher arquivo.
+    this.uploadingKind.set(kind);
     // Sem compressão: comprimir um CRLV o deixa ilegível.
     this.uploadSub = this.vehiclesService.uploadDocument(this.vehicleId(), kind, file).subscribe({
       next: (doc) => {
@@ -316,6 +328,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
 
   private finishUpload(): void {
     this.pendingKind.set(null);
+    this.uploadingKind.set(null);
     this.uploadSub = null;
   }
 
