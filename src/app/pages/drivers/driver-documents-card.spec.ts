@@ -11,29 +11,34 @@ import { DriverService } from '../../services/driver.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
-import type {
-  DriverDocument,
-  DriverDocumentKind,
-  DriverResponse,
-} from '../../types/driver.types';
+import type { DriverDocument, DriverResponse } from '../../types/driver.types';
 
 /**
- * Documentos do motorista: enviar, listar, abrir por URL assinada e remover.
+ * Documentos do motorista: GRADE DE SLOTS, um por tipo esperado.
  *
- * Três pontos sensíveis, todos deliberados:
+ * Todo teste de interação passa PELO DOM — `click()` de verdade no slot,
+ * `dispatchEvent` de `change` de verdade no `<input type="file">`. Chamar o
+ * método do componente direto provaria que o método funciona, não que a tela
+ * funciona, e foi exatamente assim que um defeito atravessou uma suíte verde
+ * neste projeto.
+ *
+ * Quatro pontos sensíveis, todos deliberados:
  *
  * 1. NÃO existe barra de progresso — o app usa `withFetch()`, que nunca emite
  *    `UploadProgress`, então qualquer barra seria animação desconectada do
  *    envio real. O estado é indeterminado e "Cancelar envio" ABORTA de verdade.
  * 2. NÃO existe compressão — comprimir uma CNH a deixa ilegível.
- * 3. O slot `APP_RIDE_RECEIPT` falha FECHADO. Contra a API hoje em produção o
- *    campo `isAppDriver` nem chega no JSON (o `main` do backend está congelado
- *    antes da V69), e `undefined` tem de esconder o slot sem estourar a view.
+ * 3. Um tipo guarda N arquivos. Frente e verso da CNH são duas linhas `CNH`, e
+ *    a segunda NÃO substitui a primeira.
+ * 4. O slot `APP_RIDE_RECEIPT` falha FECHADO, na exibição E no envio. Contra a
+ *    API hoje em produção o campo `isAppDriver` nem chega no JSON (o `main` do
+ *    backend está congelado antes da V69), e `undefined` tem de esconder o slot
+ *    sem estourar a view.
  */
 describe('DriverDocumentsCard', () => {
   const DRIVER_ID = 'drv-1';
 
-  const savedDocument: DriverDocument = {
+  const cnhFrente: DriverDocument = {
     id: 'doc-1',
     driverId: DRIVER_ID,
     kind: 'CNH',
@@ -43,6 +48,22 @@ describe('DriverDocumentsCard', () => {
     sizeBytes: 204_800,
     uploadedBy: 'user-1',
     createdDate: '2026-03-02T12:00:00',
+  };
+
+  const cnhVerso: DriverDocument = {
+    ...cnhFrente,
+    id: 'doc-2',
+    fileName: 'cnh-verso.jpg',
+    sizeBytes: 194_560,
+  };
+
+  const extratoApp: DriverDocument = {
+    ...cnhFrente,
+    id: 'doc-9',
+    kind: 'APP_RIDE_RECEIPT',
+    kindLabel: 'Recibo de app',
+    fileName: 'extrato-marco.pdf',
+    mimeType: 'application/pdf',
   };
 
   let listDocuments: ReturnType<typeof vi.fn>;
@@ -57,39 +78,81 @@ describe('DriverDocumentsCard', () => {
   let errorToast: ReturnType<typeof vi.fn>;
   let fixture: ComponentFixture<DriverDocumentsCard>;
 
-  interface CardInternals {
+  /** Leitura de estado só para asserção — a AÇÃO nunca passa por aqui. */
+  interface CardState {
     error(): string | null;
-    uploading(): boolean;
     documents(): DriverDocument[];
-    selectedKind: { set(k: DriverDocumentKind): void };
-    onFileSelected(event: Event): void;
-    openDocument(doc: DriverDocument): void;
-    askDelete(doc: DriverDocument): void;
-    confirmDelete(): void;
-    cancelUpload(): void;
   }
 
-  function api(): CardInternals {
-    return fixture.componentInstance as unknown as CardInternals;
+  function state(): CardState {
+    return fixture.componentInstance as unknown as CardState;
   }
 
   function host(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
   }
 
-  /** Valores oferecidos no seletor de tipo, lidos do DOM real. */
-  function kindValues(): string[] {
-    return Array.from(host().querySelectorAll('#driver-doc-kind option')).map(
-      (option) => (option as HTMLOptionElement).value,
+  /** Tipos com slot na tela, lidos do DOM real, na ordem em que aparecem. */
+  function slotKinds(): string[] {
+    return Array.from(host().querySelectorAll('[data-kind]')).map(
+      (el) => el.getAttribute('data-kind') ?? '',
     );
   }
 
-  /** `change` de um `<input type="file">` sem depender de DataTransfer. */
-  function fileEvent(file: File | null): Event {
-    const input = document.createElement('input');
-    input.type = 'file';
+  function slotEl(kind: string): HTMLElement {
+    const el = host().querySelector<HTMLElement>(`[data-kind="${kind}"]`);
+    if (!el) throw new Error(`slot ${kind} não está na tela`);
+    return el;
+  }
+
+  /** O cabeçalho do slot: o botão que É a afordância de anexar. */
+  function slotButton(kind: string): HTMLButtonElement {
+    const el = slotEl(kind).querySelector<HTMLButtonElement>(':scope > button');
+    if (!el) throw new Error(`slot ${kind} não tem botão de anexar`);
+    return el;
+  }
+
+  function slotFileRows(kind: string): HTMLElement[] {
+    return Array.from(slotEl(kind).querySelectorAll<HTMLElement>('[data-file-row]'));
+  }
+
+  function slotText(kind: string): string {
+    return slotEl(kind).textContent ?? '';
+  }
+
+  /** O botao de confirmar do dialogo real, clicado de verdade. */
+  function confirmDialogButton(label: string): HTMLButtonElement {
+    const dialog = host().querySelector('app-confirm-dialog');
+    if (!dialog) throw new Error('o dialogo de confirmacao nao esta na tela');
+    const btn = Array.from(dialog.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').trim() === label,
+    );
+    if (!btn) throw new Error(`o dialogo nao tem o botao "${label}"`);
+    return btn;
+  }
+
+  function fileInput(): HTMLInputElement {
+    const el = host().querySelector<HTMLInputElement>('input[type="file"]');
+    if (!el) throw new Error('o seletor de arquivos não está na tela');
+    return el;
+  }
+
+  /** `change` no input REAL, sem depender de DataTransfer (jsdom não tem). */
+  function dispatchFile(file: File | null): void {
+    const input = fileInput();
     Object.defineProperty(input, 'files', { value: file ? [file] : [], configurable: true });
-    return { target: input } as unknown as Event;
+    input.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  /**
+   * O gesto completo do usuário: toca no slot do tipo, o seletor abre, escolhe
+   * o arquivo. Duas interações de DOM de verdade, nenhuma chamada de método.
+   */
+  function attach(kind: string, file: File): void {
+    slotButton(kind).click();
+    fixture.detectChanges();
+    dispatchFile(file);
   }
 
   function photo(name = 'cnh.jpg', size = 1024, type = 'image/jpeg'): File {
@@ -117,7 +180,7 @@ describe('DriverDocumentsCard', () => {
 
   beforeEach(() => {
     listDocuments = vi.fn(() => of([]));
-    uploadDocument = vi.fn(() => of(savedDocument));
+    uploadDocument = vi.fn(() => of(cnhFrente));
     deleteDocument = vi.fn(() => of(void 0));
     documentSignedUrl = vi.fn(() => of({ url: 'https://signed/doc', expiresInSeconds: 60 }));
     navigate = vi.fn();
@@ -160,25 +223,85 @@ describe('DriverDocumentsCard', () => {
     });
   });
 
-  // ------------------------------------------------------------------- envio
+  // ------------------------------------------------------------ a grade
 
-  it('envia o arquivo com o tipo escolhido e publica o documento salvo', async () => {
+  /**
+   * O ganho estrutural: sem tocar em nada, a tela já diz o que falta. Não
+   * existe `<select>` e não existe botão "Anexar documento" solto — a lista de
+   * tipos ESTÁ na tela, cada um com o próprio estado.
+   */
+  it('mostra um slot por tipo esperado, sem seletor e sem botão de anexar solto', async () => {
     await setup(true);
 
-    api().selectedKind.set('ADDRESS_PROOF');
-    api().onFileSelected(fileEvent(photo('conta-luz.pdf', 2048, 'application/pdf')));
-    fixture.detectChanges();
+    expect(slotKinds()).toEqual([
+      'CNH',
+      'ADDRESS_PROOF',
+      'INCOME_PROOF',
+      'APP_RIDE_RECEIPT',
+      'OTHER',
+    ]);
+    expect(host().querySelector('select')).toBeNull();
+    expect(host().textContent).not.toContain('Anexar documento');
+  });
+
+  it('marca como "Falta anexar" o slot essencial ainda vazio', async () => {
+    await setup(false);
+
+    expect(slotEl('CNH').getAttribute('data-filled')).toBe('false');
+    expect(slotText('CNH')).toContain('Falta anexar');
+    // `OTHER` é opcional: nunca é cobrado do usuário.
+    expect(slotText('OTHER')).not.toContain('Falta anexar');
+  });
+
+  it('resume quantos tipos essenciais faltam, sem contar o opcional', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente]));
+    await setup(false);
+
+    // 3 essenciais visíveis sem o portão (CNH, residência, renda); 1 preenchido.
+    expect(host().querySelector('[role="status"]')?.textContent).toContain(
+      '1 de 3 documentos essenciais anexados',
+    );
+  });
+
+  it('anuncia conclusão quando todos os essenciais têm arquivo', async () => {
+    listDocuments.mockReturnValue(
+      of([
+        cnhFrente,
+        { ...cnhFrente, id: 'd-a', kind: 'ADDRESS_PROOF' as const },
+        { ...cnhFrente, id: 'd-b', kind: 'INCOME_PROOF' as const },
+      ]),
+    );
+    await setup(false);
+
+    expect(host().querySelector('[role="status"]')?.textContent).toContain(
+      'Todos os documentos essenciais foram anexados',
+    );
+  });
+
+  // ------------------------------------------------------------------- envio
+
+  it('o clique no slot envia com o tipo DAQUELE slot', async () => {
+    await setup(true);
+
+    attach('ADDRESS_PROOF', photo('conta-luz.pdf', 2048, 'application/pdf'));
 
     expect(uploadDocument).toHaveBeenCalledTimes(1);
     const [driverId, kind, file] = uploadDocument.mock.calls[0] as [string, string, File];
     expect(driverId).toBe(DRIVER_ID);
-    // O backend exige `kind` junto do arquivo — não é um passo posterior.
+    // O tipo vem do slot tocado — não de uma escolha anterior em um combo.
     expect(kind).toBe('ADDRESS_PROOF');
     expect(file).toBeInstanceOf(File);
-
-    expect(api().documents()).toEqual([savedDocument]);
-    expect(api().uploading()).toBe(false);
     expect(successToast).toHaveBeenCalledWith('Documento enviado.');
+  });
+
+  it('slots diferentes enviam tipos diferentes', async () => {
+    await setup(true);
+
+    attach('INCOME_PROOF', photo('holerite.pdf', 2048, 'application/pdf'));
+    expect((uploadDocument.mock.calls[0] as [string, string, File])[1]).toBe('INCOME_PROOF');
+
+    attach('OTHER', photo('outro.pdf', 2048, 'application/pdf'));
+    expect((uploadDocument.mock.calls[1] as [string, string, File])[1]).toBe('OTHER');
   });
 
   /**
@@ -190,8 +313,7 @@ describe('DriverDocumentsCard', () => {
     await setup(false);
 
     const original = photo('cnh-verso.jpg', 4 * 1024 * 1024);
-    api().onFileSelected(fileEvent(original));
-    fixture.detectChanges();
+    attach('CNH', original);
 
     const [, , sent] = uploadDocument.mock.calls[0] as [string, string, File];
     expect(sent).toBe(original);
@@ -201,51 +323,47 @@ describe('DriverDocumentsCard', () => {
   it('recusa formato fora da allowlist sem gastar dados móveis', async () => {
     await setup(false);
 
-    api().onFileSelected(fileEvent(photo('planilha.xlsx', 1024, 'application/vnd.ms-excel')));
-    fixture.detectChanges();
+    attach('CNH', photo('planilha.xlsx', 1024, 'application/vnd.ms-excel'));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(api().error()).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
+    expect(host().textContent).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
   });
 
   it('recusa arquivo acima de 20MB sem chamar a API', async () => {
     await setup(false);
 
-    api().onFileSelected(fileEvent(photo('enorme.jpg', 21 * 1024 * 1024)));
-    fixture.detectChanges();
+    attach('CNH', photo('enorme.jpg', 21 * 1024 * 1024));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(api().error()).toContain('20MB');
+    expect(host().textContent).toContain('20MB');
   });
 
   /** Alguns Android entregam `type` vazio para HEIC — o nome salva o envio. */
   it('aceita HEIC sem content-type pelo nome do arquivo', async () => {
     await setup(false);
 
-    api().onFileSelected(fileEvent(photo('IMG_0042.HEIC', 1024, '')));
-    fixture.detectChanges();
+    attach('CNH', photo('IMG_0042.HEIC', 1024, ''));
 
     expect(uploadDocument).toHaveBeenCalledTimes(1);
   });
 
   /**
-   * Estado indeterminado, nunca barra falsa: enquanto o upload está em voo a
-   * tela diz "Enviando…" e oferece um cancelamento que ABORTA o request
-   * (unsubscribe dispara o AbortController do FetchBackend).
+   * Estado indeterminado, nunca barra falsa — e DENTRO do slot que o usuário
+   * tocou, não num aviso solto no topo do card.
    */
-  it('mostra estado indeterminado sem barra de progresso durante o envio', async () => {
+  it('mostra o estado indeterminado dentro do slot, sem barra de progresso', async () => {
     const pending = new Subject<DriverDocument>();
     uploadDocument.mockReturnValue(pending.asObservable());
     await setup(false);
 
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
+    attach('INCOME_PROOF', photo());
 
-    expect(api().uploading()).toBe(true);
-    expect(host().textContent).toContain('Enviando o documento…');
+    expect(slotText('INCOME_PROOF')).toContain('Enviando o documento…');
+    // O aviso está no slot tocado, não em outro.
+    expect(slotText('CNH')).not.toContain('Enviando o documento…');
     expect(host().querySelector('progress')).toBeNull();
     expect(host().querySelector('[role="progressbar"]')).toBeNull();
-    expect(host().querySelector('[role="status"]')?.getAttribute('aria-live')).toBe('polite');
+    expect(slotEl('INCOME_PROOF').querySelector('[aria-live="polite"]')).not.toBeNull();
   });
 
   /**
@@ -266,17 +384,20 @@ describe('DriverDocumentsCard', () => {
     );
 
     await setup(false);
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
-    expect(api().uploading()).toBe(true);
+    attach('CNH', photo());
     expect(aborted).toBe(false);
 
-    api().cancelUpload();
+    // Botão real, dentro do slot, clicado de verdade.
+    const cancelar = Array.from(slotEl('CNH').querySelectorAll('button')).find((b) =>
+      (b.textContent ?? '').includes('Cancelar envio'),
+    );
+    expect(cancelar).toBeDefined();
+    cancelar?.click();
     fixture.detectChanges();
 
     expect(aborted).toBe(true);
-    expect(api().uploading()).toBe(false);
-    expect(api().documents()).toHaveLength(0);
+    expect(slotText('CNH')).not.toContain('Enviando o documento…');
+    expect(state().documents()).toHaveLength(0);
     expect(infoToast).toHaveBeenCalledWith('Envio cancelado.');
     expect(successToast).not.toHaveBeenCalled();
   });
@@ -291,8 +412,7 @@ describe('DriverDocumentsCard', () => {
     );
 
     await setup(false);
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
+    attach('CNH', photo());
     expect(aborted).toBe(false);
 
     fixture.destroy();
@@ -306,21 +426,21 @@ describe('DriverDocumentsCard', () => {
     );
     await setup(false);
 
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
+    attach('CNH', photo());
 
-    expect(api().error()).toContain('20MB');
-    expect(api().uploading()).toBe(false);
+    expect(host().textContent).toContain('20MB');
+    expect(slotText('CNH')).not.toContain('Enviando o documento…');
   });
 
   /**
    * O backend recusa o 21º anexo com a mensagem em `fieldErrors.file`. Ela é
    * regra de negócio: aparece INLINE dentro do card, onde o usuário está
-   * olhando, e nunca como toast.
+   * olhando, e nunca como toast. O texto diz que o teto é TÉCNICO — não é
+   * restrição de plano e não pode virar uma venda.
    */
   it('renderiza o erro de negócio de fieldErrors.file inline, sem toast', async () => {
     const limite =
-      'Limite de 20 anexos por motorista atingido. Remova um documento antes de enviar outro.';
+      'Limite técnico de 20 anexos por motorista atingido. Remova um documento antes de enviar outro.';
     uploadDocument.mockReturnValue(
       throwError(
         () =>
@@ -333,21 +453,75 @@ describe('DriverDocumentsCard', () => {
     );
     await setup(false);
 
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
+    attach('CNH', photo());
 
-    expect(api().error()).toBe(limite);
-    expect(host().textContent).toContain('Limite de 20 anexos por motorista atingido.');
+    expect(state().error()).toBe(limite);
+    expect(host().textContent).toContain('Limite técnico de 20 anexos por motorista atingido.');
     expect(errorToast).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------- N arquivos por tipo
+
+  /**
+   * ESTE é o requisito que o grid da vistoria não atende. Frente e verso da CNH
+   * são dois arquivos do MESMO tipo (COMMENT da V65) e o segundo NÃO substitui
+   * o primeiro: os dois têm de continuar visíveis e removíveis.
+   */
+  it('acumula dois arquivos no mesmo slot, sem um esconder o outro', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente]));
+    await setup(false);
+    expect(slotFileRows('CNH')).toHaveLength(1);
+
+    uploadDocument.mockReturnValue(of(cnhVerso));
+    attach('CNH', photo('cnh-verso.jpg'));
+
+    const linhas = slotFileRows('CNH');
+    expect(linhas).toHaveLength(2);
+    expect(linhas[0].textContent).toContain('cnh-frente.jpg');
+    expect(linhas[1].textContent).toContain('cnh-verso.jpg');
+    expect(slotText('CNH')).toContain('2 arquivos');
+  });
+
+  it('conta 1 arquivo no singular', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente]));
+    await setup(false);
+
+    expect(slotText('CNH')).toContain('1 arquivo');
+    expect(slotText('CNH')).not.toContain('1 arquivos');
+    expect(slotEl('CNH').getAttribute('data-filled')).toBe('true');
+  });
+
+  it('agrupa cada arquivo sob o slot do seu próprio tipo', async () => {
+    listDocuments.mockReturnValue(
+      of([cnhFrente, { ...cnhFrente, id: 'd-a', kind: 'ADDRESS_PROOF' as const }]),
+    );
+    await setup(false);
+
+    expect(slotFileRows('CNH')).toHaveLength(1);
+    expect(slotFileRows('ADDRESS_PROOF')).toHaveLength(1);
+    expect(slotFileRows('INCOME_PROOF')).toHaveLength(0);
+  });
+
+  it('renderiza nome, tipo e tamanho a partir do DTO', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente]));
+    await setup(false);
+
+    const text = slotText('CNH');
+    expect(text).toContain('cnh-frente.jpg');
+    // Rótulo e tamanho saem na MESMA linha de metadados, vindos do DTO.
+    expect(text).toContain('CNH · 200.0 KB');
   });
 
   // ------------------------------------------------------------------ abrir
 
   it('abre o documento navegando a aba reservada para a signed URL', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
+    listDocuments.mockReturnValue(of([cnhFrente]));
     await setup(false);
 
-    api().openDocument(savedDocument);
+    const abrir = slotFileRows('CNH')[0].querySelector<HTMLButtonElement>(
+      '[aria-label="Abrir documento cnh-frente.jpg"]',
+    );
+    abrir?.click();
     fixture.detectChanges();
 
     expect(documentSignedUrl).toHaveBeenCalledWith(DRIVER_ID, 'doc-1');
@@ -356,10 +530,12 @@ describe('DriverDocumentsCard', () => {
 
   /** A aba reservada é a MESMA do checkout — sem cópia própria ela anuncia cobrança. */
   it('a aba reservada do documento não fala em pagamento', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
+    listDocuments.mockReturnValue(of([cnhFrente]));
     await setup(false);
 
-    api().openDocument(savedDocument);
+    slotFileRows('CNH')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento cnh-frente.jpg"]')
+      ?.click();
 
     expect(openPendingTab).toHaveBeenCalledWith(DRIVER_DOCUMENT_PLACEHOLDER_COPY);
     const [copy] = openPendingTab.mock.calls[0] as [PendingTabPlaceholderCopy];
@@ -369,55 +545,106 @@ describe('DriverDocumentsCard', () => {
   });
 
   it('fecha a aba reservada quando a signed URL falha', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
+    listDocuments.mockReturnValue(of([cnhFrente]));
     documentSignedUrl.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
     );
     await setup(false);
 
-    api().openDocument(savedDocument);
+    slotFileRows('CNH')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento cnh-frente.jpg"]')
+      ?.click();
     fixture.detectChanges();
 
     expect(closeTab).toHaveBeenCalledTimes(1);
     expect(navigate).not.toHaveBeenCalled();
-    expect(api().error()).toBe('Não foi possível abrir o documento.');
+    expect(host().textContent).toContain('Não foi possível abrir o documento.');
   });
 
   // ----------------------------------------------------------------- remover
 
-  it('remove o documento e tira a linha da lista', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
+  it('remove só o arquivo escolhido e deixa o outro do mesmo tipo', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente, cnhVerso]));
     await setup(false);
-    expect(api().documents()).toHaveLength(1);
+    expect(slotFileRows('CNH')).toHaveLength(2);
 
-    api().askDelete(savedDocument);
-    api().confirmDelete();
+    slotFileRows('CNH')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Remover documento cnh-frente.jpg"]')
+      ?.click();
+    fixture.detectChanges();
+    // A confirmação é um passo real: quem apaga é o botão do diálogo.
+    confirmDialogButton('Remover').click();
     fixture.detectChanges();
 
     expect(deleteDocument).toHaveBeenCalledWith(DRIVER_ID, 'doc-1');
-    expect(api().documents()).toHaveLength(0);
+    const restantes = slotFileRows('CNH');
+    expect(restantes).toHaveLength(1);
+    expect(restantes[0].textContent).toContain('cnh-verso.jpg');
+    expect(slotText('CNH')).toContain('1 arquivo');
     expect(successToast).toHaveBeenCalledWith('Documento removido.');
   });
 
   it('remoção só acontece depois da confirmação', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
+    listDocuments.mockReturnValue(of([cnhFrente]));
     await setup(false);
 
-    api().askDelete(savedDocument);
+    slotFileRows('CNH')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Remover documento cnh-frente.jpg"]')
+      ?.click();
     fixture.detectChanges();
 
     expect(deleteDocument).not.toHaveBeenCalled();
-    expect(api().documents()).toHaveLength(1);
+    expect(slotFileRows('CNH')).toHaveLength(1);
   });
 
-  it('renderiza nome, tipo e tamanho a partir do DTO', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
+  it('o slot volta a "Falta anexar" quando o último arquivo sai', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente]));
     await setup(false);
 
-    const text = host().textContent ?? '';
-    expect(text).toContain('cnh-frente.jpg');
-    // Rótulo e tamanho saem na MESMA linha de metadados, vindos do DTO.
-    expect(text).toContain('CNH · 200.0 KB');
+    slotFileRows('CNH')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Remover documento cnh-frente.jpg"]')
+      ?.click();
+    fixture.detectChanges();
+    confirmDialogButton('Remover').click();
+    fixture.detectChanges();
+
+    expect(slotFileRows('CNH')).toHaveLength(0);
+    expect(slotEl('CNH').getAttribute('data-filled')).toBe('false');
+    expect(slotText('CNH')).toContain('Falta anexar');
+  });
+
+  // --------------------------------------------------------- carga da lista
+
+  /**
+   * A garantia que importa é que `documents()` seja SEMPRE um array: `slots()`
+   * faz `.filter` sobre ele. Um corpo de erro que não seja lista passaria por
+   * um `?? []` e estouraria — a forma exata do `TypeError` que já derrubou uma
+   * view aqui.
+   */
+  it('não estoura quando a listagem devolve um corpo que não é array', async () => {
+    listDocuments.mockReturnValue(
+      of({ fieldErrors: { file: 'nada disso é uma lista' } } as unknown as DriverDocument[]),
+    );
+
+    await setup(false);
+
+    // A tela continua de pé, com os slots vazios.
+    expect(slotKinds()).toContain('CNH');
+    expect(slotFileRows('CNH')).toHaveLength(0);
+    expect(state().documents()).toEqual([]);
+  });
+
+  it('zera a lista e avisa inline quando a carga falha', async () => {
+    listDocuments.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 404, statusText: 'Not Found' })),
+    );
+
+    await setup(false);
+
+    expect(state().documents()).toEqual([]);
+    expect(host().textContent).toContain('Não foi possível carregar os documentos.');
+    // A tela do motorista continua utilizável, nunca branca.
+    expect(slotKinds()).toContain('CNH');
   });
 
   // ------------------------------------------- portão do extrato de aplicativo
@@ -425,17 +652,17 @@ describe('DriverDocumentsCard', () => {
   it('oferece o slot APP_RIDE_RECEIPT quando isAppDriver é true', async () => {
     await setup(true);
 
-    expect(kindValues()).toContain('APP_RIDE_RECEIPT');
+    expect(slotKinds()).toContain('APP_RIDE_RECEIPT');
     // O portão abre um slot, não troca a lista: os tipos comuns continuam lá.
-    expect(kindValues()).toContain('CNH');
-    expect(kindValues()).toContain('ADDRESS_PROOF');
+    expect(slotKinds()).toContain('CNH');
+    expect(slotKinds()).toContain('ADDRESS_PROOF');
   });
 
   it('esconde o slot APP_RIDE_RECEIPT quando isAppDriver é false', async () => {
     await setup(false);
 
-    expect(kindValues()).not.toContain('APP_RIDE_RECEIPT');
-    expect(kindValues()).toContain('CNH');
+    expect(slotKinds()).not.toContain('APP_RIDE_RECEIPT');
+    expect(slotKinds()).toContain('CNH');
   });
 
   /**
@@ -457,36 +684,76 @@ describe('DriverDocumentsCard', () => {
 
     await setup(driverSemCampo.isAppDriver);
 
-    expect(kindValues()).not.toContain('APP_RIDE_RECEIPT');
-    expect(kindValues()).toContain('CNH');
+    expect(slotKinds()).not.toContain('APP_RIDE_RECEIPT');
+    expect(slotKinds()).toContain('CNH');
     // Ausência de campo é degradação silenciosa, não erro para o usuário.
-    expect(api().error()).toBeNull();
+    expect(state().error()).toBeNull();
     expect(errorToast).not.toHaveBeenCalled();
-  });
-
-  /**
-   * O portão não pode ser decorativo. Esconder a `<option>` não basta: se o
-   * `selectedKind` já carregava o kind vedado, o envio tem de ser RECUSADO —
-   * e recusado sem reclassificar o arquivo em silêncio, porque documento
-   * arquivado sob o tipo errado é pior que envio negado.
-   */
-  it('recusa o envio de um kind vedado mesmo com o slot já escondido', async () => {
-    await setup(false);
-
-    api().selectedKind.set('APP_RIDE_RECEIPT');
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
-
-    expect(uploadDocument).not.toHaveBeenCalled();
-    expect(api().error()).toContain('Extrato de aplicativo não está disponível');
   });
 
   /** Esquecer o binding também tem de falhar fechado. */
   it('esconde o slot quando o binding isAppDriver nem é passado', async () => {
     await setup();
 
-    expect(kindValues()).not.toContain('APP_RIDE_RECEIPT');
-    expect(kindValues()).toContain('CNH');
-    expect(api().error()).toBeNull();
+    expect(slotKinds()).not.toContain('APP_RIDE_RECEIPT');
+    expect(slotKinds()).toContain('CNH');
+    expect(state().error()).toBeNull();
+  });
+
+  /**
+   * A comparação é `=== true`, não truthiness, e a diferença é observável: um
+   * valor truthy que NÃO é o booleano `true` (um `1` vindo de coluna legada,
+   * uma string) tem procedência desconhecida, e procedência desconhecida falha
+   * fechado. Trocar por `!!isAppDriver()` abre o portão aqui.
+   */
+  it('não abre o portão para um valor truthy que não é o booleano true', async () => {
+    await setup(1);
+
+    expect(slotKinds()).not.toContain('APP_RIDE_RECEIPT');
+    expect(state().error()).toBeNull();
+  });
+
+  /**
+   * O portão não pode ser decorativo, e no slot grid isso ficou MAIS sutil que
+   * no `<select>`: entre tocar no slot e escolher o arquivo o diálogo nativo do
+   * sistema fica aberto por segundos, e nesse intervalo o `isAppDriver` pode
+   * mudar. O tipo já apanhado subiria um kind vedado.
+   *
+   * Recusa sem reclassificar em silêncio — arquivo arquivado sob o tipo errado
+   * é pior que envio negado.
+   */
+  it('recusa o envio quando o portão FECHA entre o toque no slot e a escolha do arquivo', async () => {
+    await setup(true);
+
+    // Toque no slot com o portão aberto: o tipo fica pendente.
+    slotButton('APP_RIDE_RECEIPT').click();
+    fixture.detectChanges();
+
+    // O portão fecha ANTES de o arquivo ser escolhido (recarga do motorista).
+    fixture.componentRef.setInput('isAppDriver', undefined);
+    fixture.detectChanges();
+
+    dispatchFile(photo('extrato.pdf', 2048, 'application/pdf'));
+
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(host().textContent).toContain('Extrato de aplicativo não está disponível');
+    // E não reclassificou o arquivo para outro tipo pelo usuário.
+    expect(state().documents()).toHaveLength(0);
+  });
+
+  /**
+   * Portão fechado veda ENVIO; não apaga dado que já existe. Um motorista que
+   * era de app, anexou o extrato e depois teve a flag desligada continuaria com
+   * o arquivo no banco — escondê-lo tiraria a única forma de vê-lo e removê-lo.
+   */
+  it('mantém visível o extrato já anexado com o portão fechado, mas sem aceitar envio novo', async () => {
+    listDocuments.mockReturnValue(of([extratoApp]));
+    await setup(false);
+
+    expect(slotKinds()).toContain('APP_RIDE_RECEIPT');
+    expect(slotFileRows('APP_RIDE_RECEIPT')).toHaveLength(1);
+    expect(slotText('APP_RIDE_RECEIPT')).toContain('extrato-marco.pdf');
+    // O cabeçalho não abre o seletor: o slot está lá para ler e remover.
+    expect(slotButton('APP_RIDE_RECEIPT').disabled).toBe(true);
   });
 });
