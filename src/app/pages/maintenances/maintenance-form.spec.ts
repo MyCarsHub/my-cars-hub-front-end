@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { MaintenanceForm } from './maintenance-form';
 import { formatBRL } from '../../types/dashboard.types';
+import { formatQuantity } from './maintenance-cost';
 import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
@@ -274,9 +275,7 @@ describe('MaintenanceForm — erros de campo vindos do backend', () => {
 
     submit();
 
-    expect(fixture.nativeElement.innerHTML).toContain(
-      'Veículo já possui manutenção em andamento.',
-    );
+    expect(fixture.nativeElement.innerHTML).toContain('Veículo já possui manutenção em andamento.');
     expect(hodometerError()).toBeNull();
     expect(notifyError).not.toHaveBeenCalled();
   });
@@ -296,7 +295,7 @@ describe('MaintenanceForm — seção Custos', () => {
     index: number,
     name: string,
     quantity: string,
-    unitPriceReais: number,
+    unitPriceReais: string,
   ): void {
     component.form.get(`items.${index}.name`)?.setValue(name);
     component.form.get(`items.${index}.quantity`)?.setValue(quantity);
@@ -327,9 +326,9 @@ describe('MaintenanceForm — seção Custos', () => {
     component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
     component.addItem();
     component.addItem();
-    setItem(component, 0, 'Filtro de óleo', '2', 50);
-    setItem(component, 1, 'Óleo 5W30', '3,5', 40);
-    component.form.get('labourReais')?.setValue(80);
+    setItem(component, 0, 'Filtro de óleo', '2', '50');
+    setItem(component, 1, 'Óleo 5W30', '3,5', '40');
+    component.form.get('labourReais')?.setValue('80');
     fixture.detectChanges();
 
     // 2 × R$ 50,00 = R$ 100,00 | 3,5 × R$ 40,00 = R$ 140,00 | + R$ 80,00 de mão de obra
@@ -343,7 +342,7 @@ describe('MaintenanceForm — seção Custos', () => {
     const { fixture, component, create } = configure(null);
 
     component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
-    component.form.get('labourReais')?.setValue(150);
+    component.form.get('labourReais')?.setValue('150');
     fixture.detectChanges();
 
     expect(component.items.length).toBe(0);
@@ -378,7 +377,7 @@ describe('MaintenanceForm — seção Custos', () => {
 
     component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
     component.addItem();
-    setItem(component, 0, 'Óleo 5W30', '3,5', 40);
+    setItem(component, 0, 'Óleo 5W30', '3,5', '40');
     fixture.detectChanges();
 
     component.submit();
@@ -396,7 +395,7 @@ describe('MaintenanceForm — seção Custos', () => {
 
     component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
     component.addItem();
-    setItem(component, 0, 'Óleo', '3,5555', 40);
+    setItem(component, 0, 'Óleo', '3,5555', '40');
     fixture.detectChanges();
 
     expect(component.form.get('items.0.quantity')?.errors).toEqual({ quantityFormat: true });
@@ -407,8 +406,8 @@ describe('MaintenanceForm — seção Custos', () => {
     const { fixture, component, create } = configure(null);
 
     component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
-    component.form.get('labourReais')?.setValue(100);
-    component.form.get('discountReais')?.setValue(500);
+    component.form.get('labourReais')?.setValue('100');
+    component.form.get('discountReais')?.setValue('500');
     fixture.detectChanges();
 
     expect(component.discountExceedsBase()).toBe(true);
@@ -484,10 +483,10 @@ describe('MaintenanceForm — fieldError do backend dentro do FormArray', () => 
     component.addItem();
     component.form.get('items.0.name')?.setValue('Filtro');
     component.form.get('items.0.quantity')?.setValue('1');
-    component.form.get('items.0.unitPriceReais')?.setValue(10);
+    component.form.get('items.0.unitPriceReais')?.setValue('10');
     component.form.get('items.1.name')?.setValue('Óleo');
     component.form.get('items.1.quantity')?.setValue('1');
-    component.form.get('items.1.unitPriceReais')?.setValue(20);
+    component.form.get('items.1.unitPriceReais')?.setValue('20');
     fixture.detectChanges();
 
     create.mockReturnValue(
@@ -518,5 +517,257 @@ describe('MaintenanceForm — fieldError do backend dentro do FormArray', () => 
     ) as HTMLElement[];
     const texts = alerts.map((el) => el.textContent?.trim());
     expect(texts).toContain('Nome da peça já usado nesta manutenção.');
+  });
+});
+
+/**
+ * FIX pt-BR — a suíte que faltava, e a razão pela qual o defeito passou.
+ *
+ * Nenhum teste desta tela digitava num `<input>`: eram 15 `setValue` e zero
+ * `dispatchEvent`. `setValue` escreve direto no MODELO e passa por fora do
+ * `ValueAccessor`, que é justamente onde o defeito morava — o `NumberValueAccessor` do
+ * `type="number"` entregava `1.500` como `1.5`. Por isso o teste chamado "envia
+ * quantidade FRACIONÁRIA digitada com vírgula" passava verde provando apenas que a
+ * FUNÇÃO de parse aceitava vírgula, nunca que o CAMPO aceitava.
+ *
+ * Aqui todo caso entra pelo DOM: `element.value = ...` seguido de
+ * `dispatchEvent(new Event('input'))`. Um teste que não passa pelo ValueAccessor não
+ * prova nada sobre digitação.
+ */
+describe('MaintenanceForm — digitação pt-BR pelo DOM (nunca setValue)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  /** Digita de verdade: escreve no elemento e dispara o evento que o Angular escuta. */
+  function type(
+    fixture: { detectChanges: () => void },
+    input: HTMLInputElement,
+    text: string,
+  ): void {
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function inputFor(fixture: { nativeElement: HTMLElement }, control: string): HTMLInputElement {
+    const el = fixture.nativeElement.querySelector(
+      `input[formcontrolname="${control}"]`,
+    ) as HTMLInputElement | null;
+    expect(el, `input de ${control} não encontrado`).not.toBeNull();
+    return el as HTMLInputElement;
+  }
+
+  /** A mensagem visível daquele campo — a prova de que a recusa NÃO é silenciosa. */
+  function messageFor(input: HTMLInputElement): string | null {
+    const alert = input.closest('app-form-field')?.querySelector('[role="alert"]');
+    return alert?.textContent?.trim() ?? null;
+  }
+
+  function ready() {
+    const ctx = configure(null);
+    ctx.component.form.patchValue({ ...BASE_VALUES, status: 'SCHEDULED' });
+    ctx.fixture.detectChanges();
+    return ctx;
+  }
+
+  it('os cinco campos de custo são type=text com inputmode=decimal (mobile-first)', () => {
+    const { fixture, component } = ready();
+    component.addItem();
+    fixture.detectChanges();
+
+    for (const name of [
+      'quantity',
+      'unitPriceReais',
+      'labourReais',
+      'discountReais',
+      'surchargeReais',
+    ]) {
+      const el = inputFor(fixture, name);
+      // type="number" é o veículo do defeito: ele passa o valor por parseFloat.
+      expect(el.getAttribute('type'), name).toBe('text');
+      // …e sem inputmode o celular perderia o teclado numérico.
+      expect(el.getAttribute('inputmode'), name).toBe('decimal');
+    }
+  });
+
+  it('DINHEIRO digitado `1500,50` vale R$ 1.500,50', () => {
+    const { fixture, component, create } = ready();
+
+    type(fixture, inputFor(fixture, 'labourReais'), '1500,50');
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.labourCostCents).toBe(150_050);
+  });
+
+  it('DINHEIRO digitado `1.500,50` vale R$ 1.500,50', () => {
+    const { fixture, component, create } = ready();
+
+    type(fixture, inputFor(fixture, 'labourReais'), '1.500,50');
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.labourCostCents).toBe(150_050);
+  });
+
+  /**
+   * O caso que motivou o P0. Com `type="number"`, `1.500` chegava como `1.5` e gravava
+   * R$ 1,50 — sem recusa, sem mensagem, só um total pequeno.
+   */
+  it('DINHEIRO digitado `1.500` vale R$ 1.500,00, NUNCA R$ 1,50', () => {
+    const { fixture, component, create } = ready();
+    const labour = inputFor(fixture, 'labourReais');
+
+    type(fixture, labour, '1.500');
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.labourCostCents).toBe(150_000);
+    expect(payload.labourCostCents).not.toBe(150);
+    expect(messageFor(labour)).toBeNull();
+  });
+
+  it('DINHEIRO digitado `1500` vale R$ 1.500,00', () => {
+    const { fixture, component, create } = ready();
+
+    type(fixture, inputFor(fixture, 'labourReais'), '1500');
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.labourCostCents).toBe(150_000);
+  });
+
+  it('DINHEIRO digitado `45,99` vale R$ 45,99', () => {
+    const { fixture, component, create } = ready();
+
+    type(fixture, inputFor(fixture, 'labourReais'), '45,99');
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.labourCostCents).toBe(4599);
+  });
+
+  /** O ponto fora de grupo de 3 é recusado — mas EM VOZ ALTA, com o que fazer. */
+  it('DINHEIRO digitado `45.99` é recusado com mensagem, e não vira outro número', () => {
+    const { fixture, component, create } = ready();
+    const labour = inputFor(fixture, 'labourReais');
+
+    type(fixture, labour, '45.99');
+
+    const message = messageFor(labour);
+    expect(message).not.toBeNull();
+    expect(message).toContain('1.500,50');
+    expect(component.form.invalid).toBe(true);
+
+    component.submit();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('DINHEIRO com 3 casas é recusado com mensagem — recusa, não arredondamento', () => {
+    const { fixture, component, create } = ready();
+    const labour = inputFor(fixture, 'labourReais');
+
+    type(fixture, labour, '1500,555');
+
+    expect(messageFor(labour)).toContain('2 casas');
+    component.submit();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('QUANTIDADE digitada `3,5` continua valendo 3,5', () => {
+    const { fixture, component, create } = ready();
+    component.addItem();
+    fixture.detectChanges();
+
+    type(fixture, inputFor(fixture, 'name'), 'Óleo 5W30');
+    type(fixture, inputFor(fixture, 'quantity'), '3,5');
+    type(fixture, inputFor(fixture, 'unitPriceReais'), '40,00');
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.items?.[0]).toEqual({
+      name: 'Óleo 5W30',
+      quantity: 3.5,
+      unitPriceCents: 4000,
+    });
+  });
+
+  /** A tela de detalhe imprime `1.000` para mil. Redigitar isso tem de dar mil. */
+  it('QUANTIDADE digitada `1.000` vale mil, não 1', () => {
+    const { fixture, component, create } = ready();
+    component.addItem();
+    fixture.detectChanges();
+
+    type(fixture, inputFor(fixture, 'name'), 'Parafuso');
+    type(fixture, inputFor(fixture, 'quantity'), '1.000');
+    type(fixture, inputFor(fixture, 'unitPriceReais'), '0,10');
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.items?.[0]?.quantity).toBe(1000);
+    expect(payload.items?.[0]?.quantity).not.toBe(1);
+  });
+
+  /**
+   * O critério de aceite: LER da tela de detalhe, COPIAR e REDIGITAR no formulário.
+   * As strings abaixo são literalmente as que o detalhe renderiza — `formatCurrency`
+   * é `formatBRL`, e a quantidade sai de `formatQuantity`.
+   */
+  it('ROUND-TRIP: o que o detalhe mostra, o formulário lê de volta igual', () => {
+    const { fixture, component, create } = ready();
+    component.addItem();
+    fixture.detectChanges();
+
+    const shownQuantity = formatQuantity(1000); // "1.000"
+    const shownUnitPrice = formatBRL(150_050); // "R$ 1.500,50"
+    const shownLabour = formatBRL(32_000); // "R$ 320,00"
+    expect(shownQuantity).toBe('1.000');
+
+    type(fixture, inputFor(fixture, 'name'), 'Parafuso');
+    type(fixture, inputFor(fixture, 'quantity'), shownQuantity);
+    type(fixture, inputFor(fixture, 'unitPriceReais'), shownUnitPrice);
+    type(fixture, inputFor(fixture, 'labourReais'), shownLabour);
+    component.submit();
+
+    const payload = create.mock.calls[0][0] as CreateMaintenanceRequest;
+    expect(payload.items?.[0]?.quantity).toBe(1000);
+    expect(payload.items?.[0]?.unitPriceCents).toBe(150_050);
+    expect(payload.labourCostCents).toBe(32_000);
+  });
+
+  it('o total ao vivo acompanha o que foi DIGITADO, e arredonda HALF_UP por linha', () => {
+    const { fixture, component } = ready();
+    component.addItem();
+    component.addItem();
+    fixture.detectChanges();
+
+    const quantities = Array.from(
+      fixture.nativeElement.querySelectorAll('input[formcontrolname="quantity"]'),
+    ) as HTMLInputElement[];
+    const prices = Array.from(
+      fixture.nativeElement.querySelectorAll('input[formcontrolname="unitPriceReais"]'),
+    ) as HTMLInputElement[];
+
+    // Duas linhas de 0,5 × R$ 0,05 = 2,5 centavos cada. HALF_UP POR LINHA → 3 + 3 = 6.
+    // Arredondar a soma daria 5, e é essa divergência com o backend que a regra evita.
+    for (let i = 0; i < 2; i += 1) {
+      type(fixture, quantities[i], '0,5');
+      type(fixture, prices[i], '0,05');
+    }
+    type(fixture, inputFor(fixture, 'labourReais'), '0,00');
+
+    expect(component.totalLabel()).toBe(formatBRL(6));
+  });
+
+  it('campo vazio é recusado com mensagem — nunca vira zero em silêncio', () => {
+    const { fixture, component, create } = ready();
+    const labour = inputFor(fixture, 'labourReais');
+
+    type(fixture, labour, '');
+
+    expect(messageFor(labour)).not.toBeNull();
+    component.submit();
+    expect(create).not.toHaveBeenCalled();
   });
 });

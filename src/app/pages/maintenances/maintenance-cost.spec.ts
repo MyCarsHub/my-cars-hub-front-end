@@ -18,8 +18,30 @@ describe('parseQuantityMilli', () => {
     expect(parseQuantityMilli('3,5')).toBe(3500);
   });
 
-  it('aceita ponto decimal', () => {
-    expect(parseQuantityMilli('3.5')).toBe(3500);
+  /**
+   * Esta expectativa era o DEFEITO escrito como contrato: enquanto `3.5` valesse 3,5,
+   * o ponto era separador decimal — e então `1.500`, que é como a tela de detalhe
+   * imprime mil e quinhentos, voltava como 1,5. As duas leituras não cabem na mesma
+   * gramática, e a que a tela ensina é a que vale.
+   */
+  it('recusa o PONTO como separador decimal — ele separa milhar', () => {
+    expect(parseQuantityMilli('3.5')).toBeNull();
+    expect(parseQuantityMilli('45.99')).toBeNull();
+  });
+
+  it('lê o ponto como MILHAR, que é o que a tela imprime', () => {
+    expect(parseQuantityMilli('1.500')).toBe(1_500_000);
+    expect(parseQuantityMilli('1.000')).toBe(1_000_000);
+    expect(parseQuantityMilli('10.000')).toBe(10_000_000);
+  });
+
+  /**
+   * O milésimo é o caso real (óleo). A regra permissiva — "ponto com 3 dígitos é
+   * milhar" — leria `0.001` como 1 e erraria 1000x em silêncio. Aqui ele é recusado.
+   */
+  it('recusa 0.001 e aceita 0,001', () => {
+    expect(parseQuantityMilli('0.001')).toBeNull();
+    expect(parseQuantityMilli('0,001')).toBe(1);
   });
 
   it('aceita as três casas decimais do NUMERIC(10,3)', () => {
@@ -56,6 +78,18 @@ describe('conversão de quantidade', () => {
     expect(formatQuantity(3.5)).toBe('3,5');
     expect(formatQuantity(2)).toBe('2');
     expect(formatQuantity(null)).toBe('0');
+    expect(formatQuantity(1000)).toBe('1.000');
+  });
+
+  /**
+   * O critério de aceite do conserto, na quantidade: o que `formatQuantity` imprime na
+   * tela de detalhe, `parseQuantityMilli` lê de volta como o mesmo número. Antes,
+   * ler-copiar-colar `1.000` devolvia 1.
+   */
+  it('fecha o round-trip tela → formulário', () => {
+    for (const value of [1000, 1500, 3.5, 0.001, 2, 10_000]) {
+      expect(parseQuantityMilli(formatQuantity(value))).toBe(quantityNumberToMilli(value));
+    }
   });
 });
 
