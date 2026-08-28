@@ -9,6 +9,8 @@ import {
 
 const MONEY = 2;
 const QUANTITY = 3;
+/** Precisão inteira — a do hodômetro, em km. Nenhuma casa decimal existe aqui. */
+const INTEGER = 0;
 
 describe('parsePtBrNumber — a gramática aceita', () => {
   it('lê inteiro sem separador', () => {
@@ -110,6 +112,48 @@ describe('formatPtBrNumber é o inverso EXATO de parsePtBrNumber', () => {
       const shown = formatPtBrNumber(milli, QUANTITY, { trailingZeros: false });
       expect(parsePtBrNumber(shown, QUANTITY).scaled).toBe(milli);
     }
+  });
+
+  /**
+   * O invariante do JSDoc — "para todo `scaled ≥ 0` e todo `decimals`" — vale TAMBÉM em
+   * `decimals = 0`, e é exatamente onde ele estava quebrado: `absolute % 1` é `0` e
+   * `String(0).padStart(0, '0')` devolve `"0"`, então `formatPtBrNumber(150000, 0)`
+   * imprimia `"150.000,0"` e `parsePtBrNumber` recusava a própria saída do módulo.
+   * "Todo `decimals`" incluía uma precisão que nenhum caso de teste visitava.
+   */
+  it('imprime a precisão INTEIRA sem vírgula nenhuma', () => {
+    expect(formatPtBrNumber(150_000, INTEGER)).toBe('150.000');
+    expect(formatPtBrNumber(150_500, INTEGER)).toBe('150.500');
+    expect(formatPtBrNumber(0, INTEGER)).toBe('0');
+    expect(formatPtBrNumber(7, INTEGER)).toBe('7');
+    expect(formatPtBrNumber(1_234_567, INTEGER)).toBe('1.234.567');
+    // A saída não pode conter vírgula em NENHUM valor desta precisão.
+    for (const km of [0, 1, 999, 1000, 150_000, 999_999_999]) {
+      expect(formatPtBrNumber(km, INTEGER), `km=${km}`).not.toContain(',');
+    }
+  });
+
+  it('fecha o round-trip em decimals = 0 — o invariante que o módulo prometia e quebrava', () => {
+    const kmCases = [0, 1, 7, 99, 100, 999, 1000, 45_000, 150_000, 150_500, 1_234_567, 9_999_999];
+    for (const km of kmCases) {
+      const shown = formatPtBrNumber(km, INTEGER);
+      expect(parsePtBrNumber(shown, INTEGER).scaled, `km=${km} impresso como ${shown}`).toBe(km);
+    }
+  });
+
+  it('o que o formatNumber da tela de detalhe imprime também volta como km inteiro', () => {
+    // O detalhe usa `Intl.NumberFormat('pt-BR')` para o hodômetro; o campo tem de
+    // aceitar de volta exatamente essa string, que é a que o usuário copia.
+    const shown = new Intl.NumberFormat('pt-BR').format(150_000);
+    expect(shown).toBe('150.000');
+    expect(parsePtBrNumber(shown, INTEGER).scaled).toBe(150_000);
+  });
+
+  it('na precisão inteira, casa decimal é RECUSA — não arredondamento', () => {
+    expect(parsePtBrNumber('150,5', INTEGER)).toEqual({ scaled: null, error: 'decimals' });
+    // `150,000` é o erro de quem trocou o separador: recusado em voz alta, nunca lido
+    // como 150 nem como 150000 por adivinhação.
+    expect(parsePtBrNumber('150,000', INTEGER)).toEqual({ scaled: null, error: 'decimals' });
   });
 
   it('o que o formatBRL da tela de detalhe imprime também volta', () => {

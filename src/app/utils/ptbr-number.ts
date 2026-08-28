@@ -175,7 +175,15 @@ export function formatPtBrNumber(
   const absolute = Math.abs(Math.trunc(scaled));
 
   const whole = Math.floor(absolute / scale);
-  let fraction = String(absolute % scale).padStart(decimals, '0');
+  /**
+   * `decimals = 0` não tem casa decimal NENHUMA, e o cálculo genérico mente nesse
+   * ponto: `scale` é `1`, logo `absolute % scale` é `0`, e `String(0).padStart(0, '0')`
+   * devolve `"0"` — `padStart` completa, nunca trunca. Sem esta guarda, `150000` sairia
+   * como `"150.000,0"`, que `parsePtBrNumber` recusa por não ser da gramática. Era o
+   * único lugar em que este módulo contradizia o round-trip que o JSDoc acima promete,
+   * e ele só aparece na precisão inteira — a do hodômetro, em km.
+   */
+  let fraction = decimals > 0 ? String(absolute % scale).padStart(decimals, '0') : '';
   if (options.trailingZeros === false) fraction = fraction.replace(/0+$/, '');
 
   const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
