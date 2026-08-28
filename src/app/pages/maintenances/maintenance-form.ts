@@ -17,6 +17,7 @@ import {
   FormGroup,
   ReactiveFormsModule,
   ValidationErrors,
+  ValidatorFn,
   Validators,
 } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
@@ -26,7 +27,6 @@ import { FieldControl, FormField } from '../../components/form-field/form-field'
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
-import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
@@ -45,25 +45,33 @@ import {
   QUANTITY_MAX,
   UNIT_PRICE_MAX_CENTS,
   computeCostBreakdown,
+  formatQuantity,
   parseQuantityMilli,
   quantityMilliToNumber,
-  quantityNumberToMilli,
 } from './maintenance-cost';
+import { MONEY_DECIMALS, formatPtBrMoney, parsePtBrMoneyCents } from '../../utils/ptbr-number';
 
 /** Uma linha de peça do `FormArray`. */
 type ItemGroup = FormGroup<{
   name: FormControl<string>;
   quantity: FormControl<string>;
-  unitPriceReais: FormControl<number>;
+  unitPriceReais: FormControl<string>;
 }>;
 
 /**
- * Quantidade é texto, não `type="number"`.
+ * Os CINCO campos numéricos desta tela são `type="text"` + `inputmode="decimal"`,
+ * nunca `type="number"`.
  *
- * O contrato é `NUMERIC(10,3)` e o usuário digita com VÍRGULA — `<input type="number">`
- * recusa a vírgula no teclado pt-BR e entrega `valueAsNumber = NaN`, o que apagaria o
- * valor digitado em silêncio. O controle guarda o texto e este validador é quem decide
- * se ele é uma quantidade.
+ * `<input type="number">` foi o veículo do defeito que este arquivo conserta. Ele
+ * recusa a vírgula no teclado pt-BR (visível, chato) e — pior — passa o resto por
+ * `parseFloat`, de modo que `1.500` chegava ao formulário como `1.5`: R$ 1,50 gravado
+ * no lugar de R$ 1.500,00, sem recusa e sem mensagem. Um campo que reinterpreta em
+ * silêncio o que a pessoa digitou não pode segurar dinheiro.
+ *
+ * Com texto, o controle guarda exatamente o que foi digitado e estes validadores são
+ * os únicos que decidem o que aquilo significa — na gramática de `utils/ptbr-number`,
+ * a mesma que a tela imprime. `inputmode="decimal"` mantém o teclado numérico no
+ * celular, que é onde este formulário mais é usado.
  */
 function quantityValidator(control: AbstractControl): ValidationErrors | null {
   const raw = control.value as string;
@@ -71,11 +79,36 @@ function quantityValidator(control: AbstractControl): ValidationErrors | null {
     return { required: true };
   }
 
+  // Formato inválido e casa decimal a mais compartilham a chave `quantityFormat` de
+  // propósito: uma mensagem só cobre as duas causas ("vírgula para decimais, até 3
+  // casas, ponto só para milhar") e o contrato de erro do campo continua o mesmo.
   const milli = parseQuantityMilli(raw);
   if (milli === null) return { quantityFormat: true };
   if (milli <= 0) return { quantityMin: true };
   if (milli > QUANTITY_MAX * 1000) return { quantityMax: { max: QUANTITY_MAX } };
   return null;
+}
+
+/**
+ * Validador de dinheiro — a MESMA gramática da quantidade, só que com precisão 2.
+ *
+ * Nada é arredondado: `1500,555` num campo de centavos é recusado com mensagem, não
+ * convertido para `1500,56`. O `type="number"` antigo arredondava (via `Math.round`
+ * dentro de `toCents`) e essa era mais uma coerção silenciosa.
+ */
+function moneyValidator(maxCents?: number): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const raw = control.value as string;
+    if (raw === null || raw === undefined || String(raw).trim() === '') {
+      return { required: true };
+    }
+
+    const { scaled, error } = parsePtBrMoneyCents(raw);
+    if (error === 'decimals') return { moneyDecimals: { max: MONEY_DECIMALS } };
+    if (error !== null || scaled === null) return { moneyFormat: true };
+    if (maxCents !== undefined && scaled > maxCents) return { max: { max: maxCents / 100 } };
+    return null;
+  };
 }
 
 @Component({
@@ -118,9 +151,14 @@ export class MaintenanceForm implements OnInit {
      * obrigatória diria o contrário ao usuário logo na abertura da tela.
      */
     items: this.fb.array<ItemGroup>([]),
-    labourReais: [0, [Validators.required, Validators.min(0)]],
-    discountReais: [0, [Validators.required, Validators.min(0)]],
-    surchargeReais: [0, [Validators.required, Validators.min(0)]],
+    // Texto, não número — ver `moneyValidator`. `'0,00'` é o zero escrito na mesma
+    // gramática que o campo aceita de volta, então o valor inicial já round-trips.
+    // `Validators.min(0)` saiu porque não tinha o que fazer aqui: `parseFloat` de
+    // '1.500,50' é 1.5, então o `min` antigo aprovava justamente o valor corrompido.
+    // Número negativo agora é recusado pela própria gramática.
+    labourReais: ['0,00', [moneyValidator()]],
+    discountReais: ['0,00', [moneyValidator()]],
+    surchargeReais: ['0,00', [moneyValidator()]],
     surchargeNote: ['', [Validators.maxLength(120)]],
     provider: ['', [Validators.maxLength(120)]],
     invoiceNumber: ['', [Validators.maxLength(60)]],
@@ -202,21 +240,35 @@ export class MaintenanceForm implements OnInit {
     required: 'Informe o nome da peça.',
     maxlength: 'Máximo de 120 caracteres.',
   };
+  /**
+   * Toda recusa diz o que fazer, e diz com um exemplo escrito na gramática do próprio
+   * campo. Se o texto não vira número, ele vira mensagem — nunca vira outro número.
+   */
   protected readonly quantityMessages: Readonly<Record<string, string>> = {
     required: 'Informe a quantidade.',
-    quantityFormat: 'Use até 3 casas decimais. Ex: 3,5',
+    quantityFormat:
+      'Use vírgula para os decimais, até 3 casas. O ponto separa milhar. Ex: 3,5 ou 1.500',
     quantityMin: 'A quantidade deve ser maior que zero.',
     quantityMax: `Máximo de ${QUANTITY_MAX} por peça.`,
   };
+  private readonly moneyFormatMessage =
+    'Use vírgula para os centavos e ponto só para o milhar. Ex: 1.500,50';
+  private readonly moneyDecimalsMessage =
+    'Use no máximo 2 casas decimais, os centavos. Ex: 1.500,50';
   protected readonly unitPriceMessages: Readonly<Record<string, string>> = {
-    required: 'Informe o valor unitário.',
-    min: 'Informe um valor válido (≥ 0).',
+    required: 'Informe o valor unitário. Ex: 1.500,50',
+    moneyFormat: this.moneyFormatMessage,
+    moneyDecimals: this.moneyDecimalsMessage,
     max: 'Valor unitário acima do limite aceito.',
   };
   protected readonly moneyMessages: Readonly<Record<string, string>> = {
-    required: 'Informe um valor válido.',
-    min: 'Informe um valor válido.',
+    required: 'Informe um valor. Use 0,00 se não houver. Ex: 1.500,50',
+    moneyFormat: this.moneyFormatMessage,
+    moneyDecimals: this.moneyDecimalsMessage,
   };
+  /** Dica persistente dos campos numéricos — ensina a MESMA gramática que eles aceitam. */
+  protected readonly moneyHint = 'Ex: 1.500,50';
+  protected readonly quantityHint = 'Ex: 3,5';
 
   /** Leitura vinda do backend na edição — usada para não apagar valor sem intenção. */
   private readonly loadedHodometer = signal<number | null>(null);
@@ -240,17 +292,15 @@ export class MaintenanceForm implements OnInit {
     }
   }
 
-  private newItemGroup(name = '', quantity = '1', unitPriceReais = 0): ItemGroup {
+  private newItemGroup(name = '', quantity = '1', unitPriceReais = '0,00'): ItemGroup {
     return this.fb.nonNullable.group({
       name: [name, [Validators.required, Validators.maxLength(120)]],
       quantity: [quantity, [quantityValidator]],
       // Zero é legítimo (peça de cortesia, item incluso no serviço). O teto espelha a
       // regra de serviço do backend e existe como guarda-corpo técnico, não como
-      // limite comercial — o usuário só o encontra se tentar ultrapassá-lo.
-      unitPriceReais: [
-        unitPriceReais,
-        [Validators.required, Validators.min(0), Validators.max(UNIT_PRICE_MAX_CENTS / 100)],
-      ],
+      // limite comercial — o usuário só o encontra se tentar ultrapassá-lo. Ele agora
+      // é conferido em CENTAVOS, dentro do validador, e não em reais fracionários.
+      unitPriceReais: [unitPriceReais, [moneyValidator(UNIT_PRICE_MAX_CENTS)]],
     }) as ItemGroup;
   }
 
@@ -267,8 +317,14 @@ export class MaintenanceForm implements OnInit {
     this.items.removeAt(index);
   }
 
-  private centsOf(value: number | null): number {
-    return toCents(value) ?? 0;
+  /**
+   * Centavos do texto digitado. Texto inválido vale `0` AQUI porque o total ao vivo
+   * não pode explodir enquanto a pessoa ainda está no meio de uma digitação; a recusa
+   * de verdade é do validador, que mostra a mensagem e bloqueia o envio. O total nunca
+   * é a única evidência de que algo está errado.
+   */
+  private centsOf(value: string): number {
+    return parsePtBrMoneyCents(value).scaled ?? 0;
   }
 
   private readBreakdown() {
@@ -293,10 +349,12 @@ export class MaintenanceForm implements OnInit {
         this.items.clear();
         for (const item of m.items ?? []) {
           this.items.push(
+            // Formatado pelo mesmo módulo que o campo lê de volta: o que a edição
+            // carrega é exatamente o que a edição aceita.
             this.newItemGroup(
               item.name,
-              String(quantityNumberToMilli(item.quantity) / 1000).replace('.', ','),
-              item.unitPriceCents / 100,
+              formatQuantity(item.quantity),
+              formatPtBrMoney(item.unitPriceCents),
             ),
           );
         }
@@ -307,9 +365,9 @@ export class MaintenanceForm implements OnInit {
           description: m.description,
           serviceDate: m.serviceDate,
           hodometerReading: m.hodometerReading,
-          labourReais: (m.labourCostCents ?? 0) / 100,
-          discountReais: (m.discountCents ?? 0) / 100,
-          surchargeReais: (m.surchargeCents ?? 0) / 100,
+          labourReais: formatPtBrMoney(m.labourCostCents),
+          discountReais: formatPtBrMoney(m.discountCents),
+          surchargeReais: formatPtBrMoney(m.surchargeCents),
           surchargeNote: m.surchargeNote ?? '',
           provider: m.provider ?? '',
           invoiceNumber: m.invoiceNumber ?? '',
@@ -347,9 +405,7 @@ export class MaintenanceForm implements OnInit {
     }
     if (this.discountExceedsBase()) {
       this.form.controls.discountReais.markAsTouched();
-      this.error.set(
-        'O desconto não pode ser maior que peças + mão de obra + acréscimos.',
-      );
+      this.error.set('O desconto não pode ser maior que peças + mão de obra + acréscimos.');
       return;
     }
     this.saving.set(true);
