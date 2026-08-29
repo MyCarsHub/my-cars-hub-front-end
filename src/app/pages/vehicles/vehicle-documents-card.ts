@@ -25,26 +25,11 @@ import {
   VehicleDocument,
   VehicleDocumentKind,
 } from '../../types/vehicle.types';
-
-/**
- * Teto do cliente, alinhado ao `MAX_BYTES` de `VehicleDocumentService`.
- * A guarda existe para falhar ANTES de gastar a franquia de dados de quem está
- * fotografando o CRLV pelo celular.
- */
-const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
-
-/** Allowlist espelhada do backend — o que não está aqui seria recusado lá. */
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif',
-];
-
-const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'];
+import {
+  MAX_DOCUMENT_BYTES,
+  formatDocumentSize,
+  isAllowedDocumentFile,
+} from './vehicle-document-constraints';
 
 /** Cópia da aba reservada. Anexo de veículo não cobra nada — não fale em pagamento. */
 export const VEHICLE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
@@ -258,7 +243,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.isAllowed(file)) {
+    if (!isAllowedDocumentFile(file)) {
       this.pendingKind.set(null);
       this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
       return;
@@ -266,7 +251,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
     if (file.size > MAX_DOCUMENT_BYTES) {
       this.pendingKind.set(null);
       this.error.set(
-        `O arquivo tem ${formatSize(file.size)} e o limite é 20MB. ` +
+        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 20MB. ` +
           'Fotografe o documento com menos resolução e envie de novo.',
       );
       return;
@@ -290,13 +275,6 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
         this.error.set(this.uploadErrorMessage(err));
       },
     });
-  }
-
-  private isAllowed(file: File): boolean {
-    if (ALLOWED_MIME_TYPES.includes(file.type)) return true;
-    // Alguns Android entregam `type` vazio para HEIC — cai no nome do arquivo.
-    const name = file.name.toLowerCase();
-    return ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
   }
 
   /**
@@ -410,18 +388,11 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
   }
 
   protected sizeText(doc: VehicleDocument): string {
-    return formatSize(doc.sizeBytes);
+    return formatDocumentSize(doc.sizeBytes);
   }
 
   protected uploadedAtText(doc: VehicleDocument): string {
     if (!doc.createdDate) return '—';
     return new Date(doc.createdDate).toLocaleDateString('pt-BR');
   }
-}
-
-function formatSize(bytes: number | null | undefined): string {
-  if (bytes == null) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
