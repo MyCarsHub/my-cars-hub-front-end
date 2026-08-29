@@ -23,6 +23,7 @@ import {
   ConcludeMaintenanceDialog,
   isInputRejection,
 } from './components/conclude-maintenance-dialog/conclude-maintenance-dialog';
+import { MaintenanceDocumentsCard } from './maintenance-documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { MaintenancesService } from '../../services/maintenances.service';
@@ -55,6 +56,7 @@ const TRANSITIONABLE: readonly MaintenanceStatus[] = ['SCHEDULED', 'IN_PROGRESS'
     DetailActions,
     VehicleSummaryChip,
     AlertBanner,
+    MaintenanceDocumentsCard,
   ],
   templateUrl: './maintenance-detail.html',
 })
