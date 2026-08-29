@@ -5,12 +5,14 @@ import { ActivatedRoute } from '@angular/router';
 import { of, EMPTY, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+import { Router } from '@angular/router';
+
 import { DriverForm } from './driver-form';
 import { DriverService } from '../../services/driver.service';
 import { CepService } from '../../services/cep.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import type { DriverResponse } from '../../types/driver.types';
+import type { DriverDocument, DriverDocumentKind, DriverResponse } from '../../types/driver.types';
 
 /**
  * Covers the RG mask behavior:
@@ -120,6 +122,212 @@ describe('DriverForm — RG mask', () => {
 
     expect(component.rgDisplay()).toBe('12.345.678-9');
     expect(component.form.get('rg')?.value).toBe('123456789');
+  });
+});
+
+/**
+ * FEAT-0054 — anexos no CADASTRO do motorista, como elo filho do submit
+ * (espelho de `vehicle-form.saveChildren()`):
+ *  - os arquivos escolhidos sobem UM POR CHAMADA depois do POST /drivers;
+ *  - falha de um anexo NÃO navega, avisa que o motorista JÁ foi salvo e
+ *    promove `editingId` — o segundo submit faz PUT do MESMO motorista,
+ *    nunca um segundo POST, e reenvia SÓ o que não subiu;
+ *  - o bloco é decidido pela ROTA: some na edição, sobrevive à promoção.
+ */
+describe('DriverForm — anexos no cadastro (FEAT-0054)', () => {
+  const savedDriver = { id: 'drv-9' } as DriverResponse;
+  const uploadedDoc = { id: 'doc-1' } as DriverDocument;
+
+  let create: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let uploadDocument: ReturnType<typeof vi.fn>;
+  let success: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<DriverForm>>;
+
+  interface Access {
+    submit: () => void;
+    error: () => string | null;
+    saving: () => boolean;
+    canAttachDocuments: boolean;
+    isEdit: () => boolean;
+    pendingFiles: () => ReadonlyArray<{ file: File; sent: boolean }>;
+    openDocPicker: (kind: DriverDocumentKind) => void;
+    onDocFileSelected: (e: Event) => void;
+    form: {
+      patchValue: (v: unknown) => void;
+      get: (path: string) => { disabled: boolean } | null;
+    };
+  }
+
+  function component(): Access {
+    return fixture.componentInstance as unknown as Access;
+  }
+
+  function configure(routeId: string | null = null): void {
+    TestBed.resetTestingModule();
+    create = vi.fn().mockReturnValue(of(savedDriver));
+    update = vi.fn().mockReturnValue(of(savedDriver));
+    uploadDocument = vi.fn().mockReturnValue(of(uploadedDoc));
+    success = vi.fn();
+
+    TestBed.configureTestingModule({
+      imports: [DriverForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => routeId } } } },
+        {
+          provide: DriverService,
+          useValue: { getOne: vi.fn().mockReturnValue(EMPTY), create, update, uploadDocument },
+        },
+        { provide: CepService, useValue: { lookup: vi.fn().mockReturnValue(of(null)) } },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success },
+        },
+      ],
+    });
+
+    navigate = vi.fn().mockResolvedValue(true);
+    TestBed.inject(Router).navigate = navigate as unknown as Router['navigate'];
+
+    fixture = TestBed.createComponent(DriverForm);
+    fixture.detectChanges();
+  }
+
+  function fillValidForm(): void {
+    component().form.patchValue({
+      name: 'João da Silva',
+      rg: '123456789',
+      document: { type: 'CPF', value: '52998224725' },
+      contact: { email: 'joao@empresa.com', phone: '11987654321' },
+      address: { cep: '01001-000', street: 'Rua A', district: 'Centro', city: 'São Paulo', uf: 'SP' },
+      licenseNumber: 'ABC12345678',
+      licenseCategory: 'B',
+      licenseExpiry: '2030-01-01',
+      status: 'AVAILABLE',
+    });
+  }
+
+  function pick(kind: DriverDocumentKind, file: File): void {
+    component().openDocPicker(kind);
+    component().onDocFileSelected({ target: { files: [file], value: '' } } as unknown as Event);
+  }
+
+  function submit(): void {
+    component().submit();
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => {
+    configure();
+  });
+
+  it('envia cada anexo pendente depois do POST e navega para o detalhe', () => {
+    const cnh = new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' });
+    const proof = new File(['b'], 'conta-luz.pdf', { type: 'application/pdf' });
+    pick('CNH', cnh);
+    pick('ADDRESS_PROOF', proof);
+    fillValidForm();
+
+    submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(uploadDocument).toHaveBeenCalledTimes(2);
+    expect(uploadDocument).toHaveBeenNthCalledWith(1, 'drv-9', 'CNH', cnh);
+    expect(uploadDocument).toHaveBeenNthCalledWith(2, 'drv-9', 'ADDRESS_PROOF', proof);
+    // Um único toast cobrindo motorista + anexos — nunca dois seguidos.
+    expect(success).toHaveBeenCalledTimes(1);
+    expect(success).toHaveBeenCalledWith('Motorista salvo e documentos enviados.');
+    expect(navigate).toHaveBeenCalledWith(['/motoristas', 'drv-9']);
+  });
+
+  it('sem anexos, o fluxo antigo fica intacto: POST e navegação, nenhum upload', () => {
+    fillValidForm();
+    submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/motoristas', 'drv-9']);
+  });
+
+  it('falha de um anexo: motorista salvo é anunciado, sem navegar; o retry faz PUT (nunca 2º POST) e sobe só o que faltou', () => {
+    const cnh = new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' });
+    const proof = new File(['b'], 'conta-luz.pdf', { type: 'application/pdf' });
+    pick('CNH', cnh);
+    pick('ADDRESS_PROOF', proof);
+    fillValidForm();
+
+    uploadDocument
+      .mockReturnValueOnce(of(uploadedDoc))
+      .mockReturnValueOnce(
+        throwError(() => new HttpErrorResponse({ status: 500, error: { message: 'Falha no upload.' } })),
+      );
+    submit();
+
+    // O POST passou e o segundo upload falhou: nada de navegação, banner com o aviso.
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(uploadDocument).toHaveBeenCalledTimes(2);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(component().saving()).toBe(false);
+    expect(component().error()).toContain('O motorista foi salvo');
+    // `editingId` promovido: o form virou edição do MESMO motorista.
+    expect(component().isEdit()).toBe(true);
+    // A promoção também trava o CPF/CNPJ: o retry faz PUT, que NÃO carrega
+    // `document` — editável, uma alteração do usuário seria descartada em silêncio.
+    expect(component().form.get('document')?.disabled).toBe(true);
+    // O bloco de anexos não pode sumir com a promoção — é ele que carrega o retry.
+    expect(component().canAttachDocuments).toBe(true);
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).not.toBeNull();
+
+    uploadDocument.mockClear();
+    uploadDocument.mockReturnValue(of(uploadedDoc));
+    submit();
+
+    // Segundo submit: PUT do mesmo motorista, nunca um segundo POST…
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toBe('drv-9');
+    // …e o reenvio sobe APENAS o anexo que tinha faltado.
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    expect(uploadDocument).toHaveBeenCalledWith('drv-9', 'ADDRESS_PROOF', proof);
+    expect(navigate).toHaveBeenCalledWith(['/motoristas', 'drv-9']);
+  });
+
+  it('recusa arquivo de tipo não permitido e acima de 20MB antes de qualquer envio', () => {
+    pick('CNH', new File(['x'], 'virus.exe', { type: 'application/x-msdownload' }));
+    expect(component().pendingFiles()).toHaveLength(0);
+    expect(component().error()).toContain('Formato não suportado');
+
+    const big = new File(['x'], 'cnh.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(big, 'size', { value: 20 * 1024 * 1024 + 1 });
+    pick('CNH', big);
+    expect(component().pendingFiles()).toHaveLength(0);
+    expect(component().error()).toContain('limite é 20MB');
+  });
+
+  it('ignora o mesmo arquivo escolhido duas vezes no mesmo tipo', () => {
+    const cnh = new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' });
+    pick('CNH', cnh);
+    pick('CNH', new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' }));
+
+    expect(component().pendingFiles()).toHaveLength(1);
+    expect(component().error()).toContain('já está na lista');
+
+    // Mesmo nome sob OUTRO tipo continua valendo — a identidade inclui o kind.
+    pick('ADDRESS_PROOF', new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' }));
+    expect(component().pendingFiles()).toHaveLength(2);
+  });
+
+  it('na rota de edição o bloco de anexos não existe', () => {
+    configure('drv-1');
+    expect(component().canAttachDocuments).toBe(false);
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
+    fillValidForm();
+    submit();
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(uploadDocument).not.toHaveBeenCalled();
   });
 });
 
