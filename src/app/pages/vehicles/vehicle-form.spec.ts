@@ -885,3 +885,139 @@ describe('VehicleForm — banner de validação e foco no submit inválido', () 
     expect(banner()).toBeNull();
   });
 });
+
+/**
+ * FEAT-0059 — "Valor total (R$)" (`purchasePrice` do VEÍCULO, centavos na API),
+ * no mesmo idioma de `ipvaAmount`: nulável, reais no form, `toCents()` no submit.
+ * O ponto CRÍTICO é a edição: o PUT é full-replace, então o form de edição
+ * precisa carregar E reenviar o valor — sem isso, salvar uma edição qualquer
+ * apagaria em silêncio um valor já gravado pela API.
+ */
+describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
+  let create: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let getOne: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.spyOn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  interface FormApi {
+    form: {
+      patchValue: (v: unknown) => void;
+      getRawValue: () => { purchasePrice: number | null };
+    };
+    submit: () => void;
+  }
+
+  function api(): FormApi {
+    return fixture.componentInstance as unknown as FormApi;
+  }
+
+  function fillValidVehicle(): void {
+    api().form.patchValue({
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      hodometer: 1000,
+    });
+  }
+
+  async function setup(routeId: string | null, vehicle?: Record<string, unknown>): Promise<void> {
+    TestBed.resetTestingModule();
+    create = vi.fn().mockReturnValue(of({ id: 'veh-novo' }));
+    update = vi.fn().mockReturnValue(of({ id: 'veh-1' }));
+    getOne = vi.fn().mockReturnValue(of(vehicle));
+
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: { create, update, getOne, createFinancing: vi.fn() },
+        },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => routeId } } } },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  }
+
+  function editVehicle(purchasePrice: number | null): Record<string, unknown> {
+    return {
+      id: 'veh-1',
+      plate: 'ABC1D23',
+      type: 'CAR',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      chassis: null,
+      hodometer: 1000,
+      licensingExpiration: null,
+      renavam: null,
+      color: null,
+      purchaseDate: null,
+      purchasePrice,
+      ipvaAmount: null,
+      ipvaDueDate: null,
+      ipvaStatus: null,
+      fuel: null,
+      activeFinancing: null,
+    };
+  }
+
+  it('cadastro: converte reais para centavos no POST, idioma do ipvaAmount', async () => {
+    await setup(null);
+
+    // O campo existe no template, fora do bloco de financiamento.
+    expect(fixture.nativeElement.querySelector('#veiculo-purchase-price')).not.toBeNull();
+
+    fillValidVehicle();
+    api().form.patchValue({ purchasePrice: 45000.5 });
+    api().submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0]).toMatchObject({ purchasePrice: 4_500_050 });
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', 'veh-novo']);
+  });
+
+  it('cadastro: campo vazio vai como null, nunca 0', async () => {
+    await setup(null);
+
+    fillValidVehicle();
+    api().submit();
+
+    expect(create.mock.calls[0][0].purchasePrice).toBeNull();
+  });
+
+  it('edição: carrega centavos como reais e o PUT reenvia o valor — full-replace não pode apagar', async () => {
+    await setup('veh-1', editVehicle(4_500_050));
+
+    // 4_500_050 centavos → 45000.5 reais no form.
+    expect(api().form.getRawValue().purchasePrice).toBe(45000.5);
+
+    // Salvar SEM tocar no campo: o valor volta intacto no payload do PUT.
+    api().submit();
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toBe('veh-1');
+    expect(update.mock.calls[0][1]).toMatchObject({ purchasePrice: 4_500_050 });
+  });
+
+  it('edição: veículo sem valor continua sem valor depois de salvar', async () => {
+    await setup('veh-1', editVehicle(null));
+
+    expect(api().form.getRawValue().purchasePrice).toBeNull();
+    api().submit();
+    expect(update.mock.calls[0][1].purchasePrice).toBeNull();
+  });
+});
