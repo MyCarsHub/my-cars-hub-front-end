@@ -215,6 +215,8 @@ export class VehicleForm implements OnInit {
       renavam: ['', [Validators.pattern(/^\d{9,11}$/)]],
       color: [''],
       purchaseDate: [''],
+      // Reais no form, centavos no payload — mesmo idioma de ipvaAmount.
+      purchasePrice: [null as number | null, [Validators.min(0)]],
       ipvaAmount: [null as number | null, [Validators.min(0)]],
       ipvaDueDate: [''],
       ipvaStatus: ['' as IpvaStatus | ''],
@@ -325,6 +327,7 @@ export class VehicleForm implements OnInit {
           renavam: v.renavam ?? '',
           color: v.color ?? '',
           purchaseDate: v.purchaseDate ?? '',
+          purchasePrice: v.purchasePrice != null ? v.purchasePrice / 100 : null,
           ipvaAmount: v.ipvaAmount != null ? v.ipvaAmount / 100 : null,
           ipvaDueDate: v.ipvaDueDate ?? '',
           ipvaStatus: (v.ipvaStatus ?? '') as IpvaStatus | '',
@@ -453,6 +456,13 @@ export class VehicleForm implements OnInit {
       raw.ipvaAmount != null && !Number.isNaN(Number(raw.ipvaAmount))
         ? toCents(Number(raw.ipvaAmount))
         : null;
+    // No commonPayload de propósito: o PUT é full-replace, então a edição
+    // precisa reenviar o valor carregado — fora dele, salvar uma edição
+    // apagaria em silêncio um valor já gravado.
+    const purchasePriceCents =
+      raw.purchasePrice != null && !Number.isNaN(Number(raw.purchasePrice))
+        ? toCents(Number(raw.purchasePrice))
+        : null;
     const commonPayload = {
       plate: raw.plate.trim().toUpperCase(),
       type: raw.type,
@@ -464,6 +474,7 @@ export class VehicleForm implements OnInit {
       licensingExpiration: raw.licensingExpiration || null,
       color: raw.color?.trim() || null,
       purchaseDate: raw.purchaseDate || null,
+      purchasePrice: purchasePriceCents,
       ipvaAmount: ipvaAmountCents,
       ipvaDueDate: raw.ipvaDueDate || null,
       ipvaStatus: (raw.ipvaStatus || null) as IpvaStatus | null,
