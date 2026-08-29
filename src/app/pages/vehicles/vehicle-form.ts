@@ -6,6 +6,7 @@ import {
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -17,7 +18,19 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { EMPTY, Observable, catchError, map, merge, of, switchMap, tap } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  catchError,
+  concatMap,
+  from,
+  map,
+  merge,
+  of,
+  switchMap,
+  tap,
+  toArray,
+} from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
@@ -44,12 +57,20 @@ import {
   IPVA_STATUS_OPTIONS,
   IpvaStatus,
   UpdateVehicleRequest,
+  VEHICLE_DOCUMENT_KIND_META,
   VEHICLE_FUEL_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
   Vehicle,
+  VehicleDocumentKind,
   VehicleFuel,
   VehicleType,
 } from '../../types/vehicle.types';
+import {
+  MAX_DOCUMENT_BYTES,
+  VEHICLE_DOCUMENT_ACCEPT,
+  formatDocumentSize,
+  isAllowedDocumentFile,
+} from './vehicle-document-constraints';
 
 const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
 
@@ -59,6 +80,22 @@ const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
  * `childErrorMessage`.
  */
 const CHILD_RETRY_HINT = 'Tente novamente em instantes.';
+
+/**
+ * Arquivo escolhido no cadastro, ainda não (necessariamente) enviado.
+ *
+ * `status` é a memória do retry: se um upload falhar depois de o veículo ser
+ * criado, o reenvio percorre esta lista e PULA o que já está `uploaded` —
+ * reenviar duplicaria o documento, porque o backend ACRESCENTA (nenhum kind é
+ * único, ver `VehicleDocumentKind`).
+ */
+interface PendingVehicleDocument {
+  /** Id local, só para `track` e para marcar status — nunca vai ao servidor. */
+  id: number;
+  kind: VehicleDocumentKind;
+  file: File;
+  status: 'pending' | 'uploaded' | 'error';
+}
 
 function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
   const manufacture = group.get('yearManufacture')?.value;
@@ -140,6 +177,24 @@ export class VehicleForm implements OnInit {
     () => !this.isEdit() || this.existingFinancing() === null,
   );
 
+  /**
+   * O bloco de documentos só existe no fluxo de CADASTRO — na edição, quem
+   * cuida dos anexos é o card do detalhe. O portão é um signal próprio, e NÃO
+   * `isEdit()`: quando um filho falha, `editingId` é promovido e `isEdit()`
+   * vira true com o form ainda montado — o bloco precisa continuar visível
+   * para o retry subir só o que faltou.
+   */
+  protected readonly documentsEnabled = signal(true);
+  protected readonly pendingDocuments = signal<PendingVehicleDocument[]>([]);
+  /** Erro de SELEÇÃO (formato/tamanho) — local ao bloco, não ao banner do form. */
+  protected readonly documentsPickError = signal<string | null>(null);
+  protected readonly documentKindMeta = VEHICLE_DOCUMENT_KIND_META;
+  protected readonly documentAccept = VEHICLE_DOCUMENT_ACCEPT;
+  /** Mesma semântica do `pendingKind` do card: a intenção do toque, não envio em voo. */
+  private pendingDocumentKind: VehicleDocumentKind | null = null;
+  private nextPendingDocumentId = 1;
+  private readonly docPicker = viewChild<ElementRef<HTMLInputElement>>('docPicker');
+
   protected readonly form = this.fb.nonNullable.group(
     {
       plate: ['', [Validators.required, Validators.pattern(PLATE_PATTERN)]],
@@ -218,6 +273,7 @@ export class VehicleForm implements OnInit {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.editingId.set(id);
+      this.documentsEnabled.set(false);
       this.loadVehicle(id);
       this.form.controls.chassis.disable();
       this.form.controls.renavam.disable();
@@ -289,6 +345,75 @@ export class VehicleForm implements OnInit {
 
   protected toggleInsurance(): void {
     this.showInsurance.update((v) => !v);
+  }
+
+  /** O botão do tipo É a afordância: registra o kind e abre o seletor nativo. */
+  protected openDocumentPicker(kind: VehicleDocumentKind): void {
+    if (this.saving()) return;
+    this.documentsPickError.set(null);
+    this.pendingDocumentKind = kind;
+    this.docPicker()?.nativeElement.click();
+  }
+
+  /**
+   * Seleção com `multiple`: valida cada arquivo (allowlist + 20MB, as mesmas
+   * guardas do card do detalhe), acrescenta os válidos e nomeia os recusados —
+   * recusar em silêncio faria o usuário achar que anexou o que não anexou.
+   *
+   * Dedup por nome+tamanho contra a lista pendente (e dentro da própria
+   * seleção): o mesmo arquivo escolhido duas vezes subiria DUAS vezes, porque
+   * o backend acrescenta em vez de substituir.
+   */
+  protected onDocumentsSelected(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const files = Array.from(target.files ?? []);
+    // Zera o input ANTES de qualquer retorno: sem isso, escolher o MESMO
+    // arquivo de novo depois de removê-lo da lista não dispara `change`.
+    target.value = '';
+    const kind = this.pendingDocumentKind;
+    this.pendingDocumentKind = null;
+    if (!kind || files.length === 0) return;
+
+    const seen = new Set(this.pendingDocuments().map((d) => `${d.file.name}|${d.file.size}`));
+    const rejected: string[] = [];
+    const duplicated: string[] = [];
+    const accepted: PendingVehicleDocument[] = [];
+    for (const file of files) {
+      if (!isAllowedDocumentFile(file) || file.size > MAX_DOCUMENT_BYTES) {
+        rejected.push(file.name);
+        continue;
+      }
+      const key = `${file.name}|${file.size}`;
+      if (seen.has(key)) {
+        duplicated.push(file.name);
+        continue;
+      }
+      seen.add(key);
+      accepted.push({ id: this.nextPendingDocumentId++, kind, file, status: 'pending' });
+    }
+    if (accepted.length > 0) {
+      this.pendingDocuments.update((list) => [...list, ...accepted]);
+    }
+    const problems: string[] = [];
+    if (rejected.length > 0) {
+      problems.push(
+        `Não anexado: ${rejected.join(', ')}. Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF, até 20MB.`,
+      );
+    }
+    if (duplicated.length > 0) {
+      problems.push(`Já na lista: ${duplicated.join(', ')}.`);
+    }
+    this.documentsPickError.set(problems.length > 0 ? problems.join(' ') : null);
+  }
+
+  protected removePendingDocument(doc: PendingVehicleDocument): void {
+    // `uploaded` já está no servidor — remover daqui não o removeria de lá.
+    if (doc.status === 'uploaded' || this.saving()) return;
+    this.pendingDocuments.update((list) => list.filter((d) => d.id !== doc.id));
+  }
+
+  protected pendingSizeText(doc: PendingVehicleDocument): string {
+    return formatDocumentSize(doc.file.size);
   }
 
   protected submit(): void {
@@ -401,6 +526,7 @@ export class VehicleForm implements OnInit {
         tap((v) => this.editingId.set(v.id)),
         switchMap((v) => this.financingStep(v)),
         switchMap((v) => this.insuranceStep(v)),
+        switchMap((v) => this.documentsStep(v)),
       )
       .subscribe({
         next: (v) => {
@@ -410,6 +536,14 @@ export class VehicleForm implements OnInit {
           }
           if (this.willSubmitInsurance()) {
             this.notifications.success('Seguro adicionado ao veículo.');
+          }
+          // `willSubmitDocuments()` não serve aqui: chegando neste ponto todos
+          // os arquivos já estão `uploaded` e ela responde false.
+          const sent = this.pendingDocuments().length;
+          if (this.documentsEnabled() && sent > 0) {
+            this.notifications.success(
+              sent === 1 ? 'Documento anexado ao veículo.' : `${sent} documentos anexados ao veículo.`,
+            );
           }
           this.router.navigate(['/veiculos', v.id]);
         },
@@ -440,6 +574,51 @@ export class VehicleForm implements OnInit {
   }
 
   /**
+   * TERCEIRO elo do `saveChildren`, depois de financiamento e seguro. O
+   * endpoint aceita UM arquivo por chamada, e o envio é SEQUENCIAL de
+   * propósito: N multiparts em paralelo num celular em 4G disputam a mesma
+   * banda e tendem a falhar todos juntos.
+   *
+   * Diferente dos outros filhos, uma falha NÃO aborta o elo: os arquivos
+   * restantes ainda são tentados e cada um marca o próprio `status`. Só no
+   * fim a falha vira banner + `EMPTY` (sem navegação, form montado). O retry
+   * então envia SÓ o que não está `uploaded` — ver `PendingVehicleDocument`.
+   */
+  private documentsStep(v: Vehicle): Observable<Vehicle> {
+    if (!this.willSubmitDocuments()) return of(v);
+    const toSend = this.pendingDocuments().filter((d) => d.status !== 'uploaded');
+    let firstError: HttpErrorResponse | null = null;
+    let failed = 0;
+    return from(toSend).pipe(
+      concatMap((doc) =>
+        this.vehiclesService.uploadDocument(v.id, doc.kind, doc.file).pipe(
+          tap(() => this.markPendingDocument(doc.id, 'uploaded')),
+          catchError((err: HttpErrorResponse) => {
+            this.markPendingDocument(doc.id, 'error');
+            firstError ??= err;
+            failed += 1;
+            return of(null);
+          }),
+        ),
+      ),
+      toArray(),
+      switchMap(() => {
+        if (firstError !== null) {
+          this.handleDocumentsError(firstError, failed);
+          return EMPTY;
+        }
+        return of(v);
+      }),
+    );
+  }
+
+  private markPendingDocument(id: number, status: PendingVehicleDocument['status']): void {
+    this.pendingDocuments.update((list) =>
+      list.map((d) => (d.id === id ? { ...d, status } : d)),
+    );
+  }
+
+  /**
    * O bloco de financiamento só é enviado quando o usuário o abriu E o veículo
    * ainda não tem um financiamento ativo (na criação `canAddFinancing()` é sempre true).
    */
@@ -450,6 +629,11 @@ export class VehicleForm implements OnInit {
   /** O bloco de seguro só é enviado quando o usuário o abriu. */
   protected willSubmitInsurance(): boolean {
     return this.showInsurance();
+  }
+
+  /** Só há elo de documentos quando o bloco existe (cadastro) e resta arquivo não enviado. */
+  protected willSubmitDocuments(): boolean {
+    return this.documentsEnabled() && this.pendingDocuments().some((d) => d.status !== 'uploaded');
   }
 
   private buildInsurancePayload(): CreateInsuranceRequest {
@@ -525,6 +709,22 @@ export class VehicleForm implements OnInit {
       CHILD_RETRY_HINT,
     );
     this.error.set(this.childErrorMessage('seguro', formMessage, applied.length > 0));
+  }
+
+  /**
+   * Falha de upload no elo de documentos. Não há form reativo por trás dos
+   * arquivos, então nada é inline de campo: tudo vira banner, sempre com o
+   * prefixo "o veículo foi salvo" (mesma razão de `childErrorMessage`).
+   * `messageFor` já faz o `claim` — o safety net do interceptor fica quieto.
+   */
+  private handleDocumentsError(err: HttpErrorResponse, failedCount: number): void {
+    this.saving.set(false);
+    const head =
+      failedCount === 1
+        ? 'O veículo foi salvo, mas 1 documento não foi enviado.'
+        : `O veículo foi salvo, mas ${failedCount} documentos não foram enviados.`;
+    const detail = this.apiErrors.messageFor(err, CHILD_RETRY_HINT);
+    this.error.set(`${head} ${detail} Salvar de novo reenvia apenas o que faltou.`);
   }
 
   /**

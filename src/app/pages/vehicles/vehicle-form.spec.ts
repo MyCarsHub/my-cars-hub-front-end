@@ -388,6 +388,21 @@ describe('VehicleForm — financiamento na edição', () => {
     expect(fixture.nativeElement.innerHTML).toContain('Verifique os campos do seguro.');
   });
 
+  /**
+   * FEAT-0053: o bloco de documentos é exclusivo do CADASTRO. Na edição (rota
+   * com id) quem cuida dos anexos é o card do detalhe — o bloco não renderiza.
+   */
+  it('não renderiza o bloco de documentos na edição — sem botões de anexar nem picker', async () => {
+    await setup(null);
+
+    const html = fixture.nativeElement.innerHTML as string;
+    expect(html).not.toContain('Documentos (opcional)');
+    expect(html).not.toContain('Anexar CRLV');
+    expect(html).not.toContain('Anexar outro arquivo');
+    expect(fixture.nativeElement.querySelector('[data-pending-doc]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
+  });
+
   it('mostra no banner o 409 de apólice ativa vindo do servidor', async () => {
     await setup(null);
     createInsurance.mockReturnValue(
@@ -577,6 +592,183 @@ describe('VehicleForm — criação com falha no bloco filho', () => {
       ?.textContent;
     expect(text).toContain('O veículo foi salvo');
     expect(text).toContain('Veículo já possui financiamento ativo.');
+  });
+});
+
+/**
+ * FEAT-0053: anexar documentos no CADASTRO. O bloco de pendentes guarda os
+ * arquivos escolhidos e o `saveChildren` os envia como TERCEIRO elo, um por
+ * chamada, depois de financiamento e seguro. Falha parcial mantém o veículo
+ * criado (id promovido, banner "foi salvo") e o reenvio sobe SÓ o que faltou —
+ * reenviar um `uploaded` duplicaria o documento, porque o backend acrescenta.
+ */
+describe('VehicleForm — documentos no cadastro', () => {
+  const NEW_ID = 'veh-novo';
+
+  let create: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let uploadDocument: ReturnType<typeof vi.fn>;
+  let notifySuccess: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.spyOn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  const crlvFile = new File(['crlv'], 'crlv.pdf', { type: 'application/pdf' });
+  const fotoFile = new File(['foto'], 'foto.png', { type: 'image/png' });
+
+  interface FormApi {
+    form: { patchValue: (v: unknown) => void };
+    submit: () => void;
+    isEdit: () => boolean;
+    openDocumentPicker: (kind: 'CRLV' | 'OTHER') => void;
+    onDocumentsSelected: (event: Event) => void;
+  }
+
+  function api(): FormApi {
+    return fixture.componentInstance as unknown as FormApi;
+  }
+
+  function fillValidVehicle(): void {
+    api().form.patchValue({
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      hodometer: 1000,
+    });
+  }
+
+  /** Simula o gesto completo: toque no tipo + retorno do seletor nativo. */
+  function pick(kind: 'CRLV' | 'OTHER', files: File[]): void {
+    api().openDocumentPicker(kind);
+    api().onDocumentsSelected({ target: { files, value: '' } } as unknown as Event);
+    fixture.detectChanges();
+  }
+
+  function pendingRows(): NodeListOf<HTMLElement> {
+    return fixture.nativeElement.querySelectorAll('[data-pending-doc]');
+  }
+
+  function bannerText(): string {
+    return (
+      (fixture.nativeElement.querySelector('app-alert-banner') as HTMLElement | null)
+        ?.textContent ?? ''
+    );
+  }
+
+  beforeEach(async () => {
+    TestBed.resetTestingModule();
+    create = vi.fn().mockReturnValue(of({ id: NEW_ID }));
+    update = vi.fn().mockReturnValue(of({ id: NEW_ID }));
+    uploadDocument = vi.fn().mockReturnValue(of({ id: 'doc-ok' }));
+    notifySuccess = vi.fn();
+
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: { create, update, uploadDocument, getOne: vi.fn() },
+        },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: notifySuccess },
+        },
+      ],
+    }).compileComponents();
+
+    navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  });
+
+  it('envia os N arquivos escolhidos, um por chamada e na ordem, e navega para o detalhe', () => {
+    fillValidVehicle();
+    pick('CRLV', [crlvFile]);
+    pick('OTHER', [fotoFile]);
+    expect(pendingRows().length).toBe(2);
+
+    api().submit();
+    fixture.detectChanges();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(uploadDocument).toHaveBeenCalledTimes(2);
+    expect(uploadDocument.mock.calls[0]).toEqual([NEW_ID, 'CRLV', crlvFile]);
+    expect(uploadDocument.mock.calls[1]).toEqual([NEW_ID, 'OTHER', fotoFile]);
+    expect(notifySuccess).toHaveBeenCalledWith('2 documentos anexados ao veículo.');
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', NEW_ID]);
+  });
+
+  it('falha de um upload mantém o veículo criado e o reenvio sobe SÓ o que faltou', () => {
+    let fotoFalha = true;
+    uploadDocument.mockImplementation((_id: string, _kind: string, file: File) =>
+      file === fotoFile && fotoFalha
+        ? throwError(
+            () =>
+              new HttpErrorResponse({
+                status: 500,
+                error: { message: 'Falha no armazenamento.' },
+              }),
+          )
+        : of({ id: 'doc-ok' }),
+    );
+
+    fillValidVehicle();
+    pick('CRLV', [crlvFile]);
+    pick('OTHER', [fotoFile]);
+
+    api().submit();
+    fixture.detectChanges();
+
+    // O veículo existe; o form virou edição e ninguém navegou.
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(uploadDocument).toHaveBeenCalledTimes(2);
+    expect(api().isEdit()).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(bannerText()).toContain('O veículo foi salvo, mas 1 documento não foi enviado.');
+    expect(bannerText()).toContain('Falha no armazenamento.');
+    expect(TestBed.inject(NotificationService).error).not.toHaveBeenCalled();
+
+    // Reenvio: vira PUT do mesmo veículo e reenvia APENAS o arquivo que falhou.
+    fotoFalha = false;
+    api().submit();
+    fixture.detectChanges();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toBe(NEW_ID);
+    expect(uploadDocument).toHaveBeenCalledTimes(3);
+    expect(uploadDocument.mock.calls[2]).toEqual([NEW_ID, 'OTHER', fotoFile]);
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', NEW_ID]);
+  });
+
+  it('não enfileira o mesmo arquivo duas vezes — dedup por nome+tamanho, nomeado no erro', () => {
+    pick('CRLV', [crlvFile]);
+    // Mesmo arquivo de novo (outro gesto) + um repetido DENTRO da mesma seleção.
+    pick('CRLV', [crlvFile, fotoFile, fotoFile]);
+
+    expect(pendingRows().length).toBe(2);
+    const html = fixture.nativeElement.innerHTML as string;
+    expect(html).toContain('Já na lista:');
+    expect(html).toContain('crlv.pdf');
+  });
+
+  it('recusa arquivo fora da allowlist na seleção, nomeando o recusado', () => {
+    const exe = new File(['x'], 'virus.exe', { type: 'application/octet-stream' });
+    pick('CRLV', [exe, crlvFile]);
+
+    // Só o válido entra; o recusado é nomeado no erro do bloco.
+    expect(pendingRows().length).toBe(1);
+    const html = fixture.nativeElement.innerHTML as string;
+    expect(html).toContain('virus.exe');
+    expect(html).toContain('Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF');
   });
 });
 
