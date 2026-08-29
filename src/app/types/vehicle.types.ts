@@ -87,6 +87,13 @@ export interface Vehicle {
   renavam: string | null;
   color: string | null;
   purchaseDate: string | null;
+  /**
+   * Valor total pago pelo veículo, em CENTAVOS (V71, STORY-VEHICLE-ACQUISITION-COST).
+   * É o custo de aquisição do VEÍCULO — não confundir com `Financing.purchasePrice`,
+   * que é o preço do contrato de financiamento. A Gerência prefere este campo e
+   * cai no financiamento quando ele é nulo (regra do backend; o FE só exibe).
+   */
+  purchasePrice: number | null;
   ipvaAmount: number | null;
   ipvaDueDate: string | null;
   ipvaStatus: IpvaStatus | null;
@@ -111,6 +118,8 @@ export interface CreateVehicleRequest {
   renavam?: string | null;
   color?: string | null;
   purchaseDate?: string | null;
+  /** Centavos. Ver `Vehicle.purchasePrice`. */
+  purchasePrice?: number | null;
   ipvaAmount?: number | null;
   ipvaDueDate?: string | null;
   ipvaStatus?: IpvaStatus | null;
@@ -128,6 +137,12 @@ export interface UpdateVehicleRequest {
   licensingExpiration?: string | null;
   color?: string | null;
   purchaseDate?: string | null;
+  /**
+   * Centavos. O PUT é full-replace: omitir (ou mandar null) APAGA o valor no
+   * backend — por isso o formulário de edição SEMPRE carrega e reenvia este
+   * campo, no mesmo idioma de `ipvaAmount`.
+   */
+  purchasePrice?: number | null;
   ipvaAmount?: number | null;
   ipvaDueDate?: string | null;
   ipvaStatus?: IpvaStatus | null;
