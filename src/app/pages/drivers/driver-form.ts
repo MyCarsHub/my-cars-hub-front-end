@@ -1,10 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnInit,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -14,6 +16,18 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import {
+  EMPTY,
+  Observable,
+  catchError,
+  concatMap,
+  from,
+  map,
+  of,
+  switchMap,
+  tap,
+  toArray,
+} from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
@@ -26,18 +40,60 @@ import { DriverService } from '../../services/driver.service';
 import { CepService } from '../../services/cep.service';
 import {
   CreateDriverRequest,
+  DRIVER_DOCUMENT_KIND_META,
+  DriverDocumentKind,
+  DriverResponse,
   DriverStatus,
   LicenseCategory,
   UpdateDriverRequest,
 } from '../../types/driver.types';
 import { DRIVER_STATUS_META } from '../../utils/status-maps';
 import { isValidCpf } from '../../utils/validators/cpf.validator';
+import {
+  DOCUMENT_ACCEPT,
+  MAX_DOCUMENT_BYTES,
+  formatDocumentSize,
+  isAllowedDocumentFile,
+} from './driver-document-file-rules';
 
 const CATEGORIES: LicenseCategory[] = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
 const STATUSES: Array<{ value: DriverStatus; label: string }> = (
   ['AVAILABLE', 'WORKING', 'SUSPENDED'] as DriverStatus[]
 ).map((v) => ({ value: v, label: DRIVER_STATUS_META[v].label }));
 const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+
+/**
+ * Complemento do banner quando o envio de um anexo falha sem mensagem do
+ * servidor. Fica no fim da frase — o prefixo ("O motorista foi salvo, mas …")
+ * é montado em `handleDocumentsError`. Mesmo contrato do `vehicle-form`.
+ */
+const CHILD_RETRY_HINT = 'Tente novamente em instantes.';
+
+/**
+ * Slots oferecidos no CADASTRO, na ordem em que aparecem (fixa, como no card
+ * de documentos do detalhe). `APP_RIDE_RECEIPT` fica DE FORA de propósito: o
+ * portão desse slot é `DriverResponse.isAppDriver`, e no cadastro o motorista
+ * ainda não existe — sem resposta não há flag, e o portão falha FECHADO
+ * (mesma regra do card). O extrato entra depois, pela tela de detalhe.
+ */
+const CADASTRO_SLOT_DEFS: ReadonlyArray<{ kind: DriverDocumentKind; hint: string }> = [
+  { kind: 'CNH', hint: 'Frente e verso são dois arquivos do mesmo tipo.' },
+  { kind: 'ADDRESS_PROOF', hint: 'Conta de luz, água ou internet dos últimos meses.' },
+  { kind: 'INCOME_PROOF', hint: 'Holerite, extrato bancário ou declaração.' },
+  { kind: 'OTHER', hint: 'Qualquer outro arquivo do motorista.' },
+];
+
+/**
+ * Arquivo escolhido no cadastro, ainda não (ou já) enviado. `sent` é a memória
+ * do retry: depois de uma falha parcial, o reenvio sobe SÓ o que tem
+ * `sent: false` — reenviar o que já subiu duplicaria o anexo no motorista.
+ */
+interface PendingDriverFile {
+  id: number;
+  kind: DriverDocumentKind;
+  file: File;
+  sent: boolean;
+}
 
 @Component({
   selector: 'app-driver-form',
@@ -72,6 +128,40 @@ export class DriverForm implements OnInit {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly cepLoading = signal(false);
+
+  /**
+   * O bloco de anexos existe só no fluxo de CADASTRO, mas a decisão vem da
+   * ROTA, não de `isEdit()`: quando um anexo falha, `editingId` é promovido e
+   * `isEdit()` vira `true` com o form ainda montado — se o bloco dependesse
+   * dele, sumiria exatamente na hora do retry, levando junto os arquivos que
+   * faltam subir.
+   */
+  protected readonly canAttachDocuments = this.route.snapshot.paramMap.get('id') === null;
+
+  protected readonly documentAccept = DOCUMENT_ACCEPT;
+
+  /** Arquivos escolhidos no cadastro, enviados como elo filho do submit. */
+  protected readonly pendingFiles = signal<PendingDriverFile[]>([]);
+  private nextPendingFileId = 1;
+
+  /**
+   * ALVO do seletor de arquivos — a intenção do toque, não estado de envio.
+   * Mesmo conserto do card de documentos: o diálogo nativo pode ser dispensado
+   * sem escolher nada, então nada de "Enviando" aqui.
+   */
+  private readonly pendingKind = signal<DriverDocumentKind | null>(null);
+
+  private readonly docPicker = viewChild<ElementRef<HTMLInputElement>>('docPicker');
+
+  /** Um slot por tipo oferecido no cadastro, com os arquivos escolhidos dentro. */
+  protected readonly documentSlots = computed(() =>
+    CADASTRO_SLOT_DEFS.map((def) => ({
+      kind: def.kind,
+      hint: def.hint,
+      label: DRIVER_DOCUMENT_KIND_META[def.kind],
+      files: this.pendingFiles().filter((f) => f.kind === def.kind),
+    })),
+  );
 
   /** Copy overrides per validator key for the `app-form-field` message resolver. */
   protected readonly nameMessages: Readonly<Record<string, string>> = {
@@ -301,6 +391,72 @@ export class DriverForm implements OnInit {
     });
   }
 
+  /** O slot É a afordância: tocá-lo registra o tipo e abre o seletor. */
+  protected openDocPicker(kind: DriverDocumentKind): void {
+    if (this.saving()) return;
+    this.pendingKind.set(kind);
+    this.docPicker()?.nativeElement.click();
+  }
+
+  protected onDocFileSelected(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    // Zera o input ANTES de qualquer retorno: sem isso, escolher o MESMO
+    // arquivo de novo depois de um erro não dispara `change`.
+    target.value = '';
+    const kind = this.pendingKind();
+    this.pendingKind.set(null);
+    if (!file || !kind) return;
+
+    if (!isAllowedDocumentFile(file)) {
+      this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
+      return;
+    }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      this.error.set(
+        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 20MB. ` +
+          'Fotografe o documento com menos resolução e escolha de novo.',
+      );
+      return;
+    }
+
+    // Dedupe: o mesmo arquivo escolhido duas vezes no mesmo tipo subiria em
+    // dobro — kind + nome + tamanho é a identidade que o seletor consegue dar.
+    const duplicate = this.pendingFiles().some(
+      (f) => f.kind === kind && f.file.name === file.name && f.file.size === file.size,
+    );
+    if (duplicate) {
+      this.error.set(`"${file.name}" já está na lista deste tipo.`);
+      return;
+    }
+
+    this.error.set(null);
+    this.pendingFiles.update((list) => [
+      ...list,
+      { id: this.nextPendingFileId++, kind, file, sent: false },
+    ]);
+  }
+
+  protected removePendingFile(id: number): void {
+    if (this.saving()) return;
+    // Só arquivos ainda não enviados têm botão de remover — o que já subiu
+    // pertence ao motorista e sai pelo card de documentos do detalhe.
+    this.pendingFiles.update((list) => list.filter((f) => f.id !== id || f.sent));
+  }
+
+  protected pendingSizeText(item: PendingDriverFile): string {
+    return formatDocumentSize(item.file.size);
+  }
+
+  protected slotAriaLabel(label: string, count: number): string {
+    const estado = count === 0 ? 'nenhum arquivo escolhido' : `${count} ${count === 1 ? 'arquivo' : 'arquivos'}`;
+    return `Anexar ${label} — ${estado}`;
+  }
+
+  protected removeAriaLabel(item: PendingDriverFile): string {
+    return `Remover ${item.file.name}`;
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -340,10 +496,7 @@ export class DriverForm implements OnInit {
 
     if (this.isEdit()) {
       const payload: UpdateDriverRequest = commonPayload;
-      this.driverService.update(this.editingId()!, payload).subscribe({
-        next: (driver) => this.onSaved(driver.id),
-        error: (err: HttpErrorResponse) => this.handleError(err),
-      });
+      this.saveChildren(this.driverService.update(this.editingId()!, payload));
     } else {
       const payload: CreateDriverRequest = {
         ...commonPayload,
@@ -352,16 +505,108 @@ export class DriverForm implements OnInit {
           value: raw.document.value.trim(),
         },
       };
-      this.driverService.create(payload).subscribe({
-        next: (driver) => this.onSaved(driver.id),
-        error: (err: HttpErrorResponse) => this.handleError(err),
-      });
+      this.saveChildren(this.driverService.create(payload));
     }
   }
 
-  private onSaved(id: string): void {
-    this.notifications.success('Motorista salvo.');
-    this.router.navigate(['/motoristas', id]);
+  /**
+   * Encadeia os anexos escolhidos no cadastro depois do save do motorista,
+   * espelhando `vehicle-form.saveChildren()`. Uma falha de anexo trata o
+   * próprio erro inline e completa com `EMPTY` — não navega nem dispara o
+   * handler do motorista, porque o POST/PUT do motorista JÁ passou e o
+   * usuário precisa saber disso.
+   *
+   * `editingId` é promovido assim que o motorista é salvo: na CRIAÇÃO, se um
+   * anexo falhar o form continua montado, e sem isso o próximo submit
+   * dispararia outro POST /drivers, cadastrando o motorista DUPLICADO. Com o
+   * id setado o reenvio vira PUT do mesmo motorista + retry só dos anexos que
+   * faltaram (`sent: false`).
+   */
+  private saveChildren(save$: Observable<DriverResponse>): void {
+    const hadPendingUploads = this.pendingFiles().some((f) => !f.sent);
+    save$
+      .pipe(
+        tap((driver) => {
+          this.editingId.set(driver.id);
+          // A promoção também trava o CPF/CNPJ, como na rota de edição: o
+          // retry faz PUT, e `UpdateDriverRequest` NÃO carrega `document` —
+          // deixar o campo editável descartaria a alteração em silêncio.
+          //
+          // `emitEvent: false` é obrigatório: o `disable()` do grupo marca o
+          // status DISABLED e SÓ DEPOIS desabilita os filhos; o valueChanges
+          // do `type` aciona o revalidador do CPF (ngOnInit), cujo
+          // `updateValueAndValidity()` sobe ao grupo enquanto `value` ainda
+          // está habilitado — e reescreve o status do grupo para VALID.
+          this.form.controls.document.disable({ emitEvent: false });
+        }),
+        switchMap((driver) => this.documentsStep(driver)),
+      )
+      .subscribe({
+        next: (driver) => {
+          this.saving.set(false);
+          this.notifications.success(
+            hadPendingUploads ? 'Motorista salvo e documentos enviados.' : 'Motorista salvo.',
+          );
+          this.router.navigate(['/motoristas', driver.id]);
+        },
+        error: (err: HttpErrorResponse) => this.handleError(err),
+      });
+  }
+
+  /**
+   * Sobe os anexos UM POR CHAMADA (contrato do endpoint), em sequência, e SÓ
+   * os que ainda têm `sent: false` — no retry, o que já subiu não é reenviado.
+   * A primeira falha interrompe a fila: os arquivos restantes continuam
+   * pendentes e sobem no próximo submit.
+   */
+  private documentsStep(driver: DriverResponse): Observable<DriverResponse> {
+    const queue = this.pendingFiles().filter((f) => !f.sent);
+    if (queue.length === 0) return of(driver);
+    return from(queue).pipe(
+      concatMap((item) =>
+        this.driverService
+          .uploadDocument(driver.id, item.kind, item.file)
+          .pipe(tap(() => this.markSent(item.id))),
+      ),
+      // `toArray()` em vez de `last()`: espera a fila completar sem a
+      // possibilidade teórica de `EmptyError` vazar para o handler de anexo.
+      toArray(),
+      map(() => driver),
+      catchError((err: HttpErrorResponse) => {
+        this.handleDocumentsError(err);
+        return EMPTY;
+      }),
+    );
+  }
+
+  private markSent(id: number): void {
+    this.pendingFiles.update((list) =>
+      list.map((f) => (f.id === id ? { ...f, sent: true } : f)),
+    );
+  }
+
+  /**
+   * Falha no envio de um anexo. O prefixo é obrigatório: quando o anexo falha
+   * o motorista JÁ foi salvo (POST/PUT 2xx), e omitir isso é o que levaria o
+   * usuário a reenviar o formulário achando que nada tinha gravado (mesmo
+   * contrato de `vehicle-form.childErrorMessage`). Não há form para
+   * `fieldErrors` de upload — `claim` segura o toast da rede de segurança e o
+   * detalhe do servidor vai para o banner.
+   */
+  private handleDocumentsError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    this.apiErrors.claim(err);
+    const remaining = this.pendingFiles().filter((f) => !f.sent).length;
+    const head = 'O motorista foi salvo, mas nem todos os documentos foram enviados.';
+    const detail =
+      err.status === 413
+        ? 'O arquivo passou do limite de 20MB. Reduza a qualidade e envie de novo.'
+        : this.apiErrors.messageFor(err, CHILD_RETRY_HINT);
+    const tail =
+      remaining === 1
+        ? 'Salvar de novo envia apenas o arquivo que faltou.'
+        : `Salvar de novo envia apenas os ${remaining} arquivos que faltaram.`;
+    this.error.set(`${head} ${detail} ${tail}`);
   }
 
   /**
