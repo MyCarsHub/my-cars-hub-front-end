@@ -1,15 +1,18 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnInit,
   DestroyRef,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { EMPTY, Observable, catchError, concatMap, from, map, of, switchMap, tap, toArray } from 'rxjs';
 import {
   AbstractControl,
   FormBuilder,
@@ -31,13 +34,23 @@ import { MaintenancesService } from '../../services/maintenances.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import {
   CreateMaintenanceRequest,
+  MAINTENANCE_DOCUMENT_KIND_META,
   MAINTENANCE_STATUS_OPTIONS,
   MAINTENANCE_TYPE_OPTIONS,
+  Maintenance,
+  MaintenanceDocumentKind,
   MaintenanceItemRequest,
   MaintenanceStatus,
   MaintenanceType,
   UpdateMaintenanceRequest,
 } from '../../types/maintenance.types';
+import {
+  MAINTENANCE_DOC_ACCEPT,
+  MAINTENANCE_DOC_MAX_BYTES,
+  PendingMaintenanceDoc,
+  formatDocSize,
+  isAllowedMaintenanceDoc,
+} from './maintenance-document-upload';
 import { formatBRL } from '../../types/dashboard.types';
 import { VehicleListItem } from '../../types/vehicle.types';
 import {
@@ -177,6 +190,38 @@ export class MaintenanceForm implements OnInit {
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly isEdit = computed(() => this.editingId() !== null);
+
+  /**
+   * A tela foi ABERTA como edição (a rota trouxe id), diferente de `isEdit()`,
+   * que passa a ser verdadeiro assim que a manutenção é criada.
+   *
+   * A distinção não é estilística e é o que faz o reenvio funcionar: depois de
+   * um cadastro cujo anexo falhou, `editingId` já está preenchido; se o bloco de
+   * documentos fosse escondido por `isEdit()`, ele sumiria da tela exatamente no
+   * momento em que o usuário precisa dele para reenviar o que faltou.
+   */
+  private readonly startedAsEdit = signal(false);
+
+  /** O bloco de anexos só existe no CADASTRO — na edição quem anexa é o detalhe. */
+  protected readonly showDocuments = computed(() => !this.startedAsEdit());
+
+  /** Arquivos escolhidos e ainda NÃO enviados. Some da fila conforme sobem. */
+  protected readonly pendingDocs = signal<PendingMaintenanceDoc[]>([]);
+
+  /** Contador local para o `uid` — sem `Math.random`, sem `Date.now`. */
+  private pendingSeq = 0;
+
+  /** Tipo alvo do seletor de arquivos, escrito no toque e lido no `change`. */
+  private readonly pendingKind = signal<MaintenanceDocumentKind | null>(null);
+
+  protected readonly docAccept = MAINTENANCE_DOC_ACCEPT;
+
+  private readonly docPicker = viewChild<ElementRef<HTMLInputElement>>('docPicker');
+
+  protected readonly docSlots: ReadonlyArray<{ kind: MaintenanceDocumentKind; label: string }> = [
+    { kind: 'NOTA_FISCAL', label: MAINTENANCE_DOCUMENT_KIND_META['NOTA_FISCAL'] },
+    { kind: 'OTHER', label: MAINTENANCE_DOCUMENT_KIND_META['OTHER'] },
+  ];
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -341,6 +386,7 @@ export class MaintenanceForm implements OnInit {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.editingId.set(id);
+      this.startedAsEdit.set(true);
       this.load(id);
       this.form.controls.vehicleId.disable();
     }
@@ -508,10 +554,7 @@ export class MaintenanceForm implements OnInit {
         status: raw.status,
         notes: raw.notes?.trim() || null,
       };
-      this.maintenancesService.update(this.editingId()!, payload).subscribe({
-        next: (m) => this.onSaved(m.id),
-        error: (err: HttpErrorResponse) => this.handleError(err),
-      });
+      this.saveChildren(this.maintenancesService.update(this.editingId()!, payload));
     } else {
       const payload: CreateMaintenanceRequest = {
         vehicleId: raw.vehicleId,
@@ -532,10 +575,7 @@ export class MaintenanceForm implements OnInit {
         status: raw.status,
         notes: raw.notes?.trim() || null,
       };
-      this.maintenancesService.create(payload).subscribe({
-        next: (m) => this.onSaved(m.id),
-        error: (err: HttpErrorResponse) => this.handleError(err),
-      });
+      this.saveChildren(this.maintenancesService.create(payload));
     }
   }
 
@@ -561,6 +601,161 @@ export class MaintenanceForm implements OnInit {
     if (km !== null) return km;
     if (this.form.controls.hodometerReading.pristine) return this.loadedHodometer();
     return null;
+  }
+
+  /**
+   * Encadeia os anexos DEPOIS do save da manutenção, porque no cadastro a
+   * entidade ainda não tem id: o `storage_path` é `{entidade}/{id}/…` e a FK
+   * exige a linha do pai. Logo o upload não pode ser síncrono com o formulário
+   * — é obrigatoriamente salvar primeiro, subir depois.
+   *
+   * `editingId` é promovido assim que a manutenção é salva. Sem isso, um
+   * segundo submit depois de falha de anexo dispararia outro POST e cadastraria
+   * a manutenção DUPLICADA; com o id setado o reenvio vira PUT da mesma
+   * manutenção + retry só dos arquivos que faltaram.
+   *
+   * O filho trata o próprio erro e completa com `EMPTY`: uma falha de anexo NÃO
+   * navega e NÃO cai no handler da manutenção, porque o POST/PUT já passou e o
+   * usuário precisa saber que a manutenção existe.
+   */
+  private saveChildren(save$: Observable<Maintenance>): void {
+    save$
+      .pipe(
+        tap((m) => {
+          this.editingId.set(m.id);
+          // A manutenção agora EXISTE, então a tela passou a ser edição de fato
+          // e o veículo deixa de ser editável — igual ao caminho de edição por
+          // rota (ngOnInit). Sem isto o select continuaria habilitado enquanto o
+          // PUT do reenvio NÃO carrega `vehicleId`: o usuário trocaria o veículo,
+          // salvaria, veria sucesso e a troca seria descartada em silêncio.
+          this.form.controls.vehicleId.disable();
+        }),
+        switchMap((m) => this.documentsStep(m)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (m) => {
+          this.saving.set(false);
+          this.onSaved(m.id);
+        },
+        error: (err: HttpErrorResponse) => this.handleError(err),
+      });
+  }
+
+  /**
+   * Sobe os pendentes UM A UM (`concatMap`, não `mergeMap`): o backend valida
+   * tamanho, allowlist e magic bytes por requisição e conta o teto de 20 anexos
+   * por manutenção, então disparar tudo em paralelo tornaria a mensagem de teto
+   * não-determinística e o progresso ilegível.
+   *
+   * Cada sucesso REMOVE o seu item da fila. É essa remoção que faz o reenvio
+   * mandar só o que faltou: sem ela, uma falha no terceiro arquivo faria o
+   * retry subir o primeiro e o segundo de novo, duplicando anexo — e anexo
+   * duplicado aqui é nota fiscal repetida no custo da manutenção.
+   */
+  private documentsStep(m: Maintenance): Observable<Maintenance> {
+    if (this.pendingDocs().length === 0) return of(m);
+    return from(this.pendingDocs()).pipe(
+      concatMap((doc) =>
+        this.maintenancesService.uploadDocument(m.id, doc.kind, doc.file).pipe(
+          tap(() => this.pendingDocs.update((list) => list.filter((d) => d.uid !== doc.uid))),
+        ),
+      ),
+      toArray(),
+      map(() => m),
+      catchError((err: HttpErrorResponse) => {
+        this.handleDocumentsError(err);
+        return EMPTY;
+      }),
+    );
+  }
+
+  /**
+   * A manutenção FOI criada e o anexo não. A mensagem diz as duas coisas, nesta
+   * ordem, porque o usuário que só lê "falhou" acha que perdeu o cadastro
+   * inteiro e cadastra de novo.
+   */
+  private handleDocumentsError(err: HttpErrorResponse): void {
+    this.saving.set(false);
+    this.apiErrors.claim(err);
+    const faltando = this.pendingDocs().length;
+    const detalhe =
+      err.status === 413
+        ? 'O arquivo passou do limite de 20MB.'
+        : (this.apiErrors.messageFor(err, 'Não foi possível enviar o documento.') ??
+          'Não foi possível enviar o documento.');
+    const plural = faltando === 1 ? 'arquivo continua' : 'arquivos continuam';
+    this.error.set(
+      `A manutenção foi salva. ${detalhe} ${faltando} ${plural} na lista — ` +
+        'toque em salvar de novo para reenviar só o que faltou.',
+    );
+  }
+
+  /** O slot é a afordância: tocá-lo registra o tipo e abre o seletor. */
+  protected openDocPicker(kind: MaintenanceDocumentKind): void {
+    if (this.saving()) return;
+    this.error.set(null);
+    this.pendingKind.set(kind);
+    this.docPicker()?.nativeElement.click();
+  }
+
+  protected onDocSelected(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    // Zera ANTES de qualquer retorno: sem isso, reescolher o MESMO arquivo
+    // depois de um erro não dispara `change`.
+    target.value = '';
+    const kind = this.pendingKind();
+    this.pendingKind.set(null);
+    if (!file || !kind) return;
+
+    if (!isAllowedMaintenanceDoc(file)) {
+      this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
+      return;
+    }
+    if (file.size > MAINTENANCE_DOC_MAX_BYTES) {
+      this.error.set(
+        `O arquivo tem ${formatDocSize(file.size)} e o limite é 20MB. ` +
+          'Fotografe o documento com menos resolução e escolha de novo.',
+      );
+      return;
+    }
+
+    // Reescolha do MESMO arquivo, no MESMO tipo: ignora em silêncio.
+    //
+    // O caso real é tocar no slot duas vezes e escolher o mesmo PDF — o segundo
+    // toque não é "quero duas cópias", é hesitação. Sem esta guarda o arquivo
+    // subiria duas vezes e a manutenção ficaria com a nota fiscal duplicada no
+    // custo. A identidade é nome + tamanho + tipo: dois arquivos DIFERENTES
+    // passam, e duas notas legítimas do mesmo `kind` (peça e mão de obra) têm
+    // nomes diferentes e continuam convivendo — que é o caso normal aqui.
+    const jaNaFila = this.pendingDocs().some(
+      (d) => d.kind === kind && d.file.name === file.name && d.file.size === file.size,
+    );
+    if (jaNaFila) {
+      this.error.set(null);
+      return;
+    }
+
+    this.error.set(null);
+    this.pendingSeq += 1;
+    const uid = `pend-${this.pendingSeq}`;
+    // ACRESCENTA. Escolher uma segunda nota fiscal não substitui a primeira:
+    // peça e mão de obra saem de fornecedores diferentes.
+    this.pendingDocs.update((list) => [...list, { uid, file, kind }]);
+  }
+
+  protected removePendingDoc(uid: string): void {
+    if (this.saving()) return;
+    this.pendingDocs.update((list) => list.filter((d) => d.uid !== uid));
+  }
+
+  protected pendingSizeText(doc: PendingMaintenanceDoc): string {
+    return formatDocSize(doc.file.size);
+  }
+
+  protected pendingKindLabel(doc: PendingMaintenanceDoc): string {
+    return MAINTENANCE_DOCUMENT_KIND_META[doc.kind];
   }
 
   private onSaved(id: string): void {

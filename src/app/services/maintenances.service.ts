@@ -7,6 +7,9 @@ import {
   ConcludeMaintenanceRequest,
   CreateMaintenanceRequest,
   Maintenance,
+  MaintenanceDocument,
+  MaintenanceDocumentKind,
+  MaintenanceDocumentUrl,
   MaintenanceFilters,
   MaintenanceListItem,
   UpdateMaintenanceRequest,
@@ -97,5 +100,45 @@ export class MaintenancesService {
       map(() => void 0),
       tap(() => this._items.update((list) => list.filter((m) => m.id !== id))),
     );
+  }
+
+  // ------------------------------------------------------------------ anexos
+
+  listDocuments(maintenanceId: string): Observable<MaintenanceDocument[]> {
+    return this.http.get<MaintenanceDocument[]>(`${BASE}/${maintenanceId}/documents`);
+  }
+
+  /**
+   * Anexa um arquivo (multipart: `file` + `kind`). Sem `reportProgress` DE
+   * PROPÓSITO: o app usa `withFetch()` e o `FetchBackend` nunca emite
+   * `UploadProgress` — pedir progresso só produziria uma barra falsa. A UI
+   * mostra estado indeterminado com cancelamento real.
+   */
+  uploadDocument(
+    maintenanceId: string,
+    kind: MaintenanceDocumentKind,
+    file: File,
+  ): Observable<MaintenanceDocument> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('kind', kind);
+    return this.http.post<MaintenanceDocument>(`${BASE}/${maintenanceId}/documents`, form);
+  }
+
+  /**
+   * URL assinada de TTL curto — o bucket é privado, o path nunca sai do
+   * backend. A rota é `/signed-url`, NÃO `/url`: todo endpoint de documento
+   * deste projeto usa `/signed-url`, e errar isso é um 404 silencioso.
+   */
+  documentSignedUrl(maintenanceId: string, documentId: string): Observable<MaintenanceDocumentUrl> {
+    return this.http.get<MaintenanceDocumentUrl>(
+      `${BASE}/${maintenanceId}/documents/${documentId}/signed-url`,
+    );
+  }
+
+  deleteDocument(maintenanceId: string, documentId: string): Observable<void> {
+    return this.http
+      .delete(`${BASE}/${maintenanceId}/documents/${documentId}`, { responseType: 'text' })
+      .pipe(map(() => void 0));
   }
 }

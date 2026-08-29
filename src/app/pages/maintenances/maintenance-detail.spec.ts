@@ -43,7 +43,17 @@ function render(item: Maintenance) {
       { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => item.id } } } },
       {
         provide: MaintenancesService,
-        useValue: { getOne: vi.fn().mockReturnValue(of(item)), remove: vi.fn() },
+        useValue: {
+          getOne: vi.fn().mockReturnValue(of(item)),
+          remove: vi.fn(),
+          // O card de anexos (FEAT-0051) monta junto com o detalhe e carrega a
+          // lista no `ngOnInit`. Sem estes quatro o stub derruba a tela inteira
+          // num `TypeError`, e o que falharia seria o detalhe, não o card.
+          listDocuments: vi.fn().mockReturnValue(of([])),
+          uploadDocument: vi.fn(),
+          deleteDocument: vi.fn(),
+          documentSignedUrl: vi.fn(),
+        },
       },
       { provide: VehiclesService, useValue: { getOne: vi.fn().mockReturnValue(EMPTY) } },
     ],
@@ -81,6 +91,12 @@ describe('MaintenanceDetail — concluir e cancelar', () => {
             remove: vi.fn(),
             conclude: concludeSpy,
             cancel: cancelSpy,
+            // Ver a nota do outro stub: o card de anexos monta junto com o
+            // detalhe e chama `listDocuments` no `ngOnInit`.
+            listDocuments: vi.fn().mockReturnValue(of([])),
+            uploadDocument: vi.fn(),
+            deleteDocument: vi.fn(),
+            documentSignedUrl: vi.fn(),
           },
         },
         {
