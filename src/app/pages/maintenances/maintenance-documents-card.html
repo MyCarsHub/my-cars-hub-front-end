@@ -1,13 +1,14 @@
-<app-page-card title="Documentos">
+<app-page-card title="Documentos anexados">
   <div class="p-4 sm:p-6 space-y-4">
     @if (error(); as cardError) {
       <app-alert-banner variant="error" [message]="cardError" />
     }
 
     <p class="text-sm text-neutral-600">
-      Toque em um tipo para anexar. Um tipo aceita mais de um arquivo — frente e verso da CNH são
-      dois arquivos de CNH. Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF, até 20MB por arquivo, no
-      máximo 20 documentos por motorista.
+      Toque em um tipo para anexar. Um tipo aceita mais de um arquivo — peça e mão de obra costumam
+      sair em notas diferentes, então várias notas fiscais convivem na mesma manutenção e enviar uma
+      nova não substitui a anterior. Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF, até 20MB por arquivo,
+      no máximo 20 documentos por manutenção.
     </p>
 
     <!-- O número que responde "o que ainda falta?" antes de o usuário abrir
@@ -54,7 +55,7 @@
         [class.text-neutral-800]="!allRequiredFilled()"
       >
         @if (allRequiredFilled()) {
-          Todos os documentos essenciais foram anexados.
+          A nota fiscal da manutenção está anexada.
         } @else {
           {{ requiredFilled() }} de {{ requiredTotal() }} documentos essenciais anexados.
         }
@@ -63,7 +64,6 @@
 
     @if (loading()) {
       <div class="space-y-3" aria-hidden="true">
-        <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
         <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
         <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
       </div>
@@ -88,7 +88,7 @@
             <button
               type="button"
               (click)="openPicker(slot)"
-              [disabled]="uploading() || !slot.uploadable"
+              [disabled]="uploading()"
               [attr.aria-label]="slotAriaLabel(slot)"
               class="group w-full flex items-center gap-3 p-3 text-left min-h-[64px]
                      transition-colors hover:bg-neutral-50
@@ -188,7 +188,8 @@
             }
 
             <!-- N arquivos por tipo, todos listados. Nenhum fica escondido
-                 atrás do "mais recente". -->
+                 atrás do "mais recente" — é o que impede a nota do segundo
+                 fornecedor de sumir da tela. -->
             @if (slot.files.length > 0) {
               <ul class="border-t border-neutral-200 divide-y divide-neutral-100">
                 @for (doc of slot.files; track doc.id) {

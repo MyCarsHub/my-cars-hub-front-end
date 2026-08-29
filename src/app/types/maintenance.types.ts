@@ -193,3 +193,42 @@ export interface MaintenanceFilters {
   page?: number;
   size?: number;
 }
+
+/**
+ * Espelha `MaintenanceDocumentKindEnum` (FEAT-0050, migration V70).
+ *
+ * São só DOIS tipos, por decisão de produto registrada no javadoc do enum:
+ * orçamento, garantia, laudo e ordem de serviço foram oferecidos e RECUSADOS —
+ * slot permanentemente vazio na tela é ruído. Um kind novo entra por migração,
+ * não por constante nova aqui.
+ *
+ * A tabela aceita N linhas do mesmo kind e NÃO tem unicidade por tipo: peça e
+ * serviço saem em notas diferentes e a mão de obra costuma ser faturada à
+ * parte. Enviar uma nota nova NUNCA substitui a anterior.
+ */
+export type MaintenanceDocumentKind = 'NOTA_FISCAL' | 'OTHER';
+
+/** Espelha `MaintenanceDocumentDto`. Sem `storagePath`: o bucket é privado. */
+export interface MaintenanceDocument {
+  id: string;
+  maintenanceId: string;
+  kind: MaintenanceDocumentKind;
+  kindLabel: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedBy: string | null;
+  createdDate: string;
+}
+
+/** Espelha `MaintenanceDocumentUrlDto` — URL assinada de TTL curto. */
+export interface MaintenanceDocumentUrl {
+  url: string;
+  expiresInSeconds: number;
+}
+
+/** Rótulos do backend (`MaintenanceDocumentKindEnum.label`), em pt-BR. */
+export const MAINTENANCE_DOCUMENT_KIND_META: Record<MaintenanceDocumentKind, string> = {
+  NOTA_FISCAL: 'Nota fiscal',
+  OTHER: 'Outro',
+};

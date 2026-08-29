@@ -16,25 +16,40 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
-import { VehiclesService } from '../../services/vehicles.service';
+import { MaintenancesService } from '../../services/maintenances.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import {
-  VEHICLE_DOCUMENT_KIND_META,
-  VehicleDocument,
-  VehicleDocumentKind,
-} from '../../types/vehicle.types';
-import {
-  MAX_DOCUMENT_BYTES,
-  formatDocumentSize,
-  isAllowedDocumentFile,
-} from './vehicle-document-constraints';
+  MAINTENANCE_DOCUMENT_KIND_META,
+  MaintenanceDocument,
+  MaintenanceDocumentKind,
+} from '../../types/maintenance.types';
 
-/** Cópia da aba reservada. Anexo de veículo não cobra nada — não fale em pagamento. */
-export const VEHICLE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
+/**
+ * Teto do cliente, alinhado ao `MAX_BYTES` de `MaintenanceDocumentService`.
+ * A guarda existe para falhar ANTES de gastar a franquia de dados de quem está
+ * fotografando a nota fiscal na oficina, pelo celular.
+ */
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+
+/** Allowlist espelhada do backend — o que não está aqui seria recusado lá. */
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'];
+
+/** Cópia da aba reservada. Anexo de manutenção não cobra nada — não fale em pagamento. */
+export const MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
   documentTitle: 'Abrindo o documento…',
-  title: 'Abrindo o documento do veículo',
+  title: 'Abrindo o documento da manutenção',
   note: 'Não feche esta aba. O documento abre em instantes.',
   stalledNote:
     'Não foi possível abrir o documento. Feche esta aba e tente novamente na aba anterior.',
@@ -49,45 +64,45 @@ export const VEHICLE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
  * `required` alimenta o contador. `OTHER` fica de fora porque é ilimitado e não
  * completa nunca — contá-lo transformaria o resumo em mentira.
  */
-const VEHICLE_SLOT_DEFS: ReadonlyArray<{
-  kind: VehicleDocumentKind;
+const MAINTENANCE_SLOT_DEFS: ReadonlyArray<{
+  kind: MaintenanceDocumentKind;
   hint: string;
   required: boolean;
 }> = [
   {
-    kind: 'CRLV',
-    hint: 'Reemitido a cada licenciamento — os de anos diferentes convivem.',
+    kind: 'NOTA_FISCAL',
+    hint: 'Peça e serviço saem em notas diferentes — todas convivem aqui.',
     required: true,
   },
-  { kind: 'OTHER', hint: 'Qualquer outro arquivo do veículo.', required: false },
+  { kind: 'OTHER', hint: 'Qualquer outro arquivo da manutenção.', required: false },
 ];
 
 /** Um tipo de documento e TODOS os arquivos já anexados sob ele. */
-export interface VehicleDocumentSlot {
-  kind: VehicleDocumentKind;
+export interface MaintenanceDocumentSlot {
+  kind: MaintenanceDocumentKind;
   label: string;
   hint: string;
   required: boolean;
   /** N arquivos, não um. É a diferença estrutural para a vistoria. */
-  files: VehicleDocument[];
+  files: MaintenanceDocument[];
   uploading: boolean;
 }
 
 /**
- * Anexos do veículo: CRLV e outros arquivos avulsos.
+ * Anexos da manutenção: nota fiscal e outros arquivos avulsos.
  *
- * ESTRUTURA: uma LISTA DE SLOTS, um por tipo esperado. O slot É a afordância —
- * tocá-lo abre o seletor de arquivos DAQUELE tipo. Não existe `<select>` e não
- * existe botão "Anexar documento" separado: o usuário vê o buraco e o preenche.
+ * ESTRUTURA: uma LISTA DE SLOTS, um por tipo esperado, igual ao card do veículo
+ * (FEAT-0038). O slot É a afordância — tocá-lo abre o seletor de arquivos
+ * DAQUELE tipo. Não existe `<select>` e não existe botão "Anexar documento"
+ * separado: o usuário vê o buraco e o preenche.
  *
- * POR QUE NÃO O GRID DE QUADRADOS DA VISTORIA. Lá cada ângulo tem NO MÁXIMO uma
- * foto, reenviar SUBSTITUI, e a miniatura É a resposta para "esse ângulo está
- * feito?". Aqui nada disso vale: o CRLV é reemitido a cada licenciamento e o do
- * ano passado convive com o deste ano (ver o COMMENT da V68), enviar
- * ACRESCENTA, e boa parte dos documentos é PDF, que não tem miniatura. Um
- * quadrado exibindo "o CRLV mais recente" esconderia o anterior. Então o slot
- * fica e o quadrado sai: cada slot expande para a LISTA dos seus arquivos, com
- * contador no cabeçalho e abrir/remover por arquivo.
+ * ACRESCENTA, NUNCA SUBSTITUI — e aqui isso é mais crítico que nos irmãos.
+ * Várias notas fiscais na MESMA manutenção é o caso NORMAL, não a exceção: peça
+ * e mão de obra saem de fornecedores diferentes e o serviço às vezes é faturado
+ * em parcelas (ver o javadoc de `MaintenanceDocumentKindEnum` e o COMMENT da
+ * V70). A tabela não tem unicidade por kind de propósito. Se o envio passasse a
+ * substituir, a nota do outro fornecedor sumiria EM SILÊNCIO — por isso existe
+ * spec dedicada para essa invariante.
  *
  * NÃO EXIBE BARRA DE PROGRESSO, e isso é deliberado: o app usa
  * `provideHttpClient(withFetch())` e o `FetchBackend` do Angular nunca emite
@@ -96,32 +111,28 @@ export interface VehicleDocumentSlot {
  * é indeterminado, assumido como tal, e o "Cancelar envio" aborta o request de
  * verdade (o `unsubscribe` dispara o `AbortController` do FetchBackend).
  *
- * NÃO COMPRIME o arquivo, e isso também é deliberado: comprimir um CRLV o deixa
- * ILEGÍVEL, o que anula a razão de anexá-lo. A compressão do
- * `RentalInspectionService` serve foto de vistoria e não vale aqui.
- *
- * `CRLV` NÃO é único: enviar um novo NÃO substitui o anterior — quem quiser
- * remover o antigo remove à mão, arquivo por arquivo, dentro do slot.
+ * NÃO COMPRIME o arquivo, e isso também é deliberado: comprimir uma nota fiscal
+ * a deixa ILEGÍVEL, o que anula a razão de anexá-la.
  */
 @Component({
-  selector: 'app-vehicle-documents-card',
+  selector: 'app-maintenance-documents-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   imports: [PageCard, ConfirmDialog, AlertBanner],
-  templateUrl: './vehicle-documents-card.html',
+  templateUrl: './maintenance-documents-card.html',
 })
-export class VehicleDocumentsCard implements OnInit, OnDestroy {
-  private readonly vehiclesService = inject(VehiclesService);
+export class MaintenanceDocumentsCard implements OnInit, OnDestroy {
+  private readonly maintenancesService = inject(MaintenancesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly externalNavigation = inject(ExternalNavigationService);
 
-  readonly vehicleId = input.required<string>();
+  readonly maintenanceId = input.required<string>();
 
-  protected readonly documents = signal<VehicleDocument[]>([]);
+  protected readonly documents = signal<MaintenanceDocument[]>([]);
   protected readonly loading = signal(false);
   protected readonly openingId = signal<string | null>(null);
-  protected readonly deleting = signal<VehicleDocument | null>(null);
+  protected readonly deleting = signal<MaintenanceDocument | null>(null);
   protected readonly deletingBusy = signal(false);
   /** Falha de negócio (inclusive o teto de 20 anexos): banner inline, nunca toast. */
   protected readonly error = signal<string | null>(null);
@@ -129,37 +140,38 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
   /**
    * ALVO do seletor de arquivos — a intenção do gesto, não um estado de tela.
    *
-   * Substitui o antigo `selectedKind` do `<select>`: é escrito por
-   * `openPicker()` no instante do toque e lido por `onFileSelected()` quando o
-   * arquivo chega. NÃO indica envio em voo, e essa distinção é o conserto de um
-   * defeito real: o diálogo nativo de arquivos pode ser dispensado sem escolher
-   * nada, e nesse caso nenhum envio começou. Confundir os dois fazia o slot
-   * anunciar "Enviando…" no instante do toque e nunca mais sair disso.
+   * É escrito por `openPicker()` no instante do toque e lido por
+   * `onFileSelected()` quando o arquivo chega. NÃO indica envio em voo, e essa
+   * distinção é o conserto de um defeito real: o diálogo nativo de arquivos
+   * pode ser dispensado sem escolher nada, e nesse caso nenhum envio começou.
+   * Confundir os dois fazia o slot anunciar "Enviando…" no instante do toque e
+   * nunca mais sair disso.
    */
-  protected readonly pendingKind = signal<VehicleDocumentKind | null>(null);
+  protected readonly pendingKind = signal<MaintenanceDocumentKind | null>(null);
 
   /**
    * Tipo do envio REALMENTE em voo. Só é escrito quando o request começa e é
    * limpo por `finishUpload()`. É ele que decide dentro de qual slot o estado
    * "Enviando…" aparece e que trava os outros slots.
    */
-  protected readonly uploadingKind = signal<VehicleDocumentKind | null>(null);
+  protected readonly uploadingKind = signal<MaintenanceDocumentKind | null>(null);
 
   private readonly picker = viewChild<ElementRef<HTMLInputElement>>('picker');
 
   /**
    * Um slot por tipo esperado, com os arquivos daquele tipo agrupados dentro.
    *
-   * Dois tipos, SEM PORTÃO. Diferente do card do motorista, aqui nenhum slot
-   * depende de campo do cadastro: a lista é constante e não há condição a
-   * avaliar. Se aparecer lógica de portão neste arquivo, ela foi inventada.
+   * Dois tipos, SEM PORTÃO. Igual ao card do veículo e diferente do card do
+   * motorista: aqui nenhum slot depende de campo do cadastro, a lista é
+   * constante e não há condição a avaliar. Se aparecer lógica de portão neste
+   * arquivo, ela foi inventada.
    */
-  protected readonly slots = computed<VehicleDocumentSlot[]>(() => {
+  protected readonly slots = computed<MaintenanceDocumentSlot[]>(() => {
     const docs = this.documents();
     const sending = this.uploadingKind();
-    return VEHICLE_SLOT_DEFS.map((def) => ({
+    return MAINTENANCE_SLOT_DEFS.map((def) => ({
       kind: def.kind,
-      label: VEHICLE_DOCUMENT_KIND_META[def.kind],
+      label: MAINTENANCE_DOCUMENT_KIND_META[def.kind],
       hint: def.hint,
       required: def.required,
       files: docs.filter((d) => d.kind === def.kind),
@@ -170,7 +182,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
   /** Há um envio em voo (em qualquer slot). Trava os demais slots. */
   protected readonly uploading = computed(() => this.uploadingKind() !== null);
 
-  /** Slots essenciais — `OTHER` fora, ver `VEHICLE_SLOT_DEFS`. */
+  /** Slots essenciais — `OTHER` fora, ver `MAINTENANCE_SLOT_DEFS`. */
   private readonly requiredSlots = computed(() => this.slots().filter((s) => s.required));
 
   protected readonly requiredTotal = computed(() => this.requiredSlots().length);
@@ -195,22 +207,17 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
   }
 
   /**
-   * O `main` do backend está congelado ANTES da V68, então contra a API hoje em
-   * produção esta rota não existe: o 404 cai no `error` e vira banner inline —
-   * a tela do veículo continua utilizável, nunca branca.
-   *
    * `Array.isArray` em vez de `?? []`: a garantia que importa é que
    * `documents()` seja SEMPRE um array, porque `slots()` faz `.filter` sobre
    * ele. Um corpo de erro que não seja lista (um objeto de erro, uma string de
    * HTML) passaria pelo `??` e estouraria — a forma exata do `TypeError` que já
-   * derrubou uma view aqui. Leitura rasa, verificação estrita, sem encadear
-   * propriedade de objeto possivelmente nulo. E o caminho de ERRO também zera a
-   * lista: sem isso uma recarga que falha deixaria na tela os arquivos da carga
-   * anterior.
+   * derrubou uma view aqui (FIX-0205). Leitura rasa, verificação estrita. E o
+   * caminho de ERRO também zera a lista: sem isso uma recarga que falha
+   * deixaria na tela os arquivos da carga anterior.
    */
   private load(): void {
     this.loading.set(true);
-    this.vehiclesService.listDocuments(this.vehicleId()).subscribe({
+    this.maintenancesService.listDocuments(this.maintenanceId()).subscribe({
       next: (docs) => {
         this.documents.set(Array.isArray(docs) ? docs : []);
         this.loading.set(false);
@@ -224,7 +231,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
   }
 
   /** O slot É a afordância: tocá-lo registra o tipo e abre o seletor. */
-  protected openPicker(slot: VehicleDocumentSlot): void {
+  protected openPicker(slot: MaintenanceDocumentSlot): void {
     if (this.uploading()) return;
     this.error.set(null);
     this.pendingKind.set(slot.kind);
@@ -243,7 +250,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
       return;
     }
 
-    if (!isAllowedDocumentFile(file)) {
+    if (!this.isAllowed(file)) {
       this.pendingKind.set(null);
       this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
       return;
@@ -251,7 +258,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
     if (file.size > MAX_DOCUMENT_BYTES) {
       this.pendingKind.set(null);
       this.error.set(
-        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 20MB. ` +
+        `O arquivo tem ${formatSize(file.size)} e o limite é 20MB. ` +
           'Fotografe o documento com menos resolução e envie de novo.',
       );
       return;
@@ -261,20 +268,31 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
     // O estado "Enviando…" nasce AQUI, junto do request, e não no toque do
     // slot: o diálogo nativo pode ter sido dispensado sem escolher arquivo.
     this.uploadingKind.set(kind);
-    // Sem compressão: comprimir um CRLV o deixa ilegível.
-    this.uploadSub = this.vehiclesService.uploadDocument(this.vehicleId(), kind, file).subscribe({
-      next: (doc) => {
-        this.finishUpload();
-        // Acrescenta. Um CRLV novo NÃO substitui o anterior: são anos de
-        // licenciamento diferentes e ambos têm de continuar acessíveis.
-        this.documents.update((list) => [...list, doc]);
-        this.notifications.success('Documento enviado.');
-      },
-      error: (err: HttpErrorResponse) => {
-        this.finishUpload();
-        this.error.set(this.uploadErrorMessage(err));
-      },
-    });
+    // Sem compressão: comprimir uma nota fiscal a deixa ilegível.
+    this.uploadSub = this.maintenancesService
+      .uploadDocument(this.maintenanceId(), kind, file)
+      .subscribe({
+        next: (doc) => {
+          this.finishUpload();
+          // ACRESCENTA. Uma nota fiscal nova NÃO substitui a anterior: peça e
+          // mão de obra saem de fornecedores diferentes e ambas têm de
+          // continuar acessíveis. Substituir apagaria em silêncio a nota do
+          // outro fornecedor.
+          this.documents.update((list) => [...list, doc]);
+          this.notifications.success('Documento enviado.');
+        },
+        error: (err: HttpErrorResponse) => {
+          this.finishUpload();
+          this.error.set(this.uploadErrorMessage(err));
+        },
+      });
+  }
+
+  private isAllowed(file: File): boolean {
+    if (ALLOWED_MIME_TYPES.includes(file.type)) return true;
+    // Alguns Android entregam `type` vazio para HEIC — cai no nome do arquivo.
+    const name = file.name.toLowerCase();
+    return ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
   }
 
   /**
@@ -283,8 +301,8 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
    * falha. 413 usa o teto do cliente para não contradizer a guarda acima.
    *
    * Os erros de negócio do backend chegam em `fieldErrors.file` — o teto de 20
-   * anexos por veículo entre eles, que o servidor descreve como teto TÉCNICO e
-   * não restrição de plano — e `messageFor` já os prioriza sobre o fallback,
+   * anexos por manutenção entre eles, que o servidor descreve como teto TÉCNICO
+   * e não restrição de plano — e `messageFor` já os prioriza sobre o fallback,
    * então o texto do servidor é o que aparece no banner inline.
    */
   private uploadErrorMessage(err: HttpErrorResponse): string | null {
@@ -316,19 +334,19 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
    * gesto ainda na pilha) e navegada quando a URL chega; se o request falhar a
    * aba é fechada em vez de virar uma aba branca órfã.
    */
-  protected openDocument(doc: VehicleDocument): void {
+  protected openDocument(doc: MaintenanceDocument): void {
     if (this.openingId()) return;
     this.error.set(null);
     this.openingId.set(doc.id);
 
-    const tab = this.externalNavigation.openPendingTab(VEHICLE_DOCUMENT_PLACEHOLDER_COPY);
+    const tab = this.externalNavigation.openPendingTab(MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY);
     if (tab.blocked) {
       this.openingId.set(null);
       this.error.set('Permita pop-ups neste site para abrir o documento em uma nova aba.');
       return;
     }
 
-    this.vehiclesService.documentSignedUrl(this.vehicleId(), doc.id).subscribe({
+    this.maintenancesService.documentSignedUrl(this.maintenanceId(), doc.id).subscribe({
       next: (res) => {
         this.openingId.set(null);
         tab.navigate(res.url);
@@ -341,7 +359,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
     });
   }
 
-  protected askDelete(doc: VehicleDocument): void {
+  protected askDelete(doc: MaintenanceDocument): void {
     this.deleting.set(doc);
   }
 
@@ -355,7 +373,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
     if (!doc || this.deletingBusy()) return;
     this.error.set(null);
     this.deletingBusy.set(true);
-    this.vehiclesService.deleteDocument(this.vehicleId(), doc.id).subscribe({
+    this.maintenancesService.deleteDocument(this.maintenanceId(), doc.id).subscribe({
       next: () => {
         this.deletingBusy.set(false);
         this.deleting.set(null);
@@ -371,7 +389,7 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
   }
 
   /** Rótulo do cabeçalho do slot: o que responde "falta alguma coisa aqui?". */
-  protected slotCountLabel(slot: VehicleDocumentSlot): string {
+  protected slotCountLabel(slot: MaintenanceDocumentSlot): string {
     const n = slot.files.length;
     if (n === 0) return slot.required ? 'Falta anexar' : 'Nenhum arquivo';
     return n === 1 ? '1 arquivo' : `${n} arquivos`;
@@ -381,18 +399,25 @@ export class VehicleDocumentsCard implements OnInit, OnDestroy {
    * O leitor de tela precisa ouvir o mesmo que a tela mostra: o tipo, quantos
    * arquivos existem e que tocar ali anexa mais um.
    */
-  protected slotAriaLabel(slot: VehicleDocumentSlot): string {
+  protected slotAriaLabel(slot: MaintenanceDocumentSlot): string {
     const n = slot.files.length;
     const estado = n === 0 ? 'nenhum arquivo anexado' : `${n} ${n === 1 ? 'arquivo' : 'arquivos'}`;
     return `Anexar ${slot.label} — ${estado}`;
   }
 
-  protected sizeText(doc: VehicleDocument): string {
-    return formatDocumentSize(doc.sizeBytes);
+  protected sizeText(doc: MaintenanceDocument): string {
+    return formatSize(doc.sizeBytes);
   }
 
-  protected uploadedAtText(doc: VehicleDocument): string {
+  protected uploadedAtText(doc: MaintenanceDocument): string {
     if (!doc.createdDate) return '—';
     return new Date(doc.createdDate).toLocaleDateString('pt-BR');
   }
+}
+
+function formatSize(bytes: number | null | undefined): string {
+  if (bytes == null) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
