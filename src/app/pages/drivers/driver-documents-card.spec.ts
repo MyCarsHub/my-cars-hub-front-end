@@ -28,8 +28,9 @@ import type { DriverDocument, DriverResponse } from '../../types/driver.types';
  *    `UploadProgress`, então qualquer barra seria animação desconectada do
  *    envio real. O estado é indeterminado e "Cancelar envio" ABORTA de verdade.
  * 2. NÃO existe compressão — comprimir uma CNH a deixa ilegível.
- * 3. Um tipo guarda N arquivos. Frente e verso da CNH são duas linhas `CNH`, e
- *    a segunda NÃO substitui a primeira.
+ * 3. UM arquivo por tipo (a CNH é um arquivo só, frente e verso juntos): o
+ *    slot preenchido não abre o seletor — o segundo gesto é remover, nunca
+ *    acrescentar. Dado legado com N por tipo continua visível e removível.
  * 4. O slot `APP_RIDE_RECEIPT` falha FECHADO, na exibição E no envio. Contra a
  *    API hoje em produção o campo `isAppDriver` nem chega no JSON (o `main` do
  *    backend está congelado antes da V69), e `undefined` tem de esconder o slot
@@ -118,6 +119,11 @@ describe('DriverDocumentsCard', () => {
 
   function slotText(kind: string): string {
     return slotEl(kind).textContent ?? '';
+  }
+
+  /** Texto do card com o whitespace do template normalizado (quebras do prettier). */
+  function cardText(): string {
+    return (host().textContent ?? '').replace(/\s+/g, ' ');
   }
 
   /** O botao de confirmar do dialogo real, clicado de verdade. */
@@ -242,6 +248,23 @@ describe('DriverDocumentsCard', () => {
     ]);
     expect(host().querySelector('select')).toBeNull();
     expect(host().textContent).not.toContain('Anexar documento');
+  });
+
+  /** FIX-0226: a descrição diz a regra de UM por tipo — e o texto é EXATO. */
+  it('descreve o card com o texto exato da regra de um arquivo por tipo', async () => {
+    await setup(false);
+
+    expect(cardText()).toContain(
+      'Toque em um tipo para anexar os documentos do motorista. ' +
+        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+    );
+  });
+
+  it('a dica da CNH diz exatamente "Frente e verso."', async () => {
+    await setup(false);
+
+    expect(cardText()).toContain('Frente e verso.');
+    expect(cardText()).not.toContain('dois arquivos');
   });
 
   it('marca como "Falta anexar" o slot essencial ainda vazio', async () => {
@@ -498,35 +521,67 @@ describe('DriverDocumentsCard', () => {
     expect(errorToast).not.toHaveBeenCalled();
   });
 
-  // -------------------------------------------------- N arquivos por tipo
+  // -------------------------------------------------- UM arquivo por tipo
 
   /**
-   * ESTE é o requisito que o grid da vistoria não atende. Frente e verso da CNH
-   * são dois arquivos do MESMO tipo (COMMENT da V65) e o segundo NÃO substitui
-   * o primeiro: os dois têm de continuar visíveis e removíveis.
+   * FIX-0226 — a regra de produto: a CNH é UM arquivo (frente e verso juntos)
+   * e cada tipo guarda NO MÁXIMO um. O slot preenchido não abre o seletor: o
+   * segundo gesto é remover pelo botão da linha, nunca acrescentar.
    */
-  it('acumula dois arquivos no mesmo slot, sem um esconder o outro', async () => {
+  it('slot preenchido não abre o seletor nem aceita um segundo arquivo', async () => {
     listDocuments.mockReturnValue(of([cnhFrente]));
     await setup(false);
     expect(slotFileRows('CNH')).toHaveLength(1);
 
-    uploadDocument.mockReturnValue(of(cnhVerso));
-    attach('CNH', photo('cnh-verso.jpg'));
+    expect(slotButton('CNH').disabled).toBe(true);
+    slotButton('CNH').click();
+    fixture.detectChanges();
+    dispatchFile(photo('cnh-verso.jpg'));
 
-    const linhas = slotFileRows('CNH');
-    expect(linhas).toHaveLength(2);
-    expect(linhas[0].textContent).toContain('cnh-frente.jpg');
-    expect(linhas[1].textContent).toContain('cnh-verso.jpg');
-    expect(slotText('CNH')).toContain('2 arquivos');
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(slotFileRows('CNH')).toHaveLength(1);
+    // E os DEMAIS slots continuam anexáveis — o bloqueio é por slot.
+    expect(slotButton('ADDRESS_PROOF').disabled).toBe(false);
   });
 
-  it('conta 1 arquivo no singular', async () => {
+  it('remover o arquivo reabre o slot para um novo anexo', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente]));
+    await setup(false);
+    expect(slotButton('CNH').disabled).toBe(true);
+
+    slotFileRows('CNH')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Remover documento cnh-frente.jpg"]')
+      ?.click();
+    fixture.detectChanges();
+    confirmDialogButton('Remover').click();
+    fixture.detectChanges();
+
+    expect(slotButton('CNH').disabled).toBe(false);
+    attach('CNH', photo('cnh-nova.jpg'));
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('marca o slot preenchido como "Anexado"', async () => {
     listDocuments.mockReturnValue(of([cnhFrente]));
     await setup(false);
 
-    expect(slotText('CNH')).toContain('1 arquivo');
-    expect(slotText('CNH')).not.toContain('1 arquivos');
+    expect(slotText('CNH')).toContain('Anexado');
     expect(slotEl('CNH').getAttribute('data-filled')).toBe('true');
+    expect(slotEl('CNH').getAttribute('data-state')).toBe('filled');
+  });
+
+  /**
+   * FIX-0227 — os três estados lêem distintos, e o teste lê a MESMA fonte que
+   * o template: `data-state`. Vazio essencial chama para a ação, preenchido é
+   * "feito", portão fechado é apagado.
+   */
+  it('expõe a hierarquia de estados: vazio, preenchido e portão fechado', async () => {
+    listDocuments.mockReturnValue(of([cnhFrente, extratoApp]));
+    await setup(false);
+
+    expect(slotEl('CNH').getAttribute('data-state')).toBe('filled');
+    expect(slotEl('ADDRESS_PROOF').getAttribute('data-state')).toBe('empty');
+    expect(slotEl('APP_RIDE_RECEIPT').getAttribute('data-state')).toBe('gated');
   });
 
   it('agrupa cada arquivo sob o slot do seu próprio tipo', async () => {
@@ -601,10 +656,16 @@ describe('DriverDocumentsCard', () => {
 
   // ----------------------------------------------------------------- remover
 
-  it('remove só o arquivo escolhido e deixa o outro do mesmo tipo', async () => {
+  /**
+   * DADO LEGADO: o servidor ainda aceita N por tipo, então dois arquivos `CNH`
+   * podem existir no banco. O card lista TODOS (esconder tiraria a única forma
+   * de resolver o excedente) e remove um por vez, até sobrar o único da regra.
+   */
+  it('remove só o arquivo escolhido e deixa o outro do mesmo tipo (dado legado)', async () => {
     listDocuments.mockReturnValue(of([cnhFrente, cnhVerso]));
     await setup(false);
     expect(slotFileRows('CNH')).toHaveLength(2);
+    expect(slotText('CNH')).toContain('2 arquivos');
 
     slotFileRows('CNH')[0]
       .querySelector<HTMLButtonElement>('[aria-label="Remover documento cnh-frente.jpg"]')
@@ -618,7 +679,7 @@ describe('DriverDocumentsCard', () => {
     const restantes = slotFileRows('CNH');
     expect(restantes).toHaveLength(1);
     expect(restantes[0].textContent).toContain('cnh-verso.jpg');
-    expect(slotText('CNH')).toContain('1 arquivo');
+    expect(slotText('CNH')).toContain('Anexado');
     expect(successToast).toHaveBeenCalledWith('Documento removido.');
   });
 
@@ -815,5 +876,10 @@ describe('DriverDocumentsCard', () => {
     expect(slotText('APP_RIDE_RECEIPT')).toContain('extrato-marco.pdf');
     // O cabeçalho não abre o seletor: o slot está lá para ler e remover.
     expect(slotButton('APP_RIDE_RECEIPT').disabled).toBe(true);
+    // E a label do portão fechado NÃO promete substituição: remover o último
+    // arquivo faz o slot sumir e reanexar é recusado.
+    const aria = slotButton('APP_RIDE_RECEIPT').getAttribute('aria-label') ?? '';
+    expect(aria).toContain('não aceita novos envios');
+    expect(aria).not.toContain('substituir');
   });
 });

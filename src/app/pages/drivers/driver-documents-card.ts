@@ -48,15 +48,14 @@ export const DRIVER_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
  * vazio, a CNH está sempre no topo.
  *
  * `required` alimenta o contador "N de M". `OTHER` fica de fora porque é
- * ilimitado e não completa nunca — contá-lo transformaria o resumo em mentira,
- * com um total que ninguém consegue atingir.
+ * opcional — não é cobrado do usuário e não entra no total.
  */
 const DRIVER_SLOT_DEFS: ReadonlyArray<{
   kind: DriverDocumentKind;
   hint: string;
   required: boolean;
 }> = [
-  { kind: 'CNH', hint: 'Frente e verso são dois arquivos do mesmo tipo.', required: true },
+  { kind: 'CNH', hint: 'Frente e verso.', required: true },
   {
     kind: 'ADDRESS_PROOF',
     hint: 'Conta de luz, água ou internet dos últimos meses.',
@@ -67,13 +66,18 @@ const DRIVER_SLOT_DEFS: ReadonlyArray<{
   { kind: 'OTHER', hint: 'Qualquer outro arquivo do motorista.', required: false },
 ];
 
-/** Um tipo de documento e TODOS os arquivos já anexados sob ele. */
+/** Um tipo de documento e o arquivo anexado sob ele. */
 export interface DriverDocumentSlot {
   kind: DriverDocumentKind;
   label: string;
   hint: string;
   required: boolean;
-  /** N arquivos, não um. É a diferença estrutural para a vistoria. */
+  /**
+   * A REGRA DE PRODUTO é UM arquivo por tipo (a CNH é um arquivo só, frente e
+   * verso juntos). Continua lista porque o SERVIDOR ainda aceita N por tipo e
+   * dado legado com mais de um arquivo precisa continuar visível e removível —
+   * esconder o excedente tiraria do usuário a única forma de resolvê-lo.
+   */
   files: DriverDocument[];
   uploading: boolean;
   /**
@@ -81,6 +85,11 @@ export interface DriverDocumentSlot {
    * que autorizaria novos envios está fechado. Ver `slots()`.
    */
   uploadable: boolean;
+  /**
+   * Hierarquia visual do slot, em um lugar só para template e teste:
+   * `gated` (portão fechado) > `filled` (tem arquivo) > `empty`.
+   */
+  state: 'empty' | 'filled' | 'gated';
 }
 
 /**
@@ -92,14 +101,12 @@ export interface DriverDocumentSlot {
  * existe botão "Anexar documento" separado: o usuário não precisa mais saber de
  * antemão o que quer, ele vê o buraco e o preenche.
  *
- * POR QUE NÃO O GRID DE QUADRADOS DA VISTORIA. Lá cada ângulo tem NO MÁXIMO uma
- * foto, reenviar SUBSTITUI, e a miniatura É a resposta para "esse ângulo está
- * feito?". Aqui nada disso vale: um tipo guarda N arquivos (CNH frente e verso,
- * ver o COMMENT da V65), enviar ACRESCENTA, e boa parte dos documentos é PDF,
- * que não tem miniatura. Um quadrado exibindo "a CNH mais recente" esconderia a
- * outra — a mesma invisibilidade do `<select>`, só que mais bonita. Então o
- * slot fica e o quadrado sai: cada slot expande para a LISTA dos seus arquivos,
- * com contador no cabeçalho e abrir/remover por arquivo.
+ * UM ARQUIVO POR TIPO é a regra de produto: a CNH é um arquivo só (frente e
+ * verso juntos). O slot preenchido NÃO abre o seletor — o segundo gesto é
+ * remover (e anexar de novo), nunca acrescentar. O SERVIDOR ainda aceita N por
+ * tipo (só o teto de 20 por motorista), então dado legado com mais de um
+ * arquivo pode existir: o slot lista TODOS, com abrir/remover por arquivo,
+ * porque esconder o excedente tiraria do usuário a única forma de resolvê-lo.
  *
  * NÃO EXIBE BARRA DE PROGRESSO, e isso é deliberado: o app usa
  * `provideHttpClient(withFetch())` e o `FetchBackend` do Angular nunca emite
@@ -111,8 +118,6 @@ export interface DriverDocumentSlot {
  * NÃO COMPRIME o arquivo, e isso também é deliberado: comprimir uma CNH a deixa
  * ILEGÍVEL, o que anula a razão de anexá-la. A compressão do
  * `RentalInspectionService` serve foto de vistoria e não vale aqui.
- *
- * `CNH` é UM tipo, não FRENTE/VERSO — frente e verso são dois arquivos `CNH`.
  */
 @Component({
   selector: 'app-driver-documents-card',
@@ -195,6 +200,11 @@ export class DriverDocumentsCard implements OnInit, OnDestroy {
     return DRIVER_SLOT_DEFS.map((def) => {
       const files = docs.filter((d) => d.kind === def.kind);
       const uploadable = def.kind !== 'APP_RIDE_RECEIPT' || gateOpen;
+      const state: DriverDocumentSlot['state'] = !uploadable
+        ? 'gated'
+        : files.length > 0
+          ? 'filled'
+          : 'empty';
       return {
         kind: def.kind,
         label: DRIVER_DOCUMENT_KIND_META[def.kind],
@@ -203,6 +213,7 @@ export class DriverDocumentsCard implements OnInit, OnDestroy {
         files,
         uploading: sending === def.kind,
         uploadable,
+        state,
       };
     }).filter((slot) => slot.uploadable || slot.files.length > 0);
   });
@@ -267,6 +278,10 @@ export class DriverDocumentsCard implements OnInit, OnDestroy {
    */
   protected openPicker(slot: DriverDocumentSlot): void {
     if (this.uploading()) return;
+    // UM arquivo por tipo: slot preenchido não abre o seletor. O botão já vem
+    // desabilitado no template; a guarda aqui é a segunda metade da mesma
+    // regra, para o caso de o clique chegar por outro caminho.
+    if (slot.files.length > 0) return;
     if (!this.canUpload(slot.kind)) {
       this.refuseGatedKind();
       return;
@@ -343,8 +358,8 @@ export class DriverDocumentsCard implements OnInit, OnDestroy {
     this.uploadSub = this.driverService.uploadDocument(this.driverId(), kind, file).subscribe({
       next: (doc) => {
         this.finishUpload();
-        // Acrescenta. Um segundo arquivo do MESMO tipo NÃO substitui o
-        // primeiro: frente e verso da CNH são duas linhas `CNH`.
+        // O slot estava vazio (preenchido não abre o seletor), então o append
+        // preenche o tipo — e preserva eventual dado legado de outros tipos.
         this.documents.update((list) => [...list, doc]);
         this.notifications.success('Documento enviado.');
       },
@@ -452,21 +467,32 @@ export class DriverDocumentsCard implements OnInit, OnDestroy {
     });
   }
 
-  /** Rótulo do cabeçalho do slot: o que responde "falta alguma coisa aqui?". */
+  /**
+   * Rótulo do cabeçalho do slot: o que responde "falta alguma coisa aqui?".
+   * Com a regra de UM por tipo o preenchido diz "Anexado"; o plural só existe
+   * para dado legado que o servidor ainda guarda (N por tipo).
+   */
   protected slotCountLabel(slot: DriverDocumentSlot): string {
     const n = slot.files.length;
     if (n === 0) return slot.required ? 'Falta anexar' : 'Nenhum arquivo';
-    return n === 1 ? '1 arquivo' : `${n} arquivos`;
+    return n === 1 ? 'Anexado' : `${n} arquivos`;
   }
 
   /**
-   * O leitor de tela precisa ouvir o mesmo que a tela mostra: o tipo, quantos
-   * arquivos existem e que tocar ali anexa mais um.
+   * O leitor de tela precisa ouvir o mesmo que a tela mostra: slot vazio é a
+   * afordância de anexar; slot preenchido não aceita outro arquivo — o caminho
+   * é remover o atual. No slot de portão FECHADO (visível só porque guarda
+   * arquivo legado) remover é possível mas REANEXAR não — a label não pode
+   * prometer uma substituição que o portão recusa.
    */
   protected slotAriaLabel(slot: DriverDocumentSlot): string {
-    const n = slot.files.length;
-    const estado = n === 0 ? 'nenhum arquivo anexado' : `${n} ${n === 1 ? 'arquivo' : 'arquivos'}`;
-    return `Anexar ${slot.label} — ${estado}`;
+    if (slot.state === 'gated') {
+      return `${slot.label} — documento anexado. Este tipo não aceita novos envios.`;
+    }
+    if (slot.files.length > 0) {
+      return `${slot.label} — documento anexado. Remova o arquivo atual para substituir.`;
+    }
+    return `Anexar ${slot.label} — nenhum arquivo anexado`;
   }
 
   protected sizeText(doc: DriverDocument): string {
