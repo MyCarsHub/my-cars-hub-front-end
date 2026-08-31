@@ -13,6 +13,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   AbstractControl,
   FormBuilder,
+  FormControl,
+  FormGroup,
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
@@ -45,6 +47,7 @@ import {
   DriverResponse,
   DriverStatus,
   LicenseCategory,
+  MAX_THIRD_PARTY_CONTACTS,
   UpdateDriverRequest,
 } from '../../types/driver.types';
 import { DRIVER_STATUS_META } from '../../utils/status-maps';
@@ -94,6 +97,12 @@ interface PendingDriverFile {
   file: File;
   sent: boolean;
 }
+
+/** Bloco repetível de contato de terceiro (FEAT-0067) — máx. 3, ver types. */
+type ThirdPartyContactGroup = FormGroup<{
+  fullName: FormControl<string>;
+  phone: FormControl<string>;
+}>;
 
 @Component({
   selector: 'app-driver-form',
@@ -216,6 +225,9 @@ export class DriverForm implements OnInit {
     pattern: 'CPF: 11 dígitos. CNPJ: 14 dígitos.',
     cpfInvalid: 'CPF inválido.',
   };
+  protected readonly contactNameMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o nome completo do contato.',
+  };
 
   // Máscaras visuais — o form control guarda só dígitos (telefone) / alfanumérico (CNH/doc).
   protected readonly phoneDisplay = signal('');
@@ -256,7 +268,58 @@ export class DriverForm implements OnInit {
     licenseCategory: ['B' as LicenseCategory, [Validators.required]],
     licenseExpiry: ['', [Validators.required]],
     status: ['AVAILABLE' as DriverStatus, [Validators.required]],
+    // FEAT-0067 — até 3 blocos {nome, telefone}. Dentro do form de propósito:
+    // um contato meio-preenchido invalida o submit como qualquer outro campo.
+    thirdPartyContacts: this.fb.array<ThirdPartyContactGroup>([]),
   });
+
+  protected get contactsArray() {
+    return this.form.controls.thirdPartyContacts;
+  }
+
+  protected readonly maxContacts = MAX_THIRD_PARTY_CONTACTS;
+
+  /**
+   * Máscara visual dos telefones dos contatos, uma entrada por bloco (mesmo
+   * padrão do telefone principal: o control guarda só dígitos). Sinal próprio
+   * porque FormArray não é sinal e o template precisa reagir a add/remove.
+   */
+  protected readonly contactPhoneDisplays = signal<string[]>([]);
+
+  /** Quantos blocos existem — dirige o botão "+ Adicionar contato" e o teto. */
+  protected readonly contactCount = computed(() => this.contactPhoneDisplays().length);
+
+  private contactGroup(): ThirdPartyContactGroup {
+    return this.fb.nonNullable.group({
+      fullName: ['', [Validators.required, Validators.maxLength(180)]],
+      // Validação idêntica ao telefone principal do form.
+      phone: ['', [Validators.required, Validators.pattern(/^\d{10,11}$/)]],
+    });
+  }
+
+  protected addContact(): void {
+    if (this.saving() || this.isEdit()) return;
+    if (this.contactsArray.length >= MAX_THIRD_PARTY_CONTACTS) return;
+    this.contactsArray.push(this.contactGroup());
+    this.contactPhoneDisplays.update((list) => [...list, '']);
+  }
+
+  protected removeContact(index: number): void {
+    if (this.saving() || this.isEdit()) return;
+    this.contactsArray.removeAt(index);
+    this.contactPhoneDisplays.update((list) => list.filter((_, i) => i !== index));
+  }
+
+  protected onContactPhoneInput(index: number, event: Event): void {
+    const raw = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 11);
+    const ctrl = this.contactsArray.at(index).controls.phone;
+    ctrl.setValue(raw);
+    ctrl.markAsTouched();
+    const masked = this.formatPhone(raw);
+    this.contactPhoneDisplays.update((list) =>
+      list.map((v, i) => (i === index ? masked : v)),
+    );
+  }
 
   ngOnInit(): void {
     // Re-run CPF validation on document.value when type flips between CPF/CNPJ.
@@ -479,6 +542,10 @@ export class DriverForm implements OnInit {
     return `Remover ${item.file.name}`;
   }
 
+  protected removeContactAriaLabel(index: number): string {
+    return `Remover contato ${index + 1}`;
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -526,6 +593,12 @@ export class DriverForm implements OnInit {
           type: raw.document.type,
           value: raw.document.value.trim(),
         },
+        // Dentro do POST, nunca uma chamada separada (contrato FEAT-0066).
+        // A ordem do array é a ordem de exibição — o servidor a preserva.
+        thirdPartyContacts: raw.thirdPartyContacts.map((c) => ({
+          fullName: c.fullName.trim(),
+          phone: c.phone.trim(),
+        })),
       };
       this.saveChildren(this.driverService.create(payload));
     }
@@ -560,6 +633,10 @@ export class DriverForm implements OnInit {
           // `updateValueAndValidity()` sobe ao grupo enquanto `value` ainda
           // está habilitado — e reescreve o status do grupo para VALID.
           this.form.controls.document.disable({ emitEvent: false });
+          // Contatos de terceiros também: eles JÁ subiram dentro do POST e o
+          // PUT do retry não os carrega — editáveis, uma alteração seria
+          // descartada em silêncio (mesma razão do CPF/CNPJ acima).
+          this.form.controls.thirdPartyContacts.disable({ emitEvent: false });
         }),
         switchMap((driver) => this.documentsStep(driver)),
       )
