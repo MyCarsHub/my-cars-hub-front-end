@@ -12,7 +12,12 @@ import { DriverService } from '../../services/driver.service';
 import { CepService } from '../../services/cep.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import type { DriverDocument, DriverDocumentKind, DriverResponse } from '../../types/driver.types';
+import type {
+  CreateDriverRequest,
+  DriverDocument,
+  DriverDocumentKind,
+  DriverResponse,
+} from '../../types/driver.types';
 
 /**
  * Covers the RG mask behavior:
@@ -109,6 +114,7 @@ describe('DriverForm — RG mask', () => {
       licenseExpiry: '2030-01-01',
       status: 'AVAILABLE',
       isAppDriver: false,
+      thirdPartyContacts: [],
     };
     configure(driver);
 
@@ -410,6 +416,257 @@ describe('DriverForm — anexos no cadastro (FEAT-0054)', () => {
     expect(pageText()).toContain('Substituir');
     // Os slots ainda vazios continuam com "Anexar".
     expect(pageText()).toContain('Anexar');
+  });
+});
+
+/**
+ * FEAT-0067 — contatos de terceiros no CADASTRO, DENTRO do POST /drivers
+ * (nunca uma chamada separada):
+ *  - até 3 blocos {nome, telefone}; o botão "+ Adicionar contato" desabilita no 3º;
+ *  - cada bloco é individualmente removível; a ordem dos blocos É a ordem do payload;
+ *  - telefone com a MESMA validação do telefone principal (10-11 dígitos, só números);
+ *  - bloco meio-preenchido invalida o submit como qualquer outro campo;
+ *  - a seção não existe na rota de edição (o PUT não carrega contatos).
+ *
+ * Interações pelo DOM real: cliques nos botões e `input` nos campos.
+ */
+describe('DriverForm — contatos de terceiros (FEAT-0067)', () => {
+  const savedDriver = { id: 'drv-9' } as DriverResponse;
+
+  /**
+   * Motorista COMPLETO para a rota de edição. `getOne → EMPTY` deixaria
+   * `loading()` preso em `true` e a tela no "Carregando…" — e aí o teste da
+   * edição passaria VAZIO (a seção "não aparece" porque NADA aparece). Com um
+   * driver de verdade o form renderiza e a ausência da seção prova o guard.
+   * Tem um contato salvo DE PROPÓSITO: nem assim a seção pode aparecer.
+   */
+  const editDriver: DriverResponse = {
+    id: 'drv-1',
+    createdDate: '2025-01-01T00:00:00Z',
+    modifyDate: null,
+    companyId: 'co-1',
+    userId: null,
+    name: 'Fulano',
+    rg: '123456789',
+    document: { type: 'CPF', value: '52998224725' },
+    address: {
+      street: 'Rua A', number: '10', complement: null,
+      district: 'Centro', cep: '01001000', city: 'SP', uf: 'SP',
+    },
+    contact: { email: 'a@b.com', phone: '11987654321' },
+    licenseNumber: 'ABC12345678',
+    licenseCategory: 'B',
+    licenseExpiry: '2030-01-01',
+    status: 'AVAILABLE',
+    isAppDriver: false,
+    thirdPartyContacts: [{ fullName: 'Maria da Silva', phone: '11987654321' }],
+  };
+
+  let create: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<DriverForm>>;
+
+  function configure(routeId: string | null = null): void {
+    TestBed.resetTestingModule();
+    create = vi.fn().mockReturnValue(of(savedDriver));
+    update = vi.fn().mockReturnValue(of(savedDriver));
+
+    TestBed.configureTestingModule({
+      imports: [DriverForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => routeId } } } },
+        {
+          provide: DriverService,
+          useValue: {
+            // Na rota de edição o getOne EMITE — ver o comentário de `editDriver`.
+            getOne: vi.fn().mockReturnValue(routeId ? of(editDriver) : EMPTY),
+            create,
+            update,
+            uploadDocument: vi.fn().mockReturnValue(EMPTY),
+          },
+        },
+        { provide: CepService, useValue: { lookup: vi.fn().mockReturnValue(of(null)) } },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    });
+
+    navigate = vi.fn().mockResolvedValue(true);
+    TestBed.inject(Router).navigate = navigate as unknown as Router['navigate'];
+
+    fixture = TestBed.createComponent(DriverForm);
+    fixture.detectChanges();
+  }
+
+  function el(): HTMLElement {
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function addButton(): HTMLButtonElement {
+    const btn = Array.from(el().querySelectorAll('button')).find((b) =>
+      (b.textContent ?? '').includes('Adicionar contato'),
+    );
+    if (!btn) throw new Error('o botão "+ Adicionar contato" não está na tela');
+    return btn;
+  }
+
+  function blocks(): HTMLElement[] {
+    return Array.from(el().querySelectorAll<HTMLElement>('[data-contact-block]'));
+  }
+
+  function nameInput(i: number): HTMLInputElement {
+    const input = el().querySelector<HTMLInputElement>(`#motorista-contato-terceiro-nome-${i}`);
+    if (!input) throw new Error(`campo de nome do contato ${i} não está na tela`);
+    return input;
+  }
+
+  function phoneInput(i: number): HTMLInputElement {
+    const input = el().querySelector<HTMLInputElement>(
+      `#motorista-contato-terceiro-telefone-${i}`,
+    );
+    if (!input) throw new Error(`campo de telefone do contato ${i} não está na tela`);
+    return input;
+  }
+
+  function typeInto(input: HTMLInputElement, value: string): void {
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function addContact(): void {
+    addButton().click();
+    fixture.detectChanges();
+  }
+
+  function fillValidForm(): void {
+    (
+      fixture.componentInstance as unknown as { form: { patchValue: (v: unknown) => void } }
+    ).form.patchValue({
+      name: 'João da Silva',
+      rg: '123456789',
+      document: { type: 'CPF', value: '52998224725' },
+      contact: { email: 'joao@empresa.com', phone: '11987654321' },
+      address: { cep: '01001-000', street: 'Rua A', district: 'Centro', city: 'São Paulo', uf: 'SP' },
+      licenseNumber: 'ABC12345678',
+      licenseCategory: 'B',
+      licenseExpiry: '2030-01-01',
+      status: 'AVAILABLE',
+    });
+  }
+
+  function submit(): void {
+    (fixture.componentInstance as unknown as { submit: () => void }).submit();
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => {
+    configure();
+  });
+
+  it('adiciona até 3 blocos e desabilita o botão no teto', () => {
+    expect(blocks()).toHaveLength(0);
+
+    addContact();
+    addContact();
+    expect(blocks()).toHaveLength(2);
+    expect(addButton().disabled).toBe(false);
+
+    addContact();
+    expect(blocks()).toHaveLength(3);
+    expect(addButton().disabled).toBe(true);
+    expect(el().textContent).toContain('Limite de 3 contatos atingido');
+
+    // O clique no botão desabilitado não passa do teto (guarda dupla no método).
+    addButton().click();
+    fixture.detectChanges();
+    expect(blocks()).toHaveLength(3);
+  });
+
+  it('remove um bloco específico, preservando os demais, e reabilita o botão', () => {
+    addContact();
+    addContact();
+    addContact();
+    typeInto(nameInput(0), 'Primeiro Contato');
+    typeInto(nameInput(1), 'Segundo Contato');
+    typeInto(nameInput(2), 'Terceiro Contato');
+    expect(addButton().disabled).toBe(true);
+
+    blocks()[1]
+      .querySelector<HTMLButtonElement>('button[aria-label="Remover contato 2"]')
+      ?.click();
+    fixture.detectChanges();
+
+    expect(blocks()).toHaveLength(2);
+    expect(nameInput(0).value).toBe('Primeiro Contato');
+    expect(nameInput(1).value).toBe('Terceiro Contato');
+    expect(addButton().disabled).toBe(false);
+  });
+
+  it('envia thirdPartyContacts DENTRO do POST, na ordem dos blocos e sem máscara', () => {
+    fillValidForm();
+    addContact();
+    addContact();
+    typeInto(nameInput(0), '  Maria da Silva  ');
+    typeInto(phoneInput(0), '(11) 98765-4321');
+    typeInto(nameInput(1), 'José Souza');
+    typeInto(phoneInput(1), '1132654321');
+
+    submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const payload = create.mock.calls[0][0] as CreateDriverRequest;
+    expect(payload.thirdPartyContacts).toEqual([
+      { fullName: 'Maria da Silva', phone: '11987654321' },
+      { fullName: 'José Souza', phone: '1132654321' },
+    ]);
+    expect(navigate).toHaveBeenCalledWith(['/motoristas', 'drv-9']);
+  });
+
+  it('sem contatos, o POST leva a lista vazia (nunca null)', () => {
+    fillValidForm();
+    submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const payload = create.mock.calls[0][0] as CreateDriverRequest;
+    expect(payload.thirdPartyContacts).toEqual([]);
+  });
+
+  it('bloco meio-preenchido invalida o submit como qualquer outro campo', () => {
+    fillValidForm();
+    addContact();
+    typeInto(nameInput(0), 'Maria da Silva'); // telefone fica vazio
+
+    submit();
+
+    expect(create).not.toHaveBeenCalled();
+    expect(el().textContent).toContain('Verifique os campos destacados');
+  });
+
+  it('o telefone do contato guarda só dígitos e mostra a mesma máscara do principal', () => {
+    addContact();
+    typeInto(phoneInput(0), '(11) 9x876-5a43z21');
+
+    expect(phoneInput(0).value).toBe('(11) 98765-4321');
+  });
+
+  it('na rota de edição a seção não existe, mesmo com contato salvo no motorista', () => {
+    configure('drv-1');
+
+    // O form de edição RENDERIZOU de verdade — sem isso a asserção de ausência
+    // passaria vazia com a tela presa no "Carregando…".
+    expect(el().textContent).not.toContain('Carregando…');
+    expect(el().textContent).toContain('Carteira de habilitação');
+    expect(el().textContent).toContain('Editar motorista');
+
+    // E a seção de contatos não aparece, embora `editDriver` tenha um contato.
+    expect(el().textContent).not.toContain('Contatos de terceiros');
+    expect(el().querySelector('[data-contact-block]')).toBeNull();
   });
 });
 

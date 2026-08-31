@@ -78,6 +78,103 @@
         </div>
       </app-page-card>
 
+      <!-- ====== Contatos de terceiros (opcional) — só no CADASTRO (rota, ver
+           canAttachDocuments): o contrato viaja DENTRO do POST /drivers e o PUT do retry
+           não o carrega. Máx. 3 blocos {nome, telefone}; a ordem dos blocos é a ordem de
+           exibição no detalhe (o servidor preserva a ordem enviada). ====== -->
+      @if (canAttachDocuments) {
+        <app-page-card title="Contatos de terceiros (opcional)">
+          <div class="p-4 sm:p-6 space-y-4">
+            <p class="text-sm text-neutral-600">
+              Pessoas de referência do motorista — até {{ maxContacts }} contatos, exibidos no
+              detalhe na ordem em que forem adicionados.
+            </p>
+
+            @for (group of contactsArray.controls; track group; let i = $index) {
+              <div
+                class="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-4"
+                [attr.data-contact-block]="i"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-sm font-semibold text-neutral-800">Contato {{ i + 1 }}</p>
+                  <button
+                    type="button"
+                    (click)="removeContact(i)"
+                    [disabled]="saving() || isEdit()"
+                    [attr.aria-label]="removeContactAriaLabel(i)"
+                    class="inline-flex items-center px-3 min-h-[44px] rounded-lg text-sm font-medium
+                           text-neutral-600 hover:text-rose-700
+                           focus-visible:outline focus-visible:outline-2
+                           focus-visible:outline-primary-600 disabled:opacity-60
+                           disabled:cursor-not-allowed">
+                    Remover
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <app-form-field
+                    label="Nome completo"
+                    [controlId]="'motorista-contato-terceiro-nome-' + i"
+                    [required]="true"
+                    [control]="group.controls.fullName"
+                    [messages]="contactNameMessages"
+                  >
+                    <input
+                      appFieldControl
+                      type="text"
+                      placeholder="Ex: Maria da Silva"
+                      maxlength="180"
+                      [formControl]="group.controls.fullName"
+                      class="w-full bg-white border rounded-xl px-4 py-3 text-neutral-800
+                             focus:ring-2 focus:ring-primary-600 focus:border-primary-600
+                             transition-colors disabled:opacity-60" />
+                  </app-form-field>
+
+                  <app-form-field
+                    label="Telefone"
+                    [controlId]="'motorista-contato-terceiro-telefone-' + i"
+                    [required]="true"
+                    [control]="group.controls.phone"
+                    [messages]="phoneMessages"
+                  >
+                    <input
+                      appFieldControl
+                      type="tel"
+                      inputmode="numeric"
+                      placeholder="(11) 98765-4321"
+                      maxlength="15"
+                      [value]="contactPhoneDisplays()[i]"
+                      [disabled]="saving() || isEdit()"
+                      (beforeinput)="onPhoneBeforeInput($event)"
+                      (input)="onContactPhoneInput(i, $event)"
+                      class="w-full bg-white rounded-xl border px-4 py-3
+                             focus:outline-none focus:ring-2 focus:ring-primary-500/20
+                             focus:border-primary-500 transition-colors disabled:opacity-60" />
+                  </app-form-field>
+                </div>
+              </div>
+            }
+
+            <button
+              type="button"
+              (click)="addContact()"
+              [disabled]="saving() || isEdit() || contactCount() >= maxContacts"
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
+                     min-h-[44px] rounded-xl border border-neutral-200 text-sm font-medium
+                     text-neutral-700 hover:bg-neutral-50 disabled:opacity-60
+                     disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2
+                     focus-visible:outline-primary-600">
+              + Adicionar contato
+            </button>
+            @if (contactCount() >= maxContacts) {
+              <p class="text-xs text-neutral-500">
+                Limite de {{ maxContacts }} contatos atingido.
+              </p>
+            }
+          </div>
+        </app-page-card>
+      }
+
       <!-- ====== Endereço ====== -->
       <app-page-card title="Endereço">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-6 gap-4 sm:gap-6" formGroupName="address">
