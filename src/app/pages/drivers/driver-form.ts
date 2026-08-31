@@ -77,7 +77,7 @@ const CHILD_RETRY_HINT = 'Tente novamente em instantes.';
  * (mesma regra do card). O extrato entra depois, pela tela de detalhe.
  */
 const CADASTRO_SLOT_DEFS: ReadonlyArray<{ kind: DriverDocumentKind; hint: string }> = [
-  { kind: 'CNH', hint: 'Frente e verso são dois arquivos do mesmo tipo.' },
+  { kind: 'CNH', hint: 'Frente e verso.' },
   { kind: 'ADDRESS_PROOF', hint: 'Conta de luz, água ou internet dos últimos meses.' },
   { kind: 'INCOME_PROOF', hint: 'Holerite, extrato bancário ou declaração.' },
   { kind: 'OTHER', hint: 'Qualquer outro arquivo do motorista.' },
@@ -153,14 +153,23 @@ export class DriverForm implements OnInit {
 
   private readonly docPicker = viewChild<ElementRef<HTMLInputElement>>('docPicker');
 
-  /** Um slot por tipo oferecido no cadastro, com os arquivos escolhidos dentro. */
+  /**
+   * Um slot por tipo oferecido no cadastro. UM arquivo por tipo (regra de
+   * produto — a CNH é um arquivo só, frente e verso juntos): escolher de novo
+   * SUBSTITUI o pendente; o que já subiu (`sent`) tranca o slot, porque o
+   * arquivo pertence ao motorista e sai só pelo card do detalhe.
+   */
   protected readonly documentSlots = computed(() =>
-    CADASTRO_SLOT_DEFS.map((def) => ({
-      kind: def.kind,
-      hint: def.hint,
-      label: DRIVER_DOCUMENT_KIND_META[def.kind],
-      files: this.pendingFiles().filter((f) => f.kind === def.kind),
-    })),
+    CADASTRO_SLOT_DEFS.map((def) => {
+      const files = this.pendingFiles().filter((f) => f.kind === def.kind);
+      return {
+        kind: def.kind,
+        hint: def.hint,
+        label: DRIVER_DOCUMENT_KIND_META[def.kind],
+        files,
+        sent: files.some((f) => f.sent),
+      };
+    }),
   );
 
   /** Copy overrides per validator key for the `app-form-field` message resolver. */
@@ -391,9 +400,14 @@ export class DriverForm implements OnInit {
     });
   }
 
-  /** O slot É a afordância: tocá-lo registra o tipo e abre o seletor. */
+  /**
+   * O slot É a afordância: tocá-lo registra o tipo e abre o seletor. Slot com
+   * arquivo JÁ ENVIADO não abre — o anexo pertence ao motorista e sai pelo
+   * card do detalhe. Slot com pendente abre normalmente: a escolha SUBSTITUI.
+   */
   protected openDocPicker(kind: DriverDocumentKind): void {
     if (this.saving()) return;
+    if (this.pendingFiles().some((f) => f.kind === kind && f.sent)) return;
     this.pendingKind.set(kind);
     this.docPicker()?.nativeElement.click();
   }
@@ -420,17 +434,24 @@ export class DriverForm implements OnInit {
       return;
     }
 
-    // Dedupe: o mesmo arquivo escolhido duas vezes no mesmo tipo subiria em
-    // dobro — kind + nome + tamanho é a identidade que o seletor consegue dar.
-    const duplicate = this.pendingFiles().some(
-      (f) => f.kind === kind && f.file.name === file.name && f.file.size === file.size,
-    );
-    if (duplicate) {
-      this.error.set(`"${file.name}" já está na lista deste tipo.`);
+    // UM arquivo por tipo. Já enviado tranca (o anexo pertence ao motorista);
+    // pendente é SUBSTITUÍDO no lugar — nunca uma segunda linha do mesmo tipo.
+    const existing = this.pendingFiles().find((f) => f.kind === kind);
+    if (existing?.sent) {
+      this.error.set(
+        `${DRIVER_DOCUMENT_KIND_META[kind]} já foi enviado. ` +
+          'Remova ou substitua pelo detalhe do motorista.',
+      );
       return;
     }
 
     this.error.set(null);
+    if (existing) {
+      this.pendingFiles.update((list) =>
+        list.map((f) => (f.id === existing.id ? { ...f, file } : f)),
+      );
+      return;
+    }
     this.pendingFiles.update((list) => [
       ...list,
       { id: this.nextPendingFileId++, kind, file, sent: false },
@@ -448,9 +469,10 @@ export class DriverForm implements OnInit {
     return formatDocumentSize(item.file.size);
   }
 
-  protected slotAriaLabel(label: string, count: number): string {
-    const estado = count === 0 ? 'nenhum arquivo escolhido' : `${count} ${count === 1 ? 'arquivo' : 'arquivos'}`;
-    return `Anexar ${label} — ${estado}`;
+  protected slotAriaLabel(label: string, count: number, sent = false): string {
+    if (sent) return `${label} — documento já enviado. Gerencie pelo detalhe do motorista.`;
+    if (count === 0) return `Anexar ${label} — nenhum arquivo escolhido`;
+    return `Substituir ${label} — escolher outro arquivo substitui o atual`;
   }
 
   protected removeAriaLabel(item: PendingDriverFile): string {

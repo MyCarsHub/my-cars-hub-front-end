@@ -307,27 +307,109 @@ describe('DriverForm — anexos no cadastro (FEAT-0054)', () => {
     expect(component().error()).toContain('limite é 20MB');
   });
 
-  it('ignora o mesmo arquivo escolhido duas vezes no mesmo tipo', () => {
-    const cnh = new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' });
-    pick('CNH', cnh);
-    pick('CNH', new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' }));
+  /**
+   * FIX-0226 — UM arquivo por tipo: escolher de novo SUBSTITUI o pendente,
+   * nunca acrescenta uma segunda linha. A CNH é um arquivo só (frente e verso
+   * juntos), então "escolhi o errado" se resolve com um gesto, sem remover.
+   */
+  it('substitui o pendente ao escolher outro arquivo do mesmo tipo — nunca acrescenta', () => {
+    const primeira = new File(['a'], 'cnh-tentativa.jpg', { type: 'image/jpeg' });
+    const segunda = new File(['b'], 'cnh-final.jpg', { type: 'image/jpeg' });
+    pick('CNH', primeira);
+    pick('CNH', segunda);
 
     expect(component().pendingFiles()).toHaveLength(1);
-    expect(component().error()).toContain('já está na lista');
+    expect(component().pendingFiles()[0].file).toBe(segunda);
+    expect(component().error()).toBeNull();
 
-    // Mesmo nome sob OUTRO tipo continua valendo — a identidade inclui o kind.
-    pick('ADDRESS_PROOF', new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' }));
+    // Outro tipo tem o próprio slot: a regra é POR TIPO, não global.
+    pick('ADDRESS_PROOF', new File(['c'], 'conta-luz.pdf', { type: 'application/pdf' }));
     expect(component().pendingFiles()).toHaveLength(2);
+  });
+
+  /**
+   * Depois da falha parcial o arquivo que JÁ subiu pertence ao motorista: o
+   * slot dele tranca (nada de substituir — viraria um segundo anexo do mesmo
+   * tipo no servidor). O que ainda não subiu continua substituível.
+   */
+  it('não substitui um arquivo já enviado; o pendente que faltou continua substituível', () => {
+    const cnh = new File(['a'], 'cnh-frente.jpg', { type: 'image/jpeg' });
+    const proof = new File(['b'], 'conta-luz.pdf', { type: 'application/pdf' });
+    pick('CNH', cnh);
+    pick('ADDRESS_PROOF', proof);
+    fillValidForm();
+
+    uploadDocument
+      .mockReturnValueOnce(of(uploadedDoc))
+      .mockReturnValueOnce(
+        throwError(() => new HttpErrorResponse({ status: 500, error: { message: 'Falha.' } })),
+      );
+    submit();
+
+    // CNH subiu (`sent`); tentar trocar não muda nada.
+    pick('CNH', new File(['z'], 'cnh-outra.jpg', { type: 'image/jpeg' }));
+    expect(component().pendingFiles()).toHaveLength(2);
+    expect(component().pendingFiles()[0].sent).toBe(true);
+    expect(component().pendingFiles()[0].file).toBe(cnh);
+
+    // O comprovante que faltou não subiu: substituir continua valendo.
+    const nova = new File(['n'], 'conta-agua.pdf', { type: 'application/pdf' });
+    pick('ADDRESS_PROOF', nova);
+    expect(component().pendingFiles()).toHaveLength(2);
+    expect(component().pendingFiles()[1].file).toBe(nova);
   });
 
   it('na rota de edição o bloco de anexos não existe', () => {
     configure('drv-1');
     expect(component().canAttachDocuments).toBe(false);
     expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Documentos (opcional)');
     fillValidForm();
     submit();
     expect(update).toHaveBeenCalledTimes(1);
     expect(uploadDocument).not.toHaveBeenCalled();
+  });
+
+  // ------------------- título, posição e textos do bloco (FIX-0226/0228)
+
+  /** Texto renderizado com o whitespace do template normalizado. */
+  function pageText(): string {
+    return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  /** FIX-0228: "Documentos (opcional)" (como no vehicle-form) e ANTES do Status. */
+  it('no cadastro o card chama "Documentos (opcional)" e vem antes do Status', () => {
+    const text = pageText();
+    const docs = text.indexOf('Documentos (opcional)');
+    const status = text.indexOf('Status');
+    expect(docs).toBeGreaterThan(-1);
+    expect(status).toBeGreaterThan(-1);
+    expect(docs).toBeLessThan(status);
+  });
+
+  /** FIX-0226: descrição com o texto EXATO da regra de um arquivo por tipo. */
+  it('descreve o bloco com o texto exato', () => {
+    expect(pageText()).toContain(
+      'Toque em um tipo para anexar os documentos do motorista. ' +
+        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+    );
+  });
+
+  it('a dica da CNH diz exatamente "Frente e verso."', () => {
+    expect(pageText()).toContain('Frente e verso.');
+    expect(pageText()).not.toContain('dois arquivos');
+  });
+
+  /** O slot preenchido troca a afordância: "Anexar" vira "Substituir". */
+  it('mostra "Substituir" no slot que já tem arquivo pendente', () => {
+    expect(pageText()).not.toContain('Substituir');
+
+    pick('CNH', new File(['a'], 'cnh.jpg', { type: 'image/jpeg' }));
+    fixture.detectChanges();
+
+    expect(pageText()).toContain('Substituir');
+    // Os slots ainda vazios continuam com "Anexar".
+    expect(pageText()).toContain('Anexar');
   });
 });
 
