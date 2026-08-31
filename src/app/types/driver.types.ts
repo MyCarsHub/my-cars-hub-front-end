@@ -25,6 +25,22 @@ export interface DocumentInputPayload {
   value: string;
 }
 
+/**
+ * Contato de terceiro do motorista (FEAT-0066/0067) — referência de emergência
+ * ou aval, não é o contato do próprio motorista.
+ *
+ * Contrato do backend: viaja DENTRO do POST /drivers (não é chamada separada),
+ * máximo 3 por motorista (o servidor devolve 400 no 4º) e a ordem de exibição
+ * É a ordem do array — o servidor preserva a ordem enviada.
+ */
+export interface ThirdPartyContact {
+  fullName: string;
+  phone: string;
+}
+
+/** Teto do servidor para `thirdPartyContacts` — o 4º é 400. */
+export const MAX_THIRD_PARTY_CONTACTS = 3;
+
 export interface DriverListItem {
   id: string;
   name: string;
@@ -66,6 +82,11 @@ export interface DriverResponse {
    * nunca confiar na truthiness de um opcional.
    */
   isAppDriver: boolean;
+  /**
+   * Sempre uma LISTA, nunca `null` (contrato do backend, FEAT-0066), na ordem
+   * em que foi enviada. Vazia quando o motorista não tem contatos de terceiros.
+   */
+  thirdPartyContacts: ThirdPartyContact[];
 }
 
 export interface CreateDriverRequest {
@@ -79,6 +100,8 @@ export interface CreateDriverRequest {
   licenseCategory: LicenseCategory;
   licenseExpiry: string;
   status: DriverStatus;
+  /** Máx. 3, na ordem de exibição. Ver `ThirdPartyContact`. Só no CREATE. */
+  thirdPartyContacts: ThirdPartyContact[];
 }
 
 export interface UpdateDriverRequest {

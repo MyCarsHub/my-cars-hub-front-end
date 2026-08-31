@@ -99,6 +99,15 @@ export class DriverDetail implements OnInit {
     return { label: meta.label, chip: meta.chip };
   });
 
+  /**
+   * Contatos de terceiros (FEAT-0067). O contrato diz "sempre lista, nunca
+   * null", mas a view não estoura se um backend antigo omitir a chave — mesma
+   * postura fail-closed do `isAppDriver` (ver driver.types.ts).
+   */
+  protected readonly thirdPartyContacts = computed(
+    () => this.driver()?.thirdPartyContacts ?? [],
+  );
+
   protected readonly expiringSoon = computed(() => {
     const iso = this.driver()?.licenseExpiry;
     if (!iso) return false;
