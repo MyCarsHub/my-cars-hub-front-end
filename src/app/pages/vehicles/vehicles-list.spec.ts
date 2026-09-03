@@ -186,4 +186,39 @@ describe('VehiclesList — menu de ações', () => {
     // Nada de neutral-400 (2,98:1) em texto dentro do card — só o ícone decorativo da busca usa.
     expect(card?.querySelector('.text-neutral-400')).toBeNull();
   });
+
+  /**
+   * FEAT-0072 — vendidos FORA da listagem operacional.
+   *
+   * A ausência do parâmetro é o contrato: `sold` só viaja quando o operador
+   * pede os vendidos. Mandar `sold: false` faria o backend receber um filtro
+   * que ele interpreta como "explicitamente não vendidos" — mesmo resultado
+   * hoje, mas é acoplamento que não precisa existir.
+   */
+  it('não manda `sold` na listagem operacional e manda `true` no filtro Vendidos', () => {
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    // Carga inicial: nada de `sold`.
+    expect(listSpy).toHaveBeenCalled();
+    const firstCall = listSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(firstCall['sold']).toBeUndefined();
+
+    const select = host.querySelector<HTMLSelectElement>('#veiculos-sold');
+    expect(select).not.toBeNull();
+    expect(Array.from(select?.options ?? []).map((o) => o.textContent?.trim())).toEqual([
+      'Frota atual',
+      'Vendidos',
+    ]);
+
+    listSpy.mockClear();
+    select!.value = 'true';
+    select!.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(listSpy).toHaveBeenCalled();
+    const soldCall = listSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(soldCall['sold']).toBe(true);
+  });
 });

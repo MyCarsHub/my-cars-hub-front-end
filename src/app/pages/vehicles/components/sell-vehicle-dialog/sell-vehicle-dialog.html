@@ -1,0 +1,188 @@
+@if (open()) {
+  <div
+    @backdrop
+    class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+    (click)="onDismiss()"
+    aria-hidden="true"
+  ></div>
+
+  <div
+    @dialog
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="sell-vehicle-title"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
+  >
+    <!-- Coluna única em qualquer largura: no mobile o diálogo encosta no rodapé
+         (rounded-t) e cresce com o conteúdo; nada de grade de duas colunas. -->
+    <div
+      class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md
+             pointer-events-auto overflow-hidden max-h-[92vh] overflow-y-auto"
+    >
+      <div class="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 pb-3 sm:pb-4">
+        <div
+          class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-primary-50"
+          aria-hidden="true"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-primary-700"
+          >
+            <path d="M12 1v22" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h2 id="sell-vehicle-title" class="text-base font-semibold text-neutral-900 leading-snug">
+            Vender veículo
+          </h2>
+          @if (entityLabel()) {
+            <p class="mt-1 text-sm text-neutral-500 leading-relaxed break-words">
+              {{ entityLabel() }}
+            </p>
+          }
+        </div>
+      </div>
+
+      <div class="px-4 sm:px-6 pb-2 space-y-4">
+        <!-- Comprador -->
+        <div>
+          <label for="sell-vehicle-buyer" class="block text-sm font-medium text-neutral-700 mb-1.5">
+            Nome do comprador
+          </label>
+          <input
+            #buyerInput
+            id="sell-vehicle-buyer"
+            type="text"
+            autocomplete="off"
+            required
+            maxlength="180"
+            [value]="buyerName()"
+            (input)="onBuyerInput($event)"
+            [disabled]="busy()"
+            [attr.aria-invalid]="buyerInvalid() ? 'true' : null"
+            [attr.aria-describedby]="buyerInvalid() ? 'sell-vehicle-buyer-error' : null"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 min-h-[44px] text-neutral-800
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
+                   focus-visible:border-primary-500 transition-colors disabled:opacity-60"
+            [class.border-neutral-200]="!buyerInvalid()"
+            [class.border-rose-400]="buyerInvalid()"
+          />
+          @if (buyerInvalid()) {
+            <p id="sell-vehicle-buyer-error" role="alert" class="mt-1.5 text-sm text-rose-700">
+              Informe o nome de quem comprou o veículo.
+            </p>
+          }
+        </div>
+
+        <!-- Data da venda -->
+        <div>
+          <label for="sell-vehicle-date" class="block text-sm font-medium text-neutral-700 mb-1.5">
+            Data da venda
+          </label>
+          <input
+            id="sell-vehicle-date"
+            type="date"
+            required
+            [value]="saleDate()"
+            [max]="maxSaleDate()"
+            (input)="onDateInput($event)"
+            [disabled]="busy()"
+            [attr.aria-invalid]="dateInvalid() ? 'true' : null"
+            [attr.aria-describedby]="dateInvalid() ? 'sell-vehicle-date-error' : null"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 min-h-[44px] text-neutral-800
+                   tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
+                   focus-visible:border-primary-500 transition-colors disabled:opacity-60"
+            [class.border-neutral-200]="!dateInvalid()"
+            [class.border-rose-400]="dateInvalid()"
+          />
+          @if (dateInvalid()) {
+            <p id="sell-vehicle-date-error" role="alert" class="mt-1.5 text-sm text-rose-700">
+              {{ dateErrorText() }}
+            </p>
+          }
+        </div>
+
+        <!-- Valor -->
+        <div>
+          <label for="sell-vehicle-amount" class="block text-sm font-medium text-neutral-700 mb-1.5">
+            Valor da venda (R$)
+          </label>
+          <!-- type="text" + inputmode: `type="number"` recusa a vírgula do
+               teclado pt-BR e reinterpreta "45.000" como 45 — o defeito que a
+               gramática de `utils/ptbr-number` existe para impedir. -->
+          <input
+            id="sell-vehicle-amount"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            required
+            placeholder="45.000,00"
+            [value]="amount()"
+            (input)="onAmountInput($event)"
+            [disabled]="busy()"
+            [attr.aria-invalid]="amountInvalid() ? 'true' : null"
+            [attr.aria-describedby]="amountInvalid() ? 'sell-vehicle-amount-error' : 'sell-vehicle-amount-hint'"
+            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 min-h-[44px] text-neutral-800
+                   tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
+                   focus-visible:border-primary-500 transition-colors disabled:opacity-60"
+            [class.border-neutral-200]="!amountInvalid()"
+            [class.border-rose-400]="amountInvalid()"
+          />
+          @if (amountInvalid()) {
+            <p id="sell-vehicle-amount-error" role="alert" class="mt-1.5 text-sm text-rose-700">
+              {{ amountErrorText() }}
+            </p>
+          } @else {
+            <p id="sell-vehicle-amount-hint" class="mt-1.5 text-sm text-neutral-500">
+              Use vírgula para os centavos. Ponto só para milhar.
+            </p>
+          }
+        </div>
+
+        @if (errorMessage(); as serverError) {
+          <p
+            role="alert"
+            class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700"
+          >
+            {{ serverError }}
+          </p>
+        }
+      </div>
+
+      <div
+        class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-3 sm:pt-4"
+      >
+        <button
+          type="button"
+          (click)="onCancel()"
+          [disabled]="busy()"
+          class="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-sm font-medium text-neutral-700 bg-neutral-100
+                 hover:bg-neutral-200 rounded-xl transition-colors focus-visible:outline-none
+                 focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-60 cursor-pointer"
+        >
+          Voltar
+        </button>
+        <button
+          type="button"
+          (click)="onConfirm()"
+          [disabled]="busy()"
+          class="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-sm font-semibold rounded-xl transition-all shadow-sm
+                 bg-primary-700 hover:bg-primary-800 text-white focus-visible:outline-none
+                 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500
+                 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+        >
+          {{ busy() ? 'Registrando…' : 'Registrar venda' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -16,6 +16,10 @@ import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dial
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { VehicleDocumentsCard } from './vehicle-documents-card';
+import {
+  SellVehicleDialog,
+  SellVehicleFormValue,
+} from './components/sell-vehicle-dialog/sell-vehicle-dialog';
 import { ApiErrorService } from '../../services/api-error.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
@@ -46,6 +50,7 @@ const IPVA_STATUS_LABEL: Record<IpvaStatus, { label: string; chip: string }> = {
     DetailActions,
     AlertBanner,
     VehicleDocumentsCard,
+    SellVehicleDialog,
   ],
   templateUrl: './vehicle-detail.html',
 })
@@ -87,6 +92,8 @@ export class VehicleDetail implements OnInit {
     return s === 'AVAILABLE' || s === 'INACTIVE';
   });
 
+  // Transições de status continuam VISÍVEIS no veículo vendido, mas
+  // desabilitadas (ver `soldLockReason`): sumir com elas esconderia a regra.
   protected readonly canGoAvailable = computed(() => {
     const s = this.vehicle()?.status;
     return s === 'MAINTENANCE' || s === 'INACTIVE';
@@ -97,7 +104,50 @@ export class VehicleDetail implements OnInit {
     return s === 'AVAILABLE' || s === 'MAINTENANCE';
   });
 
+  // ---- Venda (FEAT-0072) ------------------------------------------------
+
+  protected readonly sellOpen = signal(false);
+  protected readonly selling = signal(false);
+  /** Recusa do servidor no POST: fica DENTRO do diálogo, com o form preservado. */
+  protected readonly sellError = signal<string | null>(null);
+  protected readonly undoOpen = signal(false);
+  protected readonly undoingSale = signal(false);
+
+  /**
+   * Teto do seletor de data do diálogo — o template não tem `new Date()`.
+   *
+   * Recalculado a cada abertura (`askSell`) e não capturado na construção: uma
+   * aba deixada aberta atravessando a meia-noite continuaria recusando "hoje".
+   */
+  protected readonly maxSaleDate = signal(todayAsInputDate());
+
+  /** O veículo foi vendido: a tela inteira passa a ser somente-leitura. */
+  protected readonly sold = computed(() => this.vehicle()?.sale != null);
+
+  protected readonly sale = computed(() => this.vehicle()?.sale ?? null);
+
+  /**
+   * Motivo ÚNICO pelo qual as ações de operação estão travadas.
+   *
+   * Vira `title`/`aria-describedby` dos controles desabilitados: o operador
+   * precisa entender POR QUE o botão não responde — esconder a ação faria ele
+   * procurar um bug onde existe uma regra.
+   */
+  protected readonly soldLockReason = computed(() => {
+    const sale = this.sale();
+    if (!sale) return null;
+    return `Veículo vendido em ${this.formatDate(sale.saleDate)}. Desfaça a venda para voltar a operar.`;
+  });
+
+  protected readonly sellEntityLabel = computed(() => {
+    const v = this.vehicle();
+    if (!v) return '';
+    return `${this.formatPlate(v.plate)} · ${v.brand} ${v.model}`;
+  });
+
   protected readonly deleteDisabledReason = computed(() => {
+    const soldReason = this.soldLockReason();
+    if (soldReason) return soldReason;
     const s = this.vehicle()?.status;
     if (s === 'RENTED') {
       return 'Veículo está alugado. Finalize o aluguel para excluir.';
@@ -197,9 +247,102 @@ export class VehicleDetail implements OnInit {
     });
   }
 
+  // ---- Venda: registrar, desfazer (FEAT-0072) ---------------------------
+
+  protected askSell(): void {
+    if (this.sold()) return;
+    this.sellError.set(null);
+    this.maxSaleDate.set(todayAsInputDate());
+    this.sellOpen.set(true);
+  }
+
+  protected cancelSell(): void {
+    if (this.selling()) return;
+    this.sellOpen.set(false);
+    this.sellError.set(null);
+  }
+
+  /**
+   * O diálogo já entrega o valor em CENTAVOS e a data validada; aqui só resta
+   * a chamada. A recusa do servidor volta para DENTRO do diálogo, com o
+   * formulário preservado — o usuário corrige sem redigitar tudo.
+   */
+  protected confirmSell(value: SellVehicleFormValue): void {
+    const v = this.vehicle();
+    if (!v || this.selling()) return;
+    this.sellError.set(null);
+    this.selling.set(true);
+    this.vehiclesService.sell(v.id, value).subscribe({
+      next: (updated) => {
+        this.selling.set(false);
+        this.sellOpen.set(false);
+        this.vehicle.set(updated);
+        this.notify.success(`Venda registrada para «${this.formatPlate(updated.plate)}».`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.selling.set(false);
+        this.sellError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível registrar a venda.'),
+        );
+      },
+    });
+  }
+
+  protected askUndoSale(): void {
+    if (!this.sold()) return;
+    this.actionError.set(null);
+    this.undoOpen.set(true);
+  }
+
+  protected cancelUndoSale(): void {
+    if (this.undoingSale()) return;
+    this.undoOpen.set(false);
+  }
+
+  /**
+   * Desfaz a venda (recompra). O 409 aqui NÃO é erro técnico: significa que a
+   * frota já reocupou a vaga do plano enquanto o veículo estava vendido. A
+   * mensagem diz o que aconteceu e as DUAS saídas possíveis — genérico
+   * ("não foi possível") deixaria o operador sem ação.
+   */
+  protected confirmUndoSale(): void {
+    const v = this.vehicle();
+    if (!v || this.undoingSale()) return;
+    this.actionError.set(null);
+    this.undoingSale.set(true);
+    this.vehiclesService.undoSale(v.id, 'Venda desfeita pelo operador').subscribe({
+      next: (updated) => {
+        this.undoingSale.set(false);
+        this.undoOpen.set(false);
+        this.vehicle.set(updated);
+        this.notify.success('Venda desfeita. O veículo voltou para a frota.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.undoingSale.set(false);
+        this.undoOpen.set(false);
+        this.actionError.set(this.undoSaleErrorMessage(err));
+      },
+    });
+  }
+
+  private undoSaleErrorMessage(err: HttpErrorResponse): string {
+    if (err.status === 409) {
+      // O texto do servidor pode ser técnico; aqui o operador precisa das
+      // saídas. Se o backend mandar uma mensagem própria, ela entra como
+      // contexto no fim, sem substituir a explicação.
+      const detail = this.apiErrors.messageFor(err, '');
+      const base =
+        'Não dá para desfazer a venda agora: a vaga deste veículo no plano já foi ocupada ' +
+        'por outro carro da frota. Libere uma vaga (venda, exclua ou inative outro veículo) ' +
+        'ou faça upgrade do plano e tente de novo.';
+      return detail ? `${base} (${detail})` : base;
+    }
+    return this.apiErrors.messageFor(err, 'Não foi possível desfazer a venda.');
+  }
+
   protected transitionStatus(target: 'AVAILABLE' | 'MAINTENANCE' | 'INACTIVE'): void {
     const v = this.vehicle();
-    if (!v || this.transitioning()) return;
+    if (!v || this.transitioning() || this.sold()) return;
     this.actionError.set(null);
     this.transitioning.set(true);
     this.vehiclesService.updateStatus(v.id, target).subscribe({
@@ -228,4 +371,17 @@ export class VehicleDetail implements OnInit {
     if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
     return p || '—';
   }
+}
+
+/**
+ * Hoje no fuso LOCAL, em `yyyy-MM-dd` (formato do `input[type=date]`).
+ *
+ * `toISOString()` converte para UTC e, à noite no Brasil, devolveria o dia
+ * SEGUINTE — o teto de "não pode ser no futuro" passaria a aceitar amanhã.
+ * Mesma cautela do `nowAsInputDateTime` do formulário de sinistro.
+ */
+function todayAsInputDate(): string {
+  const d = new Date();
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
