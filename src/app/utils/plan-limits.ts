@@ -17,9 +17,23 @@
  * para lembrar).
  *
  * <h4>Maquiagem do ENTERPRISE</h4>
- * O backend guarda e APLICA 100 veículos / 300 motoristas no ENTERPRISE (V59;
- * eram 500/1000 na V44); a apresentação como "ilimitado" é decisão de produto,
- * deliberada, e vale só na UI. Nenhuma guarda de limite consulta este arquivo.
+ * O backend guarda e APLICA 100 veículos no ENTERPRISE (V59; eram 500 na V44);
+ * a apresentação como "ilimitado" é decisão de produto, deliberada, e vale só
+ * na UI. Nenhuma guarda de limite consulta este arquivo.
+ *
+ * <h4>Capacidade de MOTORISTAS não existe nesta camada (FEAT-0070)</h4>
+ * O eixo comercial passou a ser só VEÍCULOS. O teto de motoristas virou
+ * guarda-corpo interno — igual em todos os planos (200), aplicado pelo backend
+ * e NUNCA exibido. Mais do que "não exibir": o backend REMOVEU `driverLimit`
+ * das respostas públicas de plano e do resumo do dashboard, então o campo não
+ * chega mais e saiu dos tipos do frontend.
+ *
+ * Por isso `CapacityAxis` tem UM eixo só e `PLAN_CAPACITY` não guarda número de
+ * motorista: a chave existia exclusivamente para exibição, e exibição de
+ * motorista deixou de existir. Manter um 200 aqui seria guardar um número que
+ * ninguém lê e que a próxima pessoa reexibiria por engano. Reintroduzir o eixo
+ * é uma decisão de produto — e, do jeito que está, quebra a compilação em vez
+ * de vazar em silêncio.
  */
 
 /** Planos do catálogo, pelo `name` da tabela `plans` (V59:7-15). */
@@ -27,20 +41,21 @@ export type PlanTier = 'TRIAL' | 'STARTER' | 'PRO' | 'ENTERPRISE';
 
 export interface PlanCapacity {
   vehicles: number;
-  drivers: number;
 }
 
 /**
- * Tetos reais aplicados pelo backend após a V59. Cada par vem dos UPDATEs de
- * limite da própria migration, não da tabela do cabeçalho dela:
- * TRIAL V59:325-328 · STARTER V59:330-333 · PRO V59:335-338 ·
- * ENTERPRISE V59:340-343 (conferem com o estado-alvo em V59:9-15).
+ * Tetos de VEÍCULO aplicados pelo backend após a V59, dos UPDATEs de limite da
+ * própria migration: TRIAL V59:325-328 · STARTER V59:330-333 ·
+ * PRO V59:335-338 · ENTERPRISE V59:340-343 (conferem com V59:9-15).
+ *
+ * Não há teto de motorista aqui: ele é 200 em todos os planos, é guarda-corpo
+ * interno do backend e não é exibido em lugar nenhum (FEAT-0070).
  */
 export const PLAN_CAPACITY: Readonly<Record<PlanTier, PlanCapacity>> = {
-  TRIAL: { vehicles: 3, drivers: 4 },
-  STARTER: { vehicles: 15, drivers: 45 },
-  PRO: { vehicles: 25, drivers: 75 },
-  ENTERPRISE: { vehicles: 100, drivers: 300 },
+  TRIAL: { vehicles: 3 },
+  STARTER: { vehicles: 15 },
+  PRO: { vehicles: 25 },
+  ENTERPRISE: { vehicles: 100 },
 };
 
 /**
@@ -98,24 +113,33 @@ export function showsAsUnlimited(
   return limit === null || limit === undefined || planPresentsAsUnlimited(planName);
 }
 
-/** Eixo de capacidade de um plano. */
-export type CapacityAxis = 'vehicles' | 'drivers';
+/**
+ * Eixo de capacidade EXIBÍVEL de um plano. Só veículos (FEAT-0070) — ver o
+ * cabeçalho: motorista não é mais eixo comercial e o campo nem chega da API.
+ */
+export type CapacityAxis = 'vehicles';
 
 const AXIS_PLURAL: Readonly<Record<CapacityAxis, string>> = {
   vehicles: 'veículos',
-  drivers: 'motoristas',
 };
 
 const AXIS_UNLIMITED_LINE: Readonly<Record<CapacityAxis, string>> = {
   vehicles: 'Veículos ilimitados',
-  drivers: 'Motoristas ilimitados',
 };
+
+/** Os eixos exibíveis, na ordem em que aparecem. */
+export const CAPACITY_AXES: readonly CapacityAxis[] = ['vehicles'];
 
 /**
  * Bullet de capacidade para listas escritas sem API (landing). Respeita a
  * maquiagem: se o plano se apresenta como ilimitado, o número nunca aparece.
  */
-export function planCapacityLine(tier: PlanTier, axis: CapacityAxis): string {
+function planCapacityLine(tier: PlanTier, axis: CapacityAxis): string {
   if (planPresentsAsUnlimited(tier)) return AXIS_UNLIMITED_LINE[axis];
   return `Até ${PLAN_CAPACITY[tier][axis]} ${AXIS_PLURAL[axis]}`;
+}
+
+/** Os bullets de capacidade de um tier, na ordem dos eixos. */
+export function planCapacityLines(tier: PlanTier): readonly string[] {
+  return CAPACITY_AXES.map((axis) => planCapacityLine(tier, axis));
 }

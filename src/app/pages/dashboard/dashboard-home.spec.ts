@@ -73,7 +73,6 @@ describe('DashboardHome — KPIs de frota', () => {
                 vehicleLimit: 3,
                 driversActive: 2,
                 driversTotal: 4,
-                driverLimit: 4,
                 rentedNow: 1,
                 reservedNow: 0,
                 utilizationPct: 50,
@@ -142,25 +141,36 @@ describe('DashboardHome — KPIs de frota', () => {
         return cardText(fleet, 'Veículos', planName);
     }
 
-    it('usa driversTotal como numerador do limite do plano, não driversActive', () => {
-        const text = driversCardText({ driversActive: 2, driversTotal: 4, driverLimit: 4 });
+    /**
+     * FEAT-0070 — o card de motoristas mostra OPERAÇÃO, não capacidade: total
+     * e quantos estão ativos. Nada de "X de Y do plano" nem de "ilimitados",
+     * porque o teto virou guarda-corpo interno e `driverLimit` saiu do
+     * `FleetDto`. Esta é a guarda que impede a legenda de voltar.
+     */
+    it('mostra o total de motoristas sem nenhuma legenda de capacidade', () => {
+        const text = driversCardText({ driversActive: 2, driversTotal: 4 });
 
-        expect(text).toContain('4 de 4 do plano');
-        expect(text).not.toContain('2 de 4');
-    });
-
-    it('mostra os motoristas ativos como recorte operacional secundário', () => {
-        const text = driversCardText({ driversActive: 2, driversTotal: 4, driverLimit: 4 });
-
+        expect(text).toContain('4');
         expect(text).toContain('2 ativos agora');
+        expect(text).not.toContain('do plano');
+        expect(text).not.toContain('ilimitados');
     });
 
-    it('mostra "ilimitado" quando driverLimit é nulo (PRO), sem número quebrado', () => {
-        const text = driversCardText({ driversActive: 5, driversTotal: 9, driverLimit: null });
+    // Um `TestBed` por teste: o helper configura o módulo a cada chamada.
+    it('não vaza capacidade de motorista no ENTERPRISE (plano maquiado)', () => {
+        const text = driversCardText({ driversActive: 30, driversTotal: 80 }, 'ENTERPRISE');
 
-        expect(text).toContain('ilimitados');
-        expect(text).not.toContain('de null');
-        expect(text).not.toContain('9 de 0');
+        expect(text).toContain('80');
+        expect(text).not.toContain('do plano');
+        expect(text).not.toContain('ilimitados');
+    });
+
+    it('não vaza capacidade de motorista no PRO (plano sem maquiagem)', () => {
+        const text = driversCardText({ driversActive: 5, driversTotal: 9 }, 'PRO');
+
+        expect(text).toContain('9');
+        expect(text).not.toContain('do plano');
+        expect(text).not.toContain('ilimitados');
         expect(text).not.toContain('de sem limite');
     });
 
@@ -194,31 +204,12 @@ describe('DashboardHome — KPIs de frota', () => {
         expect(text).not.toContain(`de ${cap}`);
     });
 
-    it('maquia o ENTERPRISE como ilimitado, sem vazar o teto no card de motoristas', () => {
-        const cap = PLAN_CAPACITY.ENTERPRISE.drivers;
-        const text = driversCardText(
-            { driversActive: 30, driversTotal: 80, driverLimit: cap },
-            'ENTERPRISE',
-        );
-
-        expect(text).toContain('motoristas ilimitados no plano');
-        expect(text).not.toContain(String(cap));
-    });
-
     // O PRO nunca foi maquiado: o teto real é número e aparece.
     it('mostra o teto real de veículos do PRO em vez de "ilimitado"', () => {
         const cap = PLAN_CAPACITY.PRO.vehicles;
         const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: cap }, 'PRO');
 
         expect(text).toContain(`7 de ${cap} do plano`);
-        expect(text).not.toContain('ilimitados');
-    });
-
-    it('mostra o teto real de motoristas do PRO em vez de "ilimitado"', () => {
-        const cap = PLAN_CAPACITY.PRO.drivers;
-        const text = driversCardText({ driversActive: 5, driversTotal: 9, driverLimit: cap }, 'PRO');
-
-        expect(text).toContain(`9 de ${cap} do plano`);
         expect(text).not.toContain('ilimitados');
     });
 

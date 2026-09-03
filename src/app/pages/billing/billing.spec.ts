@@ -22,7 +22,6 @@ const plan = (over: Partial<PlanResponse>): PlanResponse => ({
   period: 'MONTHLY',
   price: 0,
   vehicleLimit: 2,
-  driverLimit: 3,
   trialDays: 7,
   productExternalId: null,
   gateway: 'stripe',
@@ -37,7 +36,6 @@ const BUSINESS = plan({
   name: 'BUSINESS',
   price: 499,
   vehicleLimit: null,
-  driverLimit: null,
   trialDays: 0,
 });
 
@@ -55,7 +53,6 @@ const BUSINESS_YEARLY = plan({
   period: 'YEARLY',
   price: 4990,
   vehicleLimit: null,
-  driverLimit: null,
   trialDays: 0,
 });
 
@@ -1570,7 +1567,6 @@ describe('Billing', () => {
       name: 'ENTERPRISE',
       price: 299,
       vehicleLimit: PLAN_CAPACITY.ENTERPRISE.vehicles,
-      driverLimit: PLAN_CAPACITY.ENTERPRISE.drivers,
       trialDays: 0,
     });
     const PRO_V44 = plan({
@@ -1579,16 +1575,14 @@ describe('Billing', () => {
       name: 'PRO',
       price: 79.9,
       vehicleLimit: 20,
-      driverLimit: 40,
       trialDays: 0,
     });
-    const TRIAL_V44 = plan({ vehicleLimit: 3, driverLimit: 4 });
+    const TRIAL_V44 = plan({ vehicleLimit: 3 });
 
     it('esconde o teto real do ENTERPRISE nas células da tabela', () => {
       const c = build();
 
       expect(c.formatLimit(ENTERPRISE.vehicleLimit, ENTERPRISE.name)).toBe('∞');
-      expect(c.formatLimit(ENTERPRISE.driverLimit, ENTERPRISE.name)).toBe('∞');
     });
 
     /**
@@ -1607,18 +1601,13 @@ describe('Billing', () => {
       expect(c.formatLimit(PLAN_CAPACITY.ENTERPRISE.vehicles, 'PRO')).toBe(
         String(PLAN_CAPACITY.ENTERPRISE.vehicles),
       );
-      expect(c.formatLimit(PLAN_CAPACITY.ENTERPRISE.drivers, 'PRO')).toBe(
-        String(PLAN_CAPACITY.ENTERPRISE.drivers),
-      );
     });
 
     it('mostra os números reais de TRIAL e PRO', () => {
       const c = build();
 
       expect(c.formatLimit(TRIAL_V44.vehicleLimit, TRIAL_V44.name)).toBe('3');
-      expect(c.formatLimit(TRIAL_V44.driverLimit, TRIAL_V44.name)).toBe('4');
       expect(c.formatLimit(PRO_V44.vehicleLimit, PRO_V44.name)).toBe('20');
-      expect(c.formatLimit(PRO_V44.driverLimit, PRO_V44.name)).toBe('40');
     });
 
     // Sentinela da coluna: segue significando ilimitado para qualquer plano.
@@ -1633,9 +1622,9 @@ describe('Billing', () => {
       const features = c.planFeatures(ENTERPRISE).join(' | ');
 
       expect(features).toContain('veículos ilimitados');
-      expect(features).toContain('motoristas ilimitados');
       expect(features).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.vehicles));
-      expect(features).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.drivers));
+      // FEAT-0070: capacidade de motorista não aparece em bullet nenhum.
+      expect(features).not.toContain('motorista');
     });
 
     /**
@@ -1654,9 +1643,9 @@ describe('Billing', () => {
       const features = c.planFeatures(PRO_V44).join(' | ');
 
       expect(features).toContain('Até 20 veículos');
-      expect(features).toContain('Até 40 motoristas');
       expect(features).not.toContain('veículos ilimitados');
-      expect(features).not.toContain('motoristas ilimitados');
+      // FEAT-0070: nem número nem "ilimitados" de motorista.
+      expect(features).not.toContain('motorista');
     });
 
     /**
@@ -1682,8 +1671,9 @@ describe('Billing', () => {
         (el) => el.textContent?.trim() === '∞',
       );
 
-      // 2 na tabela desktop (veículos + motoristas) e 2 no acordeão mobile.
-      expect(glyphs.length).toBe(4);
+      // 1 na tabela desktop (veículos) e 1 no acordeão mobile. Eram 4 antes do
+      // FEAT-0070, quando existia a linha de motoristas nas duas superfícies.
+      expect(glyphs.length).toBe(2);
       for (const glyph of glyphs) {
         const label = glyph.nextElementSibling;
         expect(label?.classList.contains('sr-only')).toBe(true);
@@ -1695,9 +1685,14 @@ describe('Billing', () => {
       const srTexts = Array.from(host.querySelectorAll('.sr-only')).map((el) =>
         el.textContent?.trim(),
       );
-      expect(srTexts.filter((t) => t === 'Ilimitado').length).toBe(4);
+      expect(srTexts.filter((t) => t === 'Ilimitado').length).toBe(2);
+      // O teto real de VEÍCULOS do PRO segue impresso…
       expect(host.textContent).toContain('20');
-      expect(host.textContent).toContain('40');
+      // …e o eixo de motorista não existe mais na tela. Assertar a ausência do
+      // RÓTULO, não do número: o antigo `not.toContain('40')` virou decorativo
+      // quando `driverLimit` saiu do fixture, e como é substring crua sobre a
+      // página inteira qualquer preço com "40" o reprovaria por acidente.
+      expect(host.textContent).not.toMatch(/motorista/i);
     });
   });
 
@@ -1715,7 +1710,7 @@ describe('Billing', () => {
      *
      * O catálogo é parametrizável porque a guarda de maquiagem lá embaixo
      * precisa de um plano com TETO REAL, e o `BUSINESS` do fixture padrão tem
-     * `vehicleLimit`/`driverLimit` nulos — nele o `∞` sai do sentinela de
+     * `vehicleLimit` nulo — nele o `∞` sai do sentinela de
      * coluna, não da maquiagem.
      */
     const renderCompare = (expandPlanId: string, plans: readonly PlanResponse[] = [
@@ -1863,14 +1858,32 @@ describe('Billing', () => {
         name: 'ENTERPRISE',
         price: 499,
         vehicleLimit: PLAN_CAPACITY.ENTERPRISE.vehicles,
-        driverLimit: PLAN_CAPACITY.ENTERPRISE.drivers,
         trialDays: 0,
       });
       const { host } = renderCompare(ENTERPRISE_REAL.id, [FREE, BASIC, PRO, ENTERPRISE_REAL]);
 
       expect(host.textContent).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.vehicles));
-      expect(host.textContent).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.drivers));
       expect(host.textContent).toContain('∞');
+    });
+
+    /**
+     * FEAT-0070 — a comparação não tem eixo de MOTORISTA: nem linha na tabela
+     * desktop, nem item no acordeão mobile, nem número em lugar nenhum. O teto
+     * virou guarda-corpo interno e o backend removeu `driverLimit` das
+     * respostas; esta guarda é o que impede a linha de voltar por descuido.
+     */
+    it('não exibe capacidade de motoristas em nenhuma superfície da comparação', () => {
+      const { host } = renderCompare(PRO.id, [FREE, BASIC, PRO]);
+
+      const linhas = Array.from(host.querySelectorAll('tr')).map((tr) => tr.textContent ?? '');
+      expect(linhas.some((linha) => linha.includes('Veículos'))).toBe(true);
+      expect(linhas.some((linha) => linha.includes('Motoristas'))).toBe(false);
+      // Acordeão mobile: mesma ausência, mesmo template. O controle POSITIVO
+      // é obrigatório aqui — sem ele, um acordeão que não materializasse
+      // nenhum `li` faria a asserção de ausência passar vacuamente.
+      const itens = Array.from(host.querySelectorAll('li')).map((li) => li.textContent ?? '');
+      expect(itens.some((item) => item.includes('Veículos'))).toBe(true);
+      expect(itens.some((item) => item.includes('Motoristas'))).toBe(false);
     });
   });
 

@@ -33,30 +33,42 @@ describe('LandingPricingComponent', () => {
   // estes números são escritos à mão. Este teste é o único guarda-corpo contra
   // eles voltarem a divergir da tabela `plans` — se um limite mudar no backend,
   // ele quebra aqui e força a atualização em vez de a landing mentir calada.
-  it('anuncia exatamente os limites que o backend entrega', () => {
+  it('anuncia exatamente os limites de VEÍCULO que o backend entrega', () => {
     const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
 
-    // TRIAL 3/4 — V59:310-313.
+    // TRIAL 3 — V59:310-313.
     expect(c.trialItems).toContain('Até 3 veículos');
-    expect(c.trialItems).toContain('Até 4 motoristas');
-
-    // STARTER 15/45 — V59:315-318.
+    // STARTER 15 — V59:315-318.
     expect(c.starterItems).toContain('Até 15 veículos');
-    expect(c.starterItems).toContain('Até 45 motoristas');
-
-    // PRO 25/75 — V59:320-323.
+    // PRO 25 — V59:320-323.
     expect(c.proItems).toContain('Até 25 veículos');
-    expect(c.proItems).toContain('Até 75 motoristas');
   });
 
-  // O ENTERPRISE tem teto real (100/300 depois da V59:325-328; eram 500/1000 na
-  // V44) e mesmo assim é vendido como ilimitado — maquiagem deliberada de
+  /**
+   * FEAT-0070 — a landing é PÚBLICA e era a porta mais exposta: com o teto
+   * unificado em 200, um bullet de motorista anunciaria "Até 200 motoristas"
+   * no TRIAL. Nenhum tier pode citar capacidade de motorista, em número ou
+   * como "ilimitados".
+   */
+  it('não cita capacidade de motoristas em nenhum tier', () => {
+    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
+
+    // Case-INSENSITIVE de propósito: a string que o bullet antigo trazia era
+    // "Motoristas ilimitados" (M maiúsculo, de AXIS_UNLIMITED_LINE), então uma
+    // guarda por substring minúscula deixaria exatamente a regressão que ela
+    // deveria pegar passar verde.
+    for (const items of [c.trialItems, c.starterItems, c.proItems, c.enterpriseItems]) {
+      expect(items.join(' | ')).not.toMatch(/motorista/i);
+    }
+  });
+
+  // O ENTERPRISE tem teto real de veículo (100 depois da V59:325-328; eram 500
+  // na V44) e mesmo assim é vendido como ilimitado — maquiagem deliberada de
   // produto. O que não pode acontecer é o número vazar para a landing.
-  it('apresenta o ENTERPRISE como ilimitado, sem expor 100/300', () => {
+  it('apresenta o ENTERPRISE como ilimitado, sem expor o teto real', () => {
     const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
 
     expect(c.enterpriseItems).toContain('Veículos ilimitados');
-    expect(c.enterpriseItems).toContain('Motoristas ilimitados');
 
     const joined = c.enterpriseItems.join(' | ');
     expect(joined).not.toContain('100');
@@ -68,10 +80,10 @@ describe('LandingPricingComponent', () => {
 
   // Guarda-corpo contra a landing voltar a prometer o que a V43 prometia, e
   // contra o PRO herdar o teto do STARTER agora que 15 é um número do catálogo.
-  it('não promete mais motoristas ilimitados no PRO', () => {
+  it('não promete no PRO o teto de outro tier', () => {
     const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
 
-    expect(c.proItems).not.toContain('Motoristas ilimitados');
+    expect(c.proItems).not.toContain('Veículos ilimitados');
     expect(c.proItems).not.toContain('Até 15 veículos');
     expect(c.proItems).not.toContain('Até 20 veículos');
   });
