@@ -25,7 +25,14 @@ import type { Maintenance, MaintenanceDocument } from '../../types/maintenance.t
  *  - o reenvio faz PUT da mesma manutenção, nunca um segundo POST.
  *
  * O gesto passa pelo DOM: clique real no slot e `change` real no
- * `<input type="file">`.
+ * `<input type="file">` — desde o FIX-0233 esse DOM é o do
+ * `PendingDocumentsBlock` compartilhado.
+ *
+ * REGRA NOVA (FIX-0233, decisão estrita do usuário): UM arquivo por tipo.
+ * Escolher de novo SUBSTITUI o pendente daquele tipo, então a fila tem no
+ * máximo 2 itens (1 nota fiscal + 1 outro) — as provas de falha parcial e
+ * reenvio abaixo usam DOIS TIPOS em vez de N notas fiscais, mas verificam
+ * exatamente as mesmas invariantes.
  */
 describe('MaintenanceForm — anexos no cadastro', () => {
   const CREATED: Maintenance = {
@@ -81,7 +88,7 @@ describe('MaintenanceForm — anexos no cadastro', () => {
     };
     submit: () => void;
     saving: () => boolean;
-    pendingDocs: () => ReadonlyArray<{ uid: string; file: File }>;
+    pendingDocs: () => ReadonlyArray<{ uid: string; file: File; kind: string }>;
     error: () => string | null;
   }
 
@@ -95,14 +102,20 @@ describe('MaintenanceForm — anexos no cadastro', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
+  /**
+   * O cabeçalho do slot dentro do `PendingDocumentsBlock` compartilhado
+   * (FIX-0233): `data-doc-slot` marca o CONTÊINER, e quem recebe o toque é o
+   * botão dentro dele.
+   */
   function slotButton(kind: string): HTMLButtonElement {
-    const el = host().querySelector<HTMLButtonElement>(`[data-doc-slot="${kind}"]`);
+    const el = host().querySelector<HTMLButtonElement>(`[data-doc-slot="${kind}"] > button`);
     if (!el) throw new Error(`o slot ${kind} não está na tela`);
     return el;
   }
 
+  /** As linhas de arquivo pendente, agora aninhadas sob o slot do seu tipo. */
   function pendingRows(): HTMLElement[] {
-    return Array.from(host().querySelectorAll<HTMLElement>('[data-pending-doc]'));
+    return Array.from(host().querySelectorAll<HTMLElement>('[data-doc-slot] ul > li'));
   }
 
   function fileInput(): HTMLInputElement {
@@ -197,29 +210,23 @@ describe('MaintenanceForm — anexos no cadastro', () => {
     expect(uploadDocument).not.toHaveBeenCalled();
   });
 
-  it('N arquivos escolhidos sobem, um a um, com o id da manutenção recém-criada', () => {
+  it('os arquivos escolhidos sobem, um a um, com o id da manutenção recém-criada', () => {
     configure(null);
 
     stage('NOTA_FISCAL', pdf('nota-peca.pdf'));
-    stage('NOTA_FISCAL', pdf('nota-mao-de-obra.pdf'));
     stage('OTHER', pdf('foto.jpg', 2048, 'image/jpeg'));
-    expect(pendingRows()).toHaveLength(3);
+    expect(pendingRows()).toHaveLength(2);
 
     component.submit();
     fixture.detectChanges();
 
     expect(create).toHaveBeenCalledTimes(1);
-    expect(uploadDocument).toHaveBeenCalledTimes(3);
+    expect(uploadDocument).toHaveBeenCalledTimes(2);
     // O id vem da RESPOSTA do create — no cadastro ele não existia antes.
-    expect(uploadDocument.mock.calls.map((c) => c[0])).toEqual(['mnt-novo', 'mnt-novo', 'mnt-novo']);
-    expect(uploadDocument.mock.calls.map((c) => c[1])).toEqual([
-      'NOTA_FISCAL',
-      'NOTA_FISCAL',
-      'OTHER',
-    ]);
+    expect(uploadDocument.mock.calls.map((c) => c[0])).toEqual(['mnt-novo', 'mnt-novo']);
+    expect(uploadDocument.mock.calls.map((c) => c[1])).toEqual(['NOTA_FISCAL', 'OTHER']);
     expect(uploadDocument.mock.calls.map((c) => (c[2] as File).name)).toEqual([
       'nota-peca.pdf',
-      'nota-mao-de-obra.pdf',
       'foto.jpg',
     ]);
     expect(component.pendingDocs()).toHaveLength(0);
@@ -231,21 +238,19 @@ describe('MaintenanceForm — anexos no cadastro', () => {
     configure(null);
     uploadDocument
       .mockReturnValueOnce(of(savedDoc('doc-1')))
-      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })))
-      .mockReturnValueOnce(of(savedDoc('doc-3')));
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })));
 
     stage('NOTA_FISCAL', pdf('a.pdf'));
-    stage('NOTA_FISCAL', pdf('b.pdf'));
-    stage('NOTA_FISCAL', pdf('c.pdf'));
+    stage('OTHER', pdf('b.pdf'));
 
     component.submit();
     fixture.detectChanges();
 
     // A manutenção foi criada uma vez e NÃO foi desfeita.
     expect(create).toHaveBeenCalledTimes(1);
-    // O primeiro subiu e saiu da fila; o que falhou e o seguinte continuam nela.
-    expect(component.pendingDocs().map((d) => d.file.name)).toEqual(['b.pdf', 'c.pdf']);
-    expect(pendingRows()).toHaveLength(2);
+    // O primeiro subiu e SAIU da fila; o que falhou continua nela.
+    expect(component.pendingDocs().map((d) => d.file.name)).toEqual(['b.pdf']);
+    expect(pendingRows()).toHaveLength(1);
     // A mensagem diz PRIMEIRO que a manutenção foi salva.
     expect(component.error()).toContain('A manutenção foi salva.');
   });
@@ -272,7 +277,7 @@ describe('MaintenanceForm — anexos no cadastro', () => {
       .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })));
 
     stage('NOTA_FISCAL', pdf('a.pdf'));
-    stage('NOTA_FISCAL', pdf('b.pdf'));
+    stage('OTHER', pdf('b.pdf'));
     component.submit();
     fixture.detectChanges();
     expect(component.pendingDocs().map((d) => d.file.name)).toEqual(['b.pdf']);
@@ -313,23 +318,27 @@ describe('MaintenanceForm — anexos no cadastro', () => {
     expect(component.error()).toContain('o limite é 20MB');
   });
 
-  it('escolher uma segunda nota ACRESCENTA — não substitui a primeira', () => {
+  /**
+   * INVARIANTE INVERTIDA no FIX-0233 (decisão estrita do usuário): antes uma
+   * segunda nota ACRESCENTAVA (peça e mão de obra convivendo); agora UMA por
+   * manutenção — a segunda escolha SUBSTITUI a pendente, e quem precisa de
+   * mais notas registra manutenções POR EVENTO.
+   */
+  it('escolher uma segunda nota SUBSTITUI a primeira — uma por manutenção', () => {
     configure(null);
 
     stage('NOTA_FISCAL', pdf('nota-peca.pdf'));
     stage('NOTA_FISCAL', pdf('nota-mao-de-obra.pdf'));
 
-    expect(component.pendingDocs().map((d) => d.file.name)).toEqual([
-      'nota-peca.pdf',
-      'nota-mao-de-obra.pdf',
-    ]);
+    expect(component.pendingDocs().map((d) => d.file.name)).toEqual(['nota-mao-de-obra.pdf']);
+    expect(pendingRows()).toHaveLength(1);
   });
 
   it('remover tira o arquivo da fila antes de qualquer envio', () => {
     configure(null);
 
     stage('NOTA_FISCAL', pdf('a.pdf'));
-    stage('NOTA_FISCAL', pdf('b.pdf'));
+    stage('OTHER', pdf('b.pdf'));
     const remover = pendingRows()[0].querySelector('button');
     remover?.click();
     fixture.detectChanges();
@@ -347,23 +356,36 @@ describe('MaintenanceForm — anexos no cadastro', () => {
     stage('NOTA_FISCAL', pdf('nota-peca.pdf', 1024));
 
     // Tocar no slot duas vezes e escolher o mesmo PDF é hesitação, não pedido de
-    // duas cópias. Duas linhas aqui virariam nota fiscal duplicada no custo.
+    // duas cópias. Duas linhas aqui virariam nota fiscal duplicada no custo —
+    // desde o FIX-0233 quem garante isso é a substituição por tipo.
     expect(component.pendingDocs()).toHaveLength(1);
   });
 
-  it('a guarda de duplicata NÃO atrapalha arquivos distintos nem repetição legítima do tipo', () => {
+  /**
+   * INVARIANTE INVERTIDA no FIX-0233: a antiga guarda de duplicata por
+   * nome+tamanho não existe mais — a substituição por tipo a subsome. O que
+   * sobrevive é a independência ENTRE TIPOS: cada slot guarda o seu, e mexer
+   * num não mexe no outro. Teto prático da tela: 2 arquivos (1 NF + 1 Outro).
+   */
+  it('a substituição é POR TIPO — o slot vizinho não é afetado', () => {
     configure(null);
 
-    // Duas notas fiscais de verdade — peça e mão de obra. Mesmo kind, nomes
-    // diferentes: o caso NORMAL da manutenção, tem de passar.
     stage('NOTA_FISCAL', pdf('nota-peca.pdf', 1024));
-    stage('NOTA_FISCAL', pdf('nota-mao-de-obra.pdf', 1024));
-    // Mesmo nome e tamanho, tipo diferente: são anexos distintos.
+    // Mesmo nome e tamanho, tipo diferente: anexo distinto, entra no seu slot.
     stage('OTHER', pdf('nota-peca.pdf', 1024));
-    // Mesmo nome, tamanho diferente: arquivo diferente.
+    expect(component.pendingDocs()).toHaveLength(2);
+
+    // Substituições sucessivas na nota fiscal não tocam no slot "Outro".
+    stage('NOTA_FISCAL', pdf('nota-mao-de-obra.pdf', 1024));
     stage('NOTA_FISCAL', pdf('nota-peca.pdf', 2048));
 
-    expect(component.pendingDocs()).toHaveLength(4);
+    expect(component.pendingDocs()).toHaveLength(2);
+    expect(component.pendingDocs().map((d) => d.kind)).toEqual(['NOTA_FISCAL', 'OTHER']);
+    expect(component.pendingDocs().map((d) => d.file.name)).toEqual([
+      'nota-peca.pdf',
+      'nota-peca.pdf',
+    ]);
+    expect(component.pendingDocs()[0].file.size).toBe(2048);
   });
 
   // ------------------------------------- veículo travado após a promoção

@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,20 +9,23 @@ import {
   INCIDENT_DOCUMENT_PLACEHOLDER_COPY,
   IncidentDocumentsCard,
 } from './incident-documents-card';
+import { DocumentsCard } from '../../components/documents/documents-card';
 import { VehicleIncidentsService } from '../../services/vehicle-incidents.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
-import type { IncidentDocument, IncidentDocumentKind } from '../../types/vehicle-incident.types';
+import type { IncidentDocument } from '../../types/vehicle-incident.types';
 
 /**
- * Anexos do sinistro: enviar, abrir por URL assinada e remover.
+ * Anexos do sinistro via o card COMPARTILHADO em MODO N (FIX-0234): o antigo
+ * `<select>` de tipo virou grade de slots, mas o PRODUTO não mudou — várias
+ * fotos do dano na mesma ocorrência seguem sendo o caso normal, e nenhum slot
+ * tranca por ter arquivo. Interações pelo DOM real, como nos cards irmãos.
  *
- * O ponto sensível é o upload. NÃO existe barra de progresso aqui e isso é
- * deliberado — o app usa `withFetch()`, que nunca emite `UploadProgress`, então
- * qualquer barra seria uma animação desconectada do envio real. O estado é
- * indeterminado, e "Cancelar envio" precisa ABORTAR de verdade.
+ * O vocabulário do sinistro é ANEXO (iteração 3): o card compartilhado recebe
+ * `nounSingular="anexo"`, então toasts, erros e rótulos acessíveis voltam a
+ * combinar com o título "Anexos".
  */
 describe('IncidentDocumentsCard', () => {
   const INCIDENT_ID = 'inc-1';
@@ -38,6 +42,12 @@ describe('IncidentDocumentsCard', () => {
     createdDate: '2026-03-02T12:00:00',
   };
 
+  const segundaFoto: IncidentDocument = {
+    ...savedDocument,
+    id: 'doc-2',
+    fileName: 'dano-lateral.jpg',
+  };
+
   let listDocuments: ReturnType<typeof vi.fn>;
   let uploadDocument: ReturnType<typeof vi.fn>;
   let deleteDocument: ReturnType<typeof vi.fn>;
@@ -49,28 +59,56 @@ describe('IncidentDocumentsCard', () => {
   let infoToast: ReturnType<typeof vi.fn>;
   let fixture: ComponentFixture<IncidentDocumentsCard>;
 
-  interface CardInternals {
+  /** Leitura de estado só para asserção — a AÇÃO nunca passa por aqui. */
+  interface CardState {
     error(): string | null;
-    uploading(): boolean;
     documents(): IncidentDocument[];
-    selectedKind: { set(k: IncidentDocumentKind): void };
-    onFileSelected(event: Event): void;
-    openDocument(doc: IncidentDocument): void;
-    askDelete(doc: IncidentDocument): void;
-    confirmDelete(): void;
-    cancelUpload(): void;
   }
 
-  function api(): CardInternals {
-    return fixture.componentInstance as unknown as CardInternals;
+  function state(): CardState {
+    const inner = fixture.debugElement.query(By.directive(DocumentsCard))?.componentInstance;
+    if (!inner) throw new Error('o card compartilhado não está na tela');
+    return inner as CardState;
   }
 
-  /** `change` de um `<input type="file">` sem depender de DataTransfer. */
-  function fileEvent(file: File | null): Event {
-    const input = document.createElement('input');
-    input.type = 'file';
+  function host(): HTMLElement {
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function slotKinds(): string[] {
+    return Array.from(host().querySelectorAll('[data-kind]')).map(
+      (el) => el.getAttribute('data-kind') ?? '',
+    );
+  }
+
+  function slotEl(kind: string): HTMLElement {
+    const el = host().querySelector<HTMLElement>(`[data-kind="${kind}"]`);
+    if (!el) throw new Error(`slot ${kind} não está na tela`);
+    return el;
+  }
+
+  function slotButton(kind: string): HTMLButtonElement {
+    const el = slotEl(kind).querySelector<HTMLButtonElement>(':scope > button');
+    if (!el) throw new Error(`slot ${kind} não tem botão de anexar`);
+    return el;
+  }
+
+  function slotFileRows(kind: string): HTMLElement[] {
+    return Array.from(slotEl(kind).querySelectorAll<HTMLElement>('[data-file-row]'));
+  }
+
+  function dispatchFile(file: File | null): void {
+    const input = host().querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('o seletor de arquivos não está na tela');
     Object.defineProperty(input, 'files', { value: file ? [file] : [], configurable: true });
-    return { target: input } as unknown as Event;
+    input.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  function attach(kind: string, file: File): void {
+    slotButton(kind).click();
+    fixture.detectChanges();
+    dispatchFile(file);
   }
 
   function photo(name = 'dano.jpg', size = 1024, type = 'image/jpeg'): File {
@@ -121,105 +159,118 @@ describe('IncidentDocumentsCard', () => {
     });
   });
 
-  it('envia o arquivo com o tipo escolhido e publica o anexo salvo', async () => {
+  it('mostra um slot por tipo do backend, sem `<select>` de tipo', async () => {
     await setup();
 
-    api().selectedKind.set('POLICE_REPORT');
-    api().onFileSelected(fileEvent(photo('bo.pdf', 2048, 'application/pdf')));
-    fixture.detectChanges();
+    expect(slotKinds()).toEqual([
+      'DAMAGE_PHOTO',
+      'POLICE_REPORT',
+      'REPAIR_QUOTE',
+      'INSURANCE_CLAIM',
+      'OTHER',
+    ]);
+    expect(host().querySelector('select')).toBeNull();
+    // Nenhum tipo é essencial: não existe contador "N de M" aqui.
+    expect(host().textContent).not.toContain('documentos essenciais');
+  });
+
+  it('envia o arquivo com o tipo do slot tocado', async () => {
+    await setup();
+
+    attach('POLICE_REPORT', photo('bo.pdf', 2048, 'application/pdf'));
 
     expect(uploadDocument).toHaveBeenCalledTimes(1);
     const [incidentId, kind, file] = uploadDocument.mock.calls[0] as [string, string, File];
     expect(incidentId).toBe(INCIDENT_ID);
-    // O backend exige `kind` junto do arquivo — não é um passo posterior.
     expect(kind).toBe('POLICE_REPORT');
     expect(file).toBeInstanceOf(File);
-
-    expect(api().documents()).toEqual([savedDocument]);
-    expect(api().uploading()).toBe(false);
     expect(successToast).toHaveBeenCalledWith('Anexo enviado.');
+  });
+
+  /**
+   * MODO N — o produto não mudou no FIX-0234: a segunda foto do dano
+   * ACRESCENTA, o slot nunca tranca por ter arquivo.
+   */
+  it('acumula duas fotos do dano no mesmo slot — nenhum teto por tipo', async () => {
+    listDocuments.mockReturnValue(of([savedDocument]));
+    await setup();
+    expect(slotFileRows('DAMAGE_PHOTO')).toHaveLength(1);
+    expect(slotButton('DAMAGE_PHOTO').disabled).toBe(false);
+
+    uploadDocument.mockReturnValue(of(segundaFoto));
+    attach('DAMAGE_PHOTO', photo('dano-lateral.jpg'));
+
+    const rows = slotFileRows('DAMAGE_PHOTO');
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain('dano-frontal.jpg');
+    expect(rows[1].textContent).toContain('dano-lateral.jpg');
+    // E o slot CONTINUA anexável: modo N não conhece "cheio".
+    expect(slotButton('DAMAGE_PHOTO').disabled).toBe(false);
+    expect(slotButton('DAMAGE_PHOTO').getAttribute('aria-label')).toBe(
+      'Anexar Foto do dano — anexo anexado, ainda há vaga',
+    );
   });
 
   it('recusa formato fora da allowlist sem gastar dados móveis', async () => {
     await setup();
 
-    api().onFileSelected(fileEvent(photo('planilha.xlsx', 1024, 'application/vnd.ms-excel')));
-    fixture.detectChanges();
+    attach('DAMAGE_PHOTO', photo('planilha.xlsx', 1024, 'application/vnd.ms-excel'));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(api().error()).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
+    expect(state().error()).toContain('PDF, JPG, PNG, WebP, HEIC/HEIF');
   });
 
   it('recusa arquivo acima de 20MB sem chamar a API', async () => {
     await setup();
 
-    api().onFileSelected(fileEvent(photo('enorme.jpg', 21 * 1024 * 1024)));
-    fixture.detectChanges();
+    attach('DAMAGE_PHOTO', photo('enorme.jpg', 21 * 1024 * 1024));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(api().error()).toContain('20MB');
+    expect(state().error()).toContain('20MB');
   });
 
   /** Alguns Android entregam `type` vazio para HEIC — o nome salva o envio. */
   it('aceita HEIC sem content-type pelo nome do arquivo', async () => {
     await setup();
 
-    api().onFileSelected(fileEvent(photo('IMG_0042.HEIC', 1024, '')));
-    fixture.detectChanges();
+    attach('DAMAGE_PHOTO', photo('IMG_0042.HEIC', 1024, ''));
 
     expect(uploadDocument).toHaveBeenCalledTimes(1);
   });
 
-  /**
-   * Estado indeterminado, nunca barra falsa: enquanto o upload está em voo a
-   * tela diz "Enviando…" e oferece um cancelamento que ABORTA o request
-   * (unsubscribe dispara o AbortController do FetchBackend).
-   */
-  it('mostra estado indeterminado sem barra de progresso durante o envio', async () => {
+  it('mostra estado indeterminado no slot tocado, sem barra de progresso', async () => {
     const pending = new Subject<IncidentDocument>();
     uploadDocument.mockReturnValue(pending.asObservable());
     await setup();
 
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
+    attach('DAMAGE_PHOTO', photo());
 
-    expect(api().uploading()).toBe(true);
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).toContain('Enviando o anexo…');
-    expect(host.querySelector('progress')).toBeNull();
-    expect(host.querySelector('[role="progressbar"]')).toBeNull();
-    expect(host.querySelector('[role="status"]')?.getAttribute('aria-live')).toBe('polite');
+    expect(slotEl('DAMAGE_PHOTO').textContent).toContain('Enviando o anexo…');
+    expect(host().querySelector('progress')).toBeNull();
+    expect(host().querySelector('[role="progressbar"]')).toBeNull();
   });
 
-  /**
-   * O cancelamento tem que DESFAZER A ASSINATURA, não só esconder o aviso: é o
-   * `unsubscribe` que dispara o `AbortController` do FetchBackend e mata o
-   * request no browser. Um botão que apenas trocasse o estado visual deixaria o
-   * upload correndo e consumindo a franquia de dados do usuário.
-   */
   it('"Cancelar envio" desfaz a assinatura, abortando o request de verdade', async () => {
     let aborted = false;
     uploadDocument.mockReturnValue(
-      new Observable<IncidentDocument>(() => {
-        // Teardown do Observable: só roda em unsubscribe.
-        return () => {
-          aborted = true;
-        };
+      new Observable<IncidentDocument>(() => () => {
+        aborted = true;
       }),
     );
 
     await setup();
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
-    expect(api().uploading()).toBe(true);
+    attach('DAMAGE_PHOTO', photo());
     expect(aborted).toBe(false);
 
-    api().cancelUpload();
+    const cancelar = Array.from(slotEl('DAMAGE_PHOTO').querySelectorAll('button')).find((b) =>
+      (b.textContent ?? '').includes('Cancelar envio'),
+    );
+    expect(cancelar).toBeDefined();
+    cancelar?.click();
     fixture.detectChanges();
 
     expect(aborted).toBe(true);
-    expect(api().uploading()).toBe(false);
-    expect(api().documents()).toHaveLength(0);
+    expect(state().documents()).toHaveLength(0);
     expect(infoToast).toHaveBeenCalledWith('Envio cancelado.');
     expect(successToast).not.toHaveBeenCalled();
   });
@@ -230,18 +281,18 @@ describe('IncidentDocumentsCard', () => {
     );
     await setup();
 
-    api().onFileSelected(fileEvent(photo()));
-    fixture.detectChanges();
+    attach('DAMAGE_PHOTO', photo());
 
-    expect(api().error()).toContain('20MB');
-    expect(api().uploading()).toBe(false);
+    expect(state().error()).toContain('20MB');
   });
 
   it('abre o anexo navegando a aba reservada para a signed URL', async () => {
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
 
-    api().openDocument(savedDocument);
+    slotFileRows('DAMAGE_PHOTO')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Abrir anexo dano-frontal.jpg"]')
+      ?.click();
     fixture.detectChanges();
 
     expect(documentSignedUrl).toHaveBeenCalledWith(INCIDENT_ID, 'doc-1');
@@ -253,7 +304,9 @@ describe('IncidentDocumentsCard', () => {
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
 
-    api().openDocument(savedDocument);
+    slotFileRows('DAMAGE_PHOTO')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Abrir anexo dano-frontal.jpg"]')
+      ?.click();
 
     expect(openPendingTab).toHaveBeenCalledWith(INCIDENT_DOCUMENT_PLACEHOLDER_COPY);
     const [copy] = openPendingTab.mock.calls[0] as [PendingTabPlaceholderCopy];
@@ -269,44 +322,43 @@ describe('IncidentDocumentsCard', () => {
     );
     await setup();
 
-    api().openDocument(savedDocument);
+    slotFileRows('DAMAGE_PHOTO')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Abrir anexo dano-frontal.jpg"]')
+      ?.click();
     fixture.detectChanges();
 
     expect(closeTab).toHaveBeenCalledTimes(1);
     expect(navigate).not.toHaveBeenCalled();
-    expect(api().error()).toBe('Não foi possível abrir o anexo.');
   });
 
-  it('remove o anexo e tira a linha da lista', async () => {
+  it('remove o anexo depois da confirmação e tira a linha da lista', async () => {
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
-    expect(api().documents()).toHaveLength(1);
 
-    api().askDelete(savedDocument);
-    api().confirmDelete();
+    slotFileRows('DAMAGE_PHOTO')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Remover anexo dano-frontal.jpg"]')
+      ?.click();
+    fixture.detectChanges();
+    expect(deleteDocument).not.toHaveBeenCalled();
+
+    const dialog = host().querySelector('app-confirm-dialog');
+    const confirmar = Array.from(dialog?.querySelectorAll('button') ?? []).find(
+      (b) => (b.textContent ?? '').trim() === 'Remover',
+    );
+    confirmar?.click();
     fixture.detectChanges();
 
     expect(deleteDocument).toHaveBeenCalledWith(INCIDENT_ID, 'doc-1');
-    expect(api().documents()).toHaveLength(0);
+    expect(state().documents()).toHaveLength(0);
     expect(successToast).toHaveBeenCalledWith('Anexo removido.');
   });
 
-  it('remoção só acontece depois da confirmação', async () => {
+  it('renderiza nome, tipo e tamanho a partir do DTO — e o título "Anexos"', async () => {
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
 
-    api().askDelete(savedDocument);
-    fixture.detectChanges();
-
-    expect(deleteDocument).not.toHaveBeenCalled();
-    expect(api().documents()).toHaveLength(1);
-  });
-
-  it('renderiza nome, tipo e tamanho a partir do DTO', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
-    await setup();
-
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    const text = host().textContent ?? '';
+    expect(text).toContain('Anexos');
     expect(text).toContain('dano-frontal.jpg');
     expect(text).toContain('Foto do dano');
     expect(text).toContain('200.0 KB');
