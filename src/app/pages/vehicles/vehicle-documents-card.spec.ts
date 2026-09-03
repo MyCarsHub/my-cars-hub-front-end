@@ -4,7 +4,10 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { By } from '@angular/platform-browser';
+
 import { VEHICLE_DOCUMENT_PLACEHOLDER_COPY, VehicleDocumentsCard } from './vehicle-documents-card';
+import { DocumentsCard } from '../../components/documents/documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -28,10 +31,10 @@ import type { VehicleDocument } from '../../types/vehicle.types';
  *    `UploadProgress`, então qualquer barra seria animação desconectada do
  *    envio real. O estado é indeterminado e "Cancelar envio" ABORTA de verdade.
  * 2. NÃO existe compressão — comprimir um CRLV o deixa ilegível.
- * 3. NÃO existe unicidade por tipo. O CRLV é reemitido a cada licenciamento; o
- *    do ano passado e o deste ano CONVIVEM no MESMO slot, e enviar um novo não
- *    substitui o anterior. Também não existe portão de perfil aqui: são dois
- *    tipos fixos.
+ * 3. UM arquivo por tipo (FIX-0232, padrão canônico via o card compartilhado):
+ *    o slot preenchido não abre o seletor — o segundo gesto é remover, nunca
+ *    acrescentar. CRLVs legados de anos anteriores continuam visíveis e
+ *    removíveis. Não existe portão de perfil aqui: são dois tipos fixos.
  */
 describe('VehicleDocumentsCard', () => {
   const VEHICLE_ID = 'veh-1';
@@ -74,7 +77,11 @@ describe('VehicleDocumentsCard', () => {
   }
 
   function state(): CardState {
-    return fixture.componentInstance as unknown as CardState;
+    // O estado mora no `DocumentsCard` COMPARTILHADO (FIX-0232); o card do
+    // veículo virou o wrapper que o parametriza.
+    const inner = fixture.debugElement.query(By.directive(DocumentsCard))?.componentInstance;
+    if (!inner) throw new Error('o card compartilhado não está na tela');
+    return inner as CardState;
   }
 
   function host(): HTMLElement {
@@ -234,8 +241,34 @@ describe('VehicleDocumentsCard', () => {
     await setup();
 
     expect(host().querySelector('[role="status"]')?.textContent).toContain(
-      'O CRLV do veículo está anexado',
+      'Todos os documentos essenciais foram anexados',
     );
+  });
+
+  /** FIX-0232: descrição e dica do CRLV com os textos EXATOS da regra nova. */
+  it('descreve o card e o CRLV com os textos da regra de um por tipo', async () => {
+    await setup();
+
+    const texto = (host().textContent ?? '').replace(/\s+/g, ' ');
+    expect(texto).toContain(
+      'Toque em um tipo para anexar os documentos do veículo. ' +
+        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+    );
+    expect(texto).toContain('Sempre o mais recente; anexar de novo substitui.');
+    expect(texto).not.toContain('anos diferentes convivem');
+    // O título do card é o do usuário, preservado na adoção.
+    expect(texto).toContain('Documentos anexados');
+  });
+
+  /** FIX-0236 herdado: sem arquivo = vermelho, com arquivo = verde. */
+  it('pinta o CRLV vazio de vermelho e, anexado, de verde', async () => {
+    listDocuments.mockReturnValue(of([savedDocument]));
+    await setup();
+
+    expect(slotEl('CRLV').getAttribute('data-state')).toBe('filled');
+    expect(slotEl('CRLV').classList.contains('bg-success-50')).toBe(true);
+    expect(slotEl('OTHER').getAttribute('data-state')).toBe('empty');
+    expect(slotEl('OTHER').classList.contains('bg-rose-50')).toBe(true);
   });
 
   /**
@@ -451,35 +484,78 @@ describe('VehicleDocumentsCard', () => {
     expect(errorToast).not.toHaveBeenCalled();
   });
 
-  // -------------------------------------------------- N arquivos por tipo
+  // -------------------------------------------------- UM arquivo por tipo
 
   /**
-   * ESTE é o requisito que o grid da vistoria não atende. O CRLV é reemitido a
-   * cada licenciamento (COMMENT da V68): o do ano passado e o deste ano
-   * CONVIVEM no mesmo slot, e o novo NÃO substitui o anterior.
+   * FIX-0232 — a regra nova: sempre o CRLV MAIS RECENTE, um por tipo. O slot
+   * preenchido não abre o seletor: o segundo gesto é remover o atual, nunca
+   * acrescentar mais um ano.
    */
-  it('acumula dois CRLV no mesmo slot, sem um esconder o outro', async () => {
-    listDocuments.mockReturnValue(of([crlvAnterior]));
+  it('slot preenchido não abre o seletor nem aceita um segundo CRLV', async () => {
+    listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
     expect(slotFileRows('CRLV')).toHaveLength(1);
 
-    uploadDocument.mockReturnValue(of(savedDocument));
-    attach('CRLV', photo('crlv-2025.pdf'));
+    expect(slotButton('CRLV').disabled).toBe(true);
+    slotButton('CRLV').click();
+    fixture.detectChanges();
+    dispatchFile(photo('crlv-2026.pdf'));
+
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(slotFileRows('CRLV')).toHaveLength(1);
+    // O outro slot continua anexável — o bloqueio é por tipo.
+    expect(slotButton('OTHER').disabled).toBe(false);
+  });
+
+  /**
+   * DADO LEGADO: CRLVs de anos diferentes gravados antes do FIX-0232 continuam
+   * TODOS visíveis e removíveis — esconder o excedente tiraria a única forma
+   * de resolvê-lo. O plural só existe para esse legado.
+   */
+  it('mantém visíveis dois CRLVs legados, sem aceitar um terceiro', async () => {
+    listDocuments.mockReturnValue(of([crlvAnterior, savedDocument]));
+    await setup();
 
     const linhas = slotFileRows('CRLV');
     expect(linhas).toHaveLength(2);
     expect(linhas[0].textContent).toContain('crlv-2024.pdf');
     expect(linhas[1].textContent).toContain('crlv-2025.pdf');
     expect(slotText('CRLV')).toContain('2 arquivos');
+    expect(slotButton('CRLV').disabled).toBe(true);
   });
 
-  it('conta 1 arquivo no singular', async () => {
+  it('marca o slot preenchido como "Anexado"', async () => {
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
 
-    expect(slotText('CRLV')).toContain('1 arquivo');
-    expect(slotText('CRLV')).not.toContain('1 arquivos');
+    expect(slotText('CRLV')).toContain('Anexado');
     expect(slotEl('CRLV').getAttribute('data-filled')).toBe('true');
+  });
+
+  /**
+   * FIX-0232: o servidor TAMBÉM recusa o kind duplicado (400
+   * `fieldErrors.kind`, shipped hoje) — corrida entre duas abas, por exemplo.
+   * A mensagem do servidor é user-ready e aparece INLINE, nunca toast.
+   */
+  it('renderiza o 400 de kind duplicado (fieldErrors.kind) inline, sem toast', async () => {
+    const duplicado = 'Já existe um CRLV anexado a este veículo. Remova o atual para substituir.';
+    uploadDocument.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            statusText: 'Bad Request',
+            error: { fieldErrors: { kind: duplicado } },
+          }),
+      ),
+    );
+    await setup();
+
+    attach('CRLV', photo());
+
+    expect(state().error()).toBe(duplicado);
+    expect(host().textContent).toContain(duplicado);
+    expect(errorToast).not.toHaveBeenCalled();
   });
 
   it('agrupa cada arquivo sob o slot do seu próprio tipo', async () => {
@@ -552,7 +628,7 @@ describe('VehicleDocumentsCard', () => {
 
   // ----------------------------------------------------------------- remover
 
-  it('remove só o CRLV escolhido e deixa o do outro ano', async () => {
+  it('remove só o CRLV escolhido e deixa o do outro ano (dado legado)', async () => {
     listDocuments.mockReturnValue(of([crlvAnterior, savedDocument]));
     await setup();
     expect(slotFileRows('CRLV')).toHaveLength(2);
@@ -569,7 +645,7 @@ describe('VehicleDocumentsCard', () => {
     const restantes = slotFileRows('CRLV');
     expect(restantes).toHaveLength(1);
     expect(restantes[0].textContent).toContain('crlv-2025.pdf');
-    expect(slotText('CRLV')).toContain('1 arquivo');
+    expect(slotText('CRLV')).toContain('Anexado');
     expect(successToast).toHaveBeenCalledWith('Documento removido.');
   });
 

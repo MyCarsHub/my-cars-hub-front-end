@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DRIVER_DOCUMENT_PLACEHOLDER_COPY, DriverDocumentsCard } from './driver-documents-card';
+import { DocumentsCard } from '../../components/documents/documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { DriverService } from '../../services/driver.service';
@@ -86,7 +88,11 @@ describe('DriverDocumentsCard', () => {
   }
 
   function state(): CardState {
-    return fixture.componentInstance as unknown as CardState;
+    // O estado mora no `DocumentsCard` COMPARTILHADO (FIX-0231); o card do
+    // motorista virou o wrapper que o parametriza.
+    const inner = fixture.debugElement.query(By.directive(DocumentsCard))?.componentInstance;
+    if (!inner) throw new Error('o card compartilhado não está na tela');
+    return inner as CardState;
   }
 
   function host(): HTMLElement {
@@ -582,6 +588,13 @@ describe('DriverDocumentsCard', () => {
     expect(slotEl('CNH').getAttribute('data-state')).toBe('filled');
     expect(slotEl('ADDRESS_PROOF').getAttribute('data-state')).toBe('empty');
     expect(slotEl('APP_RIDE_RECEIPT').getAttribute('data-state')).toBe('gated');
+
+    // FIX-0236 (decisão do usuário), herdado do card compartilhado: sem
+    // documento = VERMELHO, com documento = VERDE, portão fechado = neutro.
+    expect(slotEl('CNH').classList.contains('bg-success-50')).toBe(true);
+    expect(slotEl('ADDRESS_PROOF').classList.contains('bg-rose-50')).toBe(true);
+    expect(slotEl('ADDRESS_PROOF').classList.contains('border-rose-500')).toBe(true);
+    expect(slotEl('APP_RIDE_RECEIPT').classList.contains('bg-neutral-50')).toBe(true);
   });
 
   it('agrupa cada arquivo sob o slot do seu próprio tipo', async () => {

@@ -1,13 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
   OnInit,
   DestroyRef,
   computed,
   inject,
   signal,
-  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -44,13 +42,12 @@ import {
   MaintenanceType,
   UpdateMaintenanceRequest,
 } from '../../types/maintenance.types';
+import { PendingMaintenanceDoc } from './maintenance-document-upload';
+import { formatDocumentSize } from '../../components/documents/document-file-rules';
 import {
-  MAINTENANCE_DOC_ACCEPT,
-  MAINTENANCE_DOC_MAX_BYTES,
-  PendingMaintenanceDoc,
-  formatDocSize,
-  isAllowedMaintenanceDoc,
-} from './maintenance-document-upload';
+  PendingDocumentsBlock,
+  PendingSlotView,
+} from '../../components/documents/pending-documents-block';
 import { formatBRL } from '../../types/dashboard.types';
 import { VehicleListItem } from '../../types/vehicle.types';
 import {
@@ -170,7 +167,15 @@ function hodometerValidator(required: boolean): ValidatorFn {
 @Component({
   selector: 'app-maintenance-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
+  imports: [
+    ReactiveFormsModule,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    FormField,
+    FieldControl,
+    PendingDocumentsBlock,
+  ],
   templateUrl: './maintenance-form.html',
 })
 export class MaintenanceForm implements OnInit {
@@ -211,17 +216,37 @@ export class MaintenanceForm implements OnInit {
   /** Contador local para o `uid` — sem `Math.random`, sem `Date.now`. */
   private pendingSeq = 0;
 
-  /** Tipo alvo do seletor de arquivos, escrito no toque e lido no `change`. */
-  private readonly pendingKind = signal<MaintenanceDocumentKind | null>(null);
-
-  protected readonly docAccept = MAINTENANCE_DOC_ACCEPT;
-
-  private readonly docPicker = viewChild<ElementRef<HTMLInputElement>>('docPicker');
-
-  protected readonly docSlots: ReadonlyArray<{ kind: MaintenanceDocumentKind; label: string }> = [
-    { kind: 'NOTA_FISCAL', label: MAINTENANCE_DOCUMENT_KIND_META['NOTA_FISCAL'] },
-    { kind: 'OTHER', label: MAINTENANCE_DOCUMENT_KIND_META['OTHER'] },
-  ];
+  /**
+   * Um slot por tipo, na visão do `PendingDocumentsBlock` compartilhado
+   * (FIX-0233). UMA nota fiscal por manutenção (decisão estrita do usuário):
+   * escolher de novo SUBSTITUI a pendente; para mais notas, o caminho é
+   * registrar manutenções POR EVENTO. `sent` é sempre falso aqui porque a fila
+   * REMOVE o que sobe (`documentsStep`) — não há slot trancado neste form.
+   */
+  protected readonly documentSlots = computed<PendingSlotView[]>(() =>
+    (
+      [
+        {
+          kind: 'NOTA_FISCAL',
+          hint: 'Uma por manutenção. Para mais notas, registre manutenções por evento.',
+        },
+        { kind: 'OTHER', hint: 'Qualquer outro arquivo da manutenção.' },
+      ] as const
+    ).map((def) => ({
+      kind: def.kind,
+      label: MAINTENANCE_DOCUMENT_KIND_META[def.kind],
+      hint: def.hint,
+      files: this.pendingDocs()
+        .filter((d) => d.kind === def.kind)
+        .map((d) => ({
+          id: d.uid,
+          name: d.file.name,
+          sizeText: formatDocumentSize(d.file.size),
+          sent: false,
+        })),
+      sent: false,
+    })),
+  );
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -691,71 +716,37 @@ export class MaintenanceForm implements OnInit {
     );
   }
 
-  /** O slot é a afordância: tocá-lo registra o tipo e abre o seletor. */
-  protected openDocPicker(kind: MaintenanceDocumentKind): void {
-    if (this.saving()) return;
+  /**
+   * Arquivo VÁLIDO escolhido no `PendingDocumentsBlock` (regras de formato e
+   * tamanho já passaram lá; a recusa chega por `onDocRejected`).
+   *
+   * UMA nota por manutenção (FIX-0233): escolher de novo SUBSTITUI a pendente
+   * do mesmo tipo — nunca uma segunda linha. Trocar "acrescenta" por
+   * "substitui" também subsume a antiga guarda de duplicata por nome+tamanho.
+   */
+  protected onDocFilePicked(picked: { kind: string; file: File }): void {
+    const kind = picked.kind as MaintenanceDocumentKind;
     this.error.set(null);
-    this.pendingKind.set(kind);
-    this.docPicker()?.nativeElement.click();
-  }
-
-  protected onDocSelected(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    // Zera ANTES de qualquer retorno: sem isso, reescolher o MESMO arquivo
-    // depois de um erro não dispara `change`.
-    target.value = '';
-    const kind = this.pendingKind();
-    this.pendingKind.set(null);
-    if (!file || !kind) return;
-
-    if (!isAllowedMaintenanceDoc(file)) {
-      this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
-      return;
-    }
-    if (file.size > MAINTENANCE_DOC_MAX_BYTES) {
-      this.error.set(
-        `O arquivo tem ${formatDocSize(file.size)} e o limite é 20MB. ` +
-          'Fotografe o documento com menos resolução e escolha de novo.',
+    const existing = this.pendingDocs().find((d) => d.kind === kind);
+    if (existing) {
+      this.pendingDocs.update((list) =>
+        list.map((d) => (d.uid === existing.uid ? { ...d, file: picked.file } : d)),
       );
       return;
     }
-
-    // Reescolha do MESMO arquivo, no MESMO tipo: ignora em silêncio.
-    //
-    // O caso real é tocar no slot duas vezes e escolher o mesmo PDF — o segundo
-    // toque não é "quero duas cópias", é hesitação. Sem esta guarda o arquivo
-    // subiria duas vezes e a manutenção ficaria com a nota fiscal duplicada no
-    // custo. A identidade é nome + tamanho + tipo: dois arquivos DIFERENTES
-    // passam, e duas notas legítimas do mesmo `kind` (peça e mão de obra) têm
-    // nomes diferentes e continuam convivendo — que é o caso normal aqui.
-    const jaNaFila = this.pendingDocs().some(
-      (d) => d.kind === kind && d.file.name === file.name && d.file.size === file.size,
-    );
-    if (jaNaFila) {
-      this.error.set(null);
-      return;
-    }
-
-    this.error.set(null);
     this.pendingSeq += 1;
     const uid = `pend-${this.pendingSeq}`;
-    // ACRESCENTA. Escolher uma segunda nota fiscal não substitui a primeira:
-    // peça e mão de obra saem de fornecedores diferentes.
-    this.pendingDocs.update((list) => [...list, { uid, file, kind }]);
+    this.pendingDocs.update((list) => [...list, { uid, file: picked.file, kind }]);
   }
 
-  protected removePendingDoc(uid: string): void {
+  /** Recusa das regras compartilhadas (formato/tamanho): banner do form. */
+  protected onDocRejected(message: string): void {
+    this.error.set(message);
+  }
+
+  protected removePendingDoc(uid: number | string): void {
     if (this.saving()) return;
     this.pendingDocs.update((list) => list.filter((d) => d.uid !== uid));
-  }
-
-  protected pendingSizeText(doc: PendingMaintenanceDoc): string {
-    return formatDocSize(doc.file.size);
-  }
-
-  protected pendingKindLabel(doc: PendingMaintenanceDoc): string {
-    return MAINTENANCE_DOCUMENT_KIND_META[doc.kind];
   }
 
   private onSaved(id: string): void {

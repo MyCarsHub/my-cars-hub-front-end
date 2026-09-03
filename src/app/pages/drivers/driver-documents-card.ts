@@ -1,35 +1,12 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  OnDestroy,
-  OnInit,
-  computed,
-  inject,
-  input,
-  signal,
-  viewChild,
-} from '@angular/core';
-import { Subscription } from 'rxjs';
-import { PageCard } from '../../components/core/page-card/page-card';
-import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
-import { AlertBanner } from '../../components/alert-banner/alert-banner';
-import { ApiErrorService } from '../../services/api-error.service';
+  DocumentsCard,
+  DocumentsCardOps,
+  DocumentSlotDef,
+} from '../../components/documents/documents-card';
 import { DriverService } from '../../services/driver.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
-import { NotificationService } from '../../services/notification.service';
 import { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
-import {
-  DRIVER_DOCUMENT_KIND_META,
-  DriverDocument,
-  DriverDocumentKind,
-} from '../../types/driver.types';
-import {
-  MAX_DOCUMENT_BYTES,
-  formatDocumentSize,
-  isAllowedDocumentFile,
-} from './driver-document-file-rules';
+import { DRIVER_DOCUMENT_KIND_META, DriverDocumentKind } from '../../types/driver.types';
 
 /** Cópia da aba reservada. Anexo de motorista não cobra nada — não fale em pagamento. */
 export const DRIVER_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
@@ -41,96 +18,31 @@ export const DRIVER_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
 };
 
 /**
- * Definição estática dos slots, NA ORDEM EM QUE APARECEM.
+ * Documentos do motorista — o dono do PADRÃO extraído para o
+ * `DocumentsCard` compartilhado (FIX-0231): este arquivo virou o wrapper que
+ * diz O QUE o motorista anexa (slots, portão do extrato, cópias) e COMO os
+ * dados trafegam (`DriverService`); todo o comportamento — um por tipo,
+ * hierarquia de estados, upload abortável, dado legado N por tipo — mora no
+ * componente compartilhado.
  *
- * A ordem é fixa de propósito: um slot que muda de lugar conforme o
- * preenchimento é um slot que o usuário não consegue decorar. Preenchido ou
- * vazio, a CNH está sempre no topo.
- *
- * `required` alimenta o contador "N de M". `OTHER` fica de fora porque é
- * opcional — não é cobrado do usuário e não entra no total.
- */
-const DRIVER_SLOT_DEFS: ReadonlyArray<{
-  kind: DriverDocumentKind;
-  hint: string;
-  required: boolean;
-}> = [
-  { kind: 'CNH', hint: 'Frente e verso.', required: true },
-  {
-    kind: 'ADDRESS_PROOF',
-    hint: 'Conta de luz, água ou internet dos últimos meses.',
-    required: true,
-  },
-  { kind: 'INCOME_PROOF', hint: 'Holerite, extrato bancário ou declaração.', required: true },
-  { kind: 'APP_RIDE_RECEIPT', hint: 'Extrato de corridas do aplicativo.', required: true },
-  { kind: 'OTHER', hint: 'Qualquer outro arquivo do motorista.', required: false },
-];
-
-/** Um tipo de documento e o arquivo anexado sob ele. */
-export interface DriverDocumentSlot {
-  kind: DriverDocumentKind;
-  label: string;
-  hint: string;
-  required: boolean;
-  /**
-   * A REGRA DE PRODUTO é UM arquivo por tipo (a CNH é um arquivo só, frente e
-   * verso juntos). Continua lista porque o SERVIDOR ainda aceita N por tipo e
-   * dado legado com mais de um arquivo precisa continuar visível e removível —
-   * esconder o excedente tiraria do usuário a única forma de resolvê-lo.
-   */
-  files: DriverDocument[];
-  uploading: boolean;
-  /**
-   * `false` quando o slot só está visível porque JÁ tem arquivo, mas o portão
-   * que autorizaria novos envios está fechado. Ver `slots()`.
-   */
-  uploadable: boolean;
-  /**
-   * Hierarquia visual do slot, em um lugar só para template e teste:
-   * `gated` (portão fechado) > `filled` (tem arquivo) > `empty`.
-   */
-  state: 'empty' | 'filled' | 'gated';
-}
-
-/**
- * Documentos do motorista: CNH, comprovante de residência, comprovante de
- * renda, extrato de aplicativo.
- *
- * ESTRUTURA: uma LISTA DE SLOTS, um por tipo esperado. O slot É a afordância —
- * tocá-lo abre o seletor de arquivos DAQUELE tipo. Não existe `<select>` e não
- * existe botão "Anexar documento" separado: o usuário não precisa mais saber de
- * antemão o que quer, ele vê o buraco e o preenche.
- *
- * UM ARQUIVO POR TIPO é a regra de produto: a CNH é um arquivo só (frente e
- * verso juntos). O slot preenchido NÃO abre o seletor — o segundo gesto é
- * remover (e anexar de novo), nunca acrescentar. O SERVIDOR ainda aceita N por
- * tipo (só o teto de 20 por motorista), então dado legado com mais de um
- * arquivo pode existir: o slot lista TODOS, com abrir/remover por arquivo,
- * porque esconder o excedente tiraria do usuário a única forma de resolvê-lo.
- *
- * NÃO EXIBE BARRA DE PROGRESSO, e isso é deliberado: o app usa
- * `provideHttpClient(withFetch())` e o `FetchBackend` do Angular nunca emite
- * `HttpEventType.UploadProgress`. Qualquer barra aqui seria uma animação
- * desconectada do envio real — o defeito já registrado neste projeto. O estado
- * é indeterminado, assumido como tal, e o "Cancelar envio" aborta o request de
- * verdade (o `unsubscribe` dispara o `AbortController` do FetchBackend).
- *
- * NÃO COMPRIME o arquivo, e isso também é deliberado: comprimir uma CNH a deixa
- * ILEGÍVEL, o que anula a razão de anexá-la. A compressão do
- * `RentalInspectionService` serve foto de vistoria e não vale aqui.
+ * `CNH` é UM tipo e UM arquivo (frente e verso juntos, FIX-0226).
  */
 @Component({
   selector: 'app-driver-documents-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [PageCard, ConfirmDialog, AlertBanner],
-  templateUrl: './driver-documents-card.html',
+  imports: [DocumentsCard],
+  template: `
+    <app-documents-card
+      [slotDefs]="slotDefs()"
+      [ops]="ops"
+      description="Toque em um tipo para anexar os documentos do motorista. São aceitos PDF, JPG ou PNG até 20MB cada."
+      [placeholderCopy]="placeholderCopy"
+    />
+  `,
 })
-export class DriverDocumentsCard implements OnInit, OnDestroy {
+export class DriverDocumentsCard {
   private readonly driverService = inject(DriverService);
-  private readonly apiErrors = inject(ApiErrorService);
-  private readonly notifications = inject(NotificationService);
-  private readonly externalNavigation = inject(ExternalNavigationService);
 
   readonly driverId = input.required<string>();
 
@@ -149,358 +61,65 @@ export class DriverDocumentsCard implements OnInit, OnDestroy {
    *
    * Compara com `=== true` em vez de testar truthiness: ausente/`undefined`/
    * `null` fecham o slot, que é a direção segura enquanto a V69 não sobe. E lê
-   * o input direto — nada de encadear propriedade de objeto possivelmente nulo,
-   * que é a forma exata do `TypeError` que já derrubou uma view aqui.
+   * o input direto — nada de encadear propriedade de objeto possivelmente
+   * nulo, que é a forma exata do `TypeError` que já derrubou uma view aqui.
    */
-  protected readonly showAppRideReceipt = computed(() => this.isAppDriver() === true);
-
-  protected readonly documents = signal<DriverDocument[]>([]);
-  protected readonly loading = signal(false);
-  protected readonly openingId = signal<string | null>(null);
-  protected readonly deleting = signal<DriverDocument | null>(null);
-  protected readonly deletingBusy = signal(false);
-  /** Falha de negócio (inclusive o teto de 20 anexos): banner inline, nunca toast. */
-  protected readonly error = signal<string | null>(null);
+  private readonly showAppRideReceipt = computed(() => this.isAppDriver() === true);
 
   /**
-   * ALVO do seletor de arquivos — a intenção do gesto, não um estado de tela.
-   *
-   * Substitui o antigo `selectedKind` do `<select>`: é escrito por
-   * `openPicker()` no instante do toque e lido por `onFileSelected()` quando o
-   * arquivo chega. NÃO indica envio em voo, e essa distinção é o conserto de um
-   * defeito real: o diálogo nativo de arquivos pode ser dispensado sem escolher
-   * nada, e nesse caso nenhum envio começou. Confundir os dois fazia o slot
-   * anunciar "Enviando…" no instante do toque e nunca mais sair disso.
+   * Slots do motorista, NA ORDEM em que aparecem (fixa — um slot que muda de
+   * lugar conforme o preenchimento é um slot que o usuário não decora).
+   * `required` alimenta o contador "N de M"; `OTHER` fica fora por opcional.
+   * As defs são um `computed` porque o portão do extrato é DINÂMICO: o card
+   * compartilhado reage à recarga que fecha o portão no meio do gesto.
    */
-  protected readonly pendingKind = signal<DriverDocumentKind | null>(null);
-
-  /**
-   * Tipo do envio REALMENTE em voo. Só é escrito quando o request começa e é
-   * limpo por `finishUpload()`. É ele que decide dentro de qual slot o estado
-   * "Enviando…" aparece e que trava os outros slots.
-   */
-  protected readonly uploadingKind = signal<DriverDocumentKind | null>(null);
-
-  private readonly picker = viewChild<ElementRef<HTMLInputElement>>('picker');
-
-  /**
-   * Um slot por tipo esperado, com os arquivos daquele tipo agrupados dentro.
-   *
-   * O slot do extrato de aplicativo aparece quando o portão está aberto OU
-   * quando já existe arquivo sob ele. O segundo caso é real: um motorista que
-   * era de app, anexou o extrato e depois teve a flag desligada continuaria com
-   * o arquivo no banco — escondê-lo tiraria do usuário a única forma de vê-lo e
-   * de removê-lo. O slot aparece, mas `uploadable` fica `false` e ele não
-   * aceita envio novo. O portão veda ENVIO; não esconde dado que já existe.
-   */
-  protected readonly slots = computed<DriverDocumentSlot[]>(() => {
-    const docs = this.documents();
+  protected readonly slotDefs = computed<DocumentSlotDef[]>(() => {
     const gateOpen = this.showAppRideReceipt();
-    const sending = this.uploadingKind();
-    return DRIVER_SLOT_DEFS.map((def) => {
-      const files = docs.filter((d) => d.kind === def.kind);
-      const uploadable = def.kind !== 'APP_RIDE_RECEIPT' || gateOpen;
-      const state: DriverDocumentSlot['state'] = !uploadable
-        ? 'gated'
-        : files.length > 0
-          ? 'filled'
-          : 'empty';
-      return {
-        kind: def.kind,
-        label: DRIVER_DOCUMENT_KIND_META[def.kind],
-        hint: def.hint,
-        required: def.required,
-        files,
-        uploading: sending === def.kind,
-        uploadable,
-        state,
-      };
-    }).filter((slot) => slot.uploadable || slot.files.length > 0);
+    return [
+      {
+        kind: 'CNH',
+        label: DRIVER_DOCUMENT_KIND_META['CNH'],
+        hint: 'Frente e verso.',
+        required: true,
+      },
+      {
+        kind: 'ADDRESS_PROOF',
+        label: DRIVER_DOCUMENT_KIND_META['ADDRESS_PROOF'],
+        hint: 'Conta de luz, água ou internet dos últimos meses.',
+        required: true,
+      },
+      {
+        kind: 'INCOME_PROOF',
+        label: DRIVER_DOCUMENT_KIND_META['INCOME_PROOF'],
+        hint: 'Holerite, extrato bancário ou declaração.',
+        required: true,
+      },
+      {
+        kind: 'APP_RIDE_RECEIPT',
+        label: DRIVER_DOCUMENT_KIND_META['APP_RIDE_RECEIPT'],
+        hint: 'Extrato de corridas do aplicativo.',
+        required: true,
+        gated: !gateOpen,
+        gatedRefusalMessage:
+          'Extrato de aplicativo não está disponível para este motorista. ' +
+          'Escolha outro tipo e envie de novo.',
+      },
+      {
+        kind: 'OTHER',
+        label: DRIVER_DOCUMENT_KIND_META['OTHER'],
+        hint: 'Qualquer outro arquivo do motorista.',
+        required: false,
+      },
+    ];
   });
 
-  /** Há um envio em voo (em qualquer slot). Trava os demais slots. */
-  protected readonly uploading = computed(() => this.uploadingKind() !== null);
+  protected readonly placeholderCopy = DRIVER_DOCUMENT_PLACEHOLDER_COPY;
 
-  /** Slots essenciais visíveis — `OTHER` fora, ver `DRIVER_SLOT_DEFS`. */
-  private readonly requiredSlots = computed(() => this.slots().filter((s) => s.required));
-
-  protected readonly requiredTotal = computed(() => this.requiredSlots().length);
-
-  /** O número que responde "o que ainda falta?" sem o usuário abrir nada. */
-  protected readonly requiredFilled = computed(
-    () => this.requiredSlots().filter((s) => s.files.length > 0).length,
-  );
-
-  protected readonly allRequiredFilled = computed(
-    () => this.requiredTotal() > 0 && this.requiredFilled() === this.requiredTotal(),
-  );
-
-  private uploadSub: Subscription | null = null;
-
-  ngOnInit(): void {
-    this.load();
-  }
-
-  ngOnDestroy(): void {
-    this.uploadSub?.unsubscribe();
-  }
-
-  /**
-   * `Array.isArray` em vez de `?? []`: a garantia que importa é que
-   * `documents()` seja SEMPRE um array, porque `slots()` faz `.filter` sobre
-   * ele. Um corpo de erro que não seja lista (um objeto de erro, uma string de
-   * HTML) passaria pelo `??` e estouraria — a forma exata do `TypeError` que já
-   * derrubou uma view aqui. E o caminho de ERRO também zera a lista: sem isso
-   * uma recarga que falha deixaria na tela os arquivos da carga anterior.
-   */
-  private load(): void {
-    this.loading.set(true);
-    this.driverService.listDocuments(this.driverId()).subscribe({
-      next: (docs) => {
-        this.documents.set(Array.isArray(docs) ? docs : []);
-        this.loading.set(false);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.loading.set(false);
-        this.documents.set([]);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar os documentos.'));
-      },
-    });
-  }
-
-  /**
-   * O slot É a afordância: tocá-lo registra o tipo e abre o seletor.
-   *
-   * PRIMEIRA METADE DO PORTÃO NO ENVIO: um kind vedado nem chega a abrir o
-   * seletor. É barato e evita fazer o usuário escolher um arquivo para só
-   * depois ouvir "não". A segunda metade está em `onFileSelected()`, e as duas
-   * são necessárias — ver o comentário de lá.
-   */
-  protected openPicker(slot: DriverDocumentSlot): void {
-    if (this.uploading()) return;
-    // UM arquivo por tipo: slot preenchido não abre o seletor. O botão já vem
-    // desabilitado no template; a guarda aqui é a segunda metade da mesma
-    // regra, para o caso de o clique chegar por outro caminho.
-    if (slot.files.length > 0) return;
-    if (!this.canUpload(slot.kind)) {
-      this.refuseGatedKind();
-      return;
-    }
-    this.error.set(null);
-    this.pendingKind.set(slot.kind);
-    this.picker()?.nativeElement.click();
-  }
-
-  /** Portão do envio, em um lugar só, lido por `openPicker` e `onFileSelected`. */
-  private canUpload(kind: DriverDocumentKind): boolean {
-    return kind !== 'APP_RIDE_RECEIPT' || this.showAppRideReceipt();
-  }
-
-  /**
-   * Recusa em vez de reclassificar em silêncio — arquivo arquivado sob o tipo
-   * errado é pior que envio negado.
-   *
-   * A versão do `<select>` fazia `selectedKind.set('CNH')` depois de recusar,
-   * mas aquilo era só devolver o combo a um valor exibível. Sem combo não há
-   * nada a redefinir, e NÃO adotar outro tipo pelo usuário é mais fiel à
-   * intenção original do que escolher um por ele.
-   */
-  private refuseGatedKind(): void {
-    this.pendingKind.set(null);
-    this.error.set(
-      'Extrato de aplicativo não está disponível para este motorista. ' +
-        'Escolha outro tipo e envie de novo.',
-    );
-  }
-
-  protected onFileSelected(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    // Zera o input ANTES de qualquer retorno: sem isso, escolher o MESMO arquivo
-    // de novo depois de um erro não dispara `change`.
-    target.value = '';
-    const kind = this.pendingKind();
-    if (!file || !kind) {
-      this.pendingKind.set(null);
-      return;
-    }
-
-    // SEGUNDA METADE DO PORTÃO NO ENVIO. Não é redundante com `openPicker()`:
-    // entre o toque no slot e a escolha do arquivo o diálogo nativo do sistema
-    // fica aberto por segundos, e nesse intervalo o input `isAppDriver` pode
-    // mudar (a recarga do motorista chega, a flag some do JSON). O
-    // `pendingKind` já apanhado subiria um kind vedado. É a mesma guarda que
-    // existia contra `selectedKind`, reescrita para o novo ponto de entrada.
-    if (!this.canUpload(kind)) {
-      this.refuseGatedKind();
-      return;
-    }
-
-    if (!this.isAllowed(file)) {
-      this.pendingKind.set(null);
-      this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
-      return;
-    }
-    if (file.size > MAX_DOCUMENT_BYTES) {
-      this.pendingKind.set(null);
-      this.error.set(
-        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 20MB. ` +
-          'Fotografe o documento com menos resolução e envie de novo.',
-      );
-      return;
-    }
-
-    this.error.set(null);
-    // O estado "Enviando…" nasce AQUI, junto do request, e não no toque do
-    // slot: o diálogo nativo pode ter sido dispensado sem escolher arquivo.
-    this.uploadingKind.set(kind);
-    // Sem compressão: comprimir uma CNH a deixa ilegível.
-    this.uploadSub = this.driverService.uploadDocument(this.driverId(), kind, file).subscribe({
-      next: (doc) => {
-        this.finishUpload();
-        // O slot estava vazio (preenchido não abre o seletor), então o append
-        // preenche o tipo — e preserva eventual dado legado de outros tipos.
-        this.documents.update((list) => [...list, doc]);
-        this.notifications.success('Documento enviado.');
-      },
-      error: (err: HttpErrorResponse) => {
-        this.finishUpload();
-        this.error.set(this.uploadErrorMessage(err));
-      },
-    });
-  }
-
-  private isAllowed(file: File): boolean {
-    return isAllowedDocumentFile(file);
-  }
-
-  /**
-   * `status === 0` devolve `null` de propósito: quem avisa "sem conexão" é o
-   * `errorInterceptor`, e um banner aqui daria duas mensagens para a mesma
-   * falha. 413 usa o teto do cliente para não contradizer a guarda acima.
-   *
-   * Os erros de negócio do backend chegam em `fieldErrors.file` — o teto de 20
-   * anexos por motorista entre eles, que o servidor descreve como teto TÉCNICO
-   * e não restrição de plano — e `messageFor` já os prioriza sobre o fallback,
-   * então o texto do servidor é o que aparece no banner inline.
-   */
-  private uploadErrorMessage(err: HttpErrorResponse): string | null {
-    this.apiErrors.claim(err);
-    if (err.status === 0) return null;
-    if (err.status === 413) {
-      return 'O arquivo passou do limite de 20MB. Reduza a qualidade e envie de novo.';
-    }
-    return this.apiErrors.messageFor(err, 'Não foi possível enviar o documento.');
-  }
-
-  protected cancelUpload(): void {
-    if (!this.uploadSub) return;
-    // `unsubscribe` aborta o request no browser (FetchBackend usa AbortController).
-    this.uploadSub.unsubscribe();
-    this.finishUpload();
-    this.notifications.info('Envio cancelado.');
-  }
-
-  private finishUpload(): void {
-    this.pendingKind.set(null);
-    this.uploadingKind.set(null);
-    this.uploadSub = null;
-  }
-
-  /**
-   * Abre o documento numa aba nova pela signed URL. A aba é reservada de forma
-   * SÍNCRONA dentro do gesto (browsers móveis só permitem `window.open` com o
-   * gesto ainda na pilha) e navegada quando a URL chega; se o request falhar a
-   * aba é fechada em vez de virar uma aba branca órfã.
-   */
-  protected openDocument(doc: DriverDocument): void {
-    if (this.openingId()) return;
-    this.error.set(null);
-    this.openingId.set(doc.id);
-
-    const tab = this.externalNavigation.openPendingTab(DRIVER_DOCUMENT_PLACEHOLDER_COPY);
-    if (tab.blocked) {
-      this.openingId.set(null);
-      this.error.set('Permita pop-ups neste site para abrir o documento em uma nova aba.');
-      return;
-    }
-
-    this.driverService.documentSignedUrl(this.driverId(), doc.id).subscribe({
-      next: (res) => {
-        this.openingId.set(null);
-        tab.navigate(res.url);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.openingId.set(null);
-        tab.close();
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível abrir o documento.'));
-      },
-    });
-  }
-
-  protected askDelete(doc: DriverDocument): void {
-    this.deleting.set(doc);
-  }
-
-  protected cancelDelete(): void {
-    if (this.deletingBusy()) return;
-    this.deleting.set(null);
-  }
-
-  protected confirmDelete(): void {
-    const doc = this.deleting();
-    if (!doc || this.deletingBusy()) return;
-    this.error.set(null);
-    this.deletingBusy.set(true);
-    this.driverService.deleteDocument(this.driverId(), doc.id).subscribe({
-      next: () => {
-        this.deletingBusy.set(false);
-        this.deleting.set(null);
-        this.documents.update((list) => list.filter((d) => d.id !== doc.id));
-        this.notifications.success('Documento removido.');
-      },
-      error: (err: HttpErrorResponse) => {
-        this.deletingBusy.set(false);
-        this.deleting.set(null);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível remover o documento.'));
-      },
-    });
-  }
-
-  /**
-   * Rótulo do cabeçalho do slot: o que responde "falta alguma coisa aqui?".
-   * Com a regra de UM por tipo o preenchido diz "Anexado"; o plural só existe
-   * para dado legado que o servidor ainda guarda (N por tipo).
-   */
-  protected slotCountLabel(slot: DriverDocumentSlot): string {
-    const n = slot.files.length;
-    if (n === 0) return slot.required ? 'Falta anexar' : 'Nenhum arquivo';
-    return n === 1 ? 'Anexado' : `${n} arquivos`;
-  }
-
-  /**
-   * O leitor de tela precisa ouvir o mesmo que a tela mostra: slot vazio é a
-   * afordância de anexar; slot preenchido não aceita outro arquivo — o caminho
-   * é remover o atual. No slot de portão FECHADO (visível só porque guarda
-   * arquivo legado) remover é possível mas REANEXAR não — a label não pode
-   * prometer uma substituição que o portão recusa.
-   */
-  protected slotAriaLabel(slot: DriverDocumentSlot): string {
-    if (slot.state === 'gated') {
-      return `${slot.label} — documento anexado. Este tipo não aceita novos envios.`;
-    }
-    if (slot.files.length > 0) {
-      return `${slot.label} — documento anexado. Remova o arquivo atual para substituir.`;
-    }
-    return `Anexar ${slot.label} — nenhum arquivo anexado`;
-  }
-
-  protected sizeText(doc: DriverDocument): string {
-    return formatDocumentSize(doc.sizeBytes);
-  }
-
-  protected uploadedAtText(doc: DriverDocument): string {
-    if (!doc.createdDate) return '—';
-    return new Date(doc.createdDate).toLocaleDateString('pt-BR');
-  }
+  protected readonly ops: DocumentsCardOps = {
+    list: () => this.driverService.listDocuments(this.driverId()),
+    upload: (kind, file) =>
+      this.driverService.uploadDocument(this.driverId(), kind as DriverDocumentKind, file),
+    remove: (doc) => this.driverService.deleteDocument(this.driverId(), doc.id),
+    signedUrl: (doc) => this.driverService.documentSignedUrl(this.driverId(), doc.id),
+  };
 }

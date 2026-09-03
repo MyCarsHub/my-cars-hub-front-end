@@ -391,103 +391,18 @@
            edição com o bloco ainda visível, para o retry subir só o que faltou. ====== -->
       @if (documentsEnabled()) {
         <app-page-card title="Documentos (opcional)">
-          <div class="p-4 sm:p-6 space-y-4">
-            <p class="text-sm text-neutral-600">
-              Anexe o CRLV e outros arquivos já no cadastro. Aceitos PDF, JPG, PNG, WebP e
-              HEIC/HEIF, até 20MB por arquivo. Os envios acontecem depois que o veículo é salvo.
-            </p>
-
-            @if (documentsPickError(); as pickError) {
-              <p class="text-xs text-rose-600" role="alert">{{ pickError }}</p>
-            }
-
-            <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <button
-                type="button"
-                (click)="openDocumentPicker('CRLV')"
-                [disabled]="saving()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 min-h-[44px]
-                       rounded-xl border border-neutral-200 text-sm font-medium text-neutral-700
-                       hover:bg-neutral-50 disabled:opacity-60 disabled:cursor-not-allowed
-                       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Anexar CRLV
-              </button>
-              <button
-                type="button"
-                (click)="openDocumentPicker('OTHER')"
-                [disabled]="saving()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 min-h-[44px]
-                       rounded-xl border border-neutral-200 text-sm font-medium text-neutral-700
-                       hover:bg-neutral-50 disabled:opacity-60 disabled:cursor-not-allowed
-                       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Anexar outro arquivo
-              </button>
-            </div>
-
-            @if (pendingDocuments().length > 0) {
-              <ul class="rounded-xl border border-neutral-200 divide-y divide-neutral-100">
-                @for (doc of pendingDocuments(); track doc.id) {
-                  <li
-                    class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3"
-                    data-pending-doc
-                    [attr.data-status]="doc.status"
-                  >
-                    <div class="min-w-0 flex-1">
-                      <p class="text-sm font-medium text-neutral-900 truncate">{{ doc.file.name }}</p>
-                      <p class="text-xs text-neutral-500 tabular-nums">
-                        {{ documentKindMeta[doc.kind] }} · {{ pendingSizeText(doc) }}
-                      </p>
-                    </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                      @if (doc.status === 'uploaded') {
-                        <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1
-                                     text-[11px] font-semibold text-emerald-800">
-                          Enviado
-                        </span>
-                      } @else if (doc.status === 'error') {
-                        <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1
-                                     text-[11px] font-semibold text-rose-800">
-                          Falhou
-                        </span>
-                      }
-                      @if (doc.status !== 'uploaded') {
-                        <button
-                          type="button"
-                          (click)="removePendingDocument(doc)"
-                          [disabled]="saving()"
-                          [attr.aria-label]="'Remover arquivo ' + doc.file.name"
-                          class="inline-flex items-center justify-center px-4 min-h-[44px] rounded-xl
-                                 border border-rose-300 text-rose-700 text-sm font-medium hover:bg-rose-50
-                                 disabled:opacity-60 disabled:cursor-not-allowed
-                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">
-                          Remover
-                        </button>
-                      }
-                    </div>
-                  </li>
-                }
-              </ul>
-            }
-
-            <input
-              #docPicker
-              type="file"
-              multiple
-              [accept]="documentAccept"
-              hidden
-              aria-hidden="true"
-              tabindex="-1"
-              (change)="onDocumentsSelected($event)"
-            />
-          </div>
+          <!-- Miolo compartilhado (FIX-0232): o bloco é dono do gesto (seletor +
+               validação); o form segue dono do estado — UM arquivo por tipo,
+               substituição, `uploaded` do retry, banner de erro. -->
+          <app-pending-documents-block
+            description="Toque em um tipo para anexar os documentos do veículo. São aceitos PDF, JPG ou PNG até 20MB cada."
+            [slots]="documentSlots()"
+            [disabled]="saving()"
+            sentNote="Gerencie pelo detalhe do veículo."
+            (filePicked)="onDocFilePicked($event)"
+            (fileRejected)="onDocRejected($event)"
+            (fileRemoved)="removePendingDocument($event)"
+          />
         </app-page-card>
       }
 

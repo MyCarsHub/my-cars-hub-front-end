@@ -4,10 +4,13 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { By } from '@angular/platform-browser';
+
 import {
   MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY,
   MaintenanceDocumentsCard,
 } from './maintenance-documents-card';
+import { DocumentsCard } from '../../components/documents/documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { MaintenancesService } from '../../services/maintenances.service';
@@ -24,10 +27,10 @@ import type { MaintenanceDocument } from '../../types/maintenance.types';
  * funciona, e foi exatamente assim que um defeito atravessou uma suíte verde
  * neste projeto.
  *
- * A INVARIANTE CENTRAL desta suíte, e a razão de ela ser mais crítica aqui que
- * nos cards irmãos: uma manutenção tem NORMALMENTE várias notas fiscais — peça
- * e mão de obra saem de fornecedores diferentes. Enviar ACRESCENTA e NUNCA
- * SUBSTITUI; uma substituição apagaria em silêncio a nota do outro fornecedor.
+ * A REGRA MUDOU no FIX-0233 (decisão ESTRITA do usuário): UMA nota fiscal por
+ * manutenção — quem precisa de mais notas registra manutenções POR EVENTO (a
+ * válvula de escape do javadoc do backend). O slot preenchido não abre o
+ * seletor; notas legadas em N continuam TODAS visíveis e removíveis.
  */
 describe('MaintenanceDocumentsCard', () => {
   const MAINTENANCE_ID = 'mnt-1';
@@ -71,7 +74,11 @@ describe('MaintenanceDocumentsCard', () => {
   }
 
   function state(): CardState {
-    return fixture.componentInstance as unknown as CardState;
+    // O estado mora no `DocumentsCard` COMPARTILHADO (FIX-0233); o card da
+    // manutenção virou o wrapper que o parametriza.
+    const inner = fixture.debugElement.query(By.directive(DocumentsCard))?.componentInstance;
+    if (!inner) throw new Error('o card compartilhado não está na tela');
+    return inner as CardState;
   }
 
   function host(): HTMLElement {
@@ -222,32 +229,95 @@ describe('MaintenanceDocumentsCard', () => {
     expect(slotText('NOTA_FISCAL')).toContain('nota-peca.pdf');
   });
 
-  // ------------------------------------------------------- a invariante central
+  // ------------------------------------------------- a regra nova (FIX-0233)
 
-  it('ANEXA e NUNCA SUBSTITUI: a segunda nota fiscal convive com a primeira', async () => {
+  /**
+   * UMA nota por manutenção: o slot preenchido não abre o seletor — o segundo
+   * gesto é remover, nunca acrescentar. Quem tem peça e mão de obra em notas
+   * separadas registra manutenções POR EVENTO (válvula de escape do backend).
+   * Teto prático aceito: 2 arquivos por manutenção (1 NF + 1 Outro).
+   */
+  it('slot preenchido não abre o seletor nem aceita uma segunda nota', async () => {
     listDocuments = vi.fn(() => of([notaPeca]));
-    uploadDocument = vi.fn(() => of(notaMaoDeObra));
     TestBed.overrideProvider(MaintenancesService, {
       useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
     });
     await setup();
     expect(slotFileRows('NOTA_FISCAL')).toHaveLength(1);
 
-    attach('NOTA_FISCAL', doc('nota-mao-de-obra.pdf'));
+    expect(slotButton('NOTA_FISCAL').disabled).toBe(true);
+    slotButton('NOTA_FISCAL').click();
+    fixture.detectChanges();
+    dispatchFile(doc('nota-mao-de-obra.pdf'));
 
-    // As DUAS na tela, no mesmo slot. Se virar 1, a nota do outro fornecedor
-    // foi apagada em silêncio — que é exatamente o defeito que este teste
-    // existe para impedir.
+    expect(uploadDocument).not.toHaveBeenCalled();
+    expect(slotFileRows('NOTA_FISCAL')).toHaveLength(1);
+    // O outro slot continua anexável — o bloqueio é por tipo.
+    expect(slotButton('OTHER').disabled).toBe(false);
+  });
+
+  /**
+   * DADO LEGADO: notas gravadas ANTES da regra continuam todas visíveis e
+   * removíveis — sumir com a nota do outro fornecedor em silêncio segue sendo
+   * o defeito proibido; o que mudou é que agora se resolve removendo, não
+   * acumulando.
+   */
+  it('mantém visíveis duas notas legadas, sem aceitar uma terceira', async () => {
+    listDocuments = vi.fn(() => of([notaPeca, notaMaoDeObra]));
+    TestBed.overrideProvider(MaintenancesService, {
+      useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
+    });
+    await setup();
+
     const rows = slotFileRows('NOTA_FISCAL');
     expect(rows).toHaveLength(2);
     const texto = slotText('NOTA_FISCAL');
     expect(texto).toContain('nota-peca.pdf');
     expect(texto).toContain('nota-mao-de-obra.pdf');
-    expect(
-      state()
-        .documents()
-        .map((d) => d.id),
-    ).toEqual(['doc-1', 'doc-2']);
+    expect(slotButton('NOTA_FISCAL').disabled).toBe(true);
+  });
+
+  /** FIX-0233: descrição e dica da NF com a regra nova e a válvula de escape. */
+  it('descreve o card e a nota fiscal com os textos da regra de um por tipo', async () => {
+    await setup();
+
+    const texto = (host().textContent ?? '').replace(/\s+/g, ' ');
+    expect(texto).toContain(
+      'Toque em um tipo para anexar os documentos da manutenção. ' +
+        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+    );
+    expect(texto).toContain('Uma por manutenção. Para mais notas, registre manutenções por evento.');
+    expect(texto).not.toContain('notas diferentes');
+    // O título do card é o do usuário, preservado na adoção.
+    expect(texto).toContain('Documentos anexados');
+  });
+
+  /**
+   * FIX-0233: o servidor TAMBÉM recusa o kind duplicado (400
+   * `fieldErrors.kind`) — a mensagem é user-ready e aparece INLINE, sem toast.
+   */
+  it('renderiza o 400 de kind duplicado (fieldErrors.kind) inline, sem toast', async () => {
+    const duplicado =
+      'Já existe uma nota fiscal nesta manutenção. Registre outra manutenção para mais notas.';
+    uploadDocument = vi.fn(() =>
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            statusText: 'Bad Request',
+            error: { fieldErrors: { kind: duplicado } },
+          }),
+      ),
+    );
+    TestBed.overrideProvider(MaintenancesService, {
+      useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
+    });
+    await setup();
+
+    attach('NOTA_FISCAL', doc());
+
+    expect(state().error()).toBe(duplicado);
+    expect(errorToast).not.toHaveBeenCalled();
   });
 
   it('envia multipart com o kind do slot tocado', async () => {
@@ -420,15 +490,15 @@ describe('MaintenanceDocumentsCard', () => {
     expect(botao.getAttribute('aria-label')).toBe('Anexar Nota fiscal — nenhum arquivo anexado');
   });
 
-  it('o rótulo acessível conta os arquivos já anexados', async () => {
-    listDocuments = vi.fn(() => of([notaPeca, notaMaoDeObra]));
+  it('o rótulo acessível do slot cheio aponta o caminho: remover para substituir', async () => {
+    listDocuments = vi.fn(() => of([notaPeca]));
     TestBed.overrideProvider(MaintenancesService, {
       useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
     });
     await setup();
 
     expect(slotButton('NOTA_FISCAL').getAttribute('aria-label')).toBe(
-      'Anexar Nota fiscal — 2 arquivos',
+      'Nota fiscal — documento anexado. Remova o arquivo atual para substituir.',
     );
   });
 });
