@@ -157,24 +157,15 @@ export class DashboardHome {
         return `${fleet.vehiclesTotal} de ${limit} do plano`;
     });
 
-    /**
-     * Consumo de motoristas contra o limite do plano.
+    /*
+     * NÃO existe legenda de capacidade no card de motoristas (FEAT-0070).
      *
-     * O numerador é `driversTotal` — mesmo predicado usado pelo bloqueio no
-     * backend. Usar `driversActive` (recorte operacional) fazia a tela dizer
-     * "2 de 5" enquanto o cadastro devolvia 409.
-     *
-     * Mesma regra de maquiagem de `vehiclePlanLabel` — ver `utils/plan-limits.ts`.
+     * Havia um `driverPlanLabel` com "X de Y do plano" / "motoristas ilimitados
+     * no plano". O teto virou guarda-corpo interno, o backend removeu
+     * `driverLimit` do `FleetDto` e a legenda saiu junto — o card mostra o
+     * total e quantos estão ativos, que é operação, não capacidade. O card de
+     * VEÍCULOS mantém a sua (`vehiclePlanLabel`): esse eixo continua comercial.
      */
-    protected readonly driverPlanLabel = computed(() => {
-        const fleet = this.summary()?.fleet;
-        if (!fleet) return '';
-        const limit = fleet.driverLimit;
-        if (showsAsUnlimited(this.currentPlanName(), limit)) {
-            return 'motoristas ilimitados no plano';
-        }
-        return `${fleet.driversTotal} de ${limit} do plano`;
-    });
 
     // ---- Faturamento — deltas vs período anterior + monthly ------------
     protected readonly billingLabel = computed(() =>

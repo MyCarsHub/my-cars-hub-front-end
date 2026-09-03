@@ -36,7 +36,7 @@ export const LANDING_FAQS: readonly LandingFaq[] = [
   },
   {
     q: 'Tenho só 1 carro alugado. O MyCarsHub é pra mim?',
-    a: `É sim. O trial gratuito cobre até ${PLAN_CAPACITY.TRIAL.vehicles} veículos e ${PLAN_CAPACITY.TRIAL.drivers} motoristas, então dá pra rodar seu único contrato do começo ao fim sem pagar nada. O sistema não muda quando você tem 1 carro ou ${PLAN_CAPACITY.PRO.vehicles} — muda só o tamanho da sua lista.`,
+    a: `É sim. O trial gratuito cobre até ${PLAN_CAPACITY.TRIAL.vehicles} veículos, então dá pra rodar seu único contrato do começo ao fim sem pagar nada. O sistema não muda quando você tem 1 carro ou ${PLAN_CAPACITY.PRO.vehicles} — muda só o tamanho da sua lista.`,
   },
   {
     q: 'Preciso de cartão de crédito pra começar?',

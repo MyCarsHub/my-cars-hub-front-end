@@ -378,8 +378,10 @@ export class Billing implements OnInit, OnDestroy {
       // NUNCA "liberar todos os recursos": não existe gate de funcionalidade no
       // backend, então a frase prometia destravar o que já está destravado — e
       // era desmentida um scroll abaixo pela nota de paridade da grade. O que um
-      // plano pago compra é ESPAÇO: mais veículos e mais motoristas.
-      return 'Você está no plano gratuito, sem cobranças. Escolha um plano pago para cadastrar mais veículos e motoristas.';
+      // plano pago compra é ESPAÇO: mais veículos. Motorista NÃO entra aqui — o
+      // teto é 200 em todos os planos (FEAT-0070), então prometer capacidade de
+      // motorista no upgrade seria vender o que o pago não entrega.
+      return 'Você está no plano gratuito, sem cobranças. Escolha um plano pago para cadastrar mais veículos.';
     }
     switch (sub.status) {
       case 'ACTIVE':
@@ -1010,8 +1012,8 @@ export class Billing implements OnInit, OnDestroy {
     const capacity: string[] = [];
     const vehicles = this.limitLabel(plan.name, plan.vehicleLimit, 'veículo', 'veículos');
     if (vehicles) capacity.push(vehicles);
-    const drivers = this.limitLabel(plan.name, plan.driverLimit, 'motorista', 'motoristas');
-    if (drivers) capacity.push(drivers);
+    // Motoristas NÃO entram (FEAT-0070): o teto virou guarda-corpo interno e o
+    // campo saiu da resposta da API — não há o que exibir nem que se quisesse.
     if (plan.trialDays > 0) capacity.push(`${plan.trialDays} dias de teste grátis`);
 
     return planCardFeatureLines(planTierOf(plan.name), capacity, this.ladderArrangement());

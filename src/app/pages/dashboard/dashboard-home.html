@@ -115,10 +115,10 @@
                 <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
                     {{ s.fleet.driversTotal }}
                 </p>
+                <!-- Sem legenda de capacidade (FEAT-0070): o card mostra total
+                     e ativos. O parágrafo do plano saiu inteiro, para não
+                     deixar linha em branco empurrando o card no mobile. -->
                 <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
-                    {{ driverPlanLabel() }}
-                </p>
-                <p class="text-[11px] sm:text-xs text-gray-400 mt-0.5 truncate">
                     {{ s.fleet.driversActive }} ativos agora
                 </p>
             }

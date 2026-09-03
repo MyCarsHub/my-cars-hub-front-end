@@ -45,7 +45,12 @@ export interface PlanResponse {
   period: PlanPeriod;
   price: number;
   vehicleLimit: number | null;
-  driverLimit: number | null;
+  /**
+   * `driverLimit` NÃO existe mais nesta resposta (FEAT-0070): o teto de
+   * motoristas virou guarda-corpo interno e o backend o removeu das projeções
+   * públicas de plano — inclusive do `GET /v1/plans/findAll`, que é anônimo.
+   * Reintroduzir o campo aqui é reintroduzir o vazamento.
+   */
   trialDays: number;
   productExternalId: string | null;
   gateway: PlanGateway;
