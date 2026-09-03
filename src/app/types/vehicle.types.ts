@@ -72,6 +72,36 @@ export interface Financing {
   modifyDate: string | null;
 }
 
+/**
+ * Venda de um veículo (FEAT-0072, STORY-VEHICLE-SALE) — espelha o
+ * `VehicleSaleDto` do backend.
+ *
+ * OS NOMES SÃO O CONTRATO: o backend não tem `PropertyNamingStrategy` nem
+ * `@JsonAlias`, então `saleDate`/`saleValueCents` não podem virar
+ * `soldAt`/`amount` "porque lê melhor" — a serialização é por nome exato e o
+ * POST voltaria 400 (ou, pior no GET, campos `undefined` renderizados).
+ */
+export interface VehicleSale {
+  id: string;
+  buyerName: string;
+  /** `yyyy-MM-dd` (LocalDate). */
+  saleDate: string;
+  /** CENTAVOS (Long `*_cents`), como `purchasePrice`/`ipvaAmount`. */
+  saleValueCents: number;
+  /** `LocalDateTime` do registro da venda — quando foi lançada, não quando ocorreu. */
+  createdDate: string;
+}
+
+/** Corpo do `POST /v1/vehicles/{id}/sale` — espelha `SellVehicleRequestDto`. */
+export interface CreateVehicleSaleRequest {
+  /** `@NotBlank @Size(max=180)`. */
+  buyerName: string;
+  /** `@NotNull @PastOrPresent`, `yyyy-MM-dd`. */
+  saleDate: string;
+  /** `@NotNull @Min(0)`, CENTAVOS. Nunca reais. */
+  saleValueCents: number;
+}
+
 export interface Vehicle {
   id: string;
   companyId: string;
@@ -101,6 +131,12 @@ export interface Vehicle {
   status: VehicleStatus;
   fuel: VehicleFuel | null;
   activeFinancing: Financing | null;
+  /**
+   * Venda anexada (FEAT-0072). `null` enquanto o veículo é da frota; preenchida
+   * quando foi vendido — e é ELA, não o `status`, que decide se a tela entra em
+   * somente-leitura: o veículo vendido sai da operação por inteiro.
+   */
+  sale: VehicleSale | null;
   createdDate: string;
   modifyDate: string | null;
 }
@@ -164,6 +200,12 @@ export interface MarkPaidOffRequest {
 
 export interface VehicleFilters {
   q?: string;
+  /**
+   * Recorte de vendidos (FEAT-0072). AUSENTE = listagem operacional, que
+   * esconde os vendidos; `true` = só os vendidos. O default é ausência de
+   * propósito: a tela do dia a dia não deve carregar carro que saiu da frota.
+   */
+  sold?: boolean;
   type?: VehicleType | '';
   status?: VehicleStatus | '';
   sort?: string;

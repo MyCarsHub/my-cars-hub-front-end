@@ -7,6 +7,7 @@ import { GerenciaSummary } from '../types/gerencia-summary.types';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
+  CreateVehicleSaleRequest,
   Financing,
   FinancingDetail,
   FinancingFilters,
@@ -69,6 +70,8 @@ export class VehiclesService {
     if (filters.page !== undefined) params = params.set('page', String(filters.page));
     if (filters.size !== undefined) params = params.set('size', String(filters.size));
     if (filters.availableForRental) params = params.set('availableForRental', 'true');
+    // Só manda quando pedido: ausência = listagem operacional (sem vendidos).
+    if (filters.sold) params = params.set('sold', 'true');
     if (filters.includeCurrentRentalId)
       params = params.set('includeCurrentRentalId', filters.includeCurrentRentalId);
     // Par indivisível: o backend responde 400 se receber só uma das pontas.
@@ -114,6 +117,38 @@ export class VehiclesService {
         this._items.update((list) => list.map((it) => (it.id === id ? { ...it, status: v.status } : it))),
       ),
     );
+  }
+
+  /**
+   * Registra a venda do veículo (FEAT-0072). `amount` em CENTAVOS.
+   *
+   * O item sai do cache da listagem na hora: a lista operacional não mostra
+   * vendido, e esperar um refetch deixaria na tela um carro que não é mais da
+   * frota.
+   */
+  sell(id: string, payload: CreateVehicleSaleRequest): Observable<Vehicle> {
+    return this.http.post<Vehicle>(`${BASE}/${id}/sale`, payload).pipe(
+      tap(() => {
+        // Sai da lista operacional E do total: sem decrementar, a paginação
+        // anuncia "20 veículos" com 19 na tela. (O `remove()` carrega a mesma
+        // dívida; corrigi-la lá é mudança de outro nó.)
+        this._items.update((list) => {
+          const next = list.filter((v) => v.id !== id);
+          if (next.length !== list.length) this._total.update((t) => Math.max(0, t - 1));
+          return next;
+        });
+      }),
+    );
+  }
+
+  /**
+   * Desfaz a venda (recompra). O backend responde **409** quando a frota já
+   * reocupou a vaga do plano — quem chama traduz esse caso, porque a saída é
+   * do usuário (liberar vaga ou subir de plano), não um erro técnico.
+   */
+  undoSale(id: string, reason: string): Observable<Vehicle> {
+    const params = new HttpParams().set('reason', reason);
+    return this.http.delete<Vehicle>(`${BASE}/${id}/sale`, { params });
   }
 
   remove(id: string): Observable<void> {

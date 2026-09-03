@@ -70,6 +70,13 @@ export class VehiclesList implements OnInit {
   protected readonly search = signal('');
   protected readonly typeFilter = signal<VehicleType | ''>('');
   protected readonly statusFilter = signal<VehicleStatus | ''>('');
+  /**
+   * Recorte de VENDIDOS (FEAT-0072). `false` = listagem operacional, que é a
+   * do dia a dia e não mostra carro que saiu da frota; `true` = só os
+   * vendidos, para consulta/histórico. Não é um `VehicleStatus`: venda e
+   * status são eixos independentes (um vendido guarda o último status).
+   */
+  protected readonly soldFilter = signal(false);
   protected readonly sort = signal<VehicleFilters['sort']>('plate_asc');
   protected readonly pageSize = signal(20);
 
@@ -118,6 +125,7 @@ export class VehiclesList implements OnInit {
     this.search.set('');
     this.typeFilter.set('');
     this.statusFilter.set('');
+    this.soldFilter.set(false);
     this.sort.set('plate_asc');
     this.reload(0);
   }
@@ -137,6 +145,8 @@ export class VehiclesList implements OnInit {
         q: this.search().trim() || undefined,
         type: this.typeFilter() || undefined,
         status: this.statusFilter() || undefined,
+        // Ausente na operação; `true` só quando o operador pede os vendidos.
+        sold: this.soldFilter() || undefined,
         sort: this.sort(),
         page,
         size: this.pageSize(),
