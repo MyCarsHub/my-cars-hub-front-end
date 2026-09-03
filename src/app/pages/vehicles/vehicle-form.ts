@@ -30,6 +30,7 @@ import {
   tap,
   toArray,
 } from 'rxjs';
+import { soldLockReason } from './vehicle-sale-copy';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
@@ -62,6 +63,7 @@ import {
   Vehicle,
   VehicleDocumentKind,
   VehicleFuel,
+  VehicleSale,
   VehicleType,
 } from '../../types/vehicle.types';
 import { formatDocumentSize } from '../../components/documents/document-file-rules';
@@ -184,6 +186,26 @@ export class VehicleForm implements OnInit {
    * para o retry subir só o que faltou.
    */
   protected readonly documentsEnabled = signal(true);
+
+  // ---- Veículo VENDIDO: formulário em somente-leitura (FIX-0250) ----------
+
+  /**
+   * A venda do veículo carregado. `null` na criação e enquanto não carregou.
+   *
+   * O deep-link para `/veiculos/:id/editar` continua acessível num vendido — o
+   * backend recusa o PUT com 409 (`assertNotSold`), mas descobrir isso só no
+   * "Salvar", depois de preencher a tela inteira, é trabalho jogado fora. A
+   * tela passa a dizer a regra ANTES.
+   */
+  protected readonly sale = signal<VehicleSale | null>(null);
+
+  protected readonly sold = computed(() => this.sale() !== null);
+
+  /**
+   * A MESMA explicação do detalhe, da mesma fonte (`vehicle-sale-copy`): vira
+   * o texto do aviso e o `title` dos controles desabilitados.
+   */
+  protected readonly soldLockReason = computed(() => soldLockReason(this.sale()));
   protected readonly pendingDocuments = signal<PendingVehicleDocument[]>([]);
   private nextPendingDocumentId = 1;
 
@@ -305,6 +327,9 @@ export class VehicleForm implements OnInit {
   }
 
   protected onPlateInput(event: Event): void {
+    // Vendido: o input está `disabled` no template; esta guarda cobre o
+    // caminho programático — escrever num controle travado é estado fantasma.
+    if (this.sold()) return;
     const raw = (event.target as HTMLInputElement).value
       .replace(/[^A-Za-z0-9]/g, '')
       .toUpperCase()
@@ -315,6 +340,9 @@ export class VehicleForm implements OnInit {
   }
 
   protected onChassisInput(event: Event): void {
+    // Vendido: o input está `disabled` no template; esta guarda cobre o
+    // caminho programático — escrever num controle travado é estado fantasma.
+    if (this.sold()) return;
     const raw = (event.target as HTMLInputElement).value
       .replace(/[^A-Za-z0-9]/g, '')
       .toUpperCase()
@@ -324,6 +352,9 @@ export class VehicleForm implements OnInit {
   }
 
   protected onRenavamInput(event: Event): void {
+    // Vendido: o input está `disabled` no template; esta guarda cobre o
+    // caminho programático — escrever num controle travado é estado fantasma.
+    if (this.sold()) return;
     const raw = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 11);
     this.form.controls.renavam.setValue(raw);
     this.form.controls.renavam.markAsTouched();
@@ -336,6 +367,15 @@ export class VehicleForm implements OnInit {
       next: (v) => {
         this.plateDisplay.set(v.plate ?? '');
         this.existingFinancing.set(v.activeFinancing ?? null);
+        this.sale.set(v.sale ?? null);
+        // Vendido: os três formulários ficam inertes de verdade, não só com o
+        // botão desabilitado. `emitEvent: false` para o disable não disparar
+        // revalidação/valueChanges enquanto a tela ainda está montando.
+        if (v.sale) {
+          this.form.disable({ emitEvent: false });
+          this.financingForm.disable({ emitEvent: false });
+          this.insuranceForm.disable({ emitEvent: false });
+        }
         this.form.patchValue({
           plate: v.plate,
           type: v.type,
@@ -365,10 +405,12 @@ export class VehicleForm implements OnInit {
   }
 
   protected toggleFinancing(): void {
+    if (this.sold()) return;
     this.showFinancing.update((v) => !v);
   }
 
   protected toggleInsurance(): void {
+    if (this.sold()) return;
     this.showInsurance.update((v) => !v);
   }
 
@@ -420,6 +462,9 @@ export class VehicleForm implements OnInit {
 
   protected submit(): void {
     if (this.saving()) return;
+    // Guarda no COMPONENTE, não só no `disabled` do botão: o backend recusa com
+    // 409, e chegar lá para descobrir isso é a viagem que o FIX-0250 evita.
+    if (this.sold()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.bannerSource = this.form;
