@@ -13,6 +13,23 @@
         <app-alert-banner variant="error" [message]="formError" />
       }
 
+      <!-- Veículo VENDIDO (FIX-0250): o aviso vem antes de tudo e explica o
+           formulário travado, com a MESMA frase do detalhe. Coluna única, texto
+           quebra — sem scroll horizontal no mobile. -->
+      @if (soldLockReason(); as lockReason) {
+        <div
+          class="rounded-xl border border-neutral-300 bg-neutral-50 p-4"
+          role="status"
+          data-sold-notice
+        >
+          <p class="text-sm font-semibold text-neutral-900 break-words">{{ lockReason }}</p>
+          <p class="mt-1 text-sm text-neutral-600 break-words">
+            Os campos ficam somente para consulta e o salvamento está desabilitado. Para editar,
+            abra o veículo e desfaça a venda.
+          </p>
+        </div>
+      }
+
       <!-- ====== Identificação ====== -->
       <app-page-card title="Identificação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
@@ -32,6 +49,7 @@
               autocapitalize="characters"
               [value]="plateDisplay()"
               (input)="onPlateInput($event)"
+              [disabled]="sold()"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-widest tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
@@ -156,7 +174,7 @@
               placeholder="17 caracteres alfanuméricos"
               [value]="form.controls.chassis.value"
               (input)="onChassisInput($event)"
-              [disabled]="isEdit()"
+              [disabled]="isEdit() || sold()"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-wider tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60" />
           </app-form-field>
@@ -176,7 +194,7 @@
               placeholder="9 a 11 dígitos"
               [value]="form.controls.renavam.value"
               (input)="onRenavamInput($event)"
-              [disabled]="isEdit()"
+              [disabled]="isEdit() || sold()"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60" />
           </app-form-field>
@@ -332,8 +350,11 @@
               type="button"
               (click)="toggleFinancing()"
               [attr.aria-expanded]="showFinancing()"
+              [disabled]="sold()"
+              [attr.title]="soldLockReason()"
               class="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200
-                     text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+                     text-sm font-medium text-neutral-700 hover:bg-neutral-50
+                     disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 @if (showFinancing()) {
@@ -360,8 +381,11 @@
             (click)="toggleInsurance()"
             [attr.aria-expanded]="showInsurance()"
             aria-controls="veiculo-insurance-block"
+            [disabled]="sold()"
+            [attr.title]="soldLockReason()"
             class="w-full sm:w-auto inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-neutral-200
-                   text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+                   text-sm font-medium text-neutral-700 hover:bg-neutral-50
+                   disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               @if (showInsurance()) {
@@ -415,9 +439,12 @@
                  bg-white border border-neutral-200 hover:bg-neutral-50">
           Cancelar
         </button>
+        <!-- Desabilitado, NÃO escondido: o motivo viaja no `title` e no aviso
+             acima, para o operador entender a regra em vez de procurar um bug. -->
         <button
           type="submit"
-          [disabled]="saving()"
+          [disabled]="saving() || sold()"
+          [attr.title]="soldLockReason()"
           class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-semibold bg-primary-500 text-white
                  hover:bg-primary-600 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
           {{ saving() ? 'Salvando…' : (isEdit() ? 'Salvar alterações' : 'Cadastrar veículo') }}

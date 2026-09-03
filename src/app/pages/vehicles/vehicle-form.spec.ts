@@ -1034,3 +1034,240 @@ describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
     expect(update.mock.calls[0][1].purchasePrice).toBeNull();
   });
 });
+
+/**
+ * FIX-0250 — o formulário de edição respeita a venda.
+ *
+ * `/veiculos/:id/editar` continua acessível por deep-link num veículo VENDIDO.
+ * Não há corrupção (o backend recusa o PUT com 409 via `assertNotSold`), mas
+ * preencher a tela inteira para levar erro no "Salvar" é trabalho jogado fora:
+ * a regra passa a aparecer ANTES, com a MESMA frase do detalhe.
+ */
+describe('VehicleForm — veículo vendido é somente-leitura (FIX-0250)', () => {
+  const VEHICLE_ID = 'veh-1';
+
+  const SALE = {
+    id: 'sale-1',
+    buyerName: 'Maria Compradora',
+    saleDate: '2026-08-20',
+    saleValueCents: 4_500_000,
+    createdDate: '2026-08-20T10:00:00',
+  };
+
+  let getOne: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let createFinancing: ReturnType<typeof vi.fn>;
+  let createInsurance: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  interface SoldFormApi {
+    form: {
+      disabled: boolean;
+      patchValue: (v: unknown) => void;
+      getRawValue: () => { plate: string };
+    };
+    financingForm: { disabled: boolean };
+    insuranceForm: { disabled: boolean };
+    submit: () => void;
+    toggleFinancing: () => void;
+    toggleInsurance: () => void;
+    showFinancing: () => boolean;
+    sold: () => boolean;
+  }
+
+  function api(): SoldFormApi {
+    return fixture.componentInstance as unknown as SoldFormApi;
+  }
+
+  function host(): HTMLElement {
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function submitButton(): HTMLButtonElement {
+    const btn = host().querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (!btn) throw new Error('o botão de salvar não está na tela');
+    return btn;
+  }
+
+  function soldVehicle(sale: unknown) {
+    return {
+      id: VEHICLE_ID,
+      plate: 'ABC1D23',
+      type: 'CAR',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      chassis: null,
+      hodometer: 1000,
+      licensingExpiration: null,
+      renavam: null,
+      color: null,
+      purchaseDate: null,
+      purchasePrice: null,
+      ipvaAmount: null,
+      ipvaDueDate: null,
+      ipvaStatus: null,
+      fuel: null,
+      activeFinancing: null,
+      sale,
+    };
+  }
+
+  async function setup(sale: unknown): Promise<void> {
+    getOne = vi.fn().mockReturnValue(of(soldVehicle(sale)));
+    update = vi.fn().mockReturnValue(of({ id: VEHICLE_ID }));
+    createFinancing = vi.fn().mockReturnValue(of({ id: 'fin-new' }));
+    createInsurance = vi.fn().mockReturnValue(of({ id: 'ins-new' }));
+
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: { getOne, update, createFinancing, create: vi.fn() },
+        },
+        { provide: InsurancesService, useValue: { create: createInsurance } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('mostra o aviso com a MESMA frase do detalhe e desabilita o salvar', async () => {
+    await setup(SALE);
+
+    const notice = host().querySelector('[data-sold-notice]');
+    expect(notice).not.toBeNull();
+    expect(notice?.textContent).toContain(
+      'Veículo vendido em 20/08/2026. Desfaça a venda para voltar a operar.',
+    );
+
+    // Desabilitado, NÃO escondido — e com o motivo no title.
+    const salvar = submitButton();
+    expect(salvar.disabled).toBe(true);
+    expect(salvar.getAttribute('title')).toContain('Veículo vendido em 20/08/2026');
+  });
+
+  it('deixa os TRÊS formulários inertes (veículo, financiamento e seguro)', async () => {
+    await setup(SALE);
+
+    expect(api().form.disabled).toBe(true);
+    expect(api().financingForm.disabled).toBe(true);
+    expect(api().insuranceForm.disabled).toBe(true);
+  });
+
+  /**
+   * O MODELO desabilitado não basta, e foi esse buraco que deixou passar a
+   * placa editável: o input da placa é CRU (`[value]` + `(input)`), não
+   * `formControlName`, e o `appFieldControl` só escreve id/aria/classe — não
+   * propaga `disabled`. Então `form.disable()` NÃO o alcança. Esta asserção
+   * olha o DOM RENDERIZADO: todo campo de entrada precisa estar `disabled`.
+   */
+  it('nenhum campo RENDERIZADO aceita digitação — inclusive a placa (input cru)', async () => {
+    await setup(SALE);
+
+    const campos = Array.from(
+      host().querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        'input, select, textarea',
+      ),
+    );
+    // Sanidade: a tela realmente renderizou campos (senão a varredura é vazia
+    // e o teste passaria sem provar nada).
+    expect(campos.length).toBeGreaterThan(5);
+
+    const habilitados = campos.filter((el) => !el.disabled).map((el) => el.id || el.tagName);
+    expect(habilitados).toEqual([]);
+
+    // A placa, nomeada: é o campo cru que o `form.disable()` não alcança.
+    const placa = host().querySelector<HTMLInputElement>('#veiculo-plate');
+    expect(placa).not.toBeNull();
+    expect(placa?.disabled).toBe(true);
+  });
+
+  /** O handler do input cru também recusa por dentro (caminho programático). */
+  it('onPlateInput não escreve no controle quando o veículo está vendido', async () => {
+    await setup(SALE);
+
+    const antes = api().form.getRawValue().plate;
+    const input = document.createElement('input');
+    input.value = 'XYZ9K88';
+    (
+      fixture.componentInstance as unknown as { onPlateInput: (e: Event) => void }
+    ).onPlateInput({ target: input } as unknown as Event);
+    fixture.detectChanges();
+
+    expect(api().form.getRawValue().plate).toBe(antes);
+  });
+
+  it('os botões de adicionar financiamento e seguro ficam desabilitados, com motivo', async () => {
+    await setup(SALE);
+
+    const botoes = Array.from(host().querySelectorAll('button')).filter((b) =>
+      /Adicionar (financiamento|seguro)/.test(b.textContent ?? ''),
+    );
+    expect(botoes).toHaveLength(2);
+    for (const botao of botoes) {
+      expect(botao.disabled).toBe(true);
+      expect(botao.getAttribute('title')).toContain('Veículo vendido em 20/08/2026');
+    }
+  });
+
+  /**
+   * A guarda tem de estar no COMPONENTE: um `disabled` no botão não impede
+   * submit por Enter no campo nem chamada programática, e o backend responderia
+   * 409 depois da viagem.
+   */
+  it('submit() não chama a API no veículo vendido', async () => {
+    await setup(SALE);
+
+    api().submit();
+
+    expect(update).not.toHaveBeenCalled();
+    expect(createFinancing).not.toHaveBeenCalled();
+    expect(createInsurance).not.toHaveBeenCalled();
+  });
+
+  it('não abre os blocos opcionais de financiamento/seguro quando vendido', async () => {
+    await setup(SALE);
+
+    api().toggleFinancing();
+    fixture.detectChanges();
+
+    expect(api().showFinancing()).toBe(false);
+  });
+
+  /** CONTROLE POSITIVO: sem venda, a mesma tela continua editável e salva. */
+  it('veículo NÃO vendido continua editável e salvando normalmente', async () => {
+    await setup(null);
+
+    expect(host().querySelector('[data-sold-notice]')).toBeNull();
+    expect(api().sold()).toBe(false);
+    expect(api().form.disabled).toBe(false);
+    expect(submitButton().disabled).toBe(false);
+    expect(submitButton().getAttribute('title')).toBeNull();
+    // E a placa — o campo cru — continua digitável.
+    expect(host().querySelector<HTMLInputElement>('#veiculo-plate')?.disabled).toBe(false);
+
+    api().submit();
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toBe(VEHICLE_ID);
+  });
+});
