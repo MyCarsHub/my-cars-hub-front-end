@@ -1,0 +1,84 @@
+<div class="p-4 sm:p-6 space-y-3">
+  <p class="text-sm text-neutral-600">{{ description() }}</p>
+
+  <!-- UM arquivo por tipo (regra de produto): slot vazio anexa, slot com
+       pendente SUBSTITUI, slot já enviado tranca. Cores pelos tokens do tema
+       (FIX-0236, decisão do usuário): vazio = VERMELHO tracejado (falta
+       documento), com arquivo (pendente OU enviado) = VERDE. -->
+  @for (slot of slots(); track slot.kind) {
+    <div
+      class="rounded-xl overflow-hidden transition-colors"
+      [class.border]="slot.files.length > 0"
+      [class.border-success-100]="slot.files.length > 0"
+      [class.bg-success-50]="slot.files.length > 0"
+      [class.border-2]="slot.files.length === 0"
+      [class.border-dashed]="slot.files.length === 0"
+      [class.border-rose-500]="slot.files.length === 0"
+      [class.bg-rose-50]="slot.files.length === 0"
+      [attr.data-doc-slot]="slot.kind"
+      [attr.data-filled]="slot.files.length > 0 ? 'true' : 'false'"
+    >
+      <button
+        type="button"
+        (click)="openPicker(slot)"
+        [disabled]="disabled() || slot.sent"
+        [attr.aria-label]="slotAriaLabel(slot)"
+        class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left
+               min-h-[44px] transition-colors
+               focus-visible:outline focus-visible:outline-2
+               focus-visible:outline-primary-600 disabled:cursor-not-allowed"
+        [class.enabled:hover:bg-rose-100]="slot.files.length === 0"
+        [class.enabled:hover:bg-success-100]="slot.files.length > 0"
+        [class.opacity-60]="disabled() || slot.sent">
+        <span class="min-w-0">
+          <span class="block text-sm font-medium text-neutral-800">{{ slot.label }}</span>
+          <span class="block text-xs text-neutral-600">{{ slot.hint }}</span>
+        </span>
+        @if (!slot.sent) {
+          <span class="shrink-0 text-sm font-medium text-primary-700">
+            {{ slot.files.length === 0 ? 'Anexar' : 'Substituir' }}
+          </span>
+        }
+      </button>
+
+      @if (slot.files.length > 0) {
+        <ul class="border-t border-neutral-200 divide-y divide-neutral-200 bg-white">
+          @for (pf of slot.files; track pf.id) {
+            <li class="flex items-center justify-between gap-3 px-4 py-2.5">
+              <span class="min-w-0">
+                <span class="block text-sm text-neutral-800 truncate">{{ pf.name }}</span>
+                <span class="block text-xs text-neutral-600">{{ pf.sizeText }}</span>
+              </span>
+              @if (pf.sent) {
+                <span class="shrink-0 text-xs font-semibold text-success-900 bg-success-100 rounded-full px-2.5 py-1">
+                  Enviado
+                </span>
+              } @else {
+                <button
+                  type="button"
+                  (click)="fileRemoved.emit(pf.id)"
+                  [disabled]="disabled()"
+                  [attr.aria-label]="removeAriaLabel(pf)"
+                  class="shrink-0 inline-flex items-center text-sm font-medium text-neutral-600
+                         hover:text-rose-700 px-3 min-h-[44px] rounded-lg
+                         focus-visible:outline focus-visible:outline-2
+                         focus-visible:outline-primary-600 disabled:opacity-60">
+                  Remover
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+
+  <input
+    #picker
+    type="file"
+    [accept]="accept"
+    hidden
+    aria-hidden="true"
+    tabindex="-1"
+    (change)="onFileSelected($event)" />
+</div>

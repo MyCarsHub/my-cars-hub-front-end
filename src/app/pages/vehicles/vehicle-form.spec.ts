@@ -392,14 +392,12 @@ describe('VehicleForm — financiamento na edição', () => {
    * FEAT-0053: o bloco de documentos é exclusivo do CADASTRO. Na edição (rota
    * com id) quem cuida dos anexos é o card do detalhe — o bloco não renderiza.
    */
-  it('não renderiza o bloco de documentos na edição — sem botões de anexar nem picker', async () => {
+  it('não renderiza o bloco de documentos na edição — sem slots de anexar nem picker', async () => {
     await setup(null);
 
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).not.toContain('Documentos (opcional)');
-    expect(html).not.toContain('Anexar CRLV');
-    expect(html).not.toContain('Anexar outro arquivo');
-    expect(fixture.nativeElement.querySelector('[data-pending-doc]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-doc-slot]')).toBeNull();
     expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
   });
 
@@ -619,8 +617,6 @@ describe('VehicleForm — documentos no cadastro', () => {
     form: { patchValue: (v: unknown) => void };
     submit: () => void;
     isEdit: () => boolean;
-    openDocumentPicker: (kind: 'CRLV' | 'OTHER') => void;
-    onDocumentsSelected: (event: Event) => void;
   }
 
   function api(): FormApi {
@@ -638,15 +634,26 @@ describe('VehicleForm — documentos no cadastro', () => {
     });
   }
 
-  /** Simula o gesto completo: toque no tipo + retorno do seletor nativo. */
-  function pick(kind: 'CRLV' | 'OTHER', files: File[]): void {
-    api().openDocumentPicker(kind);
-    api().onDocumentsSelected({ target: { files, value: '' } } as unknown as Event);
+  /**
+   * O gesto completo no bloco COMPARTILHADO (FIX-0232): toca no slot do tipo e
+   * escolhe UM arquivo — o seletor múltiplo morreu com a regra de um por tipo.
+   */
+  function pick(kind: 'CRLV' | 'OTHER', file: File): void {
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const slot = host.querySelector<HTMLButtonElement>(`[data-doc-slot="${kind}"] > button`);
+    if (!slot) throw new Error(`slot ${kind} não está na tela`);
+    slot.click();
+    fixture.detectChanges();
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('o seletor de arquivos não está na tela');
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
     fixture.detectChanges();
   }
 
   function pendingRows(): NodeListOf<HTMLElement> {
-    return fixture.nativeElement.querySelectorAll('[data-pending-doc]');
+    return fixture.nativeElement.querySelectorAll('[data-doc-slot] ul > li');
   }
 
   function bannerText(): string {
@@ -689,10 +696,10 @@ describe('VehicleForm — documentos no cadastro', () => {
     fixture.detectChanges();
   });
 
-  it('envia os N arquivos escolhidos, um por chamada e na ordem, e navega para o detalhe', () => {
+  it('envia os arquivos escolhidos (um por tipo), um por chamada e na ordem, e navega para o detalhe', () => {
     fillValidVehicle();
-    pick('CRLV', [crlvFile]);
-    pick('OTHER', [fotoFile]);
+    pick('CRLV', crlvFile);
+    pick('OTHER', fotoFile);
     expect(pendingRows().length).toBe(2);
 
     api().submit();
@@ -721,8 +728,8 @@ describe('VehicleForm — documentos no cadastro', () => {
     );
 
     fillValidVehicle();
-    pick('CRLV', [crlvFile]);
-    pick('OTHER', [fotoFile]);
+    pick('CRLV', crlvFile);
+    pick('OTHER', fotoFile);
 
     api().submit();
     fixture.detectChanges();
@@ -749,26 +756,32 @@ describe('VehicleForm — documentos no cadastro', () => {
     expect(navigate).toHaveBeenCalledWith(['/veiculos', NEW_ID]);
   });
 
-  it('não enfileira o mesmo arquivo duas vezes — dedup por nome+tamanho, nomeado no erro', () => {
-    pick('CRLV', [crlvFile]);
-    // Mesmo arquivo de novo (outro gesto) + um repetido DENTRO da mesma seleção.
-    pick('CRLV', [crlvFile, fotoFile, fotoFile]);
+  /**
+   * FIX-0232 — UM arquivo por tipo: escolher de novo SUBSTITUI o pendente,
+   * nunca acrescenta (a antiga dedup por nome+tamanho fica subsumida).
+   */
+  it('substitui o pendente ao escolher outro arquivo do mesmo tipo — e é o novo que sobe', () => {
+    const crlvNovo = new File(['novo'], 'crlv-2026.pdf', { type: 'application/pdf' });
+    fillValidVehicle();
+    pick('CRLV', crlvFile);
+    pick('CRLV', crlvNovo);
 
-    expect(pendingRows().length).toBe(2);
-    const html = fixture.nativeElement.innerHTML as string;
-    expect(html).toContain('Já na lista:');
-    expect(html).toContain('crlv.pdf');
+    expect(pendingRows().length).toBe(1);
+    expect((pendingRows()[0].textContent ?? '')).toContain('crlv-2026.pdf');
+
+    api().submit();
+    fixture.detectChanges();
+
+    expect(uploadDocument).toHaveBeenCalledTimes(1);
+    expect(uploadDocument.mock.calls[0]).toEqual([NEW_ID, 'CRLV', crlvNovo]);
   });
 
-  it('recusa arquivo fora da allowlist na seleção, nomeando o recusado', () => {
+  it('recusa arquivo fora da allowlist com a mensagem das regras compartilhadas no banner', () => {
     const exe = new File(['x'], 'virus.exe', { type: 'application/octet-stream' });
-    pick('CRLV', [exe, crlvFile]);
+    pick('CRLV', exe);
 
-    // Só o válido entra; o recusado é nomeado no erro do bloco.
-    expect(pendingRows().length).toBe(1);
-    const html = fixture.nativeElement.innerHTML as string;
-    expect(html).toContain('virus.exe');
-    expect(html).toContain('Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF');
+    expect(pendingRows().length).toBe(0);
+    expect(bannerText()).toContain('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
   });
 });
 
