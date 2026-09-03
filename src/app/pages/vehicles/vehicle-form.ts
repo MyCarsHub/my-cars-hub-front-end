@@ -6,7 +6,6 @@ import {
   computed,
   inject,
   signal,
-  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -65,12 +64,11 @@ import {
   VehicleFuel,
   VehicleType,
 } from '../../types/vehicle.types';
+import { formatDocumentSize } from '../../components/documents/document-file-rules';
 import {
-  MAX_DOCUMENT_BYTES,
-  VEHICLE_DOCUMENT_ACCEPT,
-  formatDocumentSize,
-  isAllowedDocumentFile,
-} from './vehicle-document-constraints';
+  PendingDocumentsBlock,
+  PendingSlotView,
+} from '../../components/documents/pending-documents-block';
 
 const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
 
@@ -120,6 +118,7 @@ function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
     FormField,
     FieldControl,
     RouterLink,
+    PendingDocumentsBlock,
   ],
   templateUrl: './vehicle-form.html',
 })
@@ -186,14 +185,37 @@ export class VehicleForm implements OnInit {
    */
   protected readonly documentsEnabled = signal(true);
   protected readonly pendingDocuments = signal<PendingVehicleDocument[]>([]);
-  /** Erro de SELEÇÃO (formato/tamanho) — local ao bloco, não ao banner do form. */
-  protected readonly documentsPickError = signal<string | null>(null);
-  protected readonly documentKindMeta = VEHICLE_DOCUMENT_KIND_META;
-  protected readonly documentAccept = VEHICLE_DOCUMENT_ACCEPT;
-  /** Mesma semântica do `pendingKind` do card: a intenção do toque, não envio em voo. */
-  private pendingDocumentKind: VehicleDocumentKind | null = null;
   private nextPendingDocumentId = 1;
-  private readonly docPicker = viewChild<ElementRef<HTMLInputElement>>('docPicker');
+
+  /**
+   * Um slot por tipo, na visão do `PendingDocumentsBlock` compartilhado
+   * (FIX-0232). O FORM segue dono do estado: UM arquivo por tipo, escolher de
+   * novo SUBSTITUI o pendente (e zera um `error` anterior); o que já subiu
+   * (`uploaded`) tranca o slot — o anexo pertence ao veículo e sai só pelo
+   * card do detalhe.
+   */
+  protected readonly documentSlots = computed<PendingSlotView[]>(() =>
+    (
+      [
+        { kind: 'CRLV', hint: 'Sempre o mais recente; anexar de novo substitui.' },
+        { kind: 'OTHER', hint: 'Qualquer outro arquivo do veículo.' },
+      ] as const
+    ).map((def) => {
+      const docs = this.pendingDocuments().filter((d) => d.kind === def.kind);
+      return {
+        kind: def.kind,
+        label: VEHICLE_DOCUMENT_KIND_META[def.kind],
+        hint: def.hint,
+        files: docs.map((d) => ({
+          id: d.id,
+          name: d.file.name,
+          sizeText: formatDocumentSize(d.file.size),
+          sent: d.status === 'uploaded',
+        })),
+        sent: docs.some((d) => d.status === 'uploaded'),
+      };
+    }),
+  );
 
   protected readonly form = this.fb.nonNullable.group(
     {
@@ -350,73 +372,50 @@ export class VehicleForm implements OnInit {
     this.showInsurance.update((v) => !v);
   }
 
-  /** O botão do tipo É a afordância: registra o kind e abre o seletor nativo. */
-  protected openDocumentPicker(kind: VehicleDocumentKind): void {
-    if (this.saving()) return;
-    this.documentsPickError.set(null);
-    this.pendingDocumentKind = kind;
-    this.docPicker()?.nativeElement.click();
-  }
-
   /**
-   * Seleção com `multiple`: valida cada arquivo (allowlist + 20MB, as mesmas
-   * guardas do card do detalhe), acrescenta os válidos e nomeia os recusados —
-   * recusar em silêncio faria o usuário achar que anexou o que não anexou.
+   * Arquivo VÁLIDO escolhido no `PendingDocumentsBlock` (as regras de formato
+   * e tamanho já passaram lá; a recusa chega por `onDocRejected`).
    *
-   * Dedup por nome+tamanho contra a lista pendente (e dentro da própria
-   * seleção): o mesmo arquivo escolhido duas vezes subiria DUAS vezes, porque
-   * o backend acrescenta em vez de substituir.
+   * UM arquivo por tipo (FIX-0232): já enviado tranca (o anexo pertence ao
+   * veículo); pendente — inclusive um que FALHOU no envio — é SUBSTITUÍDO no
+   * lugar, com o `status` de volta a `pending` para reentrar na fila.
    */
-  protected onDocumentsSelected(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const files = Array.from(target.files ?? []);
-    // Zera o input ANTES de qualquer retorno: sem isso, escolher o MESMO
-    // arquivo de novo depois de removê-lo da lista não dispara `change`.
-    target.value = '';
-    const kind = this.pendingDocumentKind;
-    this.pendingDocumentKind = null;
-    if (!kind || files.length === 0) return;
-
-    const seen = new Set(this.pendingDocuments().map((d) => `${d.file.name}|${d.file.size}`));
-    const rejected: string[] = [];
-    const duplicated: string[] = [];
-    const accepted: PendingVehicleDocument[] = [];
-    for (const file of files) {
-      if (!isAllowedDocumentFile(file) || file.size > MAX_DOCUMENT_BYTES) {
-        rejected.push(file.name);
-        continue;
-      }
-      const key = `${file.name}|${file.size}`;
-      if (seen.has(key)) {
-        duplicated.push(file.name);
-        continue;
-      }
-      seen.add(key);
-      accepted.push({ id: this.nextPendingDocumentId++, kind, file, status: 'pending' });
-    }
-    if (accepted.length > 0) {
-      this.pendingDocuments.update((list) => [...list, ...accepted]);
-    }
-    const problems: string[] = [];
-    if (rejected.length > 0) {
-      problems.push(
-        `Não anexado: ${rejected.join(', ')}. Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF, até 20MB.`,
+  protected onDocFilePicked(picked: { kind: string; file: File }): void {
+    const kind = picked.kind as VehicleDocumentKind;
+    const existing = this.pendingDocuments().find((d) => d.kind === kind);
+    if (existing?.status === 'uploaded') {
+      this.error.set(
+        `${VEHICLE_DOCUMENT_KIND_META[kind]} já foi enviado. ` +
+          'Remova ou substitua pelo detalhe do veículo.',
       );
+      return;
     }
-    if (duplicated.length > 0) {
-      problems.push(`Já na lista: ${duplicated.join(', ')}.`);
+    if (existing) {
+      this.pendingDocuments.update((list) =>
+        list.map((d) =>
+          d.id === existing.id ? { ...d, file: picked.file, status: 'pending' as const } : d,
+        ),
+      );
+      return;
     }
-    this.documentsPickError.set(problems.length > 0 ? problems.join(' ') : null);
+    this.pendingDocuments.update((list) => [
+      ...list,
+      { id: this.nextPendingDocumentId++, kind, file: picked.file, status: 'pending' },
+    ]);
   }
 
-  protected removePendingDocument(doc: PendingVehicleDocument): void {
-    // `uploaded` já está no servidor — remover daqui não o removeria de lá.
-    if (doc.status === 'uploaded' || this.saving()) return;
-    this.pendingDocuments.update((list) => list.filter((d) => d.id !== doc.id));
+  /** Recusa das regras compartilhadas (formato/tamanho): banner do form. */
+  protected onDocRejected(message: string): void {
+    this.error.set(message);
   }
 
-  protected pendingSizeText(doc: PendingVehicleDocument): string {
-    return formatDocumentSize(doc.file.size);
+  protected removePendingDocument(id: number | string): void {
+    if (this.saving()) return;
+    // `uploaded` já está no servidor — remover daqui não o removeria de lá
+    // (o bloco nem oferece o botão, esta guarda é a segunda metade da regra).
+    this.pendingDocuments.update((list) =>
+      list.filter((d) => d.id !== id || d.status === 'uploaded'),
+    );
   }
 
   protected submit(): void {

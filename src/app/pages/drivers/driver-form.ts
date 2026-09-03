@@ -1,12 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
   OnInit,
   computed,
   inject,
   signal,
-  viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -52,12 +50,11 @@ import {
 } from '../../types/driver.types';
 import { DRIVER_STATUS_META } from '../../utils/status-maps';
 import { isValidCpf } from '../../utils/validators/cpf.validator';
+import { formatDocumentSize } from '../../components/documents/document-file-rules';
 import {
-  DOCUMENT_ACCEPT,
-  MAX_DOCUMENT_BYTES,
-  formatDocumentSize,
-  isAllowedDocumentFile,
-} from './driver-document-file-rules';
+  PendingDocumentsBlock,
+  PendingSlotView,
+} from '../../components/documents/pending-documents-block';
 
 const CATEGORIES: LicenseCategory[] = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
 const STATUSES: Array<{ value: DriverStatus; label: string }> = (
@@ -115,6 +112,7 @@ type ThirdPartyContactGroup = FormGroup<{
     AlertBanner,
     FormField,
     FieldControl,
+    PendingDocumentsBlock,
   ],
   templateUrl: './driver-form.html',
 })
@@ -147,35 +145,31 @@ export class DriverForm implements OnInit {
    */
   protected readonly canAttachDocuments = this.route.snapshot.paramMap.get('id') === null;
 
-  protected readonly documentAccept = DOCUMENT_ACCEPT;
-
   /** Arquivos escolhidos no cadastro, enviados como elo filho do submit. */
   protected readonly pendingFiles = signal<PendingDriverFile[]>([]);
   private nextPendingFileId = 1;
 
   /**
-   * ALVO do seletor de arquivos — a intenção do toque, não estado de envio.
-   * Mesmo conserto do card de documentos: o diálogo nativo pode ser dispensado
-   * sem escolher nada, então nada de "Enviando" aqui.
+   * Um slot por tipo oferecido no cadastro, na visão que o
+   * `PendingDocumentsBlock` compartilhado renderiza (FIX-0231). O FORM segue
+   * dono do estado: UM arquivo por tipo (a CNH é um arquivo só, frente e
+   * verso juntos), escolher de novo SUBSTITUI o pendente, e o que já subiu
+   * (`sent`) tranca o slot — o arquivo pertence ao motorista e sai só pelo
+   * card do detalhe.
    */
-  private readonly pendingKind = signal<DriverDocumentKind | null>(null);
-
-  private readonly docPicker = viewChild<ElementRef<HTMLInputElement>>('docPicker');
-
-  /**
-   * Um slot por tipo oferecido no cadastro. UM arquivo por tipo (regra de
-   * produto — a CNH é um arquivo só, frente e verso juntos): escolher de novo
-   * SUBSTITUI o pendente; o que já subiu (`sent`) tranca o slot, porque o
-   * arquivo pertence ao motorista e sai só pelo card do detalhe.
-   */
-  protected readonly documentSlots = computed(() =>
+  protected readonly documentSlots = computed<PendingSlotView[]>(() =>
     CADASTRO_SLOT_DEFS.map((def) => {
       const files = this.pendingFiles().filter((f) => f.kind === def.kind);
       return {
         kind: def.kind,
         hint: def.hint,
         label: DRIVER_DOCUMENT_KIND_META[def.kind],
-        files,
+        files: files.map((f) => ({
+          id: f.id,
+          name: f.file.name,
+          sizeText: formatDocumentSize(f.file.size),
+          sent: f.sent,
+        })),
         sent: files.some((f) => f.sent),
       };
     }),
@@ -464,41 +458,16 @@ export class DriverForm implements OnInit {
   }
 
   /**
-   * O slot É a afordância: tocá-lo registra o tipo e abre o seletor. Slot com
-   * arquivo JÁ ENVIADO não abre — o anexo pertence ao motorista e sai pelo
-   * card do detalhe. Slot com pendente abre normalmente: a escolha SUBSTITUI.
+   * Arquivo VÁLIDO escolhido no `PendingDocumentsBlock` (as regras de formato
+   * e tamanho já passaram lá; a mensagem de recusa chega por `onDocRejected`).
+   *
+   * UM arquivo por tipo. Já enviado tranca (o anexo pertence ao motorista) —
+   * o bloco nem abre o seletor, e a guarda aqui cobre o intervalo em que o
+   * diálogo nativo ficou aberto enquanto o estado mudava; pendente é
+   * SUBSTITUÍDO no lugar — nunca uma segunda linha do mesmo tipo.
    */
-  protected openDocPicker(kind: DriverDocumentKind): void {
-    if (this.saving()) return;
-    if (this.pendingFiles().some((f) => f.kind === kind && f.sent)) return;
-    this.pendingKind.set(kind);
-    this.docPicker()?.nativeElement.click();
-  }
-
-  protected onDocFileSelected(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    // Zera o input ANTES de qualquer retorno: sem isso, escolher o MESMO
-    // arquivo de novo depois de um erro não dispara `change`.
-    target.value = '';
-    const kind = this.pendingKind();
-    this.pendingKind.set(null);
-    if (!file || !kind) return;
-
-    if (!isAllowedDocumentFile(file)) {
-      this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
-      return;
-    }
-    if (file.size > MAX_DOCUMENT_BYTES) {
-      this.error.set(
-        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 20MB. ` +
-          'Fotografe o documento com menos resolução e escolha de novo.',
-      );
-      return;
-    }
-
-    // UM arquivo por tipo. Já enviado tranca (o anexo pertence ao motorista);
-    // pendente é SUBSTITUÍDO no lugar — nunca uma segunda linha do mesmo tipo.
+  protected onDocFilePicked(picked: { kind: string; file: File }): void {
+    const kind = picked.kind as DriverDocumentKind;
     const existing = this.pendingFiles().find((f) => f.kind === kind);
     if (existing?.sent) {
       this.error.set(
@@ -511,35 +480,26 @@ export class DriverForm implements OnInit {
     this.error.set(null);
     if (existing) {
       this.pendingFiles.update((list) =>
-        list.map((f) => (f.id === existing.id ? { ...f, file } : f)),
+        list.map((f) => (f.id === existing.id ? { ...f, file: picked.file } : f)),
       );
       return;
     }
     this.pendingFiles.update((list) => [
       ...list,
-      { id: this.nextPendingFileId++, kind, file, sent: false },
+      { id: this.nextPendingFileId++, kind, file: picked.file, sent: false },
     ]);
   }
 
-  protected removePendingFile(id: number): void {
+  /** Recusa das regras compartilhadas (formato/tamanho): banner do form. */
+  protected onDocRejected(message: string): void {
+    this.error.set(message);
+  }
+
+  protected removePendingFile(id: number | string): void {
     if (this.saving()) return;
     // Só arquivos ainda não enviados têm botão de remover — o que já subiu
     // pertence ao motorista e sai pelo card de documentos do detalhe.
     this.pendingFiles.update((list) => list.filter((f) => f.id !== id || f.sent));
-  }
-
-  protected pendingSizeText(item: PendingDriverFile): string {
-    return formatDocumentSize(item.file.size);
-  }
-
-  protected slotAriaLabel(label: string, count: number, sent = false): string {
-    if (sent) return `${label} — documento já enviado. Gerencie pelo detalhe do motorista.`;
-    if (count === 0) return `Anexar ${label} — nenhum arquivo escolhido`;
-    return `Substituir ${label} — escolher outro arquivo substitui o atual`;
-  }
-
-  protected removeAriaLabel(item: PendingDriverFile): string {
-    return `Remover ${item.file.name}`;
   }
 
   protected removeContactAriaLabel(index: number): string {

@@ -158,8 +158,6 @@ describe('DriverForm — anexos no cadastro (FEAT-0054)', () => {
     canAttachDocuments: boolean;
     isEdit: () => boolean;
     pendingFiles: () => ReadonlyArray<{ file: File; sent: boolean }>;
-    openDocPicker: (kind: DriverDocumentKind) => void;
-    onDocFileSelected: (e: Event) => void;
     form: {
       patchValue: (v: unknown) => void;
       get: (path: string) => { disabled: boolean } | null;
@@ -216,9 +214,24 @@ describe('DriverForm — anexos no cadastro (FEAT-0054)', () => {
     });
   }
 
+  /**
+   * O gesto completo do usuário no bloco COMPARTILHADO (FIX-0231): toca no
+   * slot do tipo e escolhe o arquivo — duas interações de DOM de verdade. O
+   * antigo atalho por método do form deixou de existir com a extração; o
+   * caminho DOM prova o fio inteiro form → bloco → form.
+   */
   function pick(kind: DriverDocumentKind, file: File): void {
-    component().openDocPicker(kind);
-    component().onDocFileSelected({ target: { files: [file], value: '' } } as unknown as Event);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const slot = host.querySelector<HTMLButtonElement>(`[data-doc-slot="${kind}"] > button`);
+    if (!slot) throw new Error(`slot ${kind} não está na tela`);
+    slot.click();
+    fixture.detectChanges();
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('o seletor de arquivos não está na tela');
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
   }
 
   function submit(): void {
