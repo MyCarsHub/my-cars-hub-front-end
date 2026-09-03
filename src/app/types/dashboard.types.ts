@@ -45,18 +45,17 @@ export interface AlertsDto {
 export interface FleetDto {
     vehiclesTotal: number;
     vehicleLimit: number | null;
-    /**
-     * Recorte operacional (motoristas `AVAILABLE`/`WORKING`). NÃO serve para
-     * comparar com `driverLimit` — o bloqueio de plano conta todos.
-     */
+    /** Recorte operacional: motoristas `AVAILABLE`/`WORKING`. */
     driversActive: number;
     /**
-     * Total de motoristas contados pelo MESMO predicado do bloqueio de plano.
-     * É este o numerador de "X de Y do plano".
+     * Total de motoristas da conta.
+     *
+     * NÃO existe mais um `driverLimit` para comparar (FEAT-0070): o teto virou
+     * guarda-corpo interno, o backend o removeu do `FleetDto` e a tela deixou
+     * de exibir capacidade de motorista. Este número é operação — quantos
+     * existem —, não capacidade.
      */
     driversTotal: number;
-    /** `null` = ilimitado (plano PRO). */
-    driverLimit: number | null;
     rentedNow: number;
     reservedNow: number;
     utilizationPct: number;

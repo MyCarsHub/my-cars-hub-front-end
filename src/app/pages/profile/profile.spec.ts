@@ -18,7 +18,6 @@ const plan = (over: Partial<PlanResponse>): PlanResponse => ({
   period: 'MONTHLY',
   price: 0,
   vehicleLimit: 2,
-  driverLimit: 3,
   trialDays: 7,
   productExternalId: null,
   gateway: 'stripe',
