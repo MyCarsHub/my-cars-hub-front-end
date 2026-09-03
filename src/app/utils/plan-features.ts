@@ -18,7 +18,7 @@ import { PlanTier, normalizePlanName } from './plan-limits';
  * PRO ganhou promessa que ninguém escreveu.
  *
  * <h4>O que NÃO mora aqui</h4>
- * Capacidade (veículos/motoristas) e dias de teste. Esses são números: na
+ * Capacidade (veículos) e dias de teste. Esses são números: na
  * landing vêm de `planCapacityLine()` (cópia da `plans`), no billing vêm da
  * PRÓPRIA linha da API — o card autenticado nunca pode contradizer o plano que
  * o backend realmente vende.
@@ -267,14 +267,16 @@ export const PLAN_INHERITANCE_LINE = 'Tudo o que o plano anterior tem';
  * Pode falar de TAMANHO e de ATENDIMENTO — as duas coisas que realmente variam.
  * Nenhuma delas pode citar função exclusiva: a antiga do ENTERPRISE prometia
  * "integrações premium, suporte dedicado", coisas que nenhum plano tem.
+ *
+ * TAMANHO aqui é VEÍCULO, nunca motorista (FEAT-0070): o teto de motoristas
+ * virou guarda-corpo interno e não se apresenta em lugar nenhum.
  */
 export const PLAN_DESCRIPTION: Readonly<Record<PlanTier, string>> = {
   TRIAL: 'Coloque seus primeiros carros e veja rodando. 14 dias, sem cartão.',
-  STARTER:
-    'Saia da planilha de vez. Até 15 carros e 45 motoristas, com contrato e cobrança no automático.',
-  PRO: 'A frota cresceu e o suporte acompanha: 25 carros, 75 motoristas e sua mensagem na frente da fila.',
+  STARTER: 'Saia da planilha de vez. Até 15 veículos, com contrato e cobrança no automático.',
+  PRO: 'A frota cresceu e o suporte acompanha: até 25 veículos e sua mensagem na frente da fila.',
   ENTERPRISE:
-    'Frota e motoristas ilimitados, com atendimento prioritário. Para quem não quer pensar em teto.',
+    'Frota ilimitada, com atendimento prioritário. Para quem não quer pensar em teto.',
 };
 
 /**

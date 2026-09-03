@@ -11,10 +11,11 @@ describe('plan-limits', () => {
   // PRO 335-338, ENTERPRISE 340-343), conferidos contra o estado-alvo do
   // cabeçalho da própria migration (V59:9-15).
   it('espelha os tetos reais da V59', () => {
-    expect(PLAN_CAPACITY.TRIAL).toEqual({ vehicles: 3, drivers: 4 });
-    expect(PLAN_CAPACITY.STARTER).toEqual({ vehicles: 15, drivers: 45 });
-    expect(PLAN_CAPACITY.PRO).toEqual({ vehicles: 25, drivers: 75 });
-    expect(PLAN_CAPACITY.ENTERPRISE).toEqual({ vehicles: 100, drivers: 300 });
+    // Só VEÍCULOS: o teto de motorista virou guarda-corpo interno (FEAT-0070).
+    expect(PLAN_CAPACITY.TRIAL).toEqual({ vehicles: 3 });
+    expect(PLAN_CAPACITY.STARTER).toEqual({ vehicles: 15 });
+    expect(PLAN_CAPACITY.PRO).toEqual({ vehicles: 25 });
+    expect(PLAN_CAPACITY.ENTERPRISE).toEqual({ vehicles: 100 });
   });
 
   // O catálogo tem QUATRO famílias depois da V59 — ver o estado-alvo em
@@ -41,12 +42,17 @@ describe('plan-limits', () => {
    * Este teste existe para que um tier novo que a rompa quebre AQUI, e não na
    * frente do cliente.
    */
-  it('mantém motoristas = 3× veículos nos planos pagos', () => {
-    for (const tier of ['STARTER', 'PRO', 'ENTERPRISE'] as const) {
-      expect(PLAN_CAPACITY[tier].drivers).toBe(PLAN_CAPACITY[tier].vehicles * 3);
+  /**
+   * FEAT-0070 — a razão "motoristas = 3× veículos" morreu junto com o eixo: o
+   * teto de motorista virou guarda-corpo interno (200 igual em todo plano),
+   * saiu das respostas da API e saiu daqui. O que resta afirmar é que a tabela
+   * NÃO guarda número de motorista: guardar um seria convidar a reexibição.
+   */
+  it('não guarda capacidade de motoristas — só veículos', () => {
+    for (const tier of ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'] as const) {
+      expect(Object.keys(PLAN_CAPACITY[tier])).toEqual(['vehicles']);
     }
-    // A exceção documentada, afirmada para não virar "esqueceram do trial".
-    expect(PLAN_CAPACITY.TRIAL).toEqual({ vehicles: 3, drivers: 4 });
+    expect(PLAN_CAPACITY.TRIAL).toEqual({ vehicles: 3 });
   });
 
   /**
@@ -65,7 +71,6 @@ describe('plan-limits', () => {
 
     for (let i = 1; i < ladder.length; i++) {
       expect(ladder[i].vehicles).toBeGreaterThan(ladder[i - 1].vehicles);
-      expect(ladder[i].drivers).toBeGreaterThan(ladder[i - 1].drivers);
     }
   });
 

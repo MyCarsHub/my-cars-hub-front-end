@@ -463,18 +463,9 @@
                       </td>
                     }
                   </tr>
-                  <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">Motoristas</td>
-                    @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">
-                        @if (isUnlimited(plan.driverLimit, plan.name)) {
-                          <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
-                        } @else {
-                          {{ formatLimit(plan.driverLimit, plan.name) }}
-                        }
-                      </td>
-                    }
-                  </tr>
+                  <!-- Sem linha de "Motoristas" (FEAT-0070): o teto virou
+                       guarda-corpo interno e o campo saiu da resposta da API.
+                       A linha inteira sai — nunca uma célula órfã. -->
                   <tr>
                     <td class="py-3.5 px-4 font-medium text-neutral-700">Dias de teste grátis</td>
                     @for (plan of orderedPlans(); track plan.id) {
@@ -574,16 +565,7 @@
                           }
                         </span>
                       </li>
-                      <li class="flex items-center justify-between">
-                        <span class="text-neutral-500">Motoristas</span>
-                        <span class="font-semibold text-neutral-900 tabular-nums">
-                          @if (isUnlimited(plan.driverLimit, plan.name)) {
-                            <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
-                          } @else {
-                            {{ formatLimit(plan.driverLimit, plan.name) }}
-                          }
-                        </span>
-                      </li>
+                      <!-- Ver a tabela desktop: o item inteiro sai (FEAT-0070). -->
                       <li class="flex items-center justify-between">
                         <span class="text-neutral-500">Dias de teste</span>
                         <span class="font-semibold text-neutral-900 tabular-nums">

@@ -19,7 +19,7 @@ import {
   SegmentedToggle,
   SegmentedToggleOption,
 } from '../../../../components/segmented-toggle/segmented-toggle';
-import { PlanTier, planCapacityLine } from '../../../../utils/plan-limits';
+import { PlanTier, planCapacityLines } from '../../../../utils/plan-limits';
 import {
   PLAN_DESCRIPTION,
   PlanLadderArrangement,
@@ -226,13 +226,10 @@ export class LandingPricingComponent {
    * venderia uma escada que o código não implementa.
    */
   private readonly capacityLines: Readonly<Record<PlanTier, readonly string[]>> = {
-    TRIAL: [planCapacityLine('TRIAL', 'vehicles'), planCapacityLine('TRIAL', 'drivers')],
-    STARTER: [planCapacityLine('STARTER', 'vehicles'), planCapacityLine('STARTER', 'drivers')],
-    PRO: [planCapacityLine('PRO', 'vehicles'), planCapacityLine('PRO', 'drivers')],
-    ENTERPRISE: [
-      planCapacityLine('ENTERPRISE', 'vehicles'),
-      planCapacityLine('ENTERPRISE', 'drivers'),
-    ],
+    TRIAL: planCapacityLines('TRIAL'),
+    STARTER: planCapacityLines('STARTER'),
+    PRO: planCapacityLines('PRO'),
+    ENTERPRISE: planCapacityLines('ENTERPRISE'),
   };
 
   /**
