@@ -19,7 +19,7 @@
 
     <div class="p-3 sm:p-4 space-y-4">
       <!-- Filters -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <form (ngSubmit)="onSearchSubmit()" class="sm:col-span-2 lg:col-span-2">
           <label for="veiculos-search" class="sr-only">Buscar por placa, marca ou modelo</label>
           <div class="relative">
@@ -69,6 +69,22 @@
             @for (opt of statusOptions; track opt.value) {
               <option [value]="opt.value">Status: {{ opt.label }}</option>
             }
+          </select>
+        </div>
+
+        <div>
+          <label class="sr-only" for="veiculos-sold">Veículos vendidos</label>
+          <!-- Eixo próprio, não um status: a listagem operacional esconde os
+               vendidos e este seletor é a única porta para eles. -->
+          <select
+            id="veiculos-sold"
+            [ngModel]="soldFilter()"
+            (ngModelChange)="soldFilter.set($event === 'true'); onFilterChange()"
+            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+                   focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            <option [value]="false">Frota atual</option>
+            <option [value]="true">Vendidos</option>
           </select>
         </div>
 
