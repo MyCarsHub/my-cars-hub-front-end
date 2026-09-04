@@ -202,6 +202,49 @@ export class DashboardHome {
         () => this.summary()?.finance?.monthlyBilling ?? [],
     );
 
+    // ---- Venda de veículos (FEAT-0074) -----------------------------------
+
+    /**
+     * Receita BRUTA de venda no período — categoria PONTUAL, própria.
+     *
+     * Decisão do usuário (FIX-0257): o card mostra a ENTRADA DE CAIXA do mês,
+     * pelo valor bruto. Fica ao lado do faturamento, nunca somada nele.
+     */
+    protected readonly saleRevenueCents = computed(
+        () => this.summary()?.finance?.saleRevenueCents ?? 0,
+    );
+
+    /**
+     * LIMITAÇÃO DE CONTRATO CONHECIDA: `saleRevenueCents` é uma SOMA e o
+     * `FinanceDto` não traz nem `null` nem contagem de vendas. Logo uma venda
+     * registrada por R$ 0 na janela é indistinguível de "não houve venda" e
+     * fica invisível neste card. Não é defeito desta tela — o dado não existe;
+     * a correção depende de o backend expor contagem (ou nulidade). Já
+     * registrado como proposta de nó do backend.
+     */
+    protected readonly hasSaleRevenue = computed(() => this.saleRevenueCents() > 0);
+
+    protected readonly saleRevenueLabel = computed(() => formatBRL(this.saleRevenueCents()));
+
+    /**
+     * Legenda de honestidade da série mensal — SÓ quando houve venda.
+     *
+     * A série (`monthlyBilling`) é de ALUGUEL: o backend não manda a venda
+     * quebrada por mês (`saleRevenueCents` é escalar da janela). Distribuir
+     * esse total pelos meses seria inventar dado; então o gráfico continua
+     * plotando o recorrente e DIZ o que ficou de fora, com o valor, para
+     * ninguém comparar gráfico com card e achar que falta dinheiro.
+     *
+     * Sem venda a nota NÃO existe: não há nada fora da série para declarar, e
+     * citar "o card Venda" seria apontar para um card que está oculto nesse
+     * estado. Sem venda, a tela é idêntica à de antes deste nó — invariante.
+     */
+    protected readonly monthlyChartNote = computed(() =>
+        this.hasSaleRevenue()
+            ? `Só aluguel (recorrente). A venda de veículos do período (${this.saleRevenueLabel()}) não entra nesta série.`
+            : null,
+    );
+
     /** Line-chart series (ticket médio mensal últimos 6 meses). */
     protected readonly ticketMedioSeries = computed<MonthlyPointDto[]>(
         () => this.summary()?.charges?.ticketMedioLast6Months ?? [],

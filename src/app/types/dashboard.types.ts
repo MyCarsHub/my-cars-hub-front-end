@@ -116,6 +116,19 @@ export interface FinanceDto {
      */
     receivedCents: number;
     expensesCents: number;
+    /**
+     * Receita BRUTA de VENDA de veículos na janela (FEAT-0074), em centavos.
+     *
+     * Categoria PRÓPRIA: fica FORA de `revenueCents` e de `receivedCents`, e
+     * entra no resultado (`revenue + saleRevenue - expenses`). É entrada
+     * PONTUAL — misturar com faturamento de aluguel faria a tela anunciar uma
+     * recorrência que não existe.
+     *
+     * NÃO existe `previousSaleRevenueCents`: o comparativo "vs período
+     * anterior" segue valendo só para aluguel, e inventar um delta aqui seria
+     * inventar dado.
+     */
+    saleRevenueCents: number;
     resultCents: number;
     /** Portion of expenses from maintenances (period). */
     maintenanceExpenseCents: number;

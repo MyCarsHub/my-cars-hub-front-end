@@ -213,6 +213,28 @@ export class VehicleGerenciaHub implements OnInit {
     this.loadRentals(this.vehicleId());
   }
 
+  // ---- Venda do veículo (FEAT-0074) --------------------------------------
+
+  /** Valor bruto da venda, ou `null` quando o veículo não foi vendido. */
+  protected readonly saleValueCents = computed(
+    () => this.summary()?.finance?.saleValueCents ?? null,
+  );
+
+  protected readonly hasSale = computed(() => this.saleValueCents() !== null);
+
+  /**
+   * A CONTA do resultado, escrita por extenso.
+   *
+   * Sem isso o usuário via "Resultado: R$ 12.000" ao lado de investido e
+   * receita e tinha de somar de cabeça para descobrir se a venda entrou. Com a
+   * venda na jogada a conta tem três parcelas, e a legenda passa a dizer quais.
+   */
+  protected readonly resultFormula = computed(() =>
+    this.hasSale()
+      ? 'Receita + venda, menos investimento'
+      : 'Receita menos investimento',
+  );
+
   protected formatMoney(cents: number | null | undefined): string {
     if (cents == null) return '—';
     return new Intl.NumberFormat('pt-BR', {

@@ -164,7 +164,11 @@
         <section class="mb-4">
             <app-page-card title="Faturamento">
                 <div class="p-4 min-w-0">
-                    <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+                    <div
+                        class="grid gap-3 grid-cols-2"
+                        [class.lg:grid-cols-4]="!hasSaleRevenue()"
+                        [class.lg:grid-cols-5]="hasSaleRevenue()"
+                    >
                         <!-- Faturamento -->
                         <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
                             <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
@@ -190,6 +194,35 @@
                                 </p>
                             }
                         </div>
+
+                        <!-- Venda de veículos (FEAT-0074): categoria PONTUAL.
+                             Só aparece quando houve venda no período; sem ela a
+                             grade volta a ser a de sempre. Sem delta "vs período
+                             anterior" — o backend não manda essa comparação para
+                             venda, e inventá-la seria inventar dado. -->
+                        @if (hasSaleRevenue()) {
+                            <div
+                                class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col"
+                                data-sale-revenue-card
+                            >
+                                <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                                    Venda de veículos
+                                </p>
+                                <!-- `primary-700`: NÃO o verde do faturamento
+                                     (leria como aluguel) e NÃO o âmbar do "A
+                                     receber" (leria como dinheiro que ainda não
+                                     entrou). É a única rampa do projeto que já
+                                     não representa um estado financeiro nesta
+                                     grade, e é AA em texto pequeno (5,68:1). A
+                                     MESMA cor vale no hub de gerência. -->
+                                <p class="text-lg sm:text-2xl font-semibold text-primary-700 mt-1 tabular-nums truncate">
+                                    {{ saleRevenueLabel() }}
+                                </p>
+                                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                                    entrada única no período
+                                </p>
+                            </div>
+                        }
 
                         <!-- Recebido -->
                         <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
@@ -261,6 +294,19 @@
                             [data]="monthlyBilling()"
                             (barClick)="onMonthlyBarClick($event)"
                         />
+                        <!-- A série é de ALUGUEL. A venda é escalar da janela (o
+                             backend não a quebra por mês), então dizer que ela
+                             está fora é a única forma honesta de distinguir
+                             pontual de recorrente aqui. Legenda em coluna única,
+                             quebra no mobile. -->
+                        @if (monthlyChartNote(); as chartNote) {
+                            <p
+                                class="mt-2 text-[11px] sm:text-xs text-gray-500 break-words"
+                                data-monthly-chart-note
+                            >
+                                {{ chartNote }}
+                            </p>
+                        }
                     </div>
                 </div>
             </app-page-card>
