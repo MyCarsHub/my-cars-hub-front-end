@@ -182,6 +182,52 @@
       </div>
     </app-page-card>
 
+    <!-- Dados cadastrais (FIX-0244). O bloco vem sempre do backend e cada
+         campo pode ser nulo: mostramos "—" linha a linha em vez de sumir com a
+         seção — preenchimento parcial é estado normal, não erro.
+         LGPD: telefone/e-mail/representante são exibidos AQUI e em lugar
+         nenhum além da tela (nada de console/log). -->
+    @if (registrationSections().length > 0) {
+      <div class="mt-4">
+        <app-page-card title="Dados cadastrais">
+          <div class="p-4 sm:p-6" data-testid="company-registration">
+            @if (registrationEmpty()) {
+              <p class="mb-3 text-sm text-gray-500" data-testid="registration-empty">
+                Esta empresa ainda não preencheu os dados cadastrais.
+              </p>
+            }
+            <!-- Mesmo padrão dos cards existentes: duas colunas que colapsam
+                 para uma no mobile. Sem tabela, sem scroll horizontal. -->
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              @for (section of registrationSections(); track section.key) {
+                <section
+                  class="rounded-xl border border-gray-100 bg-gray-50 p-3 sm:p-4"
+                  data-testid="registration-section"
+                >
+                  <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    {{ section.title }}
+                  </h3>
+                  <dl class="mt-2 divide-y divide-gray-200">
+                    @for (row of section.rows; track row.label) {
+                      <div class="flex items-baseline justify-between gap-3 py-1.5">
+                        <dt class="min-w-0 text-xs text-gray-600">{{ row.label }}</dt>
+                        <dd
+                          class="min-w-0 text-right text-sm font-medium break-words"
+                          [class]="row.empty ? 'text-gray-500' : 'text-gray-900'"
+                        >
+                          {{ row.value }}
+                        </dd>
+                      </div>
+                    }
+                  </dl>
+                </section>
+              }
+            </div>
+          </div>
+        </app-page-card>
+      </div>
+    }
+
     <!-- Operação -->
     @if (operationGroups().length > 0) {
       <div class="mt-4">
@@ -221,6 +267,111 @@
         </app-page-card>
       </div>
     }
+
+    <!-- Histórico de vendas (FEAT-0075). O consolidado acima traz os números;
+         aqui vêm as LINHAS, porque o suporte precisa saber qual veículo, para
+         quem e quando — e, no desfazimento, quem desfez e por quê.
+         Empresa sem venda: card presente com estado vazio, nunca erro.
+         LGPD: comprador e autor aparecem só aqui. Nada de log. -->
+    <div class="mt-4">
+      <app-page-card title="Vendas de veículo">
+        <div class="p-4 sm:p-6" data-testid="company-sales">
+          @if (!hasSalesHistory()) {
+            <p class="text-sm text-gray-500" data-testid="sales-empty">
+              Nenhuma venda registrada por esta empresa.
+            </p>
+          } @else {
+            @if (sales().length > 0) {
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                Vendas vigentes ({{ sales().length }})
+              </h3>
+              <!-- Cards empilhados, não tabela: no mobile uma tabela com
+                   comprador + valor + data + autor viraria scroll horizontal. -->
+              <ul class="mt-2 flex flex-col gap-2">
+                @for (sale of sales(); track sale.vehicleId) {
+                  <li
+                    class="rounded-xl border border-gray-100 bg-gray-50 p-3"
+                    data-testid="sale-item"
+                  >
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <p class="min-w-0 text-sm font-medium text-gray-900 break-words">
+                        {{ sale.vehiclePlate ?? '—' }}
+                      </p>
+                      <p class="shrink-0 text-sm font-semibold tabular-nums text-primary-700">
+                        {{ formatMoney(sale.saleValueCents) }}
+                      </p>
+                    </div>
+                    <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-gray-600 sm:grid-cols-2">
+                      <div class="flex gap-1 min-w-0">
+                        <dt class="shrink-0">Comprador:</dt>
+                        <dd class="min-w-0 break-words text-gray-900">
+                          {{ sale.buyerName ?? '—' }}
+                        </dd>
+                      </div>
+                      <div class="flex gap-1 min-w-0">
+                        <dt class="shrink-0">Data:</dt>
+                        <dd class="min-w-0 tabular-nums text-gray-900">
+                          {{ formatDate(sale.saleDate) }}
+                        </dd>
+                      </div>
+                      <div class="flex gap-1 min-w-0 sm:col-span-2">
+                        <dt class="shrink-0">Registrada por:</dt>
+                        <dd class="min-w-0 break-words text-gray-900">
+                          {{ sale.authorName ?? '—' }}
+                          <span class="text-gray-500">· {{ formatDateTime(sale.createdAt) }}</span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (saleUndos().length > 0) {
+              <h3
+                class="text-xs font-semibold uppercase tracking-wide text-gray-600"
+                [class.mt-4]="sales().length > 0"
+              >
+                Desfazimentos ({{ saleUndos().length }})
+              </h3>
+              <ul class="mt-2 flex flex-col gap-2">
+                @for (undo of saleUndos(); track trackUndo($index, undo)) {
+                  <li
+                    class="rounded-xl border border-gray-100 bg-gray-50 p-3"
+                    data-testid="sale-undo-item"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <p class="min-w-0 text-sm font-medium text-gray-900 break-words">
+                        {{ undo.vehiclePlate ?? 'Veículo excluído' }}
+                      </p>
+                      <span
+                        class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        [class]="undoStateChip(undo.state).chip"
+                      >
+                        {{ undoStateChip(undo.state).label }}
+                      </span>
+                    </div>
+                    <dl class="mt-1 grid gap-x-3 gap-y-0.5 text-xs text-gray-600 sm:grid-cols-2">
+                      <div class="flex gap-1 min-w-0 sm:col-span-2">
+                        <dt class="shrink-0">Motivo:</dt>
+                        <dd class="min-w-0 break-words text-gray-900">{{ undo.reason ?? '—' }}</dd>
+                      </div>
+                      <div class="flex gap-1 min-w-0 sm:col-span-2">
+                        <dt class="shrink-0">Por:</dt>
+                        <dd class="min-w-0 break-words text-gray-900">
+                          {{ undo.authorName ?? '—' }}
+                          <span class="text-gray-500">· {{ formatDateTime(undo.createdAt) }}</span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </div>
+      </app-page-card>
+    </div>
 
     <!-- Membros -->
     <div class="mt-4">
