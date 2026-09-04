@@ -23,6 +23,8 @@ import { AdminCompaniesService } from '../admin-companies.service';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import {
   AdminCompanyMember,
+  AdminCompanySaleItem,
+  AdminCompanySaleUndoItem,
   AdminCompanyStatus,
   AdminCompanySubscriptionStatus,
 } from '../../../types/admin-company.types';
@@ -51,6 +53,24 @@ interface OperationGroup {
   metrics: OperationMetric[];
 }
 
+/**
+ * Uma linha do bloco "Dados cadastrais". `value` já vem com o "—" da tela
+ * quando o campo está vazio: preenchimento é PARCIAL por natureza (a V52 é
+ * aditiva), então a ausência é estado normal, não erro.
+ */
+interface RegistrationRow {
+  label: string;
+  value: string;
+  /** Campo vazio: o valor fica em cinza, como as métricas zeradas. */
+  empty: boolean;
+}
+
+interface RegistrationSection {
+  key: string;
+  title: string;
+  rows: RegistrationRow[];
+}
+
 const COUNT_FORMATTER = new Intl.NumberFormat('pt-BR');
 
 function countMetric(label: string, value: number, hint: string | null = null): OperationMetric {
@@ -59,6 +79,12 @@ function countMetric(label: string, value: number, hint: string | null = null): 
 
 function moneyMetric(label: string, cents: number, hint: string | null = null): OperationMetric {
   return { label, value: formatBRL(cents), hint, zero: cents === 0 };
+}
+
+/** Linha cadastral: texto vazio/nulo vira o "—" que o resto da tela já usa. */
+function registrationRow(label: string, value: string | null | undefined): RegistrationRow {
+  const text = (value ?? '').trim();
+  return { label, value: text === '' ? '—' : text, empty: text === '' };
 }
 
 const COMPANY_STATUS: Record<AdminCompanyStatus, ChipStyle> = {
@@ -141,6 +167,75 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    * Devolve `[]` quando não há empresa carregada (ou, defensivamente, quando um
    * backend antigo não mandou `operations`) — o template esconde o bloco.
    */
+  /**
+   * Dados cadastrais em três seções (contato, endereço, representante).
+   *
+   * O bloco vem SEMPRE presente do backend, e cada campo pode ser nulo — a
+   * seção existe mesmo toda vazia, mostrando "—" linha a linha. Sumir com ela
+   * faria o suporte achar que a tela quebrou; mostrar "—" diz a verdade: não
+   * há cadastro preenchido.
+   *
+   * LGPD: telefone, e-mail e nome do representante são dado pessoal. Eles vão
+   * para a TELA e para nenhum outro lugar — nada de `console`/log aqui.
+   */
+  protected readonly registrationSections = computed<RegistrationSection[]>(() => {
+    const reg = this.detail()?.registration;
+    if (!reg) return [];
+
+    return [
+      {
+        key: 'contact',
+        title: 'Contato',
+        rows: [registrationRow('Telefone', reg.phone), registrationRow('E-mail', reg.email)],
+      },
+      {
+        key: 'address',
+        title: 'Endereço',
+        rows: [
+          registrationRow('Logradouro', reg.addressStreet),
+          registrationRow('Número', reg.addressNumber),
+          registrationRow('Complemento', reg.addressComplement),
+          registrationRow('Bairro', reg.addressDistrict),
+          registrationRow('CEP', reg.addressCep),
+          registrationRow('Cidade', reg.addressCity),
+          registrationRow('UF', reg.addressUf),
+        ],
+      },
+      {
+        key: 'representative',
+        title: 'Representante legal',
+        rows: [
+          registrationRow('Nome', reg.representativeName),
+          registrationRow('Cargo', reg.representativeRole),
+        ],
+      },
+    ];
+  });
+
+  /** Nenhum campo cadastral preenchido — a tela avisa em vez de só mostrar "—". */
+  protected readonly registrationEmpty = computed(() =>
+    this.registrationSections().every((section) => section.rows.every((row) => row.empty)),
+  );
+
+  // ---- Vendas (FEAT-0075) ------------------------------------------------
+
+  protected readonly sales = computed<AdminCompanySaleItem[]>(
+    () => this.detail()?.operations?.sales?.sales ?? [],
+  );
+
+  protected readonly saleUndos = computed<AdminCompanySaleUndoItem[]>(
+    () => this.detail()?.operations?.sales?.undos ?? [],
+  );
+
+  protected readonly hasSalesHistory = computed(
+    () => this.sales().length > 0 || this.saleUndos().length > 0,
+  );
+
+  /** Soma das vendas VIGENTES — o que a empresa tem de venda hoje. */
+  protected readonly salesTotalCents = computed(() =>
+    this.sales().reduce((sum, sale) => sum + (sale.saleValueCents ?? 0), 0),
+  );
+
   protected readonly operationGroups = computed<OperationGroup[]>(() => {
     const ops = this.detail()?.operations;
     if (!ops) return [];
@@ -204,6 +299,21 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
         metrics: [
           countMetric('Total', ops.maintenances.total),
           moneyMetric('Custo', ops.maintenances.costCents, 'exclui canceladas'),
+        ],
+      },
+      {
+        // Vendas VIGENTES (desfazer apaga a linha; o fato fica na trilha, que
+        // aparece na lista de desfazimentos abaixo do consolidado).
+        key: 'sales',
+        title: 'Vendas de veículo',
+        metrics: [
+          countMetric('Vendas vigentes', ops.sales?.sales?.length ?? 0),
+          moneyMetric('Valor vendido', this.salesTotalCents(), 'soma das vigentes'),
+          countMetric(
+            'Desfazimentos',
+            ops.sales?.undos?.length ?? 0,
+            'inclui recusas por falta de vaga',
+          ),
         ],
       },
     ];
@@ -311,9 +421,18 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Data (dia) — inclusive `LocalDate` (`yyyy-MM-dd`), como `saleDate`.
+   *
+   * A ÂNCORA `T00:00:00` não é enfeite: `new Date('2026-08-20')` é interpretado
+   * como meia-noite UTC e, no fuso do Brasil (UTC-3), volta 19/08 — a tela
+   * mostraria a venda um dia antes do que aconteceu. É a convenção já usada em
+   * `drivers-list`, `financings-list`, `alerts-page` e `admin-home`; aqui ela é
+   * seguida localmente (unificar as 6+ cópias é nó próprio).
+   */
   protected formatDate(value: string | null): string {
     if (!value) return '—';
-    const parsed = new Date(value);
+    const parsed = new Date(value.length === 10 ? `${value}T00:00:00` : value);
     if (Number.isNaN(parsed.getTime())) return '—';
     return parsed.toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -335,6 +454,28 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Estado do evento da trilha, com a cor do que ele significa.
+   *
+   * O Java expõe `state` como String livre, então um estado NOVO chegaria aqui
+   * sem aviso. Cair no "Desfeita" por omissão faria a tela AFIRMAR algo que
+   * não sabe; estado não reconhecido aparece com o valor cru em chip neutro —
+   * o suporte vê que existe algo novo em vez de ler uma informação errada.
+   */
+  protected undoStateChip(state: string): ChipStyle {
+    if (state === 'UNDO_REFUSED') {
+      return { label: 'Recusado', chip: 'bg-amber-100 text-amber-800' };
+    }
+    if (state === 'ACTIVE') {
+      return { label: 'Desfeita', chip: 'bg-gray-100 text-gray-700' };
+    }
+    return { label: state || 'Desconhecido', chip: 'bg-gray-100 text-gray-600' };
+  }
+
+  protected formatMoney(cents: number): string {
+    return formatBRL(cents);
+  }
+
   protected roleLabel(role: string): string {
     const map: Record<string, string> = {
       OWNER: 'Proprietário',
@@ -348,6 +489,18 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
     if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-700';
     if (status === 'INVITED') return 'bg-blue-100 text-blue-700';
     return 'bg-gray-100 text-gray-700';
+  }
+
+  /**
+   * A trilha é append-only e o MESMO veículo pode ter vários eventos (desfeita,
+   * recusada, desfeita de novo). Só o `vehicleId` colidiria; o índice sozinho
+   * reordenaria o DOM à toa. O par identifica a linha de forma estável.
+   */
+  protected trackUndo(index: number, undo: AdminCompanySaleUndoItem): string {
+    // O ÍNDICE entra sempre: dois eventos do mesmo veículo podem compartilhar
+    // `createdAt` (mesmo segundo) ou ter os dois nulos, e aí a chave colidiria
+    // — `@for` com chave repetida descarta linha em silêncio.
+    return `${undo.vehicleId}-${undo.createdAt ?? 'sem-data'}-${index}`;
   }
 
   protected trackMember(_index: number, member: AdminCompanyMember): string {
