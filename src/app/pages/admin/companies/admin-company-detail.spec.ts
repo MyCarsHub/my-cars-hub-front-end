@@ -33,6 +33,8 @@ const ZERO_OPERATIONS: AdminCompanyOperations = {
   drivers: { total: 0, workingTotal: 0 },
   fines: { total: 0, pendingTotal: 0, amountCents: 0 },
   maintenances: { total: 0, costCents: 0 },
+  /** Contrato: listas vazias, nunca `null`, mesmo sem venda. */
+  sales: { sales: [], undos: [] },
 };
 
 /**
@@ -52,6 +54,20 @@ describe('AdminCompanyDetail — erros do backend', () => {
     subscription: null,
     members: [],
     chargeIntegration: null,
+    /** Bloco sempre presente no contrato; campos nulos = sem cadastro. */
+    registration: {
+      phone: null,
+      email: null,
+      addressStreet: null,
+      addressNumber: null,
+      addressComplement: null,
+      addressDistrict: null,
+      addressCep: null,
+      addressCity: null,
+      addressUf: null,
+      representativeName: null,
+      representativeRole: null,
+    },
     operations: ZERO_OPERATIONS,
   };
 
@@ -196,6 +212,46 @@ describe('AdminCompanyDetail — bloco de operação', () => {
     drivers: { total: 9, workingTotal: 6 },
     fines: { total: 5, pendingTotal: 2, amountCents: 320_00 },
     maintenances: { total: 11, costCents: 4_500_00 },
+    sales: {
+      sales: [
+        {
+          vehicleId: 'veh-1',
+          vehiclePlate: 'ABC1D23',
+          buyerName: 'Maria Compradora',
+          saleDate: '2026-08-20',
+          saleValueCents: 4_500_000,
+          authorName: 'Operador Um',
+          createdAt: '2026-08-20T10:00:00Z',
+        },
+        {
+          vehicleId: 'veh-2',
+          vehiclePlate: 'XYZ9K88',
+          buyerName: 'José Comprador',
+          saleDate: '2026-07-05',
+          saleValueCents: 3_000_000,
+          authorName: null,
+          createdAt: '2026-07-05T09:00:00Z',
+        },
+      ],
+      undos: [
+        {
+          vehicleId: 'veh-3',
+          vehiclePlate: 'QRS4T56',
+          state: 'ACTIVE',
+          reason: 'Comprador desistiu',
+          authorName: 'Operador Dois',
+          createdAt: '2026-08-25T12:00:00Z',
+        },
+        {
+          vehicleId: 'veh-4',
+          vehiclePlate: null,
+          state: 'UNDO_REFUSED',
+          reason: 'Sem vaga no plano',
+          authorName: 'Operador Três',
+          createdAt: '2026-08-26T08:30:00Z',
+        },
+      ],
+    },
   };
 
   const BASE: AdminCompanyDetailDto = {
@@ -209,6 +265,20 @@ describe('AdminCompanyDetail — bloco de operação', () => {
     subscription: null,
     members: [],
     chargeIntegration: null,
+    /** Bloco sempre presente no contrato; campos nulos = sem cadastro. */
+    registration: {
+      phone: null,
+      email: null,
+      addressStreet: null,
+      addressNumber: null,
+      addressComplement: null,
+      addressDistrict: null,
+      addressCep: null,
+      addressCity: null,
+      addressUf: null,
+      representativeName: null,
+      representativeRole: null,
+    },
     operations: ZERO_OPERATIONS,
   };
 
@@ -252,12 +322,13 @@ describe('AdminCompanyDetail — bloco de operação', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('mostra os seis grupos com contagens e valores em BRL', () => {
+  it('mostra os sete grupos com contagens e valores em BRL', () => {
     const el = render(OPERATIONS);
 
     const block = el.querySelector('[data-testid="company-operations"]');
     expect(block).not.toBeNull();
-    expect(el.querySelectorAll('[data-testid="operation-group"]').length).toBe(6);
+    // Sete desde o FEAT-0076: "Vendas de veículo" entrou no consolidado.
+    expect(el.querySelectorAll('[data-testid="operation-group"]').length).toBe(7);
 
     const titles = Array.from(block!.querySelectorAll('h3')).map((h) => h.textContent?.trim());
     expect(titles).toEqual([
@@ -267,6 +338,7 @@ describe('AdminCompanyDetail — bloco de operação', () => {
       'Motoristas',
       'Multas',
       'Manutenções',
+      'Vendas de veículo',
     ]);
 
     const text = block!.textContent ?? '';
@@ -300,10 +372,12 @@ describe('AdminCompanyDetail — bloco de operação', () => {
   it('empresa zerada renderiza zeros, sem undefined e sem quebrar os grupos', () => {
     const block = render(ZERO_OPERATIONS).querySelector('[data-testid="company-operations"]')!;
 
-    expect(block.querySelectorAll('[data-testid="operation-group"]').length).toBe(6);
+    // Sete grupos desde o FEAT-0076 (o de vendas entrou zerado como os outros).
+    expect(block.querySelectorAll('[data-testid="operation-group"]').length).toBe(7);
 
     const values = Array.from(block.querySelectorAll('dd')).map((d) => d.textContent?.trim());
-    expect(values.length).toBe(20);
+    // 20 métricas + as 3 do grupo de vendas.
+    expect(values.length).toBe(23);
     expect(values.every((v) => v === '0' || v === formatBRL(0))).toBe(true);
     expect(block.textContent).not.toContain('undefined');
     expect(block.textContent).not.toContain('NaN');

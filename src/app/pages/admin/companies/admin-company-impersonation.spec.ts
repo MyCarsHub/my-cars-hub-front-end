@@ -32,6 +32,8 @@ const ZERO_OPERATIONS: AdminCompanyOperations = {
   drivers: { total: 0, workingTotal: 0 },
   fines: { total: 0, pendingTotal: 0, amountCents: 0 },
   maintenances: { total: 0, costCents: 0 },
+  /** Contrato: listas vazias, nunca `null`, mesmo sem venda. */
+  sales: { sales: [], undos: [] },
 };
 
 const COMPANY: AdminCompanyDetailDto = {
@@ -45,6 +47,20 @@ const COMPANY: AdminCompanyDetailDto = {
   subscription: null,
   members: [],
   chargeIntegration: null,
+  /** Bloco sempre presente no contrato; campos nulos = sem cadastro. */
+  registration: {
+    phone: null,
+    email: null,
+    addressStreet: null,
+    addressNumber: null,
+    addressComplement: null,
+    addressDistrict: null,
+    addressCep: null,
+    addressCity: null,
+    addressUf: null,
+    representativeName: null,
+    representativeRole: null,
+  },
   operations: ZERO_OPERATIONS,
 };
 
