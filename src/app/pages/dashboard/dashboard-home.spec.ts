@@ -9,7 +9,7 @@ import { DashboardHome } from './dashboard-home';
 import { BillingAccessService } from '../../services/billing-access.service';
 import { DashboardService } from '../../services/dashboard.service';
 import type { AccessStatus } from '../../types/billing-access.types';
-import type { DashboardSummaryDto, FleetDto } from '../../types/dashboard.types';
+import type { DashboardSummaryDto, FinanceDto, FleetDto } from '../../types/dashboard.types';
 import { PLAN_CAPACITY } from '../../utils/plan-limits';
 
 /**
@@ -57,7 +57,10 @@ describe('DashboardHome — KPIs de frota', () => {
         };
     }
 
-    function summaryWithFleet(fleet: Partial<FleetDto>): DashboardSummaryDto {
+    function summaryWithFleet(
+        fleet: Partial<FleetDto>,
+        finance: Partial<FinanceDto> = {},
+    ): DashboardSummaryDto {
         return {
             period: { from: '2026-08-01', to: '2026-08-31' },
             alerts: {
@@ -82,6 +85,7 @@ describe('DashboardHome — KPIs de frota', () => {
                 revenueCents: 0,
                 receivedCents: 0,
                 expensesCents: 0,
+                saleRevenueCents: 0,
                 resultCents: 0,
                 maintenanceExpenseCents: 0,
                 fineExpenseCents: 0,
@@ -94,6 +98,7 @@ describe('DashboardHome — KPIs de frota', () => {
                 byDriver: [],
                 monthlyBilling: [],
                 cashflow: [],
+                ...finance,
             },
             charges: {
                 byStatus: [],
@@ -220,5 +225,139 @@ describe('DashboardHome — KPIs de frota', () => {
         const text = vehiclesCardText({ vehiclesTotal: 7, vehicleLimit: cap }, null);
 
         expect(text).toContain(`7 de ${cap} do plano`);
+    });
+});
+
+/**
+ * FEAT-0074 — a VENDA de veículo na tela do dashboard.
+ *
+ * Decisão do usuário (FIX-0257): o resultado usa o valor BRUTO e o card mostra
+ * a ENTRADA DE CAIXA do mês. As duas garantias que este bloco trava:
+ *  1. venda é categoria PRÓPRIA — nunca somada ao faturamento de aluguel;
+ *  2. o gráfico mensal, que NÃO tem a venda quebrada por mês, diz que ela está
+ *     fora — um gráfico que soma sem distinguir é mentira silenciosa, e
+ *     distribuir um escalar pelos meses seria inventar dado.
+ */
+describe('DashboardHome — venda de veículos (FEAT-0074)', () => {
+    function render(finance: Partial<FinanceDto>): HTMLElement {
+        const summary: DashboardSummaryDto = {
+            period: { from: '2026-08-01', to: '2026-08-31' },
+            alerts: {
+                openFines: { count: 0, amountCents: 0 },
+                openMaintenances: { count: 0 },
+                expiringCnh30d: { count: 0 },
+                expiringLicensing30d: { count: 0 },
+                reservedRentals: { count: 0 },
+                paidFinesInPeriod: { count: 0, amountCents: 0 },
+            },
+            fleet: {
+                vehiclesTotal: 2,
+                vehicleLimit: 3,
+                driversActive: 1,
+                driversTotal: 1,
+                rentedNow: 1,
+                reservedNow: 0,
+                utilizationPct: 50,
+            },
+            finance: {
+                revenueCents: 500_000,
+                receivedCents: 500_000,
+                expensesCents: 0,
+                saleRevenueCents: 0,
+                resultCents: 500_000,
+                maintenanceExpenseCents: 0,
+                fineExpenseCents: 0,
+                pendingChargesCents: 0,
+                overdueChargesCents: 0,
+                previousRevenueCents: 0,
+                previousReceivedCents: 0,
+                revenueDaily: [],
+                byVehicle: [],
+                byDriver: [],
+                monthlyBilling: [],
+                cashflow: [],
+                ...finance,
+            },
+            charges: {
+                byStatus: [],
+                ticketMedioCents: 0,
+                completedRentalsCount: 0,
+                ticketMedioLast6Months: [],
+            },
+            distributions: { rentalsByStatus: [], vehiclesByStatus: [] },
+            topOffenders: { drivers: [], vehicles: [] },
+        } as unknown as DashboardSummaryDto;
+
+        TestBed.resetTestingModule();
+        TestBed.configureTestingModule({
+            imports: [DashboardHome],
+            providers: [
+                provideRouter([]),
+                provideNoopAnimations(),
+                {
+                    provide: DashboardService,
+                    useValue: { loadOverview: vi.fn().mockReturnValue(of(summary)) },
+                },
+                { provide: BillingAccessService, useValue: { status: signal(null) } },
+            ],
+        });
+
+        const fixture = TestBed.createComponent(DashboardHome);
+        fixture.detectChanges();
+        return fixture.nativeElement as HTMLElement;
+    }
+
+    function text(host: HTMLElement): string {
+        return (host.textContent ?? '').replace(/\s+/g, ' ');
+    }
+
+    it('mostra a venda como categoria própria, sem somar no faturamento', () => {
+        const host = render({ saleRevenueCents: 4_500_000 });
+
+        const card = host.querySelector('[data-sale-revenue-card]');
+        expect(card).not.toBeNull();
+        const cardText = (card?.textContent ?? '').replace(/\s+/g, ' ');
+        expect(cardText).toContain('Venda de veículos');
+        expect(cardText).toContain('45.000,00');
+        expect(cardText).toContain('entrada única no período');
+
+        // O faturamento continua sendo SÓ o aluguel: 5.000,00, não 50.000,00.
+        expect(text(host)).toContain('5.000,00');
+    });
+
+    it('sem venda no período, a categoria não aparece', () => {
+        const host = render({ saleRevenueCents: 0 });
+
+        expect(host.querySelector('[data-sale-revenue-card]')).toBeNull();
+        expect(text(host)).not.toContain('Venda de veículos');
+    });
+
+    /**
+     * O backend não manda a venda quebrada por mês (`saleRevenueCents` é
+     * escalar da janela). Então a série mensal segue sendo de aluguel e a
+     * legenda DIZ isso, com o valor que ficou de fora — é o que impede o
+     * usuário de comparar gráfico com card e achar que sumiu dinheiro.
+     */
+    it('a série mensal declara que é só aluguel e nomeia a venda que ficou de fora', () => {
+        const host = render({ saleRevenueCents: 4_500_000 });
+
+        const note = host.querySelector('[data-monthly-chart-note]');
+        expect(note).not.toBeNull();
+        const noteText = (note?.textContent ?? '').replace(/\s+/g, ' ');
+        expect(noteText).toContain('Só aluguel (recorrente)');
+        expect(noteText).toContain('45.000,00');
+    });
+
+    /**
+     * INVARIANTE do nó: sem venda, a tela é IDÊNTICA à de antes. Nem tile, nem
+     * nota — uma legenda apontando "o card Venda" num estado em que esse card
+     * está oculto mandaria o usuário procurar o que não está lá.
+     */
+    it('sem venda, não há nota no gráfico — a tela fica como era antes', () => {
+        const host = render({ saleRevenueCents: 0 });
+
+        expect(host.querySelector('[data-monthly-chart-note]')).toBeNull();
+        expect(text(host)).not.toContain('Só aluguel');
+        expect(text(host)).not.toContain('card Venda');
     });
 });
