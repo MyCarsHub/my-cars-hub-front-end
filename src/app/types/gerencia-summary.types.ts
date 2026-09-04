@@ -43,6 +43,17 @@ export interface GerenciaFinanceChunk {
    */
   totalRentalReceivedCents: number;
   totalInvestedCents: number;
+  /**
+   * Valor BRUTO da venda do veículo, em centavos (FEAT-0074). `null` quando o
+   * veículo não foi vendido.
+   *
+   * Entra no `resultCents` como categoria PONTUAL — o backend calcula
+   * `rentalRevenue + saleValue - totalInvested`. Não é receita de aluguel e
+   * não pode ser somada com ela na tela.
+   */
+  saleValueCents: number | null;
+  /** `yyyy-MM-dd` da venda; `null` sem venda. */
+  saleDate: string | null;
   resultCents: number;
 }
 
