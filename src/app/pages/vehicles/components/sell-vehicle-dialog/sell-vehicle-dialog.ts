@@ -11,7 +11,9 @@ import {
 } from '@angular/core';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { parsePtBrMoneyCents } from '../../../../utils/ptbr-number';
+import { applyPtBrMoneyMask } from '../../../../utils/ptbr-money-mask';
 import { CreateVehicleSaleRequest } from '../../../../types/vehicle.types';
+import { saleReleasesSlotNote } from '../../vehicle-sale-copy';
 
 /**
  * O que o diálogo devolve: exatamente o corpo do `POST /sale`, já em CENTAVOS.
@@ -86,6 +88,13 @@ export class SellVehicleDialog {
   readonly cancelled = output<void>();
 
   private readonly buyerRef = viewChild<ElementRef<HTMLInputElement>>('buyerInput');
+
+  /**
+   * O efeito da venda na vaga do plano (FIX-0262), dito ANTES de confirmar.
+   * A frase mora em `vehicle-sale-copy` porque o banner de vendido diz a mesma
+   * coisa — duas cópias divergem no primeiro ajuste de texto.
+   */
+  protected readonly slotNote = saleReleasesSlotNote;
 
   protected readonly buyerName = signal('');
   protected readonly saleDate = signal('');
@@ -173,8 +182,15 @@ export class SellVehicleDialog {
     this.saleDate.set((event.target as HTMLInputElement).value);
   }
 
+  /**
+   * Máscara de milhar DURANTE a digitação (FIX-0261): o helper reescreve o
+   * campo já agrupado ("45000" → "45.000") e devolve o caret para onde o
+   * usuário estava. O signal guarda o valor FORMATADO — `amountCents` continua
+   * parseando com `parsePtBrMoneyCents`, que aceita agrupamento, então o
+   * caminho de parse/emit não muda.
+   */
   protected onAmountInput(event: Event): void {
-    this.amount.set((event.target as HTMLInputElement).value);
+    this.amount.set(applyPtBrMoneyMask(event, this.amount()).value);
   }
 
   /**

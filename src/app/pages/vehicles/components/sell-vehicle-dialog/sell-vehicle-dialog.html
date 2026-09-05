@@ -148,6 +148,12 @@
           }
         </div>
 
+        <!-- Efeito na vaga do plano (FIX-0262), dito ANTES de confirmar. A frase
+             é condicional de propósito: vendido-mas-alugado não libera vaga. -->
+        <p data-sale-slot-note class="text-sm text-neutral-500">
+          {{ slotNote }}
+        </p>
+
         @if (errorMessage(); as serverError) {
           <p
             role="alert"

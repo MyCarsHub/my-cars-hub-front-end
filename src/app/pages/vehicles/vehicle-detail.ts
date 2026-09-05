@@ -25,7 +25,7 @@ import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
 import { IpvaStatus, Vehicle, VehicleType } from '../../types/vehicle.types';
 import { vehicleStatusMeta } from '../../utils/status-maps';
-import { formatSaleDate, soldLockReason as soldLockReasonFor } from './vehicle-sale-copy';
+import { formatSaleDate, saleReleasesSlotNote, soldLockReason as soldLockReasonFor } from './vehicle-sale-copy';
 
 const TYPE_LABEL: Record<VehicleType, { label: string; chip: string }> = {
   CAR: { label: 'Carro', chip: 'bg-blue-100 text-blue-700' },
@@ -126,6 +126,12 @@ export class VehicleDetail implements OnInit {
   protected readonly sold = computed(() => this.vehicle()?.sale != null);
 
   protected readonly sale = computed(() => this.vehicle()?.sale ?? null);
+
+  /**
+   * Efeito da venda na vaga do plano (FIX-0262), no banner de vendido. Mesma
+   * frase do diálogo de vender — mora em `vehicle-sale-copy` por isso.
+   */
+  protected readonly slotNote = saleReleasesSlotNote;
 
   /**
    * Motivo ÚNICO pelo qual as ações de operação estão travadas.
