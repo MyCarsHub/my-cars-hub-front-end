@@ -28,6 +28,7 @@ describe('VehiclesList — menu de ações', () => {
     licensingExpiration: null,
     status: 'AVAILABLE',
     createdDate: '2024-01-01',
+    sold: false,
   };
 
   let items: ReturnType<typeof signal<VehicleListItem[]>>;
@@ -207,9 +208,10 @@ describe('VehiclesList — menu de ações', () => {
 
     const select = host.querySelector<HTMLSelectElement>('#veiculos-sold');
     expect(select).not.toBeNull();
+    // FIX-0264: prefixo como os irmãos "Tipo:"/"Status:" — o modo se anuncia.
     expect(Array.from(select?.options ?? []).map((o) => o.textContent?.trim())).toEqual([
-      'Frota atual',
-      'Vendidos',
+      'Frota: atual',
+      'Frota: vendidos',
     ]);
 
     listSpy.mockClear();
@@ -220,5 +222,179 @@ describe('VehiclesList — menu de ações', () => {
     expect(listSpy).toHaveBeenCalled();
     const soldCall = listSpy.mock.calls[0][0] as Record<string, unknown>;
     expect(soldCall['sold']).toBe(true);
+  });
+});
+/**
+ * FIX-0264 — modo Vendidos explícito na lista.
+ *
+ *  - chip "Vendido" por linha guiado pela flag `sold` do item (FIX-0263);
+ *  - trocar para Vendidos zera o filtro de status e desabilita o select
+ *    (os filtros compõem por AND; um status herdado esvaziaria a lista);
+ *  - empty-state próprio no modo Vendidos, SEM o CTA de cadastro.
+ */
+describe('VehiclesList — modo Vendidos (FIX-0264)', () => {
+  const base: VehicleListItem = {
+    id: 'v-1',
+    plate: 'ABC1D23',
+    type: 'CAR',
+    brand: 'Fiat',
+    model: 'Argo',
+    yearModel: 2022,
+    licensingExpiration: null,
+    status: 'AVAILABLE',
+    createdDate: '2024-01-01',
+    sold: false,
+  };
+
+  let items: ReturnType<typeof signal<VehicleListItem[]>>;
+  let listSpy: ReturnType<typeof vi.fn>;
+
+  function configure(initial: VehicleListItem[]): void {
+    TestBed.resetTestingModule();
+    items = signal<VehicleListItem[]>(initial);
+    listSpy = vi.fn().mockReturnValue(of({ content: initial, totalElements: initial.length }));
+
+    TestBed.configureTestingModule({
+      imports: [VehiclesList],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: VehiclesService,
+          useValue: {
+            items,
+            loading: signal(false),
+            error: signal<string | null>(null),
+            page: signal(0),
+            size: signal(20),
+            total: signal(initial.length),
+            list: listSpy,
+            remove: vi.fn().mockReturnValue(of(void 0)),
+            updateStatus: vi.fn().mockReturnValue(of(base)),
+          },
+        },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    });
+  }
+
+  function selectSoldMode(fixture: { nativeElement: unknown; detectChanges: () => void }): void {
+    const host = fixture.nativeElement as HTMLElement;
+    const sold = host.querySelector<HTMLSelectElement>('#veiculos-sold')!;
+    sold.value = 'true';
+    sold.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  it('renderiza o chip "Vendido" na linha quando `sold` é true — e só nela', () => {
+    configure([base, { ...base, id: 'v-2', plate: 'XYZ9E88', sold: true }]);
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    // Card mobile + célula da tabela desktop, apenas para o item vendido.
+    const chips = Array.from(host.querySelectorAll('[data-sold-chip]'));
+    expect(chips).toHaveLength(2);
+    for (const chip of chips) {
+      expect(chip.textContent?.trim()).toBe('Vendido');
+      expect(chip.className).toContain('bg-neutral-800');
+    }
+    const soldCard = Array.from(host.querySelectorAll('article'))
+      .find((c) => c.textContent?.includes('XYZ-9E88'));
+    expect(soldCard?.querySelector('[data-sold-chip]')).not.toBeNull();
+    const fleetCard = Array.from(host.querySelectorAll('article'))
+      .find((c) => c.textContent?.includes('ABC-1D23'));
+    expect(fleetCard?.querySelector('[data-sold-chip]')).toBeNull();
+  });
+
+  it('trocar para Vendidos zera o status (volta a "todos") e desabilita o select de status', async () => {
+    configure([base]);
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    // Um status ativo antes da troca — o cenário que hoje esvazia a lista.
+    const status = host.querySelector<HTMLSelectElement>('#veiculos-status')!;
+    status.value = 'AVAILABLE';
+    status.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    listSpy.mockClear();
+
+    selectSoldMode(fixture);
+
+    expect(listSpy).toHaveBeenCalled();
+    const call = listSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(call['sold']).toBe(true);
+    expect(call['status']).toBeUndefined();
+    // NgModel aplica `disabled` num microtask — espere estabilizar antes de ler o DOM.
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(status.disabled).toBe(true);
+
+    // Voltar para Frota atual reabilita o select.
+    const sold = host.querySelector<HTMLSelectElement>('#veiculos-sold')!;
+    sold.value = 'false';
+    sold.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(status.disabled).toBe(false);
+  });
+
+  it('modo Vendidos vazio mostra mensagem própria e NÃO oferece "Cadastrar primeiro veículo"', () => {
+    configure([]);
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    // Frota atual vazia: mensagem genérica + CTA de cadastro.
+    expect(host.textContent).toContain('Nenhum veículo encontrado com esses filtros.');
+    expect(host.textContent).toContain('Cadastrar primeiro veículo');
+
+    selectSoldMode(fixture);
+
+    expect(host.textContent).toContain('Nenhum veículo vendido ainda.');
+    expect(host.textContent).not.toContain('Cadastrar primeiro veículo');
+    expect(host.textContent).not.toContain('Nenhum veículo encontrado com esses filtros.');
+  });
+
+  it('modo Vendidos vazio COM busca ou tipo ativos usa a mensagem genérica de filtros, sem CTA', async () => {
+    configure([]);
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    // O input de busca vive dentro de um <form>: o NgForm registra o controle
+    // num microtask — sem estabilizar, o evento 'input' não chega ao signal.
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    selectSoldMode(fixture);
+
+    // Busca ativa: o vazio pode ser culpa do termo, não da ausência de vendas.
+    const search = host.querySelector<HTMLInputElement>('#veiculos-search')!;
+    search.value = 'Argo';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(host.textContent).toContain('Nenhum veículo encontrado com esses filtros.');
+    expect(host.textContent).not.toContain('Nenhum veículo vendido ainda.');
+    expect(host.textContent).not.toContain('Cadastrar primeiro veículo');
+
+    // Limpa a busca, ativa o tipo: mesmo tratamento.
+    search.value = '';
+    search.dispatchEvent(new Event('input'));
+    const type = host.querySelector<HTMLSelectElement>('#veiculos-type')!;
+    type.value = type.options[1].value;
+    type.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(host.textContent).toContain('Nenhum veículo encontrado com esses filtros.');
+    expect(host.textContent).not.toContain('Nenhum veículo vendido ainda.');
+    expect(host.textContent).not.toContain('Cadastrar primeiro veículo');
+
+    // Sem q/type, volta a mensagem própria do modo Vendidos.
+    type.value = '';
+    type.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(host.textContent).toContain('Nenhum veículo vendido ainda.');
   });
 });
