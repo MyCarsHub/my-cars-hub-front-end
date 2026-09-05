@@ -53,6 +53,8 @@ export interface VehicleListItem {
   licensingExpiration: string | null;
   status: VehicleStatus;
   createdDate: string;
+  /** FIX-0263/0264: o backend deriva na própria query da listagem — nunca null. */
+  sold: boolean;
   ipvaStatus?: IpvaStatus | null;
   ipvaExpired?: boolean;
 }

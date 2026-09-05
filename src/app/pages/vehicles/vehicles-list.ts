@@ -121,6 +121,19 @@ export class VehiclesList implements OnInit {
     this.reload(0);
   }
 
+  /**
+   * Troca de modo Frota atual ↔ Vendidos (FIX-0264). Os filtros compõem por
+   * AND e um vendido guarda o último status operacional — entrar no modo
+   * Vendidos com um status ativo devolveria lista vazia sem explicação. Por
+   * isso o status volta a "todos" aqui e o select fica desabilitado no
+   * template enquanto o modo Vendidos estiver ativo.
+   */
+  protected onSoldFilterChange(sold: boolean): void {
+    this.soldFilter.set(sold);
+    if (sold) this.statusFilter.set('');
+    this.reload(0);
+  }
+
   protected clearFilters(): void {
     this.search.set('');
     this.typeFilter.set('');
