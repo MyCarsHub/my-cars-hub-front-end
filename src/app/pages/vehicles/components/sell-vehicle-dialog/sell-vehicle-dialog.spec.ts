@@ -202,4 +202,93 @@ describe('SellVehicleDialog', () => {
 
     expect(cancelCount).toBe(1);
   });
+
+  // ------------------------------------------- máscara de milhar (FIX-0261)
+
+  /**
+   * A mecânica fina da máscara (caret, tecla morta, colagem) vive no spec de
+   * `ptbr-money-mask`. Aqui o que importa é a LIGAÇÃO: o campo reescreve o
+   * valor agrupado e o payload emitido não muda por causa disso.
+   */
+  it('digitar "45000" mostra "45.000" no campo e emite os mesmos 4500000 centavos', () => {
+    typeInto('#sell-vehicle-buyer', 'Maria Compradora');
+    typeInto('#sell-vehicle-date', '2026-08-20');
+    typeInto('#sell-vehicle-amount', '45000');
+
+    const input = host().querySelector<HTMLInputElement>('#sell-vehicle-amount');
+    expect(input?.value).toBe('45.000');
+
+    clickConfirm();
+    expect(emitted()?.saleValueCents).toBe(4_500_000);
+  });
+
+  it('colar "R$ 1.500,50" formata o campo e emite 150050 centavos', () => {
+    typeInto('#sell-vehicle-buyer', 'Maria Compradora');
+    typeInto('#sell-vehicle-date', '2026-08-20');
+    typeInto('#sell-vehicle-amount', 'R$ 1.500,50');
+
+    const input = host().querySelector<HTMLInputElement>('#sell-vehicle-amount');
+    expect(input?.value).toBe('1.500,50');
+
+    clickConfirm();
+    expect(emitted()?.saleValueCents).toBe(150_050);
+  });
+
+  /**
+   * O caminho REALMENTE ligado ao teclado: `InputEvent` com
+   * `inputType: 'insertText'`, tecla a tecla. O `typeInto` de cima despacha um
+   * `Event` cru (sem `inputType`), que cai no modo estrito da máscara — este
+   * teste pina o branch de digitação, onde a tecla "." é morta e o caret é
+   * reposicionado via `setSelectionRange`.
+   */
+  it('teclado real (insertText): "45.9" tecla a tecla vira "459" — o ponto é morto, o milhar é automático', () => {
+    const input = host().querySelector<HTMLInputElement>('#sell-vehicle-amount');
+    if (!input) throw new Error('campo de valor não está na tela');
+
+    for (const key of '45.9') {
+      input.value = input.value + key;
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: key }));
+      fixture.detectChanges();
+    }
+
+    // Modo estrito deixaria "45." intacto no terceiro passo e o valor final
+    // seria "45.9" (recusado no confirm). No modo digitação o ponto morre.
+    expect(input.value).toBe('459');
+    expect(input.selectionStart).toBe(3);
+  });
+
+  it('teclado real (insertText): "45000" tecla a tecla agrupa para "45.000" com caret no fim', () => {
+    const input = host().querySelector<HTMLInputElement>('#sell-vehicle-amount');
+    if (!input) throw new Error('campo de valor não está na tela');
+
+    for (const key of '45000') {
+      input.value = input.value + key;
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: key }));
+      fixture.detectChanges();
+    }
+
+    expect(input.value).toBe('45.000');
+    expect(input.selectionStart).toBe(6);
+
+    typeInto('#sell-vehicle-buyer', 'Maria Compradora');
+    typeInto('#sell-vehicle-date', '2026-08-20');
+    clickConfirm();
+    expect(emitted()?.saleValueCents).toBe(4_500_000);
+  });
+
+  // ---------------------------------------------- vaga do plano (FIX-0262)
+
+  /**
+   * O efeito na vaga é dito ANTES de confirmar, e a frase é condicional de
+   * propósito: pela regra OCCUPIES_SLOT, vendido-mas-alugado não libera vaga.
+   */
+  it('o corpo do diálogo diz que a venda libera uma vaga do plano, com a condicional', () => {
+    const note = host().querySelector('[data-sale-slot-note]');
+    expect(note).not.toBeNull();
+    const text = (note?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    expect(text).toContain('libera uma vaga do plano');
+    expect(text).toContain('não tiver mais aluguel ativo');
+  });
 });
