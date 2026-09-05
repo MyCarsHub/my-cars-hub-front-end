@@ -289,6 +289,21 @@ describe('VehicleDetail — venda (FEAT-0072)', () => {
   });
 
   /**
+   * FIX-0262: o banner diz o efeito da venda na vaga do plano, e a frase é
+   * condicional de propósito — pela regra OCCUPIES_SLOT do backend, um
+   * vendido-mas-alugado NÃO libera a vaga.
+   */
+  it('o banner de vendido diz que a venda libera uma vaga do plano, com a condicional', async () => {
+    await setup(soldVehicle);
+
+    const note = host().querySelector('[data-sold-banner] [data-sale-slot-note]');
+    expect(note).not.toBeNull();
+    const noteText = (note?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    expect(noteText).toContain('libera uma vaga do plano');
+    expect(noteText).toContain('não tiver mais aluguel ativo');
+  });
+
+  /**
    * DESABILITADAS, não escondidas: o operador precisa entender por que a tela
    * não responde. O motivo viaja no `title` de cada controle travado.
    */

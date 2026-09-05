@@ -118,6 +118,11 @@
               Ele saiu da frota: a tela fica só para consulta e as ações de operação ficam
               desabilitadas. Para voltar a operar, desfaça a venda.
             </p>
+            <!-- Efeito na vaga (FIX-0262): mesma frase do diálogo de vender, e
+                 condicional de propósito — vendido-mas-alugado não libera vaga. -->
+            <p data-sale-slot-note class="mt-1 text-xs text-neutral-500">
+              {{ slotNote }}
+            </p>
           </div>
         </div>
       </div>
