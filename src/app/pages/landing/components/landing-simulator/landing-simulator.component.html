@@ -1,0 +1,146 @@
+<section
+  id="simulador"
+  class="relative isolate overflow-hidden bg-paper px-5 md:px-8 py-10 sm:py-14 lg:py-16"
+  aria-labelledby="simulador-titulo"
+>
+  <!-- Glow sutil de fundo, mesmo vocabulário das outras seções -->
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-0 -z-10"
+    style="background: radial-gradient(ellipse 50% 40% at 85% 20%, rgba(235,63,0,0.05), transparent 60%);"
+  ></div>
+
+  <div class="max-w-[1080px] mx-auto flex flex-col gap-7">
+    <header class="flex flex-col gap-3.5 max-w-[680px]">
+      <span
+        class="reveal self-start inline-block bg-paper text-brand-hover px-3.5 py-1.5 rounded-full text-[13px] font-semibold border border-brand/[0.18] shadow-[0_2px_12px_rgba(235,63,0,0.08)]"
+      >
+        Simule em 10 segundos
+      </span>
+      <h2
+        id="simulador-titulo"
+        class="reveal font-display font-bold text-[clamp(1.85rem,4.5vw,2.85rem)] leading-[1.12] tracking-[-0.028em] m-0"
+        style="transition-delay: 60ms;"
+      >
+        Quanto tempo sua frota <span class="text-brand">rouba de você?</span>
+      </h2>
+      <p
+        class="reveal text-[17px] text-ink/70 m-0 max-w-[52ch]"
+        style="transition-delay: 120ms;"
+      >
+        Arraste e veja quantas horas por mês vão embora administrando no manual.
+      </p>
+    </header>
+
+    <div
+      class="reveal grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-7 items-stretch"
+      style="transition-delay: 180ms;"
+    >
+      <!-- Coluna de controles -->
+      <div class="bg-paper border border-rule rounded-[20px] p-6 sm:p-7 flex flex-col">
+        <label for="simulador-carros" class="text-sm font-semibold text-ink">
+          Carros alugados
+        </label>
+        <div class="flex items-center gap-4 mt-3 mb-6">
+          <input
+            id="simulador-carros"
+            class="sim-slider"
+            type="range"
+            min="1"
+            max="30"
+            step="1"
+            [value]="cars()"
+            (input)="onSlider($event)"
+            [attr.aria-valuetext]="carsValueText()"
+            [style.background]="
+              'linear-gradient(to right, var(--brand) ' + sliderFill() + '%, var(--paper-2) ' + sliderFill() + '%)'
+            "
+          />
+          <output
+            for="simulador-carros"
+            class="font-mono font-extrabold text-2xl text-ink tabular-nums min-w-[44px] text-right"
+            >{{ cars() }}</output
+          >
+        </div>
+
+        <span class="text-sm font-semibold text-ink" id="simulador-metodo-label">
+          Como você controla hoje?
+        </span>
+        <div
+          class="flex flex-wrap gap-2 mt-3 mb-6"
+          role="group"
+          aria-labelledby="simulador-metodo-label"
+        >
+          @for (m of methods; track m.id) {
+            <button
+              type="button"
+              class="sim-chip rounded-full px-4 py-2 text-[13px] font-semibold border transition-colors duration-[180ms]"
+              [class.sim-chip--active]="method() === m.id"
+              [attr.aria-pressed]="method() === m.id"
+              (click)="selectMethod(m.id)"
+            >
+              {{ m.label }}
+            </button>
+          }
+        </div>
+
+        <div
+          class="border-t border-rule pt-[18px] mt-auto grid gap-2.5 text-sm text-ink/70"
+        >
+          <div class="flex justify-between gap-3">
+            <span>💬 Cobrar aluguel um por um</span>
+            <b class="font-mono text-ink tabular-nums">{{ result().lines.charges }}h</b>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span>📋 Manter a planilha em dia</span>
+            <b class="font-mono text-ink tabular-nums">{{ result().lines.spreadsheet }}h</b>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span>🚔 Descobrir e repassar multas</span>
+            <b class="font-mono text-ink tabular-nums">{{ result().lines.fines }}h</b>
+          </div>
+          <div class="flex justify-between gap-3">
+            <span>🪪 CNH, IPVA e manutenção</span>
+            <b class="font-mono text-ink tabular-nums">{{ result().lines.documents }}h</b>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coluna de resultado (card escuro com slash laranja) -->
+      <div
+        class="relative isolate overflow-hidden bg-ink text-white rounded-[20px] p-7 sm:p-8"
+      >
+        <div aria-hidden="true" class="sim-slash"></div>
+
+        <div class="relative" aria-live="polite">
+          <p class="text-[13px] text-white/65 m-0 mb-1">No manual, você gasta</p>
+          <p class="font-mono font-extrabold text-[clamp(2.6rem,5vw,3.4rem)] leading-none m-0 tabular-nums">
+            {{ result().totalManual }}h<span class="text-lg text-white/60 font-bold">/mês</span>
+          </p>
+          <p class="text-sm text-white/85 mt-2.5 mb-0 leading-[1.5]">
+            = <b class="text-brand-soft">{{ result().workDays }} {{ result().workDays === 1 ? 'dia' : 'dias' }} de trabalho</b> por mês.<br />
+            Num ano, <b class="text-brand-soft">{{ result().yearlyLabel }}</b> só tocando planilha.
+          </p>
+
+          <div aria-hidden="true" class="h-px bg-white/15 my-5"></div>
+
+          <p class="text-[13px] text-white/65 m-0 mb-1">Com o MyCarsHub</p>
+          <p class="font-mono font-extrabold text-[2rem] leading-none m-0 text-success-500 tabular-nums">
+            ~{{ result().withMyCarsHub }}h<span class="text-[15px] text-white/60">/mês</span>
+          </p>
+        </div>
+
+        <p class="relative text-[13px] text-white/85 mt-2 mb-0">
+          Cobranças, multas e vencimentos avisam sozinhos. Você só decide.
+        </p>
+
+        <a
+          routerLink="/login"
+          class="relative block bg-brand hover:bg-brand-hover text-white text-center font-bold text-[15px] rounded-[14px] px-4 py-3.5 mt-5 no-underline shadow-[0_6px_20px_rgba(235,63,0,0.35)] transition-colors duration-[180ms]"
+        >
+          Quero minhas horas de volta →
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
