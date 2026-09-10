@@ -37,6 +37,7 @@
     "@angular/service-worker": "^21.1.0",
     "@angular/ssr": "^21.1.0",
     "@sentry/angular": "^8.55.2",
+    "@vercel/analytics": "^2.0.1",
     "docx-preview": "^0.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
