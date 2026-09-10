@@ -87,50 +87,66 @@
         <div
           class="border-t border-rule pt-[18px] mt-auto grid gap-2.5 text-sm text-ink/70"
         >
-          <div class="flex justify-between gap-3">
-            <span>💬 Cobrar aluguel um por um</span>
-            <b class="font-mono text-ink tabular-nums">{{ result().lines.charges }}h</b>
-          </div>
-          <div class="flex justify-between gap-3">
-            <span>📋 Manter a planilha em dia</span>
-            <b class="font-mono text-ink tabular-nums">{{ result().lines.spreadsheet }}h</b>
-          </div>
-          <div class="flex justify-between gap-3">
-            <span>🚔 Descobrir e repassar multas</span>
-            <b class="font-mono text-ink tabular-nums">{{ result().lines.fines }}h</b>
-          </div>
-          <div class="flex justify-between gap-3">
-            <span>🪪 CNH, IPVA e manutenção</span>
-            <b class="font-mono text-ink tabular-nums">{{ result().lines.documents }}h</b>
-          </div>
+          @for (row of sourceRows(); track row.key) {
+            <div class="flex items-center gap-3">
+              <span class="flex-1 min-w-0">{{ row.label }}</span>
+              <span class="sim-mini" aria-hidden="true">
+                <span class="sim-mini__fill" [style.width.%]="row.miniPct"></span>
+              </span>
+              <b class="font-mono text-ink tabular-nums min-w-[34px] text-right"
+                >{{ row.hours }}h</b
+              >
+            </div>
+          }
         </div>
       </div>
 
-      <!-- Coluna de resultado (card escuro com slash laranja) -->
+      <!-- Coluna de resultado (card escuro): gráfico de barras comparativas -->
       <div
-        class="relative isolate overflow-hidden bg-ink text-white rounded-[20px] p-7 sm:p-8"
+        class="relative isolate overflow-hidden bg-ink text-white rounded-[20px] p-7 sm:p-8 flex flex-col"
       >
-        <div aria-hidden="true" class="sim-slash"></div>
-
-        <div class="relative" aria-live="polite">
-          <p class="text-[13px] text-white/65 m-0 mb-1">No manual, você gasta</p>
-          <p class="font-mono font-extrabold text-[clamp(2.6rem,5vw,3.4rem)] leading-none m-0 tabular-nums">
+        <!-- O gráfico é UMA imagem para leitores de tela: o aria-label carrega
+             todos os valores; o conteúdo visual interno fica presentational. -->
+        <div role="img" [attr.aria-label]="chartAria()">
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="text-[13px] text-white/65">No manual, você gasta</span>
+          </div>
+          <p
+            class="font-mono font-extrabold text-[clamp(2.2rem,4.5vw,2.8rem)] leading-none mt-1 mb-2.5 tabular-nums"
+          >
             {{ result().totalManual }}h<span class="text-lg text-white/60 font-bold">/mês</span>
           </p>
-          <p class="text-sm text-white/85 mt-2.5 mb-0 leading-[1.5]">
-            = <b class="text-brand-soft">{{ result().workDays }} {{ result().workDays === 1 ? 'dia' : 'dias' }} de trabalho</b> por mês.<br />
-            Num ano, <b class="text-brand-soft">{{ result().yearlyLabel }}</b> só tocando planilha.
-          </p>
+          <div class="sim-track">
+            @for (s of segments(); track s.key) {
+              <div
+                [class]="'sim-seg sim-seg--' + s.key"
+                [style.width.%]="s.pct"
+              ></div>
+            }
+          </div>
 
-          <div aria-hidden="true" class="h-px bg-white/15 my-5"></div>
-
-          <p class="text-[13px] text-white/65 m-0 mb-1">Com o MyCarsHub</p>
-          <p class="font-mono font-extrabold text-[2rem] leading-none m-0 text-success-500 tabular-nums">
+          <p class="text-[13px] text-white/65 mt-5 mb-0">Com o MyCarsHub</p>
+          <p
+            class="font-mono font-extrabold text-[1.6rem] leading-none mt-1 mb-2.5 text-success-500 tabular-nums"
+          >
             ~{{ result().withMyCarsHub }}h<span class="text-[15px] text-white/60">/mês</span>
           </p>
+          <div class="sim-track">
+            <div class="sim-seg sim-seg--hub" [style.width.%]="hubPct()"></div>
+          </div>
         </div>
 
-        <p class="relative text-[13px] text-white/85 mt-2 mb-0">
+        <!-- Só a frase sr-only vive na região viva: um recálculo anuncia UMA
+             frase completa, sem fragmentos do parágrafo visível junto. -->
+        <div aria-live="polite">
+          <span class="sr-only">{{ liveText() }}</span>
+        </div>
+        <p class="text-sm text-white/85 mt-4 mb-0 leading-[1.5]">
+          = <b class="text-brand-soft">{{ result().workDays }} {{ result().workDays === 1 ? 'dia' : 'dias' }} de trabalho</b> por mês.<br />
+          Num ano, <b class="text-brand-soft">{{ result().yearlyLabel }}</b> só tocando planilha.
+        </p>
+
+        <p class="text-[13px] text-white/85 mt-2 mb-0">
           Cobranças, multas e vencimentos avisam sozinhos. Você só decide.
         </p>
 

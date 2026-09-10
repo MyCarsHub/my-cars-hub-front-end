@@ -66,24 +66,91 @@
   color: #ffffff;
 }
 
-/* Slash diagonal laranja do card escuro — mesmo gradiente da marca usado no
-   hero/CTA, recortado em diagonal como fundo decorativo. */
-.sim-slash {
-  position: absolute;
-  inset: -30% -30% auto auto;
-  width: 70%;
-  height: 80%;
-  background: linear-gradient(135deg, #ff5722, #eb3f00 55%, #d63600);
-  clip-path: polygon(35% 0, 100% 0, 100% 70%, 70% 100%, 0 30%);
-  opacity: 0.9;
-  z-index: 0;
-  pointer-events: none;
+/* =========================================================
+   Gráfico de barras comparativas do card escuro.
+
+   O slash laranja decorativo SAIU: com segmentos laranja como marca de
+   dado, um fundo laranja atrás deles é ruído competindo com o dado
+   (anti-pattern "decoration louder than data"). O único laranja do card
+   agora é dado.
+
+   Trilho (.sim-track): comprimento de referência comum às duas barras —
+   a barra manual preenche 100%, a do Hub encosta no mesmo trilho e a
+   desproporção é o argumento. Marca fina (14px), ponta de dado com 4px
+   de raio, base (esquerda) quadrada; gap de 2px entre segmentos faz a
+   separação (nunca borda). Specs da skill dataviz.
+   ========================================================= */
+.sim-track {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  height: 14px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.sim-seg {
+  height: 100%;
+  transition: width var(--dur-fast) var(--ease-out);
+}
+.sim-track > .sim-seg:first-child {
+  border-radius: 4px 0 0 4px; /* base visualmente colada ao trilho arredondado */
+}
+.sim-track > .sim-seg:last-child {
+  border-radius: 0 4px 4px 0; /* ponta de dado */
+}
+.sim-track > .sim-seg:only-child {
+  border-radius: 4px 4px 4px 4px;
+}
+
+/* Rampa ordinal da marca sobre o card escuro, claro→escuro na ordem das
+   linhas do breakdown (a correspondência linha↔segmento é posicional +
+   aria-label; nunca só cor). Passos derivados SÓ de tokens via color-mix
+   (brand-soft ↔ brand) e validados pela skill dataviz no modo dark
+   (superfície #0A0A0A): monotonia OK, ΔL adjacente ≥ 0,06, pior
+   contraste 5,23:1. */
+.sim-seg--charges {
+  background: var(--brand-soft);
+}
+.sim-seg--spreadsheet {
+  background: color-mix(in srgb, var(--brand-soft) 68%, var(--brand));
+}
+.sim-seg--fines {
+  background: color-mix(in srgb, var(--brand-soft) 36%, var(--brand));
+}
+.sim-seg--documents {
+  background: var(--brand);
+}
+/* Hub Green (--color-success-500, #10B981): 7,8:1 sobre o ink — passa folgado. */
+.sim-seg--hub {
+  background: var(--color-success-500);
+}
+
+/* Mini-barras do breakdown (superfície clara): categorias nominais, UMA
+   cor só (--brand, 3,79:1 sobre o branco) — o comprimento carrega a
+   comparação; colorir por valor gastaria o canal de identidade à toa
+   (regra nominal da skill dataviz). Decorativas: aria-hidden, valores
+   ao lado em texto. */
+.sim-mini {
+  flex: 0 0 56px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.sim-mini__fill {
+  display: block;
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand);
+  transition: width var(--dur-fast) var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sim-slider::-webkit-slider-thumb,
   .sim-slider::-moz-range-thumb,
-  .sim-chip {
+  .sim-chip,
+  .sim-seg,
+  .sim-mini__fill {
     transition: none;
   }
 }
