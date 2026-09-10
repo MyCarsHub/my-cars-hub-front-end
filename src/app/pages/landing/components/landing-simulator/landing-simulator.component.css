@@ -1,0 +1,89 @@
+/* =========================================================
+   Simulador de tempo — só o que utility class não cobre:
+   o slider nativo estilizado e o slash diagonal do card
+   escuro. Tudo em cima dos tokens servidos do landing-root.
+   ========================================================= */
+
+/* Slider nativo. O preenchimento da trilha (gradiente brand → paper-2) é
+   calculado no template via [style.background], em cima da faixa 1–30. */
+.sim-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  outline-offset: 6px;
+  cursor: pointer;
+}
+.sim-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 3px solid var(--brand);
+  box-shadow: 0 2px 10px rgba(235, 63, 0, 0.3);
+  cursor: grab;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.sim-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 3px solid var(--brand);
+  box-shadow: 0 2px 10px rgba(235, 63, 0, 0.3);
+  cursor: grab;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.sim-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
+.sim-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
+
+/* Chips de método (aria-pressed marca o ativo). */
+.sim-chip {
+  background: var(--paper-alt);
+  border-color: var(--rule);
+  color: var(--ink-70);
+}
+.sim-chip:hover {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+.sim-chip--active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #ffffff;
+}
+.sim-chip--active:hover {
+  border-color: var(--brand);
+  color: #ffffff;
+}
+
+/* Slash diagonal laranja do card escuro — mesmo gradiente da marca usado no
+   hero/CTA, recortado em diagonal como fundo decorativo. */
+.sim-slash {
+  position: absolute;
+  inset: -30% -30% auto auto;
+  width: 70%;
+  height: 80%;
+  background: linear-gradient(135deg, #ff5722, #eb3f00 55%, #d63600);
+  clip-path: polygon(35% 0, 100% 0, 100% 70%, 70% 100%, 0 30%);
+  opacity: 0.9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sim-slider::-webkit-slider-thumb,
+  .sim-slider::-moz-range-thumb,
+  .sim-chip {
+    transition: none;
+  }
+}
