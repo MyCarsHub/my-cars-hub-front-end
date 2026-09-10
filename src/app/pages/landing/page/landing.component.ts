@@ -17,6 +17,7 @@ import {
 import { enableRevealAnimations } from '../reveal-ready';
 import { LandingNavComponent } from '../components/landing-nav/landing-nav.component';
 import { LandingHeroComponent } from '../components/landing-hero/landing-hero.component';
+import { LandingSimulatorComponent } from '../components/landing-simulator/landing-simulator.component';
 import { LandingProblemComponent } from '../components/landing-problem/landing-problem.component';
 import { LandingSolutionComponent } from '../components/landing-solution/landing-solution.component';
 import { LandingFeaturesComponent } from '../components/landing-features/landing-features.component';
@@ -34,6 +35,7 @@ import { LandingFooterComponent } from '../components/landing-footer/landing-foo
   imports: [
     LandingNavComponent,
     LandingHeroComponent,
+    LandingSimulatorComponent,
     LandingProblemComponent,
     LandingSolutionComponent,
     LandingFeaturesComponent,
