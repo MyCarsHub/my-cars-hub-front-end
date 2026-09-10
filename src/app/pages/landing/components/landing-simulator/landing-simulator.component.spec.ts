@@ -132,4 +132,58 @@ describe('LandingSimulatorComponent', () => {
     expect(live).toBeTruthy();
     expect(live?.textContent).toContain('26h');
   });
+
+  it('as linhas do breakdown não têm emoji (rótulo textual + horas)', () => {
+    const { host } = render();
+    const text = host.textContent ?? '';
+    expect(text).not.toMatch(/💬|📋|🚔|🪪/);
+    expect(text).toContain('Cobrar aluguel um por um');
+    expect(text).toContain('Manter a planilha em dia');
+    expect(text).toContain('Descobrir e repassar multas');
+    expect(text).toContain('CNH, IPVA e manutenção');
+  });
+
+  it('o gráfico tem alternativa textual (role="img" com todos os valores)', () => {
+    const { host } = render();
+    const chart = host.querySelector('[role="img"]');
+    expect(chart).toBeTruthy();
+    const label = chart?.getAttribute('aria-label') ?? '';
+    expect(label).toContain('26 horas por mês');
+    expect(label).toContain('cobranças 10h');
+    expect(label).toContain('planilha 7h');
+    expect(label).toContain('multas 4h');
+    expect(label).toContain('vencimentos 5h');
+    expect(label).toContain('cerca de 2 horas por mês');
+  });
+
+  function widths(host: HTMLElement): { segments: number[]; hub: number } {
+    const segs = Array.from(
+      host.querySelectorAll<HTMLElement>('.sim-track .sim-seg:not(.sim-seg--hub)'),
+    ).map((el) => parseFloat(el.style.width));
+    const hub = host.querySelector<HTMLElement>('.sim-seg--hub');
+    if (!hub) throw new Error('barra do MyCarsHub não encontrada');
+    return { segments: segs, hub: parseFloat(hub.style.width) };
+  }
+
+  it('proporcionalidade: barra manual (4 segmentos somando 100%) > barra MyCarsHub', () => {
+    const { host } = render();
+    const { segments, hub } = widths(host);
+    expect(segments.length).toBe(4);
+    const manualTotal = segments.reduce((a, b) => a + b, 0);
+    expect(manualTotal).toBeCloseTo(100, 5);
+    expect(hub).toBeGreaterThan(0);
+    expect(hub).toBeLessThan(manualTotal);
+    // 7 carros × planilha: 2h de 26h ≈ 7,7% do trilho.
+    expect(hub).toBeCloseTo((2 / 26) * 100, 5);
+  });
+
+  it('as larguras das barras mudam com o slider', () => {
+    const { fixture, host } = render();
+    moveSlider(fixture, host, 1);
+    const antes = widths(host);
+    moveSlider(fixture, host, 15);
+    const depois = widths(host);
+    expect(depois.hub).not.toBeCloseTo(antes.hub, 5);
+    expect(depois.segments[0]).not.toBeCloseTo(antes.segments[0], 5);
+  });
 });

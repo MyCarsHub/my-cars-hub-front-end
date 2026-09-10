@@ -44,6 +44,62 @@ export class LandingSimulatorComponent {
     this.cars() === 1 ? '1 carro' : `${this.cars()} carros`,
   );
 
+  /**
+   * Linhas do breakdown (sem emoji): rótulo + horas + mini-barra proporcional.
+   * `miniPct` é relativo à MAIOR linha (cobranças, taxa 1,4 — sempre 100%),
+   * então as quatro mini-barras se comparam entre si, não com o total.
+   */
+  protected readonly sourceRows = computed(() => {
+    const { lines } = this.result();
+    const rows = [
+      { key: 'charges', label: 'Cobrar aluguel um por um', hours: lines.charges },
+      { key: 'spreadsheet', label: 'Manter a planilha em dia', hours: lines.spreadsheet },
+      { key: 'fines', label: 'Descobrir e repassar multas', hours: lines.fines },
+      { key: 'documents', label: 'CNH, IPVA e manutenção', hours: lines.documents },
+    ];
+    const max = Math.max(...rows.map((r) => r.hours), 1);
+    return rows.map((r) => ({ ...r, miniPct: (r.hours / max) * 100 }));
+  });
+
+  /**
+   * Segmentos da barra "manual" do gráfico comparativo, na MESMA ordem do
+   * breakdown à esquerda (a correspondência linha↔segmento é por posição).
+   * Percentuais sobre o total manual — a barra manual é a referência (100%).
+   */
+  protected readonly segments = computed(() => {
+    const { lines, totalManual } = this.result();
+    const seg = (hours: number) => (totalManual > 0 ? (hours / totalManual) * 100 : 0);
+    return [
+      { key: 'charges', pct: seg(lines.charges) },
+      { key: 'spreadsheet', pct: seg(lines.spreadsheet) },
+      { key: 'fines', pct: seg(lines.fines) },
+      { key: 'documents', pct: seg(lines.documents) },
+    ];
+  });
+
+  /** Largura da barra MyCarsHub, na mesma escala da barra manual (=100%). */
+  protected readonly hubPct = computed(() => {
+    const { totalManual, withMyCarsHub } = this.result();
+    return totalManual > 0 ? (withMyCarsHub / totalManual) * 100 : 0;
+  });
+
+  /** Alternativa textual do gráfico (role="img") — todos os valores. */
+  protected readonly chartAria = computed(() => {
+    const r = this.result();
+    return (
+      `Gráfico de barras comparativas. No manual: ${r.totalManual} horas por mês — ` +
+      `cobranças ${r.lines.charges}h, planilha ${r.lines.spreadsheet}h, ` +
+      `multas ${r.lines.fines}h, vencimentos ${r.lines.documents}h. ` +
+      `Com o MyCarsHub: cerca de ${r.withMyCarsHub} horas por mês.`
+    );
+  });
+
+  /** Frase anunciada pelo aria-live a cada recálculo (visualmente oculta). */
+  protected readonly liveText = computed(() => {
+    const r = this.result();
+    return `No manual: ${r.totalManual}h por mês. Com o MyCarsHub: cerca de ${r.withMyCarsHub}h por mês.`;
+  });
+
   protected readonly methods: { id: ControlMethod; label: string }[] = [
     { id: 'planilha', label: 'Planilha + WhatsApp' },
     { id: 'caderno', label: 'Caderno' },
