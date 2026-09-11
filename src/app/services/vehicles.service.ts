@@ -1,7 +1,8 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { PagedResponse } from '../types/paged.types';
 import { GerenciaSummary } from '../types/gerencia-summary.types';
 import {
@@ -20,6 +21,7 @@ import {
   VehicleDocumentUrl,
   VehicleFilters,
   VehicleListItem,
+  PlateLookupResult,
 } from '../types/vehicle.types';
 
 const BASE = `${environment.apiUrl}/vehicles`;
@@ -97,6 +99,40 @@ export class VehiclesService {
   getOne(id: string): Observable<Vehicle> {
     return this.http.get<Vehicle>(`${BASE}/${id}`);
   }
+
+  /**
+   * Busca de dados pela placa (FEAT-0082, contrato congelado FEAT-0081).
+   * 200 preenche; 204 emite `null` (placa não encontrada). Os demais status
+   * (400/402/429/501/503) chegam como erro e quem chama traduz — em especial
+   * o 501 (feature desligada), que alimenta `plateLookupUnavailable` para o
+   * formulário parar de oferecer o botão nesta sessão.
+   */
+  plateLookup(plate: string): Observable<PlateLookupResult | null> {
+    const params = new HttpParams().set('plate', plate);
+    // OWNED_HTTP_ERRORS: sem a marca, o errorInterceptor toasta "Erro no
+    // servidor" para TODO 5xx antes de o componente rodar — e 501 é o estado
+    // ATUAL de produção (feature desligada), 503 tem nota discreta própria.
+    // O formulário é o dono dos status de NEGÓCIO deste contrato; 401/sessão
+    // vencida continua com o interceptor (por isso não é o SILENT).
+    return this.http
+      .get<PlateLookupResult>(`${BASE}/plate-lookup`, {
+        params,
+        observe: 'response',
+        context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+      })
+      .pipe(
+        map((res) => (res.status === 204 ? null : res.body)),
+        tap(() => this._plateLookupUnavailable.set(false)),
+        catchError((err: HttpErrorResponse) => {
+          if (err.status === 501) this._plateLookupUnavailable.set(true);
+          return throwError(() => err);
+        }),
+      );
+  }
+
+  /** 501 já visto nesta sessão — o formulário esconde o botão em silêncio. */
+  private readonly _plateLookupUnavailable = signal(false);
+  readonly plateLookupUnavailable = this._plateLookupUnavailable.asReadonly();
 
   create(payload: CreateVehicleRequest): Observable<Vehicle> {
     return this.http.post<Vehicle>(BASE, payload);

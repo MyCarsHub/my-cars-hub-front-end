@@ -7,6 +7,7 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { VehiclesService } from './vehicles.service';
+import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { environment } from '../../environments/environment';
 import type { VehicleListItem } from '../types/vehicle.types';
 
@@ -90,5 +91,77 @@ describe('VehiclesService — contrato de fio da listagem (FIX-0263/0264)', () =
     const soldReq = httpMock.expectOne((r) => r.method === 'GET' && r.url === BASE);
     expect(soldReq.request.params.get('sold')).toBe('true');
     soldReq.flush({ content: [], page: 0, size: 20, total: 0 });
+  });
+});
+
+/**
+ * FEAT-0082 — fio do plate-lookup (contrato congelado FEAT-0081):
+ * 200 devolve o corpo, 204 vira null, e o 501 (feature desligada) marca
+ * `plateLookupUnavailable` para o formulário parar de oferecer o botão.
+ */
+describe('VehiclesService — plate-lookup (FEAT-0082)', () => {
+  const BASE = `${environment.apiUrl}/vehicles`;
+  let service: VehiclesService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [VehiclesService, provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(VehiclesService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('200 → corpo do contrato, com o param `plate`', () => {
+    const body = {
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Argo',
+      manufactureYear: 2021,
+      modelYear: 2022,
+      fuel: 'Gasolina',
+      color: 'Prata',
+    };
+    let received: unknown;
+    service.plateLookup('ABC1D23').subscribe((r) => (received = r));
+
+    const req = httpMock.expectOne((r) => r.url === `${BASE}/plate-lookup`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('plate')).toBe('ABC1D23');
+    // OWNED_HTTP_ERRORS: o componente é o dono dos status de NEGÓCIO — sem a
+    // marca, o errorInterceptor toastaria "Erro no servidor" no 501/503.
+    expect(req.request.context.get(OWNED_HTTP_ERRORS)).toBe(true);
+    req.flush(body);
+
+    expect(received).toEqual(body);
+    expect(service.plateLookupUnavailable()).toBe(false);
+  });
+
+  it('204 → null (placa não encontrada, não é erro)', () => {
+    let received: unknown = 'sentinela';
+    service.plateLookup('ABC1D23').subscribe((r) => (received = r));
+
+    httpMock
+      .expectOne((r) => r.url === `${BASE}/plate-lookup`)
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(received).toBeNull();
+  });
+
+  it('501 → marca plateLookupUnavailable para a sessão e propaga o erro', () => {
+    let status = 0;
+    service.plateLookup('ABC1D23').subscribe({
+      error: (err: { status: number }) => (status = err.status),
+    });
+
+    httpMock
+      .expectOne((r) => r.url === `${BASE}/plate-lookup`)
+      .flush({ message: 'off' }, { status: 501, statusText: 'Not Implemented' });
+
+    expect(status).toBe(501);
+    expect(service.plateLookupUnavailable()).toBe(true);
   });
 });
