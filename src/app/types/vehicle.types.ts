@@ -143,6 +143,21 @@ export interface Vehicle {
   modifyDate: string | null;
 }
 
+/**
+ * Resposta 200 de `GET /v1/vehicles/plate-lookup` (contrato congelado
+ * FEAT-0081). `fuel` e `color` vêm como texto livre do provedor — o
+ * formulário mapeia para os enums locais em melhor esforço, nunca exige.
+ */
+export interface PlateLookupResult {
+  plate: string;
+  brand: string | null;
+  model: string | null;
+  manufactureYear: number | null;
+  modelYear: number | null;
+  fuel: string | null;
+  color: string | null;
+}
+
 export interface CreateVehicleRequest {
   plate: string;
   type: VehicleType;

@@ -52,26 +52,74 @@
       <!-- ====== Identificação ====== -->
       <app-page-card title="Identificação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <app-form-field
-            label="Placa"
-            controlId="veiculo-plate"
-            hint="Formato: ABC1234 ou ABC1D23 (Mercosul)."
-            [required]="true"
-            [control]="form.controls.plate"
-            [messages]="plateMessages"
-          >
-            <input
-              appFieldControl
-              type="text"
-              placeholder="ABC1D23"
-              maxlength="7"
-              autocapitalize="characters"
-              [value]="plateDisplay()"
-              (input)="onPlateInput($event)"
-              [disabled]="sold()"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-widest tabular-nums
-                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
-          </app-form-field>
+          <div>
+            <app-form-field
+              label="Placa"
+              controlId="veiculo-plate"
+              hint="Formato: ABC1234 ou ABC1D23 (Mercosul)."
+              [required]="true"
+              [control]="form.controls.plate"
+              [messages]="plateMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                placeholder="ABC1D23"
+                maxlength="7"
+                autocapitalize="characters"
+                [value]="plateDisplay()"
+                (input)="onPlateInput($event)"
+                [disabled]="sold()"
+                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-widest tabular-nums
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+            </app-form-field>
+
+            <!-- FEAT-0082: só com placa completa e válida. Depois de um 501
+                 (feature desligada) o botão FICA visível porém desabilitado,
+                 com a nota de uma linha explicando — controle que some sob o
+                 cursor é um modo de falha próprio. -->
+            @if (plateLookupAvailable()) {
+              <button
+                type="button"
+                data-plate-lookup
+                (click)="lookupPlate()"
+                [disabled]="plateLookupDisabled()"
+                [attr.aria-busy]="plateLookupBusy()"
+                class="mt-1 inline-flex items-center gap-1.5 min-h-11 px-3 py-2 -ml-3 rounded-lg text-sm
+                       font-medium text-primary-700 hover:text-primary-800 hover:bg-primary-50
+                       transition-colors focus:outline-none focus-visible:ring-2
+                       focus-visible:ring-primary-500 disabled:opacity-50"
+                [class]="plateLookupBusy() ? 'disabled:cursor-wait' : 'disabled:cursor-not-allowed'"
+              >
+                @if (plateLookupBusy()) {
+                  <span
+                    class="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"
+                    aria-hidden="true"
+                  ></span>
+                  Buscando…
+                } @else {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  Buscar dados pela placa
+                }
+              </button>
+            }
+            <!-- Live region SEMPRE presente: inserir o nó junto com o texto
+                 faz leitor de tela perder o anúncio. Vazio quando não há nota. -->
+            <p
+              data-plate-lookup-note
+              role="status"
+              class="mt-1 text-xs"
+              [class.text-neutral-500]="plateLookupNote()?.kind !== 'success'"
+              [class.text-success-900]="plateLookupNote()?.kind === 'success'"
+            >
+              {{ plateLookupNote()?.text ?? '' }}
+            </p>
+          </div>
 
           <div>
             <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-type">Tipo <span class="text-primary-700" aria-hidden="true">*</span></label>
@@ -126,19 +174,157 @@
             </select>
           </div>
 
-          <div>
-            <app-primary-input label="Marca" [required]="true" placeholder="Ex: Fiat" formControlName="brand" />
-            @if (fieldInvalid(['brand'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe a marca.</p>
-            }
-          </div>
+          <!-- Anúncio de carregamento do catálogo para leitor de tela. FORA do
+               @if de modo: live region criada no MESMO render em que já ganha
+               texto perde o primeiro anúncio (mesmo anti-padrão da nota da
+               placa) — o nó existe desde o primeiro paint, sempre. -->
+          <p class="sr-only md:col-span-3" role="status" data-fipe-loading-status>
+            {{ fipeLoading() === 'brands' ? 'Carregando marcas…'
+               : fipeLoading() === 'models' ? 'Carregando modelos…'
+               : fipeLoading() === 'years' ? 'Carregando anos…' : '' }}
+          </p>
 
-          <div>
-            <app-primary-input label="Modelo" [required]="true" placeholder="Ex: Uno" formControlName="model" />
-            @if (fieldInvalid(['model'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe o modelo.</p>
-            }
-          </div>
+          <!-- FEAT-0084: marca/modelo/ano encadeados pela FIPE, com escape
+               hatch obrigatório — carro fora da FIPE existe. Os selects só
+               PREENCHEM os controls existentes (brand/model/anos); a fonte de
+               verdade do submit não muda. -->
+          @if (catalogMode() === 'fipe') {
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-fipe-brand">
+                Marca <span class="text-primary-700" aria-hidden="true">*</span>
+              </label>
+              <select
+                id="veiculo-fipe-brand"
+                data-fipe-brand
+                aria-required="true"
+                [attr.aria-busy]="fipeLoading() === 'brands'"
+                [attr.aria-invalid]="fieldInvalid(['brand'])"
+                [attr.aria-describedby]="fieldInvalid(['brand']) ? 'veiculo-fipe-brand-error' : null"
+                [value]="fipeBrandCode()"
+                (change)="onFipeBrandChange($event)"
+                [disabled]="sold() || fipeLoading() === 'brands'"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
+                <option value="">
+                  {{ fipeLoading() === 'brands' ? 'Carregando marcas…' : 'Selecione a marca…' }}
+                </option>
+                @for (brand of fipeBrands(); track brand.code) {
+                  <option [value]="brand.code">{{ brand.name }}</option>
+                }
+              </select>
+              @if (fieldInvalid(['brand'])) {
+                <p id="veiculo-fipe-brand-error" role="alert" class="text-xs text-rose-600 mt-1">
+                  Informe a marca.
+                </p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-fipe-model">
+                Modelo <span class="text-primary-700" aria-hidden="true">*</span>
+              </label>
+              <select
+                id="veiculo-fipe-model"
+                data-fipe-model
+                aria-required="true"
+                [attr.aria-busy]="fipeLoading() === 'models'"
+                [attr.aria-invalid]="fieldInvalid(['model'])"
+                [attr.aria-describedby]="fieldInvalid(['model']) ? 'veiculo-fipe-model-error' : null"
+                [value]="fipeModelCode()"
+                (change)="onFipeModelChange($event)"
+                [disabled]="sold() || !fipeBrandCode() || fipeLoading() === 'models'"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
+                       disabled:opacity-60">
+                <option value="">
+                  {{ fipeLoading() === 'models' ? 'Carregando modelos…' :
+                     fipeBrandCode() ? 'Selecione o modelo…' : 'Escolha a marca primeiro' }}
+                </option>
+                @for (model of fipeModels(); track model.code) {
+                  <option [value]="model.code">{{ model.name }}</option>
+                }
+              </select>
+              @if (fieldInvalid(['model'])) {
+                <p id="veiculo-fipe-model-error" role="alert" class="text-xs text-rose-600 mt-1">
+                  Informe o modelo.
+                </p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-fipe-year">
+                Ano (tabela FIPE)
+              </label>
+              <select
+                id="veiculo-fipe-year"
+                data-fipe-year
+                [attr.aria-busy]="fipeLoading() === 'years'"
+                [value]="fipeYearCode()"
+                (change)="onFipeYearChange($event)"
+                [disabled]="sold() || !fipeModelCode() || fipeLoading() === 'years'"
+                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
+                       disabled:opacity-60">
+                <option value="">
+                  {{ fipeLoading() === 'years' ? 'Carregando anos…' :
+                     fipeModelCode() ? 'Selecione o ano…' : 'Escolha o modelo primeiro' }}
+                </option>
+                @for (year of fipeYears(); track year.code) {
+                  <option [value]="year.code">{{ year.name }}</option>
+                }
+              </select>
+              <p class="text-xs text-neutral-500 mt-1">Preenche os campos de ano abaixo.</p>
+            </div>
+
+          } @else {
+            <div>
+              <app-primary-input label="Marca" [required]="true" placeholder="Ex: Fiat" formControlName="brand" />
+              @if (fieldInvalid(['brand'])) {
+                <p class="text-xs text-rose-600 mt-1">Informe a marca.</p>
+              }
+            </div>
+
+            <div>
+              <app-primary-input label="Modelo" [required]="true" placeholder="Ex: Uno" formControlName="model" />
+              @if (fieldInvalid(['model'])) {
+                <p class="text-xs text-rose-600 mt-1">Informe o modelo.</p>
+              }
+            </div>
+          }
+
+          <!-- Escape hatch / volta ao catálogo — alvo de toque ≥44px. -->
+          @if (!sold()) {
+            <div class="md:col-span-3 -my-2">
+              @if (catalogMode() === 'fipe') {
+                <button
+                  type="button"
+                  data-fipe-manual-toggle
+                  (click)="useManualMode()"
+                  class="inline-flex items-center min-h-11 px-3 py-2 -ml-3 rounded-lg text-sm font-medium
+                         text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 transition-colors
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
+                >
+                  Não achou na lista? Digitar manualmente
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  data-fipe-catalog-toggle
+                  (click)="enterFipeMode()"
+                  class="inline-flex items-center min-h-11 px-3 py-2 -ml-3 rounded-lg text-sm font-medium
+                         text-primary-700 hover:text-primary-800 hover:bg-primary-50 transition-colors
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                >
+                  Selecionar da tabela FIPE
+                </button>
+              }
+              <!-- Nota do catálogo (ex.: FIPE respondeu vazio) — container
+                   sempre presente para a live region anunciar a mudança. -->
+              <p data-fipe-note role="status" class="text-xs text-neutral-500">
+                {{ fipeCatalogNote() ?? '' }}
+              </p>
+            </div>
+          }
 
           <div class="grid grid-cols-2 gap-3">
             <div>
