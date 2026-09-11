@@ -8,6 +8,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { DashboardHome } from './dashboard-home';
 import { BillingAccessService } from '../../services/billing-access.service';
 import { DashboardService } from '../../services/dashboard.service';
+import { FleetActivationService } from '../../services/fleet-activation.service';
+import { SessionService } from '../../services/session.service';
 import type { AccessStatus } from '../../types/billing-access.types';
 import type { DashboardSummaryDto, FinanceDto, FleetDto } from '../../types/dashboard.types';
 import { PLAN_CAPACITY } from '../../utils/plan-limits';
@@ -123,6 +125,7 @@ describe('DashboardHome — KPIs de frota', () => {
                 provideNoopAnimations(),
                 { provide: DashboardService, useValue: { loadOverview: loadSpy } },
                 { provide: BillingAccessService, useValue: { status } },
+                { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
             ],
         });
 
@@ -299,6 +302,7 @@ describe('DashboardHome — venda de veículos (FEAT-0074)', () => {
                     useValue: { loadOverview: vi.fn().mockReturnValue(of(summary)) },
                 },
                 { provide: BillingAccessService, useValue: { status: signal(null) } },
+                { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
             ],
         });
 
@@ -360,4 +364,127 @@ describe('DashboardHome — venda de veículos (FEAT-0074)', () => {
         expect(text(host)).not.toContain('Só aluguel');
         expect(text(host)).not.toContain('card Venda');
     });
+});
+
+/**
+ * FEAT-0080 — lembrete persistente pós-pulo: quem pulou o gate cai no
+ * dashboard e continua vendo o convite enquanto a frota estiver vazia.
+ */
+describe('DashboardHome — lembrete de ativação (FEAT-0080)', () => {
+  function render(
+    hasVehicles: boolean,
+    opts: { role?: string | null; admin?: boolean } = {},
+  ): { host: HTMLElement; hasVehiclesSpy: ReturnType<typeof vi.fn> } {
+    const hasVehiclesSpy = vi.fn().mockReturnValue(of(hasVehicles));
+    // `null` é papel válido no teste (sessão sem selectedRole) — só undefined cai no padrão.
+    const role = opts.role === undefined ? 'OWNER' : opts.role;
+    // Resumo mínimo que satisfaz todos os blocos do template (fleet, finance…).
+    const summary = {
+      period: { from: '2026-09-01', to: '2026-09-30' },
+      alerts: {
+        openFines: { count: 0, amountCents: 0 },
+        openMaintenances: { count: 0 },
+        expiringCnh30d: { count: 0 },
+        expiringLicensing30d: { count: 0 },
+        reservedRentals: { count: 0 },
+        paidFinesInPeriod: { count: 0, amountCents: 0 },
+      },
+      fleet: {
+        vehiclesTotal: 0,
+        vehicleLimit: 3,
+        driversActive: 0,
+        driversTotal: 0,
+        rentedNow: 0,
+        reservedNow: 0,
+        utilizationPct: 0,
+      },
+      finance: {
+        revenueCents: 0,
+        receivedCents: 0,
+        expensesCents: 0,
+        saleRevenueCents: 0,
+        resultCents: 0,
+        maintenanceExpenseCents: 0,
+        fineExpenseCents: 0,
+        pendingChargesCents: 0,
+        overdueChargesCents: 0,
+        previousRevenueCents: 0,
+        previousReceivedCents: 0,
+        revenueDaily: [],
+        byVehicle: [],
+        byDriver: [],
+        monthlyBilling: [],
+        cashflow: [],
+      },
+      charges: {
+        byStatus: [],
+        ticketMedioCents: 0,
+        completedRentalsCount: 0,
+        ticketMedioLast6Months: [],
+      },
+      distributions: { rentalsByStatus: [], vehiclesByStatus: [] },
+      topOffenders: { vehicles: [], drivers: [] },
+    } as unknown as DashboardSummaryDto;
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [DashboardHome],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: DashboardService,
+          useValue: { loadOverview: vi.fn().mockReturnValue(of(summary)) },
+        },
+        { provide: BillingAccessService, useValue: { status: signal(null) } },
+        { provide: FleetActivationService, useValue: { hasVehicles: hasVehiclesSpy } },
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: (key: string) => (key === 'selectedRole' ? role : null),
+            isPlatformAdmin: () => opts.admin ?? false,
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(DashboardHome);
+    fixture.detectChanges();
+    return { host: fixture.nativeElement as HTMLElement, hasVehiclesSpy };
+  }
+
+  it('frota vazia → convite discreto (info, não alarme) com link para /veiculos/novo?ativacao=1', () => {
+    const { host } = render(false);
+
+    const banner = host.querySelector('[data-activation-reminder]');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('cadastre o primeiro veículo');
+    // Convite, não alarme: role=status (polite), nunca role=alert.
+    expect(banner?.querySelector('[role="status"]')).not.toBeNull();
+    expect(banner?.querySelector('[role="alert"]')).toBeNull();
+
+    const link = banner?.querySelector('a');
+    expect(link?.getAttribute('href')).toBe('/veiculos/novo?ativacao=1');
+  });
+
+  it('com veículo na frota o lembrete não existe', () => {
+    const { host } = render(true);
+    expect(host.querySelector('[data-activation-reminder]')).toBeNull();
+  });
+
+  // MESMAS exclusões do guard: fora do papel certo, nem o convite (que
+  // apontaria para rota bloqueada pelo roleGuard) nem o GET acontecem.
+  it.each(['DRIVER', 'VIEWER', null])(
+    'papel %s → sem lembrete e sem consulta de frota',
+    (role) => {
+      const { host, hasVehiclesSpy } = render(false, { role });
+      expect(host.querySelector('[data-activation-reminder]')).toBeNull();
+      expect(hasVehiclesSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it('PLATFORM_ADMIN → sem lembrete e sem consulta, mesmo com papel OWNER', () => {
+    const { host, hasVehiclesSpy } = render(false, { role: 'OWNER', admin: true });
+    expect(host.querySelector('[data-activation-reminder]')).toBeNull();
+    expect(hasVehiclesSpy).not.toHaveBeenCalled();
+  });
 });

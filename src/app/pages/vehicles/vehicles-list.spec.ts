@@ -341,14 +341,40 @@ describe('VehiclesList — modo Vendidos (FIX-0264)', () => {
     expect(status.disabled).toBe(false);
   });
 
+  /**
+   * FEAT-0080 — o empty-state da frota é o lembrete persistente de quem pulou
+   * o gate de ativação: frota vazia SEM filtros fala em "primeiro veículo";
+   * com filtro ativo a culpa pode ser do filtro e a mensagem genérica volta.
+   */
+  it('frota vazia sem filtros usa a mensagem de primeiro veículo; com filtro, a genérica sem CTA', async () => {
+    configure([]);
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.textContent).toContain('Você ainda não cadastrou nenhum veículo.');
+    expect(host.textContent).toContain('Cadastrar primeiro veículo');
+    expect(host.textContent).not.toContain('Nenhum veículo encontrado com esses filtros.');
+
+    const search = host.querySelector<HTMLInputElement>('#veiculos-search')!;
+    search.value = 'Argo';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(host.textContent).toContain('Nenhum veículo encontrado com esses filtros.');
+    expect(host.textContent).not.toContain('Você ainda não cadastrou nenhum veículo.');
+    expect(host.textContent).not.toContain('Cadastrar primeiro veículo');
+  });
+
   it('modo Vendidos vazio mostra mensagem própria e NÃO oferece "Cadastrar primeiro veículo"', () => {
     configure([]);
     const fixture = TestBed.createComponent(VehiclesList);
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
 
-    // Frota atual vazia: mensagem genérica + CTA de cadastro.
-    expect(host.textContent).toContain('Nenhum veículo encontrado com esses filtros.');
+    // Frota atual vazia sem filtros: mensagem de frota vazia + CTA de cadastro (FEAT-0080).
+    expect(host.textContent).toContain('Você ainda não cadastrou nenhum veículo.');
     expect(host.textContent).toContain('Cadastrar primeiro veículo');
 
     selectSoldMode(fixture);

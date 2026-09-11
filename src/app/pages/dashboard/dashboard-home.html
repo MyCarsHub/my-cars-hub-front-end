@@ -19,6 +19,21 @@
         </div>
     }
 
+    <!-- FEAT-0080: lembrete pós-pulo — convite, não alarme. Some após o 1º cadastro. -->
+    @if (showActivationReminder()) {
+        <app-alert-banner variant="info" class="mb-4" data-activation-reminder>
+            Sua frota ainda está vazia — cadastre o primeiro veículo para o painel, os alertas e
+            as cobranças trabalharem com dados reais.
+            <a
+                [routerLink]="['/veiculos', 'novo']"
+                [queryParams]="{ ativacao: '1' }"
+                class="block mt-1 font-medium underline underline-offset-2 text-sky-800 hover:text-sky-900"
+            >
+                Cadastrar meu primeiro veículo
+            </a>
+        </app-alert-banner>
+    }
+
     <!-- Alerts row: only rendered when at least one count > 0 -->
     @if (showAlerts()) {
         @if (summary(); as s) {

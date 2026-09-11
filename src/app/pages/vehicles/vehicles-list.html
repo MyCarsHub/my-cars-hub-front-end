@@ -160,11 +160,24 @@
               <p class="text-sm text-neutral-500">Nenhum veículo vendido ainda.</p>
             }
           } @else {
-            <p class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
-            <a routerLink="/veiculos/novo"
-              class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
-              Cadastrar primeiro veículo
-            </a>
+            <!-- FEAT-0080: frota vazia ≠ filtro sem resultado. Sem q/tipo/status
+                 ativos, o vazio é a ausência do primeiro veículo — este é o
+                 lembrete persistente de quem pulou o gate de ativação. -->
+            @if (search().trim() || typeFilter() || statusFilter()) {
+              <p class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
+            } @else {
+              <p class="text-sm font-medium text-neutral-700">
+                Você ainda não cadastrou nenhum veículo.
+              </p>
+              <p class="text-sm text-neutral-500">
+                Cadastre o primeiro para o painel, os alertas e as cobranças trabalharem com a
+                sua frota.
+              </p>
+              <a routerLink="/veiculos/novo"
+                class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
+                Cadastrar primeiro veículo
+              </a>
+            }
           }
         </div>
       }

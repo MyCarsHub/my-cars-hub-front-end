@@ -6,7 +6,11 @@ import {
     signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router, RouterLink } from '@angular/router';
+import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FleetActivationService } from '../../services/fleet-activation.service';
+import { SessionService } from '../../services/session.service';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { BillingAccessService } from '../../services/billing-access.service';
@@ -78,6 +82,8 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         StatusBarChart,
         BarChart,
         QuickActionCard,
+        AlertBanner,
+        RouterLink,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -85,6 +91,38 @@ export class DashboardHome {
     private readonly service = inject(DashboardService);
     private readonly router = inject(Router);
     private readonly access = inject(BillingAccessService);
+    private readonly activation = inject(FleetActivationService);
+
+    private readonly session = inject(SessionService);
+
+    /**
+     * FEAT-0080 — lembrete persistente pós-pulo: quem pulou o gate cai aqui e
+     * precisa continuar vendo o convite enquanto a frota estiver vazia. Convite,
+     * não alarme (variant info); some sozinho após o primeiro cadastro porque o
+     * cache do FleetActivationService vira `true` no POST de criação. Erro na
+     * consulta só omite o banner — nunca quebra o dashboard.
+     *
+     * MESMAS exclusões do `firstVehicleGuard`: DRIVER/VIEWER não podem receber
+     * um convite para rota que o roleGuard de /veiculos bloqueia, e
+     * PLATFORM_ADMIN opera acima do modelo de tenant. Fora do papel certo,
+     * nem a consulta é feita — sem GET extra a cada dashboard.
+     */
+    protected readonly showActivationReminder = signal(false);
+
+    constructor() {
+        const role = this.session.getItem('selectedRole');
+        const eligible =
+            !this.session.isPlatformAdmin() && (role === 'OWNER' || role === 'MANAGER');
+        if (eligible) {
+            this.activation
+                .hasVehicles()
+                .pipe(takeUntilDestroyed())
+                .subscribe({
+                    next: (has) => this.showActivationReminder.set(!has),
+                    error: () => this.showActivationReminder.set(false),
+                });
+        }
+    }
 
     protected readonly summary = signal<DashboardSummaryDto | null>(null);
     protected readonly loading = signal(false);

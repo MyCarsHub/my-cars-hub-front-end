@@ -9,6 +9,25 @@
   } @else {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
 
+      <!-- FEAT-0080: faixa do gate de ativação — explica o redirect e dá a
+           saída discreta. Some assim que a frota tiver o primeiro veículo. -->
+      @if (fromActivation()) {
+        <app-alert-banner variant="info" data-activation-notice>
+          <span class="font-semibold">Cadastre seu primeiro veículo para destravar o painel.</span>
+          Com ele na frota, o dashboard, os alertas e as cobranças passam a trabalhar com dados
+          reais.
+          <button
+            type="button"
+            (click)="skipActivation()"
+            class="inline-flex items-center mt-1 min-h-11 px-3 py-2 -ml-3 text-sm font-medium
+                   underline underline-offset-2 text-sky-800 hover:text-sky-900
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded"
+          >
+            Pular por enquanto
+          </button>
+        </app-alert-banner>
+      }
+
       @if (error(); as formError) {
         <app-alert-banner variant="error" [message]="formError" />
       }
