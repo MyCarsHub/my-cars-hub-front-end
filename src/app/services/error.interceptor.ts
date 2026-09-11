@@ -6,7 +6,7 @@ import { SessionService } from './session.service';
 import { NotificationService } from './notification.service';
 import { ApiErrorService } from './api-error.service';
 import { ParsedApiError, parseApiError } from './api-error';
-import { SILENT_HTTP_ERRORS } from './http-errors.context';
+import { OWNED_HTTP_ERRORS, SILENT_HTTP_ERRORS } from './http-errors.context';
 import { ImpersonationService } from './impersonation.service';
 import {
   IMPERSONATION_ERROR_CODES,
@@ -57,6 +57,11 @@ function isReadOnlyRefusal(parsed: ParsedApiError, sessionActive: boolean): bool
  * Uma requisição marcada com `SILENT_HTTP_ERRORS` fica FORA de tudo isso: nem
  * toast, nem rede de segurança, nem desvio de sessão. É para chamada
  * fire-and-forget, cujo fracasso o usuário não pediu e não pode agir sobre.
+ *
+ * `OWNED_HTTP_ERRORS` é o meio-termo: a tela é dona dos erros de NEGÓCIO
+ * (sem toast de 0/403/5xx, sem rede de segurança de 4xx), mas 401 / token
+ * expirado CONTINUAM com o interceptor — sessão vencida limpa e redireciona
+ * mesmo quando a tela traduz todo o resto.
  *
  * Always re-throws so component-level handlers still see the error.
  */
@@ -115,16 +120,23 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         session.clear();
         notifications.warning('Sua sessão expirou. Faça login novamente.');
         router.navigate(['/login'], { replaceUrl: true });
-      } else if (status === 0) {
-        // Rede fora / CORS / servidor inacessível. Não faz logout — provavelmente é
-        // temporário e o usuário só precisa tentar de novo.
-        notifications.error('Sem conexão com o servidor.');
       } else if (status === 401) {
+        // ANTES do desvio de `OWNED_HTTP_ERRORS` de propósito: sessão vencida
+        // no meio de um formulário continua limpando a sessão e indo para o
+        // /login, mesmo quando a tela é dona dos erros de negócio.
         if (!req.url.includes('/auth/login')) {
           notifications.warning('Sessão inválida. Faça login novamente.');
           session.clear();
           router.navigate(['/login'], { replaceUrl: true });
         }
+      } else if (req.context.get(OWNED_HTTP_ERRORS)) {
+        // A tela declarou tradução própria para os status de negócio: sem
+        // toast de 0/403/5xx e sem rede de segurança de 4xx. Só o caminho de
+        // sessão (acima) fica com o interceptor. Ver `OWNED_HTTP_ERRORS`.
+      } else if (status === 0) {
+        // Rede fora / CORS / servidor inacessível. Não faz logout — provavelmente é
+        // temporário e o usuário só precisa tentar de novo.
+        notifications.error('Sem conexão com o servidor.');
       } else if (status === 403) {
         notifications.warning('Acesso negado');
       } else if (status >= 500 && status < 600) {

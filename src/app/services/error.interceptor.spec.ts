@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import {
   HttpClient,
+  HttpContext,
   HttpErrorResponse,
   HttpHandlerFn,
   HttpRequest,
@@ -12,6 +13,7 @@ import { of, throwError, firstValueFrom, lastValueFrom, catchError, EMPTY } from
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { errorInterceptor } from './error.interceptor';
+import { OWNED_HTTP_ERRORS, SILENT_HTTP_ERRORS } from './http-errors.context';
 import { SessionService } from './session.service';
 import { NotificationService } from './notification.service';
 import { ApiErrorService } from './api-error.service';
@@ -238,5 +240,121 @@ describe('errorInterceptor', () => {
 
       expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
     });
+  });
+});
+
+/**
+ * FEAT-0082 — os dois tokens de silêncio, provados NO interceptor (o spec do
+ * componente mocka o serviço inteiro e não pode provar nada disto):
+ * - `OWNED_HTTP_ERRORS`: sem toast de 0/403/5xx e sem rede de segurança de
+ *   4xx, mas 401/token expirado CONTINUAM limpando a sessão e redirecionando;
+ * - `SILENT_HTTP_ERRORS` (fire-and-forget) mantém o contrato antigo: TUDO
+ *   desligado, inclusive o desvio de sessão.
+ */
+describe('errorInterceptor — OWNED_HTTP_ERRORS e SILENT_HTTP_ERRORS', () => {
+  let sessionClear: ReturnType<typeof vi.fn>;
+  let routerNavigate: ReturnType<typeof vi.fn>;
+  let notifyError: ReturnType<typeof vi.fn>;
+  let notifyWarning: ReturnType<typeof vi.fn>;
+  let scheduleSafetyNet: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    sessionClear = vi.fn();
+    routerNavigate = vi.fn();
+    notifyError = vi.fn();
+    notifyWarning = vi.fn();
+    scheduleSafetyNet = vi.fn();
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        { provide: SessionService, useValue: { clear: sessionClear } },
+        { provide: Router, useValue: { navigate: routerNavigate } },
+        { provide: ApiErrorService, useValue: { scheduleSafetyNet, claim: vi.fn() } },
+        { provide: ImpersonationService, useValue: { active: () => false, expire: vi.fn() } },
+        {
+          provide: NotificationService,
+          useValue: {
+            error: notifyError,
+            warning: notifyWarning,
+            info: vi.fn(),
+            success: vi.fn(),
+            push: vi.fn(),
+          },
+        },
+      ],
+    });
+  });
+
+  type Token = typeof OWNED_HTTP_ERRORS;
+
+  async function runMarked(token: Token, status: number, body?: unknown) {
+    const req = new HttpRequest('GET', 'http://localhost/v1/vehicles/plate-lookup', {
+      context: new HttpContext().set(token, true),
+    });
+    const next: HttpHandlerFn = () =>
+      throwError(
+        () => new HttpErrorResponse({ status, error: body, url: 'http://localhost/v1/x' }),
+      );
+    const result$ = TestBed.runInInjectionContext(() => errorInterceptor(req, next));
+
+    let caught: unknown;
+    await lastValueFrom(
+      result$.pipe(
+        catchError((err) => {
+          caught = err;
+          return EMPTY;
+        }),
+      ),
+      { defaultValue: null },
+    );
+    return caught as HttpErrorResponse | undefined;
+  }
+
+  it.each([501, 503])('OWNED + %s → NENHUM toast, erro re-lançado para o componente', async (status) => {
+    const err = await runMarked(OWNED_HTTP_ERRORS, status, { message: 'off' });
+
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifyWarning).not.toHaveBeenCalled();
+    expect(scheduleSafetyNet).not.toHaveBeenCalled();
+    expect(err?.status).toBe(status);
+  });
+
+  it('OWNED + 401 → sessão CONTINUA sendo limpa e redirecionada (a diferença para o SILENT)', async () => {
+    const err = await runMarked(OWNED_HTTP_ERRORS, 401);
+
+    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    expect(notifyWarning).toHaveBeenCalledWith('Sessão inválida. Faça login novamente.');
+    expect(err?.status).toBe(401);
+  });
+
+  it('OWNED + TokenExpiredException → caminho de sessão expirada intacto', async () => {
+    await runMarked(OWNED_HTTP_ERRORS, 401, { message: 'TokenExpiredException: JWT expired' });
+
+    expect(sessionClear).toHaveBeenCalledTimes(1);
+    expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    expect(notifyWarning).toHaveBeenCalledWith('Sua sessão expirou. Faça login novamente.');
+  });
+
+  it('OWNED + 4xx de negócio → sem rede de segurança (a tela traduz sozinha)', async () => {
+    const err = await runMarked(OWNED_HTTP_ERRORS, 402, { message: 'no role' });
+
+    expect(scheduleSafetyNet).not.toHaveBeenCalled();
+    expect(notifyWarning).not.toHaveBeenCalled();
+    expect(err?.status).toBe(402);
+  });
+
+  it('SILENT (fire-and-forget) mantém o contrato antigo: nem toast NEM desvio de sessão', async () => {
+    const err = await runMarked(SILENT_HTTP_ERRORS, 401);
+    expect(sessionClear).not.toHaveBeenCalled();
+    expect(routerNavigate).not.toHaveBeenCalled();
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifyWarning).not.toHaveBeenCalled();
+    expect(err?.status).toBe(401);
+
+    await runMarked(SILENT_HTTP_ERRORS, 500);
+    expect(notifyError).not.toHaveBeenCalled();
   });
 });

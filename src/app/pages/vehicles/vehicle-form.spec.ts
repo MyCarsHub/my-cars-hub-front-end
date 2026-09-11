@@ -1,15 +1,17 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+import { signal } from '@angular/core';
 import { VehicleForm } from './vehicle-form';
 import { VehiclesService } from '../../services/vehicles.service';
 import { InsurancesService } from '../../services/insurances.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { FleetActivationService } from '../../services/fleet-activation.service';
+import { FipeService } from '../../services/fipe.service';
 
 /**
  * Pilot for the feedback standard (phase 1):
@@ -59,8 +61,9 @@ describe('VehicleForm — server field errors', () => {
       providers: [
         provideRouter([]),
         ApiErrorService,
-        { provide: VehiclesService, useValue: { create, getOne: vi.fn(), update: vi.fn() } },
+        { provide: VehiclesService, useValue: { create, getOne: vi.fn(), update: vi.fn(), plateLookupUnavailable: signal(false) } },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
@@ -222,9 +225,10 @@ describe('VehicleForm — financiamento na edição', () => {
         ApiErrorService,
         {
           provide: VehiclesService,
-          useValue: { getOne, update, createFinancing, create: vi.fn() },
+          useValue: { getOne, update, createFinancing, create: vi.fn(), plateLookupUnavailable: signal(false) },
         },
         { provide: InsurancesService, useValue: { create: createInsurance } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID }, queryParamMap: { get: () => null } } },
@@ -508,9 +512,10 @@ describe('VehicleForm — criação com falha no bloco filho', () => {
         ApiErrorService,
         {
           provide: VehiclesService,
-          useValue: { create, update, createFinancing, getOne: vi.fn() },
+          useValue: { create, update, createFinancing, getOne: vi.fn(), plateLookupUnavailable: signal(false) },
         },
         { provide: InsurancesService, useValue: { create: createInsurance } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
@@ -678,9 +683,10 @@ describe('VehicleForm — documentos no cadastro', () => {
         ApiErrorService,
         {
           provide: VehiclesService,
-          useValue: { create, update, uploadDocument, getOne: vi.fn() },
+          useValue: { create, update, uploadDocument, getOne: vi.fn(), plateLookupUnavailable: signal(false) },
         },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
@@ -831,9 +837,19 @@ describe('VehicleForm — banner de validação e foco no submit inválido', () 
         ApiErrorService,
         {
           provide: VehiclesService,
-          useValue: { create: vi.fn(), getOne: vi.fn(), update: vi.fn() },
+          useValue: { create: vi.fn(), getOne: vi.fn(), update: vi.fn(), plateLookupUnavailable: signal(false) },
         },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
+        // Marcas NÃO vazias: esta suíte precisa validar o modo FIPE de verdade —
+        // lista vazia cai para manual e o foco nunca visitaria os selects.
+        {
+          provide: FipeService,
+          useValue: {
+            brands: () => of([{ code: '21', name: 'Fiat' }]),
+            models: () => of([]),
+            years: () => of([]),
+          },
+        },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
@@ -869,6 +885,18 @@ describe('VehicleForm — banner de validação e foco no submit inválido', () 
     fixture.detectChanges();
 
     expect(document.activeElement?.id).toBe('veiculo-year-manufacture');
+  });
+
+  it('em modo FIPE, marca vazia foca o SELECT de marca (não tem ng-invalid nem app-primary-input)', () => {
+    // Só a placa ok: brand/model vazios, e a tela está no modo FIPE (padrão).
+    api().form.patchValue({ plate: 'ABC1D23' });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).not.toBeNull();
+
+    api().submit();
+    fixture.detectChanges();
+
+    expect(document.activeElement?.id).toBe('veiculo-fipe-brand');
   });
 
   it('limpa o banner assim que o formulário volta a ser válido, sem novo submit', () => {
@@ -950,9 +978,10 @@ describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
         ApiErrorService,
         {
           provide: VehiclesService,
-          useValue: { create, update, getOne, createFinancing: vi.fn() },
+          useValue: { create, update, getOne, createFinancing: vi.fn(), plateLookupUnavailable: signal(false) },
         },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => routeId }, queryParamMap: { get: () => null } } } },
         {
           provide: NotificationService,
@@ -1128,9 +1157,10 @@ describe('VehicleForm — veículo vendido é somente-leitura (FIX-0250)', () =>
         ApiErrorService,
         {
           provide: VehiclesService,
-          useValue: { getOne, update, createFinancing, create: vi.fn() },
+          useValue: { getOne, update, createFinancing, create: vi.fn(), plateLookupUnavailable: signal(false) },
         },
         { provide: InsurancesService, useValue: { create: createInsurance } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID }, queryParamMap: { get: () => null } } },
@@ -1298,8 +1328,9 @@ describe('VehicleForm — gate de ativação (FEAT-0080)', () => {
       providers: [
         provideRouter([]),
         ApiErrorService,
-        { provide: VehiclesService, useValue: { create, getOne: vi.fn(), update: vi.fn() } },
+        { provide: VehiclesService, useValue: { create, getOne: vi.fn(), update: vi.fn(), plateLookupUnavailable: signal(false) } },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -1388,5 +1419,474 @@ describe('VehicleForm — gate de ativação (FEAT-0080)', () => {
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(markHasVehicles).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * FEAT-0082 — busca pela placa, contrato congelado (FEAT-0081). Cada status
+ * tem tradução própria e NENHUM deles bloqueia o cadastro manual: a resposta
+ * vira nota discreta, nunca banner de erro nem toast.
+ */
+describe('VehicleForm — busca pela placa (FEAT-0082)', () => {
+  let plateLookup: ReturnType<typeof vi.fn>;
+  let plateLookupUnavailable: ReturnType<typeof signal<boolean>>;
+  let notifyError: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    plateLookup = vi.fn();
+    plateLookupUnavailable = signal(false);
+    notifyError = vi.fn();
+  });
+
+  function render() {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: {
+            create: vi.fn(),
+            getOne: vi.fn(),
+            update: vi.fn(),
+            plateLookup,
+            plateLookupUnavailable,
+          },
+        },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: notifyError, warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function typePlate(fixture: { nativeElement: HTMLElement; detectChanges: () => void }, plate: string): void {
+    const input = fixture.nativeElement.querySelector('#veiculo-plate') as HTMLInputElement;
+    input.value = plate;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function lookupButton(fixture: { nativeElement: HTMLElement }): HTMLButtonElement | null {
+    return fixture.nativeElement.querySelector('[data-plate-lookup]');
+  }
+
+  function note(fixture: { nativeElement: HTMLElement }): string {
+    return fixture.nativeElement.querySelector('[data-plate-lookup-note]')?.textContent?.trim() ?? '';
+  }
+
+  function failWith(status: number, headers?: HttpHeaders): void {
+    plateLookup.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status, error: { message: 'boom' }, headers })),
+    );
+  }
+
+  it('o botão só existe com placa completa e válida', () => {
+    const fixture = render();
+    expect(lookupButton(fixture)).toBeNull();
+
+    typePlate(fixture, 'ABC1');
+    expect(lookupButton(fixture)).toBeNull();
+
+    typePlate(fixture, 'ABC1D23');
+    expect(lookupButton(fixture)).not.toBeNull();
+  });
+
+  it('501 já visto na sessão → botão VISÍVEL porém desabilitado (não some sob o cursor)', () => {
+    plateLookupUnavailable.set(true);
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+
+    const button = lookupButton(fixture);
+    expect(button).not.toBeNull();
+    expect(button!.disabled).toBe(true);
+    button!.click();
+    expect(plateLookup).not.toHaveBeenCalled();
+  });
+
+  it('200 → preenche marca/modelo/anos/cor/combustível, tudo segue editável', () => {
+    plateLookup.mockReturnValue(
+      of({
+        plate: 'ABC1D23',
+        brand: 'Fiat',
+        model: 'Argo Drive 1.0',
+        manufactureYear: 2021,
+        modelYear: 2022,
+        fuel: 'Gasolina',
+        color: 'Prata',
+      }),
+    );
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    fixture.detectChanges();
+
+    const form = (fixture.componentInstance as unknown as { form: { getRawValue: () => Record<string, unknown>; hasError: (e: string) => boolean } }).form;
+    const raw = form.getRawValue();
+    expect(raw['brand']).toBe('Fiat');
+    expect(raw['model']).toBe('Argo Drive 1.0');
+    expect(raw['yearManufacture']).toBe(2021);
+    expect(raw['yearModel']).toBe(2022);
+    expect(raw['color']).toBe('Prata');
+    expect(raw['fuel']).toBe('GASOLINA');
+    expect(note(fixture)).toContain('Confira e ajuste');
+    // yearRangeValidator continua satisfeito (2022 = 2021 + 1).
+    expect(form.hasError('yearModelRange')).toBe(false);
+    // Editável: os inputs manuais estão visíveis (modo manual) e habilitados.
+    const brandInput = fixture.nativeElement.querySelector(
+      'app-primary-input[formcontrolname="brand"] input',
+    ) as HTMLInputElement | null;
+    expect(brandInput).not.toBeNull();
+    expect(brandInput!.disabled).toBe(false);
+  });
+
+  it('204 (não encontrada) → nota discreta e formulário intacto', () => {
+    plateLookup.mockReturnValue(of(null));
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    fixture.detectChanges();
+
+    expect(note(fixture)).toContain('não encontrada');
+    const raw = (fixture.componentInstance as unknown as { form: { getRawValue: () => Record<string, unknown> } }).form.getRawValue();
+    expect(raw['brand']).toBe('');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+  });
+
+  it('402 (papel sem permissão) → nota fala de papel, JAMAIS de plano/upgrade', () => {
+    failWith(402);
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    fixture.detectChanges();
+
+    const text = note(fixture);
+    expect(text).toContain('papel');
+    expect(text.toLowerCase()).not.toContain('plano');
+    expect(text.toLowerCase()).not.toContain('upgrade');
+    expect(text.toLowerCase()).not.toContain('assinatura');
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it('429 → nota com os segundos do Retry-After', () => {
+    failWith(429, new HttpHeaders({ 'Retry-After': '42' }));
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    fixture.detectChanges();
+
+    expect(note(fixture)).toContain('42');
+  });
+
+  it('503 (provedor fora) → nota de tentar de novo, formulário manual intacto', () => {
+    failWith(503);
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    fixture.detectChanges();
+
+    expect(note(fixture)).toContain('Tente novamente');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#veiculo-plate')).not.toBeNull();
+    // SILENT_HTTP_ERRORS: 5xx é do componente — nada de toast vermelho.
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it('501 → nota de uma linha, botão desabilitado, sem retry na sessão e sem toast', () => {
+    failWith(501);
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    // O VehiclesService REAL marca a sessão no 501 (provado no spec do serviço);
+    // aqui o serviço é mock, então o sinal é virado à mão.
+    plateLookupUnavailable.set(true);
+    fixture.detectChanges();
+
+    expect(note(fixture)).toContain('indisponível');
+    const button = lookupButton(fixture);
+    expect(button).not.toBeNull();
+    expect(button!.disabled).toBe(true);
+    button!.click();
+    expect(plateLookup).toHaveBeenCalledTimes(1);
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+  });
+
+  it('digitar após o 501 PRESERVA a nota de indisponibilidade — botão desabilitado nunca fica mudo', () => {
+    failWith(501);
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    plateLookupUnavailable.set(true);
+    fixture.detectChanges();
+    expect(note(fixture)).toContain('indisponível');
+
+    // Digitar limpa notas de busca (placa anterior), mas a indisponibilidade
+    // vale a sessão inteira e é rederivada — senão sobra botão morto sem texto.
+    typePlate(fixture, 'XYZ9A88');
+    expect(note(fixture)).toContain('indisponível');
+    expect(lookupButton(fixture)!.disabled).toBe(true);
+  });
+
+  it('digitar outra placa limpa a nota da busca anterior', () => {
+    plateLookup.mockReturnValue(of(null));
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    fixture.detectChanges();
+    expect(note(fixture)).toContain('não encontrada');
+
+    // A nota descrevia a placa A; digitando a placa B ela precisa sumir.
+    typePlate(fixture, 'XYZ9A88');
+    expect(note(fixture)).toBe('');
+  });
+
+  it('400 → nota de placa inválida, sem banner', () => {
+    failWith(400);
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    lookupButton(fixture)!.click();
+    fixture.detectChanges();
+
+    expect(note(fixture)).toContain('inválida');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+  });
+
+  it('sem duplo disparo: cliques com busca em voo não repetem a chamada', () => {
+    plateLookup.mockReturnValue(NEVER);
+    const fixture = render();
+    typePlate(fixture, 'ABC1D23');
+    const button = lookupButton(fixture)!;
+    button.click();
+    fixture.detectChanges();
+    button.click();
+    button.click();
+
+    expect(plateLookup).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * FEAT-0084 — listas encadeadas FIPE com escape hatch obrigatório. Os selects
+ * apenas PREENCHEM os controls existentes; o submit não muda e a FIPE nunca
+ * bloqueia o cadastro (falha → modo manual em silêncio).
+ */
+describe('VehicleForm — catálogo FIPE (FEAT-0084)', () => {
+  const BRANDS = [{ code: '21', name: 'Fiat' }];
+  const MODELS = [{ code: '473', name: 'Argo Drive 1.0' }];
+  const YEARS = [
+    { code: '2022-1', name: '2022 Gasolina' },
+    { code: '32000-1', name: 'Zero KM' },
+  ];
+
+  let brands: ReturnType<typeof vi.fn>;
+  let models: ReturnType<typeof vi.fn>;
+  let years: ReturnType<typeof vi.fn>;
+  let create: ReturnType<typeof vi.fn>;
+  let fipeNotifyError: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fipeNotifyError = vi.fn();
+    brands = vi.fn().mockReturnValue(of(BRANDS));
+    models = vi.fn().mockReturnValue(of(MODELS));
+    years = vi.fn().mockReturnValue(of(YEARS));
+    create = vi.fn().mockReturnValue(of({ id: 'v-1' }));
+  });
+
+  function render(routeId: string | null = null) {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: {
+            create,
+            update: vi.fn(),
+            getOne: vi.fn().mockReturnValue(
+              of({ id: 'v-1', plate: 'ABC1D23', type: 'CAR', brand: 'Fiat', model: 'Uno', yearManufacture: 2020, yearModel: 2020, hodometer: 0 }),
+            ),
+            plateLookup: vi.fn(),
+            plateLookupUnavailable: signal(false),
+          },
+        },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands, models, years } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => routeId }, queryParamMap: { get: () => null } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: fipeNotifyError, warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function select(fixture: { nativeElement: HTMLElement; detectChanges: () => void }, selector: string, value: string): void {
+    const el = fixture.nativeElement.querySelector(selector) as HTMLSelectElement;
+    el.value = value;
+    el.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  function rawForm(fixture: { componentInstance: unknown }): Record<string, unknown> {
+    return (fixture.componentInstance as { form: { getRawValue: () => Record<string, unknown> } }).form.getRawValue();
+  }
+
+  it('cadastro abre no modo FIPE e a cadeia marca → modelo → ano preenche os controls', () => {
+    const fixture = render();
+
+    expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).not.toBeNull();
+    expect(brands).toHaveBeenCalledTimes(1);
+
+    select(fixture, '[data-fipe-brand]', '21');
+    expect(models).toHaveBeenCalledWith('21');
+    expect(rawForm(fixture)['brand']).toBe('Fiat');
+
+    select(fixture, '[data-fipe-model]', '473');
+    expect(years).toHaveBeenCalledWith('21', '473');
+    expect(rawForm(fixture)['model']).toBe('Argo Drive 1.0');
+
+    select(fixture, '[data-fipe-year]', '2022-1');
+    expect(rawForm(fixture)['yearManufacture']).toBe(2022);
+    expect(rawForm(fixture)['yearModel']).toBe(2022);
+    // yearRangeValidator satisfeito: mesmo ano nos dois campos.
+    const form = (fixture.componentInstance as unknown as { form: { hasError: (e: string) => boolean } }).form;
+    expect(form.hasError('yearModelRange')).toBe(false);
+  });
+
+  it('ano sem número ("Zero KM") não mexe nos campos de ano', () => {
+    const fixture = render();
+    const before = rawForm(fixture)['yearModel'];
+
+    select(fixture, '[data-fipe-brand]', '21');
+    select(fixture, '[data-fipe-model]', '473');
+    select(fixture, '[data-fipe-year]', '32000-1');
+
+    expect(rawForm(fixture)['yearModel']).toBe(before);
+  });
+
+  it('escape hatch: alternar para manual preserva os valores e o submit segue com texto livre', () => {
+    const fixture = render();
+    select(fixture, '[data-fipe-brand]', '21');
+
+    (fixture.nativeElement.querySelector('[data-fipe-manual-toggle]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    // Inputs livres visíveis, valor da FIPE preservado e editável.
+    expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).toBeNull();
+    const component = fixture.componentInstance as unknown as {
+      form: { patchValue: (v: unknown) => void; getRawValue: () => Record<string, unknown> };
+      submit: () => void;
+    };
+    expect(component.form.getRawValue()['brand']).toBe('Fiat');
+
+    // Carro fora da FIPE: digita tudo e o submit não muda.
+    component.form.patchValue({
+      plate: 'XYZ9A88',
+      brand: 'Troller',
+      model: 'T4 fora de catálogo',
+      yearManufacture: 2019,
+      yearModel: 2019,
+      hodometer: 100,
+    });
+    component.submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const payload = create.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload['brand']).toBe('Troller');
+    expect(payload['model']).toBe('T4 fora de catálogo');
+  });
+
+  it('falha ao carregar marcas → cai para manual em silêncio, sem banner', () => {
+    brands.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+    const fixture = render();
+
+    expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-primary-input')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+    // A volta ao catálogo continua ofertada — a falha pode ter sido pontual.
+    expect(fixture.nativeElement.querySelector('[data-fipe-catalog-toggle]')).not.toBeNull();
+    // SILENT_HTTP_ERRORS: a queda para manual é silenciosa DE VERDADE — sem toast.
+    expect(fipeNotifyError).not.toHaveBeenCalled();
+  });
+
+  it('modelos VAZIOS para a marca → cai para manual com nota, sem beco sem saída', () => {
+    models.mockReturnValue(of([]));
+    const fixture = render();
+    select(fixture, '[data-fipe-brand]', '21');
+
+    // Sem isto o select de modelo ficava habilitado, sem opções, com o
+    // control obrigatório — o usuário não tinha para onde ir.
+    expect(fixture.nativeElement.querySelector('[data-fipe-model]')).toBeNull();
+    const noteText = fixture.nativeElement.querySelector('[data-fipe-note]')?.textContent;
+    expect(noteText).toContain('modelos');
+    expect(rawForm(fixture)['brand']).toBe('Fiat');
+  });
+
+  it('anos VAZIOS para o modelo → cai para manual com nota', () => {
+    years.mockReturnValue(of([]));
+    const fixture = render();
+    select(fixture, '[data-fipe-brand]', '21');
+    select(fixture, '[data-fipe-model]', '473');
+
+    expect(fixture.nativeElement.querySelector('[data-fipe-year]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-fipe-note]')?.textContent).toContain('anos');
+    expect(rawForm(fixture)['model']).toBe('Argo Drive 1.0');
+  });
+
+  it('reentrar no modo FIPE após "modelos vazios" recomeça a cadeia do zero', () => {
+    models.mockReturnValueOnce(of([]));
+    const fixture = render();
+    select(fixture, '[data-fipe-brand]', '21');
+    // Primeira passada: sem modelos → caiu para manual.
+    expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).toBeNull();
+
+    (fixture.nativeElement.querySelector('[data-fipe-catalog-toggle]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    // Sem o reset, a marca continuava escolhida com fipeModels() vazio:
+    // select de modelo habilitado, sem opções, control obrigatório.
+    const brandSelect = fixture.nativeElement.querySelector('[data-fipe-brand]') as HTMLSelectElement;
+    expect(brandSelect.value).toBe('');
+    const modelSelect = fixture.nativeElement.querySelector('[data-fipe-model]') as HTMLSelectElement;
+    expect(modelSelect.disabled).toBe(true);
+  });
+
+  it('catálogo VAZIO (200 com []) → manual com nota de uma linha, sem toast', () => {
+    brands.mockReturnValue(of([]));
+    const fixture = render();
+
+    expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).toBeNull();
+    const noteText = fixture.nativeElement.querySelector('[data-fipe-note]')?.textContent?.trim();
+    expect(noteText).toContain('indisponível');
+    expect(fipeNotifyError).not.toHaveBeenCalled();
+  });
+
+  it('edição abre em modo manual com os valores carregados', () => {
+    const fixture = render('v-1');
+
+    expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).toBeNull();
+    expect(rawForm(fixture)['brand']).toBe('Fiat');
+    expect(rawForm(fixture)['model']).toBe('Uno');
   });
 });

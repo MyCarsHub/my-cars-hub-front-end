@@ -22,3 +22,19 @@ import { HttpContextToken } from '@angular/common/http';
  * serviço).
  */
 export const SILENT_HTTP_ERRORS = new HttpContextToken<boolean>(() => false);
+
+/**
+ * Marca uma requisição cuja FALHA DE NEGÓCIO é assunto da tela — mas cuja
+ * SESSÃO continua sendo assunto do interceptor.
+ *
+ * Diferença para `SILENT_HTTP_ERRORS`: aquele desliga TUDO (inclusive o
+ * desvio de sessão do 401) e por isso só serve para fire-and-forget. Este
+ * desliga apenas o feedback genérico — toast de status 0/403/5xx e a rede de
+ * segurança de 4xx — enquanto 401/token expirado seguem limpando a sessão e
+ * redirecionando para /login. Use quando o usuário ESTÁ esperando o
+ * resultado e a tela tem tradução própria para cada status (ex.: o contrato
+ * do plate-lookup, onde 501 é o estado normal de produção e 503 tem nota
+ * discreta), mas uma sessão vencida no meio do formulário ainda precisa do
+ * caminho padrão.
+ */
+export const OWNED_HTTP_ERRORS = new HttpContextToken<boolean>(() => false);

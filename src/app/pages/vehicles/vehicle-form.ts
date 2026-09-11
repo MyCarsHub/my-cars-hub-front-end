@@ -45,6 +45,8 @@ import { InsuranceFormFields } from '../../components/vehicles/insurance-form-fi
 import { insuranceDateRangeValidator } from '../../components/vehicles/insurance-form-fields/insurance-utils';
 import { VehiclesService } from '../../services/vehicles.service';
 import { InsurancesService } from '../../services/insurances.service';
+import { FipeOption, FipeService } from '../../services/fipe.service';
+import { LoggerService } from '../../services/logger.service';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import {
   CreateInsuranceRequest,
@@ -57,6 +59,7 @@ import {
   Financing,
   IPVA_STATUS_OPTIONS,
   IpvaStatus,
+  PlateLookupResult,
   UpdateVehicleRequest,
   VEHICLE_DOCUMENT_KIND_META,
   VEHICLE_FUEL_OPTIONS,
@@ -83,6 +86,17 @@ const PLATE_PATTERN = /^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/;
 const CHILD_RETRY_HINT = 'Tente novamente em instantes.';
 
 /**
+ * Nota que explica o botão de placa desabilitado pós-501. É rederivada em
+ * `onPlateInput`: como o desabilitado dura a sessão inteira, zerá-la ao
+ * digitar deixaria um botão morto SEM explicação — o modo de falha que a
+ * decisão do 501 existe para evitar.
+ */
+const PLATE_LOOKUP_OFF_NOTE = {
+  kind: 'info',
+  text: 'Busca por placa indisponível no momento.',
+} as const;
+
+/**
  * Arquivo escolhido no cadastro, ainda não (necessariamente) enviado.
  *
  * `status` é a memória do retry: se um upload falhar depois de o veículo ser
@@ -96,6 +110,44 @@ interface PendingVehicleDocument {
   kind: VehicleDocumentKind;
   file: File;
   status: 'pending' | 'uploaded' | 'error';
+}
+
+/**
+ * Combustível do provedor de placa → enum local, em MELHOR ESFORÇO: o
+ * contrato manda texto livre ("Gasolina", "Álcool"…). Sem correspondência,
+ * o campo simplesmente não é preenchido — nunca inventamos valor.
+ */
+function mapLookupFuel(raw: string | null): VehicleFuel | null {
+  if (!raw) return null;
+  const normalized = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+  if (normalized === 'ALCOOL') return 'ETANOL';
+  const match = VEHICLE_FUEL_OPTIONS.find(
+    (opt) =>
+      opt.value === normalized ||
+      opt.label
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase() === normalized,
+  );
+  return match?.value ?? null;
+}
+
+/**
+ * Ano numérico de um item de ano da FIPE. O `name` costuma começar pelo ano
+ * ("2014 Gasolina"); "Zero KM" (code "32000-…") não tem ano — devolve null e
+ * os campos de ano ficam como estão.
+ */
+function fipeYearNumber(option: FipeOption | undefined): number | null {
+  if (!option) return null;
+  for (const source of [option.name, option.code]) {
+    const year = parseInt(source, 10);
+    if (Number.isFinite(year) && year >= 1900 && year <= 2100) return year;
+  }
+  return null;
 }
 
 function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
@@ -128,6 +180,8 @@ function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
 export class VehicleForm implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly insurancesService = inject(InsurancesService);
+  private readonly fipe = inject(FipeService);
+  private readonly logger = inject(LoggerService);
   private readonly activation = inject(FleetActivationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
@@ -165,6 +219,53 @@ export class VehicleForm implements OnInit {
   };
 
   protected readonly plateDisplay = signal('');
+
+  // ---- Catálogo FIPE (FEAT-0084) ----------------------------------------
+
+  /**
+   * `fipe` = selects encadeados marca → modelo → ano; `manual` = digitação
+   * livre (escape hatch OBRIGATÓRIO — carro fora da FIPE existe). Cadastro
+   * abre em `fipe`; edição abre em `manual` (os valores já estão nos campos e
+   * selects vazios seriam regressão). Qualquer falha da FIPE cai para manual
+   * em silêncio: o catálogo nunca pode bloquear um cadastro.
+   */
+  protected readonly catalogMode = signal<'fipe' | 'manual'>('manual');
+  protected readonly fipeBrands = signal<FipeOption[]>([]);
+  protected readonly fipeModels = signal<FipeOption[]>([]);
+  protected readonly fipeYears = signal<FipeOption[]>([]);
+  protected readonly fipeBrandCode = signal('');
+  protected readonly fipeModelCode = signal('');
+  protected readonly fipeYearCode = signal('');
+  protected readonly fipeLoading = signal<'brands' | 'models' | 'years' | null>(null);
+
+  /** Nota de uma linha quando o catálogo respondeu vazio — sem ela o toggle vira controle morto. */
+  protected readonly fipeCatalogNote = signal<string | null>(null);
+
+  // ---- Busca pela placa (FEAT-0082) --------------------------------------
+
+  protected readonly plateLookupBusy = signal(false);
+
+  /** Nota discreta sob o botão — nunca banner, nunca toast, nunca bloqueia. */
+  protected readonly plateLookupNote = signal<{ kind: 'info' | 'success'; text: string } | null>(
+    null,
+  );
+
+  /**
+   * O botão só existe com placa completa e válida. Vendido: formulário
+   * inteiro é inerte. Um 501 anterior NÃO o esconde — controle que some sob
+   * o cursor é um modo de falha próprio (decisão do orquestrador): ele fica
+   * visível porém desabilitado, com nota de uma linha, e a sessão não tenta
+   * de novo.
+   */
+  protected readonly plateLookupAvailable = computed(
+    () => !this.sold() && PLATE_PATTERN.test(this.plateDisplay()),
+  );
+
+  /** Desabilitado enquanto voa OU depois de um 501 nesta sessão. */
+  protected readonly plateLookupDisabled = computed(
+    () => this.plateLookupBusy() || this.vehiclesService.plateLookupUnavailable(),
+  );
+
   protected readonly showFinancing = signal(false);
   /**
    * Bloco de seguro (opcional). O backend admite apenas UMA apólice ACTIVE por
@@ -334,6 +435,248 @@ export class VehicleForm implements OnInit {
       this.loadVehicle(id);
       this.form.controls.chassis.disable();
       this.form.controls.renavam.disable();
+    } else {
+      // Cadastro abre no catálogo FIPE; se as marcas falharem, o próprio
+      // enterFipeMode devolve o modo manual em silêncio.
+      this.enterFipeMode();
+    }
+  }
+
+  // ---- Catálogo FIPE (FEAT-0084) ----------------------------------------
+
+  protected enterFipeMode(): void {
+    if (this.sold()) return;
+    this.catalogMode.set('fipe');
+    this.fipeCatalogNote.set(null);
+    // Reentrada começa a cadeia do zero: sem isto, voltar depois de um
+    // "modelos vazios" reabria o modo FIPE com a marca ainda escolhida e
+    // `fipeModels()` vazio — select de modelo habilitado, sem opções, com o
+    // control obrigatório. Beco sem saída em dois cliques.
+    this.fipeBrandCode.set('');
+    this.fipeModelCode.set('');
+    this.fipeYearCode.set('');
+    this.fipeModels.set([]);
+    this.fipeYears.set([]);
+    if (this.fipeBrands().length > 0) return;
+    this.fipeLoading.set('brands');
+    this.fipe.brands().subscribe({
+      next: (brands) => {
+        this.fipeBrands.set(brands);
+        this.fipeLoading.set(null);
+        // Catálogo vazio é tão inútil quanto indisponível: modo manual — mas
+        // com uma linha dizendo o porquê, senão o toggle parece quebrado.
+        if (brands.length === 0) {
+          this.catalogMode.set('manual');
+          this.fipeCatalogNote.set(
+            'O catálogo FIPE está indisponível no momento. Preencha manualmente.',
+          );
+        }
+      },
+      error: () => {
+        this.fipeLoading.set(null);
+        this.catalogMode.set('manual');
+      },
+    });
+  }
+
+  protected useManualMode(): void {
+    this.catalogMode.set('manual');
+  }
+
+  protected onFipeBrandChange(event: Event): void {
+    if (this.sold()) return;
+    const code = (event.target as HTMLSelectElement).value;
+    this.fipeBrandCode.set(code);
+    this.fipeModelCode.set('');
+    this.fipeYearCode.set('');
+    this.fipeModels.set([]);
+    this.fipeYears.set([]);
+    if (!code) return;
+
+    const brand = this.fipeBrands().find((b) => b.code === code);
+    if (brand) {
+      this.form.controls.brand.setValue(brand.name);
+      this.form.controls.brand.markAsTouched();
+    }
+    this.fipeLoading.set('models');
+    this.fipe.models(code).subscribe({
+      next: (models) => {
+        this.fipeModels.set(models);
+        this.fipeLoading.set(null);
+        // Lista vazia deixaria um select habilitado sem opções, com `model`
+        // obrigatório — beco sem saída. Mesmo tratamento das marcas.
+        if (models.length === 0) {
+          this.catalogMode.set('manual');
+          this.fipeCatalogNote.set(
+            'A FIPE não listou modelos para esta marca. Preencha manualmente.',
+          );
+        }
+      },
+      error: () => {
+        // Marca já foi para o campo; o resto o usuário digita.
+        this.fipeLoading.set(null);
+        this.catalogMode.set('manual');
+      },
+    });
+  }
+
+  protected onFipeModelChange(event: Event): void {
+    if (this.sold()) return;
+    const code = (event.target as HTMLSelectElement).value;
+    this.fipeModelCode.set(code);
+    this.fipeYearCode.set('');
+    this.fipeYears.set([]);
+    if (!code) return;
+
+    const model = this.fipeModels().find((m) => m.code === code);
+    if (model) {
+      this.form.controls.model.setValue(model.name);
+      this.form.controls.model.markAsTouched();
+    }
+    this.fipeLoading.set('years');
+    this.fipe.years(this.fipeBrandCode(), code).subscribe({
+      next: (years) => {
+        this.fipeYears.set(years);
+        this.fipeLoading.set(null);
+        if (years.length === 0) {
+          // Marca e modelo já estão nos campos; os anos o usuário digita.
+          this.catalogMode.set('manual');
+          this.fipeCatalogNote.set(
+            'A FIPE não listou anos para este modelo. Preencha os anos manualmente.',
+          );
+        }
+      },
+      error: () => {
+        this.fipeLoading.set(null);
+        this.catalogMode.set('manual');
+      },
+    });
+  }
+
+  protected onFipeYearChange(event: Event): void {
+    if (this.sold()) return;
+    const code = (event.target as HTMLSelectElement).value;
+    this.fipeYearCode.set(code);
+    const year = fipeYearNumber(this.fipeYears().find((y) => y.code === code));
+    if (year === null) return; // "Zero KM" e afins: anos ficam como estão.
+    // Mesmo ano nos dois campos satisfaz o yearRangeValidator; fabricação
+    // ano-1 (modelo seguinte) continua um ajuste manual legítimo depois.
+    this.form.patchValue({ yearManufacture: year, yearModel: year });
+    this.form.controls.yearManufacture.markAsTouched();
+    this.form.controls.yearModel.markAsTouched();
+  }
+
+  // ---- Busca pela placa (FEAT-0082) --------------------------------------
+
+  protected lookupPlate(): void {
+    // Guarda de duplo disparo (busca em voo) e de sessão pós-501 (o botão
+    // fica visível porém desabilitado; esta é a metade programática).
+    if (this.plateLookupDisabled() || this.sold()) return;
+    const plate = this.form.controls.plate.value;
+    if (!PLATE_PATTERN.test(plate)) return;
+
+    this.plateLookupBusy.set(true);
+    this.plateLookupNote.set(null);
+    this.vehiclesService.plateLookup(plate).subscribe({
+      next: (result) => {
+        this.plateLookupBusy.set(false);
+        if (result === null) {
+          // 204: placa não encontrada — mensagem discreta, formulário intacto.
+          this.plateLookupNote.set({
+            kind: 'info',
+            text: 'Placa não encontrada na base. Preencha os dados manualmente.',
+          });
+          return;
+        }
+        this.applyPlateLookup(result);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.plateLookupBusy.set(false);
+        this.handlePlateLookupError(err);
+      },
+    });
+  }
+
+  private applyPlateLookup(result: PlateLookupResult): void {
+    const patch: Partial<{
+      brand: string;
+      model: string;
+      yearManufacture: number;
+      yearModel: number;
+      color: string;
+      fuel: VehicleFuel | '';
+    }> = {};
+    if (result.brand) patch.brand = result.brand;
+    if (result.model) patch.model = result.model;
+    if (result.manufactureYear != null) patch.yearManufacture = result.manufactureYear;
+    if (result.modelYear != null) patch.yearModel = result.modelYear;
+    if (result.color) patch.color = result.color;
+    const fuel = mapLookupFuel(result.fuel);
+    if (fuel) patch.fuel = fuel;
+
+    this.form.patchValue(patch);
+    // Os valores vieram como texto — o modo manual é onde eles são visíveis
+    // e editáveis; os selects FIPE não têm como refletir texto do provedor.
+    this.catalogMode.set('manual');
+    this.plateLookupNote.set({
+      kind: 'success',
+      text: 'Dados preenchidos pela placa. Confira e ajuste o que precisar.',
+    });
+  }
+
+  /**
+   * Tradução por status do contrato congelado (FEAT-0081). Sempre passa por
+   * `messageFor` primeiro: é o claim que mantém o toast do interceptor quieto.
+   * Nada aqui bloqueia o cadastro — a nota é discreta e o formulário segue.
+   */
+  private handlePlateLookupError(err: HttpErrorResponse): void {
+    const serverMessage = this.apiErrors.messageFor(err, '');
+    switch (err.status) {
+      case 400:
+        this.plateLookupNote.set({ kind: 'info', text: 'Placa inválida para consulta.' });
+        return;
+      case 402:
+        // ATENÇÃO (contrato): 402 aqui é papel sem permissão (OWNER/MANAGER),
+        // NÃO plano — jamais upsell.
+        this.plateLookupNote.set({
+          kind: 'info',
+          text: 'A busca por placa não está disponível para o seu papel nesta empresa.',
+        });
+        return;
+      case 429: {
+        const retryAfter = Number(err.headers?.get('Retry-After'));
+        this.plateLookupNote.set({
+          kind: 'info',
+          text:
+            Number.isFinite(retryAfter) && retryAfter > 0
+              ? `Muitas buscas seguidas. Aguarde ${Math.ceil(retryAfter)} segundos e tente de novo.`
+              : 'Muitas buscas seguidas. Aguarde um instante e tente de novo.',
+        });
+        return;
+      }
+      case 501:
+        // Feature desligada: o service marcou a sessão — o botão FICA visível
+        // porém desabilitado (controle que some sob o cursor é um modo de
+        // falha próprio; decisão do orquestrador), com nota de uma linha.
+        this.plateLookupNote.set(PLATE_LOOKUP_OFF_NOTE);
+        return;
+      case 503:
+        this.plateLookupNote.set({
+          kind: 'info',
+          text: 'O provedor de consulta está fora do ar. Tente novamente em instantes.',
+        });
+        return;
+      default:
+        // Frase genérica para o usuário; a mensagem crua do servidor vai para
+        // o log — copy de erro não revisada não é interface.
+        this.logger.warn('[plate-lookup] status fora do contrato', {
+          status: err.status,
+          serverMessage,
+        });
+        this.plateLookupNote.set({
+          kind: 'info',
+          text: 'Não foi possível buscar os dados da placa.',
+        });
     }
   }
 
@@ -348,6 +691,13 @@ export class VehicleForm implements OnInit {
     this.form.controls.plate.setValue(raw);
     this.form.controls.plate.markAsTouched();
     this.plateDisplay.set(raw);
+    // A nota descreve a ÚLTIMA busca; digitar outra placa a torna mentirosa
+    // ("dados preenchidos" da placa anterior) — some junto com a digitação.
+    // EXCEÇÃO: a indisponibilidade (501) vale a sessão toda e explica o botão
+    // desabilitado — rederivada aqui em vez de zerada.
+    this.plateLookupNote.set(
+      this.vehiclesService.plateLookupUnavailable() ? PLATE_LOOKUP_OFF_NOTE : null,
+    );
   }
 
   protected onChassisInput(event: Event): void {
@@ -565,6 +915,11 @@ export class VehicleForm implements OnInit {
       ['veiculo-plate', this.form.controls.plate],
       ['veiculo-chassis', this.form.controls.chassis],
       ['veiculo-renavam', this.form.controls.renavam],
+      // Modo FIPE (FEAT-0084): os selects não têm formControlName (logo, nem
+      // ng-invalid) — espelham brand/model pelo id, senão submeter vazio no
+      // caminho PADRÃO de criação focaria o campo errado.
+      ['veiculo-fipe-brand', this.form.controls.brand],
+      ['veiculo-fipe-model', this.form.controls.model],
     ];
     const fields = Array.from(
       this.host.nativeElement.querySelectorAll<HTMLElement>('input, select, textarea'),
