@@ -53,7 +53,7 @@ describe('LandingSimulatorComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('renderiza os textos estáticos (título, subtítulo, badge e CTA no template)', () => {
+  it('renderiza os textos estáticos (título, subtítulo e CTA no template)', () => {
     const { host } = render();
     const text = (host.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain('Quanto tempo sua frota');
@@ -61,7 +61,6 @@ describe('LandingSimulatorComponent', () => {
     expect(text).toContain(
       'Arraste e veja quantas horas por mês vão embora administrando no manual.',
     );
-    expect(text).toContain('Simule em 10 segundos');
     expect(text).toContain('Quero minhas horas de volta');
     expect(text).toContain('Cobranças, multas e vencimentos avisam sozinhos.');
   });
