@@ -20,7 +20,8 @@ import { OnboardingProgressBar } from './components/step-progress-bar';
 import { StepPersonal } from './components/step-personal';
 import { StepCompany } from './components/step-company';
 import { StepDocument } from './components/step-document';
-import { StepWelcome } from './components/step-welcome';
+import { StepWelcome, WelcomeDestination } from './components/step-welcome';
+import { FleetActivationService } from '../../services/fleet-activation.service';
 import { AuthService } from '../../services/auth.service';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
@@ -93,6 +94,7 @@ export class OnboardingContainer implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly session = inject(SessionService);
+  private readonly activation = inject(FleetActivationService);
   private readonly logger = inject(LoggerService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -238,7 +240,42 @@ export class OnboardingContainer implements OnInit {
     const step = this.svc.currentStep();
 
     if (step === 4) {
-      this.svc.finish()
+      // Inalcançável pelo template: o rodapé não tem "Próximo" no último passo —
+      // as ações do passo 4 entram por `onFinish`, que carrega o destino. Não
+      // delega a onFinish('dashboard') de propósito: isso gravaria um "pulo"
+      // (`activation.skip()`) que o usuário não deu.
+      return;
+    }
+
+    const fullData: OnboardingData = {
+      ...this.svc.formData(),
+      ...this.pendingData(),
+    };
+
+    if (step === DOCUMENT_STEP && fullData.hasCnpj && isValidCnpj(fullData.cnpj ?? '')) {
+      this.saveAfterAvailabilityCheck(step, fullData);
+      return;
+    }
+
+    this.saveStepAndAdvance(step, fullData);
+  }
+
+  /**
+   * Destino escolhido no passo 4. `dashboard` é o padrão porque TODOS os
+   * caminhos legados (409 "já finalizado", fallback via getMe) caíam lá.
+   */
+  private finishDestination: WelcomeDestination = 'dashboard';
+
+  /** CTA do passo 4: conclui no backend e navega para o destino escolhido. */
+  protected onFinish(destination: WelcomeDestination): void {
+    if (this.busy()) return;
+    this.finishDestination = destination;
+    this.actionError.set(null);
+    this.doFinish();
+  }
+
+  private doFinish(): void {
+    this.svc.finish()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (response) => {
@@ -272,7 +309,7 @@ export class OnboardingContainer implements OnInit {
                 });
 
               this.notifications.success('Cadastro concluído. Bem-vindo ao MyCarsHub!');
-              this.router.navigate(['/dashboard']);
+              this.navigateAfterFinish();
               return;
             }
             // Fallback (409 "já finalizado" ou response sem token): tenta getMe
@@ -281,20 +318,23 @@ export class OnboardingContainer implements OnInit {
           },
           error: (err: HttpErrorResponse) => this.handleFinishError(err),
         });
+  }
+
+  /**
+   * FEAT-0080: "Cadastrar meu primeiro veículo" leva direto ao formulário;
+   * "Pular por enquanto" registra o pulo ANTES de navegar — sem isso o
+   * `firstVehicleGuard` devolveria o usuário a /veiculos/novo na mesma hora,
+   * transformando o pulo num laço.
+   */
+  private navigateAfterFinish(): void {
+    if (this.finishDestination === 'vehicle') {
+      // Mesmo query param do redirect do guard: a faixa de ativação (com o
+      // escape "Pular por enquanto") aparece também para quem veio do wizard.
+      this.router.navigate(['/veiculos', 'novo'], { queryParams: { ativacao: '1' } });
       return;
     }
-
-    const fullData: OnboardingData = {
-      ...this.svc.formData(),
-      ...this.pendingData(),
-    };
-
-    if (step === DOCUMENT_STEP && fullData.hasCnpj && isValidCnpj(fullData.cnpj ?? '')) {
-      this.saveAfterAvailabilityCheck(step, fullData);
-      return;
-    }
-
-    this.saveStepAndAdvance(step, fullData);
+    this.activation.skip();
+    this.router.navigate(['/dashboard']);
   }
 
   /**
@@ -394,7 +434,7 @@ export class OnboardingContainer implements OnInit {
         if (selectedId) {
           this.layoutStore.refreshTenants();
           this.notifications.success('Cadastro concluído. Bem-vindo ao MyCarsHub!');
-          this.router.navigate(['/dashboard']);
+          this.navigateAfterFinish();
           return;
         }
         // Race: finish commitou, getMe leu de connection sem visibility.

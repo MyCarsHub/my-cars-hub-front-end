@@ -1,7 +1,7 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { AbstractControl, FormGroup } from '@angular/forms';
 import { of, throwError } from 'rxjs';
@@ -14,6 +14,7 @@ import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { SessionService } from '../../services/session.service';
+import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SERVER_ERROR_KEY } from '../../services/validation-messages';
 import type { OnboardingState } from './onboarding.types';
 
@@ -74,6 +75,7 @@ describe('OnboardingContainer — disponibilidade do CNPJ no passo 3', () => {
           useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
         },
         { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn() } },
+        { provide: FleetActivationService, useValue: { skip: vi.fn(), markHasVehicles: vi.fn() } },
       ],
     });
 
@@ -347,6 +349,7 @@ describe('OnboardingContainer — foco, Voltar no passo 4 e motivo do bloqueio',
           useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
         },
         { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn() } },
+        { provide: FleetActivationService, useValue: { skip: vi.fn(), markHasVehicles: vi.fn() } },
       ],
     });
 
@@ -440,5 +443,145 @@ describe('OnboardingContainer — foco, Voltar no passo 4 e motivo do bloqueio',
     const heading = fixture.nativeElement.querySelector('h2[tabindex="-1"]');
     expect(heading?.textContent).toContain('Seus dados pessoais');
     expect(document.activeElement).toBe(heading);
+  });
+});
+
+/**
+ * FEAT-0080 — o passo 4 conduz a ativação: o MESMO finish() do backend roda
+ * nos dois caminhos, e só o destino muda. "Pular por enquanto" registra o
+ * pulo ANTES de navegar — sem isso o firstVehicleGuard devolveria o usuário
+ * a /veiculos/novo na hora, e o pulo viraria um laço.
+ */
+describe('OnboardingContainer — destino do finish (FEAT-0080)', () => {
+  function drainStepTimers(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  afterEach(drainStepTimers);
+
+  interface Harness {
+    onFinish: (destination: 'vehicle' | 'dashboard') => void;
+  }
+
+  function renderStep4() {
+    const finish = vi.fn().mockReturnValue(
+      of({ token: 'jwt', companyId: 'c-1', companyName: 'Locadora Alfa', role: 'OWNER' }),
+    );
+    const skip = vi.fn();
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [OnboardingContainer],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        ApiErrorService,
+        {
+          provide: OnboardingService,
+          useValue: {
+            loading: signal(false),
+            checkingCnpj: signal(false),
+            loadError: signal<string | null>(null),
+            currentStep: signal(4),
+            totalSteps: 4,
+            isFirstStep: signal(false),
+            isLastStep: signal(true),
+            formData: signal({}),
+            loadState: vi.fn().mockReturnValue(of({ step: 4, isCompleted: false, data: {} })),
+            saveStep: vi.fn(),
+            finish,
+            checkCnpjAvailability: vi.fn(),
+            goBackStep: vi.fn(),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: {
+            applyFinishResponse: vi.fn(),
+            hydrateSession: vi.fn().mockReturnValue(of(void 0)),
+            getMe: vi.fn(),
+          },
+        },
+        { provide: LayoutStore, useValue: { refreshTenants: vi.fn() } },
+        {
+          provide: NotificationService,
+          useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
+        },
+        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn() } },
+        { provide: FleetActivationService, useValue: { skip, markHasVehicles: vi.fn() } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(OnboardingContainer);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture.detectChanges();
+    return {
+      fixture,
+      harness: fixture.componentInstance as unknown as Harness,
+      finish,
+      skip,
+      navigate,
+    };
+  }
+
+  it('"Cadastrar meu primeiro veículo" → finish() e navega para /veiculos/novo, sem marcar pulo', async () => {
+    const { fixture, finish, skip, navigate } = renderStep4();
+    await drainStepTimers();
+
+    const cta = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.textContent?.includes('Cadastrar meu primeiro veículo'));
+    expect(cta).toBeTruthy();
+    cta!.click();
+    fixture.detectChanges();
+
+    expect(finish).toHaveBeenCalledTimes(1);
+    // Com ?ativacao=1: a faixa (e o escape "Pular por enquanto") aparece
+    // também para quem veio do wizard, não só para o redirect do guard.
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', 'novo'], {
+      queryParams: { ativacao: '1' },
+    });
+    expect(skip).not.toHaveBeenCalled();
+  });
+
+  it('"Pular por enquanto" → finish(), registra o pulo e navega para /dashboard', async () => {
+    const { fixture, finish, skip, navigate } = renderStep4();
+    await drainStepTimers();
+
+    const skipBtn = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.textContent?.includes('Pular por enquanto'));
+    expect(skipBtn).toBeTruthy();
+    skipBtn!.click();
+    fixture.detectChanges();
+
+    expect(finish).toHaveBeenCalledTimes(1);
+    expect(skip).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
+
+  it('fallback sem token (409 "já finalizado") também respeita o destino escolhido', async () => {
+    const { fixture, skip, navigate } = renderStep4();
+    await drainStepTimers();
+
+    const svc = TestBed.inject(OnboardingService) as unknown as { finish: ReturnType<typeof vi.fn> };
+    svc.finish.mockReturnValue(of({}));
+    const auth = TestBed.inject(AuthService) as unknown as { getMe: ReturnType<typeof vi.fn> };
+    auth.getMe.mockReturnValue(of(void 0));
+    const session = TestBed.inject(SessionService) as unknown as { getItem: () => string | null };
+    session.getItem = () => 'c-1';
+
+    // Clique real na ação principal — o caminho que o usuário de fato percorre.
+    const cta = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.textContent?.includes('Cadastrar meu primeiro veículo'));
+    expect(cta).toBeTruthy();
+    cta!.click();
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', 'novo'], {
+      queryParams: { ativacao: '1' },
+    });
+    expect(skip).not.toHaveBeenCalled();
   });
 });
