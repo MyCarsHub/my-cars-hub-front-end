@@ -45,6 +45,7 @@ import { InsuranceFormFields } from '../../components/vehicles/insurance-form-fi
 import { insuranceDateRangeValidator } from '../../components/vehicles/insurance-form-fields/insurance-utils';
 import { VehiclesService } from '../../services/vehicles.service';
 import { InsurancesService } from '../../services/insurances.service';
+import { FleetActivationService } from '../../services/fleet-activation.service';
 import {
   CreateInsuranceRequest,
   InsuranceCoverage,
@@ -127,6 +128,7 @@ function yearRangeValidator(group: AbstractControl): ValidationErrors | null {
 export class VehicleForm implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly insurancesService = inject(InsurancesService);
+  private readonly activation = inject(FleetActivationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
@@ -139,6 +141,12 @@ export class VehicleForm implements OnInit {
   protected readonly fuelOptions = VEHICLE_FUEL_OPTIONS;
 
   protected readonly editingId = signal<string | null>(null);
+
+  /**
+   * FEAT-0080: veio do gate de ativação (`?ativacao=1`) — mostra a faixa que
+   * explica o redirect e oferece "Pular por enquanto". Só no fluxo de criação.
+   */
+  protected readonly fromActivation = signal(false);
   protected readonly isEdit = computed(() => this.editingId() !== null);
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
@@ -317,6 +325,9 @@ export class VehicleForm implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
+    this.fromActivation.set(
+      id === null && this.route.snapshot.queryParamMap.get('ativacao') === '1',
+    );
     if (id) {
       this.editingId.set(id);
       this.documentsEnabled.set(false);
@@ -535,7 +546,10 @@ export class VehicleForm implements OnInit {
         chassis: raw.chassis?.trim() || null,
         renavam: raw.renavam?.trim() || null,
       };
-      this.saveChildren(this.vehiclesService.create(createPayload));
+      this.saveChildren(
+        // O gate de ativação para de interceptar assim que o POST passa.
+        this.vehiclesService.create(createPayload).pipe(tap(() => this.activation.markHasVehicles())),
+      );
     }
   }
 
@@ -575,6 +589,12 @@ export class VehicleForm implements OnInit {
    * outro POST /vehicles, cadastrando o veículo DUPLICADO. Com o id setado o
    * reenvio vira PUT do mesmo veículo + retry só do filho que falhou.
    */
+  /** "Pular por enquanto" da faixa de ativação: registra o pulo (senão o gate devolve para cá) e vai ao dashboard. */
+  protected skipActivation(): void {
+    this.activation.skip();
+    this.router.navigate(['/dashboard']);
+  }
+
   private saveChildren(save$: Observable<Vehicle>): void {
     save$
       .pipe(

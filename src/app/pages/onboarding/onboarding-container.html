@@ -77,7 +77,7 @@
           (isValid)="onStepValidityChange($event)" />
         }
         @case (4) {
-        <app-step-welcome (isValid)="onStepValidityChange($event)" [loading]="loading()" (finish)="onNext()" />
+        <app-step-welcome (isValid)="onStepValidityChange($event)" [loading]="loading()" (finish)="onFinish($event)" />
         }
         }
       </div>

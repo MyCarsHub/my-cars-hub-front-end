@@ -9,6 +9,7 @@ import { VehiclesService } from '../../services/vehicles.service';
 import { InsurancesService } from '../../services/insurances.service';
 import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { FleetActivationService } from '../../services/fleet-activation.service';
 
 /**
  * Pilot for the feedback standard (phase 1):
@@ -62,7 +63,7 @@ describe('VehicleForm — server field errors', () => {
         { provide: InsurancesService, useValue: { create: vi.fn() } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => null } } },
+          useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
         },
         {
           provide: NotificationService,
@@ -226,7 +227,7 @@ describe('VehicleForm — financiamento na edição', () => {
         { provide: InsurancesService, useValue: { create: createInsurance } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } },
+          useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID }, queryParamMap: { get: () => null } } },
         },
         {
           provide: NotificationService,
@@ -512,7 +513,7 @@ describe('VehicleForm — criação com falha no bloco filho', () => {
         { provide: InsurancesService, useValue: { create: createInsurance } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => null } } },
+          useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
         },
         {
           provide: NotificationService,
@@ -682,7 +683,7 @@ describe('VehicleForm — documentos no cadastro', () => {
         { provide: InsurancesService, useValue: { create: vi.fn() } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => null } } },
+          useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
         },
         {
           provide: NotificationService,
@@ -835,7 +836,7 @@ describe('VehicleForm — banner de validação e foco no submit inválido', () 
         { provide: InsurancesService, useValue: { create: vi.fn() } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => null } } },
+          useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
         },
         {
           provide: NotificationService,
@@ -952,7 +953,7 @@ describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
           useValue: { create, update, getOne, createFinancing: vi.fn() },
         },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => routeId } } } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => routeId }, queryParamMap: { get: () => null } } } },
         {
           provide: NotificationService,
           useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
@@ -1132,7 +1133,7 @@ describe('VehicleForm — veículo vendido é somente-leitura (FIX-0250)', () =>
         { provide: InsurancesService, useValue: { create: createInsurance } },
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } },
+          useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID }, queryParamMap: { get: () => null } } },
         },
         {
           provide: NotificationService,
@@ -1269,5 +1270,123 @@ describe('VehicleForm — veículo vendido é somente-leitura (FIX-0250)', () =>
 
     expect(update).toHaveBeenCalledTimes(1);
     expect(update.mock.calls[0][0]).toBe(VEHICLE_ID);
+  });
+});
+
+/**
+ * FEAT-0080 — o elo do formulário com o gate de ativação:
+ * - a faixa só existe sob `?ativacao=1` (criação);
+ * - "Pular por enquanto" registra o pulo e vai ao dashboard;
+ * - o POST de criação avisa o cache (`markHasVehicles`) — quebrado, o gate
+ *   devolveria o usuário ao cadastro DEPOIS de cadastrar.
+ */
+describe('VehicleForm — gate de ativação (FEAT-0080)', () => {
+  let create: ReturnType<typeof vi.fn>;
+  let markHasVehicles: ReturnType<typeof vi.fn>;
+  let skip: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    create = vi.fn().mockReturnValue(of({ id: 'v-9' }));
+    markHasVehicles = vi.fn();
+    skip = vi.fn();
+  });
+
+  function render(ativacao: boolean) {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: VehiclesService, useValue: { create, getOne: vi.fn(), update: vi.fn() } },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              paramMap: { get: () => null },
+              queryParamMap: {
+                get: (key: string) => (ativacao && key === 'ativacao' ? '1' : null),
+              },
+            },
+          },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+        { provide: FleetActivationService, useValue: { markHasVehicles, skip } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(VehicleForm);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture.detectChanges();
+    return { fixture, navigate };
+  }
+
+  function fillValid(fixture: { componentInstance: unknown }): void {
+    (
+      fixture.componentInstance as { form: { patchValue: (v: unknown) => void } }
+    ).form.patchValue({
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      hodometer: 1000,
+    });
+  }
+
+  it('mostra a faixa com "Pular por enquanto" sob ?ativacao=1 — e só aí', () => {
+    const withBanner = render(true);
+    const banner = withBanner.fixture.nativeElement.querySelector('[data-activation-notice]');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('Cadastre seu primeiro veículo para destravar o painel.');
+    expect(banner?.textContent).toContain('Pular por enquanto');
+
+    const without = render(false);
+    expect(without.fixture.nativeElement.querySelector('[data-activation-notice]')).toBeNull();
+  });
+
+  it('"Pular por enquanto" registra o pulo (senão o gate devolve para cá) e navega ao dashboard', () => {
+    const { fixture, navigate } = render(true);
+
+    const skipBtn = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '[data-activation-notice] button',
+      ) as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.textContent?.includes('Pular por enquanto'));
+    expect(skipBtn).toBeTruthy();
+    skipBtn!.click();
+
+    expect(skip).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('o POST de criação chama markHasVehicles() — o gate para de interceptar na hora', () => {
+    const { fixture, navigate } = render(true);
+    fillValid(fixture);
+
+    (fixture.componentInstance as unknown as { submit: () => void }).submit();
+    fixture.detectChanges();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(markHasVehicles).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/veiculos', 'v-9']);
+  });
+
+  it('POST que falha NÃO marca o cache', () => {
+    create.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 500, error: { message: 'boom' } })),
+    );
+    const { fixture } = render(true);
+    fillValid(fixture);
+
+    (fixture.componentInstance as unknown as { submit: () => void }).submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(markHasVehicles).not.toHaveBeenCalled();
   });
 });
