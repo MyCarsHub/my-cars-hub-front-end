@@ -67,8 +67,14 @@ describe('LandingStatsComponent', () => {
       expect(values).toContain(String(PLAN_PRICES.trialDays));
     });
 
-    it('conta 9 áreas da operação e nomeia todas as nove (sidebar.ts)', () => {
-      const body = text();
+    /**
+     * A enumeração ("As nove áreas: … Os cinco alertas: …") foi REMOVIDA por decisão do
+     * dono do produto. Estes dois testes são os antigos invertidos: em vez de exigir a
+     * lista, garantem que ela não volte por engano numa redação futura. Os números
+     * continuam travados às fontes pelos testes de `[data-count]` acima e abaixo.
+     */
+    it('não enumera as nove áreas da operação', () => {
+      const body = text().toLowerCase();
       const areas = [
         'aluguéis',
         'veículos',
@@ -82,18 +88,17 @@ describe('LandingStatsComponent', () => {
       ];
       expect(areas).toHaveLength(9);
       for (const area of areas) {
-        expect(body.toLowerCase()).toContain(area);
+        expect(body).not.toContain(area);
       }
     });
 
-    it('conta 5 tipos de alerta e nomeia todos os cinco (NotificationType)', () => {
+    it('não enumera os cinco tipos de alerta', () => {
       const body = text().toLowerCase();
       // Espelha `types/notification-feed.types.ts`: CNH_DUE_SOON, LICENSING_DUE_SOON,
       // IPVA_DUE_SOON, INSURANCE_DUE_SOON, FINANCING_INSTALLMENT_DUE.
       const alerts = ['cnh', 'licenciamento', 'ipva', 'seguro', 'parcela de financiamento'];
-      expect(alerts).toHaveLength(5);
       for (const alert of alerts) {
-        expect(body).toContain(alert);
+        expect(body).not.toContain(alert);
       }
     });
 

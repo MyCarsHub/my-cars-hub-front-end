@@ -27,8 +27,8 @@ import {
  *
  * REGRA: nenhum número entra aqui sem fonte no código, e nenhum número de ADOÇÃO entra —
  * nem contagem de empresas, nem volume financeiro, nem uptime. Se um módulo ou um tipo de
- * alerta nascer, atualize o número E a lista enumerada no HTML, que é o que torna a
- * afirmação auditável pelo visitante.
+ * alerta nascer, atualize o número aqui. (A lista enumerada que existia no HTML foi
+ * removida por decisão do dono; a auditabilidade fica por conta das fontes acima.)
  */
 @Component({
   selector: 'app-landing-stats',
