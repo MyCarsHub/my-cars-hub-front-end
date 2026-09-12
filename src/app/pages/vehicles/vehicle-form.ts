@@ -46,6 +46,7 @@ import { insuranceDateRangeValidator } from '../../components/vehicles/insurance
 import { VehiclesService } from '../../services/vehicles.service';
 import { InsurancesService } from '../../services/insurances.service';
 import { FipeOption, FipeService } from '../../services/fipe.service';
+import { VEHICLE_LOOKUPS } from './vehicle-lookups.flags';
 import { LoggerService } from '../../services/logger.service';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import {
@@ -190,6 +191,13 @@ export class VehicleForm implements OnInit {
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
+  /**
+   * Chaves das integrações (FIPE / placa). Hoje AMBAS desligadas por ordem do
+   * dono — ver `vehicle-lookups.flags.ts`. Desligada, a feature não renderiza
+   * NADA (nem controle desabilitado) e não dispara nenhuma requisição.
+   */
+  protected readonly lookups = inject(VEHICLE_LOOKUPS);
+
   protected readonly typeOptions = VEHICLE_TYPE_OPTIONS;
   protected readonly ipvaStatusOptions = IPVA_STATUS_OPTIONS;
   protected readonly fuelOptions = VEHICLE_FUEL_OPTIONS;
@@ -258,7 +266,8 @@ export class VehicleForm implements OnInit {
    * de novo.
    */
   protected readonly plateLookupAvailable = computed(
-    () => !this.sold() && PLATE_PATTERN.test(this.plateDisplay()),
+    () =>
+      this.lookups.plateLookup && !this.sold() && PLATE_PATTERN.test(this.plateDisplay()),
   );
 
   /** Desabilitado enquanto voa OU depois de um 501 nesta sessão. */
@@ -435,9 +444,10 @@ export class VehicleForm implements OnInit {
       this.loadVehicle(id);
       this.form.controls.chassis.disable();
       this.form.controls.renavam.disable();
-    } else {
+    } else if (this.lookups.fipeCatalog) {
       // Cadastro abre no catálogo FIPE; se as marcas falharem, o próprio
-      // enterFipeMode devolve o modo manual em silêncio.
+      // enterFipeMode devolve o modo manual em silêncio. Com a chave
+      // desligada o formulário nasce (e permanece) no manual de sempre.
       this.enterFipeMode();
     }
   }
@@ -445,7 +455,7 @@ export class VehicleForm implements OnInit {
   // ---- Catálogo FIPE (FEAT-0084) ----------------------------------------
 
   protected enterFipeMode(): void {
-    if (this.sold()) return;
+    if (!this.lookups.fipeCatalog || this.sold()) return;
     this.catalogMode.set('fipe');
     this.fipeCatalogNote.set(null);
     // Reentrada começa a cadeia do zero: sem isto, voltar depois de um
@@ -569,9 +579,10 @@ export class VehicleForm implements OnInit {
   // ---- Busca pela placa (FEAT-0082) --------------------------------------
 
   protected lookupPlate(): void {
-    // Guarda de duplo disparo (busca em voo) e de sessão pós-501 (o botão
-    // fica visível porém desabilitado; esta é a metade programática).
-    if (this.plateLookupDisabled() || this.sold()) return;
+    // Guarda de duplo disparo (busca em voo), de sessão pós-501 (o botão
+    // fica visível porém desabilitado; esta é a metade programática) e da
+    // chave desligada (nenhuma requisição sai).
+    if (!this.lookups.plateLookup || this.plateLookupDisabled() || this.sold()) return;
     const plate = this.form.controls.plate.value;
     if (!PLATE_PATTERN.test(plate)) return;
 
