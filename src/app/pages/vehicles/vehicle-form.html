@@ -108,8 +108,10 @@
                 }
               </button>
             }
-            <!-- Live region SEMPRE presente: inserir o nó junto com o texto
-                 faz leitor de tela perder o anúncio. Vazio quando não há nota. -->
+            <!-- Live region SEMPRE presente (enquanto a feature está ligada):
+                 inserir o nó junto com o texto faz leitor de tela perder o
+                 anúncio. Vazio quando não há nota. -->
+            @if (lookups.plateLookup) {
             <p
               data-plate-lookup-note
               role="status"
@@ -119,6 +121,7 @@
             >
               {{ plateLookupNote()?.text ?? '' }}
             </p>
+            }
           </div>
 
           <div>
@@ -178,11 +181,13 @@
                @if de modo: live region criada no MESMO render em que já ganha
                texto perde o primeiro anúncio (mesmo anti-padrão da nota da
                placa) — o nó existe desde o primeiro paint, sempre. -->
+          @if (lookups.fipeCatalog) {
           <p class="sr-only md:col-span-3" role="status" data-fipe-loading-status>
             {{ fipeLoading() === 'brands' ? 'Carregando marcas…'
                : fipeLoading() === 'models' ? 'Carregando modelos…'
                : fipeLoading() === 'years' ? 'Carregando anos…' : '' }}
           </p>
+          }
 
           <!-- FEAT-0084: marca/modelo/ano encadeados pela FIPE, com escape
                hatch obrigatório — carro fora da FIPE existe. Os selects só
@@ -292,8 +297,9 @@
             </div>
           }
 
-          <!-- Escape hatch / volta ao catálogo — alvo de toque ≥44px. -->
-          @if (!sold()) {
+          <!-- Escape hatch / volta ao catálogo — alvo de toque ≥44px. Some
+               inteiro com a chave desligada: o dono não quer controle morto. -->
+          @if (lookups.fipeCatalog && !sold()) {
             <div class="md:col-span-3 -my-2">
               @if (catalogMode() === 'fipe') {
                 <button

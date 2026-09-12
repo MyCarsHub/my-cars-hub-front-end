@@ -12,6 +12,7 @@ import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { FipeService } from '../../services/fipe.service';
+import { VEHICLE_LOOKUPS } from './vehicle-lookups.flags';
 
 /**
  * Pilot for the feedback standard (phase 1):
@@ -850,6 +851,7 @@ describe('VehicleForm — banner de validação e foco no submit inválido', () 
             years: () => of([]),
           },
         },
+        { provide: VEHICLE_LOOKUPS, useValue: { fipeCatalog: true, plateLookup: true } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
@@ -1455,6 +1457,7 @@ describe('VehicleForm — busca pela placa (FEAT-0082)', () => {
             plateLookupUnavailable,
           },
         },
+        { provide: VEHICLE_LOOKUPS, useValue: { fipeCatalog: true, plateLookup: true } },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
         { provide: FipeService, useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) } },
         {
@@ -1726,6 +1729,7 @@ describe('VehicleForm — catálogo FIPE (FEAT-0084)', () => {
         },
         { provide: InsurancesService, useValue: { create: vi.fn() } },
         { provide: FipeService, useValue: { brands, models, years } },
+        { provide: VEHICLE_LOOKUPS, useValue: { fipeCatalog: true, plateLookup: true } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => routeId }, queryParamMap: { get: () => null } } },
@@ -1888,5 +1892,117 @@ describe('VehicleForm — catálogo FIPE (FEAT-0084)', () => {
     expect(fixture.nativeElement.querySelector('[data-fipe-brand]')).toBeNull();
     expect(rawForm(fixture)['brand']).toBe('Fiat');
     expect(rawForm(fixture)['model']).toBe('Uno');
+  });
+});
+
+/**
+ * Chaves DESLIGADAS (padrão de produção desde 2026-09-12, ordem do dono):
+ * o formulário é o de antes das integrações — marca/modelo/anos digitados à
+ * mão, NENHUM vestígio de FIPE ou busca por placa na tela e NENHUMA
+ * requisição disparada. Não é controle desabilitado: é ausência.
+ */
+describe('VehicleForm — chaves de lookup desligadas (padrão)', () => {
+  let create: ReturnType<typeof vi.fn>;
+  let plateLookup: ReturnType<typeof vi.fn>;
+  let brands: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    create = vi.fn().mockReturnValue(of({ id: 'v-1' }));
+    plateLookup = vi.fn();
+    brands = vi.fn().mockReturnValue(of([{ code: '21', name: 'Fiat' }]));
+  });
+
+  function render() {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: {
+            create,
+            getOne: vi.fn(),
+            update: vi.fn(),
+            plateLookup,
+            plateLookupUnavailable: signal(false),
+          },
+        },
+        { provide: InsurancesService, useValue: { create: vi.fn() } },
+        { provide: FipeService, useValue: { brands, models: vi.fn(), years: vi.fn() } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null }, queryParamMap: { get: () => null } } },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+        // SEM provider de VEHICLE_LOOKUPS: vale o padrão do flags file (tudo false).
+      ],
+    });
+    const fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('nenhum vestígio: inputs manuais no lugar dos selects, sem toggle, sem live regions, sem request', () => {
+    const fixture = render();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('app-primary-input[formcontrolname="brand"]')).not.toBeNull();
+    expect(host.querySelector('app-primary-input[formcontrolname="model"]')).not.toBeNull();
+    expect(host.querySelector('[data-fipe-brand]')).toBeNull();
+    expect(host.querySelector('[data-fipe-catalog-toggle]')).toBeNull();
+    expect(host.querySelector('[data-fipe-manual-toggle]')).toBeNull();
+    expect(host.querySelector('[data-fipe-note]')).toBeNull();
+    expect(host.querySelector('[data-fipe-loading-status]')).toBeNull();
+    expect(brands).not.toHaveBeenCalled();
+  });
+
+  it('placa válida NÃO faz aparecer o botão de busca (nem desabilitado) e nada é requisitado', () => {
+    const fixture = render();
+    const host = fixture.nativeElement as HTMLElement;
+    const input = host.querySelector('#veiculo-plate') as HTMLInputElement;
+    input.value = 'ABC1D23';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(host.querySelector('[data-plate-lookup]')).toBeNull();
+    expect(host.querySelector('[data-plate-lookup-note]')).toBeNull();
+    expect(plateLookup).not.toHaveBeenCalled();
+  });
+
+  it('o submit é o de antes das integrações: tudo digitado à mão, yearRangeValidator ativo', () => {
+    const fixture = render();
+    const component = fixture.componentInstance as unknown as {
+      form: {
+        patchValue: (v: unknown) => void;
+        hasError: (e: string) => boolean;
+      };
+      submit: () => void;
+    };
+
+    // Validador de anos continua o mesmo.
+    component.form.patchValue({ yearManufacture: 2022, yearModel: 2020 });
+    expect(component.form.hasError('yearModelRange')).toBe(true);
+
+    component.form.patchValue({
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      hodometer: 1000,
+    });
+    component.submit();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const payload = create.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload['brand']).toBe('Fiat');
+    expect(payload['model']).toBe('Mobi');
+    expect(payload['yearManufacture']).toBe(2022);
+    expect(payload['yearModel']).toBe(2022);
   });
 });
