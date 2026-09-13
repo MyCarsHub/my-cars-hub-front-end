@@ -15,7 +15,10 @@ export class LandingNavComponent {
   // um href relativo (`#secao`) não encontraria nenhuma seção. Com `/#secao` o
   // clique volta para a landing e cai na seção certa; dentro da própria landing
   // o browser só troca o fragmento (mesmo path), sem recarregar a página.
+  // Ordem espelha a ordem real das seções na página: o simulador fica logo
+  // depois do hero, antes de problema/solução/funcionalidades.
   readonly links = [
+    { href: '/#simulador', label: 'Simulador' },
     { href: '/#problema', label: 'Problema' },
     { href: '/#solucao', label: 'Solução' },
     { href: '/#funcionalidades', label: 'Funcionalidades' },
