@@ -29,6 +29,27 @@ describe('LandingComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
+  it('a ordem das âncoras do header acompanha a ordem real das seções na página', () => {
+    fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    const fragments = Array.from(
+      host.querySelectorAll<HTMLAnchorElement>('header nav a'),
+    )
+      .map((a) => a.getAttribute('href') ?? '')
+      .filter((href) => href.includes('#'))
+      .map((href) => href.slice(href.indexOf('#') + 1));
+
+    // Posição de cada seção no DOM da landing, na ordem em que o visitante rola.
+    const positions = fragments.map((fragment) => {
+      const section = host.querySelector(`#${fragment}`);
+      expect(section).toBeTruthy();
+      return Array.from(host.querySelectorAll('[id]')).indexOf(section!);
+    });
+
+    expect(fragments).toContain('simulador');
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
   it('todo fragmento apontado pelo header existe na página', () => {
     fixture.detectChanges();
     const host: HTMLElement = fixture.nativeElement;
