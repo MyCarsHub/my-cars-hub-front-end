@@ -80,6 +80,48 @@ export class VehiclesList implements OnInit {
   protected readonly sort = signal<VehicleFilters['sort']>('plate_asc');
   protected readonly pageSize = signal(20);
 
+  /**
+   * FIX-0284 — painel de filtros recolhido por padrão NO MOBILE.
+   *
+   * Medido em produção (375x658): os cinco controles + "Limpar filtros"
+   * empurravam o primeiro card para y=583 de 658px úteis, ou seja, quem abre a
+   * lista no celular vê filtros e nenhum veículo. Recolhido, ficam visíveis só
+   * a busca e o botão "Filtros" — o resto entra atrás deste toggle.
+   *
+   * O toggle é `sm:hidden` e os controles voltam com `sm:block`/`sm:flex`, então
+   * em >= 640px NADA muda: o grid continua inteiro na tela.
+   */
+  protected readonly filtersOpen = signal(false);
+
+  /**
+   * Contador exibido no botão ("Filtros · 2").
+   *
+   * Conta SÓ o que encurta a lista e está escondido no painel: tipo, status e
+   * frota (vendidos). Ordenação fica de fora de propósito — ela REORDENA, nunca
+   * remove linha nenhuma; contar `sort` faria "Filtros · 1" significar "nada está
+   * filtrando", que é exatamente o ruído que este contador existe para eliminar.
+   * A busca também não entra: continua visível na tela, somar um filtro que o
+   * usuário está lendo inflaria o número. Sem esse contador o painel recolhido
+   * esconderia o motivo de a lista estar curta, que é o defeito de percepção que
+   * originou o FIX.
+   */
+  protected readonly activeFiltersCount = computed(() => {
+    let count = 0;
+    if (this.typeFilter()) count++;
+    if (this.statusFilter()) count++;
+    if (this.soldFilter()) count++;
+    return count;
+  });
+
+  /**
+   * Nome acessível do toggle: o ponto médio do rótulo visual é lido como silêncio
+   * pelo leitor de tela e o número ficaria sem unidade ("Filtros dois").
+   */
+  protected readonly filtersButtonLabel = computed(() => {
+    const n = this.activeFiltersCount();
+    return n > 0 ? `Filtros, ${n} ativo${n > 1 ? 's' : ''}` : 'Filtros';
+  });
+
   protected readonly deletingVehicle = signal<VehicleListItem | null>(null);
   protected readonly deleting = signal(false);
   protected readonly transitioningId = signal<string | null>(null);
@@ -119,6 +161,11 @@ export class VehiclesList implements OnInit {
 
   protected onFilterChange(): void {
     this.reload(0);
+  }
+
+  /** FIX-0284 — abre/fecha o painel de filtros no mobile. */
+  protected toggleFilters(): void {
+    this.filtersOpen.update((open) => !open);
   }
 
   /**
