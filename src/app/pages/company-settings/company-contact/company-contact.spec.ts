@@ -643,4 +643,47 @@ describe('CompanyContact (Configurações → Dados de contato)', () => {
     expect(host(fixture).querySelector('form')).toBeNull();
     expect(host(fixture).textContent).toContain('Tentar de novo');
   });
+  /**
+   * FIX-0285 — o backspace comia um dígito a mais.
+   *
+   * Só reproduz no componente: o campo tem `formControlName` ao lado do
+   * `(input)`, então o `DefaultValueAccessor` do Angular grava o valor pós-edição
+   * no controle ANTES do handler da máscara rodar. A máscara comparava o campo
+   * com um "anterior" que já era o "atual" e concluía que só a pontuação tinha
+   * saído, derrubando o dígito vizinho em TODA tecla de apagar.
+   */
+  describe('backspace no CEP (FIX-0285)', () => {
+    /** Emula o navegador: remove o caractere antes do caret e avisa o Angular. */
+    function backspaceCep(fixture: ComponentFixture<CompanyContact>, caret: number): void {
+      const input = host(fixture).querySelector<HTMLInputElement>('#empresa-cep');
+      if (!input) throw new Error('campo de CEP não renderizado');
+      input.value = input.value.slice(0, caret - 1) + input.value.slice(caret);
+      input.setSelectionRange(caret - 1, caret - 1);
+      input.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward' }));
+      fixture.detectChanges();
+    }
+
+    it('apaga UM dígito quando o backspace cai sobre um dígito', () => {
+      configure();
+      const fixture = render();
+      const cepValue = () => contactGroup(fixture).form.controls.contact.getRawValue().addressCep;
+      expect(cepValue()).toBe('01001-000');
+
+      backspaceCep(fixture, '01001-000'.length);
+
+      expect(cepValue()).toBe('01001-00');
+    });
+
+    it('apaga o dígito à esquerda — e só ele — quando o backspace cai sobre o hífen', () => {
+      configure();
+      const fixture = render();
+      // Caret logo após o '-' de `01001-000`: a máscara recolocaria o hífen, então
+      // quem deve cair é o dígito vizinho (o último '1').
+      backspaceCep(fixture, 6);
+
+      expect(contactGroup(fixture).form.controls.contact.getRawValue().addressCep).toBe(
+        '01000-00',
+      );
+    });
+  });
 });

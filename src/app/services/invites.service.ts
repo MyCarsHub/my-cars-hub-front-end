@@ -8,6 +8,7 @@ import {
   InviteResponse,
   ValidateInviteResponse,
 } from '../types/invite.types';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/invites`;
 
@@ -105,6 +106,11 @@ export class InvitesService {
       `${BASE}/accept/${encodeURIComponent(rawToken)}`,
       {},
     );
+  }
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
   }
 
   /** Drops the tenant-scoped cache. Called on logout. */

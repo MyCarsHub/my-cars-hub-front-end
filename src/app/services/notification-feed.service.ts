@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
 import { MarkAllReadResult, NotificationItem, UnreadCount } from '../types/notification-feed.types';
 import { SessionService } from './session.service';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/notifications`;
 
@@ -68,6 +69,8 @@ export class NotificationFeedService {
   private cachedUserId: string | null = null;
 
   constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
     // Serviço root: o DestroyRef do injector raiz morre junto com a aplicação,
     // então o interval e o listener não vazam entre testes/SSR.
     inject(DestroyRef).onDestroy(() => this.stopPolling());

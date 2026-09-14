@@ -103,3 +103,62 @@ describe('StepPersonal — CPF no onboarding', () => {
     expect(form.valid).toBe(true);
   });
 });
+
+/**
+ * FIX-0285 — backspace comendo um dígito a mais.
+ *
+ * A reprodução precisa ser de COMPONENTE, não de unidade: o defeito só aparece
+ * quando o campo tem `formControlName` junto do `(input)`, porque aí o
+ * `DefaultValueAccessor` do Angular já gravou o valor pós-edição no controle
+ * antes do nosso handler rodar. Um teste que chama a máscara direto passando o
+ * valor antigo à mão nunca vê o bug — e é por isso que ele sobreviveu.
+ */
+describe('StepPersonal — backspace no CPF (FIX-0285)', () => {
+  let fixture: ComponentFixture<StepPersonal>;
+
+  function cpfInput(): HTMLInputElement {
+    const input = fixture.nativeElement.querySelector('#ob-cpf');
+    if (!(input instanceof HTMLInputElement)) throw new Error('campo de CPF ausente');
+    return input;
+  }
+
+  /** Emula o navegador: remove o caractere antes do caret e avisa o Angular. */
+  function backspaceAt(input: HTMLInputElement, caret: number): void {
+    input.value = input.value.slice(0, caret - 1) + input.value.slice(caret);
+    input.setSelectionRange(caret - 1, caret - 1);
+    input.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward' }));
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [StepPersonal] });
+    fixture = TestBed.createComponent(StepPersonal);
+    fixture.componentRef.setInput('initialData', { cpf: '01234567890' });
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('apaga UM dígito quando o backspace cai sobre um dígito', () => {
+    const input = cpfInput();
+    expect(input.value).toBe('012.345.678-90');
+
+    backspaceAt(input, input.value.length);
+
+    expect(fixture.componentInstance.form.get('cpf')?.value).toBe('012.345.678-9');
+    expect(input.value).toBe('012.345.678-9');
+  });
+
+  it('apaga o dígito à esquerda — e só ele — quando o backspace cai sobre o separador', () => {
+    const input = cpfInput();
+
+    // Caret logo após o '-' de `012.345.678-90`: a tecla remove a pontuação, e a
+    // máscara a recolocaria, então quem deve cair é o dígito vizinho (o '8').
+    backspaceAt(input, 12);
+
+    expect(fixture.componentInstance.form.get('cpf')?.value).toBe('012.345.679-0');
+  });
+});
