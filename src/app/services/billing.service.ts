@@ -12,6 +12,7 @@ import {
   SubscriptionResponse,
 } from '../types/billing.types';
 import { BillingAccessService } from './billing-access.service';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const API_BASE = `${environment.apiUrl}/billing`;
 
@@ -81,6 +82,11 @@ export class BillingService {
   readonly subscription = this._subscription.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
 
   /**
    * Zera o cache para o estado inicial. Registrado no `TenantCachesService`:

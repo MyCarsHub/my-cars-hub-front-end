@@ -23,6 +23,7 @@ import {
   VehicleListItem,
   PlateLookupResult,
 } from '../types/vehicle.types';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/vehicles`;
 const FLEET_FINANCINGS_BASE = `${environment.apiUrl}/financings`;
@@ -59,6 +60,11 @@ export class VehiclesService {
   readonly financingsTotal = this._financingsTotal.asReadonly();
   readonly financingsLoading = this._financingsLoading.asReadonly();
   readonly financingsError = this._financingsError.asReadonly();
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
 
   /**
    * Zera o cache para o estado inicial. Registrado no `TenantCachesService`:

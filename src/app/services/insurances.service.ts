@@ -17,6 +17,7 @@ import {
   PayInsuranceInstallmentRequest,
   UpdateInsuranceRequest,
 } from '../types/insurance.types';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const VEHICLES_BASE = `${environment.apiUrl}/vehicles`;
 const FLEET_BASE = `${environment.apiUrl}/insurances`;
@@ -43,6 +44,11 @@ export class InsurancesService {
   readonly total = this._total.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
 
   /**
    * Zera o cache para o estado inicial. Obrigatório no logout: o serviço é

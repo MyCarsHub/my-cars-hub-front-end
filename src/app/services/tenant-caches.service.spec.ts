@@ -20,11 +20,12 @@ import { VehicleIncidentsService } from './vehicle-incidents.service';
 import { VehiclesService } from './vehicles.service';
 
 /**
- * A lista de caches por empresa é a única coisa que este serviço guarda, e ela
- * regride em silêncio: um cache novo que esqueça de se registrar não quebra
- * teste nenhum, só vaza dado da empresa anterior em produção. Por isso o teste
- * é sobre a LISTA — cada serviço auditado no FIX-0272 aparece aqui pelo nome, e
- * tirar um do `resetAll()` derruba a suíte.
+ * A cobertura da limpeza por empresa regride em silêncio: um cache que esqueça
+ * de chamar `TenantResetRegistry.register()` no construtor não quebra teste
+ * nenhum, só vaza dado da empresa anterior em produção. Por isso o teste é
+ * sobre a LISTA — cada serviço auditado no FIX-0272 aparece aqui pelo nome, é
+ * instanciado (o que é o que o registra) e tem de ser zerado pelo `resetAll()`.
+ * Tirar o registro de qualquer um deles derruba a suíte.
  */
 describe('TenantCachesService — cobertura da lista de caches por empresa', () => {
   /** Os donos de estado por empresa. Crescer esta lista é a manutenção esperada. */
@@ -83,7 +84,7 @@ describe('TenantCachesService — cobertura da lista de caches por empresa', () 
     tenantCaches.resetAll();
 
     for (const [name] of TENANT_CACHES) {
-      expect(resets.get(name), `${name} ficou de fora do resetAll()`).toHaveBeenCalledTimes(1);
+      expect(resets.get(name), `${name} nao se registrou no TenantResetRegistry`).toHaveBeenCalledTimes(1);
     }
   });
 

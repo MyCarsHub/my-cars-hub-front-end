@@ -4,6 +4,7 @@ import { Observable, catchError, finalize, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
 import { DOCUMENT_ALERTS_PAGE_SIZE, DocumentAlert } from '../types/notification-feed.types';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/alerts`;
 
@@ -35,6 +36,11 @@ export class AlertsService {
   readonly total = this._total.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
 
   /**
    * Zera o cache para o estado inicial. Obrigatório no logout: o serviço é

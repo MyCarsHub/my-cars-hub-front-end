@@ -14,6 +14,7 @@ import {
   DriverStatus,
   UpdateDriverRequest,
 } from '../types/driver.types';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/drivers`;
 
@@ -34,6 +35,11 @@ export class DriverService {
   readonly total = this._total.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
 
   /**
    * Zera o cache para o estado inicial. Registrado no `TenantCachesService`:
