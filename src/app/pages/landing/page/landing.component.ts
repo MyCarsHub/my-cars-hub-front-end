@@ -86,7 +86,34 @@ export class LandingComponent implements OnDestroy {
   }
 
   protected onScroll(): void {
-    this.showFab.set(window.scrollY > 600);
+    this.showFab.set(window.scrollY > 600 && !this.pricingInView());
+  }
+
+  /**
+   * O FAB é `position: fixed` no canto inferior direito, e no TELEFONE não há
+   * goteira em que ele caiba: o card de plano ocupa a largura toda, então ele
+   * fica POR CIMA do card. Medido num viewport de 386px, cobrindo a linha do
+   * preço anual ("ou R$ 66,58/mês no anual") numa área de 21x16px (FIX-0295).
+   *
+   * No desktop a grade tem quatro colunas centradas e sobra margem — por isso o
+   * defeito nunca apareceu lá. Some nas duas larguras mesmo assim: a decisão não
+   * pode sair de uma media query em JavaScript, porque esta página é
+   * prerenderizada, e em larguras intermediárias (grade 2x2, margem estreita) a
+   * sobreposição volta. Um botão decorativo em cima do preço é caro justamente
+   * na página que existe para converter, e barato de dispensar ali — o logo do
+   * rodapé já leva ao topo.
+   *
+   * Geometria simples em vez de `IntersectionObserver`: só roda no evento de
+   * rolagem, que é sempre do cliente, então não há nada a decidir no prerender.
+   */
+  private pricingInView(): boolean {
+    const host = this.host.nativeElement as HTMLElement;
+    const section = host.querySelector<HTMLElement>('#planos');
+    if (!section) return false;
+
+    const viewportHeight = host.ownerDocument.defaultView?.innerHeight ?? 0;
+    const rect = section.getBoundingClientRect();
+    return rect.top < viewportHeight && rect.bottom > 0;
   }
 
   protected scrollTop(): void {

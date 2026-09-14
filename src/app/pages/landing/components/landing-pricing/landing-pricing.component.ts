@@ -346,13 +346,49 @@ export class LandingPricingComponent {
   protected readonly catalogPlans = computed<readonly PlanCardView[]>(() => this.ladder(CATALOG));
 
   /**
-   * A escada de TELEFONE — ENTERPRISE primeiro, TRIAL por último, e a herança
-   * apontando para BAIXO, que é onde os planos menores realmente estão neste
-   * arranjo. O CSS mostra este bloco abaixo de `md`.
+   * A escada de TELEFONE — PRO, TRIAL, STARTER, ENTERPRISE. O CSS mostra este
+   * bloco abaixo de `md`.
+   *
+   * <h4>Por que esta ordem (FIX-0290)</h4>
+   * Por PRIMAZIA DE SLOT: a medição de eye-tracking que originou a mudança
+   * encontrou que os dois primeiros slots levam a atenção INDEPENDENTEMENTE de
+   * qual plano está neles. Então o plano que se quer escolhido vai na frente —
+   * PRO primeiro, TRIAL logo atrás para quem ainda não quer pagar.
+   *
+   * Não é "mais barato primeiro". O estudo original mediu DESKTOP e, lido ao pé
+   * da letra, endossa o caro-primeiro que estava em produção; transpor para
+   * telefone é inferência, não medição, e a magnitude é inconclusiva — o próprio
+   * estudo termina recomendando um teste A/B que ainda não temos. É uma aposta
+   * barata e REVERSÍVEL: trocar a lista abaixo devolve o arranjo anterior.
+   *
+   * <h4>Por que o arranjo é por card, e não da grade</h4>
+   * Enquanto o telefone era a escada exatamente invertida, uma frase de herança
+   * servia os três pagos. Nesta ordem a escada não é monotônica: o degrau
+   * anterior do PRO (STARTER) fica ABAIXO dele, enquanto os do STARTER (TRIAL) e
+   * do ENTERPRISE (PRO) ficam ACIMA. Uma frase só passaria a mandar o leitor
+   * olhar para o lado errado em dois dos três cards.
    */
-  protected readonly phonePlans = computed<readonly PlanCardView[]>(() =>
-    [...this.ladder(REVERSED)].reverse(),
-  );
+  private readonly phoneLadder: readonly (readonly [PlanTier, PlanLadderArrangement])[] = [
+    ['PRO', REVERSED],
+    ['TRIAL', CATALOG],
+    ['STARTER', CATALOG],
+    ['ENTERPRISE', CATALOG],
+  ];
+
+  protected readonly phonePlans = computed<readonly PlanCardView[]>(() => {
+    const byArrangement = new Map<PlanLadderArrangement, readonly PlanCardView[]>([
+      [CATALOG, this.ladder(CATALOG)],
+      [REVERSED, this.ladder(REVERSED)],
+    ]);
+    return this.phoneLadder.map(([tier, arrangement]) => {
+      const card = byArrangement.get(arrangement)?.find((c) => c.tier === tier);
+      // A escada sempre traz os quatro tiers; o throw é a prova disso, não um
+      // caminho de execução. Um card faltando viraria um buraco silencioso na
+      // página que existe para converter.
+      if (!card) throw new Error(`plano ausente na escada: ${tier}`);
+      return card;
+    });
+  });
 
   protected setCycle(c: BillingCycle): void {
     this.cycle.set(c);

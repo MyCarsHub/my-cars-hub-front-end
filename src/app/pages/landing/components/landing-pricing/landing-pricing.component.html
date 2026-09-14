@@ -123,9 +123,10 @@
          Foi por essa conta que a versão anterior parou no 2x2 — a 44px o preço
          pedia ~262px de linha e realmente não cabia. A 26px, cabe.
 
-         Abaixo de `md` a grade é uma coluna só e a ORDEM inverte (ENTERPRISE
-         primeiro). `items-stretch` mantém os cards da mesma altura em qualquer
-         arranjo.
+         Abaixo de `md` a grade é uma coluna só e a ORDEM é outra: PRO, TRIAL,
+         STARTER, ENTERPRISE — por primazia de slot, não por preço. O porquê está
+         em `landing-pricing.component.ts`, em `phoneLadder`. `items-stretch`
+         mantém os cards da mesma altura em qualquer arranjo.
 
          AS DUAS ORDENS ESTÃO NO DOM E QUEM ESCOLHE É O CSS. Esta página é
          prerenderizada; um signal de media query decidindo a ordem congela em
@@ -148,7 +149,7 @@
         }
       </div>
 
-      <!-- telefone · ordem invertida -->
+      <!-- telefone · PRO, TRIAL, STARTER, ENTERPRISE (ver `phoneLadder`) -->
       <div class="grid md:hidden grid-cols-1 gap-5 items-stretch">
         @for (plan of phonePlans(); track plan.tier) {
           <ng-container [ngTemplateOutlet]="planCard" [ngTemplateOutletContext]="{ $implicit: plan }" />
