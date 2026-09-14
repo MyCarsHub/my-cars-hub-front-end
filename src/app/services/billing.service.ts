@@ -82,6 +82,19 @@ export class BillingService {
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
 
+  /**
+   * Zera o cache para o estado inicial. Registrado no `TenantCachesService`:
+   * o serviço é `providedIn: 'root'` e sobrevive tanto ao fim da sessão quanto
+   * à TROCA DE EMPRESA, que não passa por `SessionService.clear()`. Sem isto a
+   * empresa nova abre mostrando o plano e a assinatura da anterior (FIX-0272).
+   */
+  reset(): void {
+    this._plans.set([]);
+    this._subscription.set(null);
+    this._loading.set(false);
+    this._error.set(null);
+  }
+
   clearError(): void {
     this._error.set(null);
   }

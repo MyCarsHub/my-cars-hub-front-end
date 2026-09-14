@@ -9,6 +9,9 @@ import { LayoutStore } from './layout.store';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
 import { NotificationService } from '../../../services/notification.service';
+import { BillingAccessService } from '../../../services/billing-access.service';
+import { DriverService } from '../../../services/driver.service';
+import { VehiclesService } from '../../../services/vehicles.service';
 import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 import { environment } from '../../../../environments/environment';
 
@@ -77,6 +80,7 @@ describe('LayoutStore — troca de tenant', () => {
               store['token'] = token;
             },
             getToken: () => store['token'] ?? null,
+            isOnboardingCompleted: () => true,
           },
         },
       ],
@@ -105,6 +109,36 @@ describe('LayoutStore — troca de tenant', () => {
     expect(unreadCountCalls()).toBe(ticksBefore + 1);
     expect(feed.items()).toEqual([]);
     expect(feed.unreadCount()).toBe(2);
+  });
+
+  /**
+   * Travessia A -> B de verdade: popula caches de raiz com dado da empresa A,
+   * troca de empresa e exige que nada da A sobreviva. Antes do FIX-0272 este
+   * caminho não passava por `SessionService.clear()` e NENHUM destes era
+   * descartado — a empresa B abria com a frota, os motoristas e a decisão de
+   * bloqueio da empresa A.
+   */
+  it('descarta os caches de raiz da empresa A ao entrar na empresa B', () => {
+    const vehicles = TestBed.inject(VehiclesService);
+    const drivers = TestBed.inject(DriverService);
+    const billingAccess = TestBed.inject(BillingAccessService);
+
+    vehicles.list().subscribe();
+    drivers.list().subscribe();
+    billingAccess.refresh().subscribe();
+    expect(vehicles.items()).toHaveLength(1);
+    expect(drivers.items()).toHaveLength(1);
+    expect(billingAccess.loaded()).toBe(true);
+    expect(billingAccess.status()).not.toBeNull();
+
+    layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
+
+    expect(vehicles.items()).toEqual([]);
+    expect(vehicles.total()).toBe(0);
+    expect(drivers.items()).toEqual([]);
+    // `loaded` falso é o que obriga o guard a perguntar de novo PELA empresa B.
+    expect(billingAccess.loaded()).toBe(false);
+    expect(billingAccess.status()).toBeNull();
   });
 
   it('persiste a seleção e navega para o dashboard', () => {

@@ -27,6 +27,19 @@ export class BillingAccessService {
   readonly loading = this._loading.asReadonly();
   readonly loaded = this._loaded.asReadonly();
 
+  /**
+   * Zera a decisão de acesso. Mais forte que `invalidate()`, que só marca o
+   * cache como vencido e deixa `isBlocked` respondendo com a decisão ANTERIOR
+   * até a próxima resposta chegar. Numa troca de empresa isso é a decisão de
+   * OUTRA empresa — bloqueio ou liberação — valendo por alguns instantes na
+   * empresa nova (FIX-0272).
+   */
+  reset(): void {
+    this._status.set(null);
+    this._loading.set(false);
+    this._loaded.set(false);
+  }
+
   readonly isBlocked = computed(() => {
     // PLATFORM_ADMIN never gets blocked (brief Q1).
     if (this.session.isPlatformAdmin()) return false;

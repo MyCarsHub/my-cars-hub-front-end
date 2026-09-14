@@ -60,6 +60,31 @@ export class VehiclesService {
   readonly financingsLoading = this._financingsLoading.asReadonly();
   readonly financingsError = this._financingsError.asReadonly();
 
+  /**
+   * Zera o cache para o estado inicial. Registrado no `TenantCachesService`:
+   * o serviço é `providedIn: 'root'` e sobrevive tanto ao fim da sessão quanto
+   * à TROCA DE EMPRESA, que não passa por `SessionService.clear()`. Sem isto a
+   * empresa nova abre mostrando a frota e os financiamentos da anterior (FIX-0272).
+   */
+  reset(): void {
+    this._items.set([]);
+    this._page.set(0);
+    this._size.set(20);
+    this._total.set(0);
+    this._loading.set(false);
+    this._error.set(null);
+
+    this._financings.set([]);
+    this._financingsPage.set(0);
+    this._financingsSize.set(20);
+    this._financingsTotal.set(0);
+    this._financingsLoading.set(false);
+    this._financingsError.set(null);
+    // `_plateLookupUnavailable` NÃO entra: é saúde da integração de placa,
+    // igual para todas as empresas, e zerá-la aqui só refaria uma chamada que
+    // já se sabe indisponível.
+  }
+
   list(filters: VehicleFilters = {}): Observable<PagedResponse<VehicleListItem>> {
     this._loading.set(true);
     this._error.set(null);
