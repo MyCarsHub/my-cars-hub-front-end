@@ -4,13 +4,15 @@ import { Title } from '@angular/platform-browser';
 import { TitleStrategy, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { Observable, of, throwError } from 'rxjs';
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { HttpErrorResponse } from '@angular/common/http';
 import { PageTitleStrategy } from '../../services/page-title.strategy';
 import { BlogPostDetail } from '../../types/blog.types';
 import { BlogDetail } from './blog-detail';
 import { BlogService } from './blog.service';
+import { ApiErrorService } from '../../services/api-error.service';
+import { NotificationService } from '../../services/notification.service';
 
 /** The generic title every `/blog/:slug` navigation resolves to from `data.pageTitle`. */
 const ROUTE_TITLE = 'Blog — MyCarsHub';
@@ -187,5 +189,118 @@ describe('BlogDetail — head tags', () => {
     expect(
       TestBed.inject(DOCUMENT).head.querySelector('link[rel="canonical"]')?.getAttribute('href'),
     ).toBe(`https://www.mycarshub.app.br/blog/${POST.slug}`);
+  });
+});
+
+/**
+ * FIX-0325 — a MENSAGEM de erro desta tela nunca teve teste.
+ *
+ * O arquivo acima cobre head tags e o gate de desindexacao, que e o efeito
+ * COLATERAL do erro; o texto que o leitor le, que e o assunto, estava
+ * descoberto. E era a pior ocorrencia do defeito do FIX-0050: o `extractError`
+ * local lia o TypeError do navegador e escrevia "Failed to fetch" numa pagina
+ * publica, para um leitor anonimo.
+ */
+describe('BlogDetail — mensagem de erro (FIX-0325)', () => {
+  let notifyError: ReturnType<typeof vi.fn>;
+
+  function configureFailing(error: unknown): void {
+    notifyError = vi.fn();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'blog/:slug', component: BlogDetail, data: { pageTitle: 'Blog' } },
+        ]),
+        { provide: TitleStrategy, useClass: PageTitleStrategy },
+        { provide: BlogService, useValue: { findBySlug: () => throwError(() => error) } },
+        ApiErrorService,
+        {
+          provide: NotificationService,
+          useValue: {
+            error: notifyError,
+            warning: vi.fn(),
+            info: vi.fn(),
+            success: vi.fn(),
+            push: vi.fn(),
+          },
+        },
+      ],
+    });
+  }
+
+  async function textAfterVisit(slug = 'um-post'): Promise<string> {
+    const harness = await RouterTestingHarness.create(`/blog/${slug}`);
+    harness.detectChanges();
+    return ((harness.fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('falha de rede mostra o fallback em portugues, nao "Failed to fetch"', async () => {
+    configureFailing(new HttpErrorResponse({ status: 0, error: new TypeError('Failed to fetch') }));
+
+    const text = await textAfterVisit();
+
+    expect(text).toContain('Não foi possível carregar o post.');
+    expect(text).not.toContain('Failed to fetch');
+  });
+
+  /** A frase do 404 e desta tela e nao pode virar a generica do extrator. */
+  it('preserva "Post nao encontrado." no 404', async () => {
+    configureFailing(new HttpErrorResponse({ status: 404, error: {} }));
+
+    const text = await textAfterVisit('nao-existe');
+
+    expect(text).toContain('Post não encontrado.');
+    expect(text).not.toContain('Registro não encontrado');
+  });
+
+  /**
+   * O 404 nao passa pelo `messageFor` — a frase e fixa — entao ele precisa
+   * reivindicar o erro POR CONTA PROPRIA. E o erro mais provavel num blog: sem
+   * isso, a rede de seguranca de 4xx toastaria por cima da mensagem da pagina.
+   */
+  it('reivindica o 404 — nada de toast por cima da pagina', async () => {
+    vi.useFakeTimers();
+    const failure = new HttpErrorResponse({ status: 404, error: {} });
+    configureFailing(failure);
+
+    await textAfterVisit('nao-existe');
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(failure);
+    vi.runAllTimers();
+
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it('mostra a mensagem do backend quando ela vem', async () => {
+    configureFailing(
+      new HttpErrorResponse({ status: 500, error: { message: 'Blog em manutenção.' } }),
+    );
+
+    expect(await textAfterVisit()).toContain('Blog em manutenção.');
+  });
+
+  it('mostra fieldErrors, que o extrator local ignorava', async () => {
+    configureFailing(
+      new HttpErrorResponse({ status: 400, error: { fieldErrors: { slug: 'Slug inválido.' } } }),
+    );
+
+    expect(await textAfterVisit()).toContain('Slug inválido.');
+  });
+
+  /** Controle: um erro que NINGUEM reivindicou continua toastando. */
+  it('controle: erro nao reivindicado ainda dispara a rede de seguranca', async () => {
+    vi.useFakeTimers();
+    configureFailing(new HttpErrorResponse({ status: 500, error: {} }));
+    await textAfterVisit();
+
+    const orphan = new HttpErrorResponse({ status: 400, error: { message: 'Sem dono.' } });
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(orphan);
+    vi.runAllTimers();
+
+    expect(notifyError).toHaveBeenCalledWith('Sem dono.');
   });
 });
