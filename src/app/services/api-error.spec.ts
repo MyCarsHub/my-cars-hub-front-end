@@ -45,6 +45,60 @@ describe('parseApiError', () => {
   });
 
   /**
+   * FIX-0050 — falha de rede mostrava a string crua "Failed to fetch" no banner.
+   *
+   * Quando a requisição nem chega a ter resposta (backend fora, sem conexão, CORS),
+   * quem preenche `HttpErrorResponse.error` é o NAVEGADOR, não o backend: um
+   * `TypeError` no fetch, um `ProgressEvent` no XHR. Os dois são objeto, não-nulo e
+   * não-array, então passavam pela guarda de record e `body['message']` entregava a
+   * string do motor de JavaScript como se fosse a mensagem do backend — o fallback em
+   * português do chamador nunca era alcançado.
+   */
+  describe('corpo que não veio do backend (falha de rede)', () => {
+    it('ignora o TypeError do fetch em vez de tratá-lo como envelope', () => {
+      const parsed = parseApiError(httpError(0, new TypeError('Failed to fetch')));
+
+      expect(parsed.status).toBe(0);
+      expect(parsed.message).toBeNull();
+      expect(parsed.fieldErrors).toEqual({});
+      expect(parsed.hasFieldErrors).toBe(false);
+    });
+
+    it('ignora o ProgressEvent do XHR — mesmo caso com outro nome', () => {
+      const parsed = parseApiError(httpError(0, new ProgressEvent('error')));
+
+      expect(parsed.message).toBeNull();
+    });
+
+    it('deixa o chamador chegar no proprio fallback em portugues', () => {
+      const parsed = parseApiError(httpError(0, new TypeError('Failed to fetch')));
+
+      expect(flatErrorMessage(parsed)).toBe('Não foi possível concluir a operação.');
+      expect(formLevelMessage(parsed, { applied: [], unmatched: {} })).toBe(
+        'Não foi possível concluir a operação.',
+      );
+      expect(flatErrorMessage(parsed, 'Não foi possível salvar a empresa.')).toBe(
+        'Não foi possível salvar a empresa.',
+      );
+    });
+
+    /** A correção não pode calar o backend: envelope legítimo continua sendo lido. */
+    it('não suprime mensagem legítima — envelope do backend segue intacto', () => {
+      const parsed = parseApiError(
+        httpError(409, { message: 'CPF já cadastrado.', fieldErrors: { 'document.value': 'CPF já cadastrado.' } }),
+      );
+
+      expect(parsed.message).toBe('CPF já cadastrado.');
+      expect(parsed.fieldErrors).toEqual({ 'document.value': 'CPF já cadastrado.' });
+    });
+
+    /** Envelope entregue como string (responseType text) vira objeto simples no parse. */
+    it('não suprime envelope que chegou como string', () => {
+      expect(parseApiError(httpError(409, '{"message":"Conflito."}')).message).toBe('Conflito.');
+    });
+  });
+
+  /**
    * Requisições feitas com `responseType: 'text'` (todo DELETE do app) NÃO passam
    * pelo JSON.parse do Angular — ele só desserializa quando o responseType é 'json'
    * (@angular/common 21.1.5: `FetchBackend.parseBody` e `HttpXhrBackend`). O envelope
@@ -150,6 +204,65 @@ describe('applyFieldErrors', () => {
     const signers = form.controls.signers as FormArray;
     expect(signers.at(0).get('name')?.errors?.[SERVER_ERROR_KEY]).toEqual({
       message: 'Nome obrigatório.',
+    });
+  });
+
+  /**
+   * FIX-0060 — chave que resolve para GRUPO fazia o erro sumir por completo.
+   *
+   * `root.get('address')` devolve o FormGroup. Tratado como match, o `serverError`
+   * ia parar num nó que nenhum `<app-form-field>` renderiza, `unmatched` ficava
+   * vazio, `formLevelMessage` devolvia `null` e o toast do interceptor já tinha sido
+   * suprimido pelo `claim()`: o usuário clicava em salvar e não acontecia nada.
+   * Falhar alto é melhor que falhar calado — grupo cai em `unmatched` e ao menos
+   * aparece no banner.
+   */
+  describe('chave que não resolve para folha (FIX-0060)', () => {
+    it('trata chave de FormGroup como não-casada', () => {
+      const result = applyFieldErrors(form, { address: 'Endereço inválido.' });
+
+      expect(result.applied).toEqual([]);
+      expect(result.unmatched).toEqual({ address: 'Endereço inválido.' });
+      // Nada foi escrito no grupo, que ninguém renderiza.
+      expect(form.controls.address.errors).toBeNull();
+    });
+
+    it('trata chave de FormArray como não-casada', () => {
+      const result = applyFieldErrors(form, { signers: 'Assinantes inválidos.' });
+
+      expect(result.applied).toEqual([]);
+      expect(result.unmatched).toEqual({ signers: 'Assinantes inválidos.' });
+      expect((form.controls.signers as FormArray).errors).toBeNull();
+    });
+
+    it('o item do array continua casando — o que não casa é o array inteiro', () => {
+      const result = applyFieldErrors(form, { 'signers[0]': 'Assinante inválido.' });
+
+      expect(result.applied).toEqual([]);
+      expect(result.unmatched).toEqual({ 'signers[0]': 'Assinante inválido.' });
+    });
+
+    it('a mensagem engolida passa a chegar no banner', () => {
+      const parsed = parseApiError(
+        httpError(409, {
+          message: 'CPF já cadastrado.',
+          fieldErrors: { address: 'Endereço inválido.' },
+        }),
+      );
+      const result = applyFieldErrors(form, parsed.fieldErrors);
+
+      expect(formLevelMessage(parsed, result)).toBe('Endereço inválido.');
+    });
+
+    it('folha continua casando — o endurecimento não fecha o caminho normal', () => {
+      const result = applyFieldErrors(form, {
+        'address.zipCode': 'CEP inválido.',
+        'signers[0].name': 'Nome obrigatório.',
+        plate: 'Placa já cadastrada.',
+      });
+
+      expect(result.applied).toEqual(['address.zipCode', 'signers.0.name', 'plate']);
+      expect(result.unmatched).toEqual({});
     });
   });
 

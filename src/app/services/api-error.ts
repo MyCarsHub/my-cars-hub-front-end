@@ -49,6 +49,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Objeto SIMPLES: literal do código ou saída de `JSON.parse`. É o que distingue o
+ * envelope do backend de um objeto que o NAVEGADOR pôs em `HttpErrorResponse.error`
+ * quando a requisição nem chegou a ter resposta — `TypeError('Failed to fetch')` no
+ * fetch, `ProgressEvent` no XHR.
+ *
+ * `isRecord` não serve para essa distinção: um `Error` é objeto, não-nulo e não-array,
+ * então passava, e `body['message']` entregava a string do motor de JavaScript como se
+ * fosse a `message` do backend. O banner mostrava "Failed to fetch" e o fallback em
+ * português do chamador nunca era alcançado (FIX-0050).
+ *
+ * Nenhum envelope legítimo é perdido: todo corpo do backend chega por `JSON.parse`, que
+ * só produz objetos simples.
+ */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function readFieldErrors(body: Record<string, unknown>): Record<string, string> {
   const raw = body['fieldErrors'];
   if (!isRecord(raw)) return {};
@@ -87,7 +107,9 @@ export function parseApiError(error: unknown): ParsedApiError {
   if (typeof body === 'string' && body.length > 0) {
     return { status, message: body, code: null, fieldErrors: {}, hasFieldErrors: false };
   }
-  if (!isRecord(body)) {
+  // Corpo que não veio do backend (ver `isPlainRecord`) é tratado como ausência de
+  // corpo: sem mensagem, para o chamador cair no próprio fallback em português.
+  if (!isPlainRecord(body)) {
     return { status, message: null, code: null, fieldErrors: {}, hasFieldErrors: false };
   }
 
@@ -109,8 +131,25 @@ export function toControlPath(fieldKey: string): string {
   return fieldKey.replace(/\[(\d+)\]/g, '.$1').replace(/^\.+|\.+$/g, '');
 }
 
+/**
+ * O controle que a chave do backend endereça — **e só quando é uma folha**.
+ *
+ * `root.get()` devolve o que encontrar, inclusive `FormGroup`/`FormArray`. Aceitar
+ * isso como casamento fazia o erro sumir por completo: o `serverError` ia parar num
+ * nó que nenhum `<app-form-field>` renderiza, `unmatched` ficava vazio,
+ * `formLevelMessage` devolvia `null` e o toast do interceptor já tinha sido suprimido
+ * pelo `claim()` — o usuário clicava em salvar e não acontecia nada. Foi o que ocorreu
+ * com o 409 de CPF duplicado antes de a chave virar `document.value`.
+ *
+ * Devolver `null` para nó com filhos joga a chave em `unmatched`, e a mensagem ao menos
+ * aparece no banner: falhar alto em vez de falhar calado (FIX-0060). O duck-typing de
+ * `.controls` é o mesmo idioma que `clearServerErrors` já usa neste arquivo.
+ */
 function findControl(root: AbstractControl, fieldKey: string): AbstractControl | null {
-  return root.get(toControlPath(fieldKey));
+  const control = root.get(toControlPath(fieldKey));
+  if (!control) return null;
+  const isLeaf = (control as { controls?: unknown }).controls === undefined;
+  return isLeaf ? control : null;
 }
 
 /**
