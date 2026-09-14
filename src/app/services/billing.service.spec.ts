@@ -2,10 +2,12 @@ import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BillingService, isFreePlanInForce } from './billing.service';
 import { BillingAccessService } from './billing-access.service';
+import { ApiErrorService } from './api-error.service';
+import { NotificationService } from './notification.service';
 import {
   PlanResponse,
   SubscriptionChangeResponse,
@@ -85,18 +87,34 @@ describe('BillingService', () => {
   let httpPost: ReturnType<typeof vi.fn>;
   let httpGet: ReturnType<typeof vi.fn>;
   let invalidate: ReturnType<typeof vi.fn>;
+  let notifyError: ReturnType<typeof vi.fn>;
   let service: BillingService;
 
   beforeEach(() => {
     httpPost = vi.fn();
     httpGet = vi.fn(() => of(subscription));
     invalidate = vi.fn();
+    notifyError = vi.fn();
 
+    TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
         BillingService,
+        // `ApiErrorService` de verdade: o que se quer provar é o contrato dele
+        // (mensagem + `claim`), não um dublê que devolve o que eu mandar.
+        ApiErrorService,
         { provide: HttpClient, useValue: { post: httpPost, get: httpGet } },
         { provide: BillingAccessService, useValue: { invalidate } },
+        {
+          provide: NotificationService,
+          useValue: {
+            error: notifyError,
+            warning: vi.fn(),
+            info: vi.fn(),
+            success: vi.fn(),
+            push: vi.fn(),
+          },
+        },
       ],
     });
     service = TestBed.inject(BillingService);
@@ -194,4 +212,91 @@ describe('BillingService', () => {
       expect(invalidate).toHaveBeenCalledTimes(1);
     });
   });
+
+  /**
+   * FIX-0087 — último retardatário do caminho de erro compartilhado.
+   *
+   * O serviço tinha um extrator próprio (`backendMessage`) que duplicava, mal, o
+   * `flatErrorMessage`: aceitava qualquer objeto com `message`, então numa falha de
+   * rede lia o `TypeError` do navegador e mostrava "Failed to fetch" na tela de
+   * planos; ignorava `fieldErrors` por completo; e não reivindicava o erro, de modo
+   * que o 4xx ganhava a mensagem inline E o toast da rede de segurança.
+   */
+  describe('caminho de erro compartilhado (FIX-0087)', () => {
+    const networkFailure = () =>
+      new HttpErrorResponse({ status: 0, error: new TypeError('Failed to fetch') });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('falha de rede mostra o fallback em português, não "Failed to fetch"', () => {
+      httpGet.mockReturnValue(throwError(networkFailure));
+
+      service.loadPlans().subscribe({ error: () => void 0 });
+
+      expect(service.error()).toBe('Não foi possível carregar os planos. Tente novamente.');
+    });
+
+    it('falha de rede no checkout também, e não a string do navegador', () => {
+      httpPost.mockReturnValue(throwError(networkFailure));
+
+      service.startCheckout('PRO_MONTHLY_STRIPE').subscribe({ error: () => void 0 });
+
+      expect(service.error()).toBe('Não foi possível iniciar o pagamento. Tente novamente.');
+    });
+
+    it('surfaces fieldErrors, que o extrator local ignorava', () => {
+      httpPost.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 400,
+              error: { fieldErrors: { planCode: 'Plano indisponível para esta empresa.' } },
+            }),
+        ),
+      );
+
+      service.downgrade('PRO_MONTHLY_STRIPE').subscribe({ error: () => void 0 });
+
+      expect(service.error()).toBe('Plano indisponível para esta empresa.');
+    });
+
+    it('reivindica o erro — a mensagem inline não ganha um toast por cima', () => {
+      vi.useFakeTimers();
+      const failure = new HttpErrorResponse({
+        status: 400,
+        error: { message: 'Use o checkout para fazer upgrade.' },
+      });
+      httpPost.mockReturnValue(throwError(() => failure));
+
+      service.downgrade('PRO_MONTHLY_STRIPE').subscribe({ error: () => void 0 });
+      TestBed.inject(ApiErrorService).scheduleSafetyNet(failure);
+      vi.runAllTimers();
+
+      expect(service.error()).toBe('Use o checkout para fazer upgrade.');
+      expect(notifyError).not.toHaveBeenCalled();
+    });
+
+    /** Controle: um erro que NINGUÉM reivindicou continua toastando. */
+    it('controle: erro não reivindicado ainda dispara a rede de segurança', () => {
+      vi.useFakeTimers();
+      const orphan = new HttpErrorResponse({ status: 400, error: { message: 'Sem dono.' } });
+
+      TestBed.inject(ApiErrorService).scheduleSafetyNet(orphan);
+      vi.runAllTimers();
+
+      expect(notifyError).toHaveBeenCalledWith('Sem dono.');
+    });
+
+    it('404 em /subscription continua sendo "sem assinatura", não erro', () => {
+      httpGet.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+
+      service.loadSubscription().subscribe({ error: () => void 0 });
+
+      expect(service.subscription()).toBeNull();
+      expect(service.error()).toBeNull();
+    });
+  });
+
 });
