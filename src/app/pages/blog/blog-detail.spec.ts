@@ -275,6 +275,50 @@ describe('BlogDetail — mensagem de erro (FIX-0325)', () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
+  /**
+   * O gate de desindexacao usa `isMissing()` — 404 OU 410 — mas a MENSAGEM
+   * ramificava so no 404. Um `410 Gone` mostrava a frase generica numa pagina
+   * que estava sendo marcada `noindex` no mesmo instante: a pagina dizia uma
+   * coisa ao leitor e outra ao rastreador.
+   */
+  it('410 Gone mostra a frase de post inexistente, nao a generica', async () => {
+    configureFailing(new HttpErrorResponse({ status: 410, error: {} }));
+
+    const text = await textAfterVisit('post-removido');
+
+    expect(text).toContain('Post não encontrado.');
+    expect(text).not.toContain('Não foi possível carregar o post.');
+  });
+
+  /**
+   * A ARMADILHA DESTE NO. Hoje o 410 cai no ramo do `else`, passa pelo
+   * `messageFor` e por isso e reivindicado de graca. Mover o 410 para o ramo da
+   * frase fixa — que NAO passa pelo `messageFor` — reintroduziria o toast
+   * duplicado enquanto conserta a redacao. O `claim` explicito daquele ramo e o
+   * que impede isso, e este teste e o que prova que ele esta la.
+   */
+  it('410 continua sem toast depois de mudar de ramo', async () => {
+    vi.useFakeTimers();
+    const failure = new HttpErrorResponse({ status: 410, error: {} });
+    configureFailing(failure);
+
+    await textAfterVisit('post-removido');
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(failure);
+    vi.runAllTimers();
+
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  /** O 500 NAO e ausencia de conteudo e continua com a frase generica. */
+  it('500 continua na frase generica — falha de transporte nao e post inexistente', async () => {
+    configureFailing(new HttpErrorResponse({ status: 500, error: {} }));
+
+    const text = await textAfterVisit();
+
+    expect(text).toContain('Não foi possível carregar o post.');
+    expect(text).not.toContain('Post não encontrado.');
+  });
+
   it('mostra a mensagem do backend quando ela vem', async () => {
     configureFailing(
       new HttpErrorResponse({ status: 500, error: { message: 'Blog em manutenção.' } }),
