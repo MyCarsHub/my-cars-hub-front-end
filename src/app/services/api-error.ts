@@ -49,6 +49,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Objeto SIMPLES: literal do código ou saída de `JSON.parse`. É o que distingue o
+ * envelope do backend de um objeto que o NAVEGADOR pôs em `HttpErrorResponse.error`
+ * quando a requisição nem chegou a ter resposta — `TypeError('Failed to fetch')` no
+ * fetch, `ProgressEvent` no XHR.
+ *
+ * `isRecord` não serve para essa distinção: um `Error` é objeto, não-nulo e não-array,
+ * então passava, e `body['message']` entregava a string do motor de JavaScript como se
+ * fosse a `message` do backend. O banner mostrava "Failed to fetch" e o fallback em
+ * português do chamador nunca era alcançado (FIX-0050).
+ *
+ * Nenhum envelope legítimo é perdido: todo corpo do backend chega por `JSON.parse`, que
+ * só produz objetos simples.
+ */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function readFieldErrors(body: Record<string, unknown>): Record<string, string> {
   const raw = body['fieldErrors'];
   if (!isRecord(raw)) return {};
@@ -87,7 +107,9 @@ export function parseApiError(error: unknown): ParsedApiError {
   if (typeof body === 'string' && body.length > 0) {
     return { status, message: body, code: null, fieldErrors: {}, hasFieldErrors: false };
   }
-  if (!isRecord(body)) {
+  // Corpo que não veio do backend (ver `isPlainRecord`) é tratado como ausência de
+  // corpo: sem mensagem, para o chamador cair no próprio fallback em português.
+  if (!isPlainRecord(body)) {
     return { status, message: null, code: null, fieldErrors: {}, hasFieldErrors: false };
   }
 
