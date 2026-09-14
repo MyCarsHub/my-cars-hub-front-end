@@ -5,6 +5,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
 import { SessionService } from '../../services/session.service';
 import { PENDING_INVITE_TOKEN_KEY } from '../invites/invite-session';
+import { PlanIntentService } from '../../services/plan-intent.service';
 
 interface OauthExchangeResponse {
   token: string;
@@ -29,6 +30,7 @@ export class OauthSuccess implements OnInit {
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly sessionService = inject(SessionService);
+  private readonly planIntent = inject(PlanIntentService);
   private readonly http = inject(HttpClient);
 
   ngOnInit(): void {
@@ -70,11 +72,18 @@ export class OauthSuccess implements OnInit {
     // Read BEFORE the wipe: `clear()` takes sessionStorage down wholesale.
     const pendingInvite = this.sessionService.getItem(PENDING_INVITE_TOKEN_KEY);
 
+    // A intenção de plano escolhida na landing atravessa o mesmo wipe, pelo mesmo
+    // motivo e com o mesmo idioma do convite acima: ler antes, recolocar depois.
+    // Sem isto ela morreria exatamente no meio do trajeto que existe para
+    // atravessar (FIX-0291).
+    const restorePlanIntent = this.planIntent.preserveAcrossSessionWipe();
+
     // Wipe any leftover state from a previous login (companies=[], selectedCompanyId,
     // onboardingCompleted=false, etc). Sem isso, um relogin depois de trocar de
     // usuário/onboarding herda cache velho e o user cai num dashboard 403 mudo.
     this.sessionService.clear();
     this.sessionService.setToken(token);
+    restorePlanIntent();
 
     // Invite flow: this login exists only to accept an invitation. `/auth/me` is skipped
     // on purpose — the invitee has no company yet (it would bounce them to /onboarding),
