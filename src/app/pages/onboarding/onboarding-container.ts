@@ -33,6 +33,7 @@ import { AbstractControl } from '@angular/forms';
 import { clearServerErrors } from '../../services/api-error';
 import { isValidCnpj } from '../../utils/validators/cnpj.validator';
 import { LoggerService } from '../../services/logger.service';
+import { PlanIntent, PlanIntentService } from '../../services/plan-intent.service';
 
 /** The document step. Its CNPJ is checked for availability before the step is saved. */
 const DOCUMENT_STEP = 3;
@@ -53,6 +54,13 @@ function retryAfterSecondsOf(err: HttpErrorResponse): number | null {
   const parsed = header === null || header === undefined ? NaN : Number(header);
   return Number.isFinite(parsed) && parsed > 0 ? Math.ceil(parsed) : null;
 }
+
+/** Nome do plano como a landing o mostra — a mesma palavra que a pessoa clicou. */
+const PLAN_LABEL: Readonly<Record<PlanIntent, string>> = {
+  STARTER: 'Starter',
+  PRO: 'Pro',
+  ENTERPRISE: 'Enterprise',
+};
 
 @Component({
   selector: 'app-onboarding-container',
@@ -102,6 +110,25 @@ export class OnboardingContainer implements OnInit {
 
   /** True once the initial GET /onboarding call has resolved */
   protected readonly loaded = signal(false);
+
+  /**
+   * O plano que a pessoa escolheu na landing, consumido UMA vez na entrada.
+   *
+   * Não vai para o backend: o plano de entrada é decidido no servidor e o
+   * `CompanyService` ignora `planId` do corpo de propósito. Isto existe para o
+   * produto não fingir que a pessoa não escolheu nada — ela leu a tabela, clicou
+   * no Pro, e até agora essa decisão era descartada no caminho (FIX-0291).
+   *
+   * Lido no campo em vez de num `ngOnInit` porque `consume()` apaga: rodar duas
+   * vezes devolveria `null` na segunda e a mensagem sumiria no meio do fluxo.
+   */
+  protected readonly chosenPlan = signal<PlanIntent | null>(inject(PlanIntentService).consume());
+
+  /** Rótulo humano do plano escolhido, ou `null` quando não houve escolha paga. */
+  protected readonly chosenPlanLabel = computed(() => {
+    const plan = this.chosenPlan();
+    return plan === null ? null : PLAN_LABEL[plan];
+  });
 
   /** Accumulated form data merged on each step — reset after successful save */
   private readonly pendingData = signal<OnboardingData>({});

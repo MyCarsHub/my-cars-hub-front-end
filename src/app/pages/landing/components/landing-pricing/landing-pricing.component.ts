@@ -25,6 +25,7 @@ import {
   PlanLadderArrangement,
   planCardFeatureLines,
 } from '../../../../utils/plan-features';
+import { PlanIntentService } from '../../../../services/plan-intent.service';
 
 type BillingCycle = 'monthly' | 'yearly';
 
@@ -126,6 +127,7 @@ const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(10,120,84,0.45)';
 export class LandingPricingComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly router = inject(Router);
+  private readonly planIntent = inject(PlanIntentService);
 
   protected readonly cycle = signal<BillingCycle>('monthly');
 
@@ -420,7 +422,16 @@ export class LandingPricingComponent {
       : `ou ${monthlyEquivalent}/mês no anual`;
   }
 
-  protected goToLogin(): void {
+  /**
+   * Os QUATRO botões chegam aqui — é o único ponto em que a identidade do plano
+   * escolhido existe. Antes ela era descartada nesta linha: o visitante lia a
+   * tabela, decidia pelo Pro, clicava, e a escolha evaporava (FIX-0291).
+   *
+   * Guarda INTENÇÃO, não assinatura: o plano de entrada é decidido no servidor.
+   * O TRIAL apaga em vez de gravar — ver `PlanIntentService`.
+   */
+  protected goToLogin(tier: PlanTier): void {
+    this.planIntent.remember(tier);
     this.router.navigate(['/login']);
   }
 
