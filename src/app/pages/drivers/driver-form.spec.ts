@@ -850,18 +850,19 @@ describe('DriverForm — erros de campo vindos do backend', () => {
   });
 
   /**
-   * DOCUMENTA O MODO DE FALHA — não é o comportamento desejado, é o registro de por que
-   * a chave precisa ser o caminho completo (`document.value`).
+   * Reescrito pelo FIX-0060. Antes, este teste DOCUMENTAVA o modo de falha: com a
+   * chave curta `document`, `root.get('document')` resolvia para o FormGroup, o
+   * `applyFieldErrors` considerava casado, o `serverError` ia para um nó que nenhum
+   * `<app-form-field>` renderiza e `unmatched` ficava vazio — o usuário clicava em
+   * salvar e NÃO ACONTECIA NADA, nem inline nem banner nem toast.
    *
-   * Com a chave curta `document`, `root.get('document')` resolve para o FormGroup
-   * `document` (api-error.ts:113). O `applyFieldErrors` considera isso um match, seta o
-   * `serverError` NO GRUPO — que nenhum `<app-form-field>` binda — e deixa `unmatched`
-   * vazio, o que faz o `formLevelMessage` devolver `null` (api-error.ts:181). Resultado:
-   * o usuário não vê NADA, nem inline nem banner. Se alguém reverter a chave no backend
-   * para `document`, este teste continua verde mas conta a história; o teste acima
-   * (`document.value`) é o que quebra.
+   * Agora só folha casa. A chave de grupo cai em `unmatched` e a mensagem aparece no
+   * banner: continua não havendo destaque no campo (a chave não aponta para ele), mas
+   * o erro deixa de desaparecer. Falhar alto em vez de falhar calado.
+   *
+   * O caminho feliz continua sendo `document.value`, coberto pelo teste acima.
    */
-  it('não liga o erro a nenhum campo visível quando a chave é o grupo `document` (formato antigo)', () => {
+  it('joga a chave de grupo `document` no banner em vez de engolir o erro', () => {
     const error = new HttpErrorResponse({
       status: 409,
       error: {
@@ -874,22 +875,20 @@ describe('DriverForm — erros de campo vindos do backend', () => {
     fillValidForm();
     submit();
 
-    // nada embaixo do campo do CPF…
+    // A chave não aponta para o campo, então continua sem destaque inline…
     expect(documentError()).toBeNull();
     const input = fixture.nativeElement.querySelector('#motorista-doc-valor') as HTMLInputElement;
     expect(input.getAttribute('aria-invalid')).toBeNull();
 
-    // …e nada no banner: `unmatched` ficou vazio porque o get() casou com o FormGroup
-    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
-    expect(fixture.nativeElement.innerHTML).not.toContain('CPF já cadastrado para esta empresa.');
+    // …mas a mensagem NÃO some mais: `unmatched` a leva para o banner.
+    expect(fixture.nativeElement.querySelector('app-alert-banner')).not.toBeNull();
+    expect(fixture.nativeElement.innerHTML).toContain('CPF já cadastrado para esta empresa.');
 
-    // a prova do engolimento: o serverError foi parar no grupo, que ninguém renderiza
-    expect(formOf().get('document')?.errors?.['serverError']).toEqual({
-      message: 'CPF já cadastrado para esta empresa.',
-    });
+    // E nada foi escrito no FormGroup, que ninguém renderiza.
+    expect(formOf().get('document')?.errors?.['serverError']).toBeUndefined();
     expect(formOf().get('document.value')?.errors?.['serverError']).toBeUndefined();
 
-    // e o toast também não salva: a tela reivindicou o erro via handleForm()
+    // O toast segue suprimido: a tela reivindicou o erro e agora o mostra de verdade.
     TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
     vi.runAllTimers();
     expect(notifyError).not.toHaveBeenCalled();

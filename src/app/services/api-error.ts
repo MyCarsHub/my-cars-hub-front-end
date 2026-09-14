@@ -131,8 +131,25 @@ export function toControlPath(fieldKey: string): string {
   return fieldKey.replace(/\[(\d+)\]/g, '.$1').replace(/^\.+|\.+$/g, '');
 }
 
+/**
+ * O controle que a chave do backend endereça — **e só quando é uma folha**.
+ *
+ * `root.get()` devolve o que encontrar, inclusive `FormGroup`/`FormArray`. Aceitar
+ * isso como casamento fazia o erro sumir por completo: o `serverError` ia parar num
+ * nó que nenhum `<app-form-field>` renderiza, `unmatched` ficava vazio,
+ * `formLevelMessage` devolvia `null` e o toast do interceptor já tinha sido suprimido
+ * pelo `claim()` — o usuário clicava em salvar e não acontecia nada. Foi o que ocorreu
+ * com o 409 de CPF duplicado antes de a chave virar `document.value`.
+ *
+ * Devolver `null` para nó com filhos joga a chave em `unmatched`, e a mensagem ao menos
+ * aparece no banner: falhar alto em vez de falhar calado (FIX-0060). O duck-typing de
+ * `.controls` é o mesmo idioma que `clearServerErrors` já usa neste arquivo.
+ */
 function findControl(root: AbstractControl, fieldKey: string): AbstractControl | null {
-  return root.get(toControlPath(fieldKey));
+  const control = root.get(toControlPath(fieldKey));
+  if (!control) return null;
+  const isLeaf = (control as { controls?: unknown }).controls === undefined;
+  return isLeaf ? control : null;
 }
 
 /**

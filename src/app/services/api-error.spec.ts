@@ -207,6 +207,65 @@ describe('applyFieldErrors', () => {
     });
   });
 
+  /**
+   * FIX-0060 — chave que resolve para GRUPO fazia o erro sumir por completo.
+   *
+   * `root.get('address')` devolve o FormGroup. Tratado como match, o `serverError`
+   * ia parar num nó que nenhum `<app-form-field>` renderiza, `unmatched` ficava
+   * vazio, `formLevelMessage` devolvia `null` e o toast do interceptor já tinha sido
+   * suprimido pelo `claim()`: o usuário clicava em salvar e não acontecia nada.
+   * Falhar alto é melhor que falhar calado — grupo cai em `unmatched` e ao menos
+   * aparece no banner.
+   */
+  describe('chave que não resolve para folha (FIX-0060)', () => {
+    it('trata chave de FormGroup como não-casada', () => {
+      const result = applyFieldErrors(form, { address: 'Endereço inválido.' });
+
+      expect(result.applied).toEqual([]);
+      expect(result.unmatched).toEqual({ address: 'Endereço inválido.' });
+      // Nada foi escrito no grupo, que ninguém renderiza.
+      expect(form.controls.address.errors).toBeNull();
+    });
+
+    it('trata chave de FormArray como não-casada', () => {
+      const result = applyFieldErrors(form, { signers: 'Assinantes inválidos.' });
+
+      expect(result.applied).toEqual([]);
+      expect(result.unmatched).toEqual({ signers: 'Assinantes inválidos.' });
+      expect((form.controls.signers as FormArray).errors).toBeNull();
+    });
+
+    it('o item do array continua casando — o que não casa é o array inteiro', () => {
+      const result = applyFieldErrors(form, { 'signers[0]': 'Assinante inválido.' });
+
+      expect(result.applied).toEqual([]);
+      expect(result.unmatched).toEqual({ 'signers[0]': 'Assinante inválido.' });
+    });
+
+    it('a mensagem engolida passa a chegar no banner', () => {
+      const parsed = parseApiError(
+        httpError(409, {
+          message: 'CPF já cadastrado.',
+          fieldErrors: { address: 'Endereço inválido.' },
+        }),
+      );
+      const result = applyFieldErrors(form, parsed.fieldErrors);
+
+      expect(formLevelMessage(parsed, result)).toBe('Endereço inválido.');
+    });
+
+    it('folha continua casando — o endurecimento não fecha o caminho normal', () => {
+      const result = applyFieldErrors(form, {
+        'address.zipCode': 'CEP inválido.',
+        'signers[0].name': 'Nome obrigatório.',
+        plate: 'Placa já cadastrada.',
+      });
+
+      expect(result.applied).toEqual(['address.zipCode', 'signers.0.name', 'plate']);
+      expect(result.unmatched).toEqual({});
+    });
+  });
+
   it('reports entries with no matching control as unmatched', () => {
     const result = applyFieldErrors(form, { unknownField: 'Algo deu errado.' });
     expect(result.applied).toEqual([]);
