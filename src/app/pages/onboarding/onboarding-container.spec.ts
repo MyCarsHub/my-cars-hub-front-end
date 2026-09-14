@@ -17,6 +17,7 @@ import { SessionService } from '../../services/session.service';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SERVER_ERROR_KEY } from '../../services/validation-messages';
 import type { OnboardingState } from './onboarding.types';
+import { PlanIntentService } from '../../services/plan-intent.service';
 
 /**
  * Passo 3 (documento): a disponibilidade do CNPJ é conferida ANTES de salvar a etapa,
@@ -74,7 +75,7 @@ describe('OnboardingContainer — disponibilidade do CNPJ no passo 3', () => {
           provide: NotificationService,
           useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
         },
-        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn() } },
+        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() } },
         { provide: FleetActivationService, useValue: { skip: vi.fn(), markHasVehicles: vi.fn() } },
       ],
     });
@@ -348,7 +349,7 @@ describe('OnboardingContainer — foco, Voltar no passo 4 e motivo do bloqueio',
           provide: NotificationService,
           useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
         },
-        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn() } },
+        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() } },
         { provide: FleetActivationService, useValue: { skip: vi.fn(), markHasVehicles: vi.fn() } },
       ],
     });
@@ -507,7 +508,7 @@ describe('OnboardingContainer — destino do finish (FEAT-0080)', () => {
           provide: NotificationService,
           useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
         },
-        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn() } },
+        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() } },
         { provide: FleetActivationService, useValue: { skip, markHasVehicles: vi.fn() } },
       ],
     });
@@ -583,5 +584,91 @@ describe('OnboardingContainer — destino do finish (FEAT-0080)', () => {
       queryParams: { ativacao: '1' },
     });
     expect(skip).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * FIX-0291 — o plano escolhido na landing chega ate aqui.
+ *
+ * Antes, `OnboardingData` declarava `plan` e NUNCA o escrevia nem o lia: a pessoa
+ * lia a tabela de precos, decidia pelo Pro, clicava, e a escolha evaporava no
+ * caminho. Ela chegava no onboarding como se nao tivesse escolhido nada.
+ *
+ * O que se mostra aqui e INTENCAO, nao assinatura — o plano de entrada e decidido
+ * no servidor, e nada disto vai no corpo de nenhuma requisicao.
+ */
+describe('OnboardingContainer — plano escolhido na landing (FIX-0291)', () => {
+  let consume: ReturnType<typeof vi.fn>;
+
+  function renderWithIntent(intent: string | null): ComponentFixture<OnboardingContainer> {
+    consume = vi.fn().mockReturnValue(intent);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [OnboardingContainer],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        ApiErrorService,
+        {
+          provide: OnboardingService,
+          useValue: {
+            loading: signal(false),
+            checkingCnpj: signal(false),
+            loadError: signal<string | null>(null),
+            currentStep: signal(1),
+            totalSteps: 4,
+            isFirstStep: signal(true),
+            isLastStep: signal(false),
+            formData: signal({}),
+            loadState: vi.fn().mockReturnValue(
+              of({ step: 1, isCompleted: false, data: {} } as OnboardingState),
+            ),
+            saveStep: vi.fn(),
+            finish: vi.fn(),
+            checkCnpjAvailability: vi.fn(),
+            goBackStep: vi.fn(),
+          },
+        },
+        { provide: PlanIntentService, useValue: { consume } },
+        { provide: AuthService, useValue: { applyFinishResponse: vi.fn(), hydrateSession: vi.fn(), getMe: vi.fn() } },
+        { provide: LayoutStore, useValue: { refreshTenants: vi.fn() } },
+        {
+          provide: NotificationService,
+          useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
+        },
+        { provide: SessionService, useValue: { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() } },
+        { provide: FleetActivationService, useValue: { skip: vi.fn(), markHasVehicles: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(OnboardingContainer);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function intentText(fixture: ComponentFixture<OnboardingContainer>): string | null {
+    const el = (fixture.nativeElement as HTMLElement).querySelector('[data-plan-intent]');
+    return el ? (el.textContent ?? '').replace(/\s+/g, ' ').trim() : null;
+  }
+
+  it('mostra de volta o plano que a pessoa escolheu', () => {
+    const fixture = renderWithIntent('PRO');
+
+    expect(intentText(fixture)).toContain('Você escolheu o plano Pro');
+  });
+
+  it('sem escolha, nao inventa bloco nenhum', () => {
+    const fixture = renderWithIntent(null);
+
+    expect(intentText(fixture)).toBeNull();
+  });
+
+  /**
+   * `consume()` LE E APAGA, e por isso so pode ser chamado uma vez por montagem:
+   * uma segunda chamada devolveria `null` e a mensagem sumiria no meio do fluxo.
+   */
+  it('consome a intencao UMA vez por montagem', () => {
+    renderWithIntent('STARTER');
+
+    expect(consume).toHaveBeenCalledTimes(1);
   });
 });

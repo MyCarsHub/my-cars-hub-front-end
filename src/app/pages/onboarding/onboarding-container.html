@@ -11,6 +11,16 @@
         <span class="text-base font-bold text-gray-900" id="onboarding-title">MyCarsHub</span>
       </div>
 
+      <!-- A escolha feita na landing, devolvida para a pessoa. Só aparece quando
+           houve escolha PAGA: o trial apaga a intenção em vez de gravá-la, porque
+           escolher o gratuito é dizer "não vou pagar agora" (FIX-0291). -->
+      @if (chosenPlanLabel(); as planoEscolhido) {
+      <p class="text-sm text-gray-600 mb-4" data-plan-intent>
+        Você escolheu o plano <strong class="text-gray-900">{{ planoEscolhido }}</strong>. Vamos
+        criar sua conta primeiro — você ativa o plano depois, quando quiser.
+      </p>
+      }
+
       @if (loaded()) {
       <app-onboarding-progress-bar [currentStep]="currentStep()" [totalSteps]="totalSteps" />
       } @else {

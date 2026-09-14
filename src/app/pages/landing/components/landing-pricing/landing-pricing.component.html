@@ -170,7 +170,7 @@
         [features]="plan.features"
         [ribbonText]="plan.ribbon"
         [ctaLabel]="plan.ctaLabel"
-        (ctaClick)="goToLogin()"
+        (ctaClick)="goToLogin(plan.tier)"
       />
     </ng-template>
   </div>

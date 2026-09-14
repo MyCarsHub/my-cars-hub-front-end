@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
+import { PlanIntentService } from '../../../../services/plan-intent.service';
 import { LandingPricingComponent } from './landing-pricing.component';
 
 /**
@@ -305,5 +306,71 @@ describe('LandingPricingComponent', () => {
       expect(html).not.toContain('flex-col-reverse');
       expect(html).not.toMatch(/\border-(first|last|\d)\b/);
     });
+  });
+});
+
+/**
+ * FIX-0291 — os QUATRO botoes chegam no mesmo handler, e era ali que a escolha
+ * morria: ele nao recebia o plano. O visitante lia a tabela, decidia pelo Pro,
+ * clicava, e a decisao evaporava.
+ *
+ * O que se guarda e INTENCAO, nao assinatura: o plano de entrada e decidido no
+ * servidor, e nada disto vai no corpo de nenhuma requisicao.
+ */
+describe('LandingPricingComponent — guarda o plano escolhido (FIX-0291)', () => {
+  let remember: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.fn>;
+
+  function clickCta(label: string): void {
+    TestBed.resetTestingModule();
+    remember = vi.fn();
+    navigate = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: Router, useValue: { navigate } },
+        { provide: PlanIntentService, useValue: { remember } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LandingPricingComponent);
+    fixture.detectChanges();
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => (b.textContent ?? '').trim() === label);
+    if (!button) throw new Error(`botao ausente: ${label}`);
+    button.click();
+    fixture.detectChanges();
+  }
+
+  it('guarda o PRO quando o visitante escolhe o Pro', () => {
+    clickCta('Assinar Pro');
+
+    expect(remember).toHaveBeenCalledWith('PRO');
+  });
+
+  it('guarda o STARTER e o ENTERPRISE pelos proprios botoes', () => {
+    clickCta('Assinar Starter');
+    expect(remember).toHaveBeenCalledWith('STARTER');
+
+    clickCta('Assinar Enterprise');
+    expect(remember).toHaveBeenCalledWith('ENTERPRISE');
+  });
+
+  /**
+   * O trial tambem passa pelo handler — e o servico e quem decide que ele APAGA
+   * em vez de gravar. A tela nao pode ter uma regra propria sobre isso, senao as
+   * duas divergem.
+   */
+  it('o trial tambem avisa o servico, que e quem decide apagar', () => {
+    clickCta('Criar conta grátis');
+
+    expect(remember).toHaveBeenCalledWith('TRIAL');
+  });
+
+  it('continua navegando para o login depois de guardar', () => {
+    clickCta('Assinar Pro');
+
+    expect(navigate).toHaveBeenCalledWith(['/login']);
   });
 });
