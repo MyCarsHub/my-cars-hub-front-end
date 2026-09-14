@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, of, tap } from 'rxjs';
+import { Observable, catchError, map, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AccessStatus } from '../types/billing-access.types';
 import { SessionService } from './session.service';
@@ -38,6 +38,33 @@ export class BillingAccessService {
     this._status.set(null);
     this._loading.set(false);
     this._loaded.set(false);
+    this.retireInFlight();
+  }
+
+  /**
+   * Geração da decisão corrente. Incrementá-la APOSENTA qualquer `refresh()`
+   * em voo: a resposta dele é anterior à transição que o invalidou e, gravada,
+   * marcaria o cache como carregado com a decisão VELHA — o paywall continuaria
+   * de pé depois do upgrade até um recarregamento da página. Mesmo padrão do
+   * `FleetActivationService` (FIX-0273).
+   */
+  private generation = 0;
+
+  private retireInFlight(): void {
+    this.generation++;
+  }
+
+  /**
+   * Grava a decisão só se esta resposta ainda for a corrente e devolve a que
+   * vale — quem assinou uma requisição aposentada recebe a decisão fresca em
+   * vez da que acabou de ser descartada.
+   */
+  private commit(status: AccessStatus | null, generation: number): AccessStatus | null {
+    this._loading.set(false);
+    if (generation !== this.generation) return this._status();
+    this._status.set(status);
+    this._loaded.set(true);
+    return status;
   }
 
   readonly isBlocked = computed(() => {
@@ -66,6 +93,7 @@ export class BillingAccessService {
    */
   invalidate(): void {
     this._loaded.set(false);
+    this.retireInFlight();
   }
 
   refresh(): Observable<AccessStatus | null> {
@@ -90,30 +118,24 @@ export class BillingAccessService {
       return of(mock);
     }
 
+    // Carimbo desta requisição: `invalidate()`/`reset()` durante o voo o tornam
+    // obsoleto e a resposta é descartada em `commit()`.
+    const generation = this.generation;
     this._loading.set(true);
     return this.http.get<AccessStatus>(API_URL).pipe(
-      tap((s) => {
-        this._status.set(s);
-        this._loaded.set(true);
-        this._loading.set(false);
-      }),
+      map((s) => this.commit(s, generation)),
       catchError((err: HttpErrorResponse) => {
-        this._loading.set(false);
-        this._loaded.set(true);
-
         // Fail-OPEN only for transport/server faults, so a flaky backend can't
         // lock every tenant out. This guard is UX, not security — the real
         // enforcement is server-side on the write endpoints.
         if (err.status === 0 || err.status >= 500) {
-          this._status.set(null);
-          return of(null);
+          return of(this.commit(null, generation));
         }
 
         // 401 belongs to the auth layer (interceptor + authGuard); pretending
         // the tenant is blocked would fight the logout redirect.
         if (err.status === 401) {
-          this._status.set(null);
-          return of(null);
+          return of(this.commit(null, generation));
         }
 
         // Any other 4xx (403 / 404 / 422 …) means we could not prove access.
@@ -127,8 +149,7 @@ export class BillingAccessService {
           blocked: true,
           reason: 'NO_SUBSCRIPTION',
         };
-        this._status.set(blocked);
-        return of(blocked);
+        return of(this.commit(blocked, generation));
       }),
     );
   }
