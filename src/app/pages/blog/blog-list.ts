@@ -12,6 +12,7 @@ import { LandingNavComponent } from '../landing/components/landing-nav/landing-n
 import { LandingFooterComponent } from '../landing/components/landing-footer/landing-footer.component';
 import { BLOG_CATEGORIES, BlogPostCategory, BlogPostListItem, blogCategoryLabel } from '../../types/blog.types';
 import { BlogService } from './blog.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 /**
  * Página pública /blog. Grid de cards estilo abacatepay: capa (ou placeholder
@@ -28,6 +29,7 @@ import { BlogService } from './blog.service';
 })
 export class BlogList implements OnInit {
   private readonly service = inject(BlogService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -84,15 +86,12 @@ export class BlogList implements OnInit {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(this.extractError(err, 'Não foi possível carregar os posts.'));
+        // O fallback da tela vai JUNTO de propósito: sem ele, `messageFor` cai em
+        // `fallbackMessageForStatus` e um 404 passaria a dizer "Registro não
+        // encontrado." numa página pública que nunca falou assim.
+        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar os posts.'));
         this.loading.set(false);
       },
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') return body.message;
-    return fallback;
   }
 }
