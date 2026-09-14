@@ -28,6 +28,7 @@ import {
   RovingFocusTracker,
   resolveRovingKey,
 } from '../../../components/roving-focus/roving-focus';
+import { ApiErrorService } from '../../../services/api-error.service';
 
 type TabKey = 'financeiro' | 'seguros' | 'manutencoes' | 'alugueis' | 'documentos';
 
@@ -70,6 +71,7 @@ export class VehicleGerenciaHub implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
   private readonly rentalService = inject(RentalService);
   private readonly route = inject(ActivatedRoute);
+  private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly vehicleId = signal<string>('');
   protected readonly summary = signal<GerenciaSummary | null>(null);
@@ -186,7 +188,9 @@ export class VehicleGerenciaHub implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.loading.set(false);
-        this.error.set(this.extractError(err, 'Não foi possível carregar a gerência do veículo.'));
+        this.error.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar a gerência do veículo.'),
+        );
       },
     });
   }
@@ -203,7 +207,9 @@ export class VehicleGerenciaHub implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.rentalsLoading.set(false);
-        this.rentalsError.set(this.extractError(err, 'Não foi possível carregar os aluguéis.'));
+        this.rentalsError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar os aluguéis.'),
+        );
       },
     });
   }
@@ -289,13 +295,5 @@ export class VehicleGerenciaHub implements OnInit {
     const iso = s.licensing.expiration;
     if (!iso) return null;
     return licensingBadge(iso);
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

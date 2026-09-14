@@ -1,13 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { of, throwError } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VehicleGerenciaHub } from './vehicle-gerencia-hub';
 import { VehiclesService } from '../../../services/vehicles.service';
 import { RentalService } from '../../rentals/rental.service';
+import { ApiErrorService } from '../../../services/api-error.service';
+import { NotificationService } from '../../../services/notification.service';
 import type {
   GerenciaFinanceChunk,
   GerenciaSummary,
@@ -182,5 +185,158 @@ describe('VehicleGerenciaHub — venda do veículo (FEAT-0074)', () => {
 
     expect(host().querySelector('[data-sale-kpi]')).not.toBeNull();
     expect(text()).toContain('Receita + venda, menos investimento');
+  });
+});
+
+/**
+ * FIX-0087 — o hub era um dos tres retardatarios do caminho de erro compartilhado.
+ *
+ * Tinha um `extractError` proprio que aceitava QUALQUER objeto com `message`: numa
+ * falha de rede ele lia o `TypeError` do navegador e escrevia "Failed to fetch" na
+ * tela. Tambem ignorava `fieldErrors` e nao reivindicava o erro, entao um 4xx
+ * ganhava a mensagem na tela E o toast da rede de seguranca por cima.
+ */
+describe('VehicleGerenciaHub — caminho de erro compartilhado (FIX-0087)', () => {
+  const VEHICLE_ID = 'veh-1';
+
+  let fixture: ComponentFixture<VehicleGerenciaHub>;
+  let notifyError: ReturnType<typeof vi.fn>;
+
+  /**
+   * Mesma ideia do stub do bloco acima — as listas filhas do hub chamam metodos
+   * proprios do `VehiclesService` ao inicializar, e enumera-los um a um so faria
+   * um teste que quebra quando uma lista filha muda. Aqui e uma copia local
+   * porque este bloco monta o TestBed com o resumo FALHANDO.
+   */
+  function vehiclesStub(overrides: Record<string, unknown>): unknown {
+    const emptyPage = { content: [], page: 0, size: 20, total: 0 };
+    const cache = new Map<string, unknown>();
+    return new Proxy(overrides, {
+      get(target, prop: string) {
+        if (prop in target) return target[prop];
+        if (!cache.has(prop)) {
+          const isMethod =
+            /^(list|get|load|create|update|delete|remove|sell|undo|upload|fetch|search)/.test(prop);
+          cache.set(
+            prop,
+            isMethod
+              ? vi.fn().mockReturnValue(of(emptyPage))
+              : /loading/i.test(prop)
+                ? signal(false)
+                : /error/i.test(prop)
+                  ? signal(null)
+                  : /page|size|total|count/i.test(prop)
+                    ? signal(0)
+                    : signal([]),
+          );
+        }
+        return cache.get(prop);
+      },
+    });
+  }
+
+  function host(): HTMLElement {
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function text(): string {
+    return (host().textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  /** Monta o hub com o resumo e a lista de alugueis falhando como mandado. */
+  function renderFailing(summaryError: unknown, rentalsError: unknown = summaryError): void {
+    notifyError = vi.fn();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        ApiErrorService,
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } },
+        },
+        {
+          provide: VehiclesService,
+          useValue: vehiclesStub({
+            getGerenciaSummary: vi.fn().mockReturnValue(throwError(() => summaryError)),
+          }),
+        },
+        {
+          provide: RentalService,
+          useValue: { list: vi.fn().mockReturnValue(throwError(() => rentalsError)) },
+        },
+        {
+          provide: NotificationService,
+          useValue: {
+            error: notifyError,
+            warning: vi.fn(),
+            info: vi.fn(),
+            success: vi.fn(),
+            push: vi.fn(),
+          },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(VehicleGerenciaHub);
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('falha de rede mostra o fallback em portugues, nao "Failed to fetch"', () => {
+    renderFailing(new HttpErrorResponse({ status: 0, error: new TypeError('Failed to fetch') }));
+
+    expect(text()).toContain('Não foi possível carregar a gerência do veículo.');
+    expect(text()).not.toContain('Failed to fetch');
+  });
+
+  it('o mesmo vale para a lista de alugueis', () => {
+    renderFailing(
+      new HttpErrorResponse({ status: 500, error: { message: 'Erro no servidor.' } }),
+      new HttpErrorResponse({ status: 0, error: new TypeError('Failed to fetch') }),
+    );
+
+    expect(text()).not.toContain('Failed to fetch');
+  });
+
+  it('mostra fieldErrors, que o extrator local ignorava', () => {
+    renderFailing(
+      new HttpErrorResponse({
+        status: 400,
+        error: { fieldErrors: { vehicleId: 'Veículo não pertence a esta empresa.' } },
+      }),
+    );
+
+    expect(text()).toContain('Veículo não pertence a esta empresa.');
+  });
+
+  it('reivindica o erro — a mensagem na tela nao ganha um toast por cima', () => {
+    vi.useFakeTimers();
+    const failure = new HttpErrorResponse({
+      status: 400,
+      error: { message: 'Veículo inválido.' },
+    });
+    renderFailing(failure);
+
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(failure);
+    vi.runAllTimers();
+
+    expect(text()).toContain('Veículo inválido.');
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  /** Controle: um erro que NINGUEM reivindicou continua toastando. */
+  it('controle: erro nao reivindicado ainda dispara a rede de seguranca', () => {
+    vi.useFakeTimers();
+    renderFailing(new HttpErrorResponse({ status: 500, error: { message: 'Erro.' } }));
+    const orphan = new HttpErrorResponse({ status: 400, error: { message: 'Sem dono.' } });
+
+    TestBed.inject(ApiErrorService).scheduleSafetyNet(orphan);
+    vi.runAllTimers();
+
+    expect(notifyError).toHaveBeenCalledWith('Sem dono.');
   });
 });
