@@ -17,6 +17,7 @@ import { SeoService } from '../../services/seo.service';
 import { BREADCRUMB_JSONLD_ID, breadcrumbListJsonLd } from '../../services/structured-data';
 import { blogPostingJsonLd } from './blog-structured-data';
 import { BlogService } from './blog.service';
+import { ApiErrorService } from '../../services/api-error.service';
 
 /** Id of the `BlogPosting` block, so a slug-to-slug navigation replaces it, never stacks. */
 const POST_JSONLD_ID = 'blog-posting';
@@ -45,6 +46,7 @@ function isMissing(status: number): boolean {
 })
 export class BlogDetail implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly apiErrors = inject(ApiErrorService);
   private readonly service = inject(BlogService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly seo = inject(SeoService);
@@ -112,11 +114,18 @@ export class BlogDetail implements OnInit, OnDestroy {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error.set(
-          err.status === 404
-            ? 'Post não encontrado.'
-            : this.extractError(err, 'Não foi possível carregar o post.'),
-        );
+        if (err.status === 404) {
+          // A frase do 404 é desta tela e não passa pelo extrator. Mas o erro
+          // PRECISA ser reivindicado do mesmo jeito: `messageFor` reivindica de
+          // graça, uma string fixa não, e sem isso a rede de segurança de 4xx
+          // toastaria por cima da página — no erro mais provável de um blog.
+          this.apiErrors.claim(err);
+          this.error.set('Post não encontrado.');
+        } else {
+          // O fallback da tela vai JUNTO: sem ele, `messageFor` cai em
+          // `fallbackMessageForStatus` e trocaria a cópia desta página pública.
+          this.error.set(this.apiErrors.messageFor(err, 'Não foi possível carregar o post.'));
+        }
         // SÓ quando o post realmente não existe. Aí sim esta página é um soft 404: HTTP
         // 200 com "Post não encontrado" no corpo, e como a rota é pública `applyRouteSeo`
         // já publicou `index, follow` mais uma canônica — ou seja, a página está PEDINDO
@@ -138,11 +147,5 @@ export class BlogDetail implements OnInit, OnDestroy {
         this.loading.set(false);
       },
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') return body.message;
-    return fallback;
   }
 }
