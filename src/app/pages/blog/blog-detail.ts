@@ -114,11 +114,17 @@ export class BlogDetail implements OnInit, OnDestroy {
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
-        if (err.status === 404) {
-          // A frase do 404 é desta tela e não passa pelo extrator. Mas o erro
-          // PRECISA ser reivindicado do mesmo jeito: `messageFor` reivindica de
-          // graça, uma string fixa não, e sem isso a rede de segurança de 4xx
-          // toastaria por cima da página — no erro mais provável de um blog.
+        // MESMO gate da desindexação, de propósito: enquanto a mensagem ramificava
+        // só no 404, um `410 Gone` mostrava a frase genérica numa página que estava
+        // sendo marcada `noindex` no mesmo instante — a página dizia uma coisa ao
+        // leitor e outra ao rastreador. `isMissing()` é a única porta para as duas
+        // decisões, então elas não têm por onde divergir de novo.
+        if (isMissing(err.status)) {
+          // A frase daqui é desta tela e não passa pelo extrator. Mas o erro PRECISA
+          // ser reivindicado do mesmo jeito: `messageFor` reivindica de graça, uma
+          // string fixa não, e sem isso a rede de segurança de 4xx toastaria por cima
+          // da página — no erro mais provável de um blog. Vale agora para o 410
+          // também, que antes era reivindicado só por cair no `else`.
           this.apiErrors.claim(err);
           this.error.set('Post não encontrado.');
         } else {
