@@ -12,6 +12,7 @@ import {
   SubscriptionResponse,
 } from '../types/billing.types';
 import { BillingAccessService } from './billing-access.service';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const API_BASE = `${environment.apiUrl}/billing`;
 
@@ -81,6 +82,24 @@ export class BillingService {
   readonly subscription = this._subscription.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
+
+  /**
+   * Zera o cache para o estado inicial. Registrado no `TenantCachesService`:
+   * o serviço é `providedIn: 'root'` e sobrevive tanto ao fim da sessão quanto
+   * à TROCA DE EMPRESA, que não passa por `SessionService.clear()`. Sem isto a
+   * empresa nova abre mostrando o plano e a assinatura da anterior (FIX-0272).
+   */
+  reset(): void {
+    this._plans.set([]);
+    this._subscription.set(null);
+    this._loading.set(false);
+    this._error.set(null);
+  }
 
   clearError(): void {
     this._error.set(null);

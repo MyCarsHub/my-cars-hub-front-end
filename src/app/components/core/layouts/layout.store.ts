@@ -1,7 +1,7 @@
 import { computed, Injectable, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SessionService } from '../../../services/session.service';
-import { NotificationFeedService } from '../../../services/notification-feed.service';
+import { TenantCachesService } from '../../../services/tenant-caches.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanySelectionService } from '../../../services/company-selection.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -20,7 +20,7 @@ const FALLBACK_TENANT: Tenant = { id: '', name: 'Sem Empresa', role: '', initial
 export class LayoutStore {
   private readonly router = inject(Router);
   private readonly sessionService = inject(SessionService);
-  private readonly notificationFeed = inject(NotificationFeedService);
+  private readonly tenantCaches = inject(TenantCachesService);
   private readonly companySelection = inject(CompanySelectionService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
@@ -149,14 +149,24 @@ export class LayoutStore {
     this.selectedTenant.set(tenant);
     this.isTenantOpen.set(false);
 
+    // A troca de tenant só navega — o AppShell (e todo serviço `providedIn:
+    // 'root'` dentro dele) NÃO é destruído, e este caminho não passa por
+    // `SessionService.clear()`, então nenhum cache de raiz era descartado: a
+    // empresa nova abria com a frota, os alertas, os relatórios e até a decisão
+    // de bloqueio da anterior. Descarta ANTES de regravar as chaves, que é o
+    // que deixa `syncTenant()` ainda enxergar a mudança de empresa e disparar um
+    // tick imediato em vez de esperar o próximo poll de 60s (FIX-0272).
+    // Só quando a empresa MUDA: reselecionar a mesma no menu não pode custar
+    // um recarregamento de tudo — `syncTenant()` abaixo já é idempotente.
+    if (this.sessionService.getItem('selectedCompanyId') !== tenant.id) {
+      this.tenantCaches.resetAll();
+    }
+
     this.sessionService.setItem('selectedCompanyId', tenant.id);
     this.sessionService.setItem('selectedCompanyName', tenant.name);
     this.sessionService.setItem('selectedRole', tenant.role);
 
-    // A troca de tenant só navega — o AppShell (e o sino dentro dele) NÃO é
-    // destruído, então o feed manteria o contador e os títulos da empresa
-    // anterior por até 60s. Zera o cache e força um tick imediato.
-    this.notificationFeed.syncTenant();
+    this.tenantCaches.syncTenant();
 
     this.router.navigate(['/dashboard']);
   }
@@ -193,4 +203,4 @@ export class LayoutStore {
       this.isMobileOpen.set(false);
     }
   }
-}
+}
