@@ -236,15 +236,22 @@ describe('LandingPricingComponent', () => {
         'PRO',
         'ENTERPRISE',
       ]);
-      expect(c.phonePlans().map((p) => p.tier)).toEqual(['ENTERPRISE', 'PRO', 'STARTER', 'TRIAL']);
+      // FIX-0290 — PRIMAZIA DE SLOT: os dois primeiros slots levam a atencao
+      // independentemente de qual plano esta neles, entao o plano que se QUER
+      // escolhido vai na frente. PRO primeiro, TRIAL logo atras.
+      expect(c.phonePlans().map((p) => p.tier)).toEqual(['PRO', 'TRIAL', 'STARTER', 'ENTERPRISE']);
     });
 
     /**
-     * A REDAÇÃO SEGUE O ARRANJO. No telefone o primeiro card é o ENTERPRISE e
-     * não existe "plano anterior" nenhum antes dele; a frase aponta para baixo,
-     * que é onde os planos menores realmente estão nesse arranjo.
+     * A REDAÇÃO SEGUE O ARRANJO, E AGORA CARD A CARD.
+     *
+     * Enquanto o telefone era a escada exatamente invertida, uma frase servia a
+     * grade inteira. Na ordem do FIX-0290 (PRO, TRIAL, STARTER, ENTERPRISE) a
+     * escada deixa de ser monotonica: o degrau anterior do PRO — o STARTER —
+     * fica ABAIXO dele, enquanto o do STARTER (TRIAL) e o do ENTERPRISE (PRO)
+     * ficam ACIMA. Uma frase so para os tres passaria a mentir sobre onde olhar.
      */
-    it('vira a frase de herança junto com a ordem', () => {
+    it('aponta a heranca para onde o degrau anterior realmente esta', () => {
       const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
         catalogPlans(): readonly { tier: string; features: readonly string[] }[];
         phonePlans(): readonly { tier: string; features: readonly string[] }[];
@@ -255,10 +262,30 @@ describe('LandingPricingComponent', () => {
         tier: string,
       ) => plans.find((p) => p.tier === tier)?.features[0];
 
+      // O catalogo sobe, e a frase aponta para cima nos tres pagos.
       for (const tier of ['STARTER', 'PRO', 'ENTERPRISE']) {
         expect(firstLine(c.catalogPlans(), tier)).toBe('Tudo o que o plano anterior tem');
-        expect(firstLine(c.phonePlans(), tier)).toBe('Tudo o que os planos abaixo têm');
       }
+
+      // No telefone, so o PRO tem o degrau anterior abaixo de si.
+      expect(firstLine(c.phonePlans(), 'PRO')).toBe('Tudo o que os planos abaixo têm');
+      expect(firstLine(c.phonePlans(), 'STARTER')).toBe('Tudo o que o plano anterior tem');
+      expect(firstLine(c.phonePlans(), 'ENTERPRISE')).toBe('Tudo o que o plano anterior tem');
+    });
+
+    /**
+     * A aposta do FIX-0290 e barata e REVERSIVEL de propósito: trocar a lista de
+     * ordem volta o arranjo anterior. Este teste existe para que a ordem seja um
+     * dado declarado num lugar so, e nao emergente de um `.reverse()`.
+     */
+    it('o TRIAL fica no segundo slot, nao no ultimo', () => {
+      const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
+        phonePlans(): readonly { tier: string }[];
+      };
+
+      const tiers = c.phonePlans().map((p) => p.tier);
+      expect(tiers.indexOf('TRIAL')).toBe(1);
+      expect(tiers.indexOf('ENTERPRISE')).toBe(tiers.length - 1);
     });
 
     /**
