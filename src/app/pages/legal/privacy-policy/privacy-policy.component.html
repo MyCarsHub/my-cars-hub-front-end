@@ -281,7 +281,9 @@
             Você pode mudar de ideia quando quiser:
             <button type="button" class="legal-inline-button" (click)="revokeAnalyticsConsent()">
               rever minha escolha de cookies
-            </button>. Isso volta o consentimento para negado e pergunta de novo.
+            </button>. Isso volta o consentimento para negado, <strong>apaga os cookies que o
+            Google Analytics já tinha gravado neste navegador para este site</strong> e
+            pergunta de novo.
           </p>
           <p>
             Além do Google Analytics, não usamos outros trackers (não temos Amplitude,
@@ -642,7 +644,9 @@
             You can change your mind at any time:
             <button type="button" class="legal-inline-button" (click)="revokeAnalyticsConsent()">
               review my cookie choice
-            </button>. This returns consent to denied and asks again.
+            </button>. This returns consent to denied, <strong>deletes the cookies Google
+            Analytics had already stored in this browser for this site</strong> and asks
+            again.
           </p>
           <p>
             Apart from Google Analytics, we use no other trackers (no Amplitude, PostHog,
