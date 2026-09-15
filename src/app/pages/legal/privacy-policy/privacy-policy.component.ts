@@ -12,6 +12,7 @@ import { LandingFooterComponent } from '../../landing/components/landing-footer/
 import { HTML_LANG, LegalLang, legalLangSync } from '../legal-lang';
 import { SeoService } from '../../../services/seo.service';
 import { BREADCRUMB_JSONLD_ID, breadcrumbListJsonLd } from '../../../services/structured-data';
+import { ConsentService } from '../../../services/consent.service';
 
 @Component({
   selector: 'app-privacy-policy',
@@ -28,6 +29,17 @@ import { BREADCRUMB_JSONLD_ID, breadcrumbListJsonLd } from '../../../services/st
   host: { ngSkipHydration: 'true' },
 })
 export class PrivacyPolicyComponent implements OnDestroy {
+  private readonly consent = inject(ConsentService);
+
+  /**
+   * Torna verdadeira a frase "voce pode mudar de ideia" que esta secao publica.
+   * Sem um caminho real de revogacao, o documento voltaria a prometer algo que o
+   * produto nao faz — que e exatamente o defeito que esta revisao veio corrigir.
+   */
+  protected revokeAnalyticsConsent(): void {
+    this.consent.revoke();
+  }
+
   private readonly renderer = inject(Renderer2);
   private readonly document = inject(DOCUMENT);
   private readonly langSync = legalLangSync();

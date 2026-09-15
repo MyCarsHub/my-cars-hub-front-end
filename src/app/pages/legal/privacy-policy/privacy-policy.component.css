@@ -1,1 +1,25 @@
 /* Page-specific styles for privacy-policy. Shared styles live in ../legal.styles.css. */
+
+/*
+ * Botão que parece link dentro do texto legal: é AÇÃO (revoga o consentimento),
+ * então tem de ser <button> para o teclado e o leitor de tela, mas lê como parte
+ * da frase. Alvo de toque mínimo garantido pelo padding vertical.
+ */
+.legal-inline-button {
+  display: inline;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--color-primary-600, #EA3E00);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.legal-inline-button:hover {
+  color: var(--color-primary-700, #C22F00);
+}
+.legal-inline-button:focus-visible {
+  outline: 2px solid var(--color-primary-600, #EA3E00);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
