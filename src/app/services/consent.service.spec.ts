@@ -21,14 +21,24 @@ describe('ConsentService', () => {
     return TestBed.inject(ConsentService);
   }
 
+  /** Remove tudo que ficou de teste anterior — cookie vazado contamina o proximo. */
+  function limparCookies(): void {
+    for (const pair of document.cookie.split(';')) {
+      const name = pair.split('=')[0].trim();
+      if (name) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    }
+  }
+
   beforeEach(() => {
     localStorage.clear();
+    limparCookies();
     gtag = vi.fn();
     (window as unknown as { gtag: unknown }).gtag = gtag;
   });
 
   afterEach(() => {
     localStorage.clear();
+    limparCookies();
     delete (window as unknown as { gtag?: unknown }).gtag;
   });
 
@@ -109,6 +119,60 @@ describe('ConsentService', () => {
     );
     expect(localStorage.getItem('analyticsConsent')).toBeNull();
     expect(consent.undecided()).toBe(true);
+  });
+
+  /**
+   * O criterio do dono: revogar APAGA o que ja foi gravado. O Consent Mode sozinho
+   * so interrompe a coleta dali para a frente — um `_ga` de um aceite anterior
+   * sobreviveria. Estes testes provam por LEITURA do `document.cookie` depois da
+   * revogacao, e nao por assertar que a funcao foi chamada: uma expiracao com o
+   * dominio errado nao apaga nada e nao lanca.
+   */
+  describe('revogar apaga os cookies do GA4', () => {
+    it('apaga o _ga e o _ga_<container>, provado relendo o cookie', () => {
+      document.cookie = '_ga=GA1.1.123456789.1700000000; path=/';
+      document.cookie = '_ga_SW8RSDYTQN=GS1.1.1700000000; path=/';
+      expect(document.cookie).toContain('_ga=');
+
+      const sobraram = make().revoke();
+
+      expect(document.cookie).not.toContain('_ga=');
+      expect(document.cookie).not.toContain('_ga_SW8RSDYTQN=');
+      expect(sobraram).toEqual([]);
+    });
+
+    /** Apagar demais seria pior que o defeito: sessao e preferencia ficam. */
+    it('nao encosta em cookie que nao e de analytics', () => {
+      document.cookie = '_ga=GA1.1.1; path=/';
+      document.cookie = 'preferencia=escuro; path=/';
+
+      make().revoke();
+
+      expect(document.cookie).toContain('preferencia=escuro');
+      expect(document.cookie).not.toContain('_ga=');
+    });
+
+    it('revogar sem nenhum cookie gravado nao quebra e nao inventa sobra', () => {
+      expect(make().revoke()).toEqual([]);
+    });
+
+    /** A revogacao continua fazendo o resto: negar no gtag e reabrir o banner. */
+    it('alem de apagar, volta o consentimento para indeciso e nega no gtag', () => {
+      document.cookie = '_ga=GA1.1.1; path=/';
+      const consent = make();
+      consent.accept();
+      gtag.mockClear();
+
+      consent.revoke();
+
+      expect(gtag).toHaveBeenCalledWith(
+        'consent',
+        'update',
+        expect.objectContaining({ analytics_storage: 'denied' }),
+      );
+      expect(localStorage.getItem('analyticsConsent')).toBeNull();
+      expect(consent.undecided()).toBe(true);
+    });
   });
 
   it('valor invalido guardado a mao e tratado como indeciso', () => {

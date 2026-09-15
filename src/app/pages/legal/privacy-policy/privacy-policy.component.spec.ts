@@ -60,6 +60,13 @@ describe('PrivacyPolicyComponent — secao de cookies (GA4)', () => {
     expect(text).toContain('rever minha escolha de cookies');
   });
 
+  /** O documento nao pode prometer menos do que o produto faz, nem mais. */
+  it('PT: diz que revogar APAGA os cookies ja gravados', async () => {
+    const text = await visit('pt');
+
+    expect(text).toContain('apaga os cookies que o Google Analytics já tinha gravado');
+  });
+
   it('EN: nao afirma mais que nao usa cookies', async () => {
     const text = await visit('en');
 
@@ -79,6 +86,12 @@ describe('PrivacyPolicyComponent — secao de cookies (GA4)', () => {
     const text = await visit('en');
 
     expect(text).toContain('review my cookie choice');
+  });
+
+  it('EN: diz que revogar APAGA os cookies ja gravados', async () => {
+    const text = await visit('en');
+
+    expect(text).toContain('deletes the cookies Google Analytics had already stored');
   });
 
   /** A revogacao tem de ACONTECER, nao so estar escrita. */
@@ -103,5 +116,29 @@ describe('PrivacyPolicyComponent — secao de cookies (GA4)', () => {
 
     expect(localStorage.getItem('analyticsConsent')).toBeNull();
     expect(TestBed.inject(ConsentService).undecided()).toBe(true);
+  });
+
+  /** Ponta a ponta pelo botao da propria politica: o cookie tem de sumir. */
+  it('o botao da politica apaga o cookie do GA, provado relendo', async () => {
+    document.cookie = '_ga=GA1.1.999; path=/';
+    localStorage.setItem('analyticsConsent', 'granted');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'politica-de-privacidade', component: PrivacyPolicyComponent }]),
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        ConsentService,
+      ],
+    });
+    const harness = await RouterTestingHarness.create('/politica-de-privacidade');
+    harness.detectChanges();
+
+    (
+      (harness.fixture.nativeElement as HTMLElement).querySelector(
+        '.legal-inline-button',
+      ) as HTMLButtonElement
+    ).click();
+
+    expect(document.cookie).not.toContain('_ga=');
   });
 });
