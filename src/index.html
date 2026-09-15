@@ -22,6 +22,31 @@
        JetBrains Mono acrescentada só pra números tabulares na landing. -->
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
+  <!-- Google Analytics 4 com Consent Mode.
+       O `consent default` NEGADO vem ANTES do `config`, de proposito: a tag carrega,
+       fica pronta, e nao grava cookie nem envia hit ate alguem aceitar no banner
+       (`components/core/consent-banner`). Esse e o unico arranjo que deixa a tag
+       existir sem contradizer a politica de privacidade.
+       `wait_for_update` da a janela em que o `consent update` do nosso banner chega
+       antes de qualquer envio.
+       Fica em `index.html` e nao num componente porque precisa estar no HTML
+       prerenderizado, antes de o Angular subir. Mora fora do `<app-root>`, entao nao
+       participa da hidratacao. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('consent', 'default', {
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+      analytics_storage: 'denied',
+      wait_for_update: 500
+    });
+    gtag('js', new Date());
+    gtag('config', 'G-SW8RSDYTQN');
+  </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SW8RSDYTQN"></script>
+
   <!-- SEO + Social Sharing -->
   <meta name="description" content="MyCarsHub — sistema para quem aluga carros para motoristas de aplicativo: contratos, cobranças, multas, manutenções e vistorias em um só lugar." />
 
