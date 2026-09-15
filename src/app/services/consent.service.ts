@@ -1,6 +1,8 @@
 import { DOCUMENT, Injectable, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 
+import { analyticsCookieNames, expiryAssignments } from './analytics-cookies';
+
 /**
  * Consentimento para o Google Analytics 4.
  *
@@ -18,8 +20,14 @@ import { isPlatformBrowser } from '@angular/common';
  *
  * <h4>Revogar faz parte do contrato</h4>
  * A politica de privacidade afirma que da para revogar. `revoke()` e o que torna
- * essa frase verdadeira: volta o `gtag` para `denied` e reabre o banner. Sem
- * isso, o documento voltaria a prometer algo que o produto nao faz.
+ * essa frase verdadeira: volta o `gtag` para `denied`, APAGA os cookies que o GA4
+ * ja gravou, e reabre o banner. Sem isso, o documento voltaria a prometer algo
+ * que o produto nao faz.
+ *
+ * O Consent Mode sozinho interrompe a coleta dali para a frente e NAO faz
+ * limpeza retroativa — um `_ga` gravado num aceite anterior sobreviveria a
+ * revogacao. Por decisao do dono, revogar limpa. Ver `analytics-cookies.ts` para
+ * por que apagar cookie de terceiro dominio falha em silencio.
  */
 export type ConsentDecision = 'granted' | 'denied';
 
@@ -46,11 +54,38 @@ export class ConsentService {
     this.apply('denied');
   }
 
-  /** Volta ao estado indeciso: `gtag` negado e banner de novo na tela. */
-  revoke(): void {
+  /**
+   * Volta ao estado indeciso: `gtag` negado, cookies do GA4 apagados, banner de
+   * novo na tela.
+   *
+   * Devolve os nomes que SOBRARAM depois da tentativa — vazio e o caso normal.
+   * Devolver em vez de engolir e o que permite ao chamador (e ao spec) provar a
+   * limpeza LENDO o cookie, em vez de confiar que a chamada aconteceu.
+   */
+  revoke(): string[] {
     this.write(null);
     this.pushConsent('denied');
+    const remaining = this.clearAnalyticsCookies();
     this._decision.set(null);
+    return remaining;
+  }
+
+  /**
+   * Expira todo cookie de analytics presente, cobrindo as variantes de dominio e
+   * o path raiz, e RELE o `document.cookie` para dizer o que sobrou.
+   *
+   * A releitura e o ponto: uma expiracao com o `domain` errado nao apaga nada e
+   * nao lanca — sem conferir depois, a limpeza seria uma suposicao.
+   */
+  private clearAnalyticsCookies(): string[] {
+    if (!this.isBrowser) return [];
+    const hostname = this.document.defaultView?.location.hostname ?? '';
+    for (const name of analyticsCookieNames(this.document.cookie)) {
+      for (const assignment of expiryAssignments(name, hostname)) {
+        this.document.cookie = assignment;
+      }
+    }
+    return analyticsCookieNames(this.document.cookie);
   }
 
   private apply(decision: ConsentDecision): void {
