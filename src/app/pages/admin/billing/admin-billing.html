@@ -10,8 +10,8 @@
         <div>
           <button
             type="button"
-            class="text-xs px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700
-                   hover:bg-gray-50 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-primary-400"
+            class="text-xs px-3 py-2 rounded-lg border border-neutral-200 bg-white text-neutral-700
+                   hover:bg-gray-50 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-400"
             (click)="reloadMrr()"
           >
             Tentar novamente
@@ -21,61 +21,61 @@
 
       @if (mrrLoading() && !mrr()) {
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-gray-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
         </div>
       }
 
       @if (mrr()) {
         <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="rounded-xl border border-gray-200 p-4 bg-white">
-            <dt class="text-xs font-medium text-gray-600">MRR total</dt>
-            <dd class="mt-1 text-xl font-semibold text-gray-900 tabular-nums break-words">
+          <div class="rounded-xl border border-neutral-200 p-4 bg-white">
+            <dt class="text-xs font-medium text-neutral-600">MRR total</dt>
+            <dd class="mt-1 text-xl font-semibold text-neutral-900 tabular-nums break-words">
               {{ formatCents(totalMrr()) }}
             </dd>
-            <p class="mt-1 text-[11px] text-gray-500">Ativas + trial</p>
+            <p class="mt-1 text-[11px] text-neutral-500">Ativas + trial</p>
           </div>
-          <div class="rounded-xl border border-gray-200 p-4 bg-white">
-            <dt class="text-xs font-medium text-gray-600">MRR só de ativas</dt>
-            <dd class="mt-1 text-xl font-semibold text-gray-900 tabular-nums break-words">
+          <div class="rounded-xl border border-neutral-200 p-4 bg-white">
+            <dt class="text-xs font-medium text-neutral-600">MRR só de ativas</dt>
+            <dd class="mt-1 text-xl font-semibold text-neutral-900 tabular-nums break-words">
               {{ formatCents(activeOnlyMrr()) }}
             </dd>
-            <p class="mt-1 text-[11px] text-gray-500">Exclui trial e canceladas</p>
+            <p class="mt-1 text-[11px] text-neutral-500">Exclui trial e canceladas</p>
           </div>
-          <div class="rounded-xl border border-gray-200 p-4 bg-white">
-            <dt class="text-xs font-medium text-gray-600">Assinaturas</dt>
-            <dd class="mt-1 text-xl font-semibold text-gray-900 tabular-nums">
+          <div class="rounded-xl border border-neutral-200 p-4 bg-white">
+            <dt class="text-xs font-medium text-neutral-600">Assinaturas</dt>
+            <dd class="mt-1 text-xl font-semibold text-neutral-900 tabular-nums">
               {{ totalSubscriptions() }}
             </dd>
-            <p class="mt-1 text-[11px] text-gray-500">Total considerado no cálculo</p>
+            <p class="mt-1 text-[11px] text-neutral-500">Total considerado no cálculo</p>
           </div>
         </dl>
 
         @if (byPlan().length === 0) {
-          <p class="text-center text-sm text-gray-500 py-8">
+          <p class="text-center text-sm text-neutral-500 py-8">
             Nenhum plano com assinatura para compor o MRR.
           </p>
         } @else {
-          <h3 class="text-sm font-semibold text-gray-900 pt-2">Composição por plano</h3>
+          <h3 class="text-sm font-semibold text-neutral-900 pt-2">Composição por plano</h3>
 
           <!-- MOBILE: CARDS -->
           <ul class="space-y-3 lg:hidden list-none">
             @for (plan of byPlan(); track plan.planId) {
-              <li class="rounded-xl border border-gray-200 p-4 space-y-2 bg-white">
+              <li class="rounded-xl border border-neutral-200 p-4 space-y-2 bg-white">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-900 break-words">{{ plan.planName }}</p>
-                    <p class="text-[11px] text-gray-500 break-words">
+                    <p class="text-sm font-medium text-neutral-900 break-words">{{ plan.planName }}</p>
+                    <p class="text-[11px] text-neutral-500 break-words">
                       {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }} ·
                       {{ gateway(plan.gateway) }}
                     </p>
                   </div>
-                  <span class="text-sm font-semibold text-gray-900 tabular-nums shrink-0">
+                  <span class="text-sm font-semibold text-neutral-900 tabular-nums shrink-0">
                     {{ formatCents(plan.mrrCents) }}
                   </span>
                 </div>
-                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-neutral-600">
                   <dt>Preço do plano</dt>
                   <dd class="text-right tabular-nums">{{ formatCents(plan.planPriceCents) }}</dd>
                   <dt>MRR só de ativas</dt>
@@ -104,7 +104,7 @@
                 Composição do MRR por plano
               </caption>
               <thead>
-                <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
                   <th scope="col" class="py-2 pr-4 font-medium">Plano</th>
                   <th scope="col" class="py-2 pr-4 font-medium">Gateway</th>
                   <th scope="col" class="py-2 pr-4 font-medium text-right">Preço</th>
@@ -121,36 +121,36 @@
                 @for (plan of byPlan(); track plan.planId) {
                   <tr class="border-b border-gray-50 align-top">
                     <td class="py-3 pr-4">
-                      <span class="block font-medium text-gray-900 break-words">
+                      <span class="block font-medium text-neutral-900 break-words">
                         {{ plan.planName }}
                       </span>
-                      <span class="block text-xs text-gray-500 break-words">
+                      <span class="block text-xs text-neutral-500 break-words">
                         {{ plan.planCode }} · {{ periodLabel(plan.planPeriod) }}
                       </span>
                     </td>
-                    <td class="py-3 pr-4 text-gray-700">{{ gateway(plan.gateway) }}</td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-neutral-700">{{ gateway(plan.gateway) }}</td>
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ formatCents(plan.planPriceCents) }}
                     </td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ plan.subscriptionsTotal }}
                     </td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ plan.activeTotal }}
                     </td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ plan.trialingTotal }}
                     </td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ plan.pastDueTotal }}
                     </td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ plan.canceledTotal }}
                     </td>
-                    <td class="py-3 pr-4 text-right font-medium text-gray-900 tabular-nums">
+                    <td class="py-3 pr-4 text-right font-medium text-neutral-900 tabular-nums">
                       {{ formatCents(plan.mrrCents) }}
                     </td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ formatCents(plan.activeOnlyMrrCents) }}
                     </td>
                   </tr>
@@ -168,7 +168,7 @@
     <app-page-card title="Problemas de cobrança">
       <div class="p-3 sm:p-4 space-y-4">
         <div class="space-y-2">
-          <span id="billing-window-label" class="block text-xs font-medium text-gray-600">
+          <span id="billing-window-label" class="block text-xs font-medium text-neutral-600">
             Janela de análise
           </span>
           <div
@@ -179,12 +179,12 @@
             @for (days of issueWindows; track days) {
               <button
                 type="button"
-                class="text-xs px-3 py-2 rounded-full border min-h-[36px] focus:outline-none
+                class="text-xs px-3 py-2 rounded-full border min-h-[44px] focus:outline-none
                        focus:ring-2 focus:ring-primary-400"
                 [class]="
                   isIssueWindow(days)
                     ? 'border-primary-500 bg-primary-50 text-primary-800 font-medium'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    : 'border-neutral-200 bg-white text-neutral-700 hover:bg-gray-50'
                 "
                 [attr.aria-pressed]="isIssueWindow(days)"
                 (click)="setIssueWindow(days)"
@@ -193,7 +193,7 @@
               </button>
             }
           </div>
-          <p class="text-[11px] text-gray-600 leading-relaxed">{{ windowNotice() }}</p>
+          <p class="text-[11px] text-neutral-600 leading-relaxed">{{ windowNotice() }}</p>
         </div>
 
         @if (issuesError(); as err) {
@@ -202,13 +202,13 @@
 
         @if (issuesLoading() && issues().length === 0) {
           <div class="space-y-2">
-            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
-            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-neutral-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-neutral-100 animate-pulse"></div>
           </div>
         }
 
         @if (!issuesLoading() && issues().length === 0 && !issuesError()) {
-          <div class="text-center text-sm text-gray-500 py-10 px-4">
+          <div class="text-center text-sm text-neutral-500 py-10 px-4">
             Nenhum problema de cobrança iniciado nos últimos {{ issueWindow() }} dias.
             @if (canWidenWindow()) {
               <span class="block mt-1">
@@ -222,7 +222,7 @@
           <!-- MOBILE: CARDS -->
           <ul class="space-y-3 lg:hidden list-none">
             @for (issue of issues(); track $index) {
-              <li class="rounded-xl border border-gray-200 p-4 space-y-2 bg-white">
+              <li class="rounded-xl border border-neutral-200 p-4 space-y-2 bg-white">
                 <div class="flex items-start justify-between gap-2">
                   <span
                     class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
@@ -232,7 +232,7 @@
                     {{ issueKind(issue.kind).label }}
                   </span>
                   <time
-                    class="text-[11px] text-gray-500 tabular-nums shrink-0"
+                    class="text-[11px] text-neutral-500 tabular-nums shrink-0"
                     [attr.datetime]="issue.occurredAt"
                   >
                     {{ formatDateTime(issue.occurredAt) }}
@@ -249,12 +249,12 @@
                     {{ issue.companyName || 'Empresa sem nome' }}
                   </a>
                 } @else {
-                  <p class="text-sm font-medium text-gray-900 break-words">
+                  <p class="text-sm font-medium text-neutral-900 break-words">
                     {{ issue.companyName || 'Empresa não identificada' }}
                   </p>
                 }
 
-                <p class="text-[11px] text-gray-500 break-words">
+                <p class="text-[11px] text-neutral-500 break-words">
                   {{ issue.planName || '—' }} · {{ gateway(issue.gateway) }}
                   @if (issue.externalIdMasked) {
                     · <span class="tabular-nums">{{ issue.externalIdMasked }}</span>
@@ -264,14 +264,14 @@
                 <p class="text-sm" [class]="issueAmountClass(issue)">{{ issueAmount(issue) }}</p>
 
                 @if (issue.reason) {
-                  <p class="text-xs text-gray-700 break-words">{{ issueReason(issue.reason) }}</p>
+                  <p class="text-xs text-neutral-700 break-words">{{ issueReason(issue.reason) }}</p>
                 }
 
-                <p class="text-[11px] text-gray-600 leading-relaxed">
+                <p class="text-[11px] text-neutral-600 leading-relaxed">
                   {{ issueKind(issue.kind).guidance }}
                 </p>
 
-                <p class="text-[11px] text-gray-400">
+                <p class="text-[11px] text-neutral-400">
                   Assinatura <span class="tabular-nums">{{ shortId(issue.subscriptionId) }}</span>
                 </p>
               </li>
@@ -285,7 +285,7 @@
                 Problemas de cobrança em aberto iniciados na janela selecionada
               </caption>
               <thead>
-                <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
                   <th scope="col" class="py-2 pr-4 font-medium">Início</th>
                   <th scope="col" class="py-2 pr-4 font-medium">Tipo</th>
                   <th scope="col" class="py-2 pr-4 font-medium">Empresa</th>
@@ -297,7 +297,7 @@
               <tbody>
                 @for (issue of issues(); track $index) {
                   <tr class="border-b border-gray-50 align-top">
-                    <td class="py-3 pr-4 text-gray-600 tabular-nums whitespace-nowrap">
+                    <td class="py-3 pr-4 text-neutral-600 tabular-nums whitespace-nowrap">
                       <time [attr.datetime]="issue.occurredAt">
                         {{ formatDateTime(issue.occurredAt) }}
                       </time>
@@ -321,17 +321,17 @@
                           {{ issue.companyName || 'Empresa sem nome' }}
                         </a>
                       } @else {
-                        <span class="font-medium text-gray-900 break-words">
+                        <span class="font-medium text-neutral-900 break-words">
                           {{ issue.companyName || 'Empresa não identificada' }}
                         </span>
                       }
-                      <span class="block text-xs text-gray-400 tabular-nums">
+                      <span class="block text-xs text-neutral-400 tabular-nums">
                         {{ shortId(issue.subscriptionId) }}
                       </span>
                     </td>
-                    <td class="py-3 pr-4 text-gray-700">
+                    <td class="py-3 pr-4 text-neutral-700">
                       {{ issue.planName || '—' }}
-                      <span class="block text-xs text-gray-500">
+                      <span class="block text-xs text-neutral-500">
                         {{ gateway(issue.gateway) }}
                         @if (issue.externalIdMasked) {
                           · {{ issue.externalIdMasked }}
@@ -341,9 +341,9 @@
                     <td class="py-3 pr-4" [class]="issueAmountClass(issue)">
                       {{ issueAmount(issue) }}
                     </td>
-                    <td class="py-3 pr-4 max-w-sm text-xs text-gray-600">
+                    <td class="py-3 pr-4 max-w-sm text-xs text-neutral-600">
                       @if (issue.reason) {
-                        <span class="block text-gray-800 mb-1">{{ issueReason(issue.reason) }}</span>
+                        <span class="block text-neutral-800 mb-1">{{ issueReason(issue.reason) }}</span>
                       }
                       {{ issueKind(issue.kind).guidance }}
                     </td>
@@ -354,13 +354,13 @@
           </div>
 
           <div class="flex items-center justify-between pt-2 gap-3">
-            <p class="text-xs text-gray-500 tabular-nums">
+            <p class="text-xs text-neutral-500 tabular-nums">
               Página {{ issuesPage() + 1 }} de {{ issuesPages() }} — {{ issuesTotal() }} problema(s)
             </p>
             <div class="flex gap-2">
               <button
                 type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                class="text-xs px-3 py-2 rounded-lg border border-neutral-200 min-h-[44px]
                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
                        disabled:opacity-40 disabled:cursor-not-allowed"
                 (click)="prevIssues()"
@@ -370,7 +370,7 @@
               </button>
               <button
                 type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                class="text-xs px-3 py-2 rounded-lg border border-neutral-200 min-h-[44px]
                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
                        disabled:opacity-40 disabled:cursor-not-allowed"
                 (click)="nextIssues()"
@@ -390,9 +390,9 @@
     <app-page-card title="Assinaturas">
       <div class="p-3 sm:p-4 space-y-4">
         <label class="block sm:max-w-xs">
-          <span class="block text-xs font-medium text-gray-600 mb-1">Status</span>
+          <span class="block text-xs font-medium text-neutral-600 mb-1">Status</span>
           <select
-            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white
+            class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 bg-white
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             [value]="statusFilter()"
             (change)="setStatusFilter($any($event.target).value)"
@@ -408,8 +408,8 @@
           <div>
             <button
               type="button"
-              class="text-xs px-3 py-2 rounded-full border border-gray-200 bg-white text-gray-700
-                     hover:bg-gray-50 min-h-[36px] focus:outline-none focus:ring-2
+              class="text-xs px-3 py-2 rounded-full border border-neutral-200 bg-white text-neutral-700
+                     hover:bg-gray-50 min-h-[44px] focus:outline-none focus:ring-2
                      focus:ring-primary-400"
               (click)="clearStatusFilter()"
             >
@@ -424,14 +424,14 @@
 
         @if (subscriptionsLoading() && subscriptions().length === 0) {
           <div class="space-y-2">
-            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
-            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
-            <div class="h-20 rounded-lg bg-gray-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-neutral-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-neutral-100 animate-pulse"></div>
+            <div class="h-20 rounded-lg bg-neutral-100 animate-pulse"></div>
           </div>
         }
 
         @if (!subscriptionsLoading() && subscriptions().length === 0 && !subscriptionsError()) {
-          <div class="text-center text-sm text-gray-500 py-10">
+          <div class="text-center text-sm text-neutral-500 py-10">
             @if (statusFilter()) {
               Nenhuma assinatura com esse status.
             } @else {
@@ -444,7 +444,7 @@
           <!-- MOBILE: CARDS -->
           <ul class="space-y-3 lg:hidden list-none">
             @for (item of subscriptions(); track item.id) {
-              <li class="rounded-xl border border-gray-200 p-4 space-y-2 bg-white">
+              <li class="rounded-xl border border-neutral-200 p-4 space-y-2 bg-white">
                 <div class="flex items-start justify-between gap-2">
                   <a
                     [routerLink]="['/admin/companies', item.companyId]"
@@ -463,18 +463,18 @@
                   </span>
                 </div>
 
-                <p class="text-[11px] text-gray-500 break-words">
+                <p class="text-[11px] text-neutral-500 break-words">
                   Empresa {{ companyStatusLabel(item.companyStatus) }}
                 </p>
 
-                <p class="text-sm text-gray-900 break-words">
+                <p class="text-sm text-neutral-900 break-words">
                   {{ item.planName }}
-                  <span class="text-[11px] text-gray-500">
+                  <span class="text-[11px] text-neutral-500">
                     ({{ periodLabel(item.planPeriod) }} · {{ gateway(item.gateway) }})
                   </span>
                 </p>
 
-                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-neutral-600">
                   <dt>Mensalidade</dt>
                   <dd class="text-right tabular-nums">{{ formatCents(item.monthlyPriceCents) }}</dd>
                   <dt>Próxima cobrança</dt>
@@ -497,14 +497,14 @@
                 @if (item.cancelAtPeriodEnd) {
                   <p
                     class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                           font-medium bg-gray-200 text-gray-700"
+                           font-medium bg-neutral-200 text-neutral-700"
                   >
                     Cancela no fim do ciclo
                   </p>
                 }
 
                 @if (item.externalIdMasked) {
-                  <p class="text-[11px] text-gray-400 tabular-nums break-words">
+                  <p class="text-[11px] text-neutral-400 tabular-nums break-words">
                     {{ item.externalIdMasked }}
                   </p>
                 }
@@ -519,7 +519,7 @@
                 Assinaturas da plataforma, com empresa, plano, gateway, status e próximo ciclo
               </caption>
               <thead>
-                <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+                <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
                   <th scope="col" class="py-2 pr-4 font-medium">Empresa</th>
                   <th scope="col" class="py-2 pr-4 font-medium">Plano</th>
                   <th scope="col" class="py-2 pr-4 font-medium">Gateway</th>
@@ -540,20 +540,20 @@
                       >
                         {{ item.companyName }}
                       </a>
-                      <span class="block text-xs text-gray-500">
+                      <span class="block text-xs text-neutral-500">
                         Empresa {{ companyStatusLabel(item.companyStatus) }}
                       </span>
                     </td>
-                    <td class="py-3 pr-4 text-gray-700">
+                    <td class="py-3 pr-4 text-neutral-700">
                       {{ item.planName }}
-                      <span class="block text-xs text-gray-500">
+                      <span class="block text-xs text-neutral-500">
                         {{ item.planCode }} · {{ periodLabel(item.planPeriod) }}
                       </span>
                     </td>
-                    <td class="py-3 pr-4 text-gray-700">
+                    <td class="py-3 pr-4 text-neutral-700">
                       {{ gateway(item.gateway) }}
                       @if (item.externalIdMasked) {
-                        <span class="block text-xs text-gray-400 tabular-nums break-words">
+                        <span class="block text-xs text-neutral-400 tabular-nums break-words">
                           {{ item.externalIdMasked }}
                         </span>
                       }
@@ -566,22 +566,22 @@
                         {{ statusChip(item.status).label }}
                       </span>
                       @if (item.cancelAtPeriodEnd) {
-                        <span class="block mt-1 text-[11px] text-gray-500">
+                        <span class="block mt-1 text-[11px] text-neutral-500">
                           Cancela no fim do ciclo
                         </span>
                       }
                       @if (item.pastDueSince) {
-                        <span class="block mt-1 text-[11px] text-gray-500 tabular-nums">
+                        <span class="block mt-1 text-[11px] text-neutral-500 tabular-nums">
                           Atrasada desde {{ formatDate(item.pastDueSince) }}
                         </span>
                       }
                     </td>
-                    <td class="py-3 pr-4 text-right text-gray-700 tabular-nums">
+                    <td class="py-3 pr-4 text-right text-neutral-700 tabular-nums">
                       {{ formatCents(item.monthlyPriceCents) }}
                     </td>
-                    <td class="py-3 pr-4 text-gray-700 tabular-nums whitespace-nowrap">
+                    <td class="py-3 pr-4 text-neutral-700 tabular-nums whitespace-nowrap">
                       {{ formatDate(item.nextBillingAt) }}
-                      <span class="block text-xs text-gray-500">
+                      <span class="block text-xs text-neutral-500">
                         Ciclo {{ formatDate(item.currentPeriodStart) }} –
                         {{ formatDate(item.currentPeriodEnd) }}
                       </span>
@@ -593,14 +593,14 @@
           </div>
 
           <div class="flex items-center justify-between pt-2 gap-3">
-            <p class="text-xs text-gray-500 tabular-nums">
+            <p class="text-xs text-neutral-500 tabular-nums">
               Página {{ subscriptionsPage() + 1 }} de {{ subscriptionsPages() }} —
               {{ subscriptionsTotal() }} assinatura(s)
             </p>
             <div class="flex gap-2">
               <button
                 type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                class="text-xs px-3 py-2 rounded-lg border border-neutral-200 min-h-[44px]
                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
                        disabled:opacity-40 disabled:cursor-not-allowed"
                 (click)="prevSubscriptions()"
@@ -610,7 +610,7 @@
               </button>
               <button
                 type="button"
-                class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+                class="text-xs px-3 py-2 rounded-lg border border-neutral-200 min-h-[44px]
                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
                        disabled:opacity-40 disabled:cursor-not-allowed"
                 (click)="nextSubscriptions()"
