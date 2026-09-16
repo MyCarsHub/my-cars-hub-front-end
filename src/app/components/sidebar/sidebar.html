@@ -66,7 +66,7 @@
              px-3 py-2.5 rounded-xl transition-colors"
       [class.justify-center]="layout.isCollapsed() && !layout.isMobile()" (click)="layout.toggleTenant()"
       [attr.aria-expanded]="layout.isTenantOpen()" aria-haspopup="listbox" type="button"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? layout.selectedTenant().name : ''">
+      [title]="layout.isCollapsed() && !layout.isMobile() ? tenantTitle(layout.selectedTenant()) : ''">
       <div class="w-8 h-8 bg-primary-500 text-white rounded-full shrink-0
                flex items-center justify-center font-semibold text-sm">
         {{ layout.selectedTenant().initial }}
@@ -75,7 +75,9 @@
       @if (!layout.isCollapsed() || layout.isMobile()) {
       <div class="flex-1 text-left min-w-0" @fadeLabel>
         <p class="text-sm font-semibold text-gray-900 truncate">{{ layout.selectedTenant().name }}</p>
-        <p class="text-xs text-primary-700 font-medium">{{ layout.selectedTenant().role }}</p>
+        @if (roleLabel(layout.selectedTenant().role); as role) {
+        <p class="text-xs text-primary-700 font-medium truncate">{{ role }}</p>
+        }
       </div>
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -107,7 +109,9 @@
           @if (layout.switchingTenantId() === tenant.id) {
           <p class="text-xs text-primary-700 font-medium">Trocando…</p>
           } @else {
-          <p class="text-xs text-gray-500">{{ tenant.role }}</p>
+          @if (roleLabel(tenant.role); as role) {
+          <p class="text-xs text-gray-500 truncate">{{ role }}</p>
+          }
           }
         </div>
       </button>
