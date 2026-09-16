@@ -104,7 +104,7 @@
           [class.text-gray-700]="tenant.id !== layout.selectedTenant().id">
           {{ tenant.initial }}
         </div>
-        <div class="min-w-0">
+        <div class="flex-1 min-w-0 text-left">
           <p class="text-sm font-medium text-gray-900 truncate">{{ tenant.name }}</p>
           @if (layout.switchingTenantId() === tenant.id) {
           <p class="text-xs text-primary-700 font-medium">Trocando…</p>

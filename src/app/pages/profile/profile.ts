@@ -148,7 +148,7 @@ export class Profile implements OnInit, OnDestroy {
       case 'OWNER':
         return 'Proprietário';
       case 'MANAGER':
-        return 'Gerente';
+        return 'Gerenciador';
       case 'DRIVER':
         return 'Motorista';
       default:
