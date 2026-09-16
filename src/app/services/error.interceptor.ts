@@ -1,12 +1,19 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, throwError } from 'rxjs';
+import { catchError, switchMap, throwError } from 'rxjs';
 import { SessionService } from './session.service';
 import { NotificationService } from './notification.service';
 import { ApiErrorService } from './api-error.service';
 import { ParsedApiError, parseApiError } from './api-error';
 import { OWNED_HTTP_ERRORS, SILENT_HTTP_ERRORS } from './http-errors.context';
+import { apiPath } from './auth.interceptor';
+import {
+  DRIVER_IDENTITY_ERROR_CODE,
+  DRIVER_IDENTITY_REAUTH_MESSAGE,
+  DRIVER_IDENTITY_RETRIED,
+} from './driver-identity.context';
+import { DriverIdentityRecoveryService } from './driver-identity-recovery.service';
 import { ImpersonationService } from './impersonation.service';
 import {
   IMPERSONATION_ERROR_CODES,
@@ -37,12 +44,35 @@ function isReadOnlyRefusal(parsed: ParsedApiError, sessionActive: boolean): bool
 }
 
 /**
+ * A própria reemissão do token não pode entrar no caminho de recuperação: um 403
+ * vindo de `POST /auth/select-company/{id}` significa que o pedido de token novo
+ * foi recusado, e pedir de novo só repetiria a recusa.
+ */
+function isTokenReissueRequest(url: string): boolean {
+  return apiPath(url)?.startsWith('/auth/select-company') ?? false;
+}
+
+/**
+ * 403 de token de MOTORISTA incompleto — `DRIVER_IDENTITY_NOT_RESOLVED`.
+ *
+ * Não é falta de permissão: é o access token emitido antes do backend passar a
+ * carregar o claim `driverId` (PR #170). O status 403 é igual ao de "você não
+ * pode" de propósito — só o `code` distingue os dois, e é por ele que a decisão
+ * é tomada aqui.
+ */
+function isDriverIdentityRefusal(status: number, parsed: ParsedApiError): boolean {
+  return status === 403 && parsed.code === DRIVER_IDENTITY_ERROR_CODE;
+}
+
+/**
  * Global HTTP error interceptor. It owns EXACTLY ONE class of feedback: the toast for
  * problems the screen cannot meaningfully explain or recover from.
  *
  * - status 0 (network / CORS / offline) → toast, user stays put.
  * - 401 / token expired → clears session, redirects to /login (except /auth/login itself).
  * - 403 → "Acesso negado" toast.
+ * - 403 com `code` DRIVER_IDENTITY_NOT_RESOLVED → NÃO é falta de permissão: reemite o
+ *   token do motorista e reenvia a requisição; só cai no /login se a reemissão falhar.
  * - 5xx → toast with the backend message or a generic one, user stays put.
  *
  * Durante uma sessão de impersonação, 401 e 403 têm tratamento próprio e
@@ -71,6 +101,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const notifications = inject(NotificationService);
   const apiErrors = inject(ApiErrorService);
   const impersonation = inject(ImpersonationService);
+  const driverIdentity = inject(DriverIdentityRecoveryService);
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
@@ -114,6 +145,61 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           backendMessage ?? 'Rota indisponível durante uma sessão de impersonação.',
         );
         return throwError(() => error);
+      }
+
+      // --- Token de motorista incompleto: RE-AUTENTICAR, não negar -------------
+      //
+      // Precede a política genérica pelo mesmo motivo que os desvios acima: cair
+      // no "Acesso negado" deixaria a sessão do motorista travada até o token
+      // expirar, com uma mensagem que sugere falta de permissão — e o usuário não
+      // tem nada a fazer com essa informação, porque o problema é o token.
+      //
+      // Está ACIMA de `OWNED_HTTP_ERRORS` de propósito: a tela pode ser dona dos
+      // erros de negócio dela, mas credencial incompleta é assunto de sessão,
+      // como o 401.
+      if (isDriverIdentityRefusal(status, parsed)) {
+        const reauthenticate = () => {
+          session.clear();
+          notifications.warning(DRIVER_IDENTITY_REAUTH_MESSAGE);
+          router.navigate(['/login'], { replaceUrl: true });
+        };
+
+        // Segunda recusa com o MESMO código, já com token reemitido: a reemissão
+        // não resolveu (backend antigo atrás de um balanceador, vínculo de
+        // motorista removido). Sem este corte o par 403 → reemitir → 403 giraria
+        // para sempre.
+        if (req.context.get(DRIVER_IDENTITY_RETRIED)) {
+          reauthenticate();
+          return throwError(() => error);
+        }
+
+        // Durante impersonação o token é a credencial somente-leitura do admin, e
+        // `/auth/select-company` está bloqueado pelo `impersonationInterceptor`:
+        // não há reemissão possível nem faz sentido deslogar o admin.
+        const recoverable = !isTokenReissueRequest(req.url) && !impersonation.active();
+
+        if (!recoverable) {
+          return throwError(() => error);
+        }
+
+        return driverIdentity.reissueToken().pipe(
+          // `catchError` ANTES do `switchMap` de propósito: aqui só se pega o
+          // fracasso da REEMISSÃO. Depois do `switchMap` ele também pegaria um
+          // 500 da requisição reenviada e deslogaria o motorista por um erro de
+          // servidor que nada tem a ver com a credencial dele.
+          catchError(() => {
+            reauthenticate();
+            return throwError(() => error);
+          }),
+          switchMap((token) =>
+            next(
+              req.clone({
+                context: req.context.set(DRIVER_IDENTITY_RETRIED, true),
+                setHeaders: { Authorization: `Bearer ${token}` },
+              }),
+            ),
+          ),
+        );
       }
 
       if (isTokenExpired(error, backendMessage)) {

@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
@@ -28,10 +28,25 @@ export class CompanySelectionService {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
 
-  /** Emite o token já persistido; erra se o servidor recusar ou não devolver token. */
-  select(companyId: string): Observable<string> {
-    return this.http
-      .post<SelectCompanyResponse>(`${environment.apiUrl}/auth/select-company/${companyId}`, {})
+  /**
+   * Emite o token já persistido; erra se o servidor recusar ou não devolver token.
+   *
+   * `context` é opcional e existe para quem chama de DENTRO do tratamento de erro
+   * (a reemissão do token do motorista, em `DriverIdentityRecoveryService`): ali a
+   * falha já tem tratamento próprio, e deixá-la passar pelo `errorInterceptor`
+   * produziria um segundo aviso por cima do primeiro. Sem o argumento o
+   * comportamento é exatamente o de antes — é o que o switcher de empresa usa.
+   */
+  select(companyId: string, context?: HttpContext): Observable<string> {
+    const url = `${environment.apiUrl}/auth/select-company/${companyId}`;
+    // Sem `context`, a chamada sai EXATAMENTE como antes — sem terceiro
+    // argumento. Passar `{ context: undefined }` mudaria a forma da chamada para
+    // todo mundo por causa de um parametro que so a recuperacao usa.
+    const request$ = context
+      ? this.http.post<SelectCompanyResponse>(url, {}, { context })
+      : this.http.post<SelectCompanyResponse>(url, {});
+
+    return request$
       .pipe(
         map((response) => {
           const token = response?.token;
