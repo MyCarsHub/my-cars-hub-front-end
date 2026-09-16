@@ -471,6 +471,36 @@
         </app-page-card>
     </section>
 
+    <!-- FEAT-0103 — Retorno por veículo (acumulado, não é o período do filtro) -->
+    @if (showVehicleRoi()) {
+        <section class="mb-4 min-w-0">
+            <app-page-card title="Retorno por veículo">
+                <div class="p-4 min-w-0">
+                    <p class="text-xs text-neutral-500 mb-3">
+                        Acumulado desde a compra de cada carro — não muda com o período
+                        selecionado acima.
+                    </p>
+
+                    @if (vehicleRoiError(); as err) {
+                        <p
+                            class="rounded-lg bg-rose-50 text-rose-700 text-sm p-3 border border-rose-100"
+                            role="alert"
+                        >
+                            {{ err }}
+                        </p>
+                    } @else if (vehicleRoiLoading() && !vehicleRoi()) {
+                        <div class="space-y-2">
+                            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+                            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+                        </div>
+                    } @else if (vehicleRoi(); as roi) {
+                        <app-vehicle-roi-list [items]="roi.vehicles" />
+                    }
+                </div>
+            </app-page-card>
+        </section>
+    }
+
     <!-- Ações rápidas -->
     <section class="mb-4 min-w-0">
         <app-page-card title="Ações rápidas">
