@@ -12,13 +12,13 @@
             type="search"
             [formControl]="searchControl"
             placeholder="Buscar por nome ou email…"
-            class="w-full text-sm border border-gray-200 rounded-lg pl-10 pr-3 py-2.5
+            class="w-full text-sm border border-neutral-200 rounded-lg pl-10 pr-3 py-2.5
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             aria-label="Buscar usuário"
           />
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
             width="18" height="18" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             aria-hidden="true"
@@ -28,41 +28,20 @@
           </svg>
         </label>
 
-        <div class="flex flex-wrap gap-2">
-          <!-- Status filter pills -->
-          @for (opt of [
-            { value: 'ALL', label: 'Todos' },
-            { value: 'ACTIVE', label: 'Ativos' },
-            { value: 'INACTIVE', label: 'Inativos' }
-          ]; track opt.value) {
-            <button
-              type="button"
-              (click)="setStatusFilter($any(opt.value))"
-              class="text-xs px-3 py-2 rounded-full border transition-colors min-h-[36px]"
-              [class]="statusFilter() === opt.value
-                ? 'bg-primary-500 text-white border-primary-500'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'"
-            >
-              {{ opt.label }}
-            </button>
-          }
-          <span class="w-px bg-gray-200 mx-1 self-stretch" aria-hidden="true"></span>
-          @for (opt of [
-            { value: 'ALL', label: 'Todos papéis' },
-            { value: 'USER', label: 'Usuário' },
-            { value: 'PLATFORM_ADMIN', label: 'Admin' }
-          ]; track opt.value) {
-            <button
-              type="button"
-              (click)="setRoleFilter($any(opt.value))"
-              class="text-xs px-3 py-2 rounded-full border transition-colors min-h-[36px]"
-              [class]="roleFilter() === opt.value
-                ? 'bg-primary-500 text-white border-primary-500'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'"
-            >
-              {{ opt.label }}
-            </button>
-          }
+        <div class="flex flex-wrap items-center gap-2">
+          <app-filter-chip-group
+            [options]="statusOptions"
+            [value]="statusFilter()"
+            ariaLabel="Filtrar por situação"
+            (selectionChange)="setStatusFilter($event)"
+          />
+          <span class="w-px bg-neutral-200 mx-1 self-stretch" aria-hidden="true"></span>
+          <app-filter-chip-group
+            [options]="roleOptions"
+            [value]="roleFilter()"
+            ariaLabel="Filtrar por papel"
+            (selectionChange)="setRoleFilter($event)"
+          />
         </div>
       </div>
 
@@ -79,15 +58,15 @@
       <!-- Loading skeleton -->
       @if (loading() && items().length === 0) {
         <div class="space-y-2">
-          <div class="h-16 rounded-lg bg-gray-100 animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-gray-100 animate-pulse"></div>
-          <div class="h-16 rounded-lg bg-gray-100 animate-pulse"></div>
+          <div class="h-16 rounded-lg bg-neutral-100 animate-pulse"></div>
+          <div class="h-16 rounded-lg bg-neutral-100 animate-pulse"></div>
+          <div class="h-16 rounded-lg bg-neutral-100 animate-pulse"></div>
         </div>
       }
 
       <!-- Empty state -->
       @if (!loading() && items().length === 0 && !error()) {
-        <div class="text-center text-sm text-gray-500 py-10">
+        <div class="text-center text-sm text-neutral-500 py-10">
           Nenhum usuário encontrado com esses filtros.
         </div>
       }
@@ -96,39 +75,40 @@
         <!-- ================= MOBILE: CARDS ================= -->
         <div class="space-y-3 lg:hidden">
           @for (user of items(); track user.id) {
-            <div class="rounded-xl border border-gray-200 p-4 space-y-3 bg-white
-                        cursor-pointer hover:border-primary-300 hover:bg-gray-50/40 transition-colors"
-                 role="button" tabindex="0"
-                 (click)="openDetail(user)"
-                 (keydown.enter)="openDetail(user)"
-                 (keydown.space)="openDetail(user); $event.preventDefault()"
-                 [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)">
+            <div class="rounded-xl border border-neutral-200 p-4 space-y-3 bg-white
+                        hover:border-primary-300 transition-colors">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
-                  <h3 class="font-medium text-gray-900 text-sm break-words">
-                    {{ user.name ?? '(sem nome)' }}
+                  <h3 class="font-medium text-neutral-900 text-sm break-words">
+                    <a
+                      [routerLink]="['/admin/users', user.id]"
+                      class="inline-flex items-center min-h-[44px] hover:text-primary-700 hover:underline
+                             outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                      [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)"
+                    >
+                      {{ user.name ?? '(sem nome)' }}
+                    </a>
                   </h3>
-                  <p class="text-xs text-gray-500 mt-0.5 break-words">{{ user.email }}</p>
+                  <p class="text-xs text-neutral-500 mt-0.5 break-words">{{ user.email }}</p>
                   @if (user.lastCompanyName) {
-                    <p class="text-[11px] text-gray-400 mt-1">
+                    <p class="text-[11px] text-neutral-400 mt-1">
                       Última empresa: {{ user.lastCompanyName }}
                     </p>
                   }
                 </div>
                 <div class="shrink-0">
                   <app-actions-menu [label]="'Ações para ' + user.email">
-                    <button
-                      type="button"
+                    <a
                       role="menuitem"
-                      class="w-full text-left text-sm px-4 py-3 text-gray-700 hover:bg-gray-50 min-h-[44px]"
-                      (click)="openDetail(user)"
+                      [routerLink]="['/admin/users', user.id]"
+                      class="block w-full text-left text-sm px-4 py-3 text-neutral-700 hover:bg-gray-50 min-h-[44px]"
                     >
                       Ver detalhes
-                    </button>
+                    </a>
                     <button
                       type="button"
                       role="menuitem"
-                      class="w-full text-left text-sm px-4 py-3 text-gray-700 hover:bg-gray-50
+                      class="w-full text-left text-sm px-4 py-3 text-neutral-700 hover:bg-gray-50
                              min-h-[44px] disabled:opacity-50"
                       [disabled]="isPending(user.id)"
                       (click)="requestToggleRole(user)"
@@ -140,7 +120,7 @@
                         type="button"
                         role="menuitem"
                         class="w-full text-left text-sm px-4 py-3 text-rose-600 hover:bg-rose-50
-                               min-h-[44px] disabled:opacity-50 border-t border-gray-100"
+                               min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
                         [disabled]="isPending(user.id)"
                         (click)="requestToggleStatus(user)"
                       >
@@ -151,7 +131,7 @@
                         type="button"
                         role="menuitem"
                         class="w-full text-left text-sm px-4 py-3 text-emerald-700 hover:bg-emerald-50
-                               min-h-[44px] disabled:opacity-50 border-t border-gray-100"
+                               min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
                         [disabled]="isPending(user.id)"
                         (click)="requestToggleStatus(user)"
                       >
@@ -177,7 +157,7 @@
                 >
                   {{ roleLabel(user.systemRole) }}
                 </span>
-                <span class="text-[11px] text-gray-400">
+                <span class="text-[11px] text-neutral-400">
                   Desde {{ formatDate(user.createdDate) }}
                 </span>
               </div>
@@ -189,7 +169,7 @@
         <div class="hidden lg:block overflow-x-auto">
           <table class="min-w-full text-sm">
             <thead>
-              <tr class="text-left text-xs text-gray-500 uppercase border-b border-gray-100">
+              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
                 <th class="py-2 pr-4 font-medium">Nome</th>
                 <th class="py-2 pr-4 font-medium">Email</th>
                 <th class="py-2 pr-4 font-medium">Status</th>
@@ -201,13 +181,18 @@
             </thead>
             <tbody>
               @for (user of items(); track user.id) {
-                <tr class="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer"
-                    (click)="openDetail(user)"
-                    [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)">
-                  <td class="py-3 pr-4 align-top font-medium text-gray-900">
-                    {{ user.name ?? '(sem nome)' }}
+                <tr class="border-b border-gray-50 hover:bg-gray-50/60">
+                  <td class="py-3 pr-4 align-top font-medium text-neutral-900">
+                    <a
+                      [routerLink]="['/admin/users', user.id]"
+                      class="hover:text-primary-700 hover:underline outline-none
+                             focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                      [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)"
+                    >
+                      {{ user.name ?? '(sem nome)' }}
+                    </a>
                   </td>
-                  <td class="py-3 pr-4 align-top text-gray-700 break-all">{{ user.email }}</td>
+                  <td class="py-3 pr-4 align-top text-neutral-700 break-all">{{ user.email }}</td>
                   <td class="py-3 pr-4 align-top">
                     <span
                       class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
@@ -224,27 +209,26 @@
                       {{ roleLabel(user.systemRole) }}
                     </span>
                   </td>
-                  <td class="py-3 pr-4 align-top text-gray-600">
+                  <td class="py-3 pr-4 align-top text-neutral-600">
                     {{ user.lastCompanyName ?? '—' }}
                   </td>
-                  <td class="py-3 pr-4 align-top text-gray-600 tabular-nums">
+                  <td class="py-3 pr-4 align-top text-neutral-600 tabular-nums">
                     {{ formatDate(user.createdDate) }}
                   </td>
-                  <td class="py-3 pr-4 align-top" (click)="$event.stopPropagation()">
+                  <td class="py-3 pr-4 align-top">
                     <div class="flex items-center justify-end">
                       <app-actions-menu [label]="'Ações para ' + user.email">
-                        <button
-                          type="button"
+                        <a
                           role="menuitem"
-                          class="w-full text-left text-xs px-4 py-2 text-gray-700 hover:bg-gray-50 min-h-[44px]"
-                          (click)="openDetail(user)"
+                          [routerLink]="['/admin/users', user.id]"
+                          class="block w-full text-left text-xs px-4 py-2 text-neutral-700 hover:bg-gray-50 min-h-[44px]"
                         >
                           Ver detalhes
-                        </button>
+                        </a>
                         <button
                           type="button"
                           role="menuitem"
-                          class="w-full text-left text-xs px-4 py-2 text-gray-700 hover:bg-gray-50
+                          class="w-full text-left text-xs px-4 py-2 text-neutral-700 hover:bg-gray-50
                                  min-h-[44px] disabled:opacity-50"
                           [disabled]="isPending(user.id)"
                           (click)="requestToggleRole(user)"
@@ -256,7 +240,7 @@
                             type="button"
                             role="menuitem"
                             class="w-full text-left text-xs px-4 py-2 text-rose-600 hover:bg-rose-50
-                                   min-h-[44px] disabled:opacity-50 border-t border-gray-100"
+                                   min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
                             [disabled]="isPending(user.id)"
                             (click)="requestToggleStatus(user)"
                           >
@@ -267,7 +251,7 @@
                             type="button"
                             role="menuitem"
                             class="w-full text-left text-xs px-4 py-2 text-emerald-700 hover:bg-emerald-50
-                                   min-h-[44px] disabled:opacity-50 border-t border-gray-100"
+                                   min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
                             [disabled]="isPending(user.id)"
                             (click)="requestToggleStatus(user)"
                           >
@@ -285,13 +269,13 @@
 
         <!-- Pagination -->
         <div class="flex items-center justify-between pt-2 gap-3">
-          <p class="text-xs text-gray-500 tabular-nums">
+          <p class="text-xs text-neutral-500 tabular-nums">
             Página {{ currentPage() + 1 }} de {{ totalPages() }} — {{ total() }} usuário(s)
           </p>
           <div class="flex gap-2">
             <button
               type="button"
-              class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+              class="text-xs px-3 py-2 rounded-lg border border-neutral-200 min-h-[36px]
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
                      disabled:opacity-40 disabled:cursor-not-allowed"
               (click)="prevPage()"
@@ -301,7 +285,7 @@
             </button>
             <button
               type="button"
-              class="text-xs px-3 py-2 rounded-lg border border-gray-200 min-h-[36px]
+              class="text-xs px-3 py-2 rounded-lg border border-neutral-200 min-h-[36px]
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-400
                      disabled:opacity-40 disabled:cursor-not-allowed"
               (click)="nextPage()"

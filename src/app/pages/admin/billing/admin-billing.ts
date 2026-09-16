@@ -35,8 +35,8 @@ const SUB_STATUS_CHIPS: Record<string, ChipStyle> = {
   PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 text-amber-800' },
   UNPAID: { label: 'Não paga', chip: 'bg-amber-100 text-amber-800' },
   INCOMPLETE: { label: 'Incompleta', chip: 'bg-amber-100 text-amber-800' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-gray-200 text-gray-700' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-gray-200 text-gray-700' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
+  CANCELLED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
   EXPIRED: { label: 'Expirada', chip: 'bg-red-100 text-red-700' },
 };
 
@@ -107,7 +107,7 @@ const ISSUE_REASON_LABELS: Record<string, string> = {
   ZERO_AMOUNT_PAID_PLAN: 'Pagamento registrado com valor zero em um plano pago',
 };
 
-const DEFAULT_CHIP = 'bg-gray-100 text-gray-700';
+const DEFAULT_CHIP = 'bg-neutral-100 text-neutral-700';
 
 /** `PLAN_MISMATCH` → `Plan mismatch`. Só para valores sem rótulo mapeado. */
 function humanize(raw: string): string {
@@ -344,8 +344,8 @@ export class AdminBilling implements OnInit {
 
   protected issueAmountClass(issue: AdminBillingIssue): string {
     return issue.amountCents === null || issue.amountCents === undefined
-      ? 'text-gray-500 italic'
-      : 'text-gray-900 tabular-nums';
+      ? 'text-neutral-500 italic'
+      : 'text-neutral-900 tabular-nums';
   }
 
   protected formatDate(value: string | null): string {

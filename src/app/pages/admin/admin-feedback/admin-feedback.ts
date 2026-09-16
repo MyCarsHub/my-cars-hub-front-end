@@ -33,7 +33,7 @@ interface StatusOption {
 }
 
 const STATUS_OPTIONS: StatusOption[] = [
-  { value: 'BACKLOG', label: 'Backlog', chip: 'bg-gray-100 text-gray-700' },
+  { value: 'BACKLOG', label: 'Backlog', chip: 'bg-neutral-100 text-neutral-700' },
   { value: 'PLANNED', label: 'Planejado', chip: 'bg-blue-100 text-blue-700' },
   {
     value: 'IN_PROGRESS',
@@ -142,7 +142,7 @@ export class AdminFeedback implements OnInit {
   protected chipClass(status: FeedbackStatus): string {
     return (
       STATUS_OPTIONS.find((o) => o.value === status)?.chip ??
-      'bg-gray-100 text-gray-700'
+      'bg-neutral-100 text-neutral-700'
     );
   }
 
