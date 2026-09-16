@@ -110,4 +110,29 @@ describe('Sidebar', () => {
       expect(host.querySelector('[data-tour="reports"]')).not.toBeNull();
     });
   });
+
+    /**
+     * Contrato de LAYOUT do item do dropdown, nao de estilo: a coluna de texto
+     * precisa de `flex-1 min-w-0` para o nome comprido TRUNCAR em vez de
+     * espremer a linha (o avatar e `shrink-0`, entao nao ha outra coisa para
+     * ceder espaco). Sem `flex-1` a coluna dimensiona pelo conteudo, e foi esse
+     * o defeito. O nome carrega `truncate`, que so funciona dentro de uma caixa
+     * de largura limitada — as duas classes andam juntas.
+     */
+    it('a coluna de texto do item trunca em vez de espremer a linha', () => {
+      const longo = 'Transportadora Silva, Filhos e Associados do Vale do Paraiba LTDA ME';
+      layout.tenants.set([tenant('MANAGER', longo)]);
+      layout.selectedTenant.set(tenant('OWNER'));
+      layout.isTenantOpen.set(true);
+      fixture.detectChanges();
+
+      const option = (fixture.nativeElement as HTMLElement).querySelector('[role="option"]');
+      const column = option?.querySelector('div.min-w-0');
+      expect(column).not.toBeNull();
+      expect(column?.className).toContain('flex-1');
+
+      const nome = column?.querySelector('p');
+      expect(nome?.textContent).toContain(longo);
+      expect(nome?.className).toContain('truncate');
+    });
 });
