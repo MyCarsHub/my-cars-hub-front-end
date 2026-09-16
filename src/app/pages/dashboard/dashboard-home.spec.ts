@@ -10,6 +10,7 @@ import { BillingAccessService } from '../../services/billing-access.service';
 import { DashboardService } from '../../services/dashboard.service';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SessionService } from '../../services/session.service';
+import { ReportsService } from '../../services/reports.service';
 import type { AccessStatus } from '../../types/billing-access.types';
 import type { DashboardSummaryDto, FinanceDto, FleetDto } from '../../types/dashboard.types';
 import { PLAN_CAPACITY } from '../../utils/plan-limits';
@@ -486,5 +487,154 @@ describe('DashboardHome — lembrete de ativação (FEAT-0080)', () => {
     const { host, hasVehiclesSpy } = render(false, { role: 'OWNER', admin: true });
     expect(host.querySelector('[data-activation-reminder]')).toBeNull();
     expect(hasVehiclesSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * FEAT-0103 — quem ENXERGA o retorno por veiculo.
+ *
+ * O backend ja resolveu a autorizacao: `/reports/vehicle-roi` passa por
+ * `RoleGuard.assertOperatorRole` e devolve 403 para DRIVER, que esta fora da
+ * allow-list do `DriverReadScopePolicy`. O front nao reimplementa essa regra —
+ * ele so evita PEDIR o que sabe que sera recusado, reusando a MESMA leitura de
+ * papel que o lembrete de ativacao ja fazia. Sem isso, todo dashboard aberto por
+ * um motorista geraria um 403 e um toast de "Acesso negado" sobre um card que
+ * ele nem deveria ver.
+ */
+describe('DashboardHome — retorno por veiculo por papel', () => {
+  /** Envelope minimo que o template inteiro consegue renderizar. */
+  function emptySummary(): DashboardSummaryDto {
+    return {
+      period: { from: '2026-09-01', to: '2026-09-30' },
+      alerts: {
+        openFines: { count: 0, amountCents: 0 },
+        openMaintenances: { count: 0 },
+        expiringCnh30d: { count: 0 },
+        expiringLicensing30d: { count: 0 },
+        reservedRentals: { count: 0 },
+        paidFinesInPeriod: { count: 0, amountCents: 0 },
+      },
+      fleet: {
+        vehiclesTotal: 0,
+        vehicleLimit: null,
+        driversActive: 0,
+        driversTotal: 0,
+        rentedNow: 0,
+        reservedNow: 0,
+        utilizationPct: 0,
+      },
+      finance: {
+        revenueCents: 0,
+        receivedCents: 0,
+        expensesCents: 0,
+        saleRevenueCents: 0,
+        resultCents: 0,
+        maintenanceExpenseCents: 0,
+        fineExpenseCents: 0,
+        pendingChargesCents: 0,
+        overdueChargesCents: 0,
+        previousRevenueCents: 0,
+        previousReceivedCents: 0,
+        revenueDaily: [],
+        byVehicle: [],
+        byDriver: [],
+        monthlyBilling: [],
+        cashflow: [],
+      },
+      charges: {
+        byStatus: [],
+        ticketMedioCents: 0,
+        completedRentalsCount: 0,
+        ticketMedioLast6Months: [],
+      },
+      distributions: { rentalsByStatus: [], vehiclesByStatus: [] },
+      topOffenders: { vehicles: [], drivers: [] },
+    } as unknown as DashboardSummaryDto;
+  }
+
+  function render(role: string | null) {
+    const loadVehicleRoi = vi.fn().mockReturnValue(
+      of({
+        vehicles: [
+          {
+            vehicleId: 'v-1',
+            plate: 'ABC1D23',
+            brand: 'Fiat',
+            model: 'Argo',
+            returnedCents: 100_00,
+            returnBreakdown: { rentalCents: 100_00, saleCents: 0 },
+            costCents: 50_00,
+            costBreakdown: {
+              acquisitionCents: 50_00,
+              maintenanceCents: 0,
+              insuranceCents: 0,
+              fineCents: 0,
+              incidentCents: 0,
+            },
+            netCents: 50_00,
+            roiPercent: 100,
+            paybackMonth: '2026-01',
+            paybackReached: true,
+            remainingToPaybackCents: 0,
+          },
+        ],
+      }),
+    );
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [DashboardHome],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: DashboardService,
+          useValue: { loadOverview: vi.fn().mockReturnValue(of(emptySummary())) },
+        },
+        { provide: BillingAccessService, useValue: { status: signal(null) } },
+        { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: (key: string) => (key === 'selectedRole' ? role : null),
+            isPlatformAdmin: () => false,
+          },
+        },
+        {
+          provide: ReportsService,
+          useValue: {
+            loadVehicleRoi,
+            vehicleRoi: signal({ vehicles: [] }),
+            vehicleRoiLoading: signal(false),
+            vehicleRoiError: signal(null),
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(DashboardHome);
+    fixture.detectChanges();
+    return { host: fixture.nativeElement as HTMLElement, loadVehicleRoi };
+  }
+
+  for (const role of ['OWNER', 'MANAGER']) {
+    it(`${role} ve o card e o GET sai`, () => {
+      const { host, loadVehicleRoi } = render(role);
+
+      expect(host.textContent).toContain('Retorno por veículo');
+      expect(loadVehicleRoi).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it('DRIVER nao ve o card E nao dispara o GET que levaria 403', () => {
+    const { host, loadVehicleRoi } = render('DRIVER');
+
+    expect(host.textContent).not.toContain('Retorno por veículo');
+    expect(loadVehicleRoi).not.toHaveBeenCalled();
+  });
+
+  it('sem papel na sessao tambem nao pede nada', () => {
+    const { loadVehicleRoi } = render(null);
+
+    expect(loadVehicleRoi).not.toHaveBeenCalled();
   });
 });
