@@ -28,6 +28,8 @@ import { MonthlyBillingChart } from './components/monthly-billing-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
 import { CashflowDaySheet } from './components/cashflow-day-sheet';
+import { VehicleRoiList } from './components/vehicle-roi-list';
+import { ReportsService } from '../../services/reports.service';
 import { StatusBarChart, StatusBucketRow } from './components/status-bar-chart';
 import { BarChart, BarDatum } from './components/bar-chart';
 import { QuickActionCard } from './components/quick-action-card';
@@ -84,6 +86,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         QuickActionCard,
         AlertBanner,
         RouterLink,
+        VehicleRoiList,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -92,6 +95,7 @@ export class DashboardHome {
     private readonly router = inject(Router);
     private readonly access = inject(BillingAccessService);
     private readonly activation = inject(FleetActivationService);
+    private readonly reports = inject(ReportsService);
 
     private readonly session = inject(SessionService);
 
@@ -109,10 +113,33 @@ export class DashboardHome {
      */
     protected readonly showActivationReminder = signal(false);
 
+    /** Card de ROI: so OWNER/MANAGER (o backend recusa DRIVER com 403). */
+    protected readonly showVehicleRoi = signal(false);
+    protected readonly vehicleRoi = this.reports.vehicleRoi;
+    protected readonly vehicleRoiLoading = this.reports.vehicleRoiLoading;
+    protected readonly vehicleRoiError = this.reports.vehicleRoiError;
+
     constructor() {
         const role = this.session.getItem('selectedRole');
         const eligible =
             !this.session.isPlatformAdmin() && (role === 'OWNER' || role === 'MANAGER');
+
+        /**
+         * FEAT-0103 — o ROI por veiculo e OPERADOR: o backend responde 403 para
+         * DRIVER (`RoleGuard.assertOperatorRole`, rota fora da allow-list do
+         * `DriverReadScopePolicy`). Reuso a MESMA leitura de papel que o lembrete
+         * de ativacao acima ja faz, em vez de inventar checagem nova: fora do
+         * papel certo nem o GET sai, entao o motorista nao gera um 403 por
+         * dashboard aberto.
+         */
+        this.showVehicleRoi.set(role === 'OWNER' || role === 'MANAGER');
+        if (this.showVehicleRoi()) {
+            this.reports
+                .loadVehicleRoi()
+                .pipe(takeUntilDestroyed())
+                .subscribe({ error: () => undefined });
+        }
+
         if (eligible) {
             this.activation
                 .hasVehicles()

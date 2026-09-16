@@ -67,3 +67,59 @@ export interface ReportsOverviewResponse {
   driverRanking: DriverRanking;
   operations: OperationsSummary;
 }
+
+/**
+ * ROI POR VEICULO — `GET /v1/reports/vehicle-roi` (backend FEAT-0102).
+ *
+ * NAO e uma janela: diferente de `ReportsOverviewResponse`, este recorte e
+ * ACUMULADO desde a aquisicao e por isso o endpoint NAO recebe `from`/`to`.
+ * Copiar o padrao do `/reports/overview` aqui seria errado.
+ *
+ * Todos os valores em CENTAVOS (long no backend). A lista vem ordenada por
+ * placa e inclui o veiculo INACTIVE (vendido/arquivado) de proposito — e
+ * justamente sobre ele que o dono quer julgar se vender foi a decisao certa.
+ */
+export interface VehicleRoiReturnBreakdown {
+  /** Aluguel RECEBIDO (base caixa, sem caucao). */
+  rentalCents: number;
+  /** Valor da VENDA do veiculo; zero enquanto nao foi vendido. */
+  saleCents: number;
+}
+
+export interface VehicleRoiCostBreakdown {
+  acquisitionCents: number;
+  maintenanceCents: number;
+  insuranceCents: number;
+  fineCents: number;
+  incidentCents: number;
+}
+
+export interface VehicleRoiItem {
+  vehicleId: string;
+  plate: string;
+  brand: string;
+  model: string;
+  /** Retorno total = `returnBreakdown.rentalCents + saleCents`. */
+  returnedCents: number;
+  returnBreakdown: VehicleRoiReturnBreakdown;
+  costCents: number;
+  costBreakdown: VehicleRoiCostBreakdown;
+  /** `returnedCents - costCents`. Negativo = o carro ainda esta sangrando. */
+  netCents: number;
+  /**
+   * `null` quando `costCents === 0` — ROI INDETERMINADO, nao zero e nao
+   * infinito. Custo zero neste produto quase sempre significa "preco de
+   * aquisicao nao informado", e mostrar 0% faria o dono concluir que o carro
+   * nao deu retorno.
+   */
+  roiPercent: number | null;
+  /** "YYYY-MM" do mes em que o retorno alcancou o custo; `null` se nao houve. */
+  paybackMonth: string | null;
+  paybackReached: boolean;
+  /** `max(0, costCents - returnedCents)` — quanto FALTA para o carro se pagar. */
+  remainingToPaybackCents: number;
+}
+
+export interface VehicleRoiResponse {
+  vehicles: VehicleRoiItem[];
+}
