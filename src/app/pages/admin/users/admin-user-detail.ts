@@ -204,7 +204,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   protected roleChip(role: string): string {
     return role === 'PLATFORM_ADMIN'
       ? 'bg-purple-100 text-purple-700'
-      : 'bg-gray-100 text-gray-700';
+      : 'bg-neutral-100 text-neutral-700';
   }
 
   protected statusChip(active: boolean): string {
@@ -216,7 +216,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   protected linkStatusChip(status: string): string {
     if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-700';
     if (status === 'INVITED') return 'bg-blue-100 text-blue-700';
-    return 'bg-gray-100 text-gray-700';
+    return 'bg-neutral-100 text-neutral-700';
   }
 
   protected formatDate(iso: string | null): string {

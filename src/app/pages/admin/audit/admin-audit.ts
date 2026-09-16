@@ -58,13 +58,13 @@ const ACTION_CHIPS: Record<string, string> = {
   BLOG_POST_CREATED: 'bg-emerald-100 text-emerald-700',
   BLOG_POST_UPDATED: 'bg-blue-100 text-blue-700',
   BLOG_POST_PUBLISHED: 'bg-emerald-100 text-emerald-700',
-  BLOG_POST_UNPUBLISHED: 'bg-gray-200 text-gray-700',
+  BLOG_POST_UNPUBLISHED: 'bg-neutral-200 text-neutral-700',
   BLOG_POST_DELETED: 'bg-red-100 text-red-700',
   RENTAL_SCHEDULE_REGENERATED: 'bg-indigo-100 text-indigo-700',
   NOTIFICATION_TEST_DISPATCHED: 'bg-sky-100 text-sky-700',
 };
 
-const DEFAULT_CHIP = 'bg-gray-100 text-gray-700';
+const DEFAULT_CHIP = 'bg-neutral-100 text-neutral-700';
 
 /** `BLOG_POST_DELETED` → `Blog post deleted`. Só para valores sem rótulo mapeado. */
 function humanize(raw: string): string {

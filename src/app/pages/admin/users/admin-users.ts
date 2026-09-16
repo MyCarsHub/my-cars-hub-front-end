@@ -9,10 +9,14 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { BackLink } from '../../../components/core/back-link/back-link';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../../components/filter-chip-group/filter-chip-group';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -34,6 +38,23 @@ interface PendingAction {
 
 const PAGE_SIZE = 20;
 
+/**
+ * Opcoes dos dois filtros. Ficam FORA do template porque `FilterChipGroup.options`
+ * e um `input` — um literal inline no template viraria um array novo a cada
+ * deteccao de mudanca e derrubaria o `OnPush` do grupo a toa.
+ */
+const STATUS_OPTIONS: readonly FilterChipOption<AdminUserStatusFilter>[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'ACTIVE', label: 'Ativos' },
+  { value: 'INACTIVE', label: 'Inativos' },
+];
+
+const ROLE_OPTIONS: readonly FilterChipOption<AdminUserRoleFilter>[] = [
+  { value: 'ALL', label: 'Todos papeis' },
+  { value: 'USER', label: 'Usuario' },
+  { value: 'PLATFORM_ADMIN', label: 'Admin' },
+];
+
 @Component({
   selector: 'app-admin-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,6 +66,8 @@ const PAGE_SIZE = 20;
     ConfirmDialog,
     AlertBanner,
     ActionsMenu,
+    FilterChipGroup,
+    RouterLink,
   ],
   templateUrl: './admin-users.html',
 })
@@ -52,7 +75,6 @@ export class AdminUsers implements OnInit, OnDestroy {
   private readonly usersService = inject(AdminUsersService);
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
-  private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
 
   protected readonly items = this.usersService.items;
@@ -71,6 +93,9 @@ export class AdminUsers implements OnInit, OnDestroy {
 
   protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
   protected readonly search = signal<string>('');
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly roleOptions = ROLE_OPTIONS;
+
   protected readonly statusFilter = signal<AdminUserStatusFilter>('ALL');
   protected readonly roleFilter = signal<AdminUserRoleFilter>('ALL');
   protected readonly currentPage = signal(0);
@@ -187,10 +212,6 @@ export class AdminUsers implements OnInit, OnDestroy {
     if (this.canNext()) this.currentPage.update((p) => p + 1);
   }
 
-  protected openDetail(user: AdminUserListItem): void {
-    this.router.navigate(['/admin/users', user.id]);
-  }
-
   protected requestToggleStatus(user: AdminUserListItem): void {
     if (user.active) {
       // desativar → confirma
@@ -238,7 +259,7 @@ export class AdminUsers implements OnInit, OnDestroy {
   protected roleChip(role: string): string {
     return role === 'PLATFORM_ADMIN'
       ? 'bg-purple-100 text-purple-700'
-      : 'bg-gray-100 text-gray-700';
+      : 'bg-neutral-100 text-neutral-700';
   }
 
   protected statusChip(active: boolean): string {
