@@ -5,12 +5,21 @@ import {
   HttpErrorResponse,
   HttpHandlerFn,
   HttpRequest,
+  HttpResponse,
   provideHttpClient,
   withInterceptors,
 } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { of, throwError, firstValueFrom, lastValueFrom, catchError, EMPTY } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  of,
+  throwError,
+  firstValueFrom,
+  lastValueFrom,
+  catchError,
+  EMPTY,
+  type Observable,
+} from 'rxjs';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 
 import { errorInterceptor } from './error.interceptor';
 import { OWNED_HTTP_ERRORS, SILENT_HTTP_ERRORS } from './http-errors.context';
@@ -22,6 +31,12 @@ import {
   IMPERSONATION_ERROR_CODES,
   IMPERSONATION_READ_ONLY_MESSAGE,
 } from './impersonation.context';
+import {
+  DRIVER_IDENTITY_ERROR_CODE,
+  DRIVER_IDENTITY_REAUTH_MESSAGE,
+  DRIVER_IDENTITY_RETRIED,
+} from './driver-identity.context';
+import { DriverIdentityRecoveryService } from './driver-identity-recovery.service';
 
 function makeError(status: number, body?: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error: body, url: 'http://localhost/v1/x' });
@@ -35,6 +50,7 @@ describe('errorInterceptor', () => {
   let scheduleSafetyNet: ReturnType<typeof vi.fn>;
   let impersonating: boolean;
   let impersonationExpire: ReturnType<typeof vi.fn>;
+  let reissueToken: Mock<() => Observable<string>>;
 
   beforeEach(() => {
     sessionClear = vi.fn();
@@ -44,6 +60,9 @@ describe('errorInterceptor', () => {
     scheduleSafetyNet = vi.fn();
     impersonating = false;
     impersonationExpire = vi.fn();
+    // Padrao: a reemissao devolve um token novo. Cada teste que precisa de
+    // fracasso troca a implementacao.
+    reissueToken = vi.fn(() => of('token-novo'));
 
     TestBed.configureTestingModule({
       providers: [
@@ -54,6 +73,10 @@ describe('errorInterceptor', () => {
         {
           provide: ImpersonationService,
           useValue: { active: () => impersonating, expire: impersonationExpire },
+        },
+        {
+          provide: DriverIdentityRecoveryService,
+          useValue: { reissueToken: () => reissueToken() },
         },
         {
           provide: NotificationService,
@@ -239,6 +262,168 @@ describe('errorInterceptor', () => {
       await runAndCatch(403, { message: 'Apenas OWNER e MANAGER podem executar esta ação.' });
 
       expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
+    });
+  });
+
+  /**
+   * `DRIVER_IDENTITY_NOT_RESOLVED` (backend PR #170): 403 que NAO e falta de
+   * permissao. O status e o mesmo de um 403 comum de proposito - so o `code`
+   * distingue -, entao os dois comportamentos precisam ser provados lado a lado:
+   * com o codigo, re-autentica; sem o codigo, nada muda.
+   */
+  describe('403 DRIVER_IDENTITY_NOT_RESOLVED', () => {
+    const driverBody = {
+      message: 'Identidade do motorista nao resolvida.',
+      code: DRIVER_IDENTITY_ERROR_CODE,
+    };
+
+    /**
+     * Falha a primeira tentativa e deixa a segunda passar - e o formato real do
+     * caminho de recuperacao, e a unica forma de observar o reenvio.
+     */
+    async function runRecovering(
+      body: unknown,
+      options: { url?: string; context?: HttpContext } = {},
+    ) {
+      const url = options.url ?? 'http://localhost/v1/x';
+      const req = new HttpRequest('GET', url, {
+        context: options.context ?? new HttpContext(),
+      });
+
+      const sent: HttpRequest<unknown>[] = [];
+      const next: HttpHandlerFn = (r) => {
+        sent.push(r);
+        if (sent.length === 1) return throwError(() => makeError(403, body));
+        return of(new HttpResponse({ status: 200, body: { ok: true } }));
+      };
+
+      const result$ = TestBed.runInInjectionContext(() => errorInterceptor(req, next));
+      let caught: unknown;
+      const last = await lastValueFrom(
+        result$.pipe(
+          catchError((err) => {
+            caught = err;
+            return EMPTY;
+          }),
+        ),
+        { defaultValue: null },
+      );
+      return { sent, caught: caught as HttpErrorResponse | undefined, last };
+    }
+
+    it('reemite o token e REENVIA a requisicao, em vez de acusar falta de permissao', async () => {
+      const { sent, caught, last } = await runRecovering(driverBody);
+
+      expect(reissueToken).toHaveBeenCalledTimes(1);
+      expect(sent).toHaveLength(2);
+      expect(sent[1].headers.get('Authorization')).toBe('Bearer token-novo');
+      expect(last).toBeInstanceOf(HttpResponse);
+      expect(caught).toBeUndefined();
+
+      // O que o node existe para impedir: a sessao travada com "Acesso negado".
+      expect(notifyWarning).not.toHaveBeenCalled();
+      expect(sessionClear).not.toHaveBeenCalled();
+      expect(routerNavigate).not.toHaveBeenCalled();
+    });
+
+    it('marca o reenvio para que ele nao possa disparar uma segunda reemissao', async () => {
+      const { sent } = await runRecovering(driverBody);
+
+      expect(sent[1].context.get(DRIVER_IDENTITY_RETRIED)).toBe(true);
+    });
+
+    it('403 SEM o codigo continua sendo "Acesso negado" - comportamento inalterado', async () => {
+      const err = await runAndCatch(403, { message: 'Sem permissao para este recurso.' });
+
+      expect(reissueToken).not.toHaveBeenCalled();
+      expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
+      expect(sessionClear).not.toHaveBeenCalled();
+      expect(routerNavigate).not.toHaveBeenCalled();
+      expect(err?.status).toBe(403);
+    });
+
+    it('403 com OUTRO codigo tambem segue o caminho antigo', async () => {
+      const err = await runAndCatch(403, { message: 'nada a ver', code: 'OUTRA_COISA' });
+
+      expect(reissueToken).not.toHaveBeenCalled();
+      expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
+      expect(err?.status).toBe(403);
+    });
+
+    it('cai no /login quando a REEMISSAO falha', async () => {
+      reissueToken = vi.fn(() => throwError(() => new Error('sem companyId')));
+
+      const { caught, sent } = await runRecovering(driverBody);
+
+      expect(sent).toHaveLength(1);
+      expect(sessionClear).toHaveBeenCalledTimes(1);
+      expect(notifyWarning).toHaveBeenCalledWith(DRIVER_IDENTITY_REAUTH_MESSAGE);
+      expect(routerNavigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+      expect(caught?.status).toBe(403);
+    });
+
+    it('nao gira em circulo: requisicao JA reenviada vai direto para o /login', async () => {
+      const context = new HttpContext().set(DRIVER_IDENTITY_RETRIED, true);
+      const { caught, sent } = await runRecovering(driverBody, { context });
+
+      expect(reissueToken).not.toHaveBeenCalled();
+      expect(sent).toHaveLength(1);
+      expect(sessionClear).toHaveBeenCalledTimes(1);
+      expect(notifyWarning).toHaveBeenCalledWith(DRIVER_IDENTITY_REAUTH_MESSAGE);
+      expect(caught?.status).toBe(403);
+    });
+
+    it('nao tenta reemitir quando quem falhou foi o PROPRIO select-company', async () => {
+      const { caught, sent } = await runRecovering(driverBody, {
+        url: 'http://localhost:8085/v1/auth/select-company/c-1',
+      });
+
+      expect(reissueToken).not.toHaveBeenCalled();
+      expect(sent).toHaveLength(1);
+      expect(sessionClear).not.toHaveBeenCalled();
+      expect(caught?.status).toBe(403);
+    });
+
+    it('durante impersonacao nao reemite nem derruba a sessao do admin', async () => {
+      impersonating = true;
+
+      const { caught, sent } = await runRecovering(driverBody);
+
+      expect(reissueToken).not.toHaveBeenCalled();
+      expect(sent).toHaveLength(1);
+      expect(sessionClear).not.toHaveBeenCalled();
+      expect(routerNavigate).not.toHaveBeenCalled();
+      expect(caught?.status).toBe(403);
+    });
+
+    /**
+     * Regressao do desenho: `catchError` vem ANTES do `switchMap` justamente
+     * para que um erro do REENVIO nao seja confundido com falha de credencial.
+     */
+    it('erro do reenvio NAO desloga o motorista', async () => {
+      const req = new HttpRequest('GET', 'http://localhost/v1/x');
+      let attempt = 0;
+      const next: HttpHandlerFn = () => {
+        attempt += 1;
+        const isFirst = attempt === 1;
+        return throwError(() => makeError(isFirst ? 403 : 500, isFirst ? driverBody : { message: 'boom' }));
+      };
+
+      const result$ = TestBed.runInInjectionContext(() => errorInterceptor(req, next));
+      let caught: HttpErrorResponse | undefined;
+      await lastValueFrom(
+        result$.pipe(
+          catchError((err: HttpErrorResponse) => {
+            caught = err;
+            return EMPTY;
+          }),
+        ),
+        { defaultValue: null },
+      );
+
+      expect(caught?.status).toBe(500);
+      expect(sessionClear).not.toHaveBeenCalled();
+      expect(routerNavigate).not.toHaveBeenCalled();
     });
   });
 });
