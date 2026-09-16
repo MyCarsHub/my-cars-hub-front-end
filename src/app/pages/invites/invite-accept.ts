@@ -14,7 +14,7 @@ import { PENDING_INVITE_TOKEN_KEY } from './invite-session';
 type AcceptStep = 'validating' | 'ready' | 'accepting' | 'mismatch' | 'error';
 
 const ROLE_LABELS: Readonly<Record<string, string>> = {
-  MANAGER: 'Gerente',
+  MANAGER: 'Gerenciador',
   DRIVER: 'Motorista',
   OWNER: 'Proprietário',
 };

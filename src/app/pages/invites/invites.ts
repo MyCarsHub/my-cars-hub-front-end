@@ -37,7 +37,7 @@ const STATUS_CLASSES: Readonly<Record<string, string>> = {
 };
 
 const ROLE_LABELS: Readonly<Record<string, string>> = {
-  MANAGER: 'Gerente',
+  MANAGER: 'Gerenciador',
   DRIVER: 'Motorista',
   OWNER: 'Proprietário',
 };
@@ -103,7 +103,7 @@ export class Invites implements OnInit {
   protected readonly pendingCancel = signal<InviteRow | null>(null);
 
   protected readonly roles: ReadonlyArray<{ value: InviteRole; label: string }> = [
-    { value: 'MANAGER', label: 'Gerente' },
+    { value: 'MANAGER', label: 'Gerenciador' },
     { value: 'DRIVER', label: 'Motorista' },
   ];
 
