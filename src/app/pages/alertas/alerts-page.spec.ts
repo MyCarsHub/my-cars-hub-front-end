@@ -57,6 +57,8 @@ describe('AlertsPage', () => {
   let listSpy: ReturnType<typeof vi.fn>;
   /** Janelas da empresa; `null` simula a leitura que falhou. */
   let companySettings: AlertSettings | null;
+  /** Status da leitura que falhou — 403 é o MANAGER (FIX-0374); 500, uma falha real. */
+  let settingsErrorStatus: number;
   let settingsSignal: ReturnType<typeof signal<AlertSettings | null>>;
 
   interface PageInternals {
@@ -110,7 +112,7 @@ describe('AlertsPage', () => {
             settings: settingsSignal,
             load: vi.fn(() => {
               if (!companySettings) {
-                return throwError(() => new HttpErrorResponse({ status: 500 }));
+                return throwError(() => new HttpErrorResponse({ status: settingsErrorStatus }));
               }
               settingsSignal.set(companySettings);
               return of(companySettings);
@@ -124,6 +126,7 @@ describe('AlertsPage', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
     companySettings = DEFAULT_SETTINGS;
+    settingsErrorStatus = 500;
     configure();
   });
 
@@ -286,8 +289,9 @@ describe('AlertsPage', () => {
   }
 
   /** Troca a configuração da empresa ANTES de criar o componente. */
-  function withCompanySettings(settings: AlertSettings | null): void {
+  function withCompanySettings(settings: AlertSettings | null, errorStatus = 500): void {
     companySettings = settings;
+    settingsErrorStatus = errorStatus;
     TestBed.resetTestingModule();
     configure();
   }
@@ -481,5 +485,91 @@ describe('AlertsPage', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Nenhum documento vencendo neste período.',
     );
+  });
+
+  /**
+   * FIX-0374 — a leitura de `/companies/current/alert-settings` virou OWNER-only
+   * no backend (PR #170), então o MANAGER recebe 403 ali. O que ele perdeu foi a
+   * POLÍTICA de aviso, não os alertas: `/v1/alerts` continua aberto ao membro.
+   * A tela tem que continuar inteira, só sem a régua de atalhos.
+   */
+  describe('MANAGER — 403 na leitura da política de alertas (FIX-0374)', () => {
+    it('mantém a lista de vencimentos e só some com a régua de janelas', () => {
+      withCompanySettings(null, 403);
+      documentAlerts.set([
+        alert({ entityId: 'a', daysRemaining: 3 }),
+        alert({ entityId: 'b', daysRemaining: -2 }),
+      ]);
+
+      const fixture = TestBed.createComponent(AlertsPage);
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(windowChips(host)).toHaveLength(0);
+      expect(host.textContent).toContain('Alerta a');
+      expect(host.textContent).toContain('Alerta b');
+      expect(host.textContent).toContain('Vencidos');
+    });
+
+    /** Sem janela conhecida, quem escolhe o recorte é o backend. */
+    it('busca sem withinDays e deixa o recorte com o backend', () => {
+      withCompanySettings(null, 403);
+
+      const fixture = TestBed.createComponent(AlertsPage);
+      fixture.detectChanges();
+
+      expect(listSpy).toHaveBeenLastCalledWith(null, 0, 20);
+    });
+
+    /** O 403 não é falha de carregamento: nada de banner de erro na tela. */
+    it('não mostra banner de erro nem texto de política', () => {
+      withCompanySettings(null, 403);
+      documentAlerts.set([alert({ entityId: 'a', daysRemaining: 3 })]);
+
+      const fixture = TestBed.createComponent(AlertsPage);
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('app-alert-banner')).toBeNull();
+      expect(host.textContent).not.toContain('Avisos da empresa');
+      expect(host.textContent).not.toContain('Não foi possível carregar');
+    });
+
+    /** O filtro por tipo é local e não depende da política — segue funcionando. */
+    it('mantém o filtro por tipo utilizável', () => {
+      withCompanySettings(null, 403);
+      documentAlerts.set([
+        alert({ entityId: 'a', daysRemaining: 3, type: 'CNH_DUE_SOON' }),
+        alert({ entityId: 'b', daysRemaining: 4, type: 'IPVA_DUE_SOON', typeLabel: 'IPVA' }),
+      ]);
+
+      const fixture = TestBed.createComponent(AlertsPage);
+      fixture.detectChanges();
+      (fixture.componentInstance as unknown as PageInternals).onTypeChange('IPVA_DUE_SOON');
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.textContent).toContain('Alerta b');
+      expect(host.textContent).not.toContain('Alerta a');
+      expect(listSpy).toHaveBeenCalledTimes(1);
+    });
+
+    /** O OWNER não muda de comportamento: a régua continua inteira. */
+    it('não altera o OWNER, que continua com a régua e o resumo da política', () => {
+      const fixture = TestBed.createComponent(AlertsPage);
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(windowChips(host).map((b) => b.textContent?.trim())).toEqual([
+        '1 dia',
+        '7 dias',
+        '15 dias',
+        '30 dias',
+      ]);
+      expect(host.textContent).toContain('Avisos da empresa');
+      // A busca sai uma vez só, sem `withinDays`: a política chega depois e
+      // apenas MARCA o chip, sem refazer o mesmo recorte (alerts-page.ts:240).
+      expect(windowChips(host)[3].getAttribute('aria-checked')).toBe('true');
+    });
   });
 });
