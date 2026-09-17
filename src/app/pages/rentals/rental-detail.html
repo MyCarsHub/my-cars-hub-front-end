@@ -914,11 +914,15 @@
 <app-confirm-dialog
   [open]="deleteOpen()"
   title="Excluir aluguel"
-  message="Tem certeza que deseja excluir este aluguel? As cobranças em aberto que ainda não venceram serão apagadas no Asaas; as vencidas e não pagas permanecem cobráveis; as já pagas permanecem e não são estornadas. Esta ação não pode ser desfeita."
+  [message]="deleteMessage()"
   confirmLabel="Excluir"
   variant="danger"
-  optionLabel="Apagar também as cobranças vencidas e não pagas"
-  optionHint="Elas somem do Asaas e deixam de ser cobráveis por lá."
+  [optionLabel]="
+    hasOverdueUnpaidCharges() ? 'Apagar também as cobranças vencidas e não pagas' : ''
+  "
+  [optionHint]="
+    hasOverdueUnpaidCharges() ? 'Elas somem do Asaas e deixam de ser cobráveis por lá.' : ''
+  "
   [optionChecked]="deleteRemoveOverdue()"
   (optionCheckedChange)="onDeleteRemoveOverdueChange($event)"
   (confirmed)="confirmDelete()"
