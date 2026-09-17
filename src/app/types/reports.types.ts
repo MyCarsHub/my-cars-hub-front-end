@@ -123,3 +123,56 @@ export interface VehicleRoiItem {
 export interface VehicleRoiResponse {
   vehicles: VehicleRoiItem[];
 }
+
+/**
+ * ROI AGREGADO DA FROTA — o que o card KPI do dashboard mostra (FIX-0420).
+ *
+ * `known` e `total` existem para a tela poder DIZER sobre quantos carros o
+ * numero fala. Sao a diferenca entre um KPI honesto e um que mente calado.
+ */
+export interface FleetRoiSummary {
+  /** Veiculos com custo conhecido — a base real do percentual. */
+  known: number;
+  /** Veiculos na resposta, incluindo os sem preco de compra. */
+  total: number;
+  /** `null` quando NENHUM veiculo tem custo conhecido: indeterminado, nao zero. */
+  roiPercent: number | null;
+  /** Liquido dos veiculos da BASE, nunca da frota toda — ver abaixo. */
+  netCents: number;
+}
+
+/**
+ * Agrega o ROI da frota IGNORANDO o veiculo sem preco de compra
+ * (`costCents === 0`, que o backend acompanha de `roiPercent: null`).
+ *
+ * POR QUE NAO SOMAR TUDO: o carro sem preco entra com custo ZERO e retorno
+ * CHEIO. Somando cegamente, o custo total sai subestimado e o percentual da
+ * frota sai INFLADO — um unico carro sem preco contamina o numero da frota
+ * inteira, e para o lado otimista, que e o pior lado num produto de dinheiro.
+ * E o mesmo defeito que a review pegou no cartao por veiculo, agora em escala:
+ * la o dono via um carro errado, aqui veria a empresa errada.
+ *
+ * POR QUE O `netCents` TAMBEM E SO DA BASE: se o percentual fala de 12 carros e
+ * o dinheiro fala de 17, as duas linhas do mesmo card descrevem populacoes
+ * diferentes e a legenda passa a contradizer o numero grande. Uma base so.
+ *
+ * Quem chama TEM de mostrar `known`/`total` quando eles diferem: excluir em
+ * silencio seria trocar um numero inflado por um numero mudo.
+ */
+export function aggregateFleetRoi(
+  vehicles: readonly VehicleRoiItem[],
+): FleetRoiSummary {
+  const base = vehicles.filter((v) => v.costCents > 0);
+
+  const costCents = base.reduce((sum, v) => sum + v.costCents, 0);
+  const returnedCents = base.reduce((sum, v) => sum + v.returnedCents, 0);
+
+  return {
+    known: base.length,
+    total: vehicles.length,
+    // Sem base nao ha razao a calcular — `null` e indeterminado, nao zero.
+    roiPercent: costCents > 0 ? ((returnedCents - costCents) / costCents) * 100 : null,
+    netCents: costCents > 0 ? returnedCents - costCents : 0,
+  };
+}
+
