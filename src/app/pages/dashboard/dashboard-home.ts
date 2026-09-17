@@ -185,7 +185,26 @@ export class DashboardHome {
         };
     });
 
-    /** Frota inteira sem preco de compra: indeterminado, com saida acionavel. */
+    /** Valor exibido quando nao ha base para calcular — ver o template. */
+    protected readonly zeroMoney = formatBRL(0);
+
+    /**
+     * Cor do numero grande. Zero NAO e lucro nem prejuizo: cai no neutro, como a
+     * Utilizacao faz com 0%. Decidir por `net >= 0` pintaria o zero de verde,
+     * afirmando lucro onde nao ha nenhum.
+     */
+    protected readonly fleetRoiTone = computed<'positive' | 'negative' | 'neutral'>(() => {
+        const net = this.fleetRoi()?.netCents ?? 0;
+        if (net > 0) return 'positive';
+        if (net < 0) return 'negative';
+        return 'neutral';
+    });
+
+    /**
+     * Sem base para calcular o ROI. Hoje isso cobre DOIS casos: frota vazia
+     * (nenhum veiculo) e frota com carros mas nenhum deles com preco de compra.
+     * Os dois caem em `roiPercent === null` e recebem o mesmo R$ 0,00.
+     */
     protected readonly fleetRoiIndeterminate = computed(() => {
         const summary = this.fleetRoi();
         return !!summary && summary.roiPercent === null;

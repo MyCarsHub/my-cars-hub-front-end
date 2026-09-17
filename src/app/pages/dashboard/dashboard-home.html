@@ -176,23 +176,28 @@
                     </p>
                 } @else if (fleetRoiIndeterminate()) {
                     <!--
-                        Nenhum veiculo com preco de compra: indeterminado, nao
-                        zero. O caminho para resolver fica na legenda.
+                        Sem base para calcular: o card fica IGUAL aos vizinhos —
+                        0% no numero grande e o valor embaixo, sem link e sem
+                        pedido de acao (decisao do dono, 2026-09-17).
+                        POR QUE NAO O TRAVESSAO COM "informe o preco de compra":
+                        numa empresa de frota VAZIA o card pedia o preco de um
+                        carro que nao existe — tarefa impossivel na primeira tela
+                        que um usuario novo ve. Sem carro nao ha retorno e nao ha
+                        custo, entao zero e FATO.
+                        Tom NEUTRO: zero nao e lucro nem prejuizo.
                     -->
-                    <p class="text-xl sm:text-2xl font-semibold text-neutral-400 mt-1 truncate">—</p>
-                    <a
-                        routerLink="/veiculos"
-                        class="inline-flex items-center min-h-[44px] text-[11px] sm:text-xs
-                               font-medium text-primary-700 underline hover:no-underline
-                               outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
-                    >
-                        informe o preço de compra
-                    </a>
+                    <p class="text-xl sm:text-2xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
+                        0%
+                    </p>
+                    <p class="text-[11px] sm:text-xs text-neutral-500 mt-1 truncate">
+                        {{ zeroMoney }}
+                    </p>
                 } @else if (fleetRoiPercentLabel(); as roiLabel) {
                     <p
                         class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-                        [class.text-emerald-700]="(fleetRoi()?.netCents ?? 0) >= 0"
-                        [class.text-rose-700]="(fleetRoi()?.netCents ?? 0) < 0"
+                        [class.text-emerald-700]="fleetRoiTone() === 'positive'"
+                        [class.text-rose-700]="fleetRoiTone() === 'negative'"
+                        [class.text-neutral-900]="fleetRoiTone() === 'neutral'"
                     >
                         {{ roiLabel }}
                     </p>
