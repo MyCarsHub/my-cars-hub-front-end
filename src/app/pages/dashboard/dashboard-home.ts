@@ -28,6 +28,8 @@ import { MonthlyBillingChart } from './components/monthly-billing-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
 import { CashflowDaySheet } from './components/cashflow-day-sheet';
+import { CashAccumulationCard } from './components/cash-accumulation-card';
+import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
 import { ReportsService } from '../../services/reports.service';
 import { aggregateFleetRoi } from '../../types/reports.types';
 import { StatusBarChart, StatusBucketRow } from './components/status-bar-chart';
@@ -67,7 +69,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
  * Alerts, Fleet KPIs, Filtro/DateRange, Faturamento (4 cards + gráfico 6 meses),
  * Calendário Financeiro, Distribuições (aluguéis/veículos por status),
  * Top 5 por receita (veículos/motoristas), Top ofensores,
- * Evolução do Ticket Médio (linha, 6m), Ações rápidas.
+ * "Quanto já entrou no mês" (curva acumulada de caixa), Ações rápidas.
  */
 @Component({
     selector: 'app-dashboard-home',
@@ -86,6 +88,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         QuickActionCard,
         AlertBanner,
         RouterLink,
+        CashAccumulationCard,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -113,6 +116,16 @@ export class DashboardHome {
     protected readonly showActivationReminder = signal(false);
 
     /** Card de ROI: so OWNER/MANAGER (o backend recusa DRIVER com 403). */
+    /**
+     * FEAT-0123 — curva acumulada do dinheiro RECEBIDO no mês.
+     *
+     * Carregada em paralelo com o resumo: é outro endpoint e outra pergunta
+     * ("já se paga?" é do ROI; esta é "estou na frente do mês passado?").
+     * Falha aqui não derruba o dashboard — o cartão simplesmente não aparece,
+     * porque um cartão de dinheiro sem dado não tem o que dizer.
+     */
+    protected readonly cashAccumulation = signal<CashAccumulationResponse | null>(null);
+
     protected readonly showVehicleRoi = signal(false);
     protected readonly vehicleRoi = this.reports.vehicleRoi;
 
@@ -225,6 +238,14 @@ export class DashboardHome {
          * papel certo nem o GET sai, entao o motorista nao gera um 403 por
          * dashboard aberto.
          */
+        this.service
+            .loadCashAccumulation()
+            .pipe(takeUntilDestroyed())
+            .subscribe({
+                next: (res) => this.cashAccumulation.set(res),
+                error: () => this.cashAccumulation.set(null),
+            });
+
         this.showVehicleRoi.set(role === 'OWNER' || role === 'MANAGER');
         if (this.showVehicleRoi()) {
             this.reports
@@ -401,11 +422,6 @@ export class DashboardHome {
         this.hasSaleRevenue()
             ? `Só aluguel (recorrente). A venda de veículos do período (${this.saleRevenueLabel()}) não entra nesta série.`
             : null,
-    );
-
-    /** Line-chart series (ticket médio mensal últimos 6 meses). */
-    protected readonly ticketMedioSeries = computed<MonthlyPointDto[]>(
-        () => this.summary()?.charges?.ticketMedioLast6Months ?? [],
     );
 
     // ---- Cashflow (calendar) ---------------------------------------------

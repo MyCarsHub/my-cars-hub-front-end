@@ -537,20 +537,25 @@
         </app-page-card>
     </section>
 
-    <!-- Evolução do ticket médio (últimos 6 meses, line chart) -->
-    <section class="mb-4 min-w-0">
-        <app-page-card title="Evolução do ticket médio">
-            <div class="p-4 min-w-0">
-                <p class="text-xs text-gray-500 mb-3">
-                    Ticket médio das rentals concluídas por mês (últimos 6 meses).
-                </p>
-                <app-monthly-billing-chart
-                    mode="line"
-                    [data]="ticketMedioSeries()"
-                />
-            </div>
-        </app-page-card>
-    </section>
+    <!--
+        FEAT-0123 — "Quanto já entrou no mês". Substitui a "Evolução do ticket
+        médio", removida por decisão do dono: ticket médio é termo que o cliente
+        não reconhece, e o dashboard existe para ele abrir todo dia e ver se está
+        melhor que antes.
+
+        NÃO usa `finance.revenueDaily`: aquilo DISTRIBUI o total do aluguel pelos
+        dias (competência). Aqui é CAIXA — cobrança paga —, e mostrar competência
+        faria o cartão exibir dinheiro que o dono não recebeu.
+    -->
+    @if (cashAccumulation(); as cash) {
+        <section class="mb-4 min-w-0">
+            <app-page-card title="Quanto já entrou no mês">
+                <div class="p-4 min-w-0">
+                    <app-cash-accumulation-card [data]="cash" />
+                </div>
+            </app-page-card>
+        </section>
+    }
 
     <!-- Ações rápidas -->
     <section class="mb-4 min-w-0">
