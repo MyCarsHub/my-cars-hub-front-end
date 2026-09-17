@@ -28,8 +28,8 @@ import { MonthlyBillingChart } from './components/monthly-billing-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
 import { CashflowDaySheet } from './components/cashflow-day-sheet';
-import { VehicleRoiList } from './components/vehicle-roi-list';
 import { ReportsService } from '../../services/reports.service';
+import { aggregateFleetRoi } from '../../types/reports.types';
 import { StatusBarChart, StatusBucketRow } from './components/status-bar-chart';
 import { BarChart, BarDatum } from './components/bar-chart';
 import { QuickActionCard } from './components/quick-action-card';
@@ -86,7 +86,6 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         QuickActionCard,
         AlertBanner,
         RouterLink,
-        VehicleRoiList,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -116,6 +115,81 @@ export class DashboardHome {
     /** Card de ROI: so OWNER/MANAGER (o backend recusa DRIVER com 403). */
     protected readonly showVehicleRoi = signal(false);
     protected readonly vehicleRoi = this.reports.vehicleRoi;
+
+    /**
+     * ROI da frota para o card KPI (FIX-0420).
+     *
+     * A lista por veiculo saiu do dashboard — ela vira a visao da GERENCIA DO
+     * VEICULO (FEAT-0119). Aqui fica UM numero, no formato dos outros KPIs.
+     *
+     * A agregacao IGNORA o veiculo sem preco de compra, e por isso o template
+     * mostra a base quando ela difere do total: ver `aggregateFleetRoi`.
+     */
+    protected readonly fleetRoi = computed(() => {
+        const roi = this.vehicleRoi();
+        return roi ? aggregateFleetRoi(roi.vehicles) : null;
+    });
+
+    /** Percentual ja formatado; `null` quando nao ha base para afirmar nada. */
+    protected readonly fleetRoiPercentLabel = computed(() => {
+        const summary = this.fleetRoi();
+        if (!summary || summary.roiPercent === null) return null;
+        const value = summary.roiPercent;
+        const formatted = value.toLocaleString('pt-BR', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+        });
+        // O "+" e explicito como na Utilizacao: o sinal faz parte da leitura.
+        return `${value > 0 ? '+' : ''}${formatted}%`;
+    });
+
+    /** "R$ X ja devolvido" / "R$ X no prejuizo" — o dinheiro que o dono pediu. */
+    protected readonly fleetRoiNetLabel = computed(() => {
+        const summary = this.fleetRoi();
+        if (!summary || summary.roiPercent === null) return null;
+        const net = summary.netCents;
+        return net < 0
+            ? `${formatBRL(Math.abs(net))} no prejuízo`
+            : `${formatBRL(net)} já devolvido`;
+    });
+
+    /**
+     * Ressalva sobre a base do numero, SO quando ela difere do total. Excluir em
+     * silencio seria trocar um numero inflado por um numero mudo.
+     *
+     * A ressalva e GRADUADA, e a gradacao e o ponto: desvio pequeno merece
+     * rodape, desvio grande merece aviso. Com a base em MINORIA (menos da metade
+     * da frota tem preco de compra) o dono pode ler "+35%" sem reparar que
+     * aquilo fala de 3 carros de 40 — e decidir comprar mais carro com base
+     * nisso. Ai a linha sai do cinza pequeno, ganha peso de aviso (ambar, como o
+     * estado indeterminado) e passa a dizer o que FALTA, com o caminho para
+     * resolver, em vez de so contar.
+     *
+     * O numero continua na tela nos dois casos: nao se esconde dado que existe —
+     * o `purchase_price` (V71) e recente e hoje boa parte da frota nao o tem, de
+     * modo que esconder transformaria o cartao em travessao justamente na
+     * estreia. Quem some e a duvida sobre o que o numero cobre.
+     */
+    protected readonly fleetRoiBase = computed(() => {
+        const summary = this.fleetRoi();
+        if (!summary || summary.known === 0 || summary.known === summary.total) return null;
+
+        // "Menos da metade": 2 de 4 ainda e metade, e nao dispara o aviso.
+        const minority = summary.known * 2 < summary.total;
+
+        return {
+            minority,
+            label: minority
+                ? `só ${summary.known} de ${summary.total} veículos têm preço de compra`
+                : `base: ${summary.known} de ${summary.total} veículos`,
+        };
+    });
+
+    /** Frota inteira sem preco de compra: indeterminado, com saida acionavel. */
+    protected readonly fleetRoiIndeterminate = computed(() => {
+        const summary = this.fleetRoi();
+        return !!summary && summary.roiPercent === null;
+    });
     protected readonly vehicleRoiLoading = this.reports.vehicleRoiLoading;
     protected readonly vehicleRoiError = this.reports.vehicleRoiError;
 

@@ -107,7 +107,7 @@
     }
 
     <!-- Fleet KPI grid: 2x2 on mobile, 4x1 on lg -->
-    <section class="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-4">
+    <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
         <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
             <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Veículos</p>
             @if (loading() && !summary()) {
@@ -152,6 +152,82 @@
                 </p>
             }
         </div>
+
+        <!--
+            FIX-0420 — ROI da frota. Mesma estrutura dos KPIs vizinhos: rotulo
+            pequeno em maiusculas, numero grande, legenda pequena.
+
+            `col-span-2 lg:col-span-1`: no celular a fileira tem 2 colunas e este
+            e o quinto card — sem o span ele ficaria orfao, ocupando meia linha.
+            Em largura cheia ele tambem cabe a legenda do dinheiro e a da base
+            sem truncar, que e onde mora a honestidade do numero.
+        -->
+        @if (showVehicleRoi()) {
+            <div data-roi-card class="col-span-2 lg:col-span-1 rounded-2xl bg-white border border-neutral-200 p-4 min-w-0">
+                <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
+                    ROI
+                </p>
+                @if (vehicleRoiLoading() && !vehicleRoi()) {
+                    <div class="h-8 mt-2 w-16 rounded bg-neutral-100 animate-pulse"></div>
+                } @else if (vehicleRoiError()) {
+                    <p class="text-xl sm:text-2xl font-semibold text-neutral-400 mt-1 truncate">—</p>
+                    <p class="text-[11px] sm:text-xs text-neutral-500 mt-1 truncate">
+                        não foi possível calcular
+                    </p>
+                } @else if (fleetRoiIndeterminate()) {
+                    <!--
+                        Nenhum veiculo com preco de compra: indeterminado, nao
+                        zero. O caminho para resolver fica na legenda.
+                    -->
+                    <p class="text-xl sm:text-2xl font-semibold text-neutral-400 mt-1 truncate">—</p>
+                    <a
+                        routerLink="/veiculos"
+                        class="inline-flex items-center min-h-[44px] text-[11px] sm:text-xs
+                               font-medium text-primary-700 underline hover:no-underline
+                               outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                    >
+                        informe o preço de compra
+                    </a>
+                } @else if (fleetRoiPercentLabel(); as roiLabel) {
+                    <p
+                        class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
+                        [class.text-emerald-700]="(fleetRoi()?.netCents ?? 0) >= 0"
+                        [class.text-rose-700]="(fleetRoi()?.netCents ?? 0) < 0"
+                    >
+                        {{ roiLabel }}
+                    </p>
+                    <p class="text-[11px] sm:text-xs text-neutral-500 mt-1 truncate">
+                        {{ fleetRoiNetLabel() }}
+                    </p>
+                    @if (fleetRoiBase(); as base) {
+                        @if (base.minority) {
+                            <!--
+                                Base em MINORIA: a ressalva deixa de ser rodape.
+                                Ambar, o mesmo peso do estado indeterminado, e com
+                                o caminho para resolver — dizer o que FALTA, nao
+                                so contar. O percentual continua na tela.
+                            -->
+                            <div class="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1.5">
+                                <p class="text-[11px] sm:text-xs text-amber-900">{{ base.label }}</p>
+                                <a
+                                    routerLink="/veiculos"
+                                    class="inline-flex items-center min-h-[44px] text-[11px] sm:text-xs
+                                           font-semibold text-amber-900 underline hover:no-underline
+                                           outline-none focus-visible:ring-2 focus-visible:ring-amber-500
+                                           rounded-sm"
+                                >
+                                    informar preço de compra
+                                </a>
+                            </div>
+                        } @else {
+                            <p class="text-[11px] sm:text-xs text-neutral-400 mt-0.5 truncate">
+                                {{ base.label }}
+                            </p>
+                        }
+                    }
+                }
+            </div>
+        }
 
         <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
             <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Utilização</p>
@@ -470,36 +546,6 @@
             </div>
         </app-page-card>
     </section>
-
-    <!-- FEAT-0103 — Retorno por veículo (acumulado, não é o período do filtro) -->
-    @if (showVehicleRoi()) {
-        <section class="mb-4 min-w-0">
-            <app-page-card title="Retorno por veículo">
-                <div class="p-4 min-w-0">
-                    <p class="text-xs text-neutral-500 mb-3">
-                        Acumulado desde a compra de cada carro — não muda com o período
-                        selecionado acima.
-                    </p>
-
-                    @if (vehicleRoiError(); as err) {
-                        <p
-                            class="rounded-lg bg-rose-50 text-rose-700 text-sm p-3 border border-rose-100"
-                            role="alert"
-                        >
-                            {{ err }}
-                        </p>
-                    } @else if (vehicleRoiLoading() && !vehicleRoi()) {
-                        <div class="space-y-2">
-                            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-                            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-                        </div>
-                    } @else if (vehicleRoi(); as roi) {
-                        <app-vehicle-roi-list [items]="roi.vehicles" />
-                    }
-                </div>
-            </app-page-card>
-        </section>
-    }
 
     <!-- Ações rápidas -->
     <section class="mb-4 min-w-0">

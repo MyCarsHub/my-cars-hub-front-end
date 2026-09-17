@@ -552,7 +552,7 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
     } as unknown as DashboardSummaryDto;
   }
 
-  function render(role: string | null) {
+  function render(role: string | null, vehicles?: unknown[]) {
     const loadVehicleRoi = vi.fn().mockReturnValue(
       of({
         vehicles: [
@@ -604,7 +604,7 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
           provide: ReportsService,
           useValue: {
             loadVehicleRoi,
-            vehicleRoi: signal({ vehicles: [] }),
+            vehicleRoi: signal({ vehicles: vehicles ?? [] }),
             vehicleRoiLoading: signal(false),
             vehicleRoiError: signal(null),
           },
@@ -620,7 +620,7 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
     it(`${role} ve o card e o GET sai`, () => {
       const { host, loadVehicleRoi } = render(role);
 
-      expect(host.textContent).toContain('Retorno por veículo');
+      expect(host.textContent).toContain('ROI');
       expect(loadVehicleRoi).toHaveBeenCalledTimes(1);
     });
   }
@@ -628,7 +628,7 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
   it('DRIVER nao ve o card E nao dispara o GET que levaria 403', () => {
     const { host, loadVehicleRoi } = render('DRIVER');
 
-    expect(host.textContent).not.toContain('Retorno por veículo');
+    expect(host.querySelector('[data-roi-card]')).toBeNull();
     expect(loadVehicleRoi).not.toHaveBeenCalled();
   });
 
@@ -637,4 +637,233 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
 
     expect(loadVehicleRoi).not.toHaveBeenCalled();
   });
+});
+
+/**
+ * FIX-0420 — o card KPI de ROI da frota.
+ *
+ * A lista por veiculo saiu daqui (vai para a gerencia do veiculo, FEAT-0119):
+ * com 100 carros ela tornava o dashboard inutilizavel no celular. O que fica e
+ * UM numero, no formato dos outros KPIs — e um numero que precisa nao mentir
+ * quando algum veiculo esta sem preco de compra.
+ */
+describe('DashboardHome — card KPI de ROI da frota', () => {
+  function priced(id: string, costCents: number, returnedCents: number) {
+    return {
+      vehicleId: id,
+      plate: id.toUpperCase(),
+      brand: 'Fiat',
+      model: 'Argo',
+      returnedCents,
+      returnBreakdown: { rentalCents: returnedCents, saleCents: 0 },
+      costCents,
+      costBreakdown: {
+        acquisitionCents: costCents,
+        maintenanceCents: 0,
+        insuranceCents: 0,
+        fineCents: 0,
+        incidentCents: 0,
+      },
+      netCents: returnedCents - costCents,
+      roiPercent: costCents > 0 ? ((returnedCents - costCents) / costCents) * 100 : null,
+      paybackMonth: null,
+      paybackReached: false,
+      remainingToPaybackCents: Math.max(0, costCents - returnedCents),
+    };
+  }
+
+  function unpriced(id: string, returnedCents: number) {
+    return { ...priced(id, 0, returnedCents), roiPercent: null };
+  }
+
+  function card(vehicles: unknown[]): HTMLElement {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [DashboardHome],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: DashboardService,
+          useValue: { loadOverview: vi.fn().mockReturnValue(of(roiEmptySummary())) },
+        },
+        { provide: BillingAccessService, useValue: { status: signal(null) } },
+        { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: (key: string) => (key === 'selectedRole' ? 'OWNER' : null),
+            isPlatformAdmin: () => false,
+          },
+        },
+        {
+          provide: ReportsService,
+          useValue: {
+            loadVehicleRoi: vi.fn().mockReturnValue(of({ vehicles })),
+            vehicleRoi: signal({ vehicles }),
+            vehicleRoiLoading: signal(false),
+            vehicleRoiError: signal(null),
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(DashboardHome);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    return host.querySelector('[data-roi-card]') as HTMLElement;
+  }
+
+  it('mostra o ROI da frota e o dinheiro devolvido', () => {
+    const text = card([priced('a', 10_000_00, 12_000_00)])?.textContent ?? '';
+
+    expect(text).toContain('ROI');
+    expect(text).toContain('+20%');
+    expect(text).toContain('2.000,00');
+    expect(text).toContain('já devolvido');
+  });
+
+  /**
+   * O CASO QUE ESTE NO EXISTE PARA NAO ERRAR: um carro sem preco de compra entra
+   * com custo ZERO e retorno CHEIO. Somando cegamente o card diria +520%; a base
+   * honesta diz +20% E DECLARA que fala de 1 de 2 carros.
+   */
+  describe('veiculo sem preco de compra na frota', () => {
+    const frota = [priced('a', 10_000_00, 12_000_00), unpriced('b', 50_000_00)];
+
+    it('nao infla o numero com o carro de custo desconhecido', () => {
+      const text = card(frota)?.textContent ?? '';
+
+      expect(text).toContain('+20%');
+      expect(text).not.toContain('520');
+    });
+
+    it('DECLARA a base em vez de excluir em silencio', () => {
+      expect(card(frota)?.textContent).toContain('base: 1 de 2 veículos');
+    });
+
+    /**
+     * GRADACAO da ressalva. 1 de 2 e metade, nao minoria: rodape discreto, sem
+     * alarme. Sem este teste o proximo leitor conclui que toda base parcial vira
+     * ambar, e o aviso perde o significado por inflacao.
+     */
+    it('base que NAO e minoria fica discreta, sem alarme', () => {
+      const el = card(frota);
+
+      expect(el?.innerHTML).not.toContain('amber');
+      expect(el?.textContent).not.toContain('têm preço de compra');
+    });
+
+    /**
+     * O PIOR CASO desta tela: o dono le "+35%" sem reparar que aquilo fala de 3
+     * carros de 40, e decide comprar mais carro. Com a base em MINORIA a
+     * ressalva sai do rodape e ganha peso de aviso — mas o NUMERO CONTINUA na
+     * tela: esconder transformaria o cartao em travessao justamente quando ha
+     * dado de 3 carros para mostrar.
+     */
+    describe('base em minoria', () => {
+      const minoria = [
+        priced('a', 10_000_00, 13_500_00),
+        unpriced('b', 0),
+        unpriced('c', 0),
+        unpriced('d', 0),
+      ];
+
+      it('mantem o percentual visivel', () => {
+        expect(card(minoria)?.textContent).toContain('+35%');
+      });
+
+      it('a ressalva ganha tratamento de aviso, nao rodape', () => {
+        const el = card(minoria);
+
+        expect(el?.innerHTML).toContain('bg-amber-50');
+        expect(el?.innerHTML).toContain('border-amber-200');
+      });
+
+      it('o texto diz o que FALTA, nao so a contagem', () => {
+        expect(card(minoria)?.textContent).toContain(
+          'só 1 de 4 veículos têm preço de compra',
+        );
+      });
+
+      it('oferece o caminho para cadastrar', () => {
+        const links = card(minoria)?.querySelectorAll('a[href]') ?? [];
+        const hrefs = Array.from(links).map((a) => a.getAttribute('href'));
+
+        expect(hrefs).toContain('/veiculos');
+      });
+    });
+
+    it('nao declara base quando todos os veiculos tem preco', () => {
+      const text = card([priced('a', 10_000_00, 12_000_00)])?.textContent ?? '';
+
+      expect(text).not.toContain('base:');
+    });
+  });
+
+  it('frota inteira sem preco: indeterminado com caminho para cadastrar', () => {
+    const el = card([unpriced('a', 9_000_00)]);
+
+    expect(el?.textContent).toContain('—');
+    expect(el?.textContent).not.toContain('%');
+    expect(el?.textContent).toContain('preço de compra');
+    expect(el?.querySelector('a[href]')?.getAttribute('href')).toBe('/veiculos');
+  });
+
+  it('prejuizo da frota aparece como prejuizo, com cor propria', () => {
+    const el = card([priced('a', 10_000_00, 4_000_00)]);
+
+    expect(el?.textContent).toContain('-60%');
+    expect(el?.textContent).toContain('no prejuízo');
+    expect(el?.innerHTML).toContain('text-rose-700');
+  });
+
+  /** Envelope minimo para o template inteiro renderizar. */
+  function roiEmptySummary(): DashboardSummaryDto {
+    return {
+      period: { from: '2026-09-01', to: '2026-09-30' },
+      alerts: {
+        openFines: { count: 0, amountCents: 0 },
+        openMaintenances: { count: 0 },
+        expiringCnh30d: { count: 0 },
+        expiringLicensing30d: { count: 0 },
+        reservedRentals: { count: 0 },
+        paidFinesInPeriod: { count: 0, amountCents: 0 },
+      },
+      fleet: {
+        vehiclesTotal: 0,
+        vehicleLimit: null,
+        driversActive: 0,
+        driversTotal: 0,
+        rentedNow: 0,
+        reservedNow: 0,
+        utilizationPct: 0,
+      },
+      finance: {
+        revenueCents: 0,
+        receivedCents: 0,
+        expensesCents: 0,
+        saleRevenueCents: 0,
+        resultCents: 0,
+        maintenanceExpenseCents: 0,
+        fineExpenseCents: 0,
+        pendingChargesCents: 0,
+        overdueChargesCents: 0,
+        previousRevenueCents: 0,
+        previousReceivedCents: 0,
+        revenueDaily: [],
+        byVehicle: [],
+        byDriver: [],
+        monthlyBilling: [],
+        cashflow: [],
+      },
+      charges: {
+        byStatus: [],
+        ticketMedioCents: 0,
+        completedRentalsCount: 0,
+        ticketMedioLast6Months: [],
+      },
+      distributions: { rentalsByStatus: [], vehiclesByStatus: [] },
+      topOffenders: { vehicles: [], drivers: [] },
+    } as unknown as DashboardSummaryDto;
+  }
 });
