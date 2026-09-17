@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { defaultPointsForSeverity } from '../../utils/status-maps';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -140,16 +141,31 @@ export class FineForm implements OnInit {
     });
   }
 
+  /**
+   * Preenche os pontos ao TROCAR a gravidade, quando o campo está vazio.
+   *
+   * Sozinho isto não cumpre a promessa do campo: quem aceita a gravidade padrão
+   * (`MEDIA`) nunca dispara `(change)`. Por isso a mesma regra roda de novo no
+   * `submit` — ver `pointsToSave`. Aqui ela existe para o usuário VER o número
+   * aparecer, não para garanti-lo.
+   */
   protected onSeverityChange(): void {
-    // Prefill default points when field is empty.
-    const sev = this.form.controls.severity.value;
-    const cur = this.form.controls.points.value;
-    if (cur == null) {
-      const opt = FINE_SEVERITY_OPTIONS.find((o) => o.value === sev);
-      if (opt && opt.defaultPoints > 0) {
-        this.form.controls.points.setValue(opt.defaultPoints);
-      }
+    if (this.form.controls.points.value != null) return;
+    const fallback = defaultPointsForSeverity(this.form.controls.severity.value);
+    if (fallback != null) {
+      this.form.controls.points.setValue(fallback);
     }
+  }
+
+  /**
+   * FIX-0437 — o que de fato cumpre "preenchido pela gravidade se vazio".
+   *
+   * Roda no salvamento, então vale independentemente de o usuário ter tocado no
+   * select. Um `0` digitado à mão é PRESERVADO (`??` só troca `null`/`undefined`):
+   * zero é uma escolha, vazio é a ausência de escolha.
+   */
+  private pointsToSave(points: number | null, severity: FineSeverity): number | null {
+    return points ?? defaultPointsForSeverity(severity);
   }
 
   protected submit(): void {
@@ -173,7 +189,7 @@ export class FineForm implements OnInit {
         infractionDate: this.inputDateTimeToIso(raw.infractionDate),
         location: raw.location?.trim() || null,
         amountCents,
-        points: raw.points ?? null,
+        points: this.pointsToSave(raw.points ?? null, raw.severity),
         severity: raw.severity,
         dueDate: raw.dueDate || null,
         status: raw.status,
@@ -193,7 +209,7 @@ export class FineForm implements OnInit {
         infractionDate: this.inputDateTimeToIso(raw.infractionDate),
         location: raw.location?.trim() || null,
         amountCents,
-        points: raw.points ?? null,
+        points: this.pointsToSave(raw.points ?? null, raw.severity),
         severity: raw.severity,
         dueDate: raw.dueDate || null,
         status: raw.status,

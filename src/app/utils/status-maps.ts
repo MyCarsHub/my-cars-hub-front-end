@@ -187,6 +187,26 @@ export const FINE_SEVERITY_META: Record<FineSeverity, FineSeverityMeta> = {
   GRAVISSIMA: { label: 'Gravíssima', chip: 'bg-rose-100 text-rose-700', color: '#ef4444', defaultPoints: 7 },
 };
 
+/**
+ * Pontos da CNH que a gravidade implica (CTB: leve 3, média 4, grave 5,
+ * gravíssima 7).
+ *
+ * FIX-0437 — o formulário prometia "preenchido pela gravidade se vazio" e a
+ * regra existia, mas só rodava no `(change)` do select. Quem aceitava a
+ * gravidade PADRÃO (`MEDIA`) nunca disparava o evento e gravava a multa sem
+ * pontos — que é exatamente o caminho mais comum. A função existe para que a
+ * mesma regra valha na troca do select E na hora de salvar, sem duas cópias.
+ *
+ * ATENÇÃO DE CAMADA: isto é a conveniência do FORMULÁRIO, não a regra de
+ * domínio. O backend (`FineService`) grava `points` exatamente como recebe e
+ * não deriva nada — uma multa criada fora desta tela continua sem pontos. Ver
+ * o nó aberto para o backend.
+ */
+export function defaultPointsForSeverity(severity: FineSeverity): number | null {
+  const meta = FINE_SEVERITY_META[severity as keyof typeof FINE_SEVERITY_META];
+  return meta && meta.defaultPoints > 0 ? meta.defaultPoints : null;
+}
+
 export const FINE_SEVERITY_FILTER_OPTIONS: Array<
   FilterOption<FineSeverity> & { defaultPoints: number }
 > = [
