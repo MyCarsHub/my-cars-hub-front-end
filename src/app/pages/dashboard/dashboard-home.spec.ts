@@ -800,13 +800,43 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
     });
   });
 
-  it('frota inteira sem preco: indeterminado com caminho para cadastrar', () => {
-    const el = card([unpriced('a', 9_000_00)]);
+  /**
+   * Sem base para calcular, o card fica IGUAL aos vizinhos: 0% e o valor
+   * embaixo. Nada de travessao e nada de "informe o preco de compra" — numa
+   * empresa de frota VAZIA aquilo pedia o preco de um carro que nao existe, na
+   * primeira tela que um usuario novo ve (decisao do dono, 2026-09-17).
+   */
+  describe('sem base para calcular', () => {
+    /** `Intl` separa "R$" do numero com espaco NAO-QUEBRAVEL (U+00A0). */
+    function money(el: HTMLElement | null): string {
+      return (el?.textContent ?? '').replace(/ /g, ' ');
+    }
 
-    expect(el?.textContent).toContain('—');
-    expect(el?.textContent).not.toContain('%');
-    expect(el?.textContent).toContain('preço de compra');
-    expect(el?.querySelector('a[href]')?.getAttribute('href')).toBe('/veiculos');
+    it('frota vazia mostra 0% e R$ 0,00, sem pedido de acao', () => {
+      const el = card([]);
+
+      expect(el?.textContent).toContain('0%');
+      expect(money(el)).toContain('R$ 0,00');
+      expect(el?.textContent).not.toContain('—');
+      expect(el?.textContent).not.toContain('preço de compra');
+      expect(el?.querySelector('a[href]')).toBeNull();
+    });
+
+    it('frota com carros mas nenhum com preco cai no mesmo 0%', () => {
+      const el = card([unpriced('a', 9_000_00)]);
+
+      expect(el?.textContent).toContain('0%');
+      expect(money(el)).toContain('R$ 0,00');
+      expect(el?.querySelector('a[href]')).toBeNull();
+    });
+
+    /** Zero nao e lucro nem prejuizo — nem verde, nem rose. */
+    it('o zero fica em tom neutro', () => {
+      const html = card([])?.innerHTML ?? '';
+
+      expect(html).not.toContain('text-emerald-700');
+      expect(html).not.toContain('text-rose-700');
+    });
   });
 
   it('prejuizo da frota aparece como prejuizo, com cor propria', () => {
