@@ -37,7 +37,23 @@ describe('EndRentalDialog — opt-in removeOverdueCharges', () => {
     contractSource: null,
     franchiseKm: null,
     returnFuelPolicy: null,
-    charges: [],
+    // O opt-in e o aviso so existem havendo cobranca NO GATEWAY que a acao vai
+    // tocar. Esta fixture carrega uma VENCIDA e nao paga com `externalId`, que e
+    // exatamente a situacao em que a opcao destrutiva faz sentido.
+    charges: [
+      {
+        id: 'ch-1',
+        kind: 'RENTAL_PERIOD' as const,
+        amount: 10_000,
+        status: 'PAST_DUE' as const,
+        provider: 'ASAAS' as const,
+        externalId: 'pay_1',
+        checkoutUrl: null,
+        paidAt: null,
+        dueDate: '2026-01-05',
+        periodIndex: 1,
+      },
+    ],
     createdAt: '2026-01-01T00:00:00Z',
     modifiedAt: '2026-01-01T00:00:00Z',
   };
@@ -118,6 +134,7 @@ describe('EndRentalDialog — opt-in removeOverdueCharges', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
     expect(text).toContain('ainda não venceram');
+    expect(text).toContain('salvo se você marcar a opção abaixo');
     expect(text).toContain('permanecem cobráveis');
     expect(text).toContain('não são estornadas');
   });
@@ -818,5 +835,87 @@ describe('EndRentalDialog — prévia da multa que falha', () => {
     const asked = fixture.componentInstance.requested();
     expect(asked.length).toBe(before.length + 1);
     expect(asked[asked.length - 1]).toBe(before[before.length - 1]);
+  });
+});
+
+/**
+ * O CASO REAL que originou FIX-0423/0424/0425, colhido em producao: aluguel
+ * TES-1T01, 7 parcelas TODAS PAGAS, caucao ZERO, cobranca automatica via Asaas
+ * DESLIGADA. O dialogo mostrava, nessa situacao, o aviso do Asaas, a promessa de
+ * devolucao de caucao e o opt-in de apagar vencidas — tres coisas que NAO se
+ * aplicavam. O diagnostico: o dialogo mostrava sempre o caso mais complexo
+ * possivel, independente do aluguel.
+ */
+describe('EndRentalDialog — aluguel quitado, sem caucao e sem gateway', () => {
+  const rental: RentalResponseDto = {
+    id: 'r-2',
+    vehicleId: 'v-1',
+    driverId: 'd-1',
+    startDate: '2026-09-10',
+    endDate: '2026-09-17',
+    periodRate: 15_000,
+    totalAmount: 105_000,
+    caucaoAmount: 0,
+    caucaoPaid: false,
+    status: 'ACTIVE',
+    billingFrequency: 'DAILY',
+    notes: null,
+    initialKm: null,
+    pickupDate: null,
+    firstPaymentDate: null,
+    dailyInterestAmount: null,
+    lateFineType: null,
+    lateFineValue: null,
+    contractSource: null,
+    franchiseKm: null,
+    returnFuelPolicy: null,
+    // Sete parcelas pagas, nenhuma no gateway (Asaas desligado na criacao).
+    charges: Array.from({ length: 7 }, (_, i) => ({
+      id: `ch-${i + 1}`,
+      kind: 'RENTAL_PERIOD' as const,
+      amount: 15_000,
+      status: 'PAID' as const,
+      provider: 'ASAAS' as const,
+      externalId: null,
+      checkoutUrl: null,
+      paidAt: '2026-09-11T12:00:00Z',
+      dueDate: `2026-09-1${i}`,
+      periodIndex: i + 1,
+    })),
+    createdAt: '2026-09-10T00:00:00Z',
+    modifiedAt: '2026-09-10T00:00:00Z',
+  };
+
+  @Component({
+    imports: [EndRentalDialog],
+    template: `<app-end-rental-dialog [open]="true" [rental]="rental" [intent]="'complete'" />`,
+  })
+  class Host {
+    readonly rental = rental;
+  }
+
+  function text(): string {
+    TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [provideNoopAnimations()],
+    });
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  it('NAO fala do Asaas quando nao ha cobranca no gateway', () => {
+    expect(text()).not.toContain('Asaas');
+  });
+
+  it('NAO promete devolucao de caucao quando a caucao e zero', () => {
+    const t = text();
+
+    expect(t).not.toContain('caução');
+    expect(t).not.toContain('exceção');
+  });
+
+  it('NAO oferece apagar vencidas quando tudo esta pago', () => {
+    expect(text()).not.toContain('vencidas e não pagas');
   });
 });
