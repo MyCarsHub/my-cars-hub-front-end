@@ -124,7 +124,13 @@ describe('DashboardHome — KPIs de frota', () => {
             providers: [
                 provideRouter([]),
                 provideNoopAnimations(),
-                { provide: DashboardService, useValue: { loadOverview: loadSpy } },
+                {
+                    provide: DashboardService,
+                    useValue: {
+                        loadOverview: loadSpy,
+                        loadCashAccumulation: vi.fn().mockReturnValue(of(null)),
+                    },
+                },
                 { provide: BillingAccessService, useValue: { status } },
                 { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
             ],
@@ -300,7 +306,10 @@ describe('DashboardHome — venda de veículos (FEAT-0074)', () => {
                 provideNoopAnimations(),
                 {
                     provide: DashboardService,
-                    useValue: { loadOverview: vi.fn().mockReturnValue(of(summary)) },
+                    useValue: {
+            loadOverview: vi.fn().mockReturnValue(of(summary)),
+            loadCashAccumulation: vi.fn().mockReturnValue(of(null)),
+          },
                 },
                 { provide: BillingAccessService, useValue: { status: signal(null) } },
                 { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
@@ -435,7 +444,10 @@ describe('DashboardHome — lembrete de ativação (FEAT-0080)', () => {
         provideNoopAnimations(),
         {
           provide: DashboardService,
-          useValue: { loadOverview: vi.fn().mockReturnValue(of(summary)) },
+          useValue: {
+            loadOverview: vi.fn().mockReturnValue(of(summary)),
+            loadCashAccumulation: vi.fn().mockReturnValue(of(null)),
+          },
         },
         { provide: BillingAccessService, useValue: { status: signal(null) } },
         { provide: FleetActivationService, useValue: { hasVehicles: hasVehiclesSpy } },
@@ -589,7 +601,10 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
         provideNoopAnimations(),
         {
           provide: DashboardService,
-          useValue: { loadOverview: vi.fn().mockReturnValue(of(emptySummary())) },
+          useValue: {
+            loadOverview: vi.fn().mockReturnValue(of(emptySummary())),
+            loadCashAccumulation: vi.fn().mockReturnValue(of(null)),
+          },
         },
         { provide: BillingAccessService, useValue: { status: signal(null) } },
         { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
@@ -685,7 +700,10 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
         provideNoopAnimations(),
         {
           provide: DashboardService,
-          useValue: { loadOverview: vi.fn().mockReturnValue(of(roiEmptySummary())) },
+          useValue: {
+            loadOverview: vi.fn().mockReturnValue(of(roiEmptySummary())),
+            loadCashAccumulation: vi.fn().mockReturnValue(of(null)),
+          },
         },
         { provide: BillingAccessService, useValue: { status: signal(null) } },
         { provide: FleetActivationService, useValue: { hasVehicles: () => of(true) } },
