@@ -128,6 +128,12 @@ export class LayoutStore {
       next: () => {
         this._switchingTenantId.set(null);
         this.commitTenant(tenant);
+        // FIX-0363 — a troca é o momento em que a lista pode ter mudado (um
+        // convite aceito desde o login). Best-effort de propósito: a troca JÁ
+        // deu certo e o token novo já está gravado, então uma falha aqui só
+        // significa "a lista continua a de antes" — nunca desfazer a troca nem
+        // alarmar quem trocou de empresa com sucesso.
+        this.refreshTenantsFromServer();
       },
       error: (err: unknown) => {
         this._switchingTenantId.set(null);
@@ -191,6 +197,19 @@ export class LayoutStore {
    * chamada, a barra lateral do admin continuaria oferecendo as empresas dele
    * enquanto o banner anuncia a empresa observada.
    */
+  /**
+   * Busca as empresas em `/auth/me` e republica a lista do seletor.
+   *
+   * Silencioso por contrato — ver a chamada em `selectTenant`. O `catch` cobre
+   * o caso de o observable emitir erro sem assinante de erro.
+   */
+  private refreshTenantsFromServer(): void {
+    this.companySelection.refreshCompaniesFromMe().subscribe({
+      next: () => this.refreshTenants(),
+      error: () => void 0,
+    });
+  }
+
   refreshTenants(): void {
     const newTenants = this.loadTenantsFromStorage();
     this.tenants.set(newTenants);

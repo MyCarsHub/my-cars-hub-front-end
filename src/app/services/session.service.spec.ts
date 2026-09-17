@@ -224,3 +224,103 @@ describe('SessionService.clear dispara os ganchos de reset', () => {
     expect(inner).toHaveBeenCalledTimes(1);
   });
 });
+
+
+/**
+ * FIX-0363 — o papel de EMPRESA sai do token, irmao do eixo de plataforma acima.
+ *
+ * O `sessionStorage.selectedRole` continua existindo para exibicao, mas deixou
+ * de governar rota: e editavel pelo DevTools e fica stale quando o token e
+ * reemitido (troca de empresa, recuperacao silenciosa do FEAT-0106).
+ */
+describe('SessionService.getCompanyRoleFromToken', () => {
+  let service: SessionService;
+
+  const encodePayload = (payload: Record<string, unknown>): string => {
+    const json = JSON.stringify(payload);
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const buildToken = (payload: Record<string, unknown>): string => {
+    const header = encodePayload({ alg: 'HS256', typ: 'JWT' });
+    return `${header}.${encodePayload(payload)}.signature-not-verified-client-side`;
+  };
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.configureTestingModule({ providers: [SessionService] });
+    service = TestBed.inject(SessionService);
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.useRealTimers();
+  });
+
+  it('le o claim `role` do token', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+    expect(service.getCompanyRoleFromToken()).toBe('MANAGER');
+  });
+
+  /** O ponto do no: o espelho deixou de mandar. */
+  it('IGNORA o selectedRole do sessionStorage', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+    sessionStorage.setItem('selectedRole', 'OWNER');
+
+    expect(service.getCompanyRoleFromToken()).toBe('DRIVER');
+  });
+
+  it('nega quando nao ha token', () => {
+    expect(service.getCompanyRoleFromToken()).toBeNull();
+  });
+
+  it('nega quando o token nao tem o claim `role`', () => {
+    sessionStorage.setItem('token', buildToken({ companyId: 'c-1' }));
+    expect(service.getCompanyRoleFromToken()).toBeNull();
+  });
+
+  it('nega quando o token esta expirado', () => {
+    sessionStorage.setItem(
+      'token',
+      buildToken({ role: 'OWNER', exp: Math.floor(Date.now() / 1000) - 60 }),
+    );
+    expect(service.getCompanyRoleFromToken()).toBeNull();
+  });
+
+  it('nega quando o token esta malformado', () => {
+    sessionStorage.setItem('token', 'nao-e-um-jwt');
+    expect(service.getCompanyRoleFromToken()).toBeNull();
+
+    sessionStorage.setItem('token', 'a.b.c');
+    expect(service.getCompanyRoleFromToken()).toBeNull();
+  });
+
+  it('aceita um token valido e nao expirado', () => {
+    sessionStorage.setItem(
+      'token',
+      buildToken({ role: 'OWNER', exp: Math.floor(Date.now() / 1000) + 3600 }),
+    );
+    expect(service.getCompanyRoleFromToken()).toBe('OWNER');
+  });
+
+  /**
+   * O token de impersonacao NAO tem claim `role` (o backend o omite e ainda
+   * rebaixa system_role para USER) — ele se identifica pelo claim
+   * `impersonation`. Sem este ramo, "ver como empresa" pararia de abrir
+   * qualquer rota no instante em que o guard deixou de ler o selectedRole.
+   */
+  it('resolve o papel da sessao de impersonacao pelo claim `impersonation`', () => {
+    sessionStorage.setItem(
+      'token',
+      buildToken({ impersonation: true, system_role: 'USER', companyId: 'c-9' }),
+    );
+
+    expect(service.getCompanyRoleFromToken()).toBe('OWNER');
+  });
+
+  it('nao confunde impersonation:false com sessao de suporte', () => {
+    sessionStorage.setItem('token', buildToken({ impersonation: false, role: 'DRIVER' }));
+    expect(service.getCompanyRoleFromToken()).toBe('DRIVER');
+  });
+});

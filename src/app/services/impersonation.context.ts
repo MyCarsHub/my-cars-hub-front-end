@@ -46,3 +46,25 @@ export const IMPERSONATION_ERROR_CODES = {
   invalidToken: 'IMPERSONATION_INVALID_TOKEN',
   sessionEnded: 'IMPERSONATION_SESSION_ENDED',
 } as const;
+
+/**
+ * Claim booleano que o backend crava no token de impersonação
+ * (`ImpersonationAccessPolicy.CLAIM_IMPERSONATION`).
+ *
+ * FIX-0363 — é o marcador CONFIÁVEL da sessão de suporte, e o único possível:
+ * o token de impersonação NÃO carrega o claim `role` (provado em
+ * `TokenServiceImpersonationTest`: "role is missing") e ainda rebaixa
+ * `system_role` para USER. Quem derivar o papel do token precisa reconhecer
+ * este caso, ou a sessão "ver como empresa" para de abrir qualquer rota.
+ */
+export const IMPERSONATION_CLAIM = 'impersonation';
+
+/**
+ * Papel efetivo durante a impersonação.
+ *
+ * Mora aqui, e não no `impersonation.service`, porque o `session.service`
+ * precisa dele para resolver o papel do token e não pode importar o serviço
+ * (o serviço importa o session — fecharia ciclo). Este arquivo é folha,
+ * sem dependências, exatamente para isso.
+ */
+export const IMPERSONATED_ROLE = 'OWNER';
