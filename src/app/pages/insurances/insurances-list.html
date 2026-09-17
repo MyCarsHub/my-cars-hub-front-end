@@ -163,6 +163,17 @@
                   <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Prêmio</span>
                   <p class="font-medium tabular-nums">{{ formatCurrency(i.premiumAmount) }}</p>
                 </div>
+                <!--
+                  FIX-0439 — a franquia fica COLADA no prêmio de propósito: o
+                  prêmio diz quanto custa TER o seguro, a franquia diz quanto
+                  custa USÁ-LO. A decisão do dia a dia ("vale acionar o seguro
+                  neste sinistro?") depende da segunda, e ela é a que faltava.
+                  Lado a lado, os dois números respondem a pergunta inteira.
+                -->
+                <div>
+                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Franquia</span>
+                  <p class="font-medium tabular-nums">{{ formatCurrency(i.deductibleAmount) }}</p>
+                </div>
                 <div>
                   <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Vigência</span>
                   <p class="tabular-nums">{{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }}</p>
@@ -223,6 +234,9 @@
                 <th class="py-2 pr-4 font-medium">Apólice</th>
                 <th class="py-2 pr-4 font-medium">Cobertura</th>
                 <th class="py-2 pr-4 font-medium">Prêmio</th>
+                <!-- FIX-0439 — ver o comentário no cartão: prêmio = custo de ter,
+                     franquia = custo de usar. -->
+                <th class="py-2 pr-4 font-medium">Franquia</th>
                 <th class="py-2 pr-4 font-medium">Vigência</th>
                 <th class="py-2 pr-4 font-medium">Vencimento</th>
                 <th class="py-2 pr-4 font-medium">Status</th>
@@ -248,6 +262,7 @@
                   <td class="py-3 pr-4 tabular-nums">{{ i.policyNumber }}</td>
                   <td class="py-3 pr-4">{{ coverageLabel(i.coverageType) }}</td>
                   <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(i.premiumAmount) }}</td>
+                  <td class="py-3 pr-4 tabular-nums text-neutral-700">{{ formatCurrency(i.deductibleAmount) }}</td>
                   <td class="py-3 pr-4 tabular-nums">
                     {{ formatDate(i.startDate) }} → {{ formatDate(i.endDate) }}
                   </td>
