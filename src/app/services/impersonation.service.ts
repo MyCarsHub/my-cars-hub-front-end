@@ -17,6 +17,7 @@ import { SessionService } from './session.service';
 import { TenantCachesService } from './tenant-caches.service';
 import {
   IMPERSONATION_ADMIN_CONTEXT_KEY,
+  IMPERSONATED_ROLE,
   IMPERSONATION_ADMIN_TOKEN_KEY,
   IMPERSONATION_STATE_KEY,
   USE_ADMIN_TOKEN,
@@ -24,15 +25,17 @@ import {
 
 const API_BASE = `${environment.apiUrl}/admin/impersonation`;
 
-/**
- * Papel escrito em `selectedRole` durante a sessão. OWNER porque "ver como
- * empresa" só entrega valor de suporte se o admin alcançar as MESMAS telas que
- * o cliente relatou — e `roleGuard` é puramente client-side. Nada disso concede
- * escrita: o backend abre leitura para qualquer membro do tenant
- * (`RoleGuard`, "Reads … remain open to every authenticated member") e recusa
- * toda mutação no filtro e na transação READ ONLY do Postgres.
+/*
+ * O papel efetivo da sessão de impersonação mudou de casa no FIX-0363: agora é
+ * `IMPERSONATED_ROLE` em `impersonation.context`, porque o `session.service`
+ * precisa da mesma constante para resolver o papel a partir do TOKEN e não pode
+ * importar este serviço sem fechar um ciclo.
+ *
+ * O `selectedRole` continua sendo escrito abaixo — ele ainda alimenta as telas
+ * que exibem o papel —, mas já NÃO é o que governa o `roleGuard`: desde o
+ * FIX-0363 o guard lê do token, e é o claim `impersonation` que mantém a sessão
+ * de suporte abrindo as mesmas rotas que o cliente relatou.
  */
-const IMPERSONATED_ROLE = 'OWNER';
 
 /**
  * Ciclo de vida da sessão de impersonação "ver como empresa" (somente leitura).
