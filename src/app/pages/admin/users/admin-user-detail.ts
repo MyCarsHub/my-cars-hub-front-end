@@ -21,6 +21,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
 import { AdminUserCompanyLink } from '../../../types/admin-user.types';
+import { companyRoleLabel } from '../../../utils/role-labels';
 
 interface PendingAction {
   kind: 'DEACTIVATE' | 'ACTIVATE' | 'PROMOTE' | 'DEMOTE';
@@ -190,15 +191,15 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     this.pendingAction.set(null);
   }
 
+  /**
+   * Esta tela renderiza os DOIS eixos de papel no mesmo lugar: o SystemRole do
+   * usuário (USER | PLATFORM_ADMIN) e o CompanyRole dos vínculos dele. Só o
+   * segundo vem da fonte única — o primeiro é outro conceito e fica aqui.
+   */
   protected roleLabel(role: string): string {
     if (role === 'PLATFORM_ADMIN') return 'Admin da plataforma';
     if (role === 'USER') return 'Usuário';
-    const map: Record<string, string> = {
-      OWNER: 'Proprietário',
-      MANAGER: 'Gerente',
-      DRIVER: 'Motorista',
-    };
-    return map[role] ?? role;
+    return companyRoleLabel(role);
   }
 
   protected roleChip(role: string): string {
