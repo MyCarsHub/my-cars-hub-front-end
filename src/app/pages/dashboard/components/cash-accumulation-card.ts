@@ -86,6 +86,7 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
               ' até o mesmo dia'
             "
             valueLabel="Acumulado"
+            valueFormat="currencyCents"
             [heightPx]="140"
           />
         </div>
