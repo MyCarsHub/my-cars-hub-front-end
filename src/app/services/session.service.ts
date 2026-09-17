@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 
 import { SessionResetRegistry } from './session-reset.registry';
 import { TelemetryService } from './telemetry.service';
+import { IMPERSONATED_ROLE, IMPERSONATION_CLAIM } from './impersonation.context';
 
 @Injectable({
   providedIn: 'root'
@@ -186,6 +187,70 @@ export class SessionService {
       return typeof payload.companyId === 'string' && payload.companyId.length > 0
         ? payload.companyId
         : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Lê o papel do usuário NA EMPRESA ATIVA a partir do claim `role` do JWT —
+   * irmão de `getSystemRoleFromToken` (eixo de plataforma) e de
+   * `getCompanyIdFromToken` (tenant ativo).
+   *
+   * FIX-0363 — existe porque `sessionStorage.selectedRole` é um ESPELHO, e um
+   * espelho com dois defeitos: é editável pelo DevTools em dois cliques e fica
+   * STALE. O token, ao contrário, é reemitido pelo backend em
+   * `POST /auth/select-company/{id}` já com o papel da empresa nova, e é dele
+   * que o servidor decide de verdade.
+   *
+   * Isto NÃO é a defesa: quem adulterar o espelho vê a rota abrir e leva 403 do
+   * servidor, que nunca confiou nele (FIX-0360 / FIX-0361). O que se ganha é
+   * coerência — a interface passa a decidir pela MESMA fonte que o backend.
+   *
+   * ## O caso da impersonação
+   *
+   * O token de "ver como empresa" NÃO tem claim `role` (o backend o omite de
+   * propósito e ainda rebaixa `system_role` para USER) — ele se identifica pelo
+   * claim `impersonation: true`. Sem reconhecer isso aqui, a sessão de suporte
+   * deixaria de abrir qualquer rota no instante em que o guard parasse de ler o
+   * `selectedRole`. O papel efetivo vem de `IMPERSONATED_ROLE`, e continua não
+   * concedendo escrita nenhuma: o backend recusa toda mutação da sessão.
+   *
+   * Fail-closed: token ausente, malformado, expirado ou sem o claim devolve
+   * `null`, e quem chama trata `null` como NEGAR. Papel desconhecido não vira
+   * permissão por omissão.
+   */
+  getCompanyRoleFromToken(): string | null {
+    if (!this.isBrowser) {
+      return null;
+    }
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        return null;
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return null;
+      }
+      const payload = JSON.parse(this.base64UrlDecode(parts[1])) as {
+        role?: unknown;
+        exp?: unknown;
+        [key: string]: unknown;
+      };
+      if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) {
+        return null;
+      }
+      // PRECEDÊNCIA, e ela é deliberada: o ramo da impersonação vem ANTES da
+      // leitura de `role`. Hoje é indiferente, porque o token de impersonação
+      // não carrega `role` (o backend o omite) — mas se algum dia carregar os
+      // dois, a impersonação vence, em silêncio e sem ninguém decidir isso.
+      // Quem for emitir `role` num token de impersonação decide aqui qual das
+      // duas fontes manda, em vez de descobrir pela ordem das linhas.
+      if (payload[IMPERSONATION_CLAIM] === true) {
+        return IMPERSONATED_ROLE;
+      }
+      return typeof payload.role === 'string' && payload.role.length > 0 ? payload.role : null;
     } catch {
       return null;
     }

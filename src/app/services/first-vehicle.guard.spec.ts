@@ -67,6 +67,23 @@ describe('firstVehicleGuard (FEAT-0080)', () => {
     return promise;
   }
 
+  /**
+   * FIX-0363 — o papel deste guard passou a vir do TOKEN, igual ao do
+   * `roleGuard`. O setup segue o mesmo caminho: escrever o papel no espelho
+   * nao governa mais nada, entao o harness emite um JWT de verdade.
+   */
+  const encodePayload = (payload: Record<string, unknown>): string => {
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const tokenWithRole = (role: string): string =>
+    `${encodePayload({ alg: 'HS256', typ: 'JWT' })}.${encodePayload({ role })}.sig`;
+
+  function setRole(role: string): void {
+    sessionStorage.setItem('token', tokenWithRole(role));
+  }
+
   beforeEach(() => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -75,7 +92,7 @@ describe('firstVehicleGuard (FEAT-0080)', () => {
     httpMock = TestBed.inject(HttpTestingController);
     session = TestBed.inject(SessionService);
     sessionStorage.clear();
-    session.setItem('selectedRole', 'OWNER');
+    setRole('OWNER');
     session.setItem('selectedCompanyId', 'empresa-a');
   });
 
@@ -112,7 +129,7 @@ describe('firstVehicleGuard (FEAT-0080)', () => {
   it.each(['DRIVER', 'VIEWER'])(
     'papel %s (sem permissão em /veiculos) → passa sem request',
     (role) => {
-      session.setItem('selectedRole', role);
+      setRole(role);
       expect(runGuard('/dashboard')).toBe(true);
       httpMock.expectNone((r) => r.url === VEHICLES_URL);
     },
@@ -218,5 +235,41 @@ describe('firstVehicleGuard (FEAT-0080)', () => {
       : result;
     expect(value).toBe(true);
     httpMock.expectNone((r) => r.url === VEHICLES_URL);
+  });
+
+  /**
+   * FIX-0363 (review) — a protecao anti-ping-pong deste guard nunca dependeu do
+   * VALOR do papel: dependia de ele e o `roleGuard` de `/veiculos` lerem a MESMA
+   * fonte. Quando o `roleGuard` passou a ler o token e este ficou no espelho, a
+   * premissa morreu: com as fontes divergindo, aqui o papel "passava" e mandava
+   * para `/veiculos/novo`, la o token negava e devolvia para `/dashboard`, em
+   * laco. Estes dois testes prendem a fonte, que e o que evita o laco.
+   */
+  describe('fonte do papel = token (anti ping-pong)', () => {
+    it('um espelho adulterado para OWNER NAO faz o gate disparar quando o token diz DRIVER', () => {
+      setRole('DRIVER');
+      session.setItem('selectedRole', 'OWNER');
+
+      expect(runGuard('/dashboard')).toBe(true);
+      httpMock.expectNone((r) => r.url === VEHICLES_URL);
+    });
+
+    /** E o simetrico: espelho stale nao pode DESLIGAR o gate de um OWNER real. */
+    it('um espelho stale em DRIVER nao impede o gate quando o token diz OWNER', async () => {
+      setRole('OWNER');
+      session.setItem('selectedRole', 'DRIVER');
+
+      const result = await resolveWithTotals('/dashboard', 0);
+
+      expect(result).toBeInstanceOf(UrlTree);
+    });
+
+    /** Sem token nao ha papel: fail-open do gate de growth, sem request. */
+    it('sem token, passa sem request', () => {
+      sessionStorage.removeItem('token');
+
+      expect(runGuard('/dashboard')).toBe(true);
+      httpMock.expectNone((r) => r.url === VEHICLES_URL);
+    });
   });
 });
