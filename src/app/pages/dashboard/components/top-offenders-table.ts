@@ -43,7 +43,7 @@ export interface OffenderRow {
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
-                            <div>
+                            <div class="min-w-0">
                                 <span class="text-neutral-500 uppercase tracking-wide text-[10px]">
                                     Multas
                                 </span>
@@ -51,7 +51,7 @@ export interface OffenderRow {
                                     {{ r.count }}
                                 </p>
                             </div>
-                            <div>
+                            <div class="min-w-0">
                                 <span class="text-neutral-500 uppercase tracking-wide text-[10px]">
                                     Total
                                 </span>
