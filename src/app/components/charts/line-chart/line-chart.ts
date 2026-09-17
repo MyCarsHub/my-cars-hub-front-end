@@ -46,6 +46,36 @@ Chart.register(
   Tooltip,
 );
 
+/**
+ * Como o VALOR vira TEXTO na tela — eixo Y, tooltip e tabela sr-only.
+ *
+ * POR QUE ISTO EXISTE (FIX-0426): o cartão de caixa passa CENTAVOS, porque é
+ * assim que o dinheiro trafega no app inteiro. Sem formatador, o eixo imprimia o
+ * número cru: o mesmo cartão mostrava "R$ 16.050,00" em destaque e "1.500.000"
+ * logo abaixo — cem vezes maior, na tela onde o dono decide dinheiro. O valor
+ * estava certo; o que faltava era a tradução para texto.
+ *
+ * POR QUE É UM INPUT E NÃO UM PADRÃO: o gráfico do admin conta USUÁRIOS. Um
+ * formatador de moeda sem condição faria "R$ 3" usuários. O domínio quem sabe é
+ * quem chama — o mesmo raciocínio do `axisTop`, que já é calculado fora por
+ * regras diferentes (contagem tem piso 5, dinheiro tem piso R$ 100).
+ *
+ * `count` é o padrão de propósito: é o comportamento que já existia, então
+ * nenhum consumidor atual muda sem pedir.
+ */
+export type ChartValueFormat = 'count' | 'currencyCents';
+
+const BRL = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  minimumFractionDigits: 2,
+});
+
+/** Texto de um valor conforme o domínio. Exportada para os testes afirmarem o TEXTO. */
+export function formatChartValue(value: number, format: ChartValueFormat): string {
+  return format === 'currencyCents' ? BRL.format(value / 100) : String(value);
+}
+
 /** Um ponto da série: o rótulo do eixo X e o valor. */
 export interface LinePoint {
   readonly label: string;
@@ -199,9 +229,9 @@ export const REFERENCE_STYLE = Object.freeze({
                 <span>(período em andamento, ainda não fechado)</span>
               }
             </th>
-            <td>{{ point.value }}</td>
+            <td>{{ display(point.value) }}</td>
             @if (reference(); as ref) {
-              <td>{{ ref[i]?.value ?? '—' }}</td>
+              <td>{{ ref[i] ? display(ref[i]!.value) : '—' }}</td>
             }
           </tr>
         }
@@ -253,6 +283,17 @@ export class LineChart implements OnDestroy {
   readonly referenceLabel = input('Período anterior');
   /** Nome da grandeza, usado no cabeçalho da tabela e no tooltip. */
   readonly valueLabel = input('Valor');
+  /**
+   * Domínio do valor — ver {@link ChartValueFormat}. `currencyCents` converte e
+   * formata como moeda no eixo, no tooltip e na tabela; `count` (padrão)
+   * imprime o número como está.
+   */
+  readonly valueFormat = input<ChartValueFormat>('count');
+
+  /** Valor como TEXTO, para a tabela sr-only. Mesma regra do eixo e do tooltip. */
+  protected display(value: number): string {
+    return formatChartValue(value, this.valueFormat());
+  }
   readonly heightPx = input(160);
 
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
@@ -392,7 +433,18 @@ export class LineChart implements OnDestroy {
           maintainAspectRatio: false,
           // O canvas é `aria-hidden`; quem responde ao leitor de tela é a
           // tabela. Sem isto o Chart.js injeta um fallback interno redundante.
-          plugins: { legend: { display: false }, tooltip: { enabled: true } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: true,
+              callbacks: {
+                // O tooltip lê o mesmo dataset do eixo: sem isto, ele também
+                // mostraria centavos crus.
+                label: (ctx: { dataset: { label?: string }; parsed: { y: number } }) =>
+                  `${ctx.dataset.label ?? ''}: ${formatChartValue(ctx.parsed.y, this.valueFormat())}`,
+              },
+            },
+          },
           interaction: { mode: 'index', intersect: false },
           scales: {
             y: {
@@ -400,7 +452,14 @@ export class LineChart implements OnDestroy {
               suggestedMax: top,
               // Contagem de pessoas não tem casa decimal: sem isto o eixo
               // chega a mostrar "1,5 usuários" quando o pico é pequeno.
-              ticks: { precision: 0, maxTicksLimit: 5 },
+              ticks: {
+                precision: 0,
+                maxTicksLimit: 5,
+                // Sem este callback o eixo imprime o valor CRU — em centavos,
+                // no cartão de caixa. Era o FIX-0426.
+                callback: (value: string | number) =>
+                  formatChartValue(Number(value), this.valueFormat()),
+              },
               grid: { color: this.token('--color-neutral-200', '#E5E5E5') },
             },
             x: {

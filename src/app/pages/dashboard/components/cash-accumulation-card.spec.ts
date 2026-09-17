@@ -144,6 +144,21 @@ describe('CashAccumulationCard', () => {
       expect(text).toContain('agosto até aqui');
     });
 
+    /**
+     * FIX-0426 — o fio que faltava. O cartao passa CENTAVOS; sem declarar o
+     * dominio, o eixo e o tooltip imprimiam o numero cru e o mesmo cartao
+     * mostrava "R$ 16.050,00" em cima e "1.500.000" logo abaixo.
+     */
+    it('declara ao grafico que o valor e dinheiro em centavos', () => {
+      render(response());
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+      // A tabela do grafico e o unico ponto que a suite consegue LER: se o
+      // dominio nao chegar, ela mostra o centavo cru.
+      expect(texto).toContain('3.400,00');
+      expect(texto).not.toContain('340000');
+    });
+
     it('o teto do eixo vai calculado sobre as duas series', () => {
       render(response());
       const view = fixture.componentInstance['view']();

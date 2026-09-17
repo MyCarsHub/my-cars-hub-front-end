@@ -9,6 +9,7 @@ import {
   REFERENCE_STYLE,
   Y_AXIS_MIN_TOP,
   axisTopFor,
+  formatChartValue,
 } from './line-chart';
 
 /**
@@ -500,4 +501,90 @@ describe('REFERENCE_STYLE — peso visual da referencia', () => {
   it('nao pode ser alterado', () => {
     expect(Object.isFrozen(REFERENCE_STYLE)).toBe(true);
   });
+});
+
+/**
+ * FIX-0426 — o eixo imprimia o valor CRU.
+ *
+ * O cartao de caixa passa CENTAVOS (e assim que o dinheiro trafega no app), e o
+ * eixo mostrava "1.500.000" ao lado do destaque "R$ 16.050,00" no MESMO cartao:
+ * cem vezes maior, numa tela de dinheiro.
+ *
+ * POR QUE A SUITE NAO PEGOU: os testes afirmavam o VALOR passado ao componente
+ * (axisTop, pontos, marca de parcial), nunca o TEXTO desenhado. Estes testes
+ * afirmam TEXTO — e por isso quebram se alguem devolver o centavo cru de novo.
+ */
+describe('LineChart — formatacao do valor', () => {
+  describe('dinheiro em centavos', () => {
+    it('o rotulo do eixo vira moeda, nao o centavo cru', () => {
+      const texto = formatChartValue(1_500_000, 'currencyCents');
+
+      expect(texto).toContain('15.000,00');
+      expect(texto).toContain('R$');
+      expect(texto).not.toBe('1500000');
+    });
+
+    it('o caso exato visto em producao', () => {
+      // R$ 16.050,00 em destaque; o eixo dizia 1.605.000.
+      expect(formatChartValue(1_605_000, 'currencyCents')).toContain('16.050,00');
+    });
+
+    it('zero tambem sai como moeda', () => {
+      expect(formatChartValue(0, 'currencyCents')).toContain('0,00');
+    });
+
+    it('a tabela sr-only mostra moeda, nao centavo', () => {
+      const host = renderWith(
+        [
+          { label: '1', value: 1_500_000 },
+          { label: '2', value: 3_000_000 },
+        ],
+        'currencyCents',
+      );
+      const texto = host.textContent ?? '';
+
+      expect(texto).toContain('15.000,00');
+      expect(texto).not.toContain('1500000');
+    });
+  });
+
+  /**
+   * CONTAGEM continua crua. O grafico do admin conta USUARIOS: um formatador de
+   * moeda sem condicao faria "R$ 3" usuarios.
+   */
+  describe('contagem', () => {
+    it('nao recebe simbolo de moeda', () => {
+      expect(formatChartValue(3, 'count')).toBe('3');
+      expect(formatChartValue(3, 'count')).not.toContain('R$');
+    });
+
+    it('e o PADRAO — quem nao declara dominio nao vira moeda', () => {
+      const host = renderWith([{ label: 'jan', value: 3 }]);
+      const texto = host.textContent ?? '';
+
+      expect(texto).toContain('3');
+      expect(texto).not.toContain('R$');
+    });
+  });
+
+  function renderWith(points: LinePoint[], format?: 'count' | 'currencyCents'): HTMLElement {
+    @Component({
+      imports: [LineChart],
+      template: `<app-line-chart
+        [points]="points"
+        ariaLabel="teste"
+        [valueFormat]="format"
+      />`,
+    })
+    class Host {
+      readonly points = points;
+      readonly format = format ?? 'count';
+    }
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [Host] });
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
 });
