@@ -91,9 +91,14 @@
                       {{ company.name }}
                     </a>
                   </h3>
-                  <p class="text-xs text-neutral-500 mt-0.5 tabular-nums break-words">
+                  <!-- FIX-0422, celular: alvo = conteudo do cartao MENOS o menu. -->
+                  <a
+                    [routerLink]="['/admin/companies', company.id]"
+                    tabindex="-1"
+                    class="block text-xs text-neutral-500 mt-0.5 tabular-nums break-words"
+                  >
                     {{ company.documentMasked ?? '—' }}
-                  </p>
+                  </a>
                 </div>
                 <div class="shrink-0">
                   <app-actions-menu [label]="'Ações para ' + company.name">
@@ -131,7 +136,12 @@
                 </div>
               </div>
 
-              <div class="flex flex-wrap items-center gap-2">
+              <a
+                [routerLink]="['/admin/companies', company.id]"
+                tabindex="-1"
+                class="flex flex-wrap items-center gap-2"
+                data-testid="card-meta"
+              >
                 <span
                   class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
                          font-medium uppercase tracking-wide"
@@ -154,7 +164,7 @@
                 <span class="text-[11px] text-neutral-400">
                   {{ company.memberCount }} membros · {{ formatDate(company.createdAt) }}
                 </span>
-              </div>
+              </a>
             </div>
           }
         </div>
@@ -177,23 +187,47 @@
             <tbody>
               @for (company of companies(); track company.id) {
                 <tr class="border-b border-gray-50 hover:bg-gray-50/60">
-                  <td class="py-3 pr-4 align-top font-medium text-neutral-900">
+                  <!--
+                    FIX-0422 — CADA celula de conteudo e um link; a coluna de
+                    ACOES nao e. Alvo grande SEM esticar nada por cima do menu
+                    e sem aninhar botao em ancora. Padding no ancora, nao na
+                    celula, para o alvo cobrir a celula inteira. So este ancora
+                    e tabulavel (um ponto de foco por linha).
+                  -->
+                  <td class="align-top font-medium text-neutral-900">
                     <a
                       [routerLink]="['/admin/companies', company.id]"
-                      class="hover:text-primary-700 hover:underline outline-none
+                      class="block py-3 pr-4 hover:text-primary-700 hover:underline outline-none
                              focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
                       [attr.aria-label]="'Ver detalhes de ' + company.name"
                     >
                       {{ company.name }}
                     </a>
                   </td>
-                  <td class="py-3 pr-4 align-top text-neutral-600 tabular-nums">
-                    {{ company.documentMasked ?? '—' }}
+                  <td class="align-top text-neutral-600 tabular-nums">
+                    <a
+                      [routerLink]="['/admin/companies', company.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
+                    >
+                      {{ company.documentMasked ?? '—' }}
+                    </a>
                   </td>
-                  <td class="py-3 pr-4 align-top text-neutral-700">
-                    {{ company.planName ?? '—' }}
+                  <td class="align-top text-neutral-700">
+                    <a
+                      [routerLink]="['/admin/companies', company.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
+                    >
+                      {{ company.planName ?? '—' }}
+                    </a>
                   </td>
-                  <td class="py-3 pr-4 align-top">
+                  <td class="align-top" data-testid="cell-sub">
+                    <a
+                      [routerLink]="['/admin/companies', company.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
+                    >
                     @if (subChip(company.subscriptionStatus); as chip) {
                       <span
                         class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
@@ -204,18 +238,39 @@
                     } @else {
                       <span class="text-xs text-neutral-400">—</span>
                     }
+                    </a>
                   </td>
-                  <td class="py-3 pr-4 align-top">
-                    <span
-                      class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                      [class]="companyChip(company.status).chip"
+                  <td class="align-top" data-testid="cell-status">
+                    <a
+                      [routerLink]="['/admin/companies', company.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
                     >
-                      {{ companyChip(company.status).label }}
-                    </span>
+                      <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        [class]="companyChip(company.status).chip"
+                      >
+                        {{ companyChip(company.status).label }}
+                      </span>
+                    </a>
                   </td>
-                  <td class="py-3 pr-4 align-top text-right tabular-nums">{{ company.memberCount }}</td>
-                  <td class="py-3 pr-4 align-top text-neutral-600 tabular-nums">
-                    {{ formatDate(company.createdAt) }}
+                  <td class="align-top text-right tabular-nums">
+                    <a
+                      [routerLink]="['/admin/companies', company.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4 text-right"
+                    >
+                      {{ company.memberCount }}
+                    </a>
+                  </td>
+                  <td class="align-top text-neutral-600 tabular-nums" data-testid="cell-date">
+                    <a
+                      [routerLink]="['/admin/companies', company.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
+                    >
+                      {{ formatDate(company.createdAt) }}
+                    </a>
                   </td>
                   <td class="py-3 pr-4 align-top">
                     <div class="flex items-center justify-end">

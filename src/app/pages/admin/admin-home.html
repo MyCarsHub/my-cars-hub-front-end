@@ -213,31 +213,6 @@
     </div>
   </div>
 
-  <!-- As ressalvas saíram de dentro dos cartões, mas NÃO sumiram: em largura
-       total elas continuam legíveis no celular, o que não aconteceria espremidas
-       numa coluna de 160px. Sem elas os números de volume enganam. -->
-  <!-- bg-white de propósito: `gray-50` é o CANVAS da página (#F0F0F0) e a nota
-       sumiria dentro dele. -->
-  <div class="rounded-2xl border border-neutral-200 bg-white p-4 mb-4">
-    <h2 class="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
-      Como ler os números de volume
-    </h2>
-    <ul class="mt-2 space-y-1.5 text-sm sm:text-xs text-neutral-600 list-disc pl-5">
-      <li>
-        <span class="font-medium text-neutral-700">Aluguéis fechados</span> = reservado, em andamento
-        ou concluído. Não inclui cancelados.
-      </li>
-      <li>
-        <span class="font-medium text-neutral-700">Aluguéis concluídos</span> é o recorte conservador:
-        apenas os aluguéis já finalizados.
-      </li>
-      <li>
-        <span class="font-medium text-neutral-700">Contratos assinados</span> é subconjunto do total —
-        contrato assinado em papel fica de fora.
-      </li>
-    </ul>
-  </div>
-
   <!-- Charts row -->
   <div class="grid gap-4 lg:grid-cols-3 mb-4">
     <!-- Users spark -->
@@ -326,8 +301,8 @@
     </div>
   </div>
 
-  <!-- Aluguéis por status + Feedback por status + Ações rápidas -->
-  <div class="grid gap-4 lg:grid-cols-3 mb-4">
+  <!-- Aluguéis por status + Feedback por status -->
+  <div class="grid gap-4 lg:grid-cols-2 mb-4">
     <!-- O gráfico sobreviveu à mudança dos cartões: ele responde "onde estão os
          aluguéis", que nenhum número isolado responde. Foi para junto das outras
          distribuições por status, onde é o seu lugar. -->
@@ -387,28 +362,6 @@
       </app-page-card>
     </div>
 
-    <div>
-      <app-page-card title="Ações rápidas">
-        <div class="p-4">
-          <a
-            routerLink="/admin/feedback"
-            class="block rounded-xl bg-primary-500 text-white text-center px-4 py-3
-                   text-sm font-medium hover:bg-primary-600 transition-colors"
-          >
-            Ir para moderação
-          </a>
-          <button
-            type="button"
-            class="mt-2 w-full rounded-xl border border-neutral-200 text-neutral-700 px-4 py-3
-                   text-sm font-medium hover:bg-gray-50 transition-colors"
-            (click)="reload()"
-            [disabled]="loading()"
-          >
-            Atualizar métricas
-          </button>
-        </div>
-      </app-page-card>
-    </div>
   </div>
 
   <!-- Sections nav -->
