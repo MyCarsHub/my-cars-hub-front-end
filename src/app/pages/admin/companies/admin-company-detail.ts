@@ -29,6 +29,7 @@ import {
   AdminCompanySubscriptionStatus,
 } from '../../../types/admin-company.types';
 import { formatBRL } from '../../../types/dashboard.types';
+import { companyRoleLabel } from '../../../utils/role-labels';
 
 interface ChipStyle {
   label: string;
@@ -477,12 +478,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   }
 
   protected roleLabel(role: string): string {
-    const map: Record<string, string> = {
-      OWNER: 'Proprietário',
-      MANAGER: 'Gerente',
-      DRIVER: 'Motorista',
-    };
-    return map[role] ?? role;
+    return companyRoleLabel(role);
   }
 
   protected memberStatusChip(status: string): string {
