@@ -26,6 +26,7 @@ import { SubscriptionResponse } from '../../types/billing.types';
 import { UserCompanies } from '../../types/user-companies';
 import { MeResponse, UserDocument } from '../../types/me-response.type';
 import { TourService } from '../../components/tour/tour.service';
+import { companyRoleLabel } from '../../utils/role-labels';
 
 @Component({
   selector: 'app-profile',
@@ -144,16 +145,7 @@ export class Profile implements OnInit, OnDestroy {
   }
 
   protected roleLabel(role: string): string {
-    switch (role) {
-      case 'OWNER':
-        return 'Proprietário';
-      case 'MANAGER':
-        return 'Gerenciador';
-      case 'DRIVER':
-        return 'Motorista';
-      default:
-        return role;
-    }
+    return companyRoleLabel(role);
   }
 
   protected isActiveTenant(companyId: string): boolean {
