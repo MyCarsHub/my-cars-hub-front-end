@@ -2,7 +2,13 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { LineChart, LinePoint, Y_AXIS_MIN_TOP, axisTopFor } from './line-chart';
+import {
+  LineChart,
+  LinePoint,
+  REFERENCE_STYLE,
+  Y_AXIS_MIN_TOP,
+  axisTopFor,
+} from './line-chart';
 
 /**
  * FEAT-0121 — o que este arquivo protege NAO e a biblioteca, e a HONESTIDADE
@@ -288,5 +294,188 @@ describe('LineChart — teto do eixo vindo do chamador', () => {
     const moneyTop = 2000;
 
     expect(moneyTop).toBeGreaterThan(axisTopFor([1200, 1500, 400]));
+  });
+});
+
+/**
+ * FEAT-0121 — SERIE DE REFERENCIA (mes anterior atras do mes corrente).
+ *
+ * O cartao de caixa E a comparacao: sem a segunda curva sobra um numero que o
+ * dono ja tem noutro bloco. E o peso visual menor e regra de PRODUTO, nao
+ * preferencia — duas linhas de peso parecido fazem a do mes passado ser lida
+ * como PREVISAO do mes atual, e o cartao passa a prometer futuro em vez de
+ * comparar com o passado.
+ */
+describe('LineChart — serie de referencia', () => {
+  const ATUAL: LinePoint[] = [
+    { label: '01', value: 10 },
+    { label: '02', value: 25 },
+    { label: '03', value: 40, partial: true },
+  ];
+  const ANTERIOR: LinePoint[] = [
+    { label: '01', value: 30 },
+    { label: '02', value: 55 },
+    { label: '03', value: 70 },
+  ];
+
+  @Component({
+    imports: [LineChart],
+    template: `
+      <app-line-chart
+        [points]="points()"
+        [reference]="reference()"
+        [type]="type()"
+        ariaLabel="Caixa do mês"
+        valueLabel="Mês atual"
+        referenceLabel="Mês anterior"
+      />
+    `,
+  })
+  class RefHost {
+    readonly points = signal<LinePoint[]>(ATUAL);
+    readonly reference = signal<readonly LinePoint[] | null>(ANTERIOR);
+    readonly type = signal<'line' | 'bar'>('line');
+  }
+
+  function render(setup?: (h: RefHost) => void) {
+    const fixture = TestBed.createComponent(RefHost);
+    setup?.(fixture.componentInstance);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({ imports: [RefHost] }).compileComponents();
+  });
+
+  it('publica a comparacao na tabela, lado a lado com o mes atual', () => {
+    const rows = Array.from(render().querySelectorAll('tbody tr')).map((tr) =>
+      Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim()),
+    );
+
+    expect(rows).toEqual([
+      ['10', '30'],
+      ['25', '55'],
+      ['40', '70'],
+    ]);
+  });
+
+  it('nomeia a coluna de comparacao com o rotulo da referencia', () => {
+    const headers = Array.from(render().querySelectorAll('thead th')).map((th) =>
+      th.textContent?.trim(),
+    );
+
+    expect(headers).toEqual(['Período', 'Mês atual', 'Mês anterior']);
+  });
+
+  /**
+   * A marca de parcial e da serie PRINCIPAL. A referencia e um periodo fechado
+   * e nao pode herda-la, ou o desenho diria que o mes passado ainda esta
+   * enchendo.
+   */
+  it('nao contamina a referencia com a marca de periodo em andamento', () => {
+    const rows = Array.from(render().querySelectorAll('tbody tr')).map(
+      (tr) => (tr.querySelector('th')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    );
+
+    // A ressalva aparece UMA vez, na linha do bucket parcial da serie principal.
+    expect(rows.filter((r) => r.includes('em andamento'))).toHaveLength(1);
+    expect(rows[2]).toContain('em andamento');
+  });
+
+  it('tolera referencia mais curta que a serie principal', () => {
+    const host = render((h) => h.reference.set([{ label: '01', value: 30 }]));
+    const rows = Array.from(host.querySelectorAll('tbody tr')).map((tr) =>
+      Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim()),
+    );
+
+    expect(rows[0]).toEqual(['10', '30']);
+    expect(rows[1]).toEqual(['25', '—']);
+  });
+
+  it('aceita referencia tambem em barra', () => {
+    const host = render((h) => h.type.set('bar'));
+    const headers = Array.from(host.querySelectorAll('thead th')).map((th) =>
+      th.textContent?.trim(),
+    );
+
+    expect(headers).toContain('Mês anterior');
+  });
+
+  /**
+   * REGRESSAO: o admin-home JA ESTA EM PRODUCAO com este componente e NAO passa
+   * referencia. Sem ela, tudo tem de ficar exatamente como era — inclusive a
+   * tabela com DUAS colunas, nao tres com uma vazia.
+   */
+  describe('sem referencia, nada muda', () => {
+    it('a tabela volta a ter duas colunas', () => {
+      const host = render((h) => h.reference.set(null));
+
+      expect(
+        Array.from(host.querySelectorAll('thead th')).map((th) => th.textContent?.trim()),
+      ).toEqual(['Período', 'Mês atual']);
+    });
+
+    it('nenhuma linha ganha celula de comparacao', () => {
+      const host = render((h) => h.reference.set(null));
+      const cells = Array.from(host.querySelectorAll('tbody tr')).map(
+        (tr) => tr.querySelectorAll('td').length,
+      );
+
+      expect(cells).toEqual([1, 1, 1]);
+    });
+
+    it('a marca de periodo em andamento continua funcionando', () => {
+      const host = render((h) => h.reference.set(null));
+      const rows = Array.from(host.querySelectorAll('tbody tr')).map(
+        (tr) => tr.querySelector('th')?.textContent ?? '',
+      );
+
+      expect(rows[2]).toContain('em andamento');
+    });
+  });
+});
+
+/**
+ * O teto do eixo tem de enxergar as DUAS series: uma referencia mais alta que a
+ * principal sairia CORTADA, e a serie cortada seria justamente a que da a
+ * medida de comparacao.
+ */
+describe('axisTopFor — com serie de referencia', () => {
+  it('o topo cobre a referencia quando ela e maior que a principal', () => {
+    const atual = [10, 25, 40];
+    const anterior = [30, 55, 70];
+
+    expect(axisTopFor([...atual, ...anterior])).toBe(70);
+    expect(axisTopFor(atual)).toBe(40);
+  });
+});
+
+/**
+ * O PESO MENOR E POR CONSTRUCAO — e a regra que este no manda enterrar no
+ * componente, entao ela precisa de teste, nao so de comentario.
+ *
+ * O desenho nao e testavel (canvas nao roda no JSDOM), entao o que se afirma
+ * aqui e o CONTRATO: fina, tracejada, sem preenchimento, sem pontos. Se alguem
+ * "melhorar" a referencia para solida ou grossa, cai aqui — e nao na reuniao em
+ * que o dono le a linha do mes passado como previsao do mes atual.
+ */
+describe('REFERENCE_STYLE — peso visual da referencia', () => {
+  it('e fina, tracejada, sem preenchimento e sem pontos', () => {
+    expect(REFERENCE_STYLE.borderWidth).toBe(1);
+    expect(REFERENCE_STYLE.borderDash.length).toBeGreaterThan(0);
+    expect(REFERENCE_STYLE.fill).toBe(false);
+    expect(REFERENCE_STYLE.pointRadius).toBe(0);
+    expect(REFERENCE_STYLE.pointHoverRadius).toBe(0);
+  });
+
+  /** A serie principal usa borderWidth 2; a referencia tem de ser mais leve. */
+  it('e mais leve que a serie principal', () => {
+    expect(REFERENCE_STYLE.borderWidth).toBeLessThan(2);
+  });
+
+  /** Congelado: nem o proprio componente muda isto em tempo de execucao. */
+  it('nao pode ser alterado', () => {
+    expect(Object.isFrozen(REFERENCE_STYLE)).toBe(true);
   });
 });

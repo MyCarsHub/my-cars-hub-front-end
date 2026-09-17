@@ -8,6 +8,7 @@ import {
   input,
   viewChild,
 } from '@angular/core';
+import type { ChartConfiguration } from 'chart.js';
 import {
   BarController,
   BarElement,
@@ -91,6 +92,27 @@ export function axisTopFor(values: readonly number[]): number {
 }
 
 /**
+ * Peso visual da série de REFERÊNCIA — fixo, e exportado para poder ser
+ * afirmado por teste.
+ *
+ * Mora fora do componente pelo mesmo motivo de `axisTopFor`: é regra de
+ * PRODUTO, não detalhe de desenho, e regra de produto que só existe dentro de
+ * um `new Chart()` não é verificável — o canvas não roda no JSDOM. Congelado
+ * para que nem o componente possa alterá-lo por engano.
+ *
+ * Se as duas séries tiverem peso parecido, a do período anterior é lida como
+ * PREVISÃO do atual, e o cartão passa a prometer futuro em vez de comparar com
+ * o passado. Por isso nada aqui é configurável de fora.
+ */
+export const REFERENCE_STYLE = Object.freeze({
+  borderWidth: 1,
+  borderDash: Object.freeze([4, 4]) as readonly number[],
+  pointRadius: 0,
+  pointHoverRadius: 0,
+  fill: false,
+});
+
+/**
  * Gráfico de LINHA sobre Chart.js, com alternativa textual.
  *
  * ## Por que canvas tem tabela junto
@@ -129,10 +151,19 @@ export function axisTopFor(values: readonly number[]): number {
         <tr>
           <th scope="col">Período</th>
           <th scope="col">{{ valueLabel() }}</th>
+          <!--
+            A coluna de comparacao NAO e enfeite: sem ela a comparacao existiria
+            so no desenho, e quem usa leitor de tela receberia o numero do mes
+            sem nada com que compara-lo — que e justamente o que o cartao
+            existe para mostrar.
+          -->
+          @if (reference()) {
+            <th scope="col">{{ referenceLabel() }}</th>
+          }
         </tr>
       </thead>
       <tbody>
-        @for (point of points(); track point.label) {
+        @for (point of points(); track point.label; let i = $index) {
           <tr>
             <th scope="row">
               {{ point.label }}
@@ -147,6 +178,9 @@ export function axisTopFor(values: readonly number[]): number {
               }
             </th>
             <td>{{ point.value }}</td>
+            @if (reference(); as ref) {
+              <td>{{ ref[i]?.value ?? '—' }}</td>
+            }
           </tr>
         }
       </tbody>
@@ -176,8 +210,25 @@ export class LineChart implements OnDestroy {
    * Ausente, aplica-se `axisTopFor` (regra de CONTAGEM). É o que mantém o
    * `admin-home` sem mudança nenhuma — mas quem plota DINHEIRO precisa passar
    * este valor, ou vai receber um piso de 5 onde queria R$ 100.
+   *
+   * HAVENDO `reference`, calcule o teto sobre AS DUAS SÉRIES. A referência é um
+   * período FECHADO e quase sempre a maior das duas — calculada só sobre a
+   * série principal, ela sai cortada, e a série cortada é justamente a que dá a
+   * medida de comparação. O padrão interno já soma as duas; quem passa o
+   * número assume a conta.
    */
   readonly axisTop = input<number | null>(null);
+
+  /**
+   * Série de COMPARAÇÃO, desenhada atrás da principal — tipicamente o período
+   * anterior. Ausente (`null`), o gráfico fica exatamente como era antes de ela
+   * existir: um dataset só.
+   *
+   * Deve ter os MESMOS rótulos da série principal, na mesma ordem; é o que faz
+   * "dia 3" de um mês cair sobre "dia 3" do outro.
+   */
+  readonly reference = input<readonly LinePoint[] | null>(null);
+  readonly referenceLabel = input('Período anterior');
   /** Nome da grandeza, usado no cabeçalho da tabela e no tooltip. */
   readonly valueLabel = input('Valor');
   readonly heightPx = input(160);
@@ -190,10 +241,23 @@ export class LineChart implements OnDestroy {
    * Teto do eixo: o maior entre o piso e o máximo real da série. Ver
    * `Y_AXIS_MIN_TOP` para o porquê de existir um piso.
    */
-  /** Teto efetivo: o do chamador quando existe, senão a regra de contagem. */
-  private readonly effectiveAxisTop = computed(
-    () => this.axisTop() ?? axisTopFor(this.points().map((p) => p.value)),
-  );
+  /**
+   * Teto efetivo: o do chamador quando existe, senão a regra de contagem.
+   *
+   * O padrão olha as DUAS séries. Uma referência mais alta que a principal
+   * estouraria o topo e sairia cortada — e a série cortada seria justamente a
+   * que dá a medida de comparação. Quem PASSA `axisTop` assume essa conta:
+   * calcule sobre principal + referência, ou verá o mesmo corte.
+   */
+  private readonly effectiveAxisTop = computed(() => {
+    const fromCaller = this.axisTop();
+    if (fromCaller !== null) return fromCaller;
+    const values = [
+      ...this.points().map((p) => p.value),
+      ...(this.reference() ?? []).map((p) => p.value),
+    ];
+    return axisTopFor(values);
+  });
 
   constructor() {
     effect(() => {
@@ -253,11 +317,53 @@ export class LineChart implements OnDestroy {
             },
           };
 
-      this.chart = new Chart(canvas, {
+      const reference = this.reference();
+
+      /**
+       * A referência é MAIS LEVE POR CONSTRUÇÃO, e nenhuma dessas opções é
+       * configurável de fora. Se as duas séries tiverem peso parecido, a linha
+       * do mês passado é lida como PREVISÃO do mês atual — e o cartão passa a
+       * prometer futuro em vez de comparar com o passado. Deixar isso a cargo
+       * de quem consome é garantir que um dia alguém passe uma referência
+       * sólida e ninguém perceba até o dono tirar a conclusão errada.
+       *
+       * É SEMPRE LINHA, mesmo quando a série principal é barra. Em barra, a
+       * marca de "período em andamento" JÁ É a barra vazada com contorno
+       * tracejado (ver o dataset acima) — uma referência vazada e tracejada
+       * ficaria indistinguível dela, e o gráfico passaria a ter duas coisas
+       * diferentes com o mesmo desenho. Linha fina sobre colunas separa os dois
+       * papéis sem ambiguidade e continua sendo o peso menor.
+       *
+       * A marca de parcial NÃO se aplica aqui: a referência é um período
+       * fechado. Nenhuma opção deste dataset lê `partial`.
+       */
+      const referenceDataset = reference
+        ? {
+            type: 'line' as const,
+            data: reference.map((p) => p.value),
+            label: this.referenceLabel(),
+            borderColor: this.token('--color-neutral-400', '#A1A1A1'),
+            borderWidth: REFERENCE_STYLE.borderWidth,
+            borderDash: [...REFERENCE_STYLE.borderDash],
+            pointRadius: REFERENCE_STYLE.pointRadius,
+            pointHoverRadius: REFERENCE_STYLE.pointHoverRadius,
+            fill: REFERENCE_STYLE.fill,
+            tension: 0.3,
+          }
+        : null;
+
+      // UM cast, aqui: com dataset de tipo próprio (a referência é sempre
+      // linha, mesmo em barra) o Chart.js entra no modo "tipos por dataset", e
+      // a inferência abre para todo o registro de tipos. O cast reafirma o que
+      // o componente de fato aceita — line e bar — sem espalhar `any`.
+      const config = {
         type: isBar ? 'bar' : 'line',
         data: {
           labels: points.map((p) => p.label),
-          datasets: [dataset],
+          // Referência PRIMEIRO no array: o Chart.js desenha na ordem, então o
+          // índice 0 fica atrás. É o que mantém a série principal legível por
+          // cima dela.
+          datasets: referenceDataset ? [referenceDataset, dataset] : [dataset],
         },
         options: {
           responsive: true,
@@ -282,7 +388,9 @@ export class LineChart implements OnDestroy {
             },
           },
         },
-      });
+      } as ChartConfiguration<'line' | 'bar', number[], string>;
+
+      this.chart = new Chart(canvas, config);
     });
   }
 
