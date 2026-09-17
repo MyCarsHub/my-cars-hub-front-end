@@ -6,6 +6,7 @@ import {
     output,
 } from '@angular/core';
 import { formatBRL, MonthlyPointDto } from '../../../types/dashboard.types';
+import { moneyAxisTopFor } from '../../../utils/money-axis';
 
 interface RenderedBar {
     month: string;
@@ -328,7 +329,12 @@ export class MonthlyBillingChart {
 
     protected readonly bars = computed<RenderedBar[]>(() => {
         const rows = this.data() ?? [];
-        const max = Math.max(1, ...rows.map((r) => r.amountCents));
+        // A altura NAO e mais normalizada pelo proprio pico da serie: assim a
+        // barra mais alta parava de encostar no teto so por ser a mais alta, e
+        // R$ 150 desenhava a mesma montanha que R$ 150.000. `moneyAxisTopFor`
+        // ancora no zero, aplica o piso de R$ 100,00 e sobe ate um valor
+        // redondo — ver a regra e o porque do piso em `utils/money-axis.ts`.
+        const max = moneyAxisTopFor(rows.map((r) => r.amountCents));
         const currentMonth = this.currentMonthKey();
         return rows.map((r) => {
             const { label, isCurrent } = this.monthMeta(r.month, currentMonth);
