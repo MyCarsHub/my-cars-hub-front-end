@@ -78,6 +78,12 @@
             <div class="rounded-xl border border-neutral-200 p-4 space-y-3 bg-white
                         hover:border-primary-300 transition-colors">
               <div class="flex items-start justify-between gap-2">
+                <!--
+                  FIX-0422, celular — mesma regra da tabela: o alvo e todo o
+                  conteudo do cartao MENOS o menu de acoes, que fica fora do
+                  ancora (irmao dele, nao filho). Nada e esticado por cima de
+                  nada, entao o menu continua clicavel e o HTML segue valido.
+                -->
                 <div class="min-w-0 flex-1">
                   <h3 class="font-medium text-neutral-900 text-sm break-words">
                     <a
@@ -89,12 +95,18 @@
                       {{ user.name ?? '(sem nome)' }}
                     </a>
                   </h3>
-                  <p class="text-xs text-neutral-500 mt-0.5 break-words">{{ user.email }}</p>
-                  @if (user.lastCompanyName) {
-                    <p class="text-[11px] text-neutral-400 mt-1">
-                      Última empresa: {{ user.lastCompanyName }}
-                    </p>
-                  }
+                  <a
+                    [routerLink]="['/admin/users', user.id]"
+                    tabindex="-1"
+                    class="block"
+                  >
+                    <span class="block text-xs text-neutral-500 mt-0.5 break-words">{{ user.email }}</span>
+                    @if (user.lastCompanyName) {
+                      <span class="block text-[11px] text-neutral-400 mt-1">
+                        Última empresa: {{ user.lastCompanyName }}
+                      </span>
+                    }
+                  </a>
                 </div>
                 <div class="shrink-0">
                   <app-actions-menu [label]="'Ações para ' + user.email">
@@ -142,7 +154,12 @@
                 </div>
               </div>
 
-              <div class="flex flex-wrap items-center gap-2">
+              <a
+                [routerLink]="['/admin/users', user.id]"
+                tabindex="-1"
+                class="flex flex-wrap items-center gap-2"
+                data-testid="card-meta"
+              >
                 <span
                   class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
                          font-medium uppercase tracking-wide"
@@ -160,7 +177,7 @@
                 <span class="text-[11px] text-neutral-400">
                   Desde {{ formatDate(user.createdDate) }}
                 </span>
-              </div>
+              </a>
             </div>
           }
         </div>
@@ -182,38 +199,74 @@
             <tbody>
               @for (user of items(); track user.id) {
                 <tr class="border-b border-gray-50 hover:bg-gray-50/60">
-                  <td class="py-3 pr-4 align-top font-medium text-neutral-900">
+                  <!--
+                    FIX-0422 — CADA celula de conteudo e um link para o detalhe,
+                    e a coluna de ACOES nao e. Assim a linha inteira vira alvo
+                    sem esticar nada por cima do menu de acoes (que seria o
+                    `<a>` engolindo o botao) e sem aninhar botao dentro de
+                    ancora (que seria HTML invalido). O padding mora no ancora,
+                    nao na celula, para o alvo cobrir a celula toda.
+                    So ESTE ancora e tabulavel; os demais levam tabindex="-1"
+                    para a linha ter UM ponto de foco, e nao sete.
+                  -->
+                  <td class="align-top font-medium text-neutral-900">
                     <a
                       [routerLink]="['/admin/users', user.id]"
-                      class="hover:text-primary-700 hover:underline outline-none
+                      class="block py-3 pr-4 hover:text-primary-700 hover:underline outline-none
                              focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
                       [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)"
                     >
                       {{ user.name ?? '(sem nome)' }}
                     </a>
                   </td>
-                  <td class="py-3 pr-4 align-top text-neutral-700 break-all">{{ user.email }}</td>
-                  <td class="py-3 pr-4 align-top">
-                    <span
-                      class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                      [class]="statusChip(user.active)"
+                  <td class="align-top text-neutral-700 break-all">
+                    <a
+                      [routerLink]="['/admin/users', user.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
+                    >{{ user.email }}</a>
+                  </td>
+                  <td class="align-top" data-testid="cell-status">
+                    <a
+                      [routerLink]="['/admin/users', user.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
                     >
-                      {{ user.active ? 'Ativo' : 'Inativo' }}
-                    </span>
+                      <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        [class]="statusChip(user.active)"
+                      >
+                        {{ user.active ? 'Ativo' : 'Inativo' }}
+                      </span>
+                    </a>
                   </td>
-                  <td class="py-3 pr-4 align-top">
-                    <span
-                      class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                      [class]="roleChip(user.systemRole)"
+                  <td class="align-top">
+                    <a
+                      [routerLink]="['/admin/users', user.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
                     >
-                      {{ roleLabel(user.systemRole) }}
-                    </span>
+                      <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        [class]="roleChip(user.systemRole)"
+                      >
+                        {{ roleLabel(user.systemRole) }}
+                      </span>
+                    </a>
                   </td>
-                  <td class="py-3 pr-4 align-top text-neutral-600">
-                    {{ user.lastCompanyName ?? '—' }}
+                  <td class="align-top text-neutral-600">
+                    <a
+                      [routerLink]="['/admin/users', user.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
+                    >{{ user.lastCompanyName ?? '—' }}</a>
                   </td>
-                  <td class="py-3 pr-4 align-top text-neutral-600 tabular-nums">
-                    {{ formatDate(user.createdDate) }}
+                  <td class="align-top text-neutral-600 tabular-nums" data-testid="cell-date">
+                    <a
+                      [routerLink]="['/admin/users', user.id]"
+                      tabindex="-1"
+                      class="block py-3 pr-4"
+                    >{{ formatDate(user.createdDate) }}</a>
                   </td>
                   <td class="py-3 pr-4 align-top">
                     <div class="flex items-center justify-end">
