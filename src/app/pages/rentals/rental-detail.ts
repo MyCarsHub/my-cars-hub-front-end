@@ -14,6 +14,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
+import {
+  overdueUnpaidGatewayCharges,
+  shouldWarnAboutGatewayCharges,
+} from '../../utils/rental-charges';
 import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -260,6 +264,34 @@ export class RentalDetail implements OnInit {
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
   /** Opt-in do dialog de exclusão. Reaberto sempre desmarcado em `askDelete()`. */
+  /**
+   * MESMOS criterios do dialogo de encerrar (`utils/rental-charges.ts`). O aviso
+   * indevido do Asaas foi relatado nos DOIS caminhos; ter um criterio so e o que
+   * impede alguem consertar um e o defeito continuar vivo no outro.
+   */
+  protected readonly hasOverdueUnpaidCharges = computed<boolean>(() => {
+    const r = this.rental();
+    return !!r && overdueUnpaidGatewayCharges(r.charges, this.todayIso()).length > 0;
+  });
+
+  /**
+   * A mensagem so fala do Asaas quando ha cobranca NO GATEWAY que a exclusao vai
+   * tocar. Aluguel quitado, ou criado sem cobranca automatica, le so a frase que
+   * importa: a acao nao pode ser desfeita.
+   */
+  protected readonly deleteMessage = computed<string>(() => {
+    const r = this.rental();
+    const base = 'Tem certeza que deseja excluir este aluguel?';
+    const fim = 'Esta ação não pode ser desfeita.';
+    if (!r || !shouldWarnAboutGatewayCharges(r.charges, this.todayIso())) {
+      return `${base} ${fim}`;
+    }
+    const vencidas = this.hasOverdueUnpaidCharges()
+      ? ' As vencidas e não pagas permanecem cobráveis, salvo se você marcar a opção abaixo.'
+      : '';
+    return `${base} As cobranças em aberto que ainda não venceram serão apagadas no Asaas; as já pagas permanecem e não são estornadas.${vencidas} ${fim}`;
+  });
+
   protected readonly deleteRemoveOverdue = signal(false);
 
   protected readonly statusInfo = computed(() => {
