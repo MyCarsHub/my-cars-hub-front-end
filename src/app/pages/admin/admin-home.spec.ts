@@ -228,4 +228,55 @@ describe('AdminHome — consolidado de aluguéis e contratos', () => {
     expect(statValue(host, 'Aluguéis fechados')).toContain('0,00');
     expect(host.textContent).not.toContain('undefined');
   });
+
+  /**
+   * FEAT-0121 — o grafico de novos usuarios deixou de ser SVG desenhado a mao e
+   * passou a ser componente de biblioteca. O que a pagina deve garantir aqui e
+   * que ela ENTREGA a serie certa e continua legivel sem o desenho (o canvas
+   * nao renderiza no JSDOM, e e de proposito que a tabela carregue o dado).
+   */
+  describe('grafico de novos usuarios', () => {
+    const COM_SERIE: AdminOverviewResponse = {
+      ...POPULATED_OVERVIEW,
+      users: {
+        ...POPULATED_OVERVIEW.users,
+        newByDay: [
+          { date: '2026-09-01', count: 0 },
+          { date: '2026-09-02', count: 3 },
+          { date: '2026-09-03', count: 1 },
+        ],
+      },
+    };
+
+    it('entrega a serie ao grafico, legivel como texto', () => {
+      overview.set(COM_SERIE);
+      const host = render();
+
+      expect(host.querySelector('app-line-chart'), 'grafico nao renderizou').not.toBeNull();
+
+      const rows = Array.from(host.querySelectorAll('app-line-chart tbody tr')).map((tr) =>
+        Array.from(tr.querySelectorAll('th, td')).map((c) => c.textContent?.trim()),
+      );
+      expect(rows).toHaveLength(3);
+      expect(rows[1]?.[1]).toBe('3');
+    });
+
+    /**
+     * O pico agora e dito em TEXTO. Antes ele so existia como altura do
+     * desenho — e a altura era sempre a mesma, qualquer que fosse o numero.
+     */
+    it('diz o pico do periodo em texto', () => {
+      overview.set(COM_SERIE);
+
+      expect(flatText(render())).toContain('Pico de 3 no período');
+    });
+
+    it('mostra o estado vazio quando nao ha serie', () => {
+      overview.set(POPULATED_OVERVIEW);
+      const host = render();
+
+      expect(host.querySelector('app-line-chart')).toBeNull();
+      expect(flatText(host)).toContain('Sem dados no período');
+    });
+  });
 });

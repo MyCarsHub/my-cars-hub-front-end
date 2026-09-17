@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { LineChart, LinePoint } from '../../components/charts/line-chart/line-chart';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
@@ -123,25 +124,17 @@ interface VolumeStat {
   amount: number;
 }
 
-interface SparkPoint {
-  x: number;
-  y: number;
-  raw: DailyCount;
-}
-
-interface Spark {
-  path: string;
-  area: string;
-  points: SparkPoint[];
-  max: number;
-  width: number;
-  height: number;
-}
-
 @Component({
   selector: 'app-admin-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, PageCard, RouterLink, AdminEmailTestDialog, AdminOpsToolsDialog],
+  imports: [
+    DefaultPageLayout,
+    PageCard,
+    RouterLink,
+    LineChart,
+    AdminEmailTestDialog,
+    AdminOpsToolsDialog,
+  ],
   templateUrl: './admin-home.html',
 })
 export class AdminHome implements OnInit {
@@ -271,28 +264,25 @@ export class AdminHome implements OnInit {
     });
   });
 
-  protected readonly usersSpark = computed<Spark | null>(() => {
-    const days = this.overview()?.users.newByDay;
-    if (!days || days.length === 0) return null;
-    const width = 600;
-    const height = 120;
-    const padX = 4;
-    const padY = 6;
-    const max = Math.max(1, ...days.map((d) => d.count));
-    const step = (width - padX * 2) / Math.max(1, days.length - 1);
-    const points: SparkPoint[] = days.map((d, i) => ({
-      raw: d,
-      x: padX + i * step,
-      y: padY + (height - padY * 2) * (1 - d.count / max),
-    }));
-    const path = points
-      .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
-      .join(' ');
-    const first = points[0];
-    const last = points[points.length - 1];
-    const area = `${path} L${last.x.toFixed(1)},${(height - padY).toFixed(1)} L${first.x.toFixed(1)},${(height - padY).toFixed(1)} Z`;
-    return { path, area, points, max, width, height };
-  });
+  /**
+   * FEAT-0121 — a série que o gráfico consome. Só DADO: rótulo e valor.
+   *
+   * O que saiu daqui foi a geometria (path, área, x/y por ponto, viewBox), que
+   * era desenho feito à mão. A escala agora é regra do componente de gráfico
+   * (ver `Y_AXIS_MIN_TOP`), e não uma normalização pelo próprio máximo da série
+   * — que era o que fazia 3 usuários ocuparem a altura inteira do cartão.
+   */
+  protected readonly userPoints = computed<LinePoint[]>(() =>
+    (this.overview()?.users.newByDay ?? []).map((day) => ({
+      label: this.formatDayLabel(day.date),
+      value: day.count,
+    })),
+  );
+
+  /** Pico do período, dito em texto porque o eixo já não o exagera. */
+  protected readonly usersPeak = computed(() =>
+    Math.max(0, ...this.userPoints().map((p) => p.value)),
+  );
 
   ngOnInit(): void {
     this.loadOverview();

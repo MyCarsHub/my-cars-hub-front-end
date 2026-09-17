@@ -221,47 +221,16 @@
         <div class="p-4">
           @if (loading() && !overview()) {
             <div class="h-32 rounded bg-neutral-100 animate-pulse"></div>
-          } @else if (usersSpark(); as spark) {
-            <svg
-              [attr.viewBox]="'0 0 ' + spark.width + ' ' + spark.height"
-              class="w-full h-32"
-              preserveAspectRatio="none"
-              role="img"
-              aria-label="Novos usuários por dia"
-            >
-              <defs>
-                <linearGradient id="usersGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
-                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
-                </linearGradient>
-              </defs>
-              <path [attr.d]="spark.area" fill="url(#usersGradient)" />
-              <path
-                [attr.d]="spark.path"
-                fill="none"
-                stroke="#3b82f6"
-                stroke-width="2"
-                stroke-linejoin="round"
-                stroke-linecap="round"
-              />
-              @for (p of spark.points; track p.raw.date) {
-                @if (p.raw.count > 0) {
-                  <circle
-                    [attr.cx]="p.x"
-                    [attr.cy]="p.y"
-                    r="2.5"
-                    fill="#3b82f6"
-                  >
-                    <title>{{ formatDayLabel(p.raw.date) }}: {{ p.raw.count }}</title>
-                  </circle>
-                }
-              }
-            </svg>
-            <div class="flex justify-between text-xs text-neutral-400 mt-2 tabular-nums">
-              <span>{{ formatDayLabel(spark.points[0].raw.date) }}</span>
-              <span>pico: {{ spark.max }}</span>
-              <span>{{ formatDayLabel(spark.points[spark.points.length - 1].raw.date) }}</span>
-            </div>
+          } @else if (userPoints().length > 0) {
+            <app-line-chart
+              [points]="userPoints()"
+              ariaLabel="Novos usuários por dia, últimos 30 dias"
+              valueLabel="Novos usuários"
+              [heightPx]="160"
+            />
+            <p class="text-xs text-neutral-500 mt-2 tabular-nums">
+              Pico de {{ usersPeak() }} no período.
+            </p>
           } @else {
             <p class="text-sm text-neutral-500 text-center py-10">
               Sem dados no período.
