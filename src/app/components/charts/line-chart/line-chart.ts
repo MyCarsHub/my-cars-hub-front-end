@@ -104,6 +104,28 @@ export function axisTopFor(values: readonly number[]): number {
  * PREVISÃO do atual, e o cartão passa a prometer futuro em vez de comparar com
  * o passado. Por isso nada aqui é configurável de fora.
  */
+/**
+ * Peso visual da série PRINCIPAL — as propriedades estáticas que a tornam a
+ * curva dominante do gráfico.
+ *
+ * Existe para que a comparação com `REFERENCE_STYLE` seja entre DUAS
+ * CONSTANTES, e não entre uma constante e um literal. Enquanto o teste dizia
+ * `toBeLessThan(2)`, a proteção era de mão única: pegava quem ENGROSSASSE a
+ * referência, e passava verde para quem AFINASSE a principal até os dois pesos
+ * se igualarem — que é justamente a direção perigosa, porque é ela que faz a
+ * curva do mês passado ser lida como previsão do mês atual.
+ *
+ * `pointRadius` NÃO entra aqui: na série principal ele é scriptable (depende de
+ * `partial` e do tamanho da série), então não é um valor que se possa congelar.
+ * O que entra é o que é estático e define peso: espessura e preenchimento.
+ *
+ * Congelado pelo mesmo motivo que a referência — simetria e nenhum custo.
+ */
+export const MAIN_SERIES_STYLE = Object.freeze({
+  borderWidth: 2,
+  fill: true,
+});
+
 export const REFERENCE_STYLE = Object.freeze({
   borderWidth: 1,
   borderDash: Object.freeze([4, 4]) as readonly number[],
@@ -301,7 +323,7 @@ export class LineChart implements OnDestroy {
             label: this.valueLabel(),
             borderColor: primary,
             backgroundColor: this.token('--color-primary-low', '#FFE6DD'),
-            borderWidth: 2,
+            borderWidth: MAIN_SERIES_STYLE.borderWidth,
             pointRadius: (ctx: { dataIndex: number }) =>
               points[ctx.dataIndex]?.partial ? 5 : points.length > 14 ? 0 : 3,
             pointStyle: 'circle' as const,
@@ -310,7 +332,7 @@ export class LineChart implements OnDestroy {
             pointBorderWidth: 2,
             pointHoverRadius: 6,
             tension: 0.3,
-            fill: true,
+            fill: MAIN_SERIES_STYLE.fill,
             segment: {
               borderDash: (ctx: { p1DataIndex: number }) =>
                 points[ctx.p1DataIndex]?.partial ? [5, 4] : undefined,

@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   LineChart,
   LinePoint,
+  MAIN_SERIES_STYLE,
   REFERENCE_STYLE,
   Y_AXIS_MIN_TOP,
   axisTopFor,
@@ -469,9 +470,30 @@ describe('REFERENCE_STYLE — peso visual da referencia', () => {
     expect(REFERENCE_STYLE.pointHoverRadius).toBe(0);
   });
 
-  /** A serie principal usa borderWidth 2; a referencia tem de ser mais leve. */
-  it('e mais leve que a serie principal', () => {
-    expect(REFERENCE_STYLE.borderWidth).toBeLessThan(2);
+  /**
+   * A afirmacao que interessa e RELATIVA: "a referencia e mais leve que a
+   * principal" — nao "a referencia e mais fina que dois".
+   *
+   * Antes isto comparava com o literal 2, e a protecao era de MAO UNICA: pegava
+   * quem engrossasse a referencia, e passava verde para quem AFINASSE a
+   * principal ate as duas se igualarem. A segunda direcao e a perigosa, porque
+   * e ela que faz a curva do mes passado ser lida como PREVISAO do mes atual.
+   * Comparando as duas CONSTANTES, qualquer um dos dois lados que mude derruba
+   * o teste.
+   */
+  it('e mais leve que a serie principal, nos dois sentidos', () => {
+    expect(REFERENCE_STYLE.borderWidth).toBeLessThan(MAIN_SERIES_STYLE.borderWidth);
+  });
+
+  /** Peso nao e so espessura: a principal preenche, a referencia nao. */
+  it('nao preenche, enquanto a principal preenche', () => {
+    expect(MAIN_SERIES_STYLE.fill).toBe(true);
+    expect(REFERENCE_STYLE.fill).toBe(false);
+  });
+
+  /** Simetria com a referencia: ninguem muda a principal em tempo de execucao. */
+  it('a principal tambem e congelada', () => {
+    expect(Object.isFrozen(MAIN_SERIES_STYLE)).toBe(true);
   });
 
   /** Congelado: nem o proprio componente muda isto em tempo de execucao. */
