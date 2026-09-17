@@ -203,6 +203,32 @@ describe('FineForm — pontos preenchidos pela gravidade (FIX-0437)', () => {
     expect(sentPoints()).toBe(points);
   });
 
+  /**
+   * O laco entre o que a TELA PROMETE e o que o formulario GRAVA.
+   *
+   * O rotulo da opcao diz "(N pts)". Este teste le esse N do DOM renderizado,
+   * submete sem preencher pontos, e afirma que o numero gravado e o MESMO.
+   * Nenhum literal: se as duas fontes divergirem, a promessa e o registro
+   * discordam e isto quebra — que e o pior caso silencioso que sobrou depois do
+   * FIX-0437.
+   */
+  it('grava exatamente o numero que a opcao de gravidade promete', () => {
+    const option = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLOptionElement>(
+        'select[formControlName="severity"] option',
+      ),
+    ).find((o) => o.value === 'MEDIA');
+
+    expect(option, 'opcao MEDIA nao encontrada').toBeDefined();
+    const promised = Number(/\((\d+) pts\)/.exec(option!.textContent ?? '')?.[1]);
+    expect(promised, 'o rotulo deixou de anunciar os pontos').toBeGreaterThan(0);
+
+    fill();
+    submit();
+
+    expect(sentPoints()).toBe(promised);
+  });
+
   /** O que o usuario digitou manda: o preenchimento e para o campo VAZIO. */
   it('respeita um valor digitado a mao', () => {
     fill({ points: 2 });

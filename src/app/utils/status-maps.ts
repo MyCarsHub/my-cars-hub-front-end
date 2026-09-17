@@ -211,10 +211,35 @@ export const FINE_SEVERITY_FILTER_OPTIONS: Array<
   FilterOption<FineSeverity> & { defaultPoints: number }
 > = [
   { value: '', label: 'Todas', chip: 'bg-neutral-100 text-neutral-700', defaultPoints: 0 },
-  { value: 'LEVE', label: FINE_SEVERITY_META.LEVE.label, chip: FINE_SEVERITY_META.LEVE.chip, defaultPoints: 3 },
-  { value: 'MEDIA', label: FINE_SEVERITY_META.MEDIA.label, chip: FINE_SEVERITY_META.MEDIA.chip, defaultPoints: 4 },
-  { value: 'GRAVE', label: FINE_SEVERITY_META.GRAVE.label, chip: FINE_SEVERITY_META.GRAVE.chip, defaultPoints: 5 },
-  { value: 'GRAVISSIMA', label: FINE_SEVERITY_META.GRAVISSIMA.label, chip: FINE_SEVERITY_META.GRAVISSIMA.chip, defaultPoints: 7 },
+  // `defaultPoints` vem de `FINE_SEVERITY_META`, como `label` e `chip` — NAO
+  // como literal. O rotulo da opcao ("Média (4 pts)") e o numero que o
+  // formulario grava saem daqui; enquanto o valor era cravado, a tela podia
+  // prometer um numero e salvar outro sem nada quebrar. Foi a divergencia que o
+  // FIX-0437 existia para eliminar, reintroduzida um arquivo adiante.
+  {
+    value: 'LEVE',
+    label: FINE_SEVERITY_META.LEVE.label,
+    chip: FINE_SEVERITY_META.LEVE.chip,
+    defaultPoints: FINE_SEVERITY_META.LEVE.defaultPoints,
+  },
+  {
+    value: 'MEDIA',
+    label: FINE_SEVERITY_META.MEDIA.label,
+    chip: FINE_SEVERITY_META.MEDIA.chip,
+    defaultPoints: FINE_SEVERITY_META.MEDIA.defaultPoints,
+  },
+  {
+    value: 'GRAVE',
+    label: FINE_SEVERITY_META.GRAVE.label,
+    chip: FINE_SEVERITY_META.GRAVE.chip,
+    defaultPoints: FINE_SEVERITY_META.GRAVE.defaultPoints,
+  },
+  {
+    value: 'GRAVISSIMA',
+    label: FINE_SEVERITY_META.GRAVISSIMA.label,
+    chip: FINE_SEVERITY_META.GRAVISSIMA.chip,
+    defaultPoints: FINE_SEVERITY_META.GRAVISSIMA.defaultPoints,
+  },
 ];
 
 // ----------------------------------------------------------- maintenance
