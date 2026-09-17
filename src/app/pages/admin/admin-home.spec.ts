@@ -142,23 +142,29 @@ describe('AdminHome — consolidado de aluguéis e contratos', () => {
   });
 
   /**
-   * Os quatro números viraram cartões da mesma grade dos demais indicadores, o
-   * que não deixa espaço para o texto de apoio DENTRO do cartão. As ressalvas
-   * migraram para a nota "Como ler os números de volume", logo abaixo da grade —
-   * se alguém apagar a nota achando que é decoração, este teste cai.
+   * A nota "Como ler os números de volume" foi REMOVIDA a pedido do dono
+   * (FIX-0421) — não se perdeu por descuido, e este teste não deve ser usado
+   * para ressuscitá-la.
+   *
+   * O que ele protege continua sendo o mesmo e continua valendo: os números de
+   * volume não podem se apresentar de forma enganosa. Sem a nota, quem carrega
+   * a ressalva é o PRÓPRIO cartão — e é isso que se afirma aqui. Se alguém
+   * apagar também a legenda do cartão, este teste cai, que era a função da
+   * versão anterior.
+   *
+   * Ficou de fora, e é consequência declarada da remoção: a DEFINIÇÃO de
+   * "fechados" (reservado + em andamento + concluído) não está mais escrita em
+   * lugar nenhum da tela. O cartão diz o que exclui, não o que soma.
    */
   it('não rotula o consolidado de forma enganosa nem mostra assinados como total', () => {
     overview.set(POPULATED_OVERVIEW);
     const host = render();
     const text = flatText(host);
 
-    // "fechado" e "concluído" são recortes diferentes e aparecem separados.
-    expect(text).toContain('Aluguéis fechados = reservado, em andamento ou concluído');
-    expect(text).toContain('Não inclui cancelados');
-    expect(text).toContain('apenas os aluguéis já finalizados');
-    expect(text).toContain('Contratos assinados é subconjunto do total');
-    expect(text).toContain('contrato assinado em papel fica de fora');
-    // O subconjunto também é legível no próprio cartão, sem depender da nota.
+    // "fechado" e "concluído" são recortes diferentes, e cada cartão diz o seu.
+    expect(text).toContain('exclui cancelados');
+    expect(text).toContain('aluguéis finalizados');
+    // Assinados NUNCA aparece como se fosse o total.
     expect(text).toContain('de 25 contratos');
     expect(text).not.toContain('undefined');
   });
