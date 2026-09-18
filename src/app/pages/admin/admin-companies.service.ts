@@ -34,6 +34,7 @@ export class AdminCompaniesService {
   private readonly _detailLoading = signal(false);
   private readonly _detailError = signal<string | null>(null);
   private readonly _statusUpdating = signal(false);
+  private readonly _internalUpdating = signal(false);
 
   readonly companies = this._companies.asReadonly();
   readonly page = this._page.asReadonly();
@@ -46,6 +47,7 @@ export class AdminCompaniesService {
   readonly detailLoading = this._detailLoading.asReadonly();
   readonly detailError = this._detailError.asReadonly();
   readonly statusUpdating = this._statusUpdating.asReadonly();
+  readonly internalUpdating = this._internalUpdating.asReadonly();
 
   load(options: LoadCompaniesOptions = {}): Observable<PagedResponse<AdminCompanyListItem>> {
     this._loading.set(true);
@@ -112,6 +114,29 @@ export class AdminCompaniesService {
           );
         }),
         finalize(() => this._statusUpdating.set(false)),
+      );
+  }
+
+  /**
+   * FEAT-0141 — marca/desmarca a empresa como INTERNA (backend: FEAT-0138).
+   *
+   * O corpo SEMPRE leva `internal`: o backend exige o campo (`@NotNull`) porque
+   * um booleano ausente viraria `false` no unboxing e DESMARCARIA a empresa em
+   * silencio. A resposta e o detalhe completo, entao a linha da listagem e
+   * sincronizada a partir dele — quem recarregar ve o que marcou.
+   */
+  updateInternal(id: string, internal: boolean): Observable<AdminCompanyDetail> {
+    this._internalUpdating.set(true);
+    return this.http
+      .patch<AdminCompanyDetail>(`${API_BASE}/${id}/internal`, { internal })
+      .pipe(
+        tap((res) => {
+          this._detail.set(res);
+          this._companies.update((list) =>
+            list.map((c) => (c.id === res.id ? { ...c, internal: res.internal } : c)),
+          );
+        }),
+        finalize(() => this._internalUpdating.set(false)),
       );
   }
 
