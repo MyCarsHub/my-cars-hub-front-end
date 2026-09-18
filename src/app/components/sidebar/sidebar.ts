@@ -51,7 +51,12 @@ const ICON_SUPPORT = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height=
 
 const NAV_ITEMS: NavItem[] = [
   { route: '/admin', label: 'Administração', icon: ICON_ADMIN, requiresPlatformAdmin: true },
-  { route: '/dashboard', label: 'Dashboard', icon: ICON_DASHBOARD, tourKey: TOUR_ANCHORS.dashboard },
+  {
+    route: '/dashboard',
+    label: 'Dashboard',
+    icon: ICON_DASHBOARD,
+    tourKey: TOUR_ANCHORS.dashboard,
+  },
   {
     route: '/alugueis',
     label: 'Aluguéis',
@@ -71,10 +76,25 @@ const NAV_ITEMS: NavItem[] = [
         roles: ['OWNER', 'MANAGER'],
         tourKey: TOUR_ANCHORS.vehicles,
       },
-      { route: '/manutencoes', label: 'Manutenções', icon: ICON_MAINT, roles: ['OWNER', 'MANAGER'] },
+      {
+        route: '/manutencoes',
+        label: 'Manutenções',
+        icon: ICON_MAINT,
+        roles: ['OWNER', 'MANAGER'],
+      },
       { route: '/multas', label: 'Multas', icon: ICON_FINES, roles: ['OWNER', 'MANAGER'] },
-      { route: '/sinistros', label: 'Sinistros', icon: ICON_INCIDENTS, roles: ['OWNER', 'MANAGER'] },
-      { route: '/financiamentos', label: 'Financiamentos', icon: ICON_FINANCING, roles: ['OWNER', 'MANAGER'] },
+      {
+        route: '/sinistros',
+        label: 'Sinistros',
+        icon: ICON_INCIDENTS,
+        roles: ['OWNER', 'MANAGER'],
+      },
+      {
+        route: '/financiamentos',
+        label: 'Financiamentos',
+        icon: ICON_FINANCING,
+        roles: ['OWNER', 'MANAGER'],
+      },
       { route: '/seguros', label: 'Seguros', icon: ICON_INSURANCE, roles: ['OWNER', 'MANAGER'] },
     ],
   },
@@ -109,7 +129,13 @@ const NAV_ITEMS: NavItem[] = [
       // `/configuracoes` em `app.routes.ts`). Como o grupo é descartado quando
       // nenhum filho passa, marcar os filhos basta para o MANAGER nunca ver
       // "Configurações" — e assim nenhum link leva a um guard que o rejeita.
-      { route: '/configuracoes', label: 'Empresa', icon: ICON_COMPANY, roles: ['OWNER'], exactMatch: true },
+      {
+        route: '/configuracoes',
+        label: 'Empresa',
+        icon: ICON_COMPANY,
+        roles: ['OWNER'],
+        exactMatch: true,
+      },
       {
         route: '/configuracoes/integracoes',
         label: 'Integrações',
@@ -175,10 +201,7 @@ const NAV_ITEMS: NavItem[] = [
         animate('300ms cubic-bezier(0.4, 0, 0.2, 1)', style({ transform: 'translateX(0)' })),
       ]),
       transition(':leave', [
-        animate(
-          '250ms cubic-bezier(0.4, 0, 0.2, 1)',
-          style({ transform: 'translateX(-100%)' })
-        ),
+        animate('250ms cubic-bezier(0.4, 0, 0.2, 1)', style({ transform: 'translateX(-100%)' })),
       ]),
     ]),
     trigger('rotateChevron', [
@@ -206,7 +229,7 @@ export class Sidebar {
 
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
-      filter(e => e instanceof NavigationEnd),
+      filter((e) => e instanceof NavigationEnd),
       map(() => this.router.url),
       startWith(this.router.url),
     ),
@@ -237,18 +260,18 @@ export class Sidebar {
   });
 
   protected readonly navItems = computed(() =>
-    this.allowedItems().filter(item => !item.pinBottom),
+    this.allowedItems().filter((item) => !item.pinBottom),
   );
 
   protected readonly bottomNavItems = computed(() =>
-    this.allowedItems().filter(item => item.pinBottom),
+    this.allowedItems().filter((item) => item.pinBottom),
   );
 
   protected isExpanded(item: NavItem): boolean {
     const state = this.userState().get(item.label);
     if (state) return state === 'open';
     const url = this.currentUrl();
-    return item.children?.some(c => !!c.route && url.startsWith(c.route)) ?? false;
+    return item.children?.some((c) => !!c.route && url.startsWith(c.route)) ?? false;
   }
 
   protected safeIcon(icon: string): SafeHtml {
@@ -270,7 +293,7 @@ export class Sidebar {
       this.layout.isCollapsed.set(false);
     }
     const currentlyOpen = this.isExpanded(item);
-    this.userState.update(prev => {
+    this.userState.update((prev) => {
       const next = new Map(prev);
       next.set(item.label, currentlyOpen ? 'closed' : 'open');
       return next;

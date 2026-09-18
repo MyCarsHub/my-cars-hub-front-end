@@ -1,5 +1,6 @@
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, Routes, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { LayoutStore, Tenant } from '../core/layouts/layout.store';
 import { Sidebar } from './sidebar';
@@ -11,6 +12,24 @@ const tenant = (role: string, name = 'MyCarsHub'): Tenant => ({
   initial: name.charAt(0),
 });
 
+/**
+ * Rotas de mentira: o realce de grupo depende de NAVEGAÇÃO de verdade
+ * (`router.url` + `routerLinkActive`), então `provideRouter([])` não serve —
+ * sem rota registrada o `navigateByUrl` não chega a lugar nenhum e o teste
+ * passaria por ausência de sinal. Só precisam existir os caminhos que a
+ * sidebar aponta.
+ */
+@Component({ template: '', changeDetection: ChangeDetectionStrategy.OnPush })
+class StubPage {}
+
+const TEST_ROUTES: Routes = [
+  { path: 'dashboard', component: StubPage },
+  { path: 'veiculos', component: StubPage },
+  { path: 'manutencoes', component: StubPage },
+  { path: 'configuracoes', component: StubPage },
+  { path: 'configuracoes/integracoes', component: StubPage },
+];
+
 describe('Sidebar', () => {
   let component: Sidebar;
   let fixture: ComponentFixture<Sidebar>;
@@ -19,7 +38,7 @@ describe('Sidebar', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Sidebar],
-      providers: [provideRouter([]), provideNoopAnimations()],
+      providers: [provideRouter(TEST_ROUTES), provideNoopAnimations()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Sidebar);
@@ -135,4 +154,112 @@ describe('Sidebar', () => {
       expect(nome?.textContent).toContain(longo);
       expect(nome?.className).toContain('truncate');
     });
+
+  /**
+   * Realce e expansão automática de grupo. Este bloco cobre um buraco que era
+   * maior do que parecia: até aqui NENHUM teste da sidebar exercitava
+   * `isExpanded()` nem a URL corrente, ou seja, o grupo "Frota" e o grupo
+   * "Configurações" podiam parar de abrir sozinhos sem nada ficar vermelho.
+   *
+   * Os testes afirmam pelo DOM (`aria-expanded` do botão do grupo e a classe
+   * `active-link` do filho), não chamando o método protegido: o que quebra na
+   * tela é o DOM, e afirmar pelo método deixaria passar uma regressão no
+   * template.
+   *
+   * O caso NEGATIVO é o que dá valor ao bloco. Sem ele, um `isExpanded()` que
+   * devolvesse `true` para tudo passaria em todos os casos positivos.
+   */
+  describe('expansão do grupo pela rota ativa', () => {
+    let router: Router;
+
+    beforeEach(() => {
+      router = TestBed.inject(Router);
+      layout.tenants.set([tenant('OWNER')]);
+      layout.selectedTenant.set(tenant('OWNER'));
+      fixture.detectChanges();
+    });
+
+    const goTo = async (url: string) => {
+      await router.navigateByUrl(url);
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    const group = (label: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        `button[aria-label="${label}"]`,
+      );
+
+    const childLink = (label: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+        `a[aria-label="${label}"]`,
+      );
+
+    it('abre "Frota" ao navegar para a rota de um filho', async () => {
+      await goTo('/veiculos');
+
+      expect(group('Frota')?.getAttribute('aria-expanded')).toBe('true');
+      expect(childLink('Veículos')).not.toBeNull();
+    });
+
+    it('abre "Configurações" ao navegar para a rota de um filho', async () => {
+      await goTo('/configuracoes/integracoes');
+
+      expect(group('Configurações')?.getAttribute('aria-expanded')).toBe('true');
+      expect(childLink('Integrações')).not.toBeNull();
+    });
+
+    it('marca o filho correspondente como ativo', async () => {
+      await goTo('/veiculos');
+
+      expect(childLink('Veículos')?.className).toContain('active-link');
+      expect(childLink('Manutenções')?.className).not.toContain('active-link');
+    });
+
+    /**
+     * O negativo: o grupo IRMÃO continua fechado. É este caso que pega
+     * "expandiu tudo" — um defeito que os positivos aprovariam sorrindo.
+     */
+    it('não abre o grupo irmão', async () => {
+      await goTo('/veiculos');
+
+      expect(group('Configurações')?.getAttribute('aria-expanded')).toBe('false');
+      expect(childLink('Integrações')).toBeNull();
+
+      await goTo('/configuracoes/integracoes');
+
+      expect(group('Frota')?.getAttribute('aria-expanded')).toBe('false');
+      expect(childLink('Veículos')).toBeNull();
+    });
+
+    it('não abre grupo nenhum numa rota que não pertence a grupo', async () => {
+      await goTo('/dashboard');
+
+      expect(group('Frota')?.getAttribute('aria-expanded')).toBe('false');
+      expect(group('Configurações')?.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    /**
+     * A ARMADILHA DO PREFIXO. `isExpanded()` casa por `url.startsWith(rota do
+     * filho)`, sem fronteira de segmento: `/veiculos` casaria com
+     * `/veiculos-usados` se tal rota existisse. Hoje ela NÃO existe — nenhum
+     * filho de grupo é prefixo de uma rota de OUTRO grupo (conferido em
+     * `app.routes.ts`), então não há defeito para expor, só uma mina para o
+     * futuro: uma rota nova que comece com o caminho de um filho abre o grupo
+     * dele por engano.
+     *
+     * O único par prefixo-de-outro que existe hoje é INTERNO ao grupo
+     * Configurações (`/configuracoes` ⊂ `/configuracoes/integracoes`). Para a
+     * expansão ele é inócuo — os dois abrem o mesmo grupo — mas para o realce
+     * seria um falso positivo, e é exatamente por isso que "Empresa" carrega
+     * `exactMatch`. Este teste guarda esse `exactMatch`: sem ele, "Empresa"
+     * acenderia junto com "Integrações".
+     */
+    it('não acende "Empresa" numa sub-rota de /configuracoes', async () => {
+      await goTo('/configuracoes/integracoes');
+
+      expect(childLink('Integrações')?.className).toContain('active-link');
+      expect(childLink('Empresa')?.className).not.toContain('active-link');
+    });
+  });
 });
