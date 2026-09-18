@@ -90,7 +90,17 @@ export class RentalForm implements OnInit {
    * O aviso de "não configurado" continua visível pros dois papéis; o que muda
    * é só a chamada pra ação (link/navegação vs. "peça ao proprietário").
    */
-  protected readonly isOwner = this.sessionService.getItem('selectedRole') === 'OWNER';
+  /**
+   * FEAT-0147 — do TOKEN, a mesma fonte do `roleGuard`.
+   *
+   * Aqui `isOwner` NÃO trava campo nenhum do formulário: trava OFERTAS DE
+   * NAVEGAÇÃO para `/configuracoes/contratos` e `/configuracoes/integracoes/asaas`,
+   * as duas `roleGuard(['OWNER'])`. Lido do espelho `selectedRole` — velho por
+   * uma troca de empresa, editável por DevTools — um MANAGER recebia o link e o
+   * botão "Configurar …", tocava, e o guard o devolvia ao `/dashboard` sem
+   * dizer nada. Mesma família de #330 e #331, não um campo indevido.
+   */
+  protected readonly isOwner = this.sessionService.getCompanyRoleFromToken() === 'OWNER';
 
 
   protected readonly editingId = signal<string | null>(null);

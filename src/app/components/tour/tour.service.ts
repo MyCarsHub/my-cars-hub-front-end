@@ -281,7 +281,11 @@ export class TourService {
   // ---- Internals -------------------------------------------------------
 
   private stepsForCurrentRole(): readonly TourStep[] {
-    const role = this.session.getItem('selectedRole');
+    // FEAT-0147 — mesma fonte do `roleGuard` e do menu: os passos apontam para
+    // itens que `sidebar.ts` filtra pelo TOKEN, então ler o espelho aqui pedia
+    // holofote em item que pode não existir. O tour já pula alvo ausente, mas
+    // pular é o remendo; a fonte certa é o conserto.
+    const role = this.session.getCompanyRoleFromToken();
     return TOUR_STEPS.filter((step) => !step.roles || (!!role && step.roles.includes(role)));
   }
 
