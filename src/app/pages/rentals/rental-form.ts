@@ -77,20 +77,6 @@ export class RentalForm implements OnInit {
   protected readonly hasContractTemplate = signal(false);
 
   /**
-   * `/configuracoes/*` é OWNER-only (`roleGuard(['OWNER'])` em `app.routes.ts`).
-   * `/alugueis` continua OWNER+MANAGER, então um MANAGER chega até aqui e via
-   * link/navegação programática caía num redirect silencioso pro `/dashboard`.
-   *
-   * A derivação é a MESMA de `pages/company-settings/company-settings.ts` e do
-   * `roleGuard`: `selectedRole` no sessionStorage. Lido uma vez na construção —
-   * trocar de empresa grava o `selectedRole` novo e navega pro `/dashboard`
-   * (`layout.store.ts`, `commitTenant`), o que destrói este componente antes de
-   * qualquer releitura. Não há papel "quente".
-   *
-   * O aviso de "não configurado" continua visível pros dois papéis; o que muda
-   * é só a chamada pra ação (link/navegação vs. "peça ao proprietário").
-   */
-  /**
    * FEAT-0147 — do TOKEN, a mesma fonte do `roleGuard`.
    *
    * Aqui `isOwner` NÃO trava campo nenhum do formulário: trava OFERTAS DE
