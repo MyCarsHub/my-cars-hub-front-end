@@ -154,6 +154,31 @@ describe('InspectionsList', () => {
    * filtro; a segunda, fazendo uma vistoria. Mesma frase para as duas manda o
    * usuario procurar o problema no lugar errado.
    */
+  /**
+   * O ESTADO INICIAL MUDOU DE NATUREZA. Enquanto `rentalId` era obrigatorio no
+   * servidor, abrir a pagina sem filtro so podia dar 400 — o caso de sucesso
+   * sem filtro nao existia para ser testado. Com os cinco parametros opcionais
+   * (backend PR #207), o ramo sem filtro passa a listar para dono e gerente, e
+   * este e o caminho por onde TODO usuario entra na tela.
+   *
+   * Os dois testes de vazio abaixo continuam valendo e continuam distintos —
+   * eles dependem de haver filtro, nao do contrato — mas nenhum deles prova que
+   * a lista aparece. Sem este caso, uma tela que nunca renderizasse resultado
+   * algum passaria em todos: os dois vazios e o de query afirmam ausencia.
+   */
+  it('sem filtro nenhum e com resultado, mostra a lista', () => {
+    // Semeado ANTES do render: e assim que a tela abre em producao com o
+    // contrato novo — a resposta chega e a lista ja nasce preenchida.
+    items.set([item]);
+    total.set(1);
+    const fixture = render();
+
+    expect(text(fixture)).toContain(item.vehiclePlate);
+    expect(text(fixture)).not.toContain('Nenhuma vistoria registrada ainda');
+    expect(text(fixture)).not.toContain('com estes filtros');
+    expect(lastQuery()).toMatchObject({ vehicleId: null, rentalId: null, kind: null });
+  });
+
   it('sem vistoria nenhuma e sem filtro, diz que ainda nao ha vistorias', () => {
     const fixture = render();
 

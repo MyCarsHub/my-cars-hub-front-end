@@ -11,33 +11,17 @@ const BASE = `${environment.apiUrl}/inspections`;
 /**
  * Listagem de vistorias, com filtros combináveis.
  *
- * ## O endpoint existe; o CONTRATO dele ainda é mais estreito que este serviço
+ * `GET /v1/inspections` aceita `vehicleId`, `rentalId`, `kind`, `from` e `to`,
+ * todos opcionais e combináveis — o contrato que este serviço sempre mandou.
+ * `toParams` nunca precisou mudar; o que faltava era a API.
  *
- * `GET /v1/inspections` está em produção (V82). O que ainda não está é a forma
- * que esta tela consome: hoje o controlador exige `rentalId`
- * (`InspectionController.listByRental`, `@RequestParam UUID rentalId` SEM
- * `required = false`), a busca por veículo é OUTRA rota
- * (`GET /v1/inspections/by-vehicle/{vehicleId}`), e `kind`, `from` e `to` não
- * existem na listagem.
+ * ## Ainda não está em produção — e isto importa para a tela
  *
- * Duas consequências, enquanto for assim:
- *  - abrir a página sem filtro manda `?page=0&size=20` e volta **400** — ou
- *    seja, o estado INICIAL da tela é o caso quebrado, não um canto raro;
- *  - com `rentalId` mais os outros, o servidor honra o `rentalId` e descarta o
- *    resto EM SILÊNCIO, que é pior: a tela mostra um resultado plausível para
- *    um filtro que não foi aplicado.
- *
- * ## Por que `toParams` não foi ajustado para a API de hoje
- *
- * O PR de backend que torna os cinco parâmetros opcionais e combináveis está em
- * curso, e é ele que fecha isto. Reescrever `toParams` para o contrato estreito
- * degradaria a tela para caber numa API que está sendo corrigida, e depois seria
- * preciso desfazer. O contrato que este serviço manda é o alvo, não um chute:
- * `inspections.service.spec.ts` prende exatamente o que viaja na query.
- *
- * ESTE SERVIÇO NÃO ESTÁ PRONTO PARA PRODUÇÃO ATÉ AQUELE PR ENTRAR. É também por
- * isso que o item "Vistorias" segue comentado em `components/sidebar/sidebar.ts`
- * — o menu não oferece uma tela cujo estado inicial responde 400.
+ * O contrato novo está no backend em `develop` (`7453eb2`, PR #207). O
+ * `main` do backend (`93c1fb3`) ainda tem a versão estreita, em que `rentalId`
+ * é OBRIGATÓRIO. Enquanto o release não sair, em produção abrir a página sem
+ * filtro responde **400**, e é por isso que o item "Vistorias" segue comentado
+ * em `components/sidebar/sidebar.ts`.
  *
  * O resto segue as convenções de toda lista da casa (envelope
  * `content/page/size/total`, cache por empresa zerado no `TenantResetRegistry`,
