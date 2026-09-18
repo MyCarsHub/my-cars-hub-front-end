@@ -1,6 +1,6 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InspectionsService } from './inspections.service';
@@ -115,5 +115,28 @@ describe('InspectionsService.toParams', () => {
     expect(params().get('page')).toBe('2');
     expect(params().get('vehicleId')).toBe('veh-1');
     expect(params().get('kind')).toBe('FLEET');
+  });
+
+  /**
+   * RECUSA nao e FALHA. Hoje este 403 e inalcancavel pela UI, porque a rota ja
+   * exige OWNER/MANAGER — mas o dia em que a tela abrir para MOTORISTA e
+   * exatamente o dia em que ninguem vai reler esta mensagem, e a frase generica
+   * mandaria o usuario recarregar contra uma decisao de permissao.
+   */
+  describe('mensagem de erro', () => {
+    it('um 403 diz que e permissao, nao falha de carregamento', () => {
+      get.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+      service.list().subscribe({ error: () => undefined });
+
+      expect(service.error()).toContain('permissão');
+      expect(service.error()).not.toContain('Não foi possível carregar');
+    });
+
+    it('os outros erros seguem com a mensagem de carregamento', () => {
+      get.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      service.list().subscribe({ error: () => undefined });
+
+      expect(service.error()).toBe('Não foi possível carregar as vistorias.');
+    });
   });
 });

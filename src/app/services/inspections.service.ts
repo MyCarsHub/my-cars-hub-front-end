@@ -91,7 +91,15 @@ export class InspectionsService {
           this._total.set(res?.total ?? 0);
         }),
         catchError((err: HttpErrorResponse) => {
-          this._error.set('Não foi possível carregar as vistorias.');
+          // RECUSA e FALHA nao sao a mesma coisa para quem le. Hoje este 403 e
+          // inalcancavel pela UI (a rota ja exige OWNER/MANAGER), mas no dia em
+          // que a tela abrir para MOTORISTA a frase generica culparia a rede por
+          // uma decisao de permissao — e o usuario ficaria recarregando.
+          this._error.set(
+            err.status === 403
+              ? 'Você não tem permissão para ver as vistorias desta empresa.'
+              : 'Não foi possível carregar as vistorias.',
+          );
           return throwError(() => err);
         }),
         finalize(() => this._loading.set(false)),

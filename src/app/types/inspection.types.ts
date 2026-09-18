@@ -59,8 +59,6 @@ export interface Inspection {
 export interface InspectionListItem {
   readonly id: string;
   readonly rentalId: string | null;
-  /** Código curto do aluguel, para o usuário reconhecer sem abrir. */
-  readonly rentalCode: string | null;
   readonly vehicleId: string;
   readonly vehiclePlate: string;
   readonly vehicleBrand: string | null;
@@ -70,17 +68,33 @@ export interface InspectionListItem {
   readonly kind: InspectionKind;
   /** Quando a vistoria foi feita (ISO). É por este campo que o filtro de datas recorta. */
   readonly performedAt: string;
-  readonly photoCount: number;
   /**
-   * PDF já gerado, quando existe.
-   *
-   * `null` é estado LEGÍTIMO e comum: a vistoria pode ter fotos e ainda não ter
-   * PDF (o PDF é gerado sob demanda hoje). A lista precisa distinguir "sem PDF"
-   * de "PDF indisponível", então quem não tem vem nulo e a linha oferece abrir
-   * a vistoria no aluguel em vez de um link morto.
+   * Quantas fotos a vistoria tem. FICA — tem origem: o DTO devolve
+   * `capturedAngles`, e a contagem é o tamanho dessa lista. Se o backend não
+   * mandar `photoCount` pronto, derive daqui em vez de apagar a coluna; a
+   * conferência dos NOMES das chaves contra este tipo é obrigatória quando o PR
+   * do backend entrar, porque genérico de TypeScript não valida nada em runtime.
    */
-  readonly documentId: string | null;
-  readonly documentSignedUrl: string | null;
+  readonly photoCount: number;
+  /*
+   * TRÊS CAMPOS SAÍRAM DAQUI, e nenhum por descuido — nenhum tem coluna atrás.
+   *
+   * `rentalCode`: `rentals` tem só `id`. Não há `code`, `rental_code` nem
+   * `contract_number`. Mostrar um código curto exige CRIAR a coluna primeiro;
+   * não é dado que o backend esqueceu de mandar.
+   *
+   * `documentId` / `documentSignedUrl`: não existe tabela de documento de
+   * VISTORIA. O PDF vive no mundo de ALUGUEL (`rental_documents`), e a V82
+   * criou FOTOS, não laudo. O laudo de vistoria é FUNCIONALIDADE INTEIRA por
+   * construir — está na especificação do dono e já subiu para ele —, não campo
+   * faltando.
+   *
+   * Eles não voltam como opcionais só para o tipo casar: campo que o servidor
+   * nunca manda, declarado opcional, vira coluna vazia permanente que ninguém
+   * investiga. Este tipo nasceu como PROPOSTA de contrato, escrita antes de o
+   * endpoint existir; cinco dos oito campos coincidiram com o real, e o que
+   * faltou não foi cuidado — foi não haver endpoint com que comparar.
+   */
 }
 
 /**

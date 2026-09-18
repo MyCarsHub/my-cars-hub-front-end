@@ -19,13 +19,12 @@ import type { InspectionListItem } from '../../types/inspection.types';
  * `GET /v1/inspections` ja existe (V82), mas com contrato mais estreito que o
  * que esta tela manda — ver o javadoc de `services/inspections.service.ts`. Os
  * testes aqui afirmam o comportamento da TELA (filtros combinados, estados
- * vazios, link do PDF), nao o formato do backend.
+ * vazios, caminho para o aluguel), nao o formato do backend.
  */
 describe('InspectionsList', () => {
   const item: InspectionListItem = {
     id: 'insp-1',
     rentalId: 'rent-1',
-    rentalCode: 'LOC-0001',
     vehicleId: 'veh-1',
     vehiclePlate: 'ABC1D23',
     vehicleBrand: 'Fiat',
@@ -34,8 +33,6 @@ describe('InspectionsList', () => {
     kind: 'CHECKIN',
     performedAt: '2026-09-10T12:00:00Z',
     photoCount: 14,
-    documentId: 'doc-1',
-    documentSignedUrl: 'https://files.example/insp-1.pdf',
   };
 
   let items: ReturnType<typeof signal<InspectionListItem[]>>;
@@ -211,30 +208,39 @@ describe('InspectionsList', () => {
     expect(lastQuery()).toMatchObject({ vehicleId: null, rentalId: null, kind: null, from: null });
   });
 
-  it('cada vistoria leva ao PDF quando ele existe', () => {
+  /**
+   * NAO HA COLUNA DE DOCUMENTO nesta tela, e a ausencia e o contrato: nao existe
+   * tabela de documento de vistoria e o laudo e funcionalidade por construir
+   * (ver `types/inspection.types.ts`). O que a linha oferece e o caminho para o
+   * aluguel, que e onde a vistoria vive hoje.
+   */
+  it('a vistoria de um aluguel leva ao aluguel', () => {
     items.set([item]);
     total.set(1);
     const fixture = render();
 
     const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
-      'a[target="_blank"]',
+      `a[href="/alugueis/${item.rentalId}"]`,
     );
-    expect(link?.getAttribute('href')).toBe('https://files.example/insp-1.pdf');
+    expect(link, 'link para o aluguel nao encontrado').not.toBeNull();
+    expect(text(fixture)).toContain('Ver no aluguel');
   });
 
   /**
-   * Vistoria sem PDF e estado LEGITIMO (o PDF e gerado sob demanda). Em vez de
-   * link morto, a linha leva ao aluguel, que e onde se gera.
+   * Nem link de PDF nem a legenda "PDF ainda nao gerado". A legenda era a metade
+   * pior: prometia um pipeline que ninguem escreveu, e um estado de espera
+   * permanente ensina o usuario a ignorar a coluna.
    */
-  it('sem PDF, oferece ver no aluguel em vez de um link morto', () => {
-    items.set([{ ...item, documentId: null, documentSignedUrl: null }]);
+  it('nao oferece PDF nem promete PDF futuro', () => {
+    items.set([item]);
     total.set(1);
     const fixture = render();
 
-    const body = text(fixture);
-    expect(body).toContain('Ver no aluguel');
-    expect(body).toContain('PDF ainda não gerado');
     expect((fixture.nativeElement as HTMLElement).querySelector('a[target="_blank"]')).toBeNull();
+    expect(text(fixture)).not.toContain('PDF');
+    // CONTROLE POSITIVO: as duas afirmacoes acima sao de AUSENCIA e passariam a
+    // vazio numa tela que nao renderizasse linha nenhuma.
+    expect(text(fixture)).toContain(item.vehiclePlate);
   });
 
   /**
@@ -266,14 +272,15 @@ describe('InspectionsList', () => {
    * para onde mandar o usuario, entao a linha nao pode oferecer "ver no
    * aluguel" — seria link para lugar nenhum.
    */
-  it('vistoria de frota sem PDF nao oferece link para aluguel', () => {
-    items.set([{ ...item, kind: 'FLEET', rentalId: null, documentId: null, documentSignedUrl: null }]);
+  it('vistoria de frota nao oferece link para aluguel', () => {
+    items.set([{ ...item, kind: 'FLEET', rentalId: null }]);
     total.set(1);
     const fixture = render();
 
     const body = text(fixture);
-    expect(body).toContain('PDF ainda não gerado');
     expect(body).not.toContain('Ver no aluguel');
+    // CONTROLE POSITIVO: a linha precisa existir, senao uma grade vazia passaria.
+    expect(body).toContain(item.vehiclePlate);
   });
 
   it('mostra o erro inline quando a listagem falha', () => {

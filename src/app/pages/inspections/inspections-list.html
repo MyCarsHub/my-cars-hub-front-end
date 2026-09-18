@@ -135,28 +135,19 @@
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
             <span class="tabular-nums">{{ formatDate(item.performedAt) }}</span>
             <span>{{ item.photoCount }} foto(s)</span>
-            @if (item.rentalCode) {
-              <span class="truncate">Locação {{ item.rentalCode }}</span>
-            }
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            @if (item.documentSignedUrl) {
-              <a
-                [href]="item.documentSignedUrl"
-                target="_blank"
-                rel="noopener"
-                class="inline-flex items-center min-h-[44px] px-4 rounded-xl bg-primary-500 text-white
-                       text-sm font-medium hover:bg-primary-600 transition-colors"
-              >
-                Abrir PDF
-              </a>
-            } @else if (item.rentalId) {
-              <!--
-                Sem PDF é estado legítimo (ele é gerado sob demanda). Em vez de
-                um link morto, a linha leva ao aluguel, que é onde o PDF se
-                gera hoje.
-              -->
+          <!--
+            A COLUNA DE DOCUMENTO SAIU INTEIRA, inclusive a legenda "PDF ainda
+            não gerado". Não existe tabela de documento de vistoria: o PDF vive
+            no mundo de ALUGUEL e o laudo é funcionalidade por construir (ver
+            `types/inspection.types.ts`). Um estado de espera que NUNCA sai da
+            espera não informa — ensina o usuário a ignorar a coluna, e no dia
+            em que o laudo existir a mudança chega num lugar que ninguém olha.
+            Resta o caminho para o aluguel, que é onde a vistoria vive hoje.
+          -->
+          @if (item.rentalId) {
+            <div class="flex flex-wrap items-center gap-2">
               <a
                 [routerLink]="['/alugueis', item.rentalId]"
                 class="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-neutral-200
@@ -164,17 +155,8 @@
               >
                 Ver no aluguel
               </a>
-              <span class="text-xs text-neutral-400">PDF ainda não gerado</span>
-            } @else {
-              <!--
-                Vistoria de FROTA não tem aluguel para onde mandar o usuário —
-                `rentalId` nulo é o próprio significado de FLEET, não dado
-                faltando. Oferecer "ver no aluguel" aqui seria um link para
-                lugar nenhum.
-              -->
-              <span class="text-xs text-neutral-400">PDF ainda não gerado</span>
-            }
-          </div>
+            </div>
+          }
         </div>
       }
 
