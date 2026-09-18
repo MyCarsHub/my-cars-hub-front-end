@@ -134,13 +134,41 @@ interface FilterOption<T extends string> {
   chip: string;
 }
 
+/**
+ * O `chip` ja vinha do META; o `label` era REDIGITADO a mao, palavra por
+ * palavra. Duas fontes para o mesmo texto: renomear um status no META deixava o
+ * filtro exibindo o nome velho, sem nada quebrar. Agora as duas pontas leem do
+ * mesmo lugar — e `status-maps.spec.ts` tem o teste de IGUALDADE que impede a
+ * proxima copia de nascer (unificar sozinho resolve hoje; o teste e o que
+ * resolve amanha).
+ */
 export const DRIVER_STATUS_FILTER_OPTIONS: FilterOption<DriverStatus>[] = [
   { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
-  { value: 'AVAILABLE', label: 'Disponível', chip: DRIVER_STATUS_META.AVAILABLE.chip },
-  { value: 'WORKING', label: 'Em serviço', chip: DRIVER_STATUS_META.WORKING.chip },
-  { value: 'SUSPENDED', label: 'Suspenso', chip: DRIVER_STATUS_META.SUSPENDED.chip },
+  {
+    value: 'AVAILABLE',
+    label: DRIVER_STATUS_META.AVAILABLE.label,
+    chip: DRIVER_STATUS_META.AVAILABLE.chip,
+  },
+  {
+    value: 'WORKING',
+    label: DRIVER_STATUS_META.WORKING.label,
+    chip: DRIVER_STATUS_META.WORKING.chip,
+  },
+  {
+    value: 'SUSPENDED',
+    label: DRIVER_STATUS_META.SUSPENDED.label,
+    chip: DRIVER_STATUS_META.SUSPENDED.chip,
+  },
 ];
 
+/**
+ * EXCECAO DELIBERADA, nao copia esquecida: aqui o rotulo do filtro e PLURAL
+ * ("Reservados") e o do META e SINGULAR ("Reservado"), porque o filtro nomeia um
+ * CONJUNTO e o selo nomeia UM aluguel. Unificar trocaria a copy de quatro
+ * filtros — por isso estes labels ficam escritos, e o `chip` continua vindo do
+ * META. O spec afirma essa divergencia de proposito: se alguem "consertar" para
+ * o singular, o teste cai e obriga a decisao a ser consciente.
+ */
 export const RENTAL_STATUS_FILTER_OPTIONS: FilterOption<RentalStatus>[] = [
   { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
   { value: 'RESERVED', label: 'Reservados', chip: RENTAL_STATUS_META.RESERVED.chip },
@@ -149,12 +177,25 @@ export const RENTAL_STATUS_FILTER_OPTIONS: FilterOption<RentalStatus>[] = [
   { value: 'CANCELED', label: 'Cancelados', chip: RENTAL_STATUS_META.CANCELED.chip },
 ];
 
+/** Mesma unificacao do filtro de motoristas — ver o comentario la em cima. */
 export const VEHICLE_STATUS_FILTER_OPTIONS: FilterOption<VehicleStatus>[] = [
   { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
-  { value: 'AVAILABLE', label: 'Disponível', chip: VEHICLE_STATUS_META.AVAILABLE.chip },
-  { value: 'RENTED', label: 'Alugado', chip: VEHICLE_STATUS_META.RENTED.chip },
-  { value: 'MAINTENANCE', label: 'Manutenção', chip: VEHICLE_STATUS_META.MAINTENANCE.chip },
-  { value: 'INACTIVE', label: 'Inativo', chip: VEHICLE_STATUS_META.INACTIVE.chip },
+  {
+    value: 'AVAILABLE',
+    label: VEHICLE_STATUS_META.AVAILABLE.label,
+    chip: VEHICLE_STATUS_META.AVAILABLE.chip,
+  },
+  { value: 'RENTED', label: VEHICLE_STATUS_META.RENTED.label, chip: VEHICLE_STATUS_META.RENTED.chip },
+  {
+    value: 'MAINTENANCE',
+    label: VEHICLE_STATUS_META.MAINTENANCE.label,
+    chip: VEHICLE_STATUS_META.MAINTENANCE.chip,
+  },
+  {
+    value: 'INACTIVE',
+    label: VEHICLE_STATUS_META.INACTIVE.label,
+    chip: VEHICLE_STATUS_META.INACTIVE.chip,
+  },
 ];
 
 // ------------------------------------------------------------------ fine
