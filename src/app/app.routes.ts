@@ -363,6 +363,18 @@ export const routes: Routes = [
                         ],
                     },
                     {
+                        // Vistorias como area PROPRIA: antes so eram alcancaveis
+                        // dentro do aluguel, o que obrigava a lembrar em qual
+                        // locacao a vistoria do carro estava.
+                        path: 'vistorias',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        loadComponent: () =>
+                            import('./pages/inspections/inspections-list').then(
+                                (m) => m.InspectionsList
+                            ),
+                        data: { pageTitle: 'Vistorias' },
+                    },
+                    {
                         path: 'multas',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [

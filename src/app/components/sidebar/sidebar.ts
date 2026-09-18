@@ -72,6 +72,24 @@ const NAV_ITEMS: NavItem[] = [
         tourKey: TOUR_ANCHORS.vehicles,
       },
       { route: '/manutencoes', label: 'Manutenções', icon: ICON_MAINT, roles: ['OWNER', 'MANAGER'] },
+      // VISTORIAS: a rota existe e funciona (`/vistorias`), mas o item de menu
+      // fica FORA de propósito, e não por esquecimento.
+      //
+      // O backend ainda não tem a LISTAGEM: o PR #190 expõe `POST
+      // /v1/inspections`, `GET /v1/inspections/{id}` e
+      // `GET /v1/inspections/checklist/{companyId}` — não há `GET
+      // /v1/inspections` com filtros, que é o que a tela consome. Com o item no
+      // menu, todo clique entregaria o banner de erro: um item que só produz
+      // erro é pior que a ausência dele.
+      //
+      // PARA DEVOLVER O ITEM: basta o endpoint de listagem existir em
+      // produção. Descomente o bloco abaixo — nada mais precisa mudar.
+      // {
+      //   route: '/vistorias',
+      //   label: 'Vistorias',
+      //   icon: ICON_MAINT,
+      //   roles: ['OWNER', 'MANAGER'],
+      // },
       { route: '/multas', label: 'Multas', icon: ICON_FINES, roles: ['OWNER', 'MANAGER'] },
       { route: '/sinistros', label: 'Sinistros', icon: ICON_INCIDENTS, roles: ['OWNER', 'MANAGER'] },
       { route: '/financiamentos', label: 'Financiamentos', icon: ICON_FINANCING, roles: ['OWNER', 'MANAGER'] },

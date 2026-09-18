@@ -22,7 +22,7 @@ import {
     MonthlyPointDto,
     formatBRL,
 } from '../../types/dashboard.types';
-import { DateRange, DateRangePicker } from './components/date-range-picker';
+import { DateRange, DateRangePicker } from '../../components/date-range-picker/date-range-picker';
 import { AlertChip } from './components/alert-chip';
 import { MonthlyBillingChart } from './components/monthly-billing-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
