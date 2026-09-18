@@ -165,13 +165,24 @@
                         {{ zeroMoney }}
                     </p>
                 } @else if (fleetRoiPercentLabel(); as roiLabel) {
-                    <p
-                        class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-                        [class.text-white]="fleetRoiTone() !== 'negative'"
-                        [class.text-rose-200]="fleetRoiTone() === 'negative'"
-                    >
-                        {{ roiLabel }}
-                    </p>
+                    <!--
+                        DOIS BLOCOS ESTATICOS, nao [class.x]. Era o unico numero
+                        desta fileira pintado por binding, e binding de classe ja
+                        falhou hoje no cartao de caixa — quando nao aplica, o texto
+                        cai na cor padrao sobre fundo solido e NADA acusa: nem a
+                        compilacao, nem o console.
+                        Sobre emerald-600 o prejuizo precisa de rose-200; rose-700
+                        nao le. Mas o padrao e branco, e branco e o caso comum.
+                    -->
+                    @if (fleetRoiTone() === 'negative') {
+                        <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate text-rose-200">
+                            {{ roiLabel }}
+                        </p>
+                    } @else {
+                        <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate text-white">
+                            {{ roiLabel }}
+                        </p>
+                    }
                     <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
                         {{ fleetRoiNetLabel() }}
                     </p>
