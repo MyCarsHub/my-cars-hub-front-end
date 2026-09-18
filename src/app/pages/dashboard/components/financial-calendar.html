@@ -45,7 +45,7 @@
     <!-- Weekday header -->
     <div class="grid grid-cols-7 gap-1 mb-1">
         @for (w of weekdays; track w) {
-            <div class="text-[10px] sm:text-xs text-gray-500 text-center uppercase tracking-wide">
+            <div class="min-w-0 text-[10px] sm:text-xs text-gray-500 text-center uppercase tracking-wide">
                 {{ w }}
             </div>
         }
@@ -55,11 +55,11 @@
     <div class="grid grid-cols-7 gap-1">
         @for (cell of cells(); track $index) {
             @if (cell.isPad) {
-                <div class="min-h-[52px] sm:min-h-[64px] rounded-md bg-gray-50/40"></div>
+                <div class="min-w-0 min-h-[52px] sm:min-h-[64px] rounded-md bg-gray-50/40"></div>
             } @else {
                 <button
                     type="button"
-                    class="min-h-[52px] sm:min-h-[64px] rounded-md border p-1 text-left
+                    class="min-w-0 min-h-[52px] sm:min-h-[64px] rounded-md border p-1 text-left
                            flex flex-col justify-between transition-colors
                            focus:outline-none focus:ring-2 focus:ring-primary-400"
                     [class.bg-white]="!cell.isToday && selectedDate() !== cell.date"
@@ -87,18 +87,18 @@
                             </span>
                         }
                     </div>
-                    <div class="flex flex-col gap-0.5 items-start">
+                    <div class="flex flex-col gap-0.5 items-start min-w-0 w-full">
                         @if (cell.inCount > 0) {
-                            <span class="flex items-center gap-1 text-[9px] sm:text-[10px] text-emerald-700
+                            <span class="flex items-center gap-1 min-w-0 w-full text-[9px] sm:text-[10px] text-emerald-700
                                          font-medium tabular-nums leading-none">
-                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span class="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                 <span class="truncate">{{ shortMoney(cell.inCents) }}</span>
                             </span>
                         }
                         @if (cell.outCount > 0) {
-                            <span class="flex items-center gap-1 text-[9px] sm:text-[10px] text-red-700
+                            <span class="flex items-center gap-1 min-w-0 w-full text-[9px] sm:text-[10px] text-red-700
                                          font-medium tabular-nums leading-none">
-                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                <span class="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span>
                                 <span class="truncate">{{ shortMoney(cell.outCents) }}</span>
                             </span>
                         }

@@ -157,13 +157,15 @@
             FIX-0420 — ROI da frota. Mesma estrutura dos KPIs vizinhos: rotulo
             pequeno em maiusculas, numero grande, legenda pequena.
 
-            `col-span-2 lg:col-span-1`: no celular a fileira tem 2 colunas e este
-            e o quinto card — sem o span ele ficaria orfao, ocupando meia linha.
-            Em largura cheia ele tambem cabe a legenda do dinheiro e a da base
-            sem truncar, que e onde mora a honestidade do numero.
+            SEM col-span: o dono pediu um card PEQUENO, do mesmo tamanho dos
+            vizinhos. O span de 2 colunas fazia dele o unico card de largura
+            cheia da fileira, e no celular isso o tornava o elemento mais
+            pesado da tela — o oposto do que um KPI discreto deve ser.
+            Ele fica sozinho na terceira linha ocupando meia largura, e isso
+            e aceito: fileira irregular incomoda menos que card gigante.
         -->
         @if (showVehicleRoi()) {
-            <div data-roi-card class="col-span-2 lg:col-span-1 rounded-2xl bg-white border border-neutral-200 p-4 min-w-0">
+            <div data-roi-card class="rounded-2xl bg-white border border-neutral-200 p-4 min-w-0">
                 <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
                     ROI
                 </p>
