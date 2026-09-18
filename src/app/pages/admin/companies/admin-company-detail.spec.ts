@@ -69,6 +69,7 @@ describe('AdminCompanyDetail — erros do backend', () => {
       representativeRole: null,
     },
     operations: ZERO_OPERATIONS,
+    internal: false,
   };
 
   let detail: ReturnType<typeof signal<AdminCompanyDetailDto | null>>;
@@ -280,6 +281,7 @@ describe('AdminCompanyDetail — bloco de operação', () => {
       representativeRole: null,
     },
     operations: ZERO_OPERATIONS,
+    internal: false,
   };
 
   function render(operations: AdminCompanyOperations): HTMLElement {

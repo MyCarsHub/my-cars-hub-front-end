@@ -52,6 +52,7 @@ const COMPANY: AdminCompanyListItem = {
   active: true,
   memberCount: 3,
   createdAt: '2025-01-01T00:00:00Z',
+  internal: false,
 };
 
 const NOTIFY = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
