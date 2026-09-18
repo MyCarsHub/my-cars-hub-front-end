@@ -85,6 +85,9 @@ export class RentalForm implements OnInit {
    * uma troca de empresa, editável por DevTools — um MANAGER recebia o link e o
    * botão "Configurar …", tocava, e o guard o devolvia ao `/dashboard` sem
    * dizer nada. Mesma família de #330 e #331, não um campo indevido.
+   *
+   * Lido uma vez na construção: a troca de empresa destrói este componente
+   * (`layout.store.ts`, `commitTenant`), então não há papel "quente".
    */
   protected readonly isOwner = this.sessionService.getCompanyRoleFromToken() === 'OWNER';
 
