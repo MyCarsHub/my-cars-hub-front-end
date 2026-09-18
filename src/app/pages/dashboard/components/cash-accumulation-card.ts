@@ -28,45 +28,54 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
   template: `
     @if (view(); as v) {
       <div class="min-w-0">
-        <!-- O numero que puxa: maior que tudo no cartao. -->
-        <p
-          class="text-[11px] sm:text-xs uppercase tracking-wide truncate"
-          [class.text-neutral-500]="!compact()"
-          [class.text-white/70]="compact()"
-        >
-          Já entrou em {{ currentMonthLabel() }}
-        </p>
-        <p
-          class="font-semibold mt-1 tabular-nums truncate"
-          [class.text-3xl]="!compact()"
-          [class.sm:text-4xl]="!compact()"
-          [class.text-xl]="compact()"
-          [class.sm:text-2xl]="compact()"
-          [class.text-neutral-900]="!compact()"
-          [class.text-white]="compact()"
-        >
-          {{ v.total }}
-        </p>
-
         <!--
-          Le-se em um segundo e sabe dar MA noticia: emerald para cima, rose para
-          baixo, neutro para empate. Esconder mes ruim faria o dono parar de
-          consultar — e ele so volta todo dia se confiar no numero.
+          DOIS BLOCOS ESTATICOS em vez de [class.x] condicional.
+
+          A versao anterior fazia [class.text-white/70], [class.sm:text-4xl] e
+          [class.text-[11px]]: nomes de classe com BARRA, DOIS-PONTOS e
+          COLCHETE dentro de um binding. Isso nao aplica de forma confiavel, e
+          o modo de falha e o pior possivel — a classe simplesmente nao entra,
+          o texto cai na cor padrao sobre um cartao colorido, e nada acusa erro
+          no console nem na compilacao.
         -->
-        <p
-          class="font-medium mt-1"
-          [class.text-sm]="!compact()"
-          [class.text-[11px]]="compact()"
-          [class.sm:text-xs]="compact()"
-          [class.truncate]="compact()"
-          [class.text-white/70]="compact()"
-          [class.text-emerald-700]="!compact() && v.trend === 'up'"
-          [class.text-rose-700]="!compact() && v.trend === 'down'"
-          [class.text-neutral-500]="!compact() && v.trend === 'flat'"
-        >
-          <span aria-hidden="true">{{ v.trend === 'up' ? '▲' : v.trend === 'down' ? '▼' : '=' }}</span>
-          {{ v.comparison }}
-        </p>
+        @if (compact()) {
+          <!-- Cartao COLORIDO: tudo branco, porque o fundo e solido. -->
+          <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">
+            Já entrou em {{ currentMonthLabel() }}
+          </p>
+          <p class="text-xl sm:text-2xl font-semibold text-white mt-1 tabular-nums truncate">
+            {{ v.total }}
+          </p>
+          <!--
+            A comparacao NAO usa verde/vermelho aqui: sobre laranja solido
+            nenhum dos dois le. A seta continua dando a direcao.
+          -->
+          <p class="text-[11px] sm:text-xs font-medium text-white/70 mt-1 truncate">
+            <span aria-hidden="true">{{ v.trend === 'up' ? '▲' : v.trend === 'down' ? '▼' : '=' }}</span>
+            {{ v.comparison }}
+          </p>
+        } @else {
+          <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
+            Já entrou em {{ currentMonthLabel() }}
+          </p>
+          <p class="text-3xl sm:text-4xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
+            {{ v.total }}
+          </p>
+          <!--
+            Le-se em um segundo e sabe dar MA noticia: emerald para cima, rose
+            para baixo, neutro para empate. Esconder mes ruim faria o dono
+            parar de consultar — e ele so volta todo dia se confiar no numero.
+          -->
+          <p
+            class="text-sm font-medium mt-1"
+            [class.text-emerald-700]="v.trend === 'up'"
+            [class.text-rose-700]="v.trend === 'down'"
+            [class.text-neutral-500]="v.trend === 'flat'"
+          >
+            <span aria-hidden="true">{{ v.trend === 'up' ? '▲' : v.trend === 'down' ? '▼' : '=' }}</span>
+            {{ v.comparison }}
+          </p>
+        }
 
         @if (v.isEmpty && !compact()) {
           <!-- Zero e zero: explica em vez de sumir. -->
