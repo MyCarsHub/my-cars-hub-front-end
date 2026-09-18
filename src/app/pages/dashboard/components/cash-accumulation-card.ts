@@ -29,7 +29,11 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
     @if (view(); as v) {
       <div class="min-w-0">
         <!-- O numero que puxa: maior que tudo no cartao. -->
-        <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
+        <p
+          class="text-[11px] sm:text-xs uppercase tracking-wide truncate"
+          [class.text-neutral-500]="!compact()"
+          [class.text-white/70]="compact()"
+        >
           Já entrou em {{ currentMonthLabel() }}
         </p>
         <p
@@ -39,7 +43,7 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
           [class.text-xl]="compact()"
           [class.sm:text-2xl]="compact()"
           [class.text-neutral-900]="!compact()"
-          [class.text-orange-700]="compact()"
+          [class.text-white]="compact()"
         >
           {{ v.total }}
         </p>
@@ -55,9 +59,10 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
           [class.text-[11px]]="compact()"
           [class.sm:text-xs]="compact()"
           [class.truncate]="compact()"
-          [class.text-emerald-700]="v.trend === 'up'"
-          [class.text-rose-700]="v.trend === 'down'"
-          [class.text-neutral-500]="v.trend === 'flat'"
+          [class.text-white/70]="compact()"
+          [class.text-emerald-700]="!compact() && v.trend === 'up'"
+          [class.text-rose-700]="!compact() && v.trend === 'down'"
+          [class.text-neutral-500]="!compact() && v.trend === 'flat'"
         >
           <span aria-hidden="true">{{ v.trend === 'up' ? '▲' : v.trend === 'down' ? '▼' : '=' }}</span>
           {{ v.comparison }}
