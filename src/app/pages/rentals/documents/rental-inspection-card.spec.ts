@@ -468,4 +468,46 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
       }
     });
   });
+
+
+  /**
+   * A REGRA POR PAPEL: o motorista fotografa AO VIVO, sem seletor; dono e gerente
+   * mantem o seletor. O rigor e por conflito de interesse — quem dirige o carro e
+   * quem teria motivo para mandar uma foto antiga dele.
+   *
+   * Aqui se afirma o DESVIO (qual caminho abre), nao o desenho da camera: o
+   * comportamento da camera em si mora em `live-camera-sheet.spec.ts`.
+   */
+  describe('RentalInspectionCard — origem da foto por papel', () => {
+    function abrirSlot(fixture: ReturnType<typeof makeFixture>): void {
+      const slot = (fixture.nativeElement as HTMLElement).querySelector(
+        'button[data-angle], [data-slot] button, button',
+      ) as HTMLButtonElement | null;
+      slot?.click();
+      fixture.detectChanges();
+    }
+
+    it('MOTORISTA abre a camera ao vivo, e nao a folha de origem', () => {
+      sessionStorage.setItem('selectedRole', 'DRIVER');
+      const fixture = makeFixture();
+
+      abrirSlot(fixture);
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('app-live-camera-sheet')).not.toBeNull();
+      expect(host.textContent).not.toContain('Escolher da galeria');
+    });
+
+    for (const papel of ['OWNER', 'MANAGER']) {
+      it(`${papel} mantem o seletor atual`, () => {
+        sessionStorage.setItem('selectedRole', papel);
+        const fixture = makeFixture();
+
+        abrirSlot(fixture);
+        const host = fixture.nativeElement as HTMLElement;
+
+        expect(host.querySelector('app-live-camera-sheet')).toBeNull();
+      });
+    }
+  });
 });
