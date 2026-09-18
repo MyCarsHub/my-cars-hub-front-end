@@ -32,7 +32,15 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
         <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
           Já entrou em {{ currentMonthLabel() }}
         </p>
-        <p class="text-3xl sm:text-4xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
+        <p
+          class="font-semibold mt-1 tabular-nums truncate"
+          [class.text-3xl]="!compact()"
+          [class.sm:text-4xl]="!compact()"
+          [class.text-xl]="compact()"
+          [class.sm:text-2xl]="compact()"
+          [class.text-neutral-900]="!compact()"
+          [class.text-orange-700]="compact()"
+        >
           {{ v.total }}
         </p>
 
@@ -42,7 +50,11 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
           consultar — e ele so volta todo dia se confiar no numero.
         -->
         <p
-          class="text-sm font-medium mt-1"
+          class="font-medium mt-1"
+          [class.text-sm]="!compact()"
+          [class.text-[11px]]="compact()"
+          [class.sm:text-xs]="compact()"
+          [class.truncate]="compact()"
           [class.text-emerald-700]="v.trend === 'up'"
           [class.text-rose-700]="v.trend === 'down'"
           [class.text-neutral-500]="v.trend === 'flat'"
@@ -51,7 +63,7 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
           {{ v.comparison }}
         </p>
 
-        @if (v.isEmpty) {
+        @if (v.isEmpty && !compact()) {
           <!-- Zero e zero: explica em vez de sumir. -->
           <p class="text-xs text-neutral-500 mt-2">
             Nenhuma cobrança paga até o dia {{ v.current.throughDay }}. A linha começa a
@@ -72,6 +84,7 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
 
           O teto do eixo sai calculado sobre AS DUAS series.
         -->
+        @if (!compact()) {
         <div class="mt-3">
           <app-line-chart
             [points]="currentPoints()"
@@ -90,6 +103,7 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
             [heightPx]="140"
           />
         </div>
+        }
 
       </div>
     }
@@ -97,6 +111,13 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
 })
 export class CashAccumulationCard {
   readonly data = input.required<CashAccumulationResponse | null>();
+
+  /**
+   * Modo compacto: so o rotulo, o numero e a comparacao. Sem grafico e sem
+   * tabela sr-only — no modo KPI os numeros ja estao no DOM como texto, e
+   * uma tabela repetindo-os faria o leitor de tela anunciar tudo duas vezes.
+   */
+  readonly compact = input(false);
 
   protected readonly view = computed(() => {
     const response = this.data();
