@@ -15,6 +15,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
 import {
+  isOpenChargeStatus,
   overdueUnpaidGatewayCharges,
   shouldWarnAboutGatewayCharges,
 } from '../../utils/rental-charges';
@@ -382,10 +383,10 @@ export class RentalDetail implements OnInit {
       .reduce((acc, c) => acc + c.amount, 0),
   );
 
-  /** SUM(amount) — status PENDING/PAST_DUE/FAILED em RENTAL_PERIOD + RENTAL_TOTAL. */
+  /** SUM(amount) das cobrancas EM ABERTO em RENTAL_PERIOD + RENTAL_TOTAL. */
   protected readonly remainingCents = computed<number>(() =>
     this.scheduleCharges()
-      .filter((c) => c.status === 'PENDING' || c.status === 'PAST_DUE' || c.status === 'FAILED')
+      .filter((c) => isOpenChargeStatus(c.status))
       .reduce((acc, c) => acc + c.amount, 0),
   );
 
@@ -427,13 +428,16 @@ export class RentalDetail implements OnInit {
   });
 
   /**
-   * Próxima cobrança em aberto (PENDING/PAST_DUE), pela menor `dueDate`.
-   * Fallback: primeira cobrança não paga em ordem de período.
+   * Próxima cobrança EM ABERTO, pela menor `dueDate`. Fallback: primeira não
+   * paga em ordem de período.
+   *
+   * Lê o mesmo `isOpenChargeStatus` do resto: antes esta lista ignorava FAILED
+   * enquanto `remainingCents`, dez linhas acima, já o somava. O mesmo arquivo
+   * discordava de si — e o efeito era apontar como "próxima" uma cobrança mais
+   * nova, escondendo uma vencida e ainda cobrável.
    */
   protected readonly nextCharge = computed<RentalChargeDto | null>(() => {
-    const open = this.scheduleCharges().filter(
-      (c) => c.status === 'PENDING' || c.status === 'PAST_DUE',
-    );
+    const open = this.scheduleCharges().filter((c) => isOpenChargeStatus(c.status));
     if (open.length === 0) return null;
     const withDate = open.filter((c) => !!c.dueDate);
     if (withDate.length > 0) {
