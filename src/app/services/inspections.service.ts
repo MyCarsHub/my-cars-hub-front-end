@@ -15,14 +15,6 @@ const BASE = `${environment.apiUrl}/inspections`;
  * todos opcionais e combináveis — o contrato que este serviço sempre mandou.
  * `toParams` nunca precisou mudar; o que faltava era a API.
  *
- * ## Ainda não está em produção — e isto importa para a tela
- *
- * O contrato novo está no backend em `develop` (`7453eb2`, PR #207). O
- * `main` do backend (`93c1fb3`) ainda tem a versão estreita, em que `rentalId`
- * é OBRIGATÓRIO. Enquanto o release não sair, em produção abrir a página sem
- * filtro responde **400**, e é por isso que o item "Vistorias" segue comentado
- * em `components/sidebar/sidebar.ts`.
- *
  * O resto segue as convenções de toda lista da casa (envelope
  * `content/page/size/total`, cache por empresa zerado no `TenantResetRegistry`,
  * erro guardado em signal para a tela mostrar inline).
