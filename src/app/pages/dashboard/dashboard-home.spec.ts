@@ -793,8 +793,21 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
       it('a ressalva ganha tratamento de aviso, nao rodape', () => {
         const el = card(minoria);
 
-        expect(el?.innerHTML).toContain('bg-amber-50');
-        expect(el?.innerHTML).toContain('border-amber-200');
+        // Afirma a FORMA, nao a paleta: a ressalva tem caixa propria — fundo E
+        // borda —, que e o que a separa de um rodape em texto corrido. Uma
+        // assercao em 'bg-amber-50' quebraria a cada mudanca de cor sem que a
+        // promessa mudasse, e e por isso que ela nao esta aqui.
+        // Localiza a caixa pela FORMA (tem fundo proprio), nao pelo texto: o
+        // texto tem acento e casar acento aqui ja falhou uma vez por causa de
+        // codificacao — o teste caiu sem que a promessa tivesse mudado.
+        const caixa = Array.from(
+          el?.querySelectorAll('div[class*="rounded-lg"]') ?? [],
+        ).find((d) => (d.getAttribute('class') ?? '').includes('bg-'));
+
+        expect(caixa).toBeTruthy();
+        const cls = caixa?.getAttribute('class') ?? '';
+        expect(cls).toContain('bg-');
+        expect(cls).toContain('border');
       });
 
       it('o texto diz o que FALTA, nao so a contagem', () => {
@@ -858,11 +871,22 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
   });
 
   it('prejuizo da frota aparece como prejuizo, com cor propria', () => {
-    const el = card([priced('a', 10_000_00, 4_000_00)]);
+    const prejuizo = card([priced('a', 10_000_00, 4_000_00)]);
+    const lucro = card([priced('a', 10_000_00, 12_000_00)]);
 
-    expect(el?.textContent).toContain('-60%');
-    expect(el?.textContent).toContain('no prejuízo');
-    expect(el?.innerHTML).toContain('text-rose-700');
+    expect(prejuizo?.textContent).toContain('-60%');
+    expect(prejuizo?.textContent).toContain('no prejuízo');
+
+    // COMPARA AS DUAS PONTAS em vez de cravar a cor. A promessa do card nao e
+    // "prejuizo e rose-700", e "prejuizo NAO se parece com lucro". Cravar a
+    // classe faz o teste cair numa troca de paleta que nao quebrou promessa
+    // nenhuma — e foi exatamente o que aconteceu quando o card virou solido.
+    const corDe = (el: HTMLElement | null | undefined): string =>
+      el?.querySelector('p.tabular-nums')?.getAttribute('class') ?? '';
+
+    expect(corDe(prejuizo)).not.toBe('');
+    expect(corDe(lucro)).not.toBe('');
+    expect(corDe(prejuizo)).not.toBe(corDe(lucro));
   });
 
   /** Envelope minimo para o template inteiro renderizar. */
