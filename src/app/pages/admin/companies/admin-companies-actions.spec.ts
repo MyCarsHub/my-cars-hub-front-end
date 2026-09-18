@@ -29,6 +29,7 @@ describe('AdminCompanies — menu de ações', () => {
     active: true,
     memberCount: 3,
     createdAt: '2025-01-01T00:00:00Z',
+    internal: false,
   };
 
   let updateStatus: ReturnType<typeof vi.fn>;

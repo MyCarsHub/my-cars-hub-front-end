@@ -62,6 +62,7 @@ const COMPANY: AdminCompanyDetailDto = {
     representativeRole: null,
   },
   operations: ZERO_OPERATIONS,
+  internal: false,
 };
 
 const SESSION: ImpersonationState = {

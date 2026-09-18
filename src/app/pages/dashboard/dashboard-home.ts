@@ -225,10 +225,29 @@ export class DashboardHome {
     protected readonly vehicleRoiLoading = this.reports.vehicleRoiLoading;
     protected readonly vehicleRoiError = this.reports.vehicleRoiError;
 
+    /**
+     * OPERADOR da empresa: quem o `roleGuard` aceita nas rotas de frota
+     * (`/alugueis`, `/veiculos`, `/manutencoes`, `/multas`, `/seguros`,
+     * `/motoristas` — todas `roleGuard(['OWNER', 'MANAGER'])`).
+     *
+     * FEAT-0146 — vem do TOKEN, a MESMA fonte do guard. Antes vinha do espelho
+     * `selectedRole` do `sessionStorage`, que é editável por DevTools e fica
+     * com o papel da empresa ANTERIOR até a troca confirmar. Decidir poder por
+     * uma fonte que o guard não consulta é como o menu oferecia o que o guard
+     * recusava — e aqui o `roleGuard` REDIRECIONA para `/dashboard`, então o
+     * motorista tocaria, a tela recarregaria nela mesma e nada explicaria.
+     *
+     * É o mesmo predicado para as três superfícies desta tela (ações rápidas,
+     * chips de alerta e ROI): uma resposta só para "esta pessoa entra nas
+     * rotas de frota?" em vez de três checagens que podem divergir.
+     */
+    protected readonly isOperator = computed(() => {
+        const role = this.session.getCompanyRoleFromToken();
+        return role === 'OWNER' || role === 'MANAGER';
+    });
+
     constructor() {
-        const role = this.session.getItem('selectedRole');
-        const eligible =
-            !this.session.isPlatformAdmin() && (role === 'OWNER' || role === 'MANAGER');
+        const eligible = !this.session.isPlatformAdmin() && this.isOperator();
 
         /**
          * FEAT-0103 — o ROI por veiculo e OPERADOR: o backend responde 403 para
@@ -246,7 +265,7 @@ export class DashboardHome {
                 error: () => this.cashAccumulation.set(null),
             });
 
-        this.showVehicleRoi.set(role === 'OWNER' || role === 'MANAGER');
+        this.showVehicleRoi.set(this.isOperator());
         if (this.showVehicleRoi()) {
             this.reports
                 .loadVehicleRoi()
@@ -287,6 +306,14 @@ export class DashboardHome {
     protected readonly showAlerts = computed(() => {
         const a = this.summary()?.alerts;
         if (!a) return false;
+        /**
+         * FEAT-0146 — para quem não é operador, só o chip de documentos conta:
+         * é o único que não leva a rota de `roleGuard`. Sem isto a faixa
+         * abriria com os contadores dos OUTROS chips e, como todos eles estão
+         * travados, renderizaria uma seção VAZIA na tela do motorista — um
+         * buraco no lugar de um alerta.
+         */
+        if (!this.isOperator()) return (a.docsExpiring7d?.count ?? 0) > 0;
         return (
             a.openFines.count > 0 ||
             a.openMaintenances.count > 0 ||
