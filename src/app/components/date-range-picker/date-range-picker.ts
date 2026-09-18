@@ -11,7 +11,7 @@ import {
 import {
     FilterChipGroup,
     FilterChipOption,
-} from '../../../components/filter-chip-group/filter-chip-group';
+} from '../filter-chip-group/filter-chip-group';
 
 export interface DateRange {
     from: string;
@@ -152,6 +152,21 @@ export class DateRangePicker implements OnInit {
      */
     readonly jumpToMonth = input<string | null>(null);
 
+    /**
+     * Preset com que o seletor NASCE, e se ele emite sozinho ao abrir.
+     *
+     * `'monthCurrent'` (padrão) mantém o dashboard exatamente como era: ele
+     * SEMPRE tem um período, e emite na inicialização para a tela já pintar com
+     * dados. Ver o comentário do `selected` logo abaixo.
+     *
+     * `null` é para quem usa o período como FILTRO OPCIONAL: nenhum chip nasce
+     * marcado e nada é emitido até o usuário escolher. Sem isto, uma tela de
+     * filtros abre com um período já aplicado que o usuário não escolheu — e
+     * passa a dizer "nada encontrado com estes filtros" para quem não filtrou
+     * nada.
+     */
+    readonly initialPreset = input<PresetKey | null>('monthCurrent');
+
     protected readonly presets = PRESETS;
 
     constructor() {
@@ -175,12 +190,13 @@ export class DateRangePicker implements OnInit {
     // rest of the month's projected revenue on first paint — critical because
     // rentals with future start dates (e.g. contract of R$ 42.400 starting
     // next week) were invisible under the old rolling-30d default.
-    protected readonly selected = signal<PresetKey>('monthCurrent');
+    protected readonly selected = signal<PresetKey | null>('monthCurrent');
     protected readonly customFrom = signal<string>('');
     protected readonly customTo = signal<string>('');
 
     protected readonly currentRange = computed<DateRange | null>(() => {
         const key = this.selected();
+        if (key === null) return null;
         if (key === 'custom') {
             const from = this.customFrom();
             const to = this.customTo();
@@ -200,11 +216,22 @@ export class DateRangePicker implements OnInit {
     });
 
     ngOnInit(): void {
-        const r = rangeForPreset('monthCurrent');
+        const initial = this.initialPreset();
+        this.selected.set(initial);
+        // `null` = período é filtro opcional: não emite nada até o usuário
+        // escolher. Ver `initialPreset`.
+        if (initial === null) return;
+        const r = rangeForPreset(initial);
         if (r) this.rangeChange.emit(r);
     }
 
-    protected selectPreset(key: PresetKey): void {
+    /**
+     * `null` só chega quando o grupo de chips herda o tipo do `value`, que
+     * agora aceita "nenhum período". Não é escolha do usuário — ele não tem
+     * como clicar em "nada" —, então ignora.
+     */
+    protected selectPreset(key: PresetKey | null): void {
+        if (key === null) return;
         this.selected.set(key);
         const r = rangeForPreset(key);
         if (r) this.rangeChange.emit(r);

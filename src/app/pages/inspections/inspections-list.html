@@ -1,0 +1,190 @@
+<app-default-page-layout
+  title="Vistorias"
+  description="Todas as vistorias da frota, por veículo, locação e período."
+>
+  <app-page-card title="Filtros" class="mb-4 sm:mb-6">
+    <div class="p-3 sm:p-4 space-y-4">
+      <!--
+        Os três filtros do pedido do dono, COMBINÁVEIS: veículo E locação E
+        período. Cada um recarrega a lista e volta para a página 0 — manter a
+        página ao trocar o filtro mostraria "página 3 de 1".
+      -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!--
+          `min-w-0` NÃO é decoração: item de grade nasce com `min-width:auto` e
+          se recusa a encolher abaixo do conteúdo. Uma placa longa dentro do
+          select empurraria a grade e a página inteira rolaria para o lado no
+          celular — foi exatamente assim que o dashboard quebrou.
+        -->
+        <div class="min-w-0 space-y-1">
+          <label for="insp-vehicle" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+            Veículo
+          </label>
+          <select
+            id="insp-vehicle"
+            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
+                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            [value]="vehicleId()"
+            (change)="onVehicleChange($any($event.target).value)"
+          >
+            <option value="">Todos os veículos</option>
+            @for (v of vehicleOptions(); track v.id) {
+              <option [value]="v.id">{{ v.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="min-w-0 space-y-1">
+          <label for="insp-rental" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+            Locação
+          </label>
+          <input
+            id="insp-rental"
+            type="search"
+            placeholder="Código ou id da locação"
+            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
+                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            [value]="rentalId()"
+            (change)="onRentalChange($any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <p id="insp-kind-label" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+          Tipo
+        </p>
+        <app-filter-chip-group
+          [options]="kindChips"
+          [value]="kind()"
+          ariaLabelledby="insp-kind-label"
+          (selectionChange)="onKindChange($event)"
+        />
+      </div>
+
+      <!--
+        Seletor de período REAPROVEITADO do dashboard (movido para
+        `components/` neste diff). Um segundo seletor de intervalo seria uma
+        segunda régua de datas para manter em sincronia.
+      -->
+      <div class="space-y-2">
+        <p class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Período</p>
+        <app-date-range-picker [initialPreset]="null" (rangeChange)="onRangeChange($event)" />
+      </div>
+    </div>
+  </app-page-card>
+
+  <app-page-card title="Vistorias">
+    <div class="p-3 sm:p-4 space-y-4">
+      @if (error(); as loadError) {
+        <app-alert-banner variant="error" [message]="loadError" />
+      }
+
+      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveStatus() }}</p>
+
+      @if (loading()) {
+        <div class="space-y-2" aria-hidden="true">
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+        </div>
+      }
+
+      @if (isEmpty()) {
+        <!--
+          DOIS estados vazios diferentes, de propósito. "Nenhuma vistoria com
+          estes filtros" se resolve limpando o filtro; "nenhuma vistoria ainda"
+          se resolve fazendo uma. Mostrar a mesma frase para as duas manda o
+          usuário procurar o problema no lugar errado.
+        -->
+        @if (hasActiveFilters()) {
+          <div class="text-center py-10 space-y-3">
+            <p class="text-sm text-neutral-500">Nenhuma vistoria encontrada com estes filtros.</p>
+            <button
+              type="button"
+              class="min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-medium
+                     text-neutral-700 hover:bg-gray-50 transition-colors"
+              (click)="clearFilters()"
+            >
+              Limpar filtros
+            </button>
+          </div>
+        } @else {
+          <p class="text-center py-10 text-sm text-neutral-500">
+            Nenhuma vistoria registrada ainda. Elas aparecem aqui assim que a primeira for feita.
+          </p>
+        }
+      }
+
+      @for (item of items(); track item.id) {
+        <div class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="font-medium text-neutral-900 text-sm truncate">{{ vehicleLabel(item) }}</p>
+              @if (item.driverName) {
+                <p class="text-xs text-neutral-500 truncate">{{ item.driverName }}</p>
+              }
+            </div>
+            <span
+              class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+                     font-medium uppercase tracking-wide bg-neutral-100 text-neutral-700"
+            >
+              {{ kindLabel(item.kind) }}
+            </span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
+            <span class="tabular-nums">{{ formatDate(item.performedAt) }}</span>
+            <span>{{ item.photoCount }} foto(s)</span>
+          </div>
+
+          <!--
+            A COLUNA DE DOCUMENTO SAIU INTEIRA, inclusive a legenda "PDF ainda
+            não gerado". Não existe tabela de documento de vistoria: o PDF vive
+            no mundo de ALUGUEL e o laudo é funcionalidade por construir (ver
+            `types/inspection.types.ts`). Um estado de espera que NUNCA sai da
+            espera não informa — ensina o usuário a ignorar a coluna, e no dia
+            em que o laudo existir a mudança chega num lugar que ninguém olha.
+            Resta o caminho para o aluguel, que é onde a vistoria vive hoje.
+          -->
+          @if (item.rentalId) {
+            <div class="flex flex-wrap items-center gap-2">
+              <a
+                [routerLink]="['/alugueis', item.rentalId]"
+                class="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-neutral-200
+                       text-sm font-medium text-neutral-700 hover:bg-gray-50 transition-colors"
+              >
+                Ver no aluguel
+              </a>
+            </div>
+          }
+        </div>
+      }
+
+      @if (totalPages() > 1) {
+        <div class="flex items-center justify-between gap-3 pt-2">
+          <button
+            type="button"
+            class="min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-medium
+                   text-neutral-700 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+            [disabled]="!hasPrev()"
+            (click)="prev()"
+          >
+            Anterior
+          </button>
+          <span class="text-xs text-neutral-500 tabular-nums">
+            Página {{ pageNumber() }} de {{ totalPages() }}
+          </span>
+          <button
+            type="button"
+            class="min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-medium
+                   text-neutral-700 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+            [disabled]="!hasNext()"
+            (click)="next()"
+          >
+            Próxima
+          </button>
+        </div>
+      }
+    </div>
+  </app-page-card>
+</app-default-page-layout>
