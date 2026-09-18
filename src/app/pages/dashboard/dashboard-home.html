@@ -118,7 +118,7 @@
             desenho saiu.
         -->
         @if (cashAccumulation(); as cash) {
-            <div class="rounded-2xl bg-orange-50 border border-orange-200 p-4 min-w-0">
+            <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
                 <app-cash-accumulation-card [data]="cash" [compact]="true" />
             </div>
         }
@@ -179,15 +179,15 @@
             e aceito: fileira irregular incomoda menos que card gigante.
         -->
         @if (showVehicleRoi()) {
-            <div data-roi-card class="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 min-w-0">
-                <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
+            <div data-roi-card class="rounded-2xl bg-emerald-600 text-white p-4 min-w-0">
+                <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">
                     ROI
                 </p>
                 @if (vehicleRoiLoading() && !vehicleRoi()) {
-                    <div class="h-8 mt-2 w-16 rounded bg-neutral-100 animate-pulse"></div>
+                    <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
                 } @else if (vehicleRoiError()) {
-                    <p class="text-xl sm:text-2xl font-semibold text-neutral-400 mt-1 truncate">—</p>
-                    <p class="text-[11px] sm:text-xs text-neutral-500 mt-1 truncate">
+                    <p class="text-xl sm:text-2xl font-semibold text-white/60 mt-1 truncate">—</p>
+                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
                         não foi possível calcular
                     </p>
                 } @else if (fleetRoiIndeterminate()) {
@@ -202,22 +202,21 @@
                         custo, entao zero e FATO.
                         Tom NEUTRO: zero nao e lucro nem prejuizo.
                     -->
-                    <p class="text-xl sm:text-2xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
+                    <p class="text-xl sm:text-2xl font-semibold text-white mt-1 tabular-nums truncate">
                         0%
                     </p>
-                    <p class="text-[11px] sm:text-xs text-neutral-500 mt-1 truncate">
+                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
                         {{ zeroMoney }}
                     </p>
                 } @else if (fleetRoiPercentLabel(); as roiLabel) {
                     <p
                         class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-                        [class.text-emerald-700]="fleetRoiTone() === 'positive'"
-                        [class.text-rose-700]="fleetRoiTone() === 'negative'"
-                        [class.text-neutral-900]="fleetRoiTone() === 'neutral'"
+                        [class.text-white]="fleetRoiTone() !== 'negative'"
+                        [class.text-rose-200]="fleetRoiTone() === 'negative'"
                     >
                         {{ roiLabel }}
                     </p>
-                    <p class="text-[11px] sm:text-xs text-neutral-500 mt-1 truncate">
+                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
                         {{ fleetRoiNetLabel() }}
                     </p>
                     @if (fleetRoiBase(); as base) {
@@ -228,12 +227,12 @@
                                 o caminho para resolver — dizer o que FALTA, nao
                                 so contar. O percentual continua na tela.
                             -->
-                            <div class="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1.5">
-                                <p class="text-[11px] sm:text-xs text-amber-900">{{ base.label }}</p>
+                            <div class="mt-2 rounded-lg bg-white/15 border border-white/30 px-2 py-1.5">
+                                <p class="text-[11px] sm:text-xs text-white">{{ base.label }}</p>
                                 <a
                                     routerLink="/veiculos"
                                     class="inline-flex items-center min-h-[44px] text-[11px] sm:text-xs
-                                           font-semibold text-amber-900 underline hover:no-underline
+                                           font-semibold text-white underline hover:no-underline
                                            outline-none focus-visible:ring-2 focus-visible:ring-amber-500
                                            rounded-sm"
                                 >
@@ -241,7 +240,7 @@
                                 </a>
                             </div>
                         } @else {
-                            <p class="text-[11px] sm:text-xs text-neutral-400 mt-0.5 truncate">
+                            <p class="text-[11px] sm:text-xs text-white/60 mt-0.5 truncate">
                                 {{ base.label }}
                             </p>
                         }
