@@ -1,0 +1,11 @@
+{
+  "statsFile": "dist/my-cars-hub-front-end/stats.json",
+  "entryPoint": "src/main.ts",
+  "forbidden": [
+    {
+      "match": "node_modules/@sentry",
+      "label": "@sentry/*",
+      "reason": "Sentry is global error reporting, not a screen feature, but it only runs when environment.sentryDsn is a real https DSN. With the DSN empty it ships and parses for nothing. It must stay reachable ONLY through a dynamic import so the weight follows the feature."
+    }
+  ]
+}
