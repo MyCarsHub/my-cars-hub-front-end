@@ -13,6 +13,21 @@ const tenant = (role: string, name = 'MyCarsHub'): Tenant => ({
 });
 
 /**
+ * FIX-0456 — o menu passou a decidir pelo papel do TOKEN, a mesma fonte do
+ * `roleGuard`. Um tenant no espelho não abre mais item nenhum, então todo
+ * caso que precisa de um papel precisa de uma SESSÃO, não só de um tenant.
+ * Ver `sidebar-role-source.spec.ts` para o porquê da troca de fonte.
+ */
+function signInAs(role: string): void {
+  const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+  const b64 = btoa(JSON.stringify(payload))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  sessionStorage.setItem('token', `header.${b64}.signature`);
+}
+
+/**
  * Rotas de mentira: o realce de grupo depende de NAVEGAÇÃO de verdade
  * (`router.url` + `routerLinkActive`), então `provideRouter([])` não serve —
  * sem rota registrada o `navigateByUrl` não chega a lugar nenhum e o teste
@@ -36,6 +51,7 @@ describe('Sidebar', () => {
   let layout: LayoutStore;
 
   beforeEach(async () => {
+    sessionStorage.clear();
     await TestBed.configureTestingModule({
       imports: [Sidebar],
       providers: [provideRouter(TEST_ROUTES), provideNoopAnimations()],
@@ -118,6 +134,7 @@ describe('Sidebar', () => {
      * garante que o filtro por papel não derruba as âncoras junto.
      */
     it('mantém as âncoras data-tour com um papel selecionado', () => {
+      signInAs('OWNER');
       layout.tenants.set([tenant('OWNER')]);
       layout.selectedTenant.set(tenant('OWNER'));
       fixture.detectChanges();
@@ -174,6 +191,7 @@ describe('Sidebar', () => {
 
     beforeEach(() => {
       router = TestBed.inject(Router);
+      signInAs('OWNER');
       layout.tenants.set([tenant('OWNER')]);
       layout.selectedTenant.set(tenant('OWNER'));
       fixture.detectChanges();

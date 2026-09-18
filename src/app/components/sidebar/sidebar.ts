@@ -238,8 +238,30 @@ export class Sidebar {
 
   private readonly userState = signal<ReadonlyMap<string, 'open' | 'closed'>>(new Map());
 
+  /**
+   * Papel que DECIDE o que o menu oferece.
+   *
+   * FIX-0456 — vem do TOKEN, a MESMA fonte que o `roleGuard` consulta
+   * (`services/role.guard.ts`). Antes vinha de `layout.selectedTenant().role`,
+   * que é o espelho em `sessionStorage`: duas fontes para o mesmo fato,
+   * concordando por sorte. Quando divergissem, o menu ofereceria o que o guard
+   * recusa — e o `roleGuard` REDIRECIONA para `/dashboard` em vez de mostrar
+   * um erro, então a pessoa tocaria, a tela trocaria e nada explicaria por quê.
+   * Num app multi-empresa a divergência é rotina: trocar de empresa deixa o
+   * espelho com o papel da ANTERIOR até o commit.
+   *
+   * O sinal do tenant é lido aqui como GATILHO de reexecução, não como valor:
+   * a troca grava o tenant DEPOIS de o token novo chegar
+   * (`layout.store.ts` `selectTenant` → `commitTenant`), então ele é o
+   * momento certo para reavaliar — e o valor já é o do token novo.
+   */
+  private readonly menuRole = computed<string | null>(() => {
+    this.layout.selectedTenant();
+    return this.session.getCompanyRoleFromToken();
+  });
+
   private readonly allowedItems = computed<NavItem[]>(() => {
-    const role = this.layout.selectedTenant()?.role;
+    const role = this.menuRole();
     const isAdmin = this.session.isPlatformAdmin();
     const passes = (item: NavItem) => {
       if (item.requiresPlatformAdmin && !isAdmin) return false;
