@@ -1,11 +1,13 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { InspectionsList } from './inspections-list';
+import { DateRangePicker } from '../../components/date-range-picker/date-range-picker';
 import { InspectionsService } from '../../services/inspections.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -14,10 +16,10 @@ import type { InspectionListItem } from '../../types/inspection.types';
 /**
  * `/vistorias` — a pagina que tira a vistoria de dentro do aluguel.
  *
- * O endpoint ainda nao existe; a tela consome o contrato PROPOSTO. Os testes
- * afirmam o comportamento da TELA (filtros combinados, estados vazios, link do
- * PDF), nao o formato do backend — se o contrato mudar, muda o service e estes
- * testes seguem valendo.
+ * `GET /v1/inspections` ja existe (V82), mas com contrato mais estreito que o
+ * que esta tela manda — ver o javadoc de `services/inspections.service.ts`. Os
+ * testes aqui afirmam o comportamento da TELA (filtros combinados, estados
+ * vazios, link do PDF), nao o formato do backend.
  */
 describe('InspectionsList', () => {
   const item: InspectionListItem = {
@@ -271,5 +273,92 @@ describe('InspectionsList', () => {
     for (const child of children) {
       expect(child.className, `item de grade sem min-w-0: ${child.className}`).toContain('min-w-0');
     }
+  });
+
+  /**
+   * OS CONTROLES, PELO DOM.
+   *
+   * Os casos acima chamam `internals().onVehicleChange(...)` e companhia, que e
+   * a API do COMPONENTE. Isso prova que o componente filtra; nao prova que o
+   * usuario consegue filtrar — apagar os tres controles do template deixaria
+   * todos eles verdes. Aqui a acao parte do elemento renderizado, entao sumir
+   * com o controle derruba o teste.
+   *
+   * Os chips de tipo ja estavam presos assim; faltavam veiculo, locacao e
+   * periodo.
+   */
+  describe('os controles renderizados alimentam a consulta', () => {
+    it('o select de veiculo filtra', () => {
+      const fixture = render();
+      const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
+        '#insp-vehicle',
+      )!;
+
+      // CONTROLE POSITIVO: sem a opcao no DOM, atribuir o value nao pega e o
+      // teste passaria a vazio. Exigir a opcao antes fecha essa porta.
+      expect(Array.from(select.options).map((o) => o.value)).toContain('veh-1');
+
+      select.value = 'veh-1';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(lastQuery()).toMatchObject({ vehicleId: 'veh-1' });
+    });
+
+    it('o campo de locacao filtra', () => {
+      const fixture = render();
+      const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '#insp-rental',
+      )!;
+
+      input.value = 'LOC-0001';
+      input.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(lastQuery()).toMatchObject({ rentalId: 'LOC-0001' });
+    });
+
+    /**
+     * O periodo vem de `app-date-range-picker`, reaproveitado do dashboard.
+     * Dirigir a data pelos inputs DELE amarraria esta tela ao desenho interno
+     * de outro componente; o que esta tela precisa provar e que o seletor esta
+     * MONTADO e que a saida dele esta ligada. Tirar o elemento do template faz
+     * a consulta abaixo devolver null e o teste cai.
+     */
+    it('o seletor de periodo filtra', () => {
+      const fixture = render();
+      const picker = fixture.debugElement.query(By.directive(DateRangePicker));
+
+      expect(picker).not.toBeNull();
+      picker.componentInstance.rangeChange.emit({ from: '2026-09-01', to: '2026-09-30' });
+      fixture.detectChanges();
+
+      expect(lastQuery()).toMatchObject({ from: '2026-09-01', to: '2026-09-30' });
+    });
+
+    it('os tres, pelo DOM, valem ao mesmo tempo', () => {
+      const fixture = render();
+      const host = fixture.nativeElement as HTMLElement;
+
+      const select = host.querySelector<HTMLSelectElement>('#insp-vehicle')!;
+      select.value = 'veh-1';
+      select.dispatchEvent(new Event('change'));
+
+      const input = host.querySelector<HTMLInputElement>('#insp-rental')!;
+      input.value = 'LOC-0001';
+      input.dispatchEvent(new Event('change'));
+
+      fixture.debugElement
+        .query(By.directive(DateRangePicker))
+        .componentInstance.rangeChange.emit({ from: '2026-09-01', to: '2026-09-30' });
+      fixture.detectChanges();
+
+      expect(lastQuery()).toMatchObject({
+        vehicleId: 'veh-1',
+        rentalId: 'LOC-0001',
+        from: '2026-09-01',
+        to: '2026-09-30',
+      });
+    });
   });
 });

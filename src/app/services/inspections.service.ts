@@ -11,16 +11,37 @@ const BASE = `${environment.apiUrl}/inspections`;
 /**
  * Listagem de vistorias, com filtros combináveis.
  *
- * ## O endpoint ainda NÃO existe
+ * ## O endpoint existe; o CONTRATO dele ainda é mais estreito que este serviço
  *
- * `GET /v1/inspections` está sendo construído em paralelo. Este serviço é a
- * proposta de contrato do lado do frontend — ver `inspection.types.ts`. Ele
- * segue as convenções que já valem para toda lista da casa (envelope
+ * `GET /v1/inspections` está em produção (V82). O que ainda não está é a forma
+ * que esta tela consome: hoje o controlador exige `rentalId`
+ * (`InspectionController.listByRental`, `@RequestParam UUID rentalId` SEM
+ * `required = false`), a busca por veículo é OUTRA rota
+ * (`GET /v1/inspections/by-vehicle/{vehicleId}`), e `kind`, `from` e `to` não
+ * existem na listagem.
+ *
+ * Duas consequências, enquanto for assim:
+ *  - abrir a página sem filtro manda `?page=0&size=20` e volta **400** — ou
+ *    seja, o estado INICIAL da tela é o caso quebrado, não um canto raro;
+ *  - com `rentalId` mais os outros, o servidor honra o `rentalId` e descarta o
+ *    resto EM SILÊNCIO, que é pior: a tela mostra um resultado plausível para
+ *    um filtro que não foi aplicado.
+ *
+ * ## Por que `toParams` não foi ajustado para a API de hoje
+ *
+ * O PR de backend que torna os cinco parâmetros opcionais e combináveis está em
+ * curso, e é ele que fecha isto. Reescrever `toParams` para o contrato estreito
+ * degradaria a tela para caber numa API que está sendo corrigida, e depois seria
+ * preciso desfazer. O contrato que este serviço manda é o alvo, não um chute:
+ * `inspections.service.spec.ts` prende exatamente o que viaja na query.
+ *
+ * ESTE SERVIÇO NÃO ESTÁ PRONTO PARA PRODUÇÃO ATÉ AQUELE PR ENTRAR. É também por
+ * isso que o item "Vistorias" segue comentado em `components/sidebar/sidebar.ts`
+ * — o menu não oferece uma tela cujo estado inicial responde 400.
+ *
+ * O resto segue as convenções de toda lista da casa (envelope
  * `content/page/size/total`, cache por empresa zerado no `TenantResetRegistry`,
- * erro guardado em signal para a tela mostrar inline), então quando o contrato
- * real chegar a conciliação é de NOMES DE CAMPO, não de arquitetura.
- *
- * Se o backend divergir, o ponto único de ajuste é `toParams` + os tipos.
+ * erro guardado em signal para a tela mostrar inline).
  */
 @Injectable({ providedIn: 'root' })
 export class InspectionsService {
