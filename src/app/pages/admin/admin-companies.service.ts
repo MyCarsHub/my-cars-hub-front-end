@@ -85,7 +85,26 @@ export class AdminCompaniesService {
     );
   }
 
+  /**
+   * FIX-0457 — descarta o detalhe de OUTRA empresa antes de buscar esta.
+   *
+   * `_detail` e um signal COMPARTILHADO, e `updateStatus`/`updateInternal`
+   * gravam nele mesmo quando a acao partiu da LISTA, com a pagina de detalhe
+   * fechada. Sem este descarte, abrir a empresa B logo depois de agir sobre a A
+   * renderiza os dados de A sob o cabecalho de B ate o GET responder, porque
+   * `admin-company-detail.html` so mostra o esqueleto enquanto `!detail()`.
+   * Num painel onde o admin decide sobre empresas, o dado errado por um
+   * instante e pior que vazio: o piscar e curto e ninguem desconfia do que leu.
+   *
+   * O descarte e CONDICIONAL de proposito. Quando o id e o mesmo — `reload()`,
+   * ou uma acao disparada de dentro da propria pagina — manter o que ja esta na
+   * tela e o comportamento desejado: a pagina atualiza sem piscar para o
+   * esqueleto. So a troca de empresa limpa.
+   */
   loadDetail(id: string): Observable<AdminCompanyDetail> {
+    if (this._detail()?.id !== id) {
+      this._detail.set(null);
+    }
     this._detailLoading.set(true);
     this._detailError.set(null);
     return this.http.get<AdminCompanyDetail>(`${API_BASE}/${id}`).pipe(
