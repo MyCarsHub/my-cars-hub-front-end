@@ -870,23 +870,31 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
     });
   });
 
-  it('prejuizo da frota aparece como prejuizo, com cor propria', () => {
+  it('prejuizo da frota se distingue pelo TEXTO, nao pela cor', () => {
     const prejuizo = card([priced('a', 10_000_00, 4_000_00)]);
     const lucro = card([priced('a', 10_000_00, 12_000_00)]);
 
+    // O cartao tem UMA cor (decisao do dono): o numero e branco tambem no
+    // prejuizo. Entao a promessa deixou de ser "prejuizo tem cor propria" e
+    // passou a ser esta — e ela precisa continuar sendo verificavel, senao a
+    // troca de paleta teria simplesmente APAGADO uma garantia em vez de
+    // move-la.
+    //
+    // O sinal de menos e a palavra carregam o recado sozinhos, e carregam
+    // melhor: cor nao e lida por quem enxerga pouco, nem por leitor de tela.
     expect(prejuizo?.textContent).toContain('-60%');
     expect(prejuizo?.textContent).toContain('no prejuízo');
 
-    // COMPARA AS DUAS PONTAS em vez de cravar a cor. A promessa do card nao e
-    // "prejuizo e rose-700", e "prejuizo NAO se parece com lucro". Cravar a
-    // classe faz o teste cair numa troca de paleta que nao quebrou promessa
-    // nenhuma — e foi exatamente o que aconteceu quando o card virou solido.
+    expect(lucro?.textContent).not.toContain('no prejuízo');
+    expect(lucro?.textContent).not.toContain('-');
+
+    // E a cor NAO distingue mais — afirmado de proposito, para que voltar a
+    // pintar por tom exija mexer aqui e reabrir a conversa.
     const corDe = (el: HTMLElement | null | undefined): string =>
       el?.querySelector('p.tabular-nums')?.getAttribute('class') ?? '';
 
     expect(corDe(prejuizo)).not.toBe('');
-    expect(corDe(lucro)).not.toBe('');
-    expect(corDe(prejuizo)).not.toBe(corDe(lucro));
+    expect(corDe(prejuizo)).toBe(corDe(lucro));
   });
 
   /** Envelope minimo para o template inteiro renderizar. */
