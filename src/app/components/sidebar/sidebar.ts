@@ -72,18 +72,25 @@ const NAV_ITEMS: NavItem[] = [
         tourKey: TOUR_ANCHORS.vehicles,
       },
       { route: '/manutencoes', label: 'Manutenções', icon: ICON_MAINT, roles: ['OWNER', 'MANAGER'] },
-      // VISTORIAS: a rota existe e funciona (`/vistorias`), mas o item de menu
-      // fica FORA de propósito, e não por esquecimento.
+      // VISTORIAS: o item de menu está deliberadamente FORA — e o LUGAR dele
+      // já está decidido, é este: filho de "Frota", entre Manutenções e Multas
+      // (decisão do dono). Ele NÃO volta como item de primeiro nível.
       //
-      // O backend ainda não tem a LISTAGEM: o PR #190 expõe `POST
-      // /v1/inspections`, `GET /v1/inspections/{id}` e
-      // `GET /v1/inspections/checklist/{companyId}` — não há `GET
-      // /v1/inspections` com filtros, que é o que a tela consome. Com o item no
-      // menu, todo clique entregaria o banner de erro: um item que só produz
-      // erro é pior que a ausência dele.
+      // POR QUE ESTÁ FORA: a tela consome `GET /v1/inspections` com filtros, e
+      // essa listagem ainda não está em produção — ela foi acrescentada ao PR
+      // #190 (vistoria base, V82), que está EM REVISÃO. Com o item no menu
+      // antes disso, todo clique entregaria o banner de erro: um item que só
+      // produz erro é pior que a ausência dele. A rota `/vistorias` já existe e
+      // funciona (app.routes.ts), então o link não está quebrado — está em
+      // espera.
       //
-      // PARA DEVOLVER O ITEM: basta o endpoint de listagem existir em
-      // produção. Descomente o bloco abaixo — nada mais precisa mudar.
+      // PARA DEVOLVER O ITEM: quando `GET /v1/inspections?rentalId=` estiver EM
+      // PRODUÇÃO (não basta o PR #190 aprovado ou em develop), descomente o
+      // bloco abaixo AQUI MESMO, sem mudar de lugar. Nada mais precisa mudar: a
+      // rota é irmã plana de /veiculos e /manutencoes (sem prefixo, como as
+      // outras filhas de Frota), e o realce de item ativo já cobre filhos —
+      // `routerLinkActive` no <a> do filho e `isExpanded()`, que abre "Frota"
+      // quando a URL começa com /vistorias.
       // {
       //   route: '/vistorias',
       //   label: 'Vistorias',
