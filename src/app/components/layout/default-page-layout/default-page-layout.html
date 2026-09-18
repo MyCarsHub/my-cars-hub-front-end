@@ -1,4 +1,24 @@
-<section class="w-full h-full px-4 sm:px-6 lg:px-10 pt-20 lg:pt-10 pb-6 sm:pb-8 lg:pb-10 max-w-8xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 bg-gray-50">
+<!--
+    FOLGA DO TOPO NO CELULAR — o botao de menu e `fixed` e flutua SOBRE esta secao.
+
+    Relatado com print do iPhone: o hamburguer cobria as primeiras letras do
+    titulo, em TODAS as paginas.
+
+    Duas coisas, e a segunda e a causa de so aparecer no aparelho:
+
+    1. A folga era `pt-20` (80px) contra um botao que ocupa 16..56px. No papel
+       sobravam 24px. Passou a `pt-28` (112px) — a folga era apertada demais para
+       depender de dois numeros digitados em ARQUIVOS DIFERENTES: a posicao do
+       botao mora em sidebar.html e a folga aqui.
+
+    2. O <meta viewport> declara `viewport-fit=cover`, e NAO havia UMA regra de
+       `env(safe-area-inset-*)` em todo o src. O app pediu para desenhar sob o
+       recorte do iPhone e nunca compensou. Num navegador de mesa o inset e zero
+       e nada aparece; no aparelho ele desloca o que e `fixed` em relacao ao que
+       esta no fluxo. Agora a folga soma o inset, entao ela acompanha o aparelho
+       em vez de assumir que ele nao existe.
+-->
+<section class="w-full h-full px-4 sm:px-6 lg:px-10 pt-[calc(7rem+env(safe-area-inset-top))] lg:pt-10 pb-6 sm:pb-8 lg:pb-10 max-w-8xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 bg-gray-50">
     <header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div class="min-w-0">
             <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-neutral-900 break-words">
