@@ -558,12 +558,39 @@ describe('LineChart — formatacao do valor', () => {
       expect(formatChartValue(3, 'count')).not.toContain('R$');
     });
 
-    it('e o PADRAO — quem nao declara dominio nao vira moeda', () => {
-      const host = renderWith([{ label: 'jan', value: 3 }]);
-      const texto = host.textContent ?? '';
+    /**
+     * Este teste existe para cair quando o DEFAULT do `valueFormat` muda — e
+     * por isso o host NAO amarra o atributo. A versao anterior usava o helper
+     * `renderWith`, que sempre bindava `[valueFormat]`, com 'count' como
+     * fallback DO PROPRIO TESTE: ele exercitava o fallback do helper, nunca o
+     * do componente, e continuou verde quando o default do fonte foi invertido.
+     * Teste decorativo — passava a vazio. (FIX-0443)
+     *
+     * MUTACAO QUE O MATA: trocar `input<ChartValueFormat>('count')` por
+     * `input<ChartValueFormat>('currencyCents')` em line-chart.ts.
+     */
+    it('e o PADRAO do COMPONENTE — host que nao declara dominio nao vira moeda', () => {
+      @Component({
+        imports: [LineChart],
+        // Sem `valueFormat`: e o default do componente que esta sob teste.
+        template: `<app-line-chart [points]="points" ariaLabel="teste" />`,
+      })
+      class HostSemFormato {
+        readonly points: LinePoint[] = [{ label: 'jan', value: 3 }];
+      }
 
-      expect(texto).toContain('3');
-      expect(texto).not.toContain('R$');
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ imports: [HostSemFormato] });
+      const fixture = TestBed.createComponent(HostSemFormato);
+      fixture.detectChanges();
+
+      const celulas = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('tbody td'),
+      ).map((td) => td.textContent?.trim());
+
+      // Nao-vazio primeiro: sem isto, uma tabela que sumisse deixaria o
+      // `not.toContain('R$')` passar a vazio — o defeito que este lote combate.
+      expect(celulas).toEqual(['3']);
     });
   });
 
