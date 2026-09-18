@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { RentalChargeDto } from '../types/rental.types';
 import {
   hasGatewayCharges,
+  isOpenChargeStatus,
   openNotOverdueGatewayCharges,
   overdueUnpaidGatewayCharges,
   shouldWarnAboutGatewayCharges,
@@ -134,5 +135,72 @@ describe('criterios de cobranca no gateway', () => {
 
       expect(shouldWarnAboutGatewayCharges(encerradas, TODAY)).toBe(false);
     });
+  });
+});
+
+/**
+ * FIX-0433 — FAILED e cobranca ABERTA.
+ *
+ * O caso real: 17 cobrancas FAILED num unico aluguel da UBLOC, ativo desde
+ * 02/08. Ali FAILED nao e "falhou ao criar" — e OVERDUE promovido por job:
+ * cobrancas vivas no gateway, vencidas ha semanas. Fora do conjunto de
+ * "abertas", a tela dizia que estava tudo em dia.
+ *
+ * A forma do defeito e OMISSAO DE CATEGORIA, nao erro de conta: um conjunto
+ * incompleto tem a aparencia exata de um conjunto completo.
+ */
+describe('FAILED conta como cobranca aberta', () => {
+  const HOJE = '2026-09-17';
+
+  function falhada(over: Partial<RentalChargeDto> = {}): RentalChargeDto {
+    return {
+      id: 'c-f',
+      kind: 'RENTAL_PERIOD',
+      amount: 150_00,
+      status: 'FAILED',
+      provider: 'ASAAS',
+      externalId: 'pay_failed',
+      checkoutUrl: null,
+      paidAt: null,
+      dueDate: '2026-08-02',
+      periodIndex: 1,
+      ...over,
+    };
+  }
+
+  it('o predicado reconhece FAILED', () => {
+    expect(isOpenChargeStatus('FAILED')).toBe(true);
+  });
+
+  it('nao alarga o conceito: pago e encerrado continuam fechados', () => {
+    expect(isOpenChargeStatus('PAID')).toBe(false);
+    expect(isOpenChargeStatus('CANCELED')).toBe(false);
+    expect(isOpenChargeStatus('REFUNDED')).toBe(false);
+    expect(isOpenChargeStatus('RELEASED')).toBe(false);
+  });
+
+  it('FAILED vencida entra nas vencidas e nao pagas', () => {
+    expect(overdueUnpaidGatewayCharges([falhada()], HOJE)).toHaveLength(1);
+  });
+
+  it('o aluguel com FAILED deixa de parecer em dia', () => {
+    expect(shouldWarnAboutGatewayCharges([falhada()], HOJE)).toBe(true);
+  });
+
+  /** O caso da UBLOC em miniatura: so FAILED, nada mais. */
+  it('17 FAILED e nada mais: todas contadas', () => {
+    const dezessete = Array.from({ length: 17 }, (_, i) =>
+      falhada({ id: `c-${i}`, periodIndex: i + 1 }),
+    );
+
+    expect(overdueUnpaidGatewayCharges(dezessete, HOJE)).toHaveLength(17);
+    expect(shouldWarnAboutGatewayCharges(dezessete, HOJE)).toBe(true);
+  });
+
+  it('FAILED ainda nao vencida cai no balde das nao vencidas', () => {
+    const futura = [falhada({ dueDate: '2026-09-30' })];
+
+    expect(openNotOverdueGatewayCharges(futura, HOJE)).toHaveLength(1);
+    expect(overdueUnpaidGatewayCharges(futura, HOJE)).toHaveLength(0);
   });
 });

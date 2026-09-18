@@ -76,7 +76,15 @@ describe('Profile — free vs paid classification', () => {
         },
         {
           provide: SessionService,
-          useValue: { getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn() },
+          useValue: {
+            getItem: vi.fn(() => null),
+            setItem: vi.fn(),
+            removeItem: vi.fn(),
+            // FIX-0456 — a trava de papel do bloco de plano lê o TOKEN. Estes
+            // casos não renderizam o template, mas um stub incompleto vira
+            // TypeError no dia em que alguém acrescentar `detectChanges()`.
+            getCompanyRoleFromToken: vi.fn(() => 'OWNER'),
+          },
         },
         { provide: AuthService, useValue: { logout: vi.fn() } },
         { provide: Router, useValue: { navigate: vi.fn(), navigateByUrl: vi.fn() } },

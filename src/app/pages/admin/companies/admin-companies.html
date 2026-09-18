@@ -109,6 +109,33 @@
                     >
                       Ver detalhes
                     </a>
+                    <!-- FEAT-0141: marca/desmarca. Nenhum verbo de exclusao no texto — a empresa
+                         nao sai da lista, so sai da conta das metricas. -->
+                    @if (company.internal) {
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-testid="internal-menu-item"
+                        class="w-full text-left text-sm px-4 py-3 text-neutral-700 hover:bg-gray-50
+                               min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
+                        [disabled]="isPending(company.id)"
+                        (click)="toggleInternal(company)"
+                      >
+                        Desmarcar como interna
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-testid="internal-menu-item"
+                        class="w-full text-left text-sm px-4 py-3 text-neutral-700 hover:bg-gray-50
+                               min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
+                        [disabled]="isPending(company.id)"
+                        (click)="toggleInternal(company)"
+                      >
+                        Marcar como interna (fora das métricas)
+                      </button>
+                    }
                     @if (company.active) {
                       <button
                         type="button"
@@ -161,6 +188,17 @@
                     {{ chip.label }}
                   </span>
                 }
+                <!-- FEAT-0141: marca VISIVEL na linha. Empresa interna CONTINUA na lista;
+                     ela sai da CONTA das metricas, nao da lista. -->
+                @if (company.internal) {
+                  <span
+                    class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5
+                           text-[10px] font-medium uppercase tracking-wide text-indigo-700"
+                    data-testid="internal-badge"
+                  >
+                    Interna · fora das métricas
+                  </span>
+                }
                 <span class="text-[11px] text-neutral-400">
                   {{ company.memberCount }} membros · {{ formatDate(company.createdAt) }}
                 </span>
@@ -202,6 +240,16 @@
                       [attr.aria-label]="'Ver detalhes de ' + company.name"
                     >
                       {{ company.name }}
+                      <!-- FEAT-0141: mesma marca da versao mobile, mesma linha. -->
+                      @if (company.internal) {
+                        <span
+                          class="ml-2 inline-flex items-center rounded-full bg-indigo-100 px-2
+                                 py-0.5 text-xs font-medium text-indigo-700"
+                          data-testid="internal-badge"
+                        >
+                          Interna · fora das métricas
+                        </span>
+                      }
                     </a>
                   </td>
                   <td class="align-top text-neutral-600 tabular-nums">
@@ -282,6 +330,33 @@
                         >
                           Ver detalhes
                         </a>
+                        <!-- FEAT-0141: marca/desmarca. Nenhum verbo de exclusao no texto — a empresa
+                             nao sai da lista, so sai da conta das metricas. -->
+                        @if (company.internal) {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            data-testid="internal-menu-item"
+                            class="w-full text-left text-xs px-4 py-2 text-neutral-700 hover:bg-gray-50
+                                   min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
+                            [disabled]="isPending(company.id)"
+                            (click)="toggleInternal(company)"
+                          >
+                            Desmarcar como interna
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            data-testid="internal-menu-item"
+                            class="w-full text-left text-xs px-4 py-2 text-neutral-700 hover:bg-gray-50
+                                   min-h-[44px] disabled:opacity-50 border-t border-neutral-100"
+                            [disabled]="isPending(company.id)"
+                            (click)="toggleInternal(company)"
+                          >
+                            Marcar como interna (fora das métricas)
+                          </button>
+                        }
                         @if (company.active) {
                           <button
                             type="button"

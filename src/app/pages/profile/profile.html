@@ -130,6 +130,16 @@
             </app-page-card>
 
             <!-- Plano / Billing (dark card — mesmo padrão de company-settings) -->
+            <!--
+                FIX-0456 — trava de PAPEL, além da de dado. O botão daqui chama
+                `goToBilling()`, e `/billing` é `roleGuard(['OWNER'])`: para
+                MANAGER e DRIVER esse guard REDIRECIONA para `/dashboard`, sem
+                erro e sem explicação. Um botão primário de largura cheia que
+                troca a tela por outra é pior do que botão nenhum — e o Perfil
+                é a tela que todo motorista alcança pelo rodapé da barra
+                lateral. Sem plano para gerir, não há bloco de plano.
+            -->
+            @if (canManageBilling()) {
             <section class="relative overflow-hidden bg-neutral-900 rounded-2xl shadow-xl border border-neutral-800">
                 <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary-500/20 blur-[80px] rounded-full"></div>
                 <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[80px] rounded-full"></div>
@@ -184,7 +194,7 @@
                     }
 
                     <div class="pt-4 space-y-3">
-                        <button type="button" (click)="goToBilling()"
+                        <button type="button" data-testid="billing-cta" (click)="goToBilling()"
                             class="w-full py-3 bg-white text-neutral-950 font-bold rounded-xl
                                    hover:bg-neutral-100 transition-all shadow-lg active:scale-[0.98]">
                             @if (pendingPlanCode()) { Concluir pagamento }
@@ -206,7 +216,7 @@
                             Escolha um plano do tamanho da sua frota para voltar a cadastrar veículos e
                             motoristas.
                         </p>
-                        <button type="button" (click)="goToBilling()"
+                        <button type="button" data-testid="billing-cta" (click)="goToBilling()"
                             class="w-full py-3 bg-white text-neutral-950 font-bold rounded-xl
                                    hover:bg-neutral-100 transition-all shadow-lg active:scale-[0.98]">
                             Ver Planos
@@ -215,6 +225,7 @@
                     }
                 </div>
             </section>
+            }
 
         </div>
     </div>
