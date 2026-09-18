@@ -108,10 +108,28 @@ describe('LiveCameraSheet', () => {
       expect(texto).toContain('Tentar de novo');
     });
 
+    /**
+     * ANCORA POSITIVA PRIMEIRO, e ela e o conserto deste caso.
+     *
+     * Este e o teste do REQUISITO CENTRAL, e ele passava COM CAMERA NENHUMA:
+     * uma assercao de ausencia sozinha nao distingue "nao ha seletor na camera
+     * viva" de "nao ha camera". Medido por controle: removendo o duble de
+     * camera, 6 de 10 casos deste arquivo caem e ESTE sobrevivia.
+     *
+     * Entao primeiro se afirma que a folha REALMENTE montou a interface dela —
+     * o disparo existe, e o aviso de bloqueio esta na tela —, e so depois a
+     * ausencia do seletor. Mesmo padrao do `toHaveLength` antes do laco que o
+     * lote de disciplina ja usa aqui.
+     */
     it('NAO oferece seletor de arquivo em lugar nenhum', async () => {
       const fixture = await render();
       const host = fixture.nativeElement as HTMLElement;
 
+      // 1) A folha existe e e ela que estamos medindo.
+      expect(host.querySelector('button[aria-label^="Tirar foto"]')).not.toBeNull();
+      expect(host.textContent).toContain('Câmera bloqueada');
+
+      // 2) E, nela, nao ha caminho para arquivo.
       expect(host.querySelector('input[type="file"]')).toBeNull();
       expect(host.textContent).not.toContain('galeria');
     });

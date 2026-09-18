@@ -234,22 +234,31 @@ interface Slot {
     <!-- Dois inputs: 'capture' força a câmera traseira; sem 'capture' o
          browser abre a galeria/arquivos. Um só input não cobre os dois.
          Ficam FORA do card porque ele vira 'inert' com a folha aberta, e
-         pickFromCamera/Gallery precisam clicá-los nesse exato instante. -->
-    <input
-      #cameraPicker
-      type="file"
-      accept="image/*,image/heic,image/heif"
-      capture="environment"
-      hidden
-      (change)="onFileSelected($event)"
-    />
-    <input
-      #galleryPicker
-      type="file"
-      accept="image/*,image/heic,image/heif"
-      hidden
-      (change)="onFileSelected($event)"
-    />
+         pickFromCamera/Gallery precisam clicá-los nesse exato instante.
+
+         NAO renderizados para o MOTORISTA: antes eles existiam no DOM dele e
+         o requisito ficava garantido por um DESVIO no codigo (openPicker sair
+         antes), nao pela AUSENCIA do elemento. Era essa superficie que o
+         espelho editavel explorava. Quem os aciona — pickFromCamera,
+         pickFromGallery e o clique direto do desktop — vive todo no ramo de
+         dono/gerente, entao o motorista nunca os alcancava mesmo. -->
+    @if (!isDriver()) {
+      <input
+        #cameraPicker
+        type="file"
+        accept="image/*,image/heic,image/heif"
+        capture="environment"
+        hidden
+        (change)="onFileSelected($event)"
+      />
+      <input
+        #galleryPicker
+        type="file"
+        accept="image/*,image/heic,image/heif"
+        hidden
+        (change)="onFileSelected($event)"
+      />
+    }
 
     <!--
       MOTORISTA: camera ao vivo, sem seletor. Fica FORA do card pelo mesmo
@@ -483,13 +492,25 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   /**
    * MOTORISTA nao escolhe arquivo: a foto nasce na camera ao vivo, aqui.
    *
-   * O papel vem da sessao, a mesma leitura que o resto do app usa. O rigor e
-   * por conflito de interesse — quem dirige o carro e quem teria motivo para
-   * mandar uma foto antiga dele; dono e gerente nao tem, e por isso o seletor
-   * deles fica intacto.
+   * O papel vem do TOKEN, a MESMA fonte do `roleGuard`. NAO do espelho
+   * `selectedRole` do `sessionStorage`: o espelho e editavel pelo DevTools, e
+   * aqui isso derruba o requisito inteiro. Trocar `selectedRole` para OWNER no
+   * console fazia `openPicker` sair do ramo do motorista e devolver o seletor
+   * de arquivo — ou seja, a foto da galeria. Quem tem motivo para derrubar a
+   * trava e exatamente quem esta do outro lado dela, entao a trava nao pode
+   * morar num lugar que ele escreve.
+   *
+   * O rigor e por conflito de interesse — quem dirige o carro e quem teria
+   * motivo para mandar uma foto antiga dele; dono e gerente nao tem, e por
+   * isso o seletor deles fica intacto.
+   *
+   * IMPERSONACAO: `getCompanyRoleFromToken()` ramifica no claim de
+   * impersonacao ANTES de ler `role`, e devolve `IMPERSONATED_ROLE`, que hoje
+   * e `'OWNER'`. Entao "Ver como empresa" cai no ramo de dono e continua com
+   * o seletor — que e o certo, porque quem esta olhando nao e o motorista.
    */
   protected readonly isDriver = computed(
-    () => this.session.getItem('selectedRole') === 'DRIVER',
+    () => this.session.getCompanyRoleFromToken() === 'DRIVER',
   );
 
   /** Rotulo do angulo com a camera aberta; `null` = folha fechada. */
