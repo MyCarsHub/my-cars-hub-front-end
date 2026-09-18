@@ -138,7 +138,17 @@ export class CompanySettings implements OnInit {
    * OWNER-only blocks. `PUT /v1/companies/me` exige OWNER no backend, então mostrar o
    * formulário a um MANAGER só produziria um 403 no salvamento.
    */
-  protected readonly isOwner = this.sessionService.getItem('selectedRole') === 'OWNER';
+  /**
+   * FEAT-0147 — do TOKEN, a mesma fonte do `roleGuard` e do backend.
+   *
+   * O risco aqui é INVERTIDO em relação a #330/#331: a rota já é
+   * `roleGuard(['OWNER'])`, então ninguém chega aqui sem ser dono. O espelho
+   * velho não abre nada indevido — ele ESCONDE o formulário de um dono
+   * legítimo, que vê a própria tela sem os blocos que lhe pertencem e sem
+   * nenhum erro para explicar. Por isso a leitura passa a ser a mesma do
+   * guard que já deixou a pessoa entrar.
+   */
+  protected readonly isOwner = this.sessionService.getCompanyRoleFromToken() === 'OWNER';
 
   ngOnInit(): void {
     // Só OWNER edita os dados cadastrais — sem o formulário, o GET não tem consumidor.

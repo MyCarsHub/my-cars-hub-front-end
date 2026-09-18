@@ -20,8 +20,31 @@ import { RentalChargeDto } from '../types/rental.types';
  * O que prova que a cobranca EXISTE la e o `externalId`: e o id dela no Asaas.
  */
 
-/** Status de cobranca que ainda pode ser cobrada — nao foi paga nem encerrada. */
-const OPEN_STATUSES = new Set(['PENDING', 'PAST_DUE']);
+/**
+ * Status de cobranca que ainda pode ser cobrada — nao foi paga nem encerrada.
+ *
+ * >>> FAILED ENTRA, e a ausencia dele era o defeito (FIX-0433) <<<
+ * `FAILED` aqui NAO significa "falhou ao criar a cobranca": e OVERDUE promovido
+ * por job no gateway. Sao cobrancas VIVAS, vencidas, ainda cobraveis. Sem elas
+ * no conjunto, um aluguel com 17 cobrancas nessa situacao (caso real da UBLOC,
+ * ativo desde 02/08) aparecia na tela como se estivesse em dia.
+ *
+ * E o modo de falha nao tem sintoma: a tela nao mostrava numero ERRADO, mostrava
+ * um conjunto INCOMPLETO — que tem a aparencia exata de um conjunto completo.
+ * Sem lacuna, sem total que nao fecha, sem nada para o olho pegar.
+ */
+const OPEN_STATUSES = new Set(['PENDING', 'PAST_DUE', 'FAILED']);
+
+/**
+ * A cobranca ainda esta em aberto? FONTE UNICA do conceito.
+ *
+ * Exportada porque `rental-detail` tinha a MESMA regra escrita a mao em dois
+ * computeds — e os dois discordavam entre si: um incluia FAILED, o outro nao,
+ * no mesmo arquivo. Duas escritas da mesma regra divergem; uma so, nao.
+ */
+export function isOpenChargeStatus(status: string): boolean {
+  return OPEN_STATUSES.has(status);
+}
 
 /** Ha ALGUMA cobranca deste aluguel registrada no gateway? */
 export function hasGatewayCharges(charges: readonly RentalChargeDto[]): boolean {

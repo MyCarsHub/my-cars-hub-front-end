@@ -99,7 +99,11 @@
 
         <!-- Painel recolhível (FIX-0284). No mobile é um bloco que some/aparece;
              a partir de `sm` vira `display: contents` e os controles voltam a ser
-             itens DIRETOS do grid de 6 colunas — desktop fica idêntico ao de hoje.
+             itens DIRETOS da grade externa — que tem 2 colunas em `sm`/`md` e 6 a
+             partir de `lg`. O texto antigo dizia "grid de 6 colunas" e era
+             falso do `sm` ao `md`: foi essa leitura que deixou o botao de
+             limpar sem regra de span nessas larguras, ocupando meia celula
+             ao lado do ultimo filtro em vez da propria linha.
 
              Premissa de suporte: `display: contents` só entra na árvore de
              acessibilidade a partir do Safari 15.4 (antes disso o wrapper era
@@ -177,7 +181,10 @@
           </select>
         </div>
 
-        <div class="lg:col-span-4 flex items-center justify-end gap-2">
+        <div
+          data-testid="filters-clear-row"
+          class="col-span-full lg:col-span-4 flex items-center justify-end gap-2"
+        >
           <button
             type="button"
             (click)="clearFilters()"

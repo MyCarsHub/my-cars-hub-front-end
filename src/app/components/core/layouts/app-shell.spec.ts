@@ -34,6 +34,11 @@ describe('AppShell — gate do sino de notificações', () => {
             setItem: () => void 0,
             isOnboardingCompleted: () => onboardingCompleted,
             isPlatformAdmin: () => false,
+            // FIX-0456 — a barra lateral renderiza dentro do shell e decide o
+            // menu pelo papel do TOKEN. Sem esta entrada o stub quebra com
+            // TypeError, e o teste do sino morreria por um motivo que não é o
+            // dele. `null` = sem papel, que é o menu mínimo.
+            getCompanyRoleFromToken: () => null,
           },
         },
         {

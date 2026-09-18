@@ -27,6 +27,12 @@ export interface AdminCompanyListItem {
   active: boolean;
   memberCount: number;
   createdAt: string | null;
+  /**
+   * Empresa INTERNA — fica fora das metricas da plataforma, e CONTINUA
+   * aparecendo nesta listagem. Vem na listagem de proposito: sao sete
+   * internas em trinta, e o dono confere as sete numa passada.
+   */
+  internal: boolean;
 }
 
 export interface AdminCompanySubscriptionSnapshot {
@@ -218,4 +224,6 @@ export interface AdminCompanyDetail {
   /** Sempre presente no contrato; campos individuais podem ser nulos. */
   registration: AdminCompanyRegistration;
   operations: AdminCompanyOperations;
+  /** Empresa INTERNA — fora das metricas da plataforma. */
+  internal: boolean;
 }

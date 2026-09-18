@@ -126,6 +126,7 @@ describe('AdminCompanyDetail — cadastro e vendas (FEAT-0076)', () => {
     chargeIntegration: null,
     registration: EMPTY_REGISTRATION,
     operations: ZERO_OPERATIONS,
+    internal: false,
   };
 
   function render(overrides: Partial<AdminCompanyDetailDto>): HTMLElement {

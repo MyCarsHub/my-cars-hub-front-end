@@ -456,6 +456,10 @@ describe('DashboardHome — lembrete de ativação (FEAT-0080)', () => {
           useValue: {
             getItem: (key: string) => (key === 'selectedRole' ? role : null),
             isPlatformAdmin: () => opts.admin ?? false,
+            // FEAT-0146 — o papel que DECIDE poder nesta tela vem do TOKEN,
+            // a mesma fonte do `roleGuard`. O espelho continua no stub porque
+            // outras leituras ainda o usam, mas quem manda aqui é este.
+            getCompanyRoleFromToken: () => role,
           },
         },
       ],
@@ -613,6 +617,10 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
           useValue: {
             getItem: (key: string) => (key === 'selectedRole' ? role : null),
             isPlatformAdmin: () => false,
+            // FEAT-0146 — o papel que DECIDE poder nesta tela vem do TOKEN,
+            // a mesma fonte do `roleGuard`. O espelho continua no stub porque
+            // outras leituras ainda o usam, mas quem manda aqui é este.
+            getCompanyRoleFromToken: () => role,
           },
         },
         {
@@ -712,6 +720,10 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
           useValue: {
             getItem: (key: string) => (key === 'selectedRole' ? 'OWNER' : null),
             isPlatformAdmin: () => false,
+            // FEAT-0146 — o papel que DECIDE poder nesta tela vem do TOKEN,
+            // a mesma fonte do `roleGuard`. O espelho continua no stub porque
+            // outras leituras ainda o usam, mas quem manda aqui é este.
+            getCompanyRoleFromToken: () => 'OWNER',
           },
         },
         {
@@ -793,8 +805,21 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
       it('a ressalva ganha tratamento de aviso, nao rodape', () => {
         const el = card(minoria);
 
-        expect(el?.innerHTML).toContain('bg-amber-50');
-        expect(el?.innerHTML).toContain('border-amber-200');
+        // Afirma a FORMA, nao a paleta: a ressalva tem caixa propria — fundo E
+        // borda —, que e o que a separa de um rodape em texto corrido. Uma
+        // assercao em 'bg-amber-50' quebraria a cada mudanca de cor sem que a
+        // promessa mudasse, e e por isso que ela nao esta aqui.
+        // Localiza a caixa pela FORMA (tem fundo proprio), nao pelo texto: o
+        // texto tem acento e casar acento aqui ja falhou uma vez por causa de
+        // codificacao — o teste caiu sem que a promessa tivesse mudado.
+        const caixa = Array.from(
+          el?.querySelectorAll('div[class*="rounded-lg"]') ?? [],
+        ).find((d) => (d.getAttribute('class') ?? '').includes('bg-'));
+
+        expect(caixa).toBeTruthy();
+        const cls = caixa?.getAttribute('class') ?? '';
+        expect(cls).toContain('bg-');
+        expect(cls).toContain('border');
       });
 
       it('o texto diz o que FALTA, nao so a contagem', () => {
@@ -857,12 +882,31 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
     });
   });
 
-  it('prejuizo da frota aparece como prejuizo, com cor propria', () => {
-    const el = card([priced('a', 10_000_00, 4_000_00)]);
+  it('prejuizo da frota se distingue pelo TEXTO, nao pela cor', () => {
+    const prejuizo = card([priced('a', 10_000_00, 4_000_00)]);
+    const lucro = card([priced('a', 10_000_00, 12_000_00)]);
 
-    expect(el?.textContent).toContain('-60%');
-    expect(el?.textContent).toContain('no prejuízo');
-    expect(el?.innerHTML).toContain('text-rose-700');
+    // O cartao tem UMA cor (decisao do dono): o numero e branco tambem no
+    // prejuizo. Entao a promessa deixou de ser "prejuizo tem cor propria" e
+    // passou a ser esta — e ela precisa continuar sendo verificavel, senao a
+    // troca de paleta teria simplesmente APAGADO uma garantia em vez de
+    // move-la.
+    //
+    // O sinal de menos e a palavra carregam o recado sozinhos, e carregam
+    // melhor: cor nao e lida por quem enxerga pouco, nem por leitor de tela.
+    expect(prejuizo?.textContent).toContain('-60%');
+    expect(prejuizo?.textContent).toContain('no prejuízo');
+
+    expect(lucro?.textContent).not.toContain('no prejuízo');
+    expect(lucro?.textContent).not.toContain('-');
+
+    // E a cor NAO distingue mais — afirmado de proposito, para que voltar a
+    // pintar por tom exija mexer aqui e reabrir a conversa.
+    const corDe = (el: HTMLElement | null | undefined): string =>
+      el?.querySelector('p.tabular-nums')?.getAttribute('class') ?? '';
+
+    expect(corDe(prejuizo)).not.toBe('');
+    expect(corDe(prejuizo)).toBe(corDe(lucro));
   });
 
   /** Envelope minimo para o template inteiro renderizar. */
