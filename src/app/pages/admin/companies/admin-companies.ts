@@ -262,6 +262,35 @@ export class AdminCompanies implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * FEAT-0141 — liga/desliga a marca de empresa INTERNA (backend: FEAT-0138).
+   *
+   * Sem dialogo de confirmacao de proposito: a acao e reversivel no mesmo menu
+   * e nao tira a empresa de lugar nenhum — ela SO sai da conta das metricas,
+   * e continua na listagem.
+   */
+  protected toggleInternal(company: AdminCompanyListItem): void {
+    const target = !company.internal;
+    this.actionError.set(null);
+    this.setRowPending(company.id, true);
+    this.companiesService.updateInternal(company.id, target).subscribe({
+      next: () => {
+        this.setRowPending(company.id, false);
+        this.notify.success(
+          target
+            ? 'Empresa marcada como interna. Fica fora das métricas.'
+            : 'Marca de interna desfeita. Empresa volta a contar nas métricas.',
+        );
+      },
+      error: (err: HttpErrorResponse) => {
+        this.setRowPending(company.id, false);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar a marca de empresa interna.'),
+        );
+      },
+    });
+  }
+
   private setRowPending(id: string, value: boolean): void {
     this.rowPending.update((state) => ({ ...state, [id]: value }));
   }
