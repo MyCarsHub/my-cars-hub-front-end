@@ -86,21 +86,21 @@ const NAV_ITEMS: NavItem[] = [
       // já está decidido, é este: filho de "Frota", entre Manutenções e Multas
       // (decisão do dono). Ele NÃO volta como item de primeiro nível.
       //
-      // POR QUE ESTÁ FORA: a tela consome `GET /v1/inspections` com filtros, e
-      // essa listagem ainda não está em produção — ela foi acrescentada ao PR
-      // #190 (vistoria base, V82), que está EM REVISÃO. Com o item no menu
-      // antes disso, todo clique entregaria o banner de erro: um item que só
-      // produz erro é pior que a ausência dele. A rota `/vistorias` já existe e
-      // funciona (app.routes.ts), então o link não está quebrado — está em
-      // espera.
+      // POR QUE SEGUE FORA: não é falta de backend. A listagem
+      // `GET /v1/inspections` já está em produção (V82, backend `8c0598c`) e a
+      // rota `/vistorias` já existe e funciona (`app.routes.ts`). O que falta é
+      // o FEAT-0142, o card que devolve o item AO MENU junto com o teste que
+      // nomeia "Vistorias" — hoje a suíte prova o mecanismo de realce de grupo
+      // em Frota e Configurações, mas nenhum teste nomeia este item, porque ele
+      // ainda não existe. Descomentar aqui, solto, entrega um item de menu sem
+      // nenhum teste prendendo que ele acende o pai.
       //
-      // PARA DEVOLVER O ITEM: quando `GET /v1/inspections?rentalId=` estiver EM
-      // PRODUÇÃO (não basta o PR #190 aprovado ou em develop), descomente o
-      // bloco abaixo AQUI MESMO, sem mudar de lugar. Nada mais precisa mudar: a
-      // rota é irmã plana de /veiculos e /manutencoes (sem prefixo, como as
-      // outras filhas de Frota), e o realce de item ativo já cobre filhos —
-      // `routerLinkActive` no <a> do filho e `isExpanded()`, que abre "Frota"
-      // quando a URL começa com /vistorias.
+      // PARA DEVOLVER O ITEM (isso é o FEAT-0142, não este PR): descomente o
+      // bloco abaixo AQUI MESMO, sem mudar de lugar, e escreva junto o caso que
+      // nomeia Vistorias. Nada mais precisa mudar: a rota é irmã plana de
+      // /veiculos e /manutencoes (sem prefixo, como as outras filhas de Frota),
+      // e o realce já cobre filhos — `routerLinkActive` no <a> do filho e
+      // `isExpanded()`, que abre "Frota" quando a URL começa com /vistorias.
       // {
       //   route: '/vistorias',
       //   label: 'Vistorias',
