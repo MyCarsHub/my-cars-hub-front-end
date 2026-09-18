@@ -625,4 +625,27 @@ describe('VehiclesList — painel de filtros no mobile (FIX-0284)', () => {
     expect(toggleOf(host).closest('div')?.className).toContain('sm:hidden');
     expect(panelOf(host).className).toContain('sm:contents');
   });
+  it('a linha de "Limpar filtros" ocupa a largura toda em TODA faixa abaixo de lg', () => {
+    // O defeito que este teste fecha: a linha tinha SO `lg:col-span-4`. A grade
+    // externa e `grid-cols-1 sm:grid-cols-2 lg:grid-cols-6`, entao em `sm` e `md`
+    // o botao caia numa celula de duas, encostado no ultimo filtro, e parecia
+    // solto no meio da tela. O comentario do arquivo dizia "grid de 6 colunas" —
+    // verdade so a partir de `lg` —, e foi essa leitura que escondeu a lacuna.
+    //
+    // A assercao e sobre a REGRA e nao sobre a aparencia: a linha tem span de
+    // largura total como PADRAO, e o span estreito so aparece atras do prefixo
+    // `lg:`. Um span sem prefixo que nao seja o total volta a abrir o buraco.
+    const { host } = render();
+    const linha = host.querySelector<HTMLElement>('[data-testid="filters-clear-row"]');
+    expect(linha).toBeTruthy();
+
+    const classes: string[] = (linha?.getAttribute('class') ?? '')
+      .split(/\s+/)
+      .filter((c: string) => c.length > 0);
+    const spans: string[] = classes.filter((c: string) => c.includes('col-span-'));
+
+    expect(spans.length).toBeGreaterThan(0);
+    const semPrefixo: string[] = spans.filter((c: string) => !c.includes(':'));
+    expect(semPrefixo).toEqual(['col-span-full']);
+  });
 });
