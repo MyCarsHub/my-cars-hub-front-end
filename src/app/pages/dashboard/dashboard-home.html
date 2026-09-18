@@ -106,8 +106,22 @@
         }
     }
 
-    <!-- Fleet KPI grid: 2x2 on mobile, 4x1 on lg -->
+    <!-- Fleet KPI grid: 2x2 on mobile, 5x1 on lg -->
     <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
+        <!--
+            Dinheiro que JA ENTROU no mes. Primeiro da fileira e pintado de
+            laranja de proposito: e o numero que faz o dono abrir a tela, e ele
+            precisa achar antes de procurar.
+
+            Era um cartao com grafico de linha e virou KPI: a curva ocupava
+            meia tela para dizer o que o total ja dizia. O valor ficou, o
+            desenho saiu.
+        -->
+        @if (cashAccumulation(); as cash) {
+            <div class="rounded-2xl bg-orange-50 border border-orange-200 p-4 min-w-0">
+                <app-cash-accumulation-card [data]="cash" [compact]="true" />
+            </div>
+        }
         <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
             <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Veículos</p>
             @if (loading() && !summary()) {
@@ -165,7 +179,7 @@
             e aceito: fileira irregular incomoda menos que card gigante.
         -->
         @if (showVehicleRoi()) {
-            <div data-roi-card class="rounded-2xl bg-white border border-neutral-200 p-4 min-w-0">
+            <div data-roi-card class="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 min-w-0">
                 <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
                     ROI
                 </p>
@@ -549,15 +563,6 @@
         dias (competência). Aqui é CAIXA — cobrança paga —, e mostrar competência
         faria o cartão exibir dinheiro que o dono não recebeu.
     -->
-    @if (cashAccumulation(); as cash) {
-        <section class="mb-4 min-w-0">
-            <app-page-card title="Quanto já entrou no mês">
-                <div class="p-4 min-w-0">
-                    <app-cash-accumulation-card [data]="cash" />
-                </div>
-            </app-page-card>
-        </section>
-    }
 
     <!-- Ações rápidas -->
     <section class="mb-4 min-w-0">
