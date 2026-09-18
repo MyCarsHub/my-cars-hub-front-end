@@ -55,6 +55,8 @@ describe('CompanySettings — edição dos dados da empresa', () => {
   let notifySuccess: ReturnType<typeof vi.fn>;
   let notifyError: ReturnType<typeof vi.fn>;
   let session: Record<string, string>;
+  /** Papel do TOKEN quando ele deve DIVERGIR do espelho; `undefined` = acompanha. */
+  let tokenRole: string | null | undefined;
 
   /** The component surface the specs drive. Members are `protected` on purpose. */
   interface Harness {
@@ -84,6 +86,12 @@ describe('CompanySettings — edição dos dados da empresa', () => {
             setItem: (key: string, value: string) => {
               session[key] = value;
             },
+            // FEAT-0147 — o papel que decide o recorte vem do TOKEN, mesma
+            // fonte do `roleGuard` que deixou a pessoa entrar. Por omissão
+            // acompanha o espelho (uso normal); `tokenRole` separa os dois
+            // para os casos que testam DIVERGÊNCIA.
+            getCompanyRoleFromToken: () =>
+              tokenRole !== undefined ? tokenRole : (session['selectedRole'] ?? null),
           },
         },
         {
@@ -139,6 +147,7 @@ describe('CompanySettings — edição dos dados da empresa', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    tokenRole = undefined;
     session = {
       selectedCompanyId: 'co-1',
       selectedCompanyName: 'Locadora Alfa',
@@ -916,6 +925,45 @@ describe('CompanySettings — edição dos dados da empresa', () => {
       // apenas os campos (que em leitura estariam ausentes de qualquer jeito).
       expect(host.querySelector('[data-edit-toggle]')).toBeNull();
       // Sem formulário não há o que preencher — e o GET pode voltar 403.
+      expect(getInfoCompany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * FEAT-0147 — de que FONTE sai o papel, e aqui o risco é INVERTIDO.
+     *
+     * Nas outras telas da família (#330, #331) o espelho velho OFERECIA demais
+     * e a pessoa quicava. Nesta, a rota já é `roleGuard(['OWNER'])`: ninguém
+     * entra sem ser dono. O espelho velho não abre nada indevido — ele ESCONDE
+     * o formulário de um dono legítimo, que vê a própria tela sem os blocos
+     * que lhe pertencem e sem nenhum erro para explicar.
+     *
+     * É por isso que aqui a mutação "trava lê o espelho" NÃO se comporta como
+     * "não ter trava": sem trava o dono veria tudo (por acidente, certo); com
+     * a trava lendo o espelho ele perde a tela. As duas falham, em direções
+     * opostas, e só a fonte certa acerta as duas.
+     */
+    it('o espelho NÃO decide: token OWNER + espelho velho em MANAGER ainda mostra a tela do dono', () => {
+      session['selectedRole'] = 'MANAGER';
+      tokenRole = 'OWNER';
+
+      const { fixture } = renderEditing();
+      const host = fixture.nativeElement as HTMLElement;
+
+      // CONTROLE POSITIVO embutido: se a montagem não renderizasse nada, estas
+      // três falhariam em vez de passar a vazio.
+      expect(host.querySelector('#company-name')).not.toBeNull();
+      expect(host.querySelector('a[href="/configuracoes/contato"]')).not.toBeNull();
+      expect(getInfoCompany).toHaveBeenCalled();
+    });
+
+    it('o inverso também: token MANAGER + espelho OWNER não mostra o formulário', () => {
+      session['selectedRole'] = 'OWNER';
+      tokenRole = 'MANAGER';
+
+      const { fixture } = render();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('#company-name')).toBeNull();
       expect(getInfoCompany).not.toHaveBeenCalled();
     });
 

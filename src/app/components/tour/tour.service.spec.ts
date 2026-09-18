@@ -58,13 +58,24 @@ function jwt(payload: Record<string, unknown>): string {
   return `${segment({ alg: 'HS256', typ: 'JWT' })}.${segment(payload)}.assinatura`;
 }
 
-const ACCESS_TOKEN = jwt({
-  sub: 'user-1',
-  system_role: 'USER',
-  accessType: 'ACCESS',
-  companyId: 'company-1',
-  exp: Math.floor(Date.now() / 1000) + 3600,
-});
+/**
+ * FEAT-0147 — o roteiro passou a ser filtrado pelo papel do TOKEN, a mesma
+ * fonte do `roleGuard` e do menu. O claim `role` entra aqui porque é dele que
+ * os passos com `roles` passam a depender; o espelho continua semeado junto,
+ * para os dois concordarem no uso normal.
+ */
+function accessToken(role: string): string {
+  return jwt({
+    sub: 'user-1',
+    system_role: 'USER',
+    accessType: 'ACCESS',
+    companyId: 'company-1',
+    role,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  });
+}
+
+const ACCESS_TOKEN = accessToken('OWNER');
 
 const TEMPORALLY_TOKEN = jwt({
   sub: 'user-1',
@@ -108,12 +119,17 @@ describe('TourService', () => {
     http = TestBed.inject(HttpTestingController);
   }
 
+  /** Semeia as DUAS fontes com o mesmo papel — o estado normal de uma sessão. */
+  function signInAs(role: string): void {
+    session.setItem('selectedRole', role);
+    session.setToken(accessToken(role));
+  }
+
   beforeEach(() => {
     sessionStorage.clear();
     document.body.innerHTML = '';
     configure();
-    session.setItem('selectedRole', 'OWNER');
-    session.setToken(ACCESS_TOKEN);
+    signInAs('OWNER');
   });
 
   afterEach(() => {
@@ -574,7 +590,7 @@ describe('TourService', () => {
   // ---- Papéis ---------------------------------------------------------
 
   it('filtra o roteiro por papel — MANAGER não vê Relatórios nem Configurações', async () => {
-    session.setItem('selectedRole', 'MANAGER');
+    signInAs('MANAGER');
     Object.values(TOUR_ANCHORS).forEach((key) => anchor(key));
 
     await service.start();
@@ -594,12 +610,74 @@ describe('TourService', () => {
     expect(keys).toContain(TOUR_ANCHORS.alerts);
   });
 
+  /**
+   * FEAT-0147 — de que FONTE sai o papel do roteiro.
+   *
+   * O caso acima semeia as duas com o mesmo valor, então passaria mesmo com a
+   * leitura no espelho. Aqui elas DISCORDAM: o espelho diz OWNER (o valor da
+   * empresa anterior, por exemplo) e o token diz MANAGER. Os passos apontam
+   * para itens de menu que `sidebar.ts` filtra PELO TOKEN, então um roteiro
+   * montado pelo espelho pediria holofote em item que não está na tela.
+   *
+   * Aqui o defeito é degradado, não quebrado: o tour JÁ pula alvo ausente. Mas
+   * pular é o remendo — a fonte certa é o conserto, e é o que se afirma.
+   *
+   * CONTROLE POSITIVO embutido: `total()` tem de dar 6. Se a montagem colhesse
+   * uma lista vazia, `not.toContain` passaria sozinho e não diria nada.
+   */
+  it('o espelho NÃO decide o roteiro: token MANAGER + espelho OWNER dá o roteiro de MANAGER', async () => {
+    session.setItem('selectedRole', 'OWNER');
+    session.setToken(accessToken('MANAGER'));
+    Object.values(TOUR_ANCHORS).forEach((key) => anchor(key));
+
+    await service.start();
+
+    expect(service.total()).toBe(6);
+    const keys: string[] = [];
+    while (!service.isLast()) {
+      keys.push(service.currentStep()!.key);
+      await service.next();
+    }
+    keys.push(service.currentStep()!.key);
+
+    expect(keys).not.toContain(TOUR_ANCHORS.reports);
+    expect(keys).not.toContain(TOUR_ANCHORS.integrations);
+    expect(keys).toContain(TOUR_ANCHORS.alerts);
+  });
+
+  /**
+   * A mentira do espelho na direção CONTRÁRIA, e ela é necessária.
+   *
+   * Com o espelho mentindo para CIMA (OWNER), ler o espelho e não filtrar nada
+   * dão o MESMO resultado — a mutação "lê o espelho" fica indistinguível de
+   * "sem filtro", e o arquivo não conseguiria falar sobre a fonte sozinho.
+   * Aqui o espelho mente para BAIXO: quem lesse o espelho ENCURTARIA o roteiro
+   * de um dono legítimo, coisa que "sem filtro" nunca faz.
+   */
+  it('espelho velho em MANAGER com token OWNER não encurta o roteiro do dono', async () => {
+    session.setItem('selectedRole', 'MANAGER');
+    session.setToken(accessToken('OWNER'));
+    Object.values(TOUR_ANCHORS).forEach((key) => anchor(key));
+
+    await service.start();
+
+    expect(service.total()).toBeGreaterThan(6);
+    const keys: string[] = [];
+    while (!service.isLast()) {
+      keys.push(service.currentStep()!.key);
+      await service.next();
+    }
+    keys.push(service.currentStep()!.key);
+
+    expect(keys).toContain(TOUR_ANCHORS.reports);
+  });
+
   // ---- Mobile ---------------------------------------------------------
 
   it('no mobile abre o drawer para alcançar um alvo que só existe depois disso', async () => {
     // A sidebar mobile não está no DOM até o drawer abrir — é estrutural.
     configure(makeLayoutStub(() => anchor(TOUR_ANCHORS.dashboard)));
-    session.setItem('selectedRole', 'OWNER');
+    signInAs('OWNER');
     layout.isMobile.set(true);
 
     vi.useFakeTimers();
@@ -614,7 +692,7 @@ describe('TourService', () => {
 
   it('devolve o drawer ao estado em que o encontrou ao terminar', async () => {
     configure(makeLayoutStub(() => anchor(TOUR_ANCHORS.dashboard)));
-    session.setItem('selectedRole', 'OWNER');
+    signInAs('OWNER');
     layout.isMobile.set(true);
 
     vi.useFakeTimers();
