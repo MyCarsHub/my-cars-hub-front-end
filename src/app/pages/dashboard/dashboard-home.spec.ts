@@ -456,6 +456,10 @@ describe('DashboardHome — lembrete de ativação (FEAT-0080)', () => {
           useValue: {
             getItem: (key: string) => (key === 'selectedRole' ? role : null),
             isPlatformAdmin: () => opts.admin ?? false,
+            // FEAT-0146 — o papel que DECIDE poder nesta tela vem do TOKEN,
+            // a mesma fonte do `roleGuard`. O espelho continua no stub porque
+            // outras leituras ainda o usam, mas quem manda aqui é este.
+            getCompanyRoleFromToken: () => role,
           },
         },
       ],
@@ -613,6 +617,10 @@ describe('DashboardHome — retorno por veiculo por papel', () => {
           useValue: {
             getItem: (key: string) => (key === 'selectedRole' ? role : null),
             isPlatformAdmin: () => false,
+            // FEAT-0146 — o papel que DECIDE poder nesta tela vem do TOKEN,
+            // a mesma fonte do `roleGuard`. O espelho continua no stub porque
+            // outras leituras ainda o usam, mas quem manda aqui é este.
+            getCompanyRoleFromToken: () => role,
           },
         },
         {
@@ -712,6 +720,10 @@ describe('DashboardHome — card KPI de ROI da frota', () => {
           useValue: {
             getItem: (key: string) => (key === 'selectedRole' ? 'OWNER' : null),
             isPlatformAdmin: () => false,
+            // FEAT-0146 — o papel que DECIDE poder nesta tela vem do TOKEN,
+            // a mesma fonte do `roleGuard`. O espelho continua no stub porque
+            // outras leituras ainda o usam, mas quem manda aqui é este.
+            getCompanyRoleFromToken: () => 'OWNER',
           },
         },
         {
