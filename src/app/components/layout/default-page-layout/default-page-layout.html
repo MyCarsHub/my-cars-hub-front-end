@@ -1,24 +1,31 @@
 <!--
-    FOLGA DO TOPO NO CELULAR — o botao de menu e `fixed` e flutua SOBRE esta secao.
+    FOLGA DO TOPO NO CELULAR — a conta, nao um chute.
 
-    Relatado com print do iPhone: o hamburguer cobria as primeiras letras do
-    titulo, em TODAS as paginas.
+    O botao de menu e `fixed` e flutua SOBRE esta secao. A folga aqui e a UNICA
+    coisa que separa os dois, e ela vivia num arquivo diferente da posicao do
+    botao: um numero adivinhado contra outro numero adivinhado.
 
-    Duas coisas, e a segunda e a causa de so aparecer no aparelho:
+    Agora os TRES elementos do topo partem da MESMA origem — o botao
+    (sidebar.html), o sino (app-shell.ts) e este titulo carregam
+    `env(safe-area-inset-top)`. A folga deixa de depender do tamanho do recorte
+    do aparelho e vira aritmetica:
 
-    1. A folga era `pt-20` (80px) contra um botao que ocupa 16..56px. No papel
-       sobravam 24px. Passou a `pt-28` (112px) — a folga era apertada demais para
-       depender de dois numeros digitados em ARQUIVOS DIFERENTES: a posicao do
-       botao mora em sidebar.html e a folga aqui.
+        topo do botao     1rem   (16px)
+      + altura do botao   2.5rem (40px)  -> h-10
+      + respiro           1rem   (16px)
+      = 4.5rem                   (72px) + recorte
 
-    2. O <meta viewport> declara `viewport-fit=cover`, e NAO havia UMA regra de
-       `env(safe-area-inset-*)` em todo o src. O app pediu para desenhar sob o
-       recorte do iPhone e nunca compensou. Num navegador de mesa o inset e zero
-       e nada aparece; no aparelho ele desloca o que e `fixed` em relacao ao que
-       esta no fluxo. Agora a folga soma o inset, entao ela acompanha o aparelho
-       em vez de assumir que ele nao existe.
+    A distancia entre o botao e o titulo e SEMPRE 16px, em qualquer aparelho.
+
+    HISTORICO, porque errei dos DOIS lados e o motivo importa: primeiro a folga
+    era `pt-20` fixa e o botao COBRIA as letras do titulo no iPhone — o
+    <meta viewport> declara `viewport-fit=cover` e nao havia UMA regra de
+    safe-area em todo o src, entao o app desenhava sob o recorte sem compensar.
+    Depois eu somei o recorte SO AQUI e nao no botao: a distancia entre os dois
+    cresceu pelo tamanho do recorte e o titulo foi parar longe demais.
+    Somar nos DOIS LADOS e o que torna a conta estavel.
 -->
-<section class="w-full h-full px-4 sm:px-6 lg:px-10 pt-[calc(7rem+env(safe-area-inset-top))] lg:pt-10 pb-6 sm:pb-8 lg:pb-10 max-w-8xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 bg-gray-50">
+<section class="w-full h-full px-4 sm:px-6 lg:px-10 pt-[calc(4.5rem+env(safe-area-inset-top))] lg:pt-10 pb-6 sm:pb-8 lg:pb-10 max-w-8xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 bg-gray-50">
     <header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div class="min-w-0">
             <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-neutral-900 break-words">

@@ -60,7 +60,7 @@ import { TourService } from '../../tour/tour.service';
             páginas.
           -->
           <header class="pointer-events-none absolute inset-x-0 top-0 z-10">
-            <div class="max-w-8xl mx-auto flex justify-end px-4 pt-4 sm:px-6 lg:px-10 lg:pt-10">
+            <div class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10">
               <app-notification-bell class="pointer-events-auto" />
             </div>
           </header>
