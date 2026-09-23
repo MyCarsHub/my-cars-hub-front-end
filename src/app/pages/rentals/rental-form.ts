@@ -81,10 +81,11 @@ export class RentalForm implements OnInit {
    *
    * Aqui `isOwner` NÃO trava campo nenhum do formulário: trava OFERTAS DE
    * NAVEGAÇÃO para `/configuracoes/contratos` e `/configuracoes/integracoes/asaas`,
-   * as duas `roleGuard(['OWNER'])`. Lido do espelho `selectedRole` — velho por
-   * uma troca de empresa, editável por DevTools — um MANAGER recebia o link e o
-   * botão "Configurar …", tocava, e o guard o devolvia ao `/dashboard` sem
-   * dizer nada. Mesma família de #330 e #331, não um campo indevido.
+   * as duas `roleGuard(['OWNER'])`. FIX-0409 — enquanto isto era lido do espelho
+   * `selectedRole` — velho por uma troca de empresa, editável por DevTools — um
+   * MANAGER recebia o link e o botão "Configurar …", tocava, e o guard o devolvia
+   * ao `/dashboard` sem dizer nada (o “sem dizer nada” caiu no FIX-0387; a oferta
+   * indevida caiu aqui). Mesma família de #330 e #331, não um campo indevido.
    *
    * Lido uma vez na construção: a troca de empresa destrói este componente
    * (`layout.store.ts`, `commitTenant`), então não há papel "quente".

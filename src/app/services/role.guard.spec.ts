@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { Router, UrlTree } from '@angular/router';
+import { Router, RouterStateSnapshot, UrlTree } from '@angular/router';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 
+import { NotificationService } from './notification.service';
 import { roleGuard } from './role.guard';
 import { SessionService } from './session.service';
 
@@ -22,9 +23,15 @@ describe('roleGuard — papel vindo do token', () => {
   const buildToken = (payload: Record<string, unknown>): string =>
     `${encodePayload({ alg: 'HS256', typ: 'JWT' })}.${encodePayload(payload)}.sig`;
 
-  function run(allowed: string[]): boolean | UrlTree {
+  /**
+   * `url` importa desde o FIX-0387: a mensagem de negacao nomeia a AREA, e ela
+   * sai de `state.url`. O default vazio preserva os testes de fonte do papel,
+   * que nao falam de area nenhuma.
+   */
+  function run(allowed: string[], url = ''): boolean | UrlTree {
+    const state = { url } as RouterStateSnapshot;
     return TestBed.runInInjectionContext(
-      () => roleGuard(allowed)(null as never, null as never) as boolean | UrlTree,
+      () => roleGuard(allowed)(null as never, state) as boolean | UrlTree,
     );
   }
 
@@ -109,5 +116,159 @@ describe('roleGuard — papel vindo do token', () => {
 
     sessionStorage.setItem('token', buildToken({ role: 'OWNER' }));
     expect(run(['OWNER'])).toBe(true);
+  });
+});
+
+/**
+ * FIX-0387 - o nav de `/billing` e `/configuracoes` ja e OWNER-only, entao o
+ * MANAGER que chega la digitou a URL ou abriu um link salvo. Ate aqui o guard o
+ * devolvia ao `/dashboard` em SILENCIO: nenhuma tela dizia o que era aquilo, de
+ * quem era, nem o que fazer.
+ *
+ * O que estes testes prendem e a MENSAGEM, nao a permissao - a permissao e do
+ * bloco de cima, e quem barra escrita de verdade e o backend.
+ */
+describe('roleGuard - mensagem de negacao (FIX-0387)', () => {
+  const encodePayload = (payload: Record<string, unknown>): string => {
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const buildToken = (payload: Record<string, unknown>): string =>
+    `${encodePayload({ alg: 'HS256', typ: 'JWT' })}.${encodePayload(payload)}.sig`;
+
+  function run(allowed: string[], url: string): boolean | UrlTree {
+    const state = { url } as RouterStateSnapshot;
+    return TestBed.runInInjectionContext(
+      () => roleGuard(allowed)(null as never, state) as boolean | UrlTree,
+    );
+  }
+
+  function messages(): string[] {
+    return TestBed.inject(NotificationService)
+      .notifications()
+      .map((n) => n.message);
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [SessionService] });
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('MANAGER em /billing recebe as TRES informacoes: area, dono e o que fazer', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    expect(run(['OWNER'], '/billing')).toBeInstanceOf(UrlTree);
+
+    const [message] = messages();
+    expect(message).toContain('Assinatura e cobran\u00e7a');
+    expect(message).toContain('exclusiva do propriet\u00e1rio');
+    expect(message).toContain('de gerente');
+    expect(message).toContain('Fale com o propriet\u00e1rio');
+  });
+
+  it('nomeia o filho mais especifico, nao o pai', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/configuracoes/integracoes/asaas');
+
+    expect(messages()[0]).toContain('Integra\u00e7\u00e3o com o Asaas');
+  });
+
+  it('a negacao e um AVISO, e dura mais que o toast padrao de 5s', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/configuracoes');
+
+    const [toast] = TestBed.inject(NotificationService).notifications();
+    expect(toast.kind).toBe('warning');
+    expect(toast.duration).toBeGreaterThan(5000);
+  });
+
+  it('rota de OWNER+MANAGER negada a um DRIVER nomeia os DOIS papeis', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+
+    run(['OWNER', 'MANAGER'], '/veiculos');
+
+    expect(messages()[0]).toContain('do propriet\u00e1rio ou do gerente');
+  });
+
+  /**
+   * `/configuracoes` e seu filho '' carregam CADA UM um `roleGuard(['OWNER'])`.
+   * Uma navegacao pode negar duas vezes, e sem deduplicacao o MANAGER leria o
+   * mesmo paragrafo empilhado em dobro no celular.
+   */
+  it('pai e filho negando a mesma navegacao produzem UM toast, nao dois', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/configuracoes');
+    run(['OWNER'], '/configuracoes');
+
+    expect(messages()).toHaveLength(1);
+  });
+
+  /**
+   * Sem papel nao ha o que explicar em termos de permissao: e sessao ausente ou
+   * expirada, e disso trata o `authGuard`. Dizer "seu acesso e de X" aqui seria
+   * inventar o X.
+   */
+  it('sem token nao inventa papel: nega em silencio', () => {
+    expect(run(['OWNER'], '/billing')).toBeInstanceOf(UrlTree);
+    expect(messages()).toHaveLength(0);
+  });
+
+  it('token expirado tambem nega em silencio', () => {
+    sessionStorage.setItem(
+      'token',
+      buildToken({ role: 'MANAGER', exp: Math.floor(Date.now() / 1000) - 60 }),
+    );
+
+    run(['OWNER'], '/billing');
+
+    expect(messages()).toHaveLength(0);
+  });
+
+  it('quem PODE entrar nao recebe mensagem nenhuma', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'OWNER' }));
+
+    expect(run(['OWNER'], '/billing')).toBe(true);
+    expect(messages()).toHaveLength(0);
+  });
+
+  /**
+   * Rota OWNER-only sem rotulo mapeado: a mensagem perde o NOME da area e
+   * mantem dono e acao. O fallback nao pode virar frase quebrada.
+   */
+  it('area sem rotulo mapeado ainda explica dono e acao', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/uma-rota-nova');
+
+    const [message] = messages();
+    expect(message).toMatch(/^\u00c1rea exclusiva do propriet\u00e1rio\./);
+    expect(message).toContain('Fale com o propriet\u00e1rio');
+  });
+
+  /** Fronteira de segmento: `/billing-legado` nao pode herdar o rotulo. */
+  it('o rotulo casa por segmento, nao por startsWith cru', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/billing-legado');
+
+    expect(messages()[0]).not.toContain('Assinatura');
+  });
+
+  /** Query string nao pode cegar o rotulo - links salvos costumam ter uma. */
+  it('o rotulo sobrevive a query string', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/billing?plano=pro');
+
+    expect(messages()[0]).toContain('Assinatura e cobran\u00e7a');
   });
 });
