@@ -27,6 +27,9 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
+import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
+import { formatPtBrMoney } from '../../utils/ptbr-number';
+import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { RentalService } from './rental.service';
 import { SessionService } from '../../services/session.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -119,6 +122,7 @@ export class RentalForm implements OnInit {
   protected readonly rateMessages: Readonly<Record<string, string>> = {
     required: 'Informe um valor maior que zero.',
     min: 'Informe um valor maior que zero.',
+    moneyFormat: 'Informe um valor válido (ex.: 1.500,00).',
   };
   protected readonly initialKmMessages: Readonly<Record<string, string>> = {
     required: 'Informe a quilometragem inicial.',
@@ -177,7 +181,8 @@ export class RentalForm implements OnInit {
       // Order in the UI: frequency comes BEFORE the rate so the rate label can
       // reflect the chosen period ("Valor da diária" / "semanal" / "mensal").
       billingFrequency: ['DAILY' as RentalBillingFrequency, [Validators.required]],
-      periodRateReais: [0, [Validators.required, Validators.min(0.01)]],
+      // TEXTO pt-BR no form (máscara de milhar ao digitar), centavos no payload.
+      periodRateReais: ['', [ptBrMoneyValidator({ minCents: 1 })]],
       caucaoReais: [0, [Validators.min(0)]],
       caucaoPaid: [false],
       automaticCharge: [false],
@@ -334,7 +339,7 @@ export class RentalForm implements OnInit {
     const v = this.formValue();
     const days = this.totalDays();
     if (!days) return null;
-    const cents = toCents(Number(v?.periodRateReais ?? 0));
+    const cents = ptBrMoneyCents(v?.periodRateReais);
     if (cents == null) return null;
     switch (this.billingFrequency()) {
       case 'WEEKLY':
@@ -553,7 +558,7 @@ export class RentalForm implements OnInit {
             driverId: r.driverId,
             startDate: r.startDate,
             endDate: r.endDate,
-            periodRateReais: r.periodRate / 100,
+            periodRateReais: formatPtBrMoney(r.periodRate),
             billingFrequency: r.billingFrequency ?? 'DAILY',
             caucaoReais: r.caucaoAmount / 100,
             caucaoPaid: r.caucaoPaid ?? false,
@@ -719,6 +724,16 @@ export class RentalForm implements OnInit {
     this.draftRestored.set(false);
   }
 
+  /**
+   * Máscara de milhar DURANTE a digitação (FIX-0261), no mesmo padrão do
+   * diálogo de venda. O controle guarda TEXTO pt-BR; o total ao vivo e o
+   * submit convertem com `ptBrMoneyCents`, então os CENTAVOS enviados à API
+   * são os mesmos de antes.
+   */
+  protected onMoneyInput(event: Event): void {
+    applyPtBrMoneyMaskToControl(event, this.form.controls.periodRateReais);
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -744,7 +759,7 @@ export class RentalForm implements OnInit {
     this.error.set(null);
     clearServerErrors(this.form);
     const raw = this.form.getRawValue();
-    const periodRate = toCents(Number(raw.periodRateReais)) ?? 0;
+    const periodRate = ptBrMoneyCents(raw.periodRateReais) ?? 0;
     const caucao = toCents(Number(raw.caucaoReais ?? 0)) ?? 0;
 
     // V29: campos financeiros

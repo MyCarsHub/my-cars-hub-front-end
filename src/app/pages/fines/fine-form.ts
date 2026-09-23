@@ -16,7 +16,9 @@ import { FieldControl, FormField } from '../../components/form-field/form-field'
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
-import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
+import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
+import { formatPtBrMoney } from '../../utils/ptbr-number';
+import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { FinesService } from '../../services/fines.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
@@ -75,6 +77,7 @@ export class FineForm implements OnInit {
   protected readonly amountMessages: Readonly<Record<string, string>> = {
     required: 'Informe um valor maior que zero.',
     min: 'Informe um valor maior que zero.',
+    moneyFormat: 'Informe um valor válido (ex.: 1.200,00).',
   };
 
   protected readonly form = this.fb.nonNullable.group({
@@ -84,7 +87,8 @@ export class FineForm implements OnInit {
     description: ['', [Validators.required, Validators.maxLength(300)]],
     infractionDate: ['', [Validators.required]],
     location: ['', [Validators.maxLength(200)]],
-    amountReais: [0, [Validators.required, Validators.min(0.01)]],
+    // TEXTO pt-BR no form (máscara de milhar ao digitar), centavos no payload.
+    amountReais: ['', [ptBrMoneyValidator({ minCents: 1 })]],
     points: [null as number | null],
     severity: ['MEDIA' as FineSeverity, [Validators.required]],
     dueDate: [''],
@@ -123,7 +127,7 @@ export class FineForm implements OnInit {
           description: f.description,
           infractionDate: this.isoToInputDateTime(f.infractionDate),
           location: f.location ?? '',
-          amountReais: f.amountCents / 100,
+          amountReais: formatPtBrMoney(f.amountCents),
           points: f.points,
           severity: f.severity,
           dueDate: f.dueDate ?? '',
@@ -138,6 +142,15 @@ export class FineForm implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  /**
+   * Máscara de milhar DURANTE a digitação (FIX-0261), no mesmo padrão do
+   * diálogo de venda. O controle guarda TEXTO pt-BR e o submit converte com
+   * `ptBrMoneyCents` — os CENTAVOS enviados à API não mudam.
+   */
+  protected onMoneyInput(event: Event): void {
+    applyPtBrMoneyMaskToControl(event, this.form.controls.amountReais);
   }
 
   protected onSeverityChange(): void {
@@ -163,7 +176,7 @@ export class FineForm implements OnInit {
     this.error.set(null);
     clearServerErrors(this.form);
     const raw = this.form.getRawValue();
-    const amountCents = toCents(Number(raw.amountReais)) ?? 0;
+    const amountCents = ptBrMoneyCents(raw.amountReais) ?? 0;
 
     if (this.isEdit()) {
       const payload: UpdateFineRequest = {

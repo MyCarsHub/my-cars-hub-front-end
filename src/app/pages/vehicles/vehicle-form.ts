@@ -41,6 +41,9 @@ import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { FinancingFormFields } from '../../components/vehicles/financing-form-fields/financing-form-fields';
 import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
+import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
+import { formatPtBrMoney } from '../../utils/ptbr-number';
+import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { InsuranceFormFields } from '../../components/vehicles/insurance-form-fields/insurance-form-fields';
 import { insuranceDateRangeValidator } from '../../components/vehicles/insurance-form-fields/insurance-utils';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -377,8 +380,10 @@ export class VehicleForm implements OnInit {
       renavam: ['', [Validators.pattern(/^\d{9,11}$/)]],
       color: [''],
       purchaseDate: [''],
-      // Reais no form, centavos no payload — mesmo idioma de ipvaAmount.
-      purchasePrice: [null as number | null, [Validators.min(0)]],
+      // TEXTO pt-BR no form (máscara de milhar ao digitar), centavos no payload.
+      // `Validators.min(0)` saiu com o `type="number"`: a gramática não tem
+      // sinal, então negativo já é recusado como formato.
+      purchasePrice: ['', [ptBrMoneyValidator({ optional: true })]],
       ipvaAmount: [null as number | null, [Validators.min(0)]],
       ipvaDueDate: [''],
       ipvaStatus: ['' as IpvaStatus | ''],
@@ -389,7 +394,7 @@ export class VehicleForm implements OnInit {
 
   protected readonly financingForm = this.fb.nonNullable.group({
     contractDate: ['', [Validators.required]],
-    purchasePrice: [0, [Validators.required, Validators.min(0.01)]],
+    purchasePrice: ['', [ptBrMoneyValidator({ minCents: 1 })]],
     downPayment: [0, [Validators.min(0)]],
     installments: [0, [Validators.min(0)]],
     installmentAmount: [0, [Validators.min(0)]],
@@ -400,7 +405,7 @@ export class VehicleForm implements OnInit {
       insurer: ['', [Validators.required, Validators.maxLength(120)]],
       policyNumber: ['', [Validators.required, Validators.maxLength(60)]],
       coverageType: ['' as InsuranceCoverage | '', [Validators.required]],
-      premiumAmount: [0, [Validators.required, Validators.min(0.01)]],
+      premiumAmount: ['', [ptBrMoneyValidator({ minCents: 1 })]],
       deductibleAmount: [null as number | null, [Validators.min(0)]],
       startDate: ['', [Validators.required]],
       endDate: ['', [Validators.required]],
@@ -761,7 +766,7 @@ export class VehicleForm implements OnInit {
           renavam: v.renavam ?? '',
           color: v.color ?? '',
           purchaseDate: v.purchaseDate ?? '',
-          purchasePrice: v.purchasePrice != null ? v.purchasePrice / 100 : null,
+          purchasePrice: v.purchasePrice != null ? formatPtBrMoney(v.purchasePrice) : '',
           ipvaAmount: v.ipvaAmount != null ? v.ipvaAmount / 100 : null,
           ipvaDueDate: v.ipvaDueDate ?? '',
           ipvaStatus: (v.ipvaStatus ?? '') as IpvaStatus | '',
@@ -875,10 +880,7 @@ export class VehicleForm implements OnInit {
     // No commonPayload de propósito: o PUT é full-replace, então a edição
     // precisa reenviar o valor carregado — fora dele, salvar uma edição
     // apagaria em silêncio um valor já gravado.
-    const purchasePriceCents =
-      raw.purchasePrice != null && !Number.isNaN(Number(raw.purchasePrice))
-        ? toCents(Number(raw.purchasePrice))
-        : null;
+    const purchasePriceCents = ptBrMoneyCents(raw.purchasePrice);
     const commonPayload = {
       plate: raw.plate.trim().toUpperCase(),
       type: raw.type,
@@ -1083,7 +1085,7 @@ export class VehicleForm implements OnInit {
       insurer: raw.insurer.trim(),
       policyNumber: raw.policyNumber.trim(),
       coverageType: raw.coverageType as InsuranceCoverage,
-      premiumAmount: toCents(Number(raw.premiumAmount)) ?? 0,
+      premiumAmount: ptBrMoneyCents(raw.premiumAmount) ?? 0,
       deductibleAmount: raw.deductibleAmount != null ? toCents(Number(raw.deductibleAmount)) : null,
       startDate: raw.startDate,
       endDate: raw.endDate,
@@ -1098,7 +1100,7 @@ export class VehicleForm implements OnInit {
     const fRaw = this.financingForm.getRawValue();
     return {
       contractDate: fRaw.contractDate,
-      purchasePrice: toCents(Number(fRaw.purchasePrice)) ?? 0,
+      purchasePrice: ptBrMoneyCents(fRaw.purchasePrice) ?? 0,
       downPayment: fRaw.downPayment ? toCents(Number(fRaw.downPayment)) : null,
       installments: fRaw.installments ? Number(fRaw.installments) : null,
       installmentAmount: fRaw.installmentAmount ? toCents(Number(fRaw.installmentAmount)) : null,
@@ -1191,6 +1193,17 @@ export class VehicleForm implements OnInit {
     } else {
       this.router.navigate(['/veiculos']);
     }
+  }
+
+  /**
+   * Máscara de milhar DURANTE a digitação (FIX-0261), no mesmo padrão do
+   * diálogo de venda: o helper reescreve o campo já agrupado ("45000" →
+   * "45.000"), devolve o caret e grava o texto no controle. O submit continua
+   * convertendo com a gramática pt-BR (`ptBrMoneyCents`), então os CENTAVOS
+   * enviados à API são os mesmos de antes.
+   */
+  protected onMoneyInput(event: Event): void {
+    applyPtBrMoneyMaskToControl(event, this.form.controls.purchasePrice);
   }
 
   protected fieldInvalid(path: string[]): boolean {

@@ -256,7 +256,7 @@ describe('VehicleForm — financiamento na edição', () => {
     api().toggleFinancing();
     api().financingForm.patchValue({
       contractDate: '2026-01-10',
-      purchasePrice: 50000,
+      purchasePrice: '50.000,00',
       downPayment: 10000,
       installments: 24,
       installmentAmount: 1800.5,
@@ -284,7 +284,7 @@ describe('VehicleForm — financiamento na edição', () => {
     await setup(null);
 
     api().toggleFinancing();
-    // contractDate vazio e purchasePrice 0 → grupo inválido.
+    // contractDate vazio e purchasePrice vazio → grupo inválido.
     api().submit();
     fixture.detectChanges();
 
@@ -335,7 +335,7 @@ describe('VehicleForm — financiamento na edição', () => {
     );
 
     api().toggleFinancing();
-    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: 50000 });
+    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: '50.000,00' });
     api().submit();
     fixture.detectChanges();
 
@@ -355,7 +355,7 @@ describe('VehicleForm — financiamento na edição', () => {
       insurer: 'Porto Seguro',
       policyNumber: 'AP-99887',
       coverageType: 'COMPREHENSIVE',
-      premiumAmount: 2400.5,
+      premiumAmount: '2.400,50',
       deductibleAmount: 3000,
       startDate: '2026-01-01',
       endDate: '2027-01-01',
@@ -424,7 +424,7 @@ describe('VehicleForm — financiamento na edição', () => {
       insurer: 'Porto Seguro',
       policyNumber: 'AP-99887',
       coverageType: 'COMPREHENSIVE',
-      premiumAmount: 2400,
+      premiumAmount: '2.400,00',
       startDate: '2026-01-01',
       endDate: '2027-01-01',
     });
@@ -485,7 +485,7 @@ describe('VehicleForm — criação com falha no bloco filho', () => {
       insurer: 'Porto Seguro',
       policyNumber: 'AP-99887',
       coverageType: 'COMPREHENSIVE',
-      premiumAmount: 2400,
+      premiumAmount: '2.400,00',
       startDate: '2026-01-01',
       endDate: '2027-01-01',
     });
@@ -585,7 +585,7 @@ describe('VehicleForm — criação com falha no bloco filho', () => {
 
     fillValidVehicle();
     api().toggleFinancing();
-    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: 50000 });
+    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: '50.000,00' });
 
     api().submit();
     fixture.detectChanges();
@@ -923,7 +923,7 @@ describe('VehicleForm — banner de validação e foco no submit inválido', () 
     expect(fixture.nativeElement.innerHTML).toContain('Verifique os campos do financiamento.');
     expect(document.activeElement?.id).toBe('financiamento-contract-date');
 
-    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: 50000 });
+    api().financingForm.patchValue({ contractDate: '2026-01-10', purchasePrice: '50.000,00' });
     fixture.detectChanges();
 
     expect(banner()).toBeNull();
@@ -947,7 +947,7 @@ describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
   interface FormApi {
     form: {
       patchValue: (v: unknown) => void;
-      getRawValue: () => { purchasePrice: number | null };
+      getRawValue: () => { purchasePrice: string };
     };
     submit: () => void;
   }
@@ -1028,7 +1028,7 @@ describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
     expect(fixture.nativeElement.querySelector('#veiculo-purchase-price')).not.toBeNull();
 
     fillValidVehicle();
-    api().form.patchValue({ purchasePrice: 45000.5 });
+    api().form.patchValue({ purchasePrice: '45.000,50' });
     api().submit();
 
     expect(create).toHaveBeenCalledTimes(1);
@@ -1048,8 +1048,8 @@ describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
   it('edição: carrega centavos como reais e o PUT reenvia o valor — full-replace não pode apagar', async () => {
     await setup('veh-1', editVehicle(4_500_050));
 
-    // 4_500_050 centavos → 45000.5 reais no form.
-    expect(api().form.getRawValue().purchasePrice).toBe(45000.5);
+    // 4_500_050 centavos -> texto pt-BR JA FORMATADO no campo (semeadura da edicao).
+    expect(api().form.getRawValue().purchasePrice).toBe('45.000,50');
 
     // Salvar SEM tocar no campo: o valor volta intacto no payload do PUT.
     api().submit();
@@ -1061,7 +1061,7 @@ describe('VehicleForm — valor total do veículo (FEAT-0059)', () => {
   it('edição: veículo sem valor continua sem valor depois de salvar', async () => {
     await setup('veh-1', editVehicle(null));
 
-    expect(api().form.getRawValue().purchasePrice).toBeNull();
+    expect(api().form.getRawValue().purchasePrice).toBe('');
     api().submit();
     expect(update.mock.calls[0][1].purchasePrice).toBeNull();
   });
@@ -2004,5 +2004,272 @@ describe('VehicleForm — chaves de lookup desligadas (padrão)', () => {
     expect(payload['model']).toBe('Mobi');
     expect(payload['yearManufacture']).toBe(2022);
     expect(payload['yearModel']).toBe(2022);
+  });
+});
+
+/**
+ * FIX-0261 — máscara de milhar nos campos de dinheiro que ainda eram
+ * `input type="number"`.
+ *
+ * O que este bloco prova, por campo, é a corrente inteira: a TECLA (InputEvent
+ * `insertText`, que é o caminho de verdade do teclado) escreve o agrupamento na
+ * tela, e os CENTAVOS que saem no submit continuam os mesmos de antes. O texto
+ * na tela sozinho não prova nada: a migração de `type="number"` para
+ * `type="text"` quebra silenciosamente qualquer parse feito com `Number()`
+ * (`Number('45.000,00')` é `NaN`), e é exatamente esse número que a API recebe.
+ */
+describe('VehicleForm — máscara de milhar nos campos de dinheiro (FIX-0261)', () => {
+  let create: ReturnType<typeof vi.fn>;
+  let update: ReturnType<typeof vi.fn>;
+  let createFinancing: ReturnType<typeof vi.fn>;
+  let createInsurance: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
+
+  interface FormApi {
+    form: { patchValue: (v: unknown) => void; getRawValue: () => { purchasePrice: string } };
+    financingForm: {
+      patchValue: (v: unknown) => void;
+      getRawValue: () => { purchasePrice: string };
+    };
+    insuranceForm: { patchValue: (v: unknown) => void };
+    toggleFinancing: () => void;
+    toggleInsurance: () => void;
+    submit: () => void;
+  }
+
+  function api(): FormApi {
+    return fixture.componentInstance as unknown as FormApi;
+  }
+
+  function field(selector: string): HTMLInputElement {
+    const input = fixture.nativeElement.querySelector(selector) as HTMLInputElement | null;
+    if (!input) throw new Error(`campo ${selector} nao esta na tela`);
+    return input;
+  }
+
+  /** Tecla a tecla, como o teclado faz: `insertText` + caret no fim. */
+  function type(input: HTMLInputElement, keys: string): string[] {
+    const frames: string[] = [];
+    for (const key of keys) {
+      input.value = input.value + key;
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: key }));
+      fixture.detectChanges();
+      frames.push(input.value);
+    }
+    return frames;
+  }
+
+  function fillValidVehicle(): void {
+    api().form.patchValue({
+      plate: 'ABC1D23',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      hodometer: 1000,
+    });
+  }
+
+  function editVehicle(purchasePrice: number | null): Record<string, unknown> {
+    return {
+      id: 'veh-1',
+      plate: 'ABC1D23',
+      type: 'CAR',
+      brand: 'Fiat',
+      model: 'Mobi',
+      yearManufacture: 2022,
+      yearModel: 2022,
+      chassis: null,
+      hodometer: 1000,
+      licensingExpiration: null,
+      renavam: null,
+      color: null,
+      purchaseDate: null,
+      purchasePrice,
+      ipvaAmount: null,
+      ipvaDueDate: null,
+      ipvaStatus: null,
+      fuel: null,
+      activeFinancing: null,
+    };
+  }
+
+  async function setup(routeId: string | null, vehicle?: Record<string, unknown>): Promise<void> {
+    TestBed.resetTestingModule();
+    create = vi.fn().mockReturnValue(of({ id: 'veh-novo' }));
+    update = vi.fn().mockReturnValue(of({ id: 'veh-1' }));
+    createFinancing = vi.fn().mockReturnValue(of({ id: 'fin-novo' }));
+    createInsurance = vi.fn().mockReturnValue(of({ id: 'ins-nova' }));
+
+    await TestBed.configureTestingModule({
+      imports: [VehicleForm],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        {
+          provide: VehiclesService,
+          useValue: {
+            create,
+            update,
+            getOne: vi.fn().mockReturnValue(of(vehicle)),
+            createFinancing,
+            plateLookupUnavailable: signal(false),
+          },
+        },
+        { provide: InsurancesService, useValue: { create: createInsurance } },
+        {
+          provide: FipeService,
+          useValue: { brands: () => of([]), models: () => of([]), years: () => of([]) },
+        },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { paramMap: { get: () => routeId }, queryParamMap: { get: () => null } },
+          },
+        },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+        },
+      ],
+    }).compileComponents();
+
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(VehicleForm);
+    fixture.detectChanges();
+  }
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  // ------------------------------- Valor total do veiculo (formulario principal)
+
+  it('purchasePrice do veiculo: digitacao incremental mostra o milhar e o POST leva os centavos', async () => {
+    await setup(null);
+    fillValidVehicle();
+
+    const input = field('#veiculo-purchase-price');
+    expect(input.type).toBe('text');
+    expect(input.inputMode).toBe('decimal');
+
+    const frames = type(input, '4500000');
+    expect(frames).toEqual(['4', '45', '450', '4.500', '45.000', '450.000', '4.500.000']);
+    expect(input.selectionStart).toBe('4.500.000'.length);
+
+    type(input, ',50');
+    expect(input.value).toBe('4.500.000,50');
+
+    api().submit();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0]).toMatchObject({ purchasePrice: 450_000_050 });
+  });
+
+  it('purchasePrice do veiculo: a edicao semeia o campo JA FORMATADO e o PUT devolve os centavos intactos', async () => {
+    await setup('veh-1', editVehicle(4_500_000));
+
+    expect(field('#veiculo-purchase-price').value).toBe('45.000,00');
+    expect(api().form.getRawValue().purchasePrice).toBe('45.000,00');
+
+    api().submit();
+    expect(update.mock.calls[0][1]).toMatchObject({ purchasePrice: 4_500_000 });
+  });
+
+  it('purchasePrice do veiculo: texto fora da gramatica nao vira numero — o form recusa antes do POST', async () => {
+    await setup(null);
+    fillValidVehicle();
+
+    // Colagem en-US: a mascara deixa intacto de proposito, e o validador recusa.
+    const input = field('#veiculo-purchase-price');
+    input.value = '45.99';
+    input.dispatchEvent(new InputEvent('input', { inputType: 'insertFromPaste' }));
+    fixture.detectChanges();
+
+    expect(input.value).toBe('45.99');
+    api().submit();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * O backspace e o teste que separa a ponte para reactive forms de um bug
+   * silencioso: o estado ANTERIOR do campo vem do proprio controle, e se ele ja
+   * tivesse sido sobrescrito pelo `DefaultValueAccessor` a mascara acharia que
+   * a tecla so removeu pontuacao e comeria um digito a mais.
+   */
+  it('purchasePrice do veiculo: backspace apaga UM digito, nao dois', async () => {
+    await setup(null);
+    fillValidVehicle();
+
+    const input = field('#veiculo-purchase-price');
+    type(input, '45000');
+    expect(input.value).toBe('45.000');
+
+    // O navegador ja removeu o ultimo caractere quando o evento chega.
+    input.value = '45.00';
+    input.setSelectionRange(5, 5);
+    input.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward' }));
+    fixture.detectChanges();
+
+    expect(input.value).toBe('4.500');
+  });
+
+  // ----------------------------------------- Financiamento (bloco opcional)
+
+  /**
+   * O bloco de financiamento so existe dentro do formulario de veiculo — nao ha
+   * tela de edicao de financiamento no app (`pages/financings` e lista +
+   * detalhe somente-leitura), entao nao ha semeadura a provar aqui: o campo
+   * nasce VAZIO, e e isso que este teste fixa.
+   */
+  it('purchasePrice do financiamento: digita com milhar, nasce vazio e o POST leva os centavos', async () => {
+    await setup('veh-1', editVehicle(null));
+
+    api().toggleFinancing();
+    fixture.detectChanges();
+
+    const input = field('#financiamento-purchase-price');
+    expect(input.type).toBe('text');
+    expect(input.value).toBe('');
+
+    const frames = type(input, '50000');
+    expect(frames).toEqual(['5', '50', '500', '5.000', '50.000']);
+    expect(api().financingForm.getRawValue().purchasePrice).toBe('50.000');
+
+    type(input, ',75');
+    api().financingForm.patchValue({ contractDate: '2026-01-10' });
+    api().submit();
+
+    expect(createFinancing).toHaveBeenCalledTimes(1);
+    expect(createFinancing.mock.calls[0][1]).toMatchObject({ purchasePrice: 5_000_075 });
+  });
+
+  // ------------------------------------------------ Seguro (bloco opcional)
+
+  it('premiumAmount do seguro: digita com milhar e o POST da apolice leva os centavos', async () => {
+    await setup('veh-1', editVehicle(null));
+
+    api().toggleInsurance();
+    fixture.detectChanges();
+
+    const input = field('#seguro-premium-amount');
+    expect(input.type).toBe('text');
+
+    const frames = type(input, '2400');
+    expect(frames).toEqual(['2', '24', '240', '2.400']);
+    type(input, ',50');
+    expect(input.value).toBe('2.400,50');
+
+    api().insuranceForm.patchValue({
+      insurer: 'Porto Seguro',
+      policyNumber: 'AP-99887',
+      coverageType: 'COMPREHENSIVE',
+      startDate: '2026-01-01',
+      endDate: '2027-01-01',
+    });
+    api().submit();
+
+    expect(createInsurance).toHaveBeenCalledTimes(1);
+    expect(createInsurance.mock.calls[0][1]).toMatchObject({ premiumAmount: 240_050 });
   });
 });

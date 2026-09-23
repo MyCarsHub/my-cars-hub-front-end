@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { AbstractControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { FieldControl, FormField } from '../../form-field/form-field';
+import { applyPtBrMoneyMaskToControl } from '../../../utils/ptbr-money-mask';
 
 @Component({
   selector: 'app-financing-form-fields',
@@ -19,9 +20,19 @@ export class FinancingFormFields {
   protected readonly purchasePriceMessages: Readonly<Record<string, string>> = {
     required: 'Informe o valor de compra.',
     min: 'Informe o valor de compra.',
+    moneyFormat: 'Informe um valor válido (ex.: 45.000,00).',
   };
 
   protected control(name: string): AbstractControl | null {
     return this.formGroup().get(name);
+  }
+
+  /**
+   * Máscara de milhar DURANTE a digitação (FIX-0261), no mesmo padrão do
+   * diálogo de venda. O controle guarda TEXTO pt-BR; quem converte para
+   * centavos é o formulário consumidor, com `ptBrMoneyCents`.
+   */
+  protected onMoneyInput(event: Event, name: string): void {
+    applyPtBrMoneyMaskToControl(event, this.control(name));
   }
 }
