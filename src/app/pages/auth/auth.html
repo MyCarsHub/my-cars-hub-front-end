@@ -1,0 +1,227 @@
+<main class="auth-page">
+  <!-- Ambient: gradiente laranja + grid + glow. Mesma linguagem da landing. -->
+  <div class="auth-glow" aria-hidden="true"></div>
+  <div class="auth-grid" aria-hidden="true"></div>
+
+  <div class="auth-marks" aria-hidden="true">
+    <img class="auth-mark auth-mark--1" src="svg/logo-my-cars-hub.svg" alt="" />
+    <img class="auth-mark auth-mark--2" src="svg/logo-my-cars-hub.svg" alt="" />
+    <img class="auth-mark auth-mark--3" src="svg/logo-my-cars-hub.svg" alt="" />
+    <img class="auth-mark auth-mark--4" src="svg/logo-my-cars-hub.svg" alt="" />
+  </div>
+
+  <section class="auth-card" aria-labelledby="auth-title">
+    <a class="auth-back" href="/" aria-label="Voltar para o site">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M19 12H5M11 18l-6-6 6-6"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      Voltar
+    </a>
+
+    <a class="auth-brand" routerLink="/" aria-label="MyCarsHub — início">
+      <img
+        ngSrc="svg/logo-my-cars-hub-complete.svg"
+        width="178"
+        height="42"
+        priority
+        alt="MyCarsHub"
+      />
+    </a>
+
+    <!-- A promessa vem ANTES de qualquer campo: e o que a pessoa precisa saber para
+         decidir se vale preencher. Copy identica a da landing (`landing-cta`). -->
+    <p class="auth-trial">
+      <span class="auth-trial__dot" aria-hidden="true"></span>
+      14 dias grátis · Sem cartão · Cancele quando quiser
+    </p>
+
+    <div class="auth-intro">
+      <h1 id="auth-title">{{ title() }}</h1>
+      <p>{{ subtitle() }}</p>
+    </div>
+
+    <div class="auth-switch" role="group" aria-label="Criar conta ou entrar">
+      <button
+        type="button"
+        class="auth-switch__btn"
+        [class.is-active]="isSignup()"
+        [attr.aria-pressed]="isSignup()"
+        (click)="setMode('signup')"
+      >
+        Criar conta
+      </button>
+      <button
+        type="button"
+        class="auth-switch__btn"
+        [class.is-active]="!isSignup()"
+        [attr.aria-pressed]="!isSignup()"
+        (click)="setMode('login')"
+      >
+        Entrar
+      </button>
+    </div>
+
+    @if (notice(); as message) {
+      <app-alert-banner variant="success" [message]="message" />
+    }
+    @if (error(); as formError) {
+      <app-alert-banner variant="error" [message]="formError" />
+    }
+
+    <!-- Google ao lado do form: empilhado no celular (Google primeiro, porque e o
+         caminho de producao), duas colunas a partir de 768px. -->
+    <div class="auth-cols">
+      <div class="auth-col auth-col--google">
+        <button
+          class="auth-google"
+          type="button"
+          (click)="continueWithGoogle()"
+          [disabled]="isRedirecting()"
+          [attr.aria-busy]="isRedirecting()"
+        >
+          <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
+          @if (isRedirecting()) {
+            <span class="auth-spinner" aria-hidden="true"></span>
+            <span>Redirecionando…</span>
+          } @else {
+            <span>{{ googleLabel() }}</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+              class="auth-google__arrow"
+            >
+              <path
+                d="M5 12h14M13 6l6 6-6 6"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          }
+        </button>
+        <p class="auth-google__hint">Sem senha para criar nem para lembrar.</p>
+      </div>
+
+      <div class="auth-sep" aria-hidden="true">
+        <span></span>
+        <small>ou</small>
+        <span></span>
+      </div>
+
+      <div class="auth-col auth-col--form">
+        <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="auth-form">
+          @if (isSignup()) {
+            <app-form-field
+              label="Nome completo"
+              controlId="auth-name"
+              [required]="true"
+              [control]="form.controls.name"
+              [messages]="nameMessages"
+            >
+              <input
+                appFieldControl
+                type="text"
+                formControlName="name"
+                placeholder="Seu nome completo"
+                autocomplete="name"
+                class="auth-input"
+              />
+            </app-form-field>
+          }
+
+          <app-form-field
+            label="E-mail"
+            controlId="auth-email"
+            [required]="true"
+            [control]="form.controls.email"
+            [messages]="emailMessages"
+          >
+            <input
+              appFieldControl
+              type="email"
+              formControlName="email"
+              placeholder="seu@email.com"
+              autocomplete="email"
+              inputmode="email"
+              class="auth-input"
+            />
+          </app-form-field>
+
+          <app-form-field
+            label="Senha"
+            controlId="auth-password"
+            [required]="true"
+            [control]="form.controls.password"
+            [messages]="passwordMessages"
+            [hint]="isSignup() ? 'Mínimo 8 caracteres.' : ''"
+          >
+            <input
+              appFieldControl
+              type="password"
+              formControlName="password"
+              [placeholder]="isSignup() ? 'Crie uma senha' : 'Sua senha'"
+              [autocomplete]="isSignup() ? 'new-password' : 'current-password'"
+              class="auth-input"
+            />
+          </app-form-field>
+
+          @if (isSignup()) {
+            <app-form-field
+              controlId="auth-terms"
+              [control]="form.controls.acceptedTerms"
+              [messages]="termsMessages"
+            >
+              <label class="auth-terms-check" for="auth-terms">
+                <input
+                  appFieldControl
+                  type="checkbox"
+                  formControlName="acceptedTerms"
+                  class="auth-checkbox"
+                />
+                <span>
+                  Li e concordo com a
+                  <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener"
+                    >Política de Privacidade</a
+                  >
+                  e os
+                  <a routerLink="/termos-de-uso" target="_blank" rel="noopener">Termos de Uso</a>.
+                </span>
+              </label>
+            </app-form-field>
+          }
+
+          <button class="auth-primary" type="submit" [disabled]="submitting()">
+            @if (submitting()) {
+              <span class="auth-spinner auth-spinner--dark" aria-hidden="true"></span>
+              <span>Enviando…</span>
+            } @else {
+              <span>{{ primaryLabel() }}</span>
+            }
+          </button>
+        </form>
+      </div>
+    </div>
+
+    @if (!isSignup()) {
+      <!-- Os dois documentos abrem em aba nova: ler os termos no meio do consentimento
+           nao pode custar o fluxo de login pela metade. -->
+      <p class="auth-legal">
+        Ao continuar, você concorda com os
+        <a routerLink="/termos-de-uso" target="_blank" rel="noopener">Termos de Uso</a> e a
+        <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener"
+          >Política de Privacidade</a
+        >.
+      </p>
+    }
+  </section>
+</main>
