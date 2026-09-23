@@ -63,6 +63,17 @@ describe('Auth (tela unica de autenticacao)', () => {
     return found as HTMLButtonElement;
   }
 
+  /**
+   * O rotulo "Entrar" existe DUAS vezes no modo entrar: na alternancia e no botao que
+   * envia o form. `button('Entrar')` acha a alternancia (vem antes no DOM) e clicar nela
+   * no modo que ja esta ativo e um no-op — por isso o envio tem helper proprio.
+   */
+  function submitButton(): HTMLButtonElement {
+    const found = host().querySelector<HTMLButtonElement>('button.auth-primary');
+    if (!found) throw new Error('botao de envio ausente');
+    return found;
+  }
+
   function input(id: string): HTMLInputElement | null {
     return host().querySelector<HTMLInputElement>(`#${id}`);
   }
@@ -132,7 +143,7 @@ describe('Auth (tela unica de autenticacao)', () => {
       expect(input('auth-terms')).toBeNull();
 
       login.mockReturnValue(of({}));
-      button('Entrar').click();
+      submitButton().click();
 
       expect(login).toHaveBeenCalledWith('ana@frota.com', 'senha-forte-1');
     });
@@ -197,7 +208,7 @@ describe('Auth (tela unica de autenticacao)', () => {
 
       setValue('auth-email', 'ana@frota.com');
       setValue('auth-password', 'senha-forte-1');
-      button('Entrar').click();
+      submitButton().click();
 
       expect(login).toHaveBeenCalledWith('ana@frota.com', 'senha-forte-1');
       expect(navigate).toHaveBeenCalledWith(['/dashboard']);
@@ -210,7 +221,7 @@ describe('Auth (tela unica de autenticacao)', () => {
 
       setValue('auth-email', 'ana@frota.com');
       setValue('auth-password', 'senha-forte-1');
-      button('Entrar').click();
+      submitButton().click();
 
       expect(navigate).toHaveBeenCalledWith(['/onboarding']);
     });
@@ -223,7 +234,7 @@ describe('Auth (tela unica de autenticacao)', () => {
 
       setValue('auth-email', 'ana@frota.com');
       setValue('auth-password', 'errada12');
-      button('Entrar').click();
+      submitButton().click();
       fixture.detectChanges();
 
       expect(text()).toContain('E-mail ou senha incorretos.');
