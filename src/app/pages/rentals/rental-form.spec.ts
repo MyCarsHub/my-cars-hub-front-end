@@ -1430,4 +1430,97 @@ describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () 
     expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(updateSpy.mock.calls[0][1]).toMatchObject({ periodRate: 450_000 });
   });
+  function lateFineInput(): HTMLInputElement {
+    const input = fixture.nativeElement.querySelector(
+      '#rental-late-fine-value',
+    ) as HTMLInputElement | null;
+    if (!input) throw new Error('campo de valor da multa nao esta na tela');
+    return input;
+  }
+
+  /**
+   * Digitacao num `input[type=number]`: sem `setSelectionRange`, que os campos
+   * numericos do DOM nao suportam (lanca InvalidStateError).
+   */
+  function typeNumeric(input: HTMLInputElement, keys: string): string[] {
+    const frames: string[] = [];
+    for (const key of keys) {
+      input.value = input.value + key;
+      input.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: key }));
+      fixture.detectChanges();
+      frames.push(input.value);
+    }
+    return frames;
+  }
+
+  /** O campo de multa nasce preenchido com 0; apagar antes e o gesto do usuario. */
+  function clear(input: HTMLInputElement): void {
+    input.value = '';
+    input.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward' }));
+    fixture.detectChanges();
+  }
+
+  /** Troca o modo pelo EVENTO do select, que e o caminho do usuario. */
+  function setLateFineType(value: 'PERCENT' | 'FIXED'): void {
+    const select = fixture.nativeElement.querySelector(
+      'select[formControlName="lateFineType"]',
+    ) as HTMLSelectElement | null;
+    if (!select) throw new Error('select do tipo de multa nao esta na tela');
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  /**
+   * Multa de atraso: campo DUPLO, mascara so em FIXED.
+   *
+   * Em PERCENT o usuario digita percentagem (2 = 2%) e nada deve reformatar o
+   * que ele escreveu — nem agrupamento de milhar, nem virgula decimal.
+   */
+  it('FIXED: o campo da multa vira texto e a mascara de milhar escreve', () => {
+    mount(null);
+    setLateFineType('FIXED');
+
+    const input = lateFineInput();
+    expect(input.type).toBe('text');
+
+    const frames = type(input, '1500');
+    expect(frames).toEqual(['1', '15', '150', '1.500']);
+    type(input, ',50');
+    expect(input.value).toBe('1.500,50');
+  });
+
+  it('PERCENT: o campo continua numerico e NINGUEM reformata o que foi digitado', () => {
+    mount(null);
+
+    const input = lateFineInput();
+    expect(input.type).toBe('number');
+    clear(input);
+
+    const frames = typeNumeric(input, '1500');
+    expect(frames).toEqual(['1', '15', '150', '1500']);
+  });
+
+  /**
+   * O zeramento na troca de modo e DECISAO, nao bug: 2 (por cento) e 2,00
+   * (reais) nao sao o mesmo numero, entao manter o digito na tela enquanto o
+   * significado muda embaixo dele seria a falha silenciosa. Vale nos DOIS
+   * sentidos, porque a troca acidental acontece nas duas direcoes.
+   */
+  it('trocar de modo LIMPA o valor — nos dois sentidos', () => {
+    mount(null);
+
+    clear(lateFineInput());
+    typeNumeric(lateFineInput(), '25');
+    expect(lateFineInput().value).toBe('25');
+
+    setLateFineType('FIXED');
+    expect(lateFineInput().value).toBe('');
+
+    type(lateFineInput(), '1500');
+    expect(lateFineInput().value).toBe('1.500');
+
+    setLateFineType('PERCENT');
+    expect(lateFineInput().value).toBe('');
+  });
 });

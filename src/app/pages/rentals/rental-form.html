@@ -341,6 +341,7 @@
               <select
                 appFieldControl
                 formControlName="lateFineType"
+                (change)="onLateFineTypeChange()"
                 class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
                 <option value="PERCENT">Percentual (%)</option>
@@ -356,15 +357,33 @@
               [control]="form.controls.lateFineValueInput"
               [messages]="lateFineValueMessages"
             >
-              <input
-                appFieldControl
-                type="number"
-                min="0"
-                step="0.01"
-                inputmode="decimal"
-                formControlName="lateFineValueInput"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
-                       focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+              <!-- Campo DUPLO: em FIXED é dinheiro e leva máscara; em PERCENT é
+                   percentagem pura e fica como sempre foi. São dois <input> e não
+                   um `[type]` dinâmico porque o value accessor do Angular é
+                   escolhido no match da diretiva e NÃO acompanharia a troca:
+                   `type="number"` entrega número, `type="text"` entrega texto. -->
+              @if (lateFineIsFixed()) {
+                <input
+                  appFieldControl
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="150,00"
+                  formControlName="lateFineValueInput"
+                  (input)="onLateFineValueInput($event)"
+                  class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                         focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+              } @else {
+                <input
+                  appFieldControl
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputmode="decimal"
+                  formControlName="lateFineValueInput"
+                  class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                         focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+              }
             </app-form-field>
 
             <app-form-field
