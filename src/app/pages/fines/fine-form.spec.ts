@@ -176,7 +176,9 @@ describe('FineForm — pontos preenchidos pela gravidade (FIX-0437)', () => {
       vehicleId: 'veh-1',
       description: 'Excesso de velocidade',
       infractionDate: '2026-05-01T10:00',
-      amountReais: 195.23,
+      // O controle guarda TEXTO pt-BR (FIX-0261), nao numero: o validador
+      // trata um valor nao-string como VAZIO, o que reprovaria o form aqui.
+      amountReais: '195,23',
       status: 'PENDING',
       severity: 'MEDIA',
       ...overrides,
