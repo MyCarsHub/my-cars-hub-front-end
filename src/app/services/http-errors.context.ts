@@ -16,6 +16,13 @@ import { HttpContextToken } from '@angular/common/http';
  * assume o erro inteiro (tipicamente com um log e nada mais). Use só em chamada
  * `fire-and-forget`, nunca numa cujo resultado o usuário está esperando.
  *
+ * O segundo uso legítimo é a chamada a um HOST DE TERCEIRO (ex.: o ViaCEP em
+ * `cep.service.ts`). Ali o resultado até interessa ao usuário, mas os status de
+ * outro servidor não significam nada para a NOSSA sessão — um 401 do ViaCEP
+ * deslogaria alguém por causa de um serviço que não é o nosso — e a tela é quem
+ * traduz a indisponibilidade, com aviso inline e caminho manual. A regra de ouro
+ * continua valendo: quem marca assume o erro inteiro.
+ *
  * Mora num arquivo sem dependências pelo mesmo motivo de
  * `impersonation.context.ts`: o interceptor precisa do token e importar o
  * serviço que o usa fecharia um ciclo (serviço → HttpClient → interceptor →

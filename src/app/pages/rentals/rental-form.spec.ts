@@ -644,6 +644,11 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
     setItem: (k: string, v: string) => store.set(k, v),
     getItem: (k: string) => store.get(k) ?? null,
     removeItem: (k: string) => store.delete(k),
+            // FEAT-0147 — o papel que decide OFERTA DE NAVEGAÇÃO vem do TOKEN.
+            // Derivado do mesmo `selectedRole` que o caso semeia, para as duas
+            // fontes concordarem: quem quiser testar DIVERGÊNCIA usa
+            // `*-role-source.spec.ts`, que existe só para isso.
+    getCompanyRoleFromToken: () => store.get('selectedRole') ?? null,
   });
 
   /**
@@ -849,8 +854,18 @@ describe('RentalForm CTAs de configuração por papel', () => {
     confirmMissingIntegration: () => void;
   };
 
-  /** Monta o form de criação com o papel informado em `selectedRole`. */
-  function mountAs(role: string): ReturnType<typeof TestBed.createComponent<RentalForm>> {
+  /**
+   * Monta o form de criação.
+   *
+   * `role` vai para o ESPELHO (`selectedRole`); `tokenRole` vai para o TOKEN e,
+   * por omissão, é o mesmo — que é o estado normal de uma sessão. Passar os
+   * dois DIFERENTES é o que exercita a divergência, e é a única forma de o
+   * teste falar sobre a FONTE do papel em vez do valor dele.
+   */
+  function mountAs(
+    role: string,
+    tokenRole: string | null = role,
+  ): ReturnType<typeof TestBed.createComponent<RentalForm>> {
     TestBed.resetTestingModule();
     const store = new Map<string, string>([
       ['id', 'user-1'],
@@ -873,6 +888,9 @@ describe('RentalForm CTAs de configuração por papel', () => {
             setItem: (k: string, v: string) => store.set(k, v),
             getItem: (k: string) => store.get(k) ?? null,
             removeItem: (k: string) => store.delete(k),
+            // FEAT-0147 — o papel que decide OFERTA DE NAVEGAÇÃO vem do TOKEN,
+            // a mesma fonte do `roleGuard`. Separado do espelho de propósito.
+            getCompanyRoleFromToken: () => tokenRole,
           },
         },
         {
@@ -966,6 +984,52 @@ describe('RentalForm CTAs de configuração por papel', () => {
     expect(cmp.missingIntegrationTarget()).toBeNull();
     // O aviso do card segue visível depois de fechar o dialog.
     expect(fixture.nativeElement.textContent).toContain('Nenhuma integração Asaas configurada.');
+  });
+
+  /**
+   * FEAT-0147 — de que FONTE sai o papel.
+   *
+   * Os dois casos acima semeiam espelho e token com o MESMO valor, que é o uso
+   * normal — e por isso passariam mesmo se a decisão viesse do espelho. O que
+   * discrimina a fonte é fazer as duas DISCORDAREM.
+   *
+   * >>> ANTES do primeiro expect: se eu esvaziar a colheita (o bloco de aviso
+   * não renderizar), "o gerente não vê link" passa A VAZIO. Por isso o caso
+   * OWNER abaixo é CONTROLE POSITIVO na mesma montagem: ele exige que o link
+   * exista quando deve existir. Sem ele, este arquivo poderia estar medindo
+   * uma tela em branco. <<<
+   */
+  describe('a fonte do papel', () => {
+    it('CONTROLE POSITIVO: com o token em OWNER a colheita não está vazia', () => {
+      // Espelho mentindo para BAIXO: se a decisão viesse dele, não haveria link
+      // nenhum e todos os casos negativos passariam sem significar nada.
+      const fixture = mountAs('DRIVER', 'OWNER');
+
+      expect(settingsLinks(fixture)).toContain('/configuracoes/contratos');
+      expect(settingsLinks(fixture)).toContain('/configuracoes/integracoes/asaas');
+    });
+
+    it('o espelho NÃO decide: token MANAGER + espelho OWNER não oferece rota fechada', () => {
+      const fixture = mountAs('OWNER', 'MANAGER');
+      const cmp = fixture.componentInstance as unknown as FormWithDialog;
+
+      // `/configuracoes/*` é roleGuard(['OWNER']): oferecer aqui seria devolver
+      // o MANAGER ao /dashboard e fazê-lo perder o formulário preenchido.
+      expect(settingsLinks(fixture)).toEqual([]);
+      expect(fixture.nativeElement.textContent).not.toContain('Configure agora');
+
+      cmp.missingIntegrationTarget.set('asaas');
+      fixture.detectChanges();
+      expect(dialogButtons(fixture)).toEqual(['Entendi']);
+      cmp.confirmMissingIntegration();
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('token ausente não vira permissão por omissão', () => {
+      const fixture = mountAs('OWNER', null);
+
+      expect(settingsLinks(fixture)).toEqual([]);
+    });
   });
 });
 

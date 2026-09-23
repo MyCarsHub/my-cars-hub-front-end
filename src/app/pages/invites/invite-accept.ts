@@ -10,14 +10,9 @@ import { SessionService } from '../../services/session.service';
 import { inviteErrorCopy } from '../../services/invite-errors';
 import { ValidateInviteResponse } from '../../types/invite.types';
 import { PENDING_INVITE_TOKEN_KEY } from './invite-session';
+import { companyRoleLabel } from '../../utils/role-labels';
 
 type AcceptStep = 'validating' | 'ready' | 'accepting' | 'mismatch' | 'error';
-
-const ROLE_LABELS: Readonly<Record<string, string>> = {
-  MANAGER: 'Gerente',
-  DRIVER: 'Motorista',
-  OWNER: 'Proprietário',
-};
 
 /**
  * Public landing page for the invitation e-mail.
@@ -70,7 +65,7 @@ export class InviteAccept implements OnInit {
   protected readonly invitedEmail = computed(() => this.details()?.email ?? '');
   protected readonly roleLabel = computed(() => {
     const role = this.details()?.role;
-    return role ? (ROLE_LABELS[role] ?? role) : '';
+    return role ? companyRoleLabel(role) : '';
   });
 
   /** Returning users "entram"; brand-new ones are really creating an account. */

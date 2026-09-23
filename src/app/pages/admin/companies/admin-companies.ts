@@ -9,11 +9,15 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
 import { BackLink } from '../../../components/core/back-link/back-link';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../../components/filter-chip-group/filter-chip-group';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -44,18 +48,35 @@ interface ChipStyle {
 const COMPANY_STATUS_CHIPS: Record<AdminCompanyStatus, ChipStyle> = {
   ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-700' },
   SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 text-red-700' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-gray-200 text-gray-700' },
+  CANCELLED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
 };
 
 const SUB_STATUS_CHIPS: Record<AdminCompanySubscriptionStatus, ChipStyle> = {
   TRIALING: { label: 'Trial', chip: 'bg-blue-100 text-blue-700' },
   ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-700' },
   PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 text-amber-700' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-gray-200 text-gray-700' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
   EXPIRED: { label: 'Expirada', chip: 'bg-red-100 text-red-700' },
 };
 
 const PAGE_SIZE = 20;
+
+/**
+ * Opcoes dos dois filtros. Ficam FORA do template porque `FilterChipGroup.options`
+ * e um `input` — um literal inline no template viraria um array novo a cada
+ * deteccao de mudanca e derrubaria o `OnPush` do grupo a toa.
+ */
+const STATUS_OPTIONS: readonly FilterChipOption<StatusFilter>[] = [
+  { value: 'ALL', label: 'Todas' },
+  { value: 'ACTIVE', label: 'Ativas' },
+  { value: 'SUSPENDED', label: 'Suspensas' },
+];
+
+const PLAN_OPTIONS: readonly FilterChipOption<PlanFilter>[] = [
+  { value: 'ALL', label: 'Todos planos' },
+  { value: 'TRIAL_MONTHLY', label: 'Trial' },
+  { value: 'PRO_MONTHLY', label: 'Pro (mensal)' },
+];
 
 @Component({
   selector: 'app-admin-companies',
@@ -68,6 +89,8 @@ const PAGE_SIZE = 20;
     ConfirmDialog,
     AlertBanner,
     ActionsMenu,
+    FilterChipGroup,
+    RouterLink,
   ],
   templateUrl: './admin-companies.html',
 })
@@ -75,7 +98,6 @@ export class AdminCompanies implements OnInit, OnDestroy {
   private readonly companiesService = inject(AdminCompaniesService);
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
-  private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
 
   protected readonly companies = this.companiesService.companies;
@@ -91,6 +113,9 @@ export class AdminCompanies implements OnInit, OnDestroy {
 
   protected readonly searchControl = new FormControl<string>('', { nonNullable: true });
   protected readonly search = signal<string>('');
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly planOptions = PLAN_OPTIONS;
+
   protected readonly statusFilter = signal<StatusFilter>('ALL');
   protected readonly planFilter = signal<PlanFilter>('ALL');
   protected readonly currentPage = signal(0);
@@ -193,10 +218,6 @@ export class AdminCompanies implements OnInit, OnDestroy {
     if (this.canNext()) this.currentPage.update((p) => p + 1);
   }
 
-  protected openDetail(company: AdminCompanyListItem): void {
-    this.router.navigate(['/admin/companies', company.id]);
-  }
-
   protected requestToggleStatus(company: AdminCompanyListItem): void {
     if (company.active) {
       this.pendingAction.set({ kind: 'SUSPEND', company });
@@ -222,12 +243,12 @@ export class AdminCompanies implements OnInit, OnDestroy {
   }
 
   protected companyChip(status: AdminCompanyStatus): ChipStyle {
-    return COMPANY_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-gray-100 text-gray-700' };
+    return COMPANY_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-neutral-100 text-neutral-700' };
   }
 
   protected subChip(status: AdminCompanySubscriptionStatus | null): ChipStyle | null {
     if (!status) return null;
-    return SUB_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-gray-100 text-gray-700' };
+    return SUB_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-neutral-100 text-neutral-700' };
   }
 
   protected formatDate(value: string | null): string {
@@ -238,6 +259,35 @@ export class AdminCompanies implements OnInit, OnDestroy {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
+    });
+  }
+
+  /**
+   * FEAT-0141 — liga/desliga a marca de empresa INTERNA (backend: FEAT-0138).
+   *
+   * Sem dialogo de confirmacao de proposito: a acao e reversivel no mesmo menu
+   * e nao tira a empresa de lugar nenhum — ela SO sai da conta das metricas,
+   * e continua na listagem.
+   */
+  protected toggleInternal(company: AdminCompanyListItem): void {
+    const target = !company.internal;
+    this.actionError.set(null);
+    this.setRowPending(company.id, true);
+    this.companiesService.updateInternal(company.id, target).subscribe({
+      next: () => {
+        this.setRowPending(company.id, false);
+        this.notify.success(
+          target
+            ? 'Empresa marcada como interna. Fica fora das métricas.'
+            : 'Marca de interna desfeita. Empresa volta a contar nas métricas.',
+        );
+      },
+      error: (err: HttpErrorResponse) => {
+        this.setRowPending(company.id, false);
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível atualizar a marca de empresa interna.'),
+        );
+      },
     });
   }
 

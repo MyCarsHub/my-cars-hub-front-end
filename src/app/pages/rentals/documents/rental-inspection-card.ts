@@ -34,6 +34,8 @@ import {
   RentalPhotoKind,
 } from '../../../types/rental.types';
 import { ImageCompressionService } from '../../../services/image-compression.service';
+import { SessionService } from '../../../services/session.service';
+import { LiveCameraSheet } from './live-camera-sheet';
 import { InspectionPdfService } from '../inspection-pdf.service';
 import { RentalService } from '../rental.service';
 
@@ -72,7 +74,7 @@ interface Slot {
 @Component({
   selector: 'app-rental-inspection-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageCard, ConfirmDialog, AlertBanner],
+  imports: [PageCard, ConfirmDialog, AlertBanner, LiveCameraSheet],
   template: `
     <!-- Enquanto a folha está aberta ela é a única região alcançável: 'inert'
          tira o card inteiro do tab order e do cursor virtual do leitor de tela. -->
@@ -232,22 +234,43 @@ interface Slot {
     <!-- Dois inputs: 'capture' força a câmera traseira; sem 'capture' o
          browser abre a galeria/arquivos. Um só input não cobre os dois.
          Ficam FORA do card porque ele vira 'inert' com a folha aberta, e
-         pickFromCamera/Gallery precisam clicá-los nesse exato instante. -->
-    <input
-      #cameraPicker
-      type="file"
-      accept="image/*,image/heic,image/heif"
-      capture="environment"
-      hidden
-      (change)="onFileSelected($event)"
-    />
-    <input
-      #galleryPicker
-      type="file"
-      accept="image/*,image/heic,image/heif"
-      hidden
-      (change)="onFileSelected($event)"
-    />
+         pickFromCamera/Gallery precisam clicá-los nesse exato instante.
+
+         NAO renderizados para o MOTORISTA: antes eles existiam no DOM dele e
+         o requisito ficava garantido por um DESVIO no codigo (openPicker sair
+         antes), nao pela AUSENCIA do elemento. Era essa superficie que o
+         espelho editavel explorava. Quem os aciona — pickFromCamera,
+         pickFromGallery e o clique direto do desktop — vive todo no ramo de
+         dono/gerente, entao o motorista nunca os alcancava mesmo. -->
+    @if (!isDriver()) {
+      <input
+        #cameraPicker
+        type="file"
+        accept="image/*,image/heic,image/heif"
+        capture="environment"
+        hidden
+        (change)="onFileSelected($event)"
+      />
+      <input
+        #galleryPicker
+        type="file"
+        accept="image/*,image/heic,image/heif"
+        hidden
+        (change)="onFileSelected($event)"
+      />
+    }
+
+    <!--
+      MOTORISTA: camera ao vivo, sem seletor. Fica FORA do card pelo mesmo
+      motivo dos inputs — o card vira "inert" e a folha precisa receber foco.
+    -->
+    @if (liveCameraLabel(); as angleLabel) {
+      <app-live-camera-sheet
+        [label]="angleLabel"
+        (captured)="onCameraCapture($event)"
+        (cancelled)="closeLiveCamera()"
+      />
+    }
 
     @if (sourceSheetOpen()) {
       <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -311,6 +334,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly logger = inject(LoggerService);
   private readonly externalNav = inject(ExternalNavigationService);
   private readonly imageCompression = inject(ImageCompressionService);
+  private readonly session = inject(SessionService);
   private readonly platformId = inject(PLATFORM_ID);
   /** Live progress from the client-side PDF pipeline — bound to the UX label. */
   protected readonly pdfProgress = this.inspectionPdfService.progress;
@@ -465,8 +489,41 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
    * Em telas de toque abre a folha "Tirar foto / Escolher da galeria"; no
    * desktop não existe câmera útil, então vai direto pro seletor de arquivos.
    */
+  /**
+   * MOTORISTA nao escolhe arquivo: a foto nasce na camera ao vivo, aqui.
+   *
+   * O papel vem do TOKEN, a MESMA fonte do `roleGuard`. NAO do espelho
+   * `selectedRole` do `sessionStorage`: o espelho e editavel pelo DevTools, e
+   * aqui isso derruba o requisito inteiro. Trocar `selectedRole` para OWNER no
+   * console fazia `openPicker` sair do ramo do motorista e devolver o seletor
+   * de arquivo — ou seja, a foto da galeria. Quem tem motivo para derrubar a
+   * trava e exatamente quem esta do outro lado dela, entao a trava nao pode
+   * morar num lugar que ele escreve.
+   *
+   * O rigor e por conflito de interesse — quem dirige o carro e quem teria
+   * motivo para mandar uma foto antiga dele; dono e gerente nao tem, e por
+   * isso o seletor deles fica intacto.
+   *
+   * IMPERSONACAO: `getCompanyRoleFromToken()` ramifica no claim de
+   * impersonacao ANTES de ler `role`, e devolve `IMPERSONATED_ROLE`, que hoje
+   * e `'OWNER'`. Entao "Ver como empresa" cai no ramo de dono e continua com
+   * o seletor — que e o certo, porque quem esta olhando nao e o motorista.
+   */
+  protected readonly isDriver = computed(
+    () => this.session.getCompanyRoleFromToken() === 'DRIVER',
+  );
+
+  /** Rotulo do angulo com a camera aberta; `null` = folha fechada. */
+  protected readonly liveCameraLabel = signal<string | null>(null);
+
   protected openPicker(angle: RentalPhotoAngle, event: Event): void {
     this.pending = angle;
+    if (this.isDriver()) {
+      this.sheetTrigger = (event.currentTarget as HTMLElement | null) ?? null;
+      const slot = this.slots().find((s) => s.angle === angle);
+      this.liveCameraLabel.set(slot?.label ?? 'Foto da vistoria');
+      return;
+    }
     if (!this.isTouchDevice()) {
       this.galleryPicker()?.nativeElement.click();
       return;
@@ -482,6 +539,21 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
    * ANTES de abrir o diálogo nativo — se o usuário dispensá-lo sem escolher
    * arquivo, o foco continua no slot em vez de cair no `<body>` (WCAG 2.4.3).
    */
+  /** Frame da camera: entra pelo MESMO caminho do seletor (ver `ingestFile`). */
+  protected onCameraCapture(file: File): void {
+    const angle = this.pending;
+    this.liveCameraLabel.set(null);
+    this.sheetTrigger?.focus();
+    if (!angle) return;
+    this.ingestFile(file, angle);
+  }
+
+  protected closeLiveCamera(): void {
+    this.liveCameraLabel.set(null);
+    this.pending = null;
+    this.sheetTrigger?.focus();
+  }
+
   protected pickFromCamera(): void {
     this.sourceSheetOpen.set(false);
     this.sheetTrigger?.focus();
@@ -527,6 +599,17 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
     this.pending = null;
     this.sheetTrigger = null;
     if (!file || !angle) return;
+    this.ingestFile(file, angle);
+  }
+
+  /**
+   * FONTE UNICA do que acontece com uma foto depois que ela existe: validacao
+   * de formato, preview, compressao e upload. O seletor de arquivo e a camera
+   * ao vivo entram os dois por aqui — duas entradas com saidas diferentes
+   * seriam dois bugs, e o arquivo que chega ao backend tem de ser o mesmo.
+   */
+  private ingestFile(file: File, angle: RentalPhotoAngle): void {
+    this.pending = null;
     this.error.set(null);
 
     // iOS Safari envia HEIC/HEIF em fotos default; Android e desktop mandam JPG/PNG/WebP.

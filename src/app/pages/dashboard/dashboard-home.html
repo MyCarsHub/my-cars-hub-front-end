@@ -34,7 +34,19 @@
         </app-alert-banner>
     }
 
-    <!-- Alerts row: only rendered when at least one count > 0 -->
+    <!--
+        Alerts row: only rendered when at least one count > 0.
+
+        FEAT-0146 — cada chip NAVEGA, e seis dos sete vão para rotas
+        `roleGuard(['OWNER', 'MANAGER'])`. Sem trava de papel o motorista via o
+        chip, tocava e o guard o devolvia para cá — a tela recarregando nela
+        mesma, sem erro e sem explicação.
+
+        >>> O chip de "Documentos a vencer" NÃO é travado, de propósito: ele vai
+        para `/alertas`, que não tem `roleGuard`. O motorista PODE abrir, então
+        esconder seria trocar um defeito por outro — é a única coisa acionável
+        que esta tela oferece a ele. <<<
+    -->
     @if (showAlerts()) {
         @if (summary(); as s) {
             <section class="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 mb-4">
@@ -47,7 +59,7 @@
                         (chipClick)="onAlertClick('/alertas')"
                     />
                 }
-                @if (s.alerts.expiringInsurance30d?.count; as expiringInsuranceCount) {
+                @if (isOperator() && s.alerts.expiringInsurance30d?.count; as expiringInsuranceCount) {
                     <app-alert-chip
                         variant="warning"
                         label="Seguros a vencer (30d)"
@@ -56,7 +68,7 @@
                         (chipClick)="onAlertClick('/seguros')"
                     />
                 }
-                @if (s.alerts.openFines.count > 0) {
+                @if (isOperator() && s.alerts.openFines.count > 0) {
                     <app-alert-chip
                         variant="danger"
                         label="Multas em aberto"
@@ -66,7 +78,7 @@
                         (chipClick)="onAlertClick('/multas')"
                     />
                 }
-                @if (s.alerts.openMaintenances.count > 0) {
+                @if (isOperator() && s.alerts.openMaintenances.count > 0) {
                     <app-alert-chip
                         variant="warning"
                         label="Manutenções abertas"
@@ -75,7 +87,7 @@
                         (chipClick)="onAlertClick('/manutencoes')"
                     />
                 }
-                @if (s.alerts.expiringCnh30d.count > 0) {
+                @if (isOperator() && s.alerts.expiringCnh30d.count > 0) {
                     <app-alert-chip
                         variant="warning"
                         label="CNH a vencer (30d)"
@@ -84,7 +96,7 @@
                         (chipClick)="onAlertClick('/motoristas')"
                     />
                 }
-                @if (s.alerts.expiringLicensing30d.count > 0) {
+                @if (isOperator() && s.alerts.expiringLicensing30d.count > 0) {
                     <app-alert-chip
                         variant="warning"
                         label="Licenciamento a vencer (30d)"
@@ -93,7 +105,7 @@
                         (chipClick)="onAlertClick('/veiculos')"
                     />
                 }
-                @if (s.alerts.reservedRentals.count > 0) {
+                @if (isOperator() && s.alerts.reservedRentals.count > 0) {
                     <app-alert-chip
                         variant="info"
                         label="Aluguéis reservados"
@@ -106,8 +118,120 @@
         }
     }
 
-    <!-- Fleet KPI grid: 2x2 on mobile, 4x1 on lg -->
-    <section class="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-4">
+    <!-- Fleet KPI grid: 2x2 on mobile, 5x1 on lg -->
+    <section class="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-4">
+        <!--
+            Dinheiro que JA ENTROU no mes. Primeiro da fileira e pintado de
+            laranja de proposito: e o numero que faz o dono abrir a tela, e ele
+            precisa achar antes de procurar.
+
+            Era um cartao com grafico de linha e virou KPI: a curva ocupava
+            meia tela para dizer o que o total ja dizia. O valor ficou, o
+            desenho saiu.
+        -->
+        @if (cashAccumulation(); as cash) {
+            <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
+                <app-cash-accumulation-card [data]="cash" [compact]="true" />
+            </div>
+        }
+
+        <!--
+            FIX-0420 — ROI da frota. Mesma estrutura dos KPIs vizinhos: rotulo
+            pequeno em maiusculas, numero grande, legenda pequena.
+
+            SEM col-span: o dono pediu um card PEQUENO, do mesmo tamanho dos
+            vizinhos. O span de 2 colunas fazia dele o unico card de largura
+            cheia da fileira, e no celular isso o tornava o elemento mais
+            pesado da tela — o oposto do que um KPI discreto deve ser.
+            Ele fica sozinho na terceira linha ocupando meia largura, e isso
+            e aceito: fileira irregular incomoda menos que card gigante.
+        -->
+        @if (showVehicleRoi()) {
+            <div data-roi-card class="rounded-2xl bg-emerald-600 text-white p-4 min-w-0">
+                <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">
+                    ROI
+                </p>
+                @if (vehicleRoiLoading() && !vehicleRoi()) {
+                    <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
+                } @else if (vehicleRoiError()) {
+                    <p class="text-xl sm:text-2xl font-semibold text-white/60 mt-1 truncate">—</p>
+                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
+                        não foi possível calcular
+                    </p>
+                } @else if (fleetRoiIndeterminate()) {
+                    <!--
+                        Sem base para calcular: o card fica IGUAL aos vizinhos —
+                        0% no numero grande e o valor embaixo, sem link e sem
+                        pedido de acao (decisao do dono, 2026-09-17).
+                        POR QUE NAO O TRAVESSAO COM "informe o preco de compra":
+                        numa empresa de frota VAZIA o card pedia o preco de um
+                        carro que nao existe — tarefa impossivel na primeira tela
+                        que um usuario novo ve. Sem carro nao ha retorno e nao ha
+                        custo, entao zero e FATO.
+                        Tom NEUTRO: zero nao e lucro nem prejuizo.
+                    -->
+                    <p class="text-xl sm:text-2xl font-semibold text-white mt-1 tabular-nums truncate">
+                        0%
+                    </p>
+                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
+                        {{ zeroMoney }}
+                    </p>
+                } @else if (fleetRoiPercentLabel(); as roiLabel) {
+                    <!--
+                        BRANCO SEMPRE, inclusive no prejuizo (decisao do dono).
+
+                        Eu tinha pintado o prejuizo de rose-200 por conta propria.
+                        Era redundante: o SINAL DE MENOS e a palavra "prejuizo"
+                        logo abaixo ja dizem a mesma coisa, e com mais precisao
+                        do que uma cor. O cartao tem UMA cor, como os do admin.
+                    -->
+                    <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate text-white">
+                        {{ roiLabel }}
+                    </p>
+                    <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
+                        {{ fleetRoiNetLabel() }}
+                    </p>
+                    @if (fleetRoiBase(); as base) {
+                        @if (base.minority) {
+                            <!--
+                                Base em MINORIA: a ressalva deixa de ser rodape.
+                                Ambar, o mesmo peso do estado indeterminado, e com
+                                o caminho para resolver — dizer o que FALTA, nao
+                                so contar. O percentual continua na tela.
+                            -->
+                            <div class="mt-2 rounded-lg bg-white/15 border border-white/30 px-2 py-1.5">
+                                <p class="text-[11px] sm:text-xs text-white">{{ base.label }}</p>
+                                <a
+                                    routerLink="/veiculos"
+                                    class="inline-flex items-center min-h-[44px] text-[11px] sm:text-xs
+                                           font-semibold text-white underline hover:no-underline
+                                           outline-none focus-visible:ring-2 focus-visible:ring-amber-500
+                                           rounded-sm"
+                                >
+                                    informar preço de compra
+                                </a>
+                            </div>
+                        } @else {
+                            <p class="text-[11px] sm:text-xs text-white/60 mt-0.5 truncate">
+                                {{ base.label }}
+                            </p>
+                        }
+                    }
+                }
+            </div>
+        }
+
+        <div class="rounded-2xl bg-emerald-700 text-white p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Utilização</p>
+            @if (loading() && !summary()) {
+                <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
+            } @else if (summary(); as s) {
+                <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
+                    {{ s.fleet.utilizationPct }}%
+                </p>
+                <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">frota rodando</p>
+            }
+        </div>
         <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
             <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Veículos</p>
             @if (loading() && !summary()) {
@@ -150,18 +274,6 @@
                 <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
                     {{ s.fleet.reservedNow }} reservados
                 </p>
-            }
-        </div>
-
-        <div class="rounded-2xl bg-primary-500 text-white p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Utilização</p>
-            @if (loading() && !summary()) {
-                <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
-            } @else if (summary(); as s) {
-                <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
-                    {{ s.fleet.utilizationPct }}%
-                </p>
-                <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">frota rodando</p>
             }
         </div>
     </section>
@@ -328,54 +440,65 @@
         </section>
     }
 
-    <!-- Calendário Financeiro (peça central) -->
-    <section class="mb-4">
-        <app-page-card title="Calendário financeiro">
-            <div class="p-4 min-w-0">
-                <p class="text-xs text-gray-500 mb-3">
-                    Recebimentos projetados por frequência do contrato (diária,
-                    semanal, mensal) + multas e manutenções do período.
-                </p>
-                <app-financial-calendar
-                    [events]="calendarCashflow()"
-                    [selectedDate]="selectedDay()"
-                    (daySelect)="onDaySelect($event)"
-                    (monthChange)="onCalendarMonthChange($event)"
-                />
-            </div>
-        </app-page-card>
-    </section>
+    <!--
+        Calendario a ESQUERDA ocupando metade, e as duas distribuicoes
+        EMPILHADAS a direita (decisao do dono).
 
-    <!-- Distribuições: aluguéis por status + veículos por status -->
-    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2">
-        <app-page-card title="Aluguéis por status">
-            <div class="p-4 min-w-0">
-                @if (loading() && !summary()) {
-                    <div class="space-y-3">
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                    </div>
-                } @else {
-                    <app-status-bar-chart [buckets]="rentalsByStatusRows()" />
-                }
-            </div>
-        </app-page-card>
-        <app-page-card title="Veículos por status">
-            <div class="p-4 min-w-0">
-                @if (loading() && !summary()) {
-                    <div class="space-y-3">
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                    </div>
-                } @else {
-                    <app-status-bar-chart [buckets]="vehiclesByStatusRows()" />
-                }
-            </div>
-        </app-page-card>
+        `items-start` importa: sem ele o grid estica as duas colunas ate a
+        altura da mais alta, e a coluna da direita ficaria com um vazio
+        embaixo do segundo cartao sempre que o calendario for mais alto.
+
+        No celular a grade e de UMA coluna, entao a ordem do DOM e a ordem
+        da tela: calendario, alugueis, veiculos.
+    -->
+    <section class="mb-4 grid gap-4 grid-cols-1 lg:grid-cols-2 items-start">
+        <div class="min-w-0">
+            <app-page-card title="Calendário financeiro">
+                        <div class="p-4 min-w-0">
+                            <p class="text-xs text-gray-500 mb-3">
+                                Recebimentos projetados por frequência do contrato (diária,
+                                semanal, mensal) + multas e manutenções do período.
+                            </p>
+                            <app-financial-calendar
+                                [events]="calendarCashflow()"
+                                [selectedDate]="selectedDay()"
+                                (daySelect)="onDaySelect($event)"
+                                (monthChange)="onCalendarMonthChange($event)"
+                            />
+                        </div>
+                    </app-page-card>
+        </div>
+
+        <div class="grid gap-4 min-w-0">
+            <app-page-card title="Aluguéis por status">
+                        <div class="p-4 min-w-0">
+                            @if (loading() && !summary()) {
+                                <div class="space-y-3">
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                </div>
+                            } @else {
+                                <app-status-bar-chart [buckets]="rentalsByStatusRows()" />
+                            }
+                        </div>
+                    </app-page-card>
+            <app-page-card title="Veículos por status">
+                        <div class="p-4 min-w-0">
+                            @if (loading() && !summary()) {
+                                <div class="space-y-3">
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                </div>
+                            } @else {
+                                <app-status-bar-chart [buckets]="vehiclesByStatusRows()" />
+                            }
+                        </div>
+                    </app-page-card>
+        </div>
     </section>
 
     <!-- Top 5 por receita: veículos + motoristas -->
@@ -456,22 +579,30 @@
         </app-page-card>
     </section>
 
-    <!-- Evolução do ticket médio (últimos 6 meses, line chart) -->
-    <section class="mb-4 min-w-0">
-        <app-page-card title="Evolução do ticket médio">
-            <div class="p-4 min-w-0">
-                <p class="text-xs text-gray-500 mb-3">
-                    Ticket médio das rentals concluídas por mês (últimos 6 meses).
-                </p>
-                <app-monthly-billing-chart
-                    mode="line"
-                    [data]="ticketMedioSeries()"
-                />
-            </div>
-        </app-page-card>
-    </section>
+    <!--
+        FEAT-0123 — "Quanto já entrou no mês". Substitui a "Evolução do ticket
+        médio", removida por decisão do dono: ticket médio é termo que o cliente
+        não reconhece, e o dashboard existe para ele abrir todo dia e ver se está
+        melhor que antes.
 
-    <!-- Ações rápidas -->
+        NÃO usa `finance.revenueDaily`: aquilo DISTRIBUI o total do aluguel pelos
+        dias (competência). Aqui é CAIXA — cobrança paga —, e mostrar competência
+        faria o cartão exibir dinheiro que o dono não recebeu.
+    -->
+
+    <!--
+        Ações rápidas.
+
+        FEAT-0146 — as QUATRO levam a rotas `roleGuard(['OWNER', 'MANAGER'])`,
+        então a seção inteira sai para quem não é operador. Travar cartão por
+        cartão deixaria um cartão "Ações rápidas" VAZIO na tela de pouso do
+        motorista, que é outro jeito de não explicar nada.
+
+        Era o pior caso da família: ao contrário do botão do Perfil, estes
+        quatro não dependiam nem de dado — apareciam sempre, e esta é a
+        primeira tela que todo motorista vê.
+    -->
+    @if (isOperator()) {
     <section class="mb-4 min-w-0">
         <app-page-card title="Ações rápidas">
             <div class="p-4 min-w-0 grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -502,6 +633,7 @@
             </div>
         </app-page-card>
     </section>
+    }
 
     <!-- Day detail sheet (mobile bottom / desktop right) -->
     <app-cashflow-day-sheet

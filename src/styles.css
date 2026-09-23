@@ -694,3 +694,18 @@ body.app-shell-active {
   background: var(--brand);
   color: var(--paper);
 }
+
+/*
+ * Respiro para o banner de consentimento, que e `fixed` no rodape. Sem isto ele
+ * cobriria o fim do documento no telefone — inclusive o rodape, onde mora o link
+ * da politica que o proprio banner manda ler. A classe so existe enquanto o
+ * banner esta na tela; ver `components/core/consent-banner`.
+ */
+body.has-consent-banner {
+  padding-bottom: 200px;
+}
+@media (min-width: 640px) {
+  body.has-consent-banner {
+    padding-bottom: 104px;
+  }
+}

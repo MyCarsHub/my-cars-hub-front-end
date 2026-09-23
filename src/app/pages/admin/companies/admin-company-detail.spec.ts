@@ -69,6 +69,7 @@ describe('AdminCompanyDetail — erros do backend', () => {
       representativeRole: null,
     },
     operations: ZERO_OPERATIONS,
+    internal: false,
   };
 
   let detail: ReturnType<typeof signal<AdminCompanyDetailDto | null>>;
@@ -280,6 +281,7 @@ describe('AdminCompanyDetail — bloco de operação', () => {
       representativeRole: null,
     },
     operations: ZERO_OPERATIONS,
+    internal: false,
   };
 
   function render(operations: AdminCompanyOperations): HTMLElement {
@@ -382,9 +384,9 @@ describe('AdminCompanyDetail — bloco de operação', () => {
     expect(block.textContent).not.toContain('undefined');
     expect(block.textContent).not.toContain('NaN');
 
-    // Zerado é atenuado com gray-500 (4,8:1), nunca gray-400 — WCAG AA.
+    // Zerado é atenuado com neutral-500 (≥ 4,5:1 sobre branco), nunca neutral-400 — WCAG AA.
     const dd = block.querySelector('dd')!;
-    expect(dd.className).toContain('text-gray-500');
-    expect(dd.className).not.toContain('text-gray-400');
+    expect(dd.className).toContain('text-neutral-500');
+    expect(dd.className).not.toContain('text-neutral-400');
   });
 });

@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
+import { ApiErrorService } from '../../../services/api-error.service';
 import { ChargeIntegrationService } from './charge-integration.service';
 import {
   ChargeEnvironment,
@@ -37,6 +38,7 @@ export class ChargeIntegration implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly notifications = inject(NotificationService);
   private readonly session = inject(SessionService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly status = this.service.status;
   protected readonly loading = this.service.loading;
@@ -113,7 +115,7 @@ export class ChargeIntegration implements OnInit {
         },
         error: (err: HttpErrorResponse) => {
           this.formError.set(
-            this.extractError(
+            this.apiErrors.messageFor(
               err,
               err.status === 400
                 ? 'Chave rejeitada pelo provedor. Verifique se copiou a chave completa e se o ambiente escolhido está correto.'
@@ -143,7 +145,7 @@ export class ChargeIntegration implements OnInit {
         this.showDisconnectDialog.set(false);
         this.notifications.push(
           'error',
-          this.extractError(err, 'Não foi possível desconectar.'),
+          this.apiErrors.messageFor(err, 'Não foi possível desconectar.'),
         );
       },
     });
@@ -175,13 +177,5 @@ export class ChargeIntegration implements OnInit {
       hour: '2-digit',
       minute: '2-digit',
     });
-  }
-
-  private extractError(err: HttpErrorResponse, fallback: string): string {
-    const body = err.error;
-    if (body && typeof body === 'object' && typeof body.message === 'string') {
-      return body.message;
-    }
-    return fallback;
   }
 }

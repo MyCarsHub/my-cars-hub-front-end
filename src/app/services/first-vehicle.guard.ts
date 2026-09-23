@@ -54,7 +54,18 @@ export const firstVehicleGuard: CanActivateChildFn = (_route, state) => {
   }
   // DRIVER/VIEWER não podem receber o redirect: o roleGuard de `/veiculos`
   // exige OWNER/MANAGER e devolveria para /dashboard — ping-pong de guards.
-  const role = session.getItem('selectedRole');
+  //
+  // FIX-0363 — o papel vem do TOKEN, e essa é a única leitura que serve aqui.
+  // Esta proteção nunca dependeu do VALOR do papel: ela depende de os dois
+  // guards lerem a MESMA fonte. Enquanto ambos liam `selectedRole`, isso era
+  // automático. Quando o `roleGuard` passou a ler o token e este continuou no
+  // sessionStorage, a premissa morreu — e qualquer divergência entre espelho e
+  // token (adulteração pelo DevTools, ou espelho stale depois de uma reemissão
+  // silenciosa do FEAT-0106) reabria o ping-pong: aqui o papel "passa" e manda
+  // para `/veiculos/novo`, lá o token nega e devolve para `/dashboard`, e o
+  // ciclo recomeça. Ler daqui não é coerência estética, é o que mantém a
+  // proteção de pé.
+  const role = session.getCompanyRoleFromToken();
   if (role !== 'OWNER' && role !== 'MANAGER') {
     return true;
   }

@@ -135,7 +135,7 @@ describe('InviteAccept — página pública de aceite', () => {
     expect(accept).not.toHaveBeenCalled();
     const text: string = fixture.nativeElement.textContent;
     expect(text).toContain('Locadora Alfa');
-    expect(text).toContain('Gerente');
+    expect(text).toContain('Gerenciador');
     expect(text).toContain('convidado@empresa.com.br');
   });
 

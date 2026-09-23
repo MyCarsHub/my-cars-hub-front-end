@@ -42,47 +42,22 @@
           <h2 id="end-rental-title" class="text-base font-semibold text-neutral-900 leading-snug">
             {{ titleLabel() }}
           </h2>
+          <!--
+            O "se houver" prometia a caução em TODO aluguel, inclusive nos que
+            não têm nenhuma — e sem nada abaixo que cumprisse a promessa. Agora a
+            frase só cita a caução quando a seção dela vai existir.
+          -->
           <p class="mt-1 text-sm text-neutral-500 leading-relaxed">
-            Informe a data efetiva e, se houver, a devolução da caução.
+            @if (showRefundSection()) {
+              Informe a data efetiva e a devolução da caução.
+            } @else {
+              Informe a data efetiva do encerramento.
+            }
           </p>
         </div>
       </div>
 
       <div class="px-4 sm:px-6 pb-2 overflow-y-auto flex-1 space-y-4">
-        <!-- Aviso de cobranças (apenas no cancelamento) -->
-        @if (chargesNotice()) {
-          <p
-            class="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800"
-          >
-            {{ chargesNotice() }}
-          </p>
-        }
-
-        <!-- Opt-in destrutivo: apagar também as vencidas e não pagas -->
-        <label
-          class="flex items-start gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2.5 cursor-pointer"
-          [class.ring-2]="removeOverdueCharges()"
-          [class.ring-amber-400]="removeOverdueCharges()"
-        >
-          <input
-            type="checkbox"
-            [checked]="removeOverdueCharges()"
-            (change)="onRemoveOverdueToggle($event)"
-            [disabled]="busy()"
-            class="mt-0.5 h-4 w-4 shrink-0 accent-amber-600 disabled:opacity-60
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500
-                   focus-visible:ring-offset-1"
-          />
-          <span class="flex-1 min-w-0">
-            <span class="block text-sm font-medium text-neutral-800">
-              Apagar também as cobranças vencidas e não pagas
-            </span>
-            <span class="mt-0.5 block text-xs leading-relaxed text-neutral-500">
-              Elas somem do Asaas e deixam de ser cobráveis por lá. Não dá para desfazer.
-            </span>
-          </span>
-        </label>
-
         <!-- Data (+ hora da devolução, que decide a multa por atraso) -->
         <div class="flex flex-col gap-3 sm:flex-row">
           <div class="flex-1 min-w-0">
@@ -303,6 +278,21 @@
               <p class="text-xs text-neutral-500 tabular-nums">{{ caucaoSummaryLabel() }}</p>
             </div>
 
+            <!--
+              A ressalva da caução mora AQUI, dentro da seção que a cumpre.
+              Antes ela era a última frase do aviso de cobranças, prometendo
+              "você decide a devolução abaixo" a partir de um bloco que não
+              sabia se esse "abaixo" existia. Duas condições diferentes para uma
+              promessa e a coisa prometida é o que deixa a promessa aparecer
+              sozinha — agora só há uma.
+            -->
+            @if (hasPaidCaucaoCharge()) {
+              <p class="text-xs leading-relaxed text-neutral-500">
+                Esta caução é a exceção: ela não é apagada com as demais cobranças — a
+                devolução é você que decide, aqui.
+              </p>
+            }
+
             @if (refundStateNotice()) {
               <p
                 id="refund-state-notice"
@@ -411,6 +401,53 @@
               <p class="mt-1 text-[11px] text-neutral-400">Máximo: {{ formattedRefundMax() }}</p>
             </div>
           </div>
+        }
+
+        <!--
+          CONSEQUÊNCIA, não decisão: o que acontece com as cobranças depois que
+          a data e a caução (acima) forem decididas. Antes isto abria o diálogo —
+          o lugar mais nobre — empurrando para baixo o que o dono precisa ler
+          para decidir, inclusive o valor da multa. Quanto mais texto antes,
+          menor a chance de ele chegar ao número que importa.
+
+          E só aparece quando há cobrança NO GATEWAY que a ação vai tocar.
+        -->
+        @if (chargesNotice()) {
+          <p
+            class="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800"
+          >
+            {{ chargesNotice() }}
+          </p>
+        }
+
+        <!--
+          Opt-in destrutivo — só com vencidas e não pagas no gateway. Sem
+          nenhuma, ele não tem sobre o que agir e ocupava o espaço à toa.
+        -->
+        @if (hasOverdueUnpaidCharges()) {
+          <label
+            class="flex items-start gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2.5 cursor-pointer"
+            [class.ring-2]="removeOverdueCharges()"
+            [class.ring-amber-400]="removeOverdueCharges()"
+          >
+            <input
+              type="checkbox"
+              [checked]="removeOverdueCharges()"
+              (change)="onRemoveOverdueToggle($event)"
+              [disabled]="busy()"
+              class="mt-0.5 h-4 w-4 shrink-0 accent-amber-600 disabled:opacity-60
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500
+                     focus-visible:ring-offset-1"
+            />
+            <span class="flex-1 min-w-0">
+              <span class="block text-sm font-medium text-neutral-800">
+                Apagar também as cobranças vencidas e não pagas
+              </span>
+              <span class="mt-0.5 block text-xs leading-relaxed text-neutral-500">
+                Elas somem do Asaas e deixam de ser cobráveis por lá. Não dá para desfazer.
+              </span>
+            </span>
+          </label>
         }
 
         <p class="text-xs text-neutral-500 border-t border-neutral-100 pt-3">

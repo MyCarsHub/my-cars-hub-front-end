@@ -135,6 +135,17 @@ function alphanumericsOf(value: string): string {
  * back, so the key would appear dead and the user would have to press it twice. When a
  * backspace removed only punctuation, the character before it is dropped as well.
  *
+ * That "only punctuation went away" test compares the field against its PREVIOUS value,
+ * exactly like the money mask (`utils/ptbr-money-mask.ts`). The difference is where the
+ * previous value comes from: the money field owns its state in a signal, so the caller
+ * hands it over; a masked form field does not, and reading `control.value` here is a trap.
+ * On an input carrying `formControlName`, Angular's `DefaultValueAccessor` host listener
+ * runs BEFORE this template handler, so by now the control ALREADY holds the post-edit
+ * value — the comparison was `source` against itself, always true, and every backspace ate
+ * a second character (FIX-0285). So the previous value is reconstructed from the mask
+ * instead: re-masking what is left re-inserts exactly the separators the mask owns, and it
+ * can only grow the string when the deleted character was one of them.
+ *
  * Pass the field's own mask (`maskCpf`, `maskCnpj` or `maskDocument`).
  */
 export function applyMaskedDocumentInput(
@@ -146,15 +157,15 @@ export function applyMaskedDocumentInput(
   if (!(target instanceof HTMLInputElement)) return;
 
   const caret = target.selectionStart ?? target.value.length;
-  const previous = typeof control?.value === 'string' ? control.value : '';
 
   let source = target.value;
   let typedBeforeCaret = alphanumericsOf(source.slice(0, caret)).length;
 
   const deletedBackwards =
     event instanceof InputEvent && event.inputType === 'deleteContentBackward';
-  const onlyPunctuationWentAway =
-    alphanumericsOf(source).length === alphanumericsOf(previous).length;
+  // Re-masking grows the string only when the deletion took a separator: removing an
+  // alphanumeric can never add one back, so this never fires on a real character.
+  const onlyPunctuationWentAway = mask(source).length > source.length;
 
   if (deletedBackwards && onlyPunctuationWentAway && typedBeforeCaret > 0) {
     const characters = alphanumericsOf(source);

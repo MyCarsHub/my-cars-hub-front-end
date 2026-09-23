@@ -80,20 +80,19 @@ export class RentalForm implements OnInit {
   protected readonly hasContractTemplate = signal(false);
 
   /**
-   * `/configuracoes/*` é OWNER-only (`roleGuard(['OWNER'])` em `app.routes.ts`).
-   * `/alugueis` continua OWNER+MANAGER, então um MANAGER chega até aqui e via
-   * link/navegação programática caía num redirect silencioso pro `/dashboard`.
+   * FEAT-0147 — do TOKEN, a mesma fonte do `roleGuard`.
    *
-   * A derivação é a MESMA de `pages/company-settings/company-settings.ts` e do
-   * `roleGuard`: `selectedRole` no sessionStorage. Lido uma vez na construção —
-   * trocar de empresa grava o `selectedRole` novo e navega pro `/dashboard`
-   * (`layout.store.ts`, `commitTenant`), o que destrói este componente antes de
-   * qualquer releitura. Não há papel "quente".
+   * Aqui `isOwner` NÃO trava campo nenhum do formulário: trava OFERTAS DE
+   * NAVEGAÇÃO para `/configuracoes/contratos` e `/configuracoes/integracoes/asaas`,
+   * as duas `roleGuard(['OWNER'])`. Lido do espelho `selectedRole` — velho por
+   * uma troca de empresa, editável por DevTools — um MANAGER recebia o link e o
+   * botão "Configurar …", tocava, e o guard o devolvia ao `/dashboard` sem
+   * dizer nada. Mesma família de #330 e #331, não um campo indevido.
    *
-   * O aviso de "não configurado" continua visível pros dois papéis; o que muda
-   * é só a chamada pra ação (link/navegação vs. "peça ao proprietário").
+   * Lido uma vez na construção: a troca de empresa destrói este componente
+   * (`layout.store.ts`, `commitTenant`), então não há papel "quente".
    */
-  protected readonly isOwner = this.sessionService.getItem('selectedRole') === 'OWNER';
+  protected readonly isOwner = this.sessionService.getCompanyRoleFromToken() === 'OWNER';
 
 
   protected readonly editingId = signal<string | null>(null);

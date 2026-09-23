@@ -14,6 +14,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
+import {
+  isOpenChargeStatus,
+  overdueUnpaidGatewayCharges,
+  shouldWarnAboutGatewayCharges,
+} from '../../utils/rental-charges';
 import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -260,6 +265,34 @@ export class RentalDetail implements OnInit {
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
   /** Opt-in do dialog de exclusão. Reaberto sempre desmarcado em `askDelete()`. */
+  /**
+   * MESMOS criterios do dialogo de encerrar (`utils/rental-charges.ts`). O aviso
+   * indevido do Asaas foi relatado nos DOIS caminhos; ter um criterio so e o que
+   * impede alguem consertar um e o defeito continuar vivo no outro.
+   */
+  protected readonly hasOverdueUnpaidCharges = computed<boolean>(() => {
+    const r = this.rental();
+    return !!r && overdueUnpaidGatewayCharges(r.charges, this.todayIso()).length > 0;
+  });
+
+  /**
+   * A mensagem so fala do Asaas quando ha cobranca NO GATEWAY que a exclusao vai
+   * tocar. Aluguel quitado, ou criado sem cobranca automatica, le so a frase que
+   * importa: a acao nao pode ser desfeita.
+   */
+  protected readonly deleteMessage = computed<string>(() => {
+    const r = this.rental();
+    const base = 'Tem certeza que deseja excluir este aluguel?';
+    const fim = 'Esta ação não pode ser desfeita.';
+    if (!r || !shouldWarnAboutGatewayCharges(r.charges, this.todayIso())) {
+      return `${base} ${fim}`;
+    }
+    const vencidas = this.hasOverdueUnpaidCharges()
+      ? ' As vencidas e não pagas permanecem cobráveis, salvo se você marcar a opção abaixo.'
+      : '';
+    return `${base} As cobranças em aberto que ainda não venceram serão apagadas no Asaas; as já pagas permanecem e não são estornadas.${vencidas} ${fim}`;
+  });
+
   protected readonly deleteRemoveOverdue = signal(false);
 
   protected readonly statusInfo = computed(() => {
@@ -350,10 +383,10 @@ export class RentalDetail implements OnInit {
       .reduce((acc, c) => acc + c.amount, 0),
   );
 
-  /** SUM(amount) — status PENDING/PAST_DUE/FAILED em RENTAL_PERIOD + RENTAL_TOTAL. */
+  /** SUM(amount) das cobrancas EM ABERTO em RENTAL_PERIOD + RENTAL_TOTAL. */
   protected readonly remainingCents = computed<number>(() =>
     this.scheduleCharges()
-      .filter((c) => c.status === 'PENDING' || c.status === 'PAST_DUE' || c.status === 'FAILED')
+      .filter((c) => isOpenChargeStatus(c.status))
       .reduce((acc, c) => acc + c.amount, 0),
   );
 
@@ -395,13 +428,16 @@ export class RentalDetail implements OnInit {
   });
 
   /**
-   * Próxima cobrança em aberto (PENDING/PAST_DUE), pela menor `dueDate`.
-   * Fallback: primeira cobrança não paga em ordem de período.
+   * Próxima cobrança EM ABERTO, pela menor `dueDate`. Fallback: primeira não
+   * paga em ordem de período.
+   *
+   * Lê o mesmo `isOpenChargeStatus` do resto: antes esta lista ignorava FAILED
+   * enquanto `remainingCents`, dez linhas acima, já o somava. O mesmo arquivo
+   * discordava de si — e o efeito era apontar como "próxima" uma cobrança mais
+   * nova, escondendo uma vencida e ainda cobrável.
    */
   protected readonly nextCharge = computed<RentalChargeDto | null>(() => {
-    const open = this.scheduleCharges().filter(
-      (c) => c.status === 'PENDING' || c.status === 'PAST_DUE',
-    );
+    const open = this.scheduleCharges().filter((c) => isOpenChargeStatus(c.status));
     if (open.length === 0) return null;
     const withDate = open.filter((c) => !!c.dueDate);
     if (withDate.length > 0) {

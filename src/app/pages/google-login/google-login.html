@@ -56,10 +56,14 @@
       <span></span>
     </div>
 
+    <!-- Os dois documentos abrem em aba nova: ler os termos no meio do consentimento
+         não pode custar o fluxo de login pela metade. Mesmo idioma de `signup.html`. -->
     <p class="login-terms">
       Ao continuar, você concorda com os
-      <a href="#">termos de uso</a> e a
-      <a href="#">política de privacidade</a>.
+      <a routerLink="/termos-de-uso" target="_blank" rel="noopener">Termos de Uso</a> e a
+      <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener"
+        >Política de Privacidade</a
+      >.
     </p>
   </section>
 </main>

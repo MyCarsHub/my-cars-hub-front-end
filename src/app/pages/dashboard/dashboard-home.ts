@@ -28,6 +28,10 @@ import { MonthlyBillingChart } from './components/monthly-billing-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
 import { CashflowDaySheet } from './components/cashflow-day-sheet';
+import { CashAccumulationCard } from './components/cash-accumulation-card';
+import { CashAccumulationResponse } from '../../types/cash-accumulation.types';
+import { ReportsService } from '../../services/reports.service';
+import { aggregateFleetRoi } from '../../types/reports.types';
 import { StatusBarChart, StatusBucketRow } from './components/status-bar-chart';
 import { BarChart, BarDatum } from './components/bar-chart';
 import { QuickActionCard } from './components/quick-action-card';
@@ -65,7 +69,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
  * Alerts, Fleet KPIs, Filtro/DateRange, Faturamento (4 cards + gráfico 6 meses),
  * Calendário Financeiro, Distribuições (aluguéis/veículos por status),
  * Top 5 por receita (veículos/motoristas), Top ofensores,
- * Evolução do Ticket Médio (linha, 6m), Ações rápidas.
+ * "Quanto já entrou no mês" (curva acumulada de caixa), Ações rápidas.
  */
 @Component({
     selector: 'app-dashboard-home',
@@ -84,6 +88,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         QuickActionCard,
         AlertBanner,
         RouterLink,
+        CashAccumulationCard,
     ],
     templateUrl: './dashboard-home.html',
 })
@@ -92,6 +97,7 @@ export class DashboardHome {
     private readonly router = inject(Router);
     private readonly access = inject(BillingAccessService);
     private readonly activation = inject(FleetActivationService);
+    private readonly reports = inject(ReportsService);
 
     private readonly session = inject(SessionService);
 
@@ -109,10 +115,164 @@ export class DashboardHome {
      */
     protected readonly showActivationReminder = signal(false);
 
+    /** Card de ROI: so OWNER/MANAGER (o backend recusa DRIVER com 403). */
+    /**
+     * FEAT-0123 — curva acumulada do dinheiro RECEBIDO no mês.
+     *
+     * Carregada em paralelo com o resumo: é outro endpoint e outra pergunta
+     * ("já se paga?" é do ROI; esta é "estou na frente do mês passado?").
+     * Falha aqui não derruba o dashboard — o cartão simplesmente não aparece,
+     * porque um cartão de dinheiro sem dado não tem o que dizer.
+     */
+    protected readonly cashAccumulation = signal<CashAccumulationResponse | null>(null);
+
+    protected readonly showVehicleRoi = signal(false);
+    protected readonly vehicleRoi = this.reports.vehicleRoi;
+
+    /**
+     * ROI da frota para o card KPI (FIX-0420).
+     *
+     * A lista por veiculo saiu do dashboard — ela vira a visao da GERENCIA DO
+     * VEICULO (FEAT-0119). Aqui fica UM numero, no formato dos outros KPIs.
+     *
+     * A agregacao IGNORA o veiculo sem preco de compra, e por isso o template
+     * mostra a base quando ela difere do total: ver `aggregateFleetRoi`.
+     */
+    protected readonly fleetRoi = computed(() => {
+        const roi = this.vehicleRoi();
+        return roi ? aggregateFleetRoi(roi.vehicles) : null;
+    });
+
+    /** Percentual ja formatado; `null` quando nao ha base para afirmar nada. */
+    protected readonly fleetRoiPercentLabel = computed(() => {
+        const summary = this.fleetRoi();
+        if (!summary || summary.roiPercent === null) return null;
+        const value = summary.roiPercent;
+        const formatted = value.toLocaleString('pt-BR', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+        });
+        // O "+" e explicito como na Utilizacao: o sinal faz parte da leitura.
+        return `${value > 0 ? '+' : ''}${formatted}%`;
+    });
+
+    /** "R$ X ja devolvido" / "R$ X no prejuizo" — o dinheiro que o dono pediu. */
+    protected readonly fleetRoiNetLabel = computed(() => {
+        const summary = this.fleetRoi();
+        if (!summary || summary.roiPercent === null) return null;
+        const net = summary.netCents;
+        return net < 0
+            ? `${formatBRL(Math.abs(net))} no prejuízo`
+            : `${formatBRL(net)} já devolvido`;
+    });
+
+    /**
+     * Ressalva sobre a base do numero, SO quando ela difere do total. Excluir em
+     * silencio seria trocar um numero inflado por um numero mudo.
+     *
+     * A ressalva e GRADUADA, e a gradacao e o ponto: desvio pequeno merece
+     * rodape, desvio grande merece aviso. Com a base em MINORIA (menos da metade
+     * da frota tem preco de compra) o dono pode ler "+35%" sem reparar que
+     * aquilo fala de 3 carros de 40 — e decidir comprar mais carro com base
+     * nisso. Ai a linha sai do cinza pequeno, ganha peso de aviso (ambar, como o
+     * estado indeterminado) e passa a dizer o que FALTA, com o caminho para
+     * resolver, em vez de so contar.
+     *
+     * O numero continua na tela nos dois casos: nao se esconde dado que existe —
+     * o `purchase_price` (V71) e recente e hoje boa parte da frota nao o tem, de
+     * modo que esconder transformaria o cartao em travessao justamente na
+     * estreia. Quem some e a duvida sobre o que o numero cobre.
+     */
+    protected readonly fleetRoiBase = computed(() => {
+        const summary = this.fleetRoi();
+        if (!summary || summary.known === 0 || summary.known === summary.total) return null;
+
+        // "Menos da metade": 2 de 4 ainda e metade, e nao dispara o aviso.
+        const minority = summary.known * 2 < summary.total;
+
+        return {
+            minority,
+            label: minority
+                ? `só ${summary.known} de ${summary.total} veículos têm preço de compra`
+                : `base: ${summary.known} de ${summary.total} veículos`,
+        };
+    });
+
+    /** Valor exibido quando nao ha base para calcular — ver o template. */
+    protected readonly zeroMoney = formatBRL(0);
+
+    /**
+     * Cor do numero grande. Zero NAO e lucro nem prejuizo: cai no neutro, como a
+     * Utilizacao faz com 0%. Decidir por `net >= 0` pintaria o zero de verde,
+     * afirmando lucro onde nao ha nenhum.
+     */
+    protected readonly fleetRoiTone = computed<'positive' | 'negative' | 'neutral'>(() => {
+        const net = this.fleetRoi()?.netCents ?? 0;
+        if (net > 0) return 'positive';
+        if (net < 0) return 'negative';
+        return 'neutral';
+    });
+
+    /**
+     * Sem base para calcular o ROI. Hoje isso cobre DOIS casos: frota vazia
+     * (nenhum veiculo) e frota com carros mas nenhum deles com preco de compra.
+     * Os dois caem em `roiPercent === null` e recebem o mesmo R$ 0,00.
+     */
+    protected readonly fleetRoiIndeterminate = computed(() => {
+        const summary = this.fleetRoi();
+        return !!summary && summary.roiPercent === null;
+    });
+    protected readonly vehicleRoiLoading = this.reports.vehicleRoiLoading;
+    protected readonly vehicleRoiError = this.reports.vehicleRoiError;
+
+    /**
+     * OPERADOR da empresa: quem o `roleGuard` aceita nas rotas de frota
+     * (`/alugueis`, `/veiculos`, `/manutencoes`, `/multas`, `/seguros`,
+     * `/motoristas` — todas `roleGuard(['OWNER', 'MANAGER'])`).
+     *
+     * FEAT-0146 — vem do TOKEN, a MESMA fonte do guard. Antes vinha do espelho
+     * `selectedRole` do `sessionStorage`, que é editável por DevTools e fica
+     * com o papel da empresa ANTERIOR até a troca confirmar. Decidir poder por
+     * uma fonte que o guard não consulta é como o menu oferecia o que o guard
+     * recusava — e aqui o `roleGuard` REDIRECIONA para `/dashboard`, então o
+     * motorista tocaria, a tela recarregaria nela mesma e nada explicaria.
+     *
+     * É o mesmo predicado para as três superfícies desta tela (ações rápidas,
+     * chips de alerta e ROI): uma resposta só para "esta pessoa entra nas
+     * rotas de frota?" em vez de três checagens que podem divergir.
+     */
+    protected readonly isOperator = computed(() => {
+        const role = this.session.getCompanyRoleFromToken();
+        return role === 'OWNER' || role === 'MANAGER';
+    });
+
     constructor() {
-        const role = this.session.getItem('selectedRole');
-        const eligible =
-            !this.session.isPlatformAdmin() && (role === 'OWNER' || role === 'MANAGER');
+        const eligible = !this.session.isPlatformAdmin() && this.isOperator();
+
+        /**
+         * FEAT-0103 — o ROI por veiculo e OPERADOR: o backend responde 403 para
+         * DRIVER (`RoleGuard.assertOperatorRole`, rota fora da allow-list do
+         * `DriverReadScopePolicy`). Reuso a MESMA leitura de papel que o lembrete
+         * de ativacao acima ja faz, em vez de inventar checagem nova: fora do
+         * papel certo nem o GET sai, entao o motorista nao gera um 403 por
+         * dashboard aberto.
+         */
+        this.service
+            .loadCashAccumulation()
+            .pipe(takeUntilDestroyed())
+            .subscribe({
+                next: (res) => this.cashAccumulation.set(res),
+                error: () => this.cashAccumulation.set(null),
+            });
+
+        this.showVehicleRoi.set(this.isOperator());
+        if (this.showVehicleRoi()) {
+            this.reports
+                .loadVehicleRoi()
+                .pipe(takeUntilDestroyed())
+                .subscribe({ error: () => undefined });
+        }
+
         if (eligible) {
             this.activation
                 .hasVehicles()
@@ -146,6 +306,14 @@ export class DashboardHome {
     protected readonly showAlerts = computed(() => {
         const a = this.summary()?.alerts;
         if (!a) return false;
+        /**
+         * FEAT-0146 — para quem não é operador, só o chip de documentos conta:
+         * é o único que não leva a rota de `roleGuard`. Sem isto a faixa
+         * abriria com os contadores dos OUTROS chips e, como todos eles estão
+         * travados, renderizaria uma seção VAZIA na tela do motorista — um
+         * buraco no lugar de um alerta.
+         */
+        if (!this.isOperator()) return (a.docsExpiring7d?.count ?? 0) > 0;
         return (
             a.openFines.count > 0 ||
             a.openMaintenances.count > 0 ||
@@ -281,11 +449,6 @@ export class DashboardHome {
         this.hasSaleRevenue()
             ? `Só aluguel (recorrente). A venda de veículos do período (${this.saleRevenueLabel()}) não entra nesta série.`
             : null,
-    );
-
-    /** Line-chart series (ticket médio mensal últimos 6 meses). */
-    protected readonly ticketMedioSeries = computed<MonthlyPointDto[]>(
-        () => this.summary()?.charges?.ticketMedioLast6Months ?? [],
     );
 
     // ---- Cashflow (calendar) ---------------------------------------------

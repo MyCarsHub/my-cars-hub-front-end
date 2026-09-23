@@ -42,6 +42,81 @@
           </div>
         </form>
 
+        <!-- FIX-0284 — toggle do painel de filtros, SÓ no mobile (`sm:hidden`).
+             Medido em prod (375x658): com os cinco controles empilhados o
+             primeiro card começava em y=583 e a lista nascia abaixo da dobra.
+             O contador ao lado do rótulo é obrigatório: recolhido sem ele, um
+             filtro esquecido explicaria uma lista curta sem nenhuma pista. -->
+        <div class="sm:hidden flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="filters-toggle"
+            (click)="toggleFilters()"
+            [attr.aria-expanded]="filtersOpen()"
+            aria-controls="veiculos-filtros"
+            [attr.aria-label]="filtersButtonLabel()"
+            class="flex-1 min-h-[44px] flex items-center justify-between gap-2 px-3 py-2.5
+                   text-sm font-medium text-neutral-700 border border-neutral-200 rounded-xl
+                   hover:bg-neutral-50 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          >
+            <span class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+              </svg>
+              <span>
+                Filtros@if (activeFiltersCount() > 0) {<span data-testid="filters-count"> · {{ activeFiltersCount() }}</span>}
+              </span>
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true"
+              [style.transform]="filtersOpen() ? 'rotate(180deg)' : 'rotate(0deg)'"
+              style="transition: transform .2s ease">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <!-- Com o painel recolhido e "Filtros · 3" na tela, limpar exigiria
+               expandir primeiro. Este atalho vive FORA do painel e só aparece
+               quando há filtro ativo (com o painel aberto, o botão original já
+               está visível logo abaixo — não duplicamos os dois na tela). -->
+          @if (!filtersOpen() && activeFiltersCount() > 0) {
+            <button
+              type="button"
+              data-testid="filters-clear-shortcut"
+              (click)="clearFilters()"
+              class="shrink-0 min-h-[44px] px-3 py-2.5 rounded-xl text-sm font-medium
+                     text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-colors
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              Limpar filtros
+            </button>
+          }
+        </div>
+
+        <!-- Painel recolhível (FIX-0284). No mobile é um bloco que some/aparece;
+             a partir de `sm` vira `display: contents` e os controles voltam a ser
+             itens DIRETOS da grade externa — que tem 2 colunas em `sm`/`md` e 6 a
+             partir de `lg`. O texto antigo dizia "grid de 6 colunas" e era
+             falso do `sm` ao `md`: foi essa leitura que deixou o botao de
+             limpar sem regra de span nessas larguras, ocupando meia celula
+             ao lado do ultimo filtro em vez da propria linha.
+
+             Premissa de suporte: `display: contents` só entra na árvore de
+             acessibilidade a partir do Safari 15.4 (antes disso o wrapper era
+             removido junto com a semântica dos filhos). Como aqui o wrapper é um
+             `div` sem papel ARIA e os controles têm label próprio, nada se perde
+             mesmo em Safari antigo; se algum dia este wrapper ganhar papel, a
+             premissa precisa ser revista. -->
+        <div
+          id="veiculos-filtros"
+          class="sm:contents space-y-3 sm:space-y-0"
+          [class.hidden]="!filtersOpen()"
+        >
+
         <div>
           <label class="sr-only" for="veiculos-type">Tipo</label>
           <select
@@ -106,7 +181,10 @@
           </select>
         </div>
 
-        <div class="lg:col-span-4 flex items-center justify-end gap-2">
+        <div
+          data-testid="filters-clear-row"
+          class="col-span-full lg:col-span-4 flex items-center justify-end gap-2"
+        >
           <button
             type="button"
             (click)="clearFilters()"
@@ -114,6 +192,8 @@
           >
             Limpar filtros
           </button>
+        </div>
+
         </div>
       </div>
 

@@ -26,6 +26,7 @@ import { SubscriptionResponse } from '../../types/billing.types';
 import { UserCompanies } from '../../types/user-companies';
 import { MeResponse, UserDocument } from '../../types/me-response.type';
 import { TourService } from '../../components/tour/tour.service';
+import { companyRoleLabel } from '../../utils/role-labels';
 
 @Component({
   selector: 'app-profile',
@@ -67,6 +68,26 @@ export class Profile implements OnInit, OnDestroy {
   );
   protected readonly selectedRole = computed(
     () => this.session.getItem('selectedRole') ?? '—',
+  );
+
+  /**
+   * Quem pode ABRIR `/billing` — e, portanto, quem pode ver o bloco de plano.
+   *
+   * FIX-0456 — o bloco tinha trava de DADO (`@if (subscription())`) e nenhuma
+   * de PAPEL, então MANAGER e DRIVER viam um botão primário de largura cheia
+   * que chama `goToBilling()`. `/billing` é `roleGuard(['OWNER'])`
+   * (`app.routes.ts`), e esse guard REDIRECIONA para `/dashboard`: a pessoa
+   * tocava, a tela trocava e nada explicava o quê. Pior aqui do que em
+   * qualquer outro lugar, porque o Perfil é fixado no rodapé da barra lateral
+   * — é a tela que todo motorista alcança de onde estiver.
+   *
+   * Mesma fonte do guard, o TOKEN, e não o espelho `selectedRole` acima: o
+   * espelho é editável por DevTools e fica velho na troca de empresa. Uma
+   * trava de UI lida de fonte diferente da do guard é a divergência que este
+   * mesmo FIX está removendo da barra lateral.
+   */
+  protected readonly canManageBilling = computed(
+    () => this.session.getCompanyRoleFromToken() === 'OWNER',
   );
 
   // In-memory only. NEVER persisted — CPF/CNPJ is PII.
@@ -144,16 +165,7 @@ export class Profile implements OnInit, OnDestroy {
   }
 
   protected roleLabel(role: string): string {
-    switch (role) {
-      case 'OWNER':
-        return 'Proprietário';
-      case 'MANAGER':
-        return 'Gerente';
-      case 'DRIVER':
-        return 'Motorista';
-      default:
-        return role;
-    }
+    return companyRoleLabel(role);
   }
 
   protected isActiveTenant(companyId: string): boolean {

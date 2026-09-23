@@ -424,3 +424,228 @@ describe('VehiclesList — modo Vendidos (FIX-0264)', () => {
     expect(host.textContent).toContain('Nenhum veículo vendido ainda.');
   });
 });
+
+/**
+ * FIX-0284 — filtros recolhidos no mobile.
+ *
+ * Medido em produção (375x658): os cinco controles empilhados + "Limpar
+ * filtros" empurravam o primeiro card para y=583 de 658px úteis. O painel
+ * passa a nascer recolhido no mobile, com a busca sempre visível e um botão
+ * "Filtros" que ANUNCIA quantos filtros estão ativos — sem o contador, o
+ * recolhimento esconderia o motivo de a lista estar curta.
+ *
+ * Desktop não muda: o toggle é `sm:hidden` e o painel é `sm:contents`, então a
+ * partir de 640px os controles seguem itens diretos do grid de 6 colunas.
+ */
+describe('VehiclesList — painel de filtros no mobile (FIX-0284)', () => {
+  const vehicle: VehicleListItem = {
+    id: 'v-1',
+    plate: 'ABC1D23',
+    type: 'CAR',
+    brand: 'Fiat',
+    model: 'Argo',
+    yearModel: 2022,
+    licensingExpiration: null,
+    status: 'AVAILABLE',
+    createdDate: '2024-01-01',
+    sold: false,
+  };
+
+  function configure(): void {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [VehiclesList],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: VehiclesService,
+          useValue: {
+            items: signal<VehicleListItem[]>([vehicle]),
+            loading: signal(false),
+            error: signal<string | null>(null),
+            page: signal(0),
+            size: signal(20),
+            total: signal(1),
+            list: vi.fn().mockReturnValue(of({ content: [vehicle], totalElements: 1 })),
+            remove: vi.fn().mockReturnValue(of(void 0)),
+            updateStatus: vi.fn().mockReturnValue(of(vehicle)),
+          },
+        },
+        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    });
+  }
+
+  function render(): { host: HTMLElement; detect: () => void } {
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
+    return {
+      host: fixture.nativeElement as HTMLElement,
+      detect: () => fixture.detectChanges(),
+    };
+  }
+
+  const toggleOf = (host: HTMLElement) =>
+    host.querySelector<HTMLButtonElement>('[data-testid="filters-toggle"]')!;
+  const panelOf = (host: HTMLElement) => host.querySelector<HTMLElement>('#veiculos-filtros')!;
+
+  beforeEach(() => configure());
+
+  it('nasce recolhido no mobile, com a busca visível e o painel escondido', () => {
+    const { host } = render();
+
+    // A busca NÃO entra no painel: continua fora do que é recolhido.
+    const search = host.querySelector<HTMLInputElement>('#veiculos-search')!;
+    expect(search).not.toBeNull();
+    expect(search.closest('#veiculos-filtros')).toBeNull();
+
+    const panel = panelOf(host);
+    expect(panel.classList.contains('hidden')).toBe(true);
+    expect(toggleOf(host).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('o botão que expande liga aria-expanded/aria-controls ao painel e tem alvo de toque >= 44px', () => {
+    const { host } = render();
+    const toggle = toggleOf(host);
+
+    expect(toggle.getAttribute('aria-controls')).toBe('veiculos-filtros');
+    expect(panelOf(host).id).toBe('veiculos-filtros');
+    expect(toggle.className).toContain('min-h-[44px]');
+  });
+
+  it('clique real expande e recolhe o painel', () => {
+    const { host, detect } = render();
+    const toggle = toggleOf(host);
+
+    toggle.click();
+    detect();
+    expect(panelOf(host).classList.contains('hidden')).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+    toggle.click();
+    detect();
+    expect(panelOf(host).classList.contains('hidden')).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('sem filtro ativo o botão é só "Filtros", sem contador', () => {
+    const { host } = render();
+
+    expect(toggleOf(host).textContent?.replace(/\s+/g, ' ').trim()).toBe('Filtros');
+    expect(host.querySelector('[data-testid="filters-count"]')).toBeNull();
+  });
+
+  it('conta tipo, status e frota — e NAO conta ordenação, que só reordena', () => {
+    const { host, detect } = render();
+
+    const type = host.querySelector<HTMLSelectElement>('#veiculos-type')!;
+    type.value = type.options[1].value;
+    type.dispatchEvent(new Event('change'));
+    detect();
+    expect(host.querySelector('[data-testid="filters-count"]')?.textContent).toContain('1');
+
+    const status = host.querySelector<HTMLSelectElement>('#veiculos-status')!;
+    status.value = 'AVAILABLE';
+    status.dispatchEvent(new Event('change'));
+    detect();
+    expect(toggleOf(host).textContent?.replace(/\s+/g, ' ').trim()).toBe('Filtros · 2');
+
+    // Ordenação REORDENA, nunca encurta: não pode virar "mais um filtro ativo".
+    const sort = host.querySelector<HTMLSelectElement>('#veiculos-sort')!;
+    sort.value = sort.options[1].value;
+    sort.dispatchEvent(new Event('change'));
+    detect();
+    expect(toggleOf(host).textContent?.replace(/\s+/g, ' ').trim()).toBe('Filtros · 2');
+
+    // Frota: vendidos zera o status (FIX-0264) — sobram tipo + frota.
+    const sold = host.querySelector<HTMLSelectElement>('#veiculos-sold')!;
+    sold.value = 'true';
+    sold.dispatchEvent(new Event('change'));
+    detect();
+    expect(toggleOf(host).textContent?.replace(/\s+/g, ' ').trim()).toBe('Filtros · 2');
+
+    // "Limpar filtros" do painel devolve o contador a zero.
+    const clear = host.querySelector<HTMLButtonElement>('#veiculos-filtros button')!;
+    expect(clear.textContent?.trim()).toBe('Limpar filtros');
+    clear.click();
+    detect();
+    expect(host.querySelector('[data-testid="filters-count"]')).toBeNull();
+  });
+
+  it('o nome acessível diz "ativos" por extenso em vez do ponto médio', () => {
+    const { host, detect } = render();
+    expect(toggleOf(host).getAttribute('aria-label')).toBe('Filtros');
+
+    const type = host.querySelector<HTMLSelectElement>('#veiculos-type')!;
+    type.value = type.options[1].value;
+    type.dispatchEvent(new Event('change'));
+    detect();
+    expect(toggleOf(host).getAttribute('aria-label')).toBe('Filtros, 1 ativo');
+
+    const status = host.querySelector<HTMLSelectElement>('#veiculos-status')!;
+    status.value = 'AVAILABLE';
+    status.dispatchEvent(new Event('change'));
+    detect();
+    expect(toggleOf(host).getAttribute('aria-label')).toBe('Filtros, 2 ativos');
+  });
+
+  it('com filtro ativo e painel recolhido, limpar não exige expandir', () => {
+    const { host, detect } = render();
+    const shortcut = () =>
+      host.querySelector<HTMLButtonElement>('[data-testid="filters-clear-shortcut"]');
+
+    // Sem filtro ativo não há o que limpar: o atalho nem existe.
+    expect(shortcut()).toBeNull();
+
+    const type = host.querySelector<HTMLSelectElement>('#veiculos-type')!;
+    type.value = type.options[1].value;
+    type.dispatchEvent(new Event('change'));
+    detect();
+
+    // Atalho visível FORA do painel recolhido.
+    expect(panelOf(host).classList.contains('hidden')).toBe(true);
+    expect(shortcut()).not.toBeNull();
+    expect(shortcut()!.closest('#veiculos-filtros')).toBeNull();
+    expect(shortcut()!.className).toContain('min-h-[44px]');
+
+    shortcut()!.click();
+    detect();
+    expect(host.querySelector('[data-testid="filters-count"]')).toBeNull();
+    expect(shortcut()).toBeNull();
+  });
+
+  it('guarda de CLASSE do desktop (a não-regressão real é verificação de navegador)', () => {
+    // jsdom não avalia media query: este teste NAO prova que o desktop segue
+    // igual, só trava as classes que carregam esse contrato. Que em >= 640px
+    // `contents` vence `none` na cascata foi conferido compilando o Tailwind e
+    // lendo a ordem das regras na CSS gerada — fora do jsdom, de propósito.
+    const { host } = render();
+
+    expect(toggleOf(host).closest('div')?.className).toContain('sm:hidden');
+    expect(panelOf(host).className).toContain('sm:contents');
+  });
+  it('a linha de "Limpar filtros" ocupa a largura toda em TODA faixa abaixo de lg', () => {
+    // O defeito que este teste fecha: a linha tinha SO `lg:col-span-4`. A grade
+    // externa e `grid-cols-1 sm:grid-cols-2 lg:grid-cols-6`, entao em `sm` e `md`
+    // o botao caia numa celula de duas, encostado no ultimo filtro, e parecia
+    // solto no meio da tela. O comentario do arquivo dizia "grid de 6 colunas" —
+    // verdade so a partir de `lg` —, e foi essa leitura que escondeu a lacuna.
+    //
+    // A assercao e sobre a REGRA e nao sobre a aparencia: a linha tem span de
+    // largura total como PADRAO, e o span estreito so aparece atras do prefixo
+    // `lg:`. Um span sem prefixo que nao seja o total volta a abrir o buraco.
+    const { host } = render();
+    const linha = host.querySelector<HTMLElement>('[data-testid="filters-clear-row"]');
+    expect(linha).toBeTruthy();
+
+    const classes: string[] = (linha?.getAttribute('class') ?? '')
+      .split(/\s+/)
+      .filter((c: string) => c.length > 0);
+    const spans: string[] = classes.filter((c: string) => c.includes('col-span-'));
+
+    expect(spans.length).toBeGreaterThan(0);
+    const semPrefixo: string[] = spans.filter((c: string) => !c.includes(':'));
+    expect(semPrefixo).toEqual(['col-span-full']);
+  });
+});

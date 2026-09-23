@@ -35,6 +35,16 @@
     </nav>
   </div>
 
+  <!-- Identidade legal (FIX-0294). Só sai quando os valores reais existem: ver
+       `company-identity.ts`. Um CNPJ de exemplo no ar seria documento falso. -->
+  @if (identity; as company) {
+    <address class="max-w-[1200px] mx-auto mt-6 not-italic text-[13px] text-white/50 leading-[1.6]">
+      <span class="block">{{ company.legalName }}</span>
+      <span class="block">CNPJ {{ company.cnpj }}</span>
+      <span class="block">{{ company.address }}</span>
+    </address>
+  }
+
   <div class="max-w-[1200px] mx-auto mt-6 flex flex-wrap items-center justify-between gap-3 text-[13px] text-white/50">
     <span>© {{ year }} MyCarsHub. Todos os direitos reservados.</span>
     <a routerLink="/login" class="text-brand no-underline font-semibold hover:text-brand-light transition-colors duration-200">Acessar plataforma →</a>

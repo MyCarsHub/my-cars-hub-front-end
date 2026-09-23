@@ -121,6 +121,52 @@ describe('InsurancesList', () => {
     },
   );
 
+  /**
+   * FIX-0439 — a FRANQUIA na lista.
+   *
+   * O PREMIO diz quanto custa TER o seguro; a FRANQUIA diz quanto custa USA-LO.
+   * A decisao do dia a dia — "vale acionar o seguro neste sinistro?" — depende
+   * da segunda, e ela era a unica das duas que nao estava na tela. O dado ja
+   * vinha na resposta (e o mesmo que preenche a franquia do sinistro
+   * automaticamente); faltava exibir.
+   */
+  describe('franquia na lista (FIX-0439)', () => {
+    function flatText(fixture: ReturnType<typeof TestBed.createComponent<InsurancesList>>) {
+      return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+    }
+
+    it('mostra o valor da franquia junto do premio', () => {
+      const fixture = TestBed.createComponent(InsurancesList);
+      fixture.detectChanges();
+
+      const text = flatText(fixture);
+      expect(text).toContain('Franquia');
+      // 300_000 centavos = R$ 3.000,00
+      expect(text).toContain('3.000,00');
+    });
+
+    it('a tabela ganha a coluna Franquia sem desalinhar cabecalho e celulas', () => {
+      const fixture = TestBed.createComponent(InsurancesList);
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      const headers = host.querySelectorAll('thead th').length;
+      const cells = host.querySelectorAll('tbody tr:first-child td').length;
+
+      expect(headers).toBe(cells);
+    });
+
+    /** Apolice sem franquia cadastrada nao pode mostrar "R$ NaN" nem vazio. */
+    it('mostra tracinho quando nao ha franquia', () => {
+      items.set([{ ...insurance, deductibleAmount: null }]);
+      const fixture = TestBed.createComponent(InsurancesList);
+      fixture.detectChanges();
+
+      expect(flatText(fixture)).toContain('Franquia');
+      expect(flatText(fixture)).not.toContain('NaN');
+    });
+  });
+
   it('"Ver detalhes" e "Editar" apontam para as rotas da apólice', () => {
     const fixture = TestBed.createComponent(InsurancesList);
     fixture.detectChanges();

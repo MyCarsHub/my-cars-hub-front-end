@@ -13,6 +13,7 @@ import { InvitesService } from '../../services/invites.service';
 import { NotificationService } from '../../services/notification.service';
 import { inviteErrorCopy } from '../../services/invite-errors';
 import { InviteResponse, InviteRole, InviteStatus } from '../../types/invite.types';
+import { companyRoleLabel } from '../../utils/role-labels';
 
 const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
 const LIST_FALLBACK = 'Não foi possível carregar os convites.';
@@ -34,12 +35,6 @@ const STATUS_CLASSES: Readonly<Record<string, string>> = {
   EXPIRED: 'bg-rose-50 text-rose-800 border-rose-200',
   CANCELLED: 'bg-neutral-100 text-neutral-600 border-neutral-200',
   REVOKED: 'bg-neutral-100 text-neutral-600 border-neutral-200',
-};
-
-const ROLE_LABELS: Readonly<Record<string, string>> = {
-  MANAGER: 'Gerente',
-  DRIVER: 'Motorista',
-  OWNER: 'Proprietário',
 };
 
 /** Row shape the template renders — labels and classes resolved off the hot path. */
@@ -103,7 +98,7 @@ export class Invites implements OnInit {
   protected readonly pendingCancel = signal<InviteRow | null>(null);
 
   protected readonly roles: ReadonlyArray<{ value: InviteRole; label: string }> = [
-    { value: 'MANAGER', label: 'Gerente' },
+    { value: 'MANAGER', label: 'Gerenciador' },
     { value: 'DRIVER', label: 'Motorista' },
   ];
 
@@ -123,7 +118,7 @@ export class Invites implements OnInit {
       ...invite,
       statusLabel: STATUS_LABELS[invite.status] ?? invite.status,
       statusClass: STATUS_CLASSES[invite.status] ?? STATUS_CLASSES['CANCELLED'],
-      roleLabel: ROLE_LABELS[invite.role] ?? invite.role,
+      roleLabel: companyRoleLabel(invite.role),
       actionable: ACTIONABLE.has(invite.status),
       resendLabel: `Reenviar convite para ${invite.email}`,
       cancelLabel: `Cancelar convite de ${invite.email}`,

@@ -12,6 +12,8 @@ import {
   SubscriptionResponse,
 } from '../types/billing.types';
 import { BillingAccessService } from './billing-access.service';
+import { TenantResetRegistry } from './tenant-reset.registry';
+import { ApiErrorService } from './api-error.service';
 
 const API_BASE = `${environment.apiUrl}/billing`;
 
@@ -30,15 +32,6 @@ export const CHECKOUT_PENDING_KEY = 'billingCheckoutPending';
 export const CHECKOUT_PLAN_CODE_KEY = 'billingCheckoutPlanCode';
 
 /** Pull the backend's `{ message }` out of a 4xx body, else use the fallback. */
-const backendMessage = (err: HttpErrorResponse, fallback: string): string => {
-  const body: unknown = err.error;
-  if (body && typeof body === 'object' && 'message' in body) {
-    const message = (body as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim().length > 0) return message;
-  }
-  return fallback;
-};
-
 /**
  * Is the subscription in force sitting on a FREE plan?
  *
@@ -71,6 +64,7 @@ export const isFreePlanInForce = (
 export class BillingService {
   private readonly http = inject(HttpClient);
   private readonly access = inject(BillingAccessService);
+  private readonly apiErrors = inject(ApiErrorService);
 
   private readonly _plans = signal<PlanResponse[]>([]);
   private readonly _subscription = signal<SubscriptionResponse | null>(null);
@@ -82,6 +76,24 @@ export class BillingService {
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
 
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
+
+  /**
+   * Zera o cache para o estado inicial. Registrado no `TenantCachesService`:
+   * o serviço é `providedIn: 'root'` e sobrevive tanto ao fim da sessão quanto
+   * à TROCA DE EMPRESA, que não passa por `SessionService.clear()`. Sem isto a
+   * empresa nova abre mostrando o plano e a assinatura da anterior (FIX-0272).
+   */
+  reset(): void {
+    this._plans.set([]);
+    this._subscription.set(null);
+    this._loading.set(false);
+    this._error.set(null);
+  }
+
   clearError(): void {
     this._error.set(null);
   }
@@ -92,7 +104,9 @@ export class BillingService {
     return this.http.get<PlanResponse[]>(`${API_BASE}/plans`).pipe(
       tap((plans) => this._plans.set(plans ?? [])),
       catchError((err: HttpErrorResponse) => {
-        this._error.set('Não foi possível carregar os planos. Tente novamente.');
+        this._error.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar os planos. Tente novamente.'),
+        );
         return throwError(() => err);
       }),
       finalize(() => this._loading.set(false)),
@@ -109,7 +123,12 @@ export class BillingService {
           this._subscription.set(null);
           return of(null);
         }
-        this._error.set('Não foi possível carregar sua assinatura. Tente novamente.');
+        this._error.set(
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível carregar sua assinatura. Tente novamente.',
+          ),
+        );
         return throwError(() => err);
       }),
       finalize(() => this._loading.set(false)),
@@ -136,7 +155,7 @@ export class BillingService {
       tap(() => this.access.invalidate()),
       catchError((err: HttpErrorResponse) => {
         this._error.set(
-          backendMessage(err, 'Não foi possível iniciar o pagamento. Tente novamente.'),
+          this.apiErrors.messageFor(err, 'Não foi possível iniciar o pagamento. Tente novamente.'),
         );
         return throwError(() => err);
       }),
@@ -179,7 +198,10 @@ export class BillingService {
       tap(() => this.access.invalidate()),
       catchError((err: HttpErrorResponse) => {
         this._error.set(
-          backendMessage(err, 'Não foi possível cancelar a assinatura. Tente novamente.'),
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível cancelar a assinatura. Tente novamente.',
+          ),
         );
         return throwError(() => err);
       }),
@@ -207,7 +229,7 @@ export class BillingService {
         ),
       ),
       catchError((err: HttpErrorResponse) => {
-        this._error.set(backendMessage(err, fallbackMessage));
+        this._error.set(this.apiErrors.messageFor(err, fallbackMessage));
         return throwError(() => err);
       }),
       finalize(() => this._loading.set(false)),

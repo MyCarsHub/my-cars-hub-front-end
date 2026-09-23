@@ -5,7 +5,7 @@
 
 <!-- ==================== MOBILE HAMBURGER ==================== -->
 @if (layout.isMobile() && !layout.isMobileOpen()) {
-<button class="fixed top-4 left-4 z-50 flex items-center justify-center w-10 h-10
+<button class="fixed top-[calc(1rem+env(safe-area-inset-top))] left-4 z-50 flex items-center justify-center w-10 h-10
            rounded-lg bg-white shadow-md border border-gray-200
            text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
   (click)="layout.openMobile()" aria-label="Abrir menu" type="button">
@@ -66,7 +66,7 @@
              px-3 py-2.5 rounded-xl transition-colors"
       [class.justify-center]="layout.isCollapsed() && !layout.isMobile()" (click)="layout.toggleTenant()"
       [attr.aria-expanded]="layout.isTenantOpen()" aria-haspopup="listbox" type="button"
-      [title]="layout.isCollapsed() && !layout.isMobile() ? layout.selectedTenant().name : ''">
+      [title]="layout.isCollapsed() && !layout.isMobile() ? tenantTitle(layout.selectedTenant()) : ''">
       <div class="w-8 h-8 bg-primary-500 text-white rounded-full shrink-0
                flex items-center justify-center font-semibold text-sm">
         {{ layout.selectedTenant().initial }}
@@ -75,7 +75,9 @@
       @if (!layout.isCollapsed() || layout.isMobile()) {
       <div class="flex-1 text-left min-w-0" @fadeLabel>
         <p class="text-sm font-semibold text-gray-900 truncate">{{ layout.selectedTenant().name }}</p>
-        <p class="text-xs text-primary-700 font-medium">{{ layout.selectedTenant().role }}</p>
+        @if (roleLabel(layout.selectedTenant().role); as role) {
+        <p class="text-xs text-primary-700 font-medium truncate">{{ role }}</p>
+        }
       </div>
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -102,12 +104,14 @@
           [class.text-gray-700]="tenant.id !== layout.selectedTenant().id">
           {{ tenant.initial }}
         </div>
-        <div class="min-w-0">
+        <div class="flex-1 min-w-0 text-left">
           <p class="text-sm font-medium text-gray-900 truncate">{{ tenant.name }}</p>
           @if (layout.switchingTenantId() === tenant.id) {
           <p class="text-xs text-primary-700 font-medium">Trocando…</p>
           } @else {
-          <p class="text-xs text-gray-500">{{ tenant.role }}</p>
+          @if (roleLabel(tenant.role); as role) {
+          <p class="text-xs text-gray-500 truncate">{{ role }}</p>
+          }
           }
         </div>
       </button>

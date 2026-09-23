@@ -15,6 +15,7 @@ import {
   VehicleIncidentFilters,
   VehicleIncidentListItem,
 } from '../types/vehicle-incident.types';
+import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/vehicle-incidents`;
 
@@ -45,6 +46,11 @@ export class VehicleIncidentsService {
   readonly total = this._total.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+
+  constructor() {
+    // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
+    inject(TenantResetRegistry).register(() => this.reset());
+  }
 
   /**
    * Zera o cache. Obrigatório em toda troca de contexto: o serviço é

@@ -18,13 +18,13 @@
 
   <!-- Scope toggle -->
   <div class="flex flex-wrap items-center gap-2 mb-4">
-    <span class="text-xs text-gray-500 uppercase tracking-wide">Escopo:</span>
-    <div class="inline-flex rounded-full border border-gray-200 bg-white p-0.5" role="group" aria-label="Filtro de escopo">
+    <span class="text-xs text-neutral-500 uppercase tracking-wide">Escopo:</span>
+    <div class="inline-flex rounded-full border border-neutral-200 bg-white p-0.5" role="group" aria-label="Filtro de escopo">
       <button
         type="button"
         (click)="setScope('active')"
         class="text-xs px-4 py-1.5 rounded-full transition-colors min-h-[44px]"
-        [class]="scope() === 'active' ? 'bg-primary-500 text-white' : 'text-gray-700 hover:bg-gray-50'"
+        [class]="scope() === 'active' ? 'bg-primary-500 text-white' : 'text-neutral-700 hover:bg-gray-50'"
         [attr.aria-pressed]="scope() === 'active'"
       >
         Apenas ativos
@@ -33,7 +33,7 @@
         type="button"
         (click)="setScope('all')"
         class="text-xs px-4 py-1.5 rounded-full transition-colors min-h-[44px]"
-        [class]="scope() === 'all' ? 'bg-primary-500 text-white' : 'text-gray-700 hover:bg-gray-50'"
+        [class]="scope() === 'all' ? 'bg-primary-500 text-white' : 'text-neutral-700 hover:bg-gray-50'"
         [attr.aria-pressed]="scope() === 'all'"
       >
         Todos
@@ -44,12 +44,12 @@
   <!-- KPI cards -->
   <div class="grid gap-4 grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 mb-3">
     <!-- Users total -->
-    <div class="rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Usuários</p>
+    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Usuários</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ usersDisplay() }}
         </p>
         <p class="text-xs text-emerald-600 mt-1">
@@ -59,12 +59,12 @@
     </div>
 
     <!-- Companies -->
-    <div class="rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Empresas</p>
+    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Empresas</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ companiesDisplay() }}
         </p>
         <p class="text-xs text-emerald-600 mt-1">
@@ -74,30 +74,30 @@
     </div>
 
     <!-- Vehicles -->
-    <div class="rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Veículos</p>
+    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Veículos</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ vehiclesDisplay() }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">
+        <p class="text-xs text-neutral-500 mt-1">
           {{ scope() === 'active' ? 'Ativos' : 'Total cadastrado' }}
         </p>
       }
     </div>
 
     <!-- Active subscriptions -->
-    <div class="rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Assinaturas ativas</p>
+    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Assinaturas ativas</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ overview()?.subscriptions?.active ?? 0 }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">
+        <p class="text-xs text-neutral-500 mt-1">
           {{ overview()?.subscriptions?.trialing ?? 0 }} em trial
         </p>
       }
@@ -143,15 +143,15 @@
     </div>
 
     <!-- Feedback pending -->
-    <div class="rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Feedback pendente</p>
+    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Feedback pendente</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ overview()?.feedback?.pending ?? 0 }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">
+        <p class="text-xs text-neutral-500 mt-1">
           {{ overview()?.feedback?.total ?? 0 }} totais
         </p>
       }
@@ -160,82 +160,57 @@
     <!-- Volume consolidado (todas as empresas) — mesmos cartões da grade.
          Os dois de valor ocupam a linha inteira no celular: R$ com 2xl não
          cabe em meia coluna de 375px. As ressalvas vivem na nota abaixo. -->
-    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Aluguéis fechados</p>
+    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Aluguéis fechados</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-28 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-28 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ formatCurrency(closedRentals().amount) }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">
+        <p class="text-xs text-neutral-500 mt-1">
           {{ closedRentals().count }} aluguéis · exclui cancelados
         </p>
       }
     </div>
 
-    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Aluguéis concluídos</p>
+    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Aluguéis concluídos</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-28 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-28 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ formatCurrency(completedRentals().amount) }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">
+        <p class="text-xs text-neutral-500 mt-1">
           {{ completedRentals().count }} aluguéis finalizados
         </p>
       }
     </div>
 
-    <div class="rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Contratos de locação</p>
+    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Contratos de locação</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ contractsTotal() }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">gerados na plataforma</p>
+        <p class="text-xs text-neutral-500 mt-1">gerados na plataforma</p>
       }
     </div>
 
-    <div class="rounded-2xl bg-white border border-gray-200 p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wide">Contratos assinados</p>
+    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
+      <p class="text-xs text-neutral-500 uppercase tracking-wide">Contratos assinados</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-gray-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-gray-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
           {{ contractsSigned() }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">de {{ contractsTotal() }} contratos</p>
+        <p class="text-xs text-neutral-500 mt-1">de {{ contractsTotal() }} contratos</p>
       }
     </div>
-  </div>
-
-  <!-- As ressalvas saíram de dentro dos cartões, mas NÃO sumiram: em largura
-       total elas continuam legíveis no celular, o que não aconteceria espremidas
-       numa coluna de 160px. Sem elas os números de volume enganam. -->
-  <!-- bg-white de propósito: `gray-50` é o CANVAS da página (#F0F0F0) e a nota
-       sumiria dentro dele. -->
-  <div class="rounded-2xl border border-gray-200 bg-white p-4 mb-4">
-    <h2 class="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-      Como ler os números de volume
-    </h2>
-    <ul class="mt-2 space-y-1.5 text-sm sm:text-xs text-gray-600 list-disc pl-5">
-      <li>
-        <span class="font-medium text-gray-700">Aluguéis fechados</span> = reservado, em andamento
-        ou concluído. Não inclui cancelados.
-      </li>
-      <li>
-        <span class="font-medium text-gray-700">Aluguéis concluídos</span> é o recorte conservador:
-        apenas os aluguéis já finalizados.
-      </li>
-      <li>
-        <span class="font-medium text-gray-700">Contratos assinados</span> é subconjunto do total —
-        contrato assinado em papel fica de fora.
-      </li>
-    </ul>
   </div>
 
   <!-- Charts row -->
@@ -245,50 +220,19 @@
       <app-page-card title="Novos usuários — últimos 30 dias">
         <div class="p-4">
           @if (loading() && !overview()) {
-            <div class="h-32 rounded bg-gray-100 animate-pulse"></div>
-          } @else if (usersSpark(); as spark) {
-            <svg
-              [attr.viewBox]="'0 0 ' + spark.width + ' ' + spark.height"
-              class="w-full h-32"
-              preserveAspectRatio="none"
-              role="img"
-              aria-label="Novos usuários por dia"
-            >
-              <defs>
-                <linearGradient id="usersGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
-                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
-                </linearGradient>
-              </defs>
-              <path [attr.d]="spark.area" fill="url(#usersGradient)" />
-              <path
-                [attr.d]="spark.path"
-                fill="none"
-                stroke="#3b82f6"
-                stroke-width="2"
-                stroke-linejoin="round"
-                stroke-linecap="round"
-              />
-              @for (p of spark.points; track p.raw.date) {
-                @if (p.raw.count > 0) {
-                  <circle
-                    [attr.cx]="p.x"
-                    [attr.cy]="p.y"
-                    r="2.5"
-                    fill="#3b82f6"
-                  >
-                    <title>{{ formatDayLabel(p.raw.date) }}: {{ p.raw.count }}</title>
-                  </circle>
-                }
-              }
-            </svg>
-            <div class="flex justify-between text-xs text-gray-400 mt-2 tabular-nums">
-              <span>{{ formatDayLabel(spark.points[0].raw.date) }}</span>
-              <span>pico: {{ spark.max }}</span>
-              <span>{{ formatDayLabel(spark.points[spark.points.length - 1].raw.date) }}</span>
-            </div>
+            <div class="h-32 rounded bg-neutral-100 animate-pulse"></div>
+          } @else if (userPoints().length > 0) {
+            <app-line-chart
+              [points]="userPoints()"
+              ariaLabel="Novos usuários por dia, últimos 30 dias"
+              valueLabel="Novos usuários"
+              [heightPx]="160"
+            />
+            <p class="text-xs text-neutral-500 mt-2 tabular-nums">
+              Pico de {{ usersPeak() }} no período.
+            </p>
           } @else {
-            <p class="text-sm text-gray-500 text-center py-10">
+            <p class="text-sm text-neutral-500 text-center py-10">
               Sem dados no período.
             </p>
           }
@@ -301,17 +245,17 @@
       <app-page-card title="Assinaturas por status">
         <div class="p-4 space-y-3">
           @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
           } @else {
             @for (bar of subscriptionBars(); track bar.key) {
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-gray-600">{{ bar.label }}</span>
-                  <span class="text-gray-900 font-medium tabular-nums">{{ bar.count }}</span>
+                  <span class="text-neutral-600">{{ bar.label }}</span>
+                  <span class="text-neutral-900 font-medium tabular-nums">{{ bar.count }}</span>
                 </div>
-                <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div class="h-2 rounded-full bg-neutral-100 overflow-hidden">
                   <div
                     class="h-full rounded-full transition-all duration-500"
                     [style.width.%]="bar.percent"
@@ -326,8 +270,8 @@
     </div>
   </div>
 
-  <!-- Aluguéis por status + Feedback por status + Ações rápidas -->
-  <div class="grid gap-4 lg:grid-cols-3 mb-4">
+  <!-- Aluguéis por status + Feedback por status -->
+  <div class="grid gap-4 lg:grid-cols-2 mb-4">
     <!-- O gráfico sobreviveu à mudança dos cartões: ele responde "onde estão os
          aluguéis", que nenhum número isolado responde. Foi para junto das outras
          distribuições por status, onde é o seu lugar. -->
@@ -335,17 +279,17 @@
       <app-page-card title="Aluguéis por status">
         <div class="p-4 space-y-3">
           @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
           } @else {
             @for (bar of rentalBars(); track bar.key) {
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-gray-600">{{ bar.label }}</span>
-                  <span class="text-gray-900 font-medium tabular-nums">{{ bar.count }}</span>
+                  <span class="text-neutral-600">{{ bar.label }}</span>
+                  <span class="text-neutral-900 font-medium tabular-nums">{{ bar.count }}</span>
                 </div>
-                <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div class="h-2 rounded-full bg-neutral-100 overflow-hidden">
                   <div
                     class="h-full rounded-full transition-all duration-500"
                     [style.width.%]="bar.percent"
@@ -363,17 +307,17 @@
       <app-page-card title="Feedback por status">
         <div class="p-4 space-y-3">
           @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
           } @else {
             @for (bar of feedbackBars(); track bar.key) {
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-gray-600">{{ bar.label }}</span>
-                  <span class="text-gray-900 font-medium tabular-nums">{{ bar.count }}</span>
+                  <span class="text-neutral-600">{{ bar.label }}</span>
+                  <span class="text-neutral-900 font-medium tabular-nums">{{ bar.count }}</span>
                 </div>
-                <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div class="h-2 rounded-full bg-neutral-100 overflow-hidden">
                   <div
                     class="h-full rounded-full transition-all duration-500"
                     [style.width.%]="bar.percent"
@@ -387,28 +331,6 @@
       </app-page-card>
     </div>
 
-    <div>
-      <app-page-card title="Ações rápidas">
-        <div class="p-4">
-          <a
-            routerLink="/admin/feedback"
-            class="block rounded-xl bg-primary-500 text-white text-center px-4 py-3
-                   text-sm font-medium hover:bg-primary-600 transition-colors"
-          >
-            Ir para moderação
-          </a>
-          <button
-            type="button"
-            class="mt-2 w-full rounded-xl border border-gray-200 text-gray-700 px-4 py-3
-                   text-sm font-medium hover:bg-gray-50 transition-colors"
-            (click)="reload()"
-            [disabled]="loading()"
-          >
-            Atualizar métricas
-          </button>
-        </div>
-      </app-page-card>
-    </div>
   </div>
 
   <!-- Sections nav -->
@@ -418,7 +340,7 @@
         @if (section.route && !section.disabled) {
           <a
             [routerLink]="section.route"
-            class="group flex flex-col gap-3 p-5 rounded-xl border border-gray-200
+            class="group flex flex-col gap-3 p-5 rounded-xl border border-neutral-200
                    bg-white hover:border-primary-400 hover:shadow-sm
                    transition-all focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
@@ -433,14 +355,14 @@
                 <path [attr.d]="section.icon" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-gray-900">{{ section.title }}</h3>
-            <p class="text-sm text-gray-500">{{ section.description }}</p>
+            <h3 class="text-base font-semibold text-neutral-900">{{ section.title }}</h3>
+            <p class="text-sm text-neutral-500">{{ section.description }}</p>
           </a>
         } @else if (section.action && !section.disabled) {
           <button
             type="button"
             (click)="openAction(section)"
-            class="group flex flex-col gap-3 p-5 rounded-xl border border-gray-200
+            class="group flex flex-col gap-3 p-5 rounded-xl border border-neutral-200
                    bg-white hover:border-primary-400 hover:shadow-sm text-left
                    transition-all focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer min-h-[44px]"
           >
@@ -455,23 +377,23 @@
                 <path [attr.d]="section.icon" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-gray-900">{{ section.title }}</h3>
-            <p class="text-sm text-gray-500">{{ section.description }}</p>
+            <h3 class="text-base font-semibold text-neutral-900">{{ section.title }}</h3>
+            <p class="text-sm text-neutral-500">{{ section.description }}</p>
           </button>
         } @else {
           <div
             class="relative flex flex-col gap-3 p-5 rounded-xl border border-dashed
-                   border-gray-200 bg-gray-50"
+                   border-neutral-200 bg-gray-50"
             aria-disabled="true"
           >
             @if (section.badge) {
               <span class="absolute top-3 right-3 text-[10px] uppercase tracking-wide
-                           bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                           bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full">
                 {{ section.badge }}
               </span>
             }
             <div
-              class="w-10 h-10 rounded-lg bg-gray-100 text-gray-400
+              class="w-10 h-10 rounded-lg bg-neutral-100 text-neutral-400
                      flex items-center justify-center"
               aria-hidden="true"
             >
@@ -481,8 +403,8 @@
                 <path [attr.d]="section.icon" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-gray-500">{{ section.title }}</h3>
-            <p class="text-sm text-gray-400">{{ section.description }}</p>
+            <h3 class="text-base font-semibold text-neutral-500">{{ section.title }}</h3>
+            <p class="text-sm text-neutral-400">{{ section.description }}</p>
           </div>
         }
       }

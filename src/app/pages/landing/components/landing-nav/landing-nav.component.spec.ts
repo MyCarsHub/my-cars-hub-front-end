@@ -22,10 +22,27 @@ describe('LandingNavComponent', () => {
     const anchors = Array.from(host.querySelectorAll<HTMLAnchorElement>('nav a'));
     const targets = anchors.map((a) => a.getAttribute('href'));
     expect(targets).toEqual([
+      '/#simulador',
       '/#problema',
       '/#solucao',
       '/#funcionalidades',
       '/#planos',
+    ]);
+  });
+
+  it('renderiza os rótulos das âncoras declaradas, na ordem do componente', () => {
+    const fixture = TestBed.createComponent(LandingNavComponent);
+    fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    const labels = Array.from(host.querySelectorAll<HTMLAnchorElement>('nav a')).map(
+      (a) => a.textContent?.trim(),
+    );
+    expect(labels).toEqual([
+      'Simulador',
+      'Problema',
+      'Solução',
+      'Funcionalidades',
+      'Planos',
     ]);
   });
 

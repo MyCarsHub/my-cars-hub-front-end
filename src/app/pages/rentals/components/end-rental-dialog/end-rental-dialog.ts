@@ -18,6 +18,10 @@ import {
   toLocalDateTime,
 } from '../../../../types/overdue.types';
 import {
+  overdueUnpaidGatewayCharges,
+  shouldWarnAboutGatewayCharges,
+} from '../../../../utils/rental-charges';
+import {
   CaucaoRefundMethod,
   CaucaoRefundPayload,
   RentalResponseDto,
@@ -169,6 +173,11 @@ export class EndRentalDialog {
     this.rental().charges.filter((c) => c.kind === 'CAUCAO' && c.status === 'PAID'),
   );
 
+  /** Há charge CAUCAO paga — a que o encerramento nunca apaga. */
+  protected readonly hasPaidCaucaoCharge = computed<boolean>(
+    () => this.paidCaucaoCharges().length > 0,
+  );
+
   /** Caução prevista no contrato. 0 / ausente = não existe caução. */
   protected readonly caucaoAmountCents = computed<number>(() => this.rental().caucaoAmount ?? 0);
 
@@ -260,18 +269,43 @@ export class EndRentalDialog {
   });
 
   /**
-   * Aviso sobre o destino das cobranças no encerramento. Comunica as três
-   * garantias: pagas nunca saem, em aberto não vencidas saem sempre, vencidas
-   * só saem se o opt-in abaixo for marcado.
+   * HÁ COBRANÇA NO GATEWAY que esta ação vai tocar?
+   *
+   * Critério em `utils/rental-charges.ts`, compartilhado com o diálogo de
+   * EXCLUIR — o aviso indevido foi relatado nos dois caminhos, e consertar só um
+   * deixaria o defeito vivo no outro.
+   */
+  protected readonly hasGatewayChargesAtStake = computed<boolean>(() =>
+    shouldWarnAboutGatewayCharges(this.rental().charges, this.today()),
+  );
+
+  /**
+   * Há VENCIDA E NÃO PAGA no gateway? É a única situação em que o opt-in
+   * destrutivo tem sobre o que agir. Sem nenhuma, ele não ocupa espaço.
+   */
+  protected readonly hasOverdueUnpaidCharges = computed<boolean>(
+    () => overdueUnpaidGatewayCharges(this.rental().charges, this.today()).length > 0,
+  );
+
+  /**
+   * Aviso sobre o destino das cobranças. VAZIO quando não há cobrança no
+   * gateway — antes ele era um computed que SEMPRE devolvia texto, e o
+   * `@if (chargesNotice())` do template era sempre verdadeiro. Resultado: um
+   * aluguel quitado, criado com o Asaas desligado, lia um aviso sobre um
+   * gateway que não estava envolvido, numa tela de fechamento de dinheiro.
+   *
+   * A frase da exceção da caução saiu DESTE aviso de vez. Ela prometia "você
+   * decide a devolução abaixo" e quem garante esse "abaixo" é a seção de
+   * caução, que só existe quando `caucaoRefundState() !== 'NO_CAUCAO'`. Ligar
+   * as duas por condições diferentes é o que permitia a promessa aparecer sem o
+   * bloco correspondente; agora a frase mora DENTRO da seção que a cumpre.
    */
   protected readonly chargesNotice = computed<string>(() => {
+    if (!this.hasGatewayChargesAtStake()) return '';
     const base =
-      'As cobranças em aberto que ainda não venceram serão apagadas no Asaas. As vencidas e não pagas permanecem cobráveis; as já pagas permanecem e não são estornadas.';
-    // A frase da exceção só é verdadeira quando existe uma charge CAUCAO PAGA:
-    // é ela que o encerramento nunca apaga. Caução ainda não paga segue as
-    // mesmas regras das demais cobranças — prometer exceção seria mentira.
-    return this.paidCaucaoCharges().length > 0
-      ? `${base} A caução é a exceção — você decide a devolução abaixo.`
+      'As cobranças em aberto que ainda não venceram serão apagadas no Asaas. As já pagas permanecem e não são estornadas.';
+    return this.hasOverdueUnpaidCharges()
+      ? `${base} As vencidas e não pagas permanecem cobráveis, salvo se você marcar a opção abaixo.`
       : base;
   });
 

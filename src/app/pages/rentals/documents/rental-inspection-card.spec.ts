@@ -468,4 +468,115 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
       }
     });
   });
+
+
+  /**
+   * A REGRA POR PAPEL: o motorista fotografa AO VIVO, sem seletor; dono e gerente
+   * mantem o seletor. O rigor e por conflito de interesse — quem dirige o carro e
+   * quem teria motivo para mandar uma foto antiga dele.
+   *
+   * Aqui se afirma o DESVIO (qual caminho abre), nao o desenho da camera: o
+   * comportamento da camera em si mora em `live-camera-sheet.spec.ts`.
+   */
+  describe('RentalInspectionCard — origem da foto por papel', () => {
+    function abrirSlot(fixture: ReturnType<typeof makeFixture>): void {
+      const slot = (fixture.nativeElement as HTMLElement).querySelector(
+        'button[data-angle], [data-slot] button, button',
+      ) as HTMLButtonElement | null;
+      slot?.click();
+      fixture.detectChanges();
+    }
+
+    /**
+     * Semeia o papel no TOKEN, que e de onde a trava le. O espelho
+     * `selectedRole` e semeado JUNTO so para o caso normal parecer com a
+     * sessao real; quem separa os dois e o caso de fraude logo abaixo.
+     */
+    function signInAs(role: string): void {
+      const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+      const b64 = btoa(JSON.stringify(payload))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      sessionStorage.setItem('token', `header.${b64}.signature`);
+      sessionStorage.setItem('selectedRole', role);
+    }
+
+    it('MOTORISTA abre a camera ao vivo, e nao a folha de origem', () => {
+      signInAs('DRIVER');
+      const fixture = makeFixture();
+
+      abrirSlot(fixture);
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('app-live-camera-sheet')).not.toBeNull();
+      expect(host.textContent).not.toContain('Escolher da galeria');
+    });
+
+    for (const papel of ['OWNER', 'MANAGER']) {
+      it(`${papel} mantem o seletor atual`, () => {
+        signInAs(papel);
+        const fixture = makeFixture();
+
+        abrirSlot(fixture);
+        const host = fixture.nativeElement as HTMLElement;
+
+        expect(host.querySelector('app-live-camera-sheet')).toBeNull();
+        // ANCORA POSITIVA do lado de dono/gerente: o seletor existe mesmo.
+        expect(host.querySelector('input[type="file"]')).not.toBeNull();
+      });
+    }
+
+    /**
+     * >>> A FRAUDE QUE O ALTO DESCREVE, COMO TESTE. <<<
+     *
+     * O motorista abre o DevTools e escreve `selectedRole = 'OWNER'` — a unica
+     * coisa daqui que ele consegue editar. O TOKEN continua dizendo DRIVER,
+     * porque e assinado pelo backend e ele nao o forja.
+     *
+     * Se a trava voltar a ler o espelho, ele reconquista o seletor de arquivo e
+     * o requisito do dono ("foto tirada AGORA, nunca da galeria") cai por uma
+     * linha de console. Este caso e o que impede a volta.
+     */
+    it('espelho FORJADO para OWNER nao devolve o seletor ao motorista', () => {
+      signInAs('DRIVER');
+      sessionStorage.setItem('selectedRole', 'OWNER');
+
+      const fixture = makeFixture();
+      abrirSlot(fixture);
+      const host = fixture.nativeElement as HTMLElement;
+
+      // Continua no caminho da camera ao vivo...
+      expect(host.querySelector('app-live-camera-sheet')).not.toBeNull();
+      // ...e nao ha seletor de arquivo em lugar nenhum do componente.
+      expect(host.querySelector('input[type="file"]')).toBeNull();
+      expect(host.textContent).not.toContain('Escolher da galeria');
+    });
+
+    /**
+     * "Ver como empresa": `getCompanyRoleFromToken()` ramifica no claim de
+     * impersonacao ANTES de ler `role` e devolve `IMPERSONATED_ROLE`, hoje
+     * 'OWNER'. Entao quem observa cai no ramo de dono e mantem o seletor — que
+     * e o certo: quem esta olhando nao e o motorista.
+     */
+    it('impersonacao cai no ramo de dono e mantem o seletor', () => {
+      const payload = {
+        role: 'DRIVER',
+        impersonation: true,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      };
+      const b64 = btoa(JSON.stringify(payload))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      sessionStorage.setItem('token', `header.${b64}.signature`);
+
+      const fixture = makeFixture();
+      abrirSlot(fixture);
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('app-live-camera-sheet')).toBeNull();
+      expect(host.querySelector('input[type="file"]')).not.toBeNull();
+    });
+  });
 });

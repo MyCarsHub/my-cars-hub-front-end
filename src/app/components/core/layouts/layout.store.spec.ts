@@ -9,6 +9,9 @@ import { LayoutStore } from './layout.store';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
 import { NotificationService } from '../../../services/notification.service';
+import { BillingAccessService } from '../../../services/billing-access.service';
+import { DriverService } from '../../../services/driver.service';
+import { VehiclesService } from '../../../services/vehicles.service';
 import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 import { environment } from '../../../../environments/environment';
 
@@ -77,6 +80,7 @@ describe('LayoutStore — troca de tenant', () => {
               store['token'] = token;
             },
             getToken: () => store['token'] ?? null,
+            isOnboardingCompleted: () => true,
           },
         },
       ],
@@ -105,6 +109,36 @@ describe('LayoutStore — troca de tenant', () => {
     expect(unreadCountCalls()).toBe(ticksBefore + 1);
     expect(feed.items()).toEqual([]);
     expect(feed.unreadCount()).toBe(2);
+  });
+
+  /**
+   * Travessia A -> B de verdade: popula caches de raiz com dado da empresa A,
+   * troca de empresa e exige que nada da A sobreviva. Antes do FIX-0272 este
+   * caminho não passava por `SessionService.clear()` e NENHUM destes era
+   * descartado — a empresa B abria com a frota, os motoristas e a decisão de
+   * bloqueio da empresa A.
+   */
+  it('descarta os caches de raiz da empresa A ao entrar na empresa B', () => {
+    const vehicles = TestBed.inject(VehiclesService);
+    const drivers = TestBed.inject(DriverService);
+    const billingAccess = TestBed.inject(BillingAccessService);
+
+    vehicles.list().subscribe();
+    drivers.list().subscribe();
+    billingAccess.refresh().subscribe();
+    expect(vehicles.items()).toHaveLength(1);
+    expect(drivers.items()).toHaveLength(1);
+    expect(billingAccess.loaded()).toBe(true);
+    expect(billingAccess.status()).not.toBeNull();
+
+    layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
+
+    expect(vehicles.items()).toEqual([]);
+    expect(vehicles.total()).toBe(0);
+    expect(drivers.items()).toEqual([]);
+    // `loaded` falso é o que obriga o guard a perguntar de novo PELA empresa B.
+    expect(billingAccess.loaded()).toBe(false);
+    expect(billingAccess.status()).toBeNull();
   });
 
   it('persiste a seleção e navega para o dashboard', () => {
@@ -192,6 +226,75 @@ describe('LayoutStore — troca de tenant', () => {
 
     expect(unreadCountCalls()).toBe(ticksBefore);
     expect(feed.items()).toHaveLength(1);
+  });
+
+  /**
+   * FIX-0363 — a lista do seletor era um SNAPSHOT do login: uma empresa em que
+   * o usuario entrou DEPOIS (aceitar um convite) so aparecia depois de deslogar
+   * e logar. Com convites em producao, esse virou o caminho normal.
+   */
+  describe('lista de empresas vinda de /auth/me na troca (FIX-0363)', () => {
+    /** Empresa que chegou por convite DEPOIS do login desta sessao. */
+    const comConvite = [
+      ...companies,
+      { companyId: 'company-c', companyName: 'Gama', role: 'DRIVER' },
+    ];
+
+    function serveMeWith(list: unknown[]): void {
+      httpGet.mockImplementation((url: string) => {
+        const u = String(url);
+        if (u.endsWith('/auth/me')) return of({ companies: list });
+        if (u.endsWith('/unread-count')) return of({ count: unreadCountResponse });
+        return of({ content: [], page: 0, size: 10, total: 1 });
+      });
+    }
+
+    it('mostra a empresa nova depois de trocar, sem relogar', () => {
+      serveMeWith(comConvite);
+      expect(layout.tenants().map((t) => t.id)).toEqual(['company-a', 'company-b']);
+
+      layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
+
+      expect(httpGet.mock.calls.some((c) => String(c[0]).endsWith('/auth/me'))).toBe(true);
+      expect(layout.tenants().map((t) => t.id)).toEqual([
+        'company-a',
+        'company-b',
+        'company-c',
+      ]);
+    });
+
+    /** O papel tambem vem da fonte: um papel que mudou no servidor chega junto. */
+    it('adota o papel que /auth/me devolve para a empresa selecionada', () => {
+      serveMeWith([
+        { companyId: 'company-a', companyName: 'Alpha', role: 'OWNER' },
+        { companyId: 'company-b', companyName: 'Beta', role: 'OWNER' },
+      ]);
+
+      layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
+
+      expect(layout.selectedTenant().role).toBe('OWNER');
+    });
+
+    /**
+     * A troca JA deu certo e o token novo ja esta gravado: uma falha ao reler a
+     * lista nao pode desfazer nada nem alarmar quem trocou com sucesso.
+     */
+    it('ignora em silencio uma falha do /auth/me, sem desfazer a troca', () => {
+      httpGet.mockImplementation((url: string) => {
+        const u = String(url);
+        if (u.endsWith('/auth/me')) {
+          return throwError(() => new HttpErrorResponse({ status: 500 }));
+        }
+        if (u.endsWith('/unread-count')) return of({ count: unreadCountResponse });
+        return of({ content: [], page: 0, size: 10, total: 1 });
+      });
+
+      layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
+
+      expect(store['selectedCompanyId']).toBe('company-b');
+      expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+      expect(layout.tenants().map((t) => t.id)).toEqual(['company-a', 'company-b']);
+    });
   });
 });
 

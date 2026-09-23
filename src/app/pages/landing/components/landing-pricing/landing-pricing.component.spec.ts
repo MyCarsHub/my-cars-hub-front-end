@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
+import { PlanIntentService } from '../../../../services/plan-intent.service';
 import { LandingPricingComponent } from './landing-pricing.component';
 
 /**
@@ -236,15 +237,22 @@ describe('LandingPricingComponent', () => {
         'PRO',
         'ENTERPRISE',
       ]);
-      expect(c.phonePlans().map((p) => p.tier)).toEqual(['ENTERPRISE', 'PRO', 'STARTER', 'TRIAL']);
+      // FIX-0290 — PRIMAZIA DE SLOT: os dois primeiros slots levam a atencao
+      // independentemente de qual plano esta neles, entao o plano que se QUER
+      // escolhido vai na frente. PRO primeiro, TRIAL logo atras.
+      expect(c.phonePlans().map((p) => p.tier)).toEqual(['PRO', 'TRIAL', 'STARTER', 'ENTERPRISE']);
     });
 
     /**
-     * A REDAÇÃO SEGUE O ARRANJO. No telefone o primeiro card é o ENTERPRISE e
-     * não existe "plano anterior" nenhum antes dele; a frase aponta para baixo,
-     * que é onde os planos menores realmente estão nesse arranjo.
+     * A REDAÇÃO SEGUE O ARRANJO, E AGORA CARD A CARD.
+     *
+     * Enquanto o telefone era a escada exatamente invertida, uma frase servia a
+     * grade inteira. Na ordem do FIX-0290 (PRO, TRIAL, STARTER, ENTERPRISE) a
+     * escada deixa de ser monotonica: o degrau anterior do PRO — o STARTER —
+     * fica ABAIXO dele, enquanto o do STARTER (TRIAL) e o do ENTERPRISE (PRO)
+     * ficam ACIMA. Uma frase so para os tres passaria a mentir sobre onde olhar.
      */
-    it('vira a frase de herança junto com a ordem', () => {
+    it('aponta a heranca para onde o degrau anterior realmente esta', () => {
       const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
         catalogPlans(): readonly { tier: string; features: readonly string[] }[];
         phonePlans(): readonly { tier: string; features: readonly string[] }[];
@@ -255,10 +263,30 @@ describe('LandingPricingComponent', () => {
         tier: string,
       ) => plans.find((p) => p.tier === tier)?.features[0];
 
+      // O catalogo sobe, e a frase aponta para cima nos tres pagos.
       for (const tier of ['STARTER', 'PRO', 'ENTERPRISE']) {
         expect(firstLine(c.catalogPlans(), tier)).toBe('Tudo o que o plano anterior tem');
-        expect(firstLine(c.phonePlans(), tier)).toBe('Tudo o que os planos abaixo têm');
       }
+
+      // No telefone, so o PRO tem o degrau anterior abaixo de si.
+      expect(firstLine(c.phonePlans(), 'PRO')).toBe('Tudo o que os planos abaixo têm');
+      expect(firstLine(c.phonePlans(), 'STARTER')).toBe('Tudo o que o plano anterior tem');
+      expect(firstLine(c.phonePlans(), 'ENTERPRISE')).toBe('Tudo o que o plano anterior tem');
+    });
+
+    /**
+     * A aposta do FIX-0290 e barata e REVERSIVEL de propósito: trocar a lista de
+     * ordem volta o arranjo anterior. Este teste existe para que a ordem seja um
+     * dado declarado num lugar so, e nao emergente de um `.reverse()`.
+     */
+    it('o TRIAL fica no segundo slot, nao no ultimo', () => {
+      const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
+        phonePlans(): readonly { tier: string }[];
+      };
+
+      const tiers = c.phonePlans().map((p) => p.tier);
+      expect(tiers.indexOf('TRIAL')).toBe(1);
+      expect(tiers.indexOf('ENTERPRISE')).toBe(tiers.length - 1);
     });
 
     /**
@@ -278,5 +306,71 @@ describe('LandingPricingComponent', () => {
       expect(html).not.toContain('flex-col-reverse');
       expect(html).not.toMatch(/\border-(first|last|\d)\b/);
     });
+  });
+});
+
+/**
+ * FIX-0291 — os QUATRO botoes chegam no mesmo handler, e era ali que a escolha
+ * morria: ele nao recebia o plano. O visitante lia a tabela, decidia pelo Pro,
+ * clicava, e a decisao evaporava.
+ *
+ * O que se guarda e INTENCAO, nao assinatura: o plano de entrada e decidido no
+ * servidor, e nada disto vai no corpo de nenhuma requisicao.
+ */
+describe('LandingPricingComponent — guarda o plano escolhido (FIX-0291)', () => {
+  let remember: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.fn>;
+
+  function clickCta(label: string): void {
+    TestBed.resetTestingModule();
+    remember = vi.fn();
+    navigate = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: Router, useValue: { navigate } },
+        { provide: PlanIntentService, useValue: { remember } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LandingPricingComponent);
+    fixture.detectChanges();
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => (b.textContent ?? '').trim() === label);
+    if (!button) throw new Error(`botao ausente: ${label}`);
+    button.click();
+    fixture.detectChanges();
+  }
+
+  it('guarda o PRO quando o visitante escolhe o Pro', () => {
+    clickCta('Assinar Pro');
+
+    expect(remember).toHaveBeenCalledWith('PRO');
+  });
+
+  it('guarda o STARTER e o ENTERPRISE pelos proprios botoes', () => {
+    clickCta('Assinar Starter');
+    expect(remember).toHaveBeenCalledWith('STARTER');
+
+    clickCta('Assinar Enterprise');
+    expect(remember).toHaveBeenCalledWith('ENTERPRISE');
+  });
+
+  /**
+   * O trial tambem passa pelo handler — e o servico e quem decide que ele APAGA
+   * em vez de gravar. A tela nao pode ter uma regra propria sobre isso, senao as
+   * duas divergem.
+   */
+  it('o trial tambem avisa o servico, que e quem decide apagar', () => {
+    clickCta('Criar conta grátis');
+
+    expect(remember).toHaveBeenCalledWith('TRIAL');
+  });
+
+  it('continua navegando para o login depois de guardar', () => {
+    clickCta('Assinar Pro');
+
+    expect(navigate).toHaveBeenCalledWith(['/login']);
   });
 });
