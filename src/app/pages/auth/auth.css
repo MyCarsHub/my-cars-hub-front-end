@@ -7,17 +7,17 @@
 :host {
   display: block;
   min-height: 100dvh;
-  --font-display: 'Sora', system-ui, sans-serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
   --brand: #f63b04;
   --brand-hover: #ea3e00;
   --brand-strong: #c22f00;
-  --brand-gradient: linear-gradient(135deg, #fa602e 0%, #f63b04 55%, #c22f00 100%);
   --paper: #ffffff;
   --ink: #0a0a0a;
   --muted: #6e6e6e;
   --rule: #ececec;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* O par duracao+curva se repetia em toda transicao da tela. */
+  --t: var(--t);
 }
 
 .auth-page {
@@ -28,40 +28,32 @@
   place-items: center;
   overflow: hidden;
   padding: 32px 16px;
-  background: var(--brand-gradient);
+  background: linear-gradient(135deg, #fa602e 0%, #f63b04 55%, #c22f00 100%);
   color: var(--ink);
   font-family: var(--font-body);
 }
 
-/* Glow radial estatico — profundidade sem giro. */
-.auth-glow {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 55% 45% at 15% 10%, rgba(255, 255, 255, 0.25), transparent 55%),
-    radial-gradient(ellipse 55% 45% at 85% 90%, rgba(0, 0, 0, 0.25), transparent 55%);
-  pointer-events: none;
-}
-
-.auth-grid {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 56px 56px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%);
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%);
-  pointer-events: none;
-}
-
+/* As tres camadas decorativas dividem a mesma casca de posicionamento. */
+.auth-glow,
+.auth-grid,
 .auth-marks {
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
+}
+/* Glow radial estatico — profundidade sem giro. */
+.auth-glow {
+  background:
+    radial-gradient(ellipse 55% 45% at 15% 10%, rgba(255, 255, 255, 0.25), transparent 55%),
+    radial-gradient(ellipse 55% 45% at 85% 90%, rgba(0, 0, 0, 0.25), transparent 55%);
+}
+.auth-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%);
 }
 .auth-mark {
   position: absolute;
@@ -149,15 +141,15 @@
   padding: 6px 10px;
   border-radius: 999px;
   transition:
-    color 180ms var(--ease-out),
-    background 180ms var(--ease-out);
+    color var(--t),
+    background var(--t);
 }
 .auth-back:hover {
   color: var(--brand-strong);
   background: rgba(246, 59, 4, 0.06);
 }
 .auth-back svg {
-  transition: transform 180ms var(--ease-out);
+  transition: transform var(--t);
 }
 .auth-back:hover svg {
   transform: translateX(-2px);
@@ -207,7 +199,7 @@
   gap: 8px;
 }
 .auth-intro h1 {
-  font-family: var(--font-display);
+  font-family: 'Sora', system-ui, sans-serif;
   font-size: clamp(1.6rem, 6vw, 2.1rem);
   font-weight: 700;
   letter-spacing: -0.028em;
@@ -244,9 +236,9 @@
   font-weight: 600;
   cursor: pointer;
   transition:
-    background 180ms var(--ease-out),
-    color 180ms var(--ease-out),
-    box-shadow 180ms var(--ease-out);
+    background var(--t),
+    color var(--t),
+    box-shadow var(--t);
 }
 .auth-switch__btn:hover:not(.is-active) {
   color: var(--ink);
@@ -288,31 +280,41 @@
   text-transform: uppercase;
 }
 
+/*
+ * Os dois botoes-pilula (Google e envio) sempre tiveram a MESMA geometria: mesma
+ * largura, mesma altura, mesmo raio, mesma espessura de borda, mesma transicao.
+ * Estava escrito duas vezes. A base agora e uma so — nenhum valor computado
+ * mudou, so a duplicacao saiu. Cor, peso da fonte e sombra seguem por botao.
+ */
+.auth-google,
+.auth-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  border-radius: 9999px;
+  border: 1.5px solid;
+  color: #ffffff;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  transition:
+    transform var(--t),
+    background var(--t),
+    border-color var(--t),
+    box-shadow var(--t);
+}
 /* Google — mantem exatamente o peso visual que ja esta em producao. */
 .auth-google {
   position: relative;
   isolation: isolate;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 10px;
-  width: 100%;
-  min-height: 52px;
-  border-radius: 9999px;
-  border: 1.5px solid var(--ink);
+  border-color: var(--ink);
   background: var(--ink);
-  color: #ffffff;
-  cursor: pointer;
-  font-family: var(--font-body);
   font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -0.005em;
   overflow: hidden;
-  transition:
-    transform 180ms var(--ease-out),
-    background 180ms var(--ease-out),
-    border-color 180ms var(--ease-out),
-    box-shadow 180ms var(--ease-out);
   box-shadow: 0 10px 24px -8px rgba(10, 10, 10, 0.35);
 }
 .auth-google::after {
@@ -325,37 +327,49 @@
   pointer-events: none;
   z-index: -1;
 }
+/* O levantar do hover e o voltar do active sao identicos nos dois botoes. */
+.auth-google:hover:not(:disabled),
+.auth-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px -8px rgba(246, 59, 4, 0.5);
+}
+.auth-google:active:not(:disabled),
+.auth-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
 .auth-google:hover:not(:disabled) {
   background: var(--brand);
   border-color: var(--brand);
-  transform: translateY(-1px);
-  box-shadow: 0 16px 32px -8px rgba(246, 59, 4, 0.5);
 }
 .auth-google:hover:not(:disabled)::after {
   transform: translateX(120%);
 }
-.auth-google:active:not(:disabled) {
-  transform: translateY(0);
+.auth-google:disabled,
+.auth-primary:disabled {
+  cursor: wait;
 }
 .auth-google:disabled {
   opacity: 0.7;
-  cursor: wait;
 }
 .auth-google img {
   flex-shrink: 0;
 }
 .auth-google__arrow {
-  transition: transform 180ms var(--ease-out);
+  transition: transform var(--t);
 }
 .auth-google:hover:not(:disabled) .auth-google__arrow {
   transform: translateX(3px);
 }
-.auth-google__hint {
+/* Nota pequena, centrada, discreta — duas ocorrencias do mesmo papel. */
+.auth-google__hint,
+.auth-legal {
   margin: 0;
   font-size: 12px;
-  line-height: 1.45;
   color: var(--muted);
   text-align: center;
+}
+.auth-google__hint {
+  line-height: 1.45;
 }
 
 .auth-spinner {
@@ -433,9 +447,13 @@
   accent-color: var(--brand);
   cursor: pointer;
 }
-.auth-terms-check a {
+/* Termos e privacidade sao o MESMO link nos dois lugares em que aparecem. */
+.auth-terms-check a,
+.auth-legal a {
   color: var(--brand-strong);
   font-weight: 600;
+}
+.auth-terms-check a {
   text-decoration: underline;
 }
 .auth-terms-check a:hover {
@@ -443,54 +461,27 @@
 }
 
 .auth-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
-  width: 100%;
-  min-height: 52px;
   margin-top: 2px;
-  border-radius: 9999px;
-  border: 1.5px solid var(--brand);
+  border-color: var(--brand);
   background: var(--brand);
-  color: #ffffff;
-  cursor: pointer;
-  font-family: var(--font-body);
   font-weight: 700;
-  font-size: 15px;
-  letter-spacing: -0.005em;
-  transition:
-    transform 180ms var(--ease-out),
-    background 180ms var(--ease-out),
-    box-shadow 180ms var(--ease-out);
   box-shadow: 0 10px 24px -8px rgba(246, 59, 4, 0.45);
 }
 .auth-primary:hover:not(:disabled) {
   background: var(--brand-hover);
   border-color: var(--brand-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 16px 32px -8px rgba(246, 59, 4, 0.5);
-}
-.auth-primary:active:not(:disabled) {
-  transform: translateY(0);
 }
 .auth-primary:disabled {
   opacity: 0.65;
-  cursor: wait;
 }
 
 .auth-legal {
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
   line-height: 1.55;
-  margin: 0;
   max-width: 360px;
 }
 .auth-legal a {
-  color: var(--brand-strong);
   text-decoration: none;
-  font-weight: 600;
 }
 .auth-legal a:hover {
   text-decoration: underline;
