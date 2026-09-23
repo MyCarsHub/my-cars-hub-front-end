@@ -395,9 +395,9 @@ export class VehicleForm implements OnInit {
   protected readonly financingForm = this.fb.nonNullable.group({
     contractDate: ['', [Validators.required]],
     purchasePrice: ['', [ptBrMoneyValidator({ minCents: 1 })]],
-    downPayment: [0, [Validators.min(0)]],
+    downPayment: ['', [ptBrMoneyValidator({ optional: true })]],
     installments: [0, [Validators.min(0)]],
-    installmentAmount: [0, [Validators.min(0)]],
+    installmentAmount: ['', [ptBrMoneyValidator({ optional: true })]],
   });
 
   protected readonly insuranceForm = this.fb.nonNullable.group(
@@ -1101,9 +1101,9 @@ export class VehicleForm implements OnInit {
     return {
       contractDate: fRaw.contractDate,
       purchasePrice: ptBrMoneyCents(fRaw.purchasePrice) ?? 0,
-      downPayment: fRaw.downPayment ? toCents(Number(fRaw.downPayment)) : null,
+      downPayment: ptBrMoneyCents(fRaw.downPayment),
       installments: fRaw.installments ? Number(fRaw.installments) : null,
-      installmentAmount: fRaw.installmentAmount ? toCents(Number(fRaw.installmentAmount)) : null,
+      installmentAmount: ptBrMoneyCents(fRaw.installmentAmount),
       totalFinanced: null,
     };
   }

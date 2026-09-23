@@ -26,7 +26,6 @@ import { FieldControl, FormField } from '../../components/form-field/form-field'
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
-import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
 import { formatPtBrMoney } from '../../utils/ptbr-number';
 import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
@@ -133,6 +132,10 @@ export class RentalForm implements OnInit {
   protected readonly dailyInterestMessages: Readonly<Record<string, string>> = {
     required: 'Informe o juros diário (0 se não cobrar).',
     min: 'O juros não pode ser negativo.',
+    moneyFormat: 'Informe um valor válido (ex.: 12,50).',
+  };
+  protected readonly caucaoMessages: Readonly<Record<string, string>> = {
+    moneyFormat: 'Informe um valor válido (ex.: 2.000,00).',
   };
   protected readonly lateFineValueMessages: Readonly<Record<string, string>> = {
     required: 'Informe o valor da multa (0 se não cobrar).',
@@ -182,7 +185,7 @@ export class RentalForm implements OnInit {
       billingFrequency: ['DAILY' as RentalBillingFrequency, [Validators.required]],
       // TEXTO pt-BR no form (máscara de milhar ao digitar), centavos no payload.
       periodRateReais: ['', [ptBrMoneyValidator({ minCents: 1 })]],
-      caucaoReais: [0, [Validators.min(0)]],
+      caucaoReais: ['', [ptBrMoneyValidator({ optional: true })]],
       caucaoPaid: [false],
       automaticCharge: [false],
       notes: [''],
@@ -191,7 +194,9 @@ export class RentalForm implements OnInit {
       initialKm: [null as number | null, [Validators.required, Validators.min(0)]],
       pickupDate: ['', [Validators.required]], // datetime-local yyyy-MM-ddTHH:mm
       firstPaymentDate: ['', [Validators.required]], // yyyy-MM-dd
-      dailyInterestReais: [0, [Validators.required, Validators.min(0)]],
+      // Nasce em '0,00' (nao vazio): o campo e obrigatorio e antes ja abria
+      // preenchido com 0, entao um default vazio deixaria o form invalido ao abrir.
+      dailyInterestReais: ['0,00', [ptBrMoneyValidator()]],
       lateFineType: ['PERCENT' as RentalLateFineType, [Validators.required]],
       // PERCENT: percentagem (2 = 2%). FIXED: reais.
       lateFineValueInput: [0, [Validators.required, Validators.min(0)]],
@@ -427,7 +432,7 @@ export class RentalForm implements OnInit {
 
   /** Só mostra o toggle "caução recebida por fora" quando há caução. */
   protected readonly caucaoAmountPositive = computed(
-    () => Number(this.formValue()?.caucaoReais ?? 0) > 0,
+    () => (ptBrMoneyCents(this.formValue()?.caucaoReais) ?? 0) > 0,
   );
 
   /**
@@ -559,14 +564,14 @@ export class RentalForm implements OnInit {
             endDate: r.endDate,
             periodRateReais: formatPtBrMoney(r.periodRate),
             billingFrequency: r.billingFrequency ?? 'DAILY',
-            caucaoReais: r.caucaoAmount / 100,
+            caucaoReais: formatPtBrMoney(r.caucaoAmount),
             caucaoPaid: r.caucaoPaid ?? false,
             automaticCharge: r.automaticCharge ?? false,
             notes: r.notes ?? '',
             initialKm: r.initialKm ?? null,
             pickupDate: toDateTimeLocalInput(r.pickupDate),
             firstPaymentDate: r.firstPaymentDate ?? '',
-            dailyInterestReais: (r.dailyInterestAmount ?? 0) / 100,
+            dailyInterestReais: formatPtBrMoney(r.dailyInterestAmount ?? 0),
             lateFineType,
             lateFineValueInput,
             franchiseKm: r.franchiseKm ?? null,
@@ -729,8 +734,8 @@ export class RentalForm implements OnInit {
    * submit convertem com `ptBrMoneyCents`, então os CENTAVOS enviados à API
    * são os mesmos de antes.
    */
-  protected onMoneyInput(event: Event): void {
-    applyPtBrMoneyMaskToControl(event, this.form.controls.periodRateReais);
+  protected onMoneyInput(event: Event, name: 'periodRateReais' | 'caucaoReais' | 'dailyInterestReais'): void {
+    applyPtBrMoneyMaskToControl(event, this.form.controls[name]);
   }
 
   protected submit(): void {
@@ -759,10 +764,10 @@ export class RentalForm implements OnInit {
     clearServerErrors(this.form);
     const raw = this.form.getRawValue();
     const periodRate = ptBrMoneyCents(raw.periodRateReais) ?? 0;
-    const caucao = toCents(Number(raw.caucaoReais ?? 0)) ?? 0;
+    const caucao = ptBrMoneyCents(raw.caucaoReais) ?? 0;
 
     // V29: campos financeiros
-    const dailyInterestAmount = toCents(Number(raw.dailyInterestReais ?? 0)) ?? 0;
+    const dailyInterestAmount = ptBrMoneyCents(raw.dailyInterestReais) ?? 0;
     const lateFineType: RentalLateFineType = raw.lateFineType;
     const lateFineValue = toLateFineStored(lateFineType, Number(raw.lateFineValueInput ?? 0));
     const pickupDateIso = fromDateTimeLocalInput(raw.pickupDate);

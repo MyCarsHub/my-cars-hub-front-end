@@ -257,9 +257,9 @@ describe('VehicleForm — financiamento na edição', () => {
     api().financingForm.patchValue({
       contractDate: '2026-01-10',
       purchasePrice: '50.000,00',
-      downPayment: 10000,
+      downPayment: '10.000,00',
       installments: 24,
-      installmentAmount: 1800.5,
+      installmentAmount: '1.800,50',
     });
     api().submit();
 

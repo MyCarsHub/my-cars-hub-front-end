@@ -122,7 +122,7 @@ describe('RentalForm picker filters', () => {
 
     // Toggle only visible when there's a caução amount.
     expect(cmp.caucaoAmountPositive()).toBe(false);
-    cmp.form.patchValue({ caucaoReais: 500 });
+    cmp.form.patchValue({ caucaoReais: '500,00' });
     fixture.detectChanges();
     expect(cmp.caucaoAmountPositive()).toBe(true);
   });
@@ -487,7 +487,7 @@ describe('RentalForm retirada dentro do período', () => {
     periodRateReais: '2.500,00',
     initialKm: 42000,
     firstPaymentDate: '2026-08-05',
-    dailyInterestReais: 3,
+    dailyInterestReais: '3,00',
     lateFineType: 'PERCENT',
     lateFineValueInput: 2,
   };
@@ -722,12 +722,12 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
     endDate: '2026-08-31',
     billingFrequency: 'MONTHLY',
     periodRateReais: '2.500,00',
-    caucaoReais: 800,
+    caucaoReais: '800,00',
     notes: 'entrega na garagem',
     initialKm: 42000,
     pickupDate: '2026-08-01T09:00',
     firstPaymentDate: '2026-08-05',
-    dailyInterestReais: 3,
+    dailyInterestReais: '3,00',
     lateFineType: 'PERCENT',
     lateFineValueInput: 2,
   };
@@ -1356,6 +1356,9 @@ describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () 
             setItem: (k: string, v: string) => store.set(k, v),
             getItem: (k: string) => store.get(k) ?? null,
             removeItem: (k: string) => store.delete(k),
+            // O componente le o papel do TOKEN no construtor (FEAT-0147); sem
+            // este stub o `createComponent` estoura antes de qualquer assercao.
+            getCompanyRoleFromToken: () => 'OWNER',
           },
         },
         {
@@ -1395,11 +1398,11 @@ describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () 
       startDate: '2026-08-01',
       endDate: '2026-08-31',
       billingFrequency: 'MONTHLY',
-      caucaoReais: 0,
+      caucaoReais: '',
       initialKm: 42_000,
       pickupDate: '2026-08-01T09:00',
       firstPaymentDate: '2026-08-05',
-      dailyInterestReais: 3,
+      dailyInterestReais: '3,00',
       lateFineType: 'PERCENT',
       lateFineValueInput: 2,
     });

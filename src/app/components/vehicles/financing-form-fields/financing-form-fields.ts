@@ -22,6 +22,13 @@ export class FinancingFormFields {
     min: 'Informe o valor de compra.',
     moneyFormat: 'Informe um valor válido (ex.: 45.000,00).',
   };
+  /** Opcionais: sem `required`, só a gramática do valor. */
+  protected readonly downPaymentMessages: Readonly<Record<string, string>> = {
+    moneyFormat: 'Informe um valor válido (ex.: 10.000,00).',
+  };
+  protected readonly installmentAmountMessages: Readonly<Record<string, string>> = {
+    moneyFormat: 'Informe um valor válido (ex.: 1.200,00).',
+  };
 
   protected control(name: string): AbstractControl | null {
     return this.formGroup().get(name);
