@@ -82,6 +82,31 @@ const NAV_ITEMS: NavItem[] = [
         icon: ICON_MAINT,
         roles: ['OWNER', 'MANAGER'],
       },
+      // VISTORIAS: o item de menu está deliberadamente FORA — e o LUGAR dele
+      // já está decidido, é este: filho de "Frota", entre Manutenções e Multas
+      // (decisão do dono). Ele NÃO volta como item de primeiro nível.
+      //
+      // POR QUE SEGUE FORA: não é falta de backend. A listagem
+      // `GET /v1/inspections` já está em produção (V82, backend `8c0598c`) e a
+      // rota `/vistorias` já existe e funciona (`app.routes.ts`). O que falta é
+      // o FEAT-0142, o card que devolve o item AO MENU junto com o teste que
+      // nomeia "Vistorias" — hoje a suíte prova o mecanismo de realce de grupo
+      // em Frota e Configurações, mas nenhum teste nomeia este item, porque ele
+      // ainda não existe. Descomentar aqui, solto, entrega um item de menu sem
+      // nenhum teste prendendo que ele acende o pai.
+      //
+      // PARA DEVOLVER O ITEM (isso é o FEAT-0142, não este PR): descomente o
+      // bloco abaixo AQUI MESMO, sem mudar de lugar, e escreva junto o caso que
+      // nomeia Vistorias. Nada mais precisa mudar: a rota é irmã plana de
+      // /veiculos e /manutencoes (sem prefixo, como as outras filhas de Frota),
+      // e o realce já cobre filhos — `routerLinkActive` no <a> do filho e
+      // `isExpanded()`, que abre "Frota" quando a URL começa com /vistorias.
+      // {
+      //   route: '/vistorias',
+      //   label: 'Vistorias',
+      //   icon: ICON_MAINT,
+      //   roles: ['OWNER', 'MANAGER'],
+      // },
       { route: '/multas', label: 'Multas', icon: ICON_FINES, roles: ['OWNER', 'MANAGER'] },
       {
         route: '/sinistros',
