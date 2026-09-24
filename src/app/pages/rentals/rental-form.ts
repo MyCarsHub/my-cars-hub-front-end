@@ -16,6 +16,7 @@ import {
   FormBuilder,
   ReactiveFormsModule,
   ValidationErrors,
+  ValidatorFn,
   Validators,
 } from '@angular/forms';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
@@ -26,7 +27,9 @@ import { FieldControl, FormField } from '../../components/form-field/form-field'
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
-import { toCents } from '../../components/vehicles/financing-form-fields/financing-utils';
+import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
+import { formatPtBrMoney } from '../../utils/ptbr-number';
+import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { RentalService } from './rental.service';
 import { SessionService } from '../../services/session.service';
 import { VehiclesService } from '../../services/vehicles.service';
@@ -119,6 +122,7 @@ export class RentalForm implements OnInit {
   protected readonly rateMessages: Readonly<Record<string, string>> = {
     required: 'Informe um valor maior que zero.',
     min: 'Informe um valor maior que zero.',
+    moneyFormat: 'Informe um valor válido (ex.: 1.500,00).',
   };
   protected readonly initialKmMessages: Readonly<Record<string, string>> = {
     required: 'Informe a quilometragem inicial.',
@@ -130,10 +134,15 @@ export class RentalForm implements OnInit {
   protected readonly dailyInterestMessages: Readonly<Record<string, string>> = {
     required: 'Informe o juros diário (0 se não cobrar).',
     min: 'O juros não pode ser negativo.',
+    moneyFormat: 'Informe um valor válido (ex.: 12,50).',
+  };
+  protected readonly caucaoMessages: Readonly<Record<string, string>> = {
+    moneyFormat: 'Informe um valor válido (ex.: 2.000,00).',
   };
   protected readonly lateFineValueMessages: Readonly<Record<string, string>> = {
     required: 'Informe o valor da multa (0 se não cobrar).',
     min: 'O valor da multa não pode ser negativo.',
+    moneyFormat: 'Informe um valor válido (ex.: 150,00).',
   };
   protected readonly franchiseKmMessages: Readonly<Record<string, string>> = {
     min: 'A franquia não pode ser negativa.',
@@ -177,8 +186,9 @@ export class RentalForm implements OnInit {
       // Order in the UI: frequency comes BEFORE the rate so the rate label can
       // reflect the chosen period ("Valor da diária" / "semanal" / "mensal").
       billingFrequency: ['DAILY' as RentalBillingFrequency, [Validators.required]],
-      periodRateReais: [0, [Validators.required, Validators.min(0.01)]],
-      caucaoReais: [0, [Validators.min(0)]],
+      // TEXTO pt-BR no form (máscara de milhar ao digitar), centavos no payload.
+      periodRateReais: ['', [ptBrMoneyValidator({ minCents: 1 })]],
+      caucaoReais: ['', [ptBrMoneyValidator({ optional: true })]],
       caucaoPaid: [false],
       automaticCharge: [false],
       notes: [''],
@@ -187,10 +197,14 @@ export class RentalForm implements OnInit {
       initialKm: [null as number | null, [Validators.required, Validators.min(0)]],
       pickupDate: ['', [Validators.required]], // datetime-local yyyy-MM-ddTHH:mm
       firstPaymentDate: ['', [Validators.required]], // yyyy-MM-dd
-      dailyInterestReais: [0, [Validators.required, Validators.min(0)]],
+      // Nasce em '0,00' (nao vazio): o campo e obrigatorio e antes ja abria
+      // preenchido com 0, entao um default vazio deixaria o form invalido ao abrir.
+      dailyInterestReais: ['0,00', [ptBrMoneyValidator()]],
       lateFineType: ['PERCENT' as RentalLateFineType, [Validators.required]],
       // PERCENT: percentagem (2 = 2%). FIXED: reais.
-      lateFineValueInput: [0, [Validators.required, Validators.min(0)]],
+      // Nasce em PERCENT, entao os validadores iniciais sao os do percentual.
+      // `onLateFineTypeChange` troca os dois quando o modo muda.
+      lateFineValueInput: [0 as number | string, [Validators.required, Validators.min(0)]],
 
       // V32: franquia e política de combustível — opcionais.
       franchiseKm: [null as number | null, [Validators.min(0)]],
@@ -334,7 +348,7 @@ export class RentalForm implements OnInit {
     const v = this.formValue();
     const days = this.totalDays();
     if (!days) return null;
-    const cents = toCents(Number(v?.periodRateReais ?? 0));
+    const cents = ptBrMoneyCents(v?.periodRateReais);
     if (cents == null) return null;
     switch (this.billingFrequency()) {
       case 'WEEKLY':
@@ -423,7 +437,7 @@ export class RentalForm implements OnInit {
 
   /** Só mostra o toggle "caução recebida por fora" quando há caução. */
   protected readonly caucaoAmountPositive = computed(
-    () => Number(this.formValue()?.caucaoReais ?? 0) > 0,
+    () => (ptBrMoneyCents(this.formValue()?.caucaoReais) ?? 0) > 0,
   );
 
   /**
@@ -547,28 +561,36 @@ export class RentalForm implements OnInit {
       this.rentalService.getById(id).subscribe({
         next: (r) => {
           const lateFineType: RentalLateFineType = r.lateFineType ?? 'PERCENT';
-          const lateFineValueInput = fromLateFineStored(lateFineType, r.lateFineValue);
+          const lateFineValueInput =
+            lateFineType === 'FIXED'
+              ? formatPtBrMoney(r.lateFineValue ?? 0)
+              : basisPointsToPercent(r.lateFineValue);
           this.form.patchValue({
             vehicleId: r.vehicleId,
             driverId: r.driverId,
             startDate: r.startDate,
             endDate: r.endDate,
-            periodRateReais: r.periodRate / 100,
+            periodRateReais: formatPtBrMoney(r.periodRate),
             billingFrequency: r.billingFrequency ?? 'DAILY',
-            caucaoReais: r.caucaoAmount / 100,
+            caucaoReais: formatPtBrMoney(r.caucaoAmount),
             caucaoPaid: r.caucaoPaid ?? false,
             automaticCharge: r.automaticCharge ?? false,
             notes: r.notes ?? '',
             initialKm: r.initialKm ?? null,
             pickupDate: toDateTimeLocalInput(r.pickupDate),
             firstPaymentDate: r.firstPaymentDate ?? '',
-            dailyInterestReais: (r.dailyInterestAmount ?? 0) / 100,
+            dailyInterestReais: formatPtBrMoney(r.dailyInterestAmount ?? 0),
             lateFineType,
             lateFineValueInput,
             franchiseKm: r.franchiseKm ?? null,
             returnFuelPolicy: r.returnFuelPolicy ?? '',
             useContractTemplate: r.contractSource === 'AUTO',
           });
+          // O modo da multa veio do servidor, então os validadores do valor
+          // precisam seguir o modo CARREGADO e não o padrão PERCENT do form novo.
+          const lateFineValue = this.form.controls.lateFineValueInput;
+          lateFineValue.setValidators(this.lateFineValueValidators());
+          lateFineValue.updateValueAndValidity({ emitEvent: false });
           // contractSource é imutável após create — não permite alternar em edit.
           this.form.controls.useContractTemplate.disable();
           // Post-load: rentals in COMPLETED/CANCELED are immutable server-side;
@@ -719,6 +741,51 @@ export class RentalForm implements OnInit {
     this.draftRestored.set(false);
   }
 
+  /**
+   * Máscara de milhar DURANTE a digitação (FIX-0261), no mesmo padrão do
+   * diálogo de venda. O controle guarda TEXTO pt-BR; o total ao vivo e o
+   * submit convertem com `ptBrMoneyCents`, então os CENTAVOS enviados à API
+   * são os mesmos de antes.
+   */
+  /** Em FIXED o campo de multa e dinheiro; em PERCENT, percentagem pura. */
+  protected readonly lateFineIsFixed = computed(
+    () => this.formValue()?.lateFineType === 'FIXED',
+  );
+
+  /**
+   * Troca do modo da multa de atraso — o valor e LIMPO de proposito.
+   *
+   * 2 (por cento) e 2,00 (reais) NAO sao o mesmo numero. Preservar o valor na
+   * troca manteria o digito na tela enquanto o SIGNIFICADO mudava embaixo dele,
+   * que e exatamente o tipo de mudanca silenciosa que ninguem revisa. Zerar e o
+   * comportamento previsivel, e o passo a mais para quem trocou de modo sem
+   * querer foi o preco aceito por isso.
+   *
+   * Se voce veio aqui achando que o campo limpar e um bug: nao e. E a decisao.
+   */
+  protected onLateFineTypeChange(): void {
+    const control = this.form.controls.lateFineValueInput;
+    control.setValue('');
+    control.setValidators(this.lateFineValueValidators());
+    control.updateValueAndValidity();
+    control.markAsUntouched();
+  }
+
+  /** Mascara de milhar so no modo FIXED — PERCENT nao ganhou virgula decimal. */
+  protected onLateFineValueInput(event: Event): void {
+    applyPtBrMoneyMaskToControl(event, this.form.controls.lateFineValueInput);
+  }
+
+  private lateFineValueValidators(): ValidatorFn[] {
+    return this.form.controls.lateFineType.value === 'FIXED'
+      ? [ptBrMoneyValidator()]
+      : [Validators.required, Validators.min(0)];
+  }
+
+  protected onMoneyInput(event: Event, name: 'periodRateReais' | 'caucaoReais' | 'dailyInterestReais'): void {
+    applyPtBrMoneyMaskToControl(event, this.form.controls[name]);
+  }
+
   protected submit(): void {
     if (this.saving()) return;
     if (this.form.invalid) {
@@ -744,13 +811,17 @@ export class RentalForm implements OnInit {
     this.error.set(null);
     clearServerErrors(this.form);
     const raw = this.form.getRawValue();
-    const periodRate = toCents(Number(raw.periodRateReais)) ?? 0;
-    const caucao = toCents(Number(raw.caucaoReais ?? 0)) ?? 0;
+    const periodRate = ptBrMoneyCents(raw.periodRateReais) ?? 0;
+    const caucao = ptBrMoneyCents(raw.caucaoReais) ?? 0;
 
     // V29: campos financeiros
-    const dailyInterestAmount = toCents(Number(raw.dailyInterestReais ?? 0)) ?? 0;
+    const dailyInterestAmount = ptBrMoneyCents(raw.dailyInterestReais) ?? 0;
     const lateFineType: RentalLateFineType = raw.lateFineType;
-    const lateFineValue = toLateFineStored(lateFineType, Number(raw.lateFineValueInput ?? 0));
+    const lateFineRaw = raw.lateFineValueInput;
+    const lateFineValue =
+      lateFineType === 'FIXED'
+        ? (ptBrMoneyCents(typeof lateFineRaw === 'string' ? lateFineRaw : '') ?? 0)
+        : percentToBasisPoints(Number(lateFineRaw ?? 0));
     const pickupDateIso = fromDateTimeLocalInput(raw.pickupDate);
     const firstPaymentDate = raw.firstPaymentDate?.trim() || null;
     const initialKm = raw.initialKm ?? null;
@@ -961,20 +1032,20 @@ function isPickupOutsidePeriod(start: unknown, end: unknown, pickup: unknown): b
 }
 
 /**
- * V29 helpers para multa de atraso.
+ * V29 helpers para multa de atraso, agora SÓ do modo percentual.
  * PERCENT no BD é basis-points (200 = 2%); no form pede-se percentagem (2 = 2%).
- * FIXED no BD é centavos; no form pede-se reais.
+ * O modo FIXED deixou de passar por aqui: ele é dinheiro mascarado e converte
+ * pelo mesmo caminho dos outros campos de valor (`ptBrMoneyCents` /
+ * `formatPtBrMoney`), sem multiplicação própria.
  */
-function toLateFineStored(type: RentalLateFineType, input: number): number {
+function percentToBasisPoints(input: number): number {
   if (!Number.isFinite(input) || input <= 0) return 0;
-  return type === 'PERCENT'
-    ? Math.round(input * 100) // 2 → 200
-    : Math.round(input * 100); // 1.5 → 150
+  return Math.round(input * 100); // 2 → 200
 }
 
-function fromLateFineStored(type: RentalLateFineType, stored: number | null): number {
+function basisPointsToPercent(stored: number | null): number {
   if (stored == null || stored === 0) return 0;
-  return type === 'PERCENT' ? stored / 100 : stored / 100;
+  return stored / 100; // 200 → 2
 }
 
 /**

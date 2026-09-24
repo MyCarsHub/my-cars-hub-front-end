@@ -122,7 +122,7 @@ describe('RentalForm picker filters', () => {
 
     // Toggle only visible when there's a caução amount.
     expect(cmp.caucaoAmountPositive()).toBe(false);
-    cmp.form.patchValue({ caucaoReais: 500 });
+    cmp.form.patchValue({ caucaoReais: '500,00' });
     fixture.detectChanges();
     expect(cmp.caucaoAmountPositive()).toBe(true);
   });
@@ -300,7 +300,7 @@ describe('RentalForm período nos pickers', () => {
     const cmp = fixture.componentInstance as unknown as PeriodFormLike;
     const before = vehiclesList.mock.calls.length;
 
-    cmp.form.patchValue({ periodRateReais: 250, notes: 'entrega na garagem' });
+    cmp.form.patchValue({ periodRateReais: '250,00', notes: 'entrega na garagem' });
     await afterDebounce(fixture);
 
     expect(vehiclesList.mock.calls.length).toBe(before);
@@ -484,10 +484,10 @@ describe('RentalForm retirada dentro do período', () => {
     vehicleId: 'veh-1',
     driverId: 'drv-1',
     billingFrequency: 'MONTHLY',
-    periodRateReais: 2500,
+    periodRateReais: '2.500,00',
     initialKm: 42000,
     firstPaymentDate: '2026-08-05',
-    dailyInterestReais: 3,
+    dailyInterestReais: '3,00',
     lateFineType: 'PERCENT',
     lateFineValueInput: 2,
   };
@@ -721,13 +721,13 @@ describe('RentalForm rascunho (ida-e-volta pras integrações)', () => {
     startDate: '2026-08-01',
     endDate: '2026-08-31',
     billingFrequency: 'MONTHLY',
-    periodRateReais: 2500,
-    caucaoReais: 800,
+    periodRateReais: '2.500,00',
+    caucaoReais: '800,00',
     notes: 'entrega na garagem',
     initialKm: 42000,
     pickupDate: '2026-08-01T09:00',
     firstPaymentDate: '2026-08-05',
-    dailyInterestReais: 3,
+    dailyInterestReais: '3,00',
     lateFineType: 'PERCENT',
     lateFineValueInput: 2,
   };
@@ -1097,7 +1097,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
     startDate: string,
     endDate: string,
     billingFrequency: string,
-    periodRateReais: number,
+    periodRateReais: string,
   ): MoneyFormLike {
     const { fixture, cmp } = mount();
     cmp.form.patchValue({ startDate, endDate, billingFrequency, periodRateReais });
@@ -1106,7 +1106,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   }
 
   it('start == end conta 1 diária (piso: um aluguel de um dia não custa R$ 0)', () => {
-    const cmp = preview('2026-08-08', '2026-08-08', 'DAILY', 100);
+    const cmp = preview('2026-08-08', '2026-08-08', 'DAILY', '100,00');
 
     expect(cmp.totalDays()).toBe(1);
     expect(cmp.billingUnits()).toBe(1);
@@ -1114,7 +1114,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('start → start+1 conta 1 diária: o dia da devolução não é cobrado', () => {
-    const cmp = preview('2026-08-08', '2026-08-09', 'DAILY', 100);
+    const cmp = preview('2026-08-08', '2026-08-09', 'DAILY', '100,00');
 
     expect(cmp.totalDays()).toBe(1);
     expect(cmp.billingUnits()).toBe(1);
@@ -1123,7 +1123,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('05/08 → 12/08 conta 7 diárias, não 8 (caso da FIXES.md: R$180/dia = R$1.260)', () => {
-    const cmp = preview('2026-08-05', '2026-08-12', 'DAILY', 180);
+    const cmp = preview('2026-08-05', '2026-08-12', 'DAILY', '180,00');
 
     expect(cmp.totalDays()).toBe(7);
     expect(cmp.billingUnits()).toBe(7);
@@ -1131,14 +1131,14 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('20/08 → 25/08 conta 5 diárias, não 6', () => {
-    const cmp = preview('2026-08-20', '2026-08-25', 'DAILY', 150);
+    const cmp = preview('2026-08-20', '2026-08-25', 'DAILY', '150,00');
 
     expect(cmp.totalDays()).toBe(5);
     expect(cmp.totalAmountCents()).toBe(75_000);
   });
 
   it('faixa de 01/08 a 31/08 conta 30 diárias', () => {
-    const cmp = preview('2026-08-01', '2026-08-31', 'DAILY', 100);
+    const cmp = preview('2026-08-01', '2026-08-31', 'DAILY', '100,00');
 
     expect(cmp.totalDays()).toBe(30);
     expect(cmp.billingUnits()).toBe(30);
@@ -1146,7 +1146,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('SEMANAL: 05/08 → 12/08 são 7 dias = 1 semana (o inclusivo cobrava o dobro)', () => {
-    const cmp = preview('2026-08-05', '2026-08-12', 'WEEKLY', 100);
+    const cmp = preview('2026-08-05', '2026-08-12', 'WEEKLY', '100,00');
 
     expect(cmp.totalDays()).toBe(7);
     expect(cmp.billingUnits()).toBe(1);
@@ -1154,7 +1154,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('SEMANAL: 8 dias estouram a semana cheia e viram 2 semanas', () => {
-    const cmp = preview('2026-08-08', '2026-08-16', 'WEEKLY', 100);
+    const cmp = preview('2026-08-08', '2026-08-16', 'WEEKLY', '100,00');
 
     expect(cmp.totalDays()).toBe(8);
     expect(cmp.billingUnits()).toBe(2);
@@ -1162,12 +1162,12 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('MENSAL: 30 dias são 1 mês; 31 cruzam o limite e viram 2', () => {
-    const umMes = preview('2026-08-01', '2026-08-31', 'MONTHLY', 2500);
+    const umMes = preview('2026-08-01', '2026-08-31', 'MONTHLY', '2.500,00');
     expect(umMes.totalDays()).toBe(30);
     expect(umMes.billingUnits()).toBe(1);
     expect(umMes.totalAmountCents()).toBe(250_000);
 
-    const doisMeses = preview('2026-08-01', '2026-09-01', 'MONTHLY', 2500);
+    const doisMeses = preview('2026-08-01', '2026-09-01', 'MONTHLY', '2.500,00');
     expect(doisMeses.totalDays()).toBe(31);
     expect(doisMeses.billingUnits()).toBe(2);
     expect(doisMeses.totalAmountCents()).toBe(500_000);
@@ -1176,7 +1176,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   // --- entrada inválida: comportamento PRESERVADO (0 dias, prévia "--") ------
 
   it('fim antes do início não vira erro nem 1 dia: zera a prévia', () => {
-    const cmp = preview('2026-08-10', '2026-08-01', 'DAILY', 100);
+    const cmp = preview('2026-08-10', '2026-08-01', 'DAILY', '100,00');
 
     expect(cmp.totalDays()).toBe(0);
     expect(cmp.billingUnits()).toBe(0);
@@ -1185,7 +1185,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('período vazio zera a prévia', () => {
-    const cmp = preview('', '', 'DAILY', 100);
+    const cmp = preview('', '', 'DAILY', '100,00');
 
     expect(cmp.totalDays()).toBe(0);
     expect(cmp.totalAmountCents()).toBeNull();
@@ -1193,7 +1193,7 @@ describe('RentalForm prévia de valor (fim exclusivo, referência do cálculo)',
   });
 
   it('data inválida (NaN) zera a prévia', () => {
-    const cmp = preview('2026-13-45', '2026-08-31', 'DAILY', 100);
+    const cmp = preview('2026-13-45', '2026-08-31', 'DAILY', '100,00');
 
     expect(cmp.totalDays()).toBe(0);
     expect(cmp.totalAmountLabel()).toBe('--');
@@ -1248,5 +1248,279 @@ describe('RentalForm carregamento do status Asaas', () => {
     fixture.detectChanges();
 
     expect(claim).toHaveBeenCalled();
+  });
+});
+
+/**
+ * FIX-0261 — o valor do período (diária/semanal/mensal) deixou de ser
+ * `input type="number"` e passou a ser texto pt-BR com máscara de milhar.
+ *
+ * Aqui há um elo a mais que nas outras telas: além do payload, a PRÉVIA ao vivo
+ * (`totalAmountCents`) lê o mesmo campo. Se o parse do texto ficasse para trás,
+ * a tela mostraria "R$ 0,00" enquanto a pessoa digita — então o teste mede o
+ * total na tela E os centavos do POST.
+ */
+describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () => {
+  let createSpy: ReturnType<typeof vi.fn>;
+  let updateSpy: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>;
+
+  type MoneyFormLike = {
+    form: { patchValue: (v: Record<string, unknown>) => void };
+    totalAmountCents: () => number | null;
+    submit: () => void;
+  };
+
+  const VEHICLE = {
+    id: 'veh-1',
+    plate: 'AAA1A11',
+    type: 'CAR',
+    brand: 'Fiat',
+    model: 'Mobi',
+    yearModel: 2022,
+    licensingExpiration: null,
+    status: 'AVAILABLE',
+    createdDate: '2026-01-01',
+  };
+  const DRIVER = {
+    id: 'drv-1',
+    name: 'Ana',
+    email: null,
+    phone: null,
+    licenseNumber: '1',
+    licenseCategory: 'B',
+    licenseExpiry: '2030-01-01',
+    status: 'AVAILABLE',
+  };
+
+  const RENTAL = {
+    id: 'rental-1',
+    vehicleId: 'veh-1',
+    driverId: 'drv-1',
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    billingFrequency: 'MONTHLY',
+    periodRate: 450_000,
+    caucaoAmount: 80_000,
+    caucaoPaid: false,
+    automaticCharge: false,
+    notes: null,
+    initialKm: 42_000,
+    pickupDate: '2026-08-01T09:00:00',
+    firstPaymentDate: '2026-08-05',
+    dailyInterestAmount: 300,
+    lateFineType: 'PERCENT',
+    lateFineValue: 200,
+    status: 'ACTIVE',
+  };
+
+  function cmp(): MoneyFormLike {
+    return fixture.componentInstance as unknown as MoneyFormLike;
+  }
+
+  function rateInput(): HTMLInputElement {
+    const input = fixture.nativeElement.querySelector('#rental-daily') as HTMLInputElement | null;
+    if (!input) throw new Error('campo de valor do periodo nao esta na tela');
+    return input;
+  }
+
+  /** Tecla a tecla, como o teclado faz: `insertText` + caret no fim. */
+  function type(input: HTMLInputElement, keys: string): string[] {
+    const frames: string[] = [];
+    for (const key of keys) {
+      input.value = input.value + key;
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: key }));
+      fixture.detectChanges();
+      frames.push(input.value);
+    }
+    return frames;
+  }
+
+  function mount(rentalId: string | null): void {
+    TestBed.resetTestingModule();
+    createSpy = vi.fn().mockReturnValue(of({ id: 'rental-novo' }));
+    updateSpy = vi.fn().mockReturnValue(of({ id: 'rental-1' }));
+    const store = new Map<string, string>();
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => rentalId } } },
+        },
+        {
+          provide: SessionService,
+          useValue: {
+            setItem: (k: string, v: string) => store.set(k, v),
+            getItem: (k: string) => store.get(k) ?? null,
+            removeItem: (k: string) => store.delete(k),
+            // O componente le o papel do TOKEN no construtor (FEAT-0147); sem
+            // este stub o `createComponent` estoura antes de qualquer assercao.
+            getCompanyRoleFromToken: () => 'OWNER',
+          },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: () => of({ content: [VEHICLE], page: 0, size: 500, total: 1 }) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: () => of({ content: [DRIVER], page: 0, size: 500, total: 1 }) },
+        },
+        {
+          provide: RentalService,
+          useValue: {
+            getById: () => of(RENTAL),
+            create: createSpy,
+            update: updateSpy,
+          },
+        },
+        { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    fixture = TestBed.createComponent(RentalForm);
+    fixture.detectChanges();
+  }
+
+  it('digitacao incremental mostra o milhar, a previa acompanha e o POST leva os centavos', () => {
+    mount(null);
+
+    const input = rateInput();
+    expect(input.type).toBe('text');
+    expect(input.inputMode).toBe('decimal');
+
+    cmp().form.patchValue({
+      vehicleId: 'veh-1',
+      driverId: 'drv-1',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      billingFrequency: 'MONTHLY',
+      caucaoReais: '',
+      initialKm: 42_000,
+      pickupDate: '2026-08-01T09:00',
+      firstPaymentDate: '2026-08-05',
+      dailyInterestReais: '3,00',
+      lateFineType: 'PERCENT',
+      lateFineValueInput: 2,
+    });
+    fixture.detectChanges();
+
+    const frames = type(input, '4500');
+    expect(frames).toEqual(['4', '45', '450', '4.500']);
+    type(input, ',50');
+    expect(input.value).toBe('4.500,50');
+
+    // 30 dias em MONTHLY = 1 periodo: a previa ao vivo le o MESMO texto.
+    expect(cmp().totalAmountCents()).toBe(450_050);
+
+    cmp().submit();
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    expect(createSpy.mock.calls[0][0]).toMatchObject({ periodRate: 450_050 });
+  });
+
+  it('edicao: semeia o campo ja formatado e o PUT devolve os MESMOS centavos', () => {
+    mount('rental-1');
+
+    expect(rateInput().value).toBe('4.500,00');
+
+    cmp().submit();
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(updateSpy.mock.calls[0][1]).toMatchObject({ periodRate: 450_000 });
+  });
+  function lateFineInput(): HTMLInputElement {
+    const input = fixture.nativeElement.querySelector(
+      '#rental-late-fine-value',
+    ) as HTMLInputElement | null;
+    if (!input) throw new Error('campo de valor da multa nao esta na tela');
+    return input;
+  }
+
+  /**
+   * Digitacao num `input[type=number]`: sem `setSelectionRange`, que os campos
+   * numericos do DOM nao suportam (lanca InvalidStateError).
+   */
+  function typeNumeric(input: HTMLInputElement, keys: string): string[] {
+    const frames: string[] = [];
+    for (const key of keys) {
+      input.value = input.value + key;
+      input.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: key }));
+      fixture.detectChanges();
+      frames.push(input.value);
+    }
+    return frames;
+  }
+
+  /** O campo de multa nasce preenchido com 0; apagar antes e o gesto do usuario. */
+  function clear(input: HTMLInputElement): void {
+    input.value = '';
+    input.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward' }));
+    fixture.detectChanges();
+  }
+
+  /** Troca o modo pelo EVENTO do select, que e o caminho do usuario. */
+  function setLateFineType(value: 'PERCENT' | 'FIXED'): void {
+    const select = fixture.nativeElement.querySelector(
+      'select[formControlName="lateFineType"]',
+    ) as HTMLSelectElement | null;
+    if (!select) throw new Error('select do tipo de multa nao esta na tela');
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  /**
+   * Multa de atraso: campo DUPLO, mascara so em FIXED.
+   *
+   * Em PERCENT o usuario digita percentagem (2 = 2%) e nada deve reformatar o
+   * que ele escreveu — nem agrupamento de milhar, nem virgula decimal.
+   */
+  it('FIXED: o campo da multa vira texto e a mascara de milhar escreve', () => {
+    mount(null);
+    setLateFineType('FIXED');
+
+    const input = lateFineInput();
+    expect(input.type).toBe('text');
+
+    const frames = type(input, '1500');
+    expect(frames).toEqual(['1', '15', '150', '1.500']);
+    type(input, ',50');
+    expect(input.value).toBe('1.500,50');
+  });
+
+  it('PERCENT: o campo continua numerico e NINGUEM reformata o que foi digitado', () => {
+    mount(null);
+
+    const input = lateFineInput();
+    expect(input.type).toBe('number');
+    clear(input);
+
+    const frames = typeNumeric(input, '1500');
+    expect(frames).toEqual(['1', '15', '150', '1500']);
+  });
+
+  /**
+   * O zeramento na troca de modo e DECISAO, nao bug: 2 (por cento) e 2,00
+   * (reais) nao sao o mesmo numero, entao manter o digito na tela enquanto o
+   * significado muda embaixo dele seria a falha silenciosa. Vale nos DOIS
+   * sentidos, porque a troca acidental acontece nas duas direcoes.
+   */
+  it('trocar de modo LIMPA o valor — nos dois sentidos', () => {
+    mount(null);
+
+    clear(lateFineInput());
+    typeNumeric(lateFineInput(), '25');
+    expect(lateFineInput().value).toBe('25');
+
+    setLateFineType('FIXED');
+    expect(lateFineInput().value).toBe('');
+
+    type(lateFineInput(), '1500');
+    expect(lateFineInput().value).toBe('1.500');
+
+    setLateFineType('PERCENT');
+    expect(lateFineInput().value).toBe('');
   });
 });

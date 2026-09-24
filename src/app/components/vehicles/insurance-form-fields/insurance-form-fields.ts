@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { AbstractControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { FieldControl, FormField } from '../../form-field/form-field';
+import { applyPtBrMoneyMaskToControl } from '../../../utils/ptbr-money-mask';
 import {
   INSURANCE_COVERAGE_OPTIONS,
   INSURANCE_PAYMENT_METHOD_OPTIONS,
@@ -10,8 +11,10 @@ import {
  * Campos da apólice de seguro, reaproveitados pelo cadastro dentro do
  * formulário de veículo e pela tela de edição da apólice.
  *
- * Os valores monetários são digitados em REAIS; a conversão para centavos
- * (contrato da API) é responsabilidade do formulário consumidor via `toCents`.
+ * O prêmio é digitado como TEXTO pt-BR com máscara de milhar; a conversão para
+ * centavos (contrato da API) continua sendo do formulário consumidor, via
+ * `ptBrMoneyCents`. Os demais valores seguem em reais numéricos até terem nó
+ * próprio.
  */
 @Component({
   selector: 'app-insurance-form-fields',
@@ -38,6 +41,7 @@ export class InsuranceFormFields {
   protected readonly premiumMessages: Readonly<Record<string, string>> = {
     required: 'Informe o valor do prêmio.',
     min: 'Informe o valor do prêmio.',
+    moneyFormat: 'Informe um valor válido (ex.: 1.500,00).',
   };
   protected readonly startDateMessages: Readonly<Record<string, string>> = {
     required: 'Informe o início da vigência.',
@@ -48,6 +52,15 @@ export class InsuranceFormFields {
 
   protected control(name: string): AbstractControl | null {
     return this.formGroup().get(name);
+  }
+
+  /**
+   * Máscara de milhar DURANTE a digitação (FIX-0261), no mesmo padrão do
+   * diálogo de venda. O controle guarda TEXTO pt-BR; a conversão para centavos
+   * continua sendo do formulário consumidor, agora com `ptBrMoneyCents`.
+   */
+  protected onMoneyInput(event: Event, name: string): void {
+    applyPtBrMoneyMaskToControl(event, this.control(name));
   }
 
   /** Erro de grupo: só aparece depois que o usuário mexeu em alguma das datas. */
