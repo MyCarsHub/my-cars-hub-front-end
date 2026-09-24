@@ -1,15 +1,22 @@
 /**
  * Initial-bundle guard. Asserts a RULE, not a number: "this module is not in the
- * static import graph of the entry point". Run BY HAND, after a production build:
+ * static import graph of the entry point". Runs in CI after the production build,
+ * and by hand the same way:
  *
  *     npx ng build --configuration production --stats-json
  *     node scripts/assert-initial-bundle.mjs
  *
- * NOT WIRED INTO CI YET, and that is deliberate. It fails today, on purpose, because
- * @sentry IS in the initial graph right now (three static importers: src/main.ts,
- * src/app/app.config.ts, src/app/services/telemetry.service.ts). Turning it into a
- * gate before that is fixed would only teach everyone to ignore a red CI, which is
- * how a gate dies. It gets wired up in the same PR that fixes the importers.
+ * STATUS: wired into .github/workflows/frontend-ci.yml on 2026-09-24, in the same
+ * commit that made the three importers dynamic — which is the condition this
+ * docblock used to set ("it gets wired up in the same PR that fixes the
+ * importers"). Until then it failed on purpose, because gating before the fix only
+ * teaches everyone to ignore a red CI, which is how a gate dies.
+ *
+ * It passes today: @sentry is reached ONLY through a dynamic import, from
+ * src/app/services/telemetry.service.ts and src/main.ts. It used to have three
+ * static importers — those two plus src/app/app.config.ts — worth 241.84 kB of the
+ * initial bundle, on every visit, for an SDK that reports nothing while
+ * environment.sentryDsn is empty. Converting them measured 994.85 kB -> 753.70 kB.
  *
  * WHY A RULE AND NOT A kB CEILING: a script that asserts "the initial bundle is under
  * N kB" goes off on every Angular bump and gets raised until it means nothing. The

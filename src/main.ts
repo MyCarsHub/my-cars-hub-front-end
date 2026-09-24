@@ -42,11 +42,30 @@ bootstrapApplication(App, appConfig)
   .then(async (appRef) => {
     if (!sentryReady) return;
     /*
-     * Router tracing. `TraceService` used to be an `app.config.ts` provider,
-     * which is what dragged the namespace into the static graph. Constructing it
-     * here keeps the same instrumentation — it subscribes to router events in
-     * its constructor — without a static import, and it now happens strictly
-     * after `Sentry.init()`, which is the only state in which it did anything.
+     * Router tracing. `TraceService` used to be an `app.config.ts` provider kept
+     * alive by an `APP_INITIALIZER`, which is what dragged the namespace into
+     * the static graph. Constructing it here keeps the same MECHANISM — it
+     * subscribes to router events in its constructor — but NOT the same
+     * coverage, and the difference is deliberate:
+     *
+     * The old provider was instantiated DURING bootstrap, so it existed before
+     * the first navigation. This runs after `await sentryReady`, which is a
+     * network fetch of the SDK chunk, and `app.config.ts` uses `provideRouter`
+     * WITHOUT `withEnabledBlockingInitialNavigation()` — the initial navigation
+     * is non-blocking and fires on a microtask right after bootstrap. The
+     * download loses that race essentially every time.
+     *
+     * So: the ROUTER navigation span of the FIRST route of a session is no
+     * longer instrumented; navigation instrumentation resumes from the second
+     * navigation on. Initial telemetry is NOT lost wholesale —
+     * `browserTracingIntegration()` still produces the PAGELOAD transaction on
+     * its own.
+     *
+     * This is a DECISION, not an oversight: the alternative is
+     * `withEnabledBlockingInitialNavigation()`, which has its own paint cost and
+     * would trade one problem for another. Whoever investigates a missing first
+     * navigation span should not go hunting for a bug — but that trade has not
+     * been made here, and does not belong to a bundle-weight change.
      */
     const Sentry = await sentryReady;
     const tracing = new Sentry.TraceService(appRef.injector.get(Router));
