@@ -149,7 +149,12 @@ export const routes: Routes = [
                 canActivateChild: [onboardingGuard, billingAccessGuard, firstVehicleGuard],
                 children: [
                     {
+                        // FEAT-0108 — `/v1/dashboard/**` é 403 para DRIVER desde o
+                        // FIX-0360. O guard manda o motorista para a casa dele
+                        // (`homeRouteForRole`), o que também conserta os cinco
+                        // pontos que apontam a landing pós-login para cá.
                         path: 'dashboard',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         loadComponent: () =>
                             import('./pages/dashboard/dashboard-home').then(
                                 (m) => m.DashboardHome
@@ -157,9 +162,12 @@ export const routes: Routes = [
                         data: { pageTitle: 'Dashboard' },
                     },
                     {
-                        // Sem roleGuard: todo membro autenticado vê os próprios
-                        // vencimentos.
+                        // FEAT-0108 — deixou de ser "todo membro autenticado": os
+                        // vencimentos aqui são os da FROTA e `/v1/alerts` não está
+                        // na lista de permitidos do FIX-0360, então para um DRIVER
+                        // a tela era 403 inteira.
                         path: 'alertas',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         loadComponent: () =>
                             import('./pages/alertas/alerts-page').then(
                                 (m) => m.AlertsPage
@@ -286,7 +294,8 @@ export const routes: Routes = [
                     },
                     {
                         path: 'alugueis',
-                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        // FEAT-0108 — a única área que o FIX-0360 libera ao DRIVER.
+                        canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
                         children: [
                             {
                                 path: '',
@@ -298,7 +307,12 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Aluguéis' },
                             },
                             {
+                                // FEAT-0108 — o DRIVER entra em `/alugueis`, mas o
+                                // escopo do FIX-0360 é SÓ GET: criar/editar aluguel
+                                // continua OWNER/MANAGER. Sem este guard o motorista
+                                // alcançaria um formulário que não tem como salvar.
                                 path: 'novo',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/rentals/rental-form'
@@ -315,6 +329,7 @@ export const routes: Routes = [
                             },
                             {
                                 path: ':id/editar',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/rentals/rental-form'

@@ -13,6 +13,7 @@ import {
   DRIVER_IDENTITY_REAUTH_MESSAGE,
   DRIVER_IDENTITY_RETRIED,
 } from './driver-identity.context';
+import { DRIVER_SCOPE_ERROR_CODE } from './driver-scope.context';
 import { DriverIdentityRecoveryService } from './driver-identity-recovery.service';
 import { ImpersonationService } from './impersonation.service';
 import {
@@ -65,6 +66,25 @@ function isDriverIdentityRefusal(status: number, parsed: ParsedApiError): boolea
 }
 
 /**
+ * 403 de ESCOPO do motorista — `DRIVER_SCOPE_FORBIDDEN` (backend FIX-0360).
+ *
+ * Irmão do de cima e fechado pelo `code` da mesma forma, mas a conduta é a
+ * OPOSTA: aqui não se reemite token. O token está correto; a área é que não é
+ * do motorista, então uma reemissão levaria à mesma recusa — laço e ruído.
+ *
+ * Também não vira o toast genérico de "Acesso negado": esse 403 não é notícia
+ * para o usuário nem coisa que ele possa resolver. Quem impede o motorista de
+ * chegar numa área que não é dele é o `NAV_ITEMS` + `roleGuard`; quando um
+ * deep-link fura, é o `roleGuard` que o desvia com mensagem própria. O que
+ * sobra para cá são as chamadas de enriquecimento de uma tela PERMITIDA (os
+ * filtros de `/alugueis` pedem `/v1/vehicles` e `/v1/drivers`), e para essas o
+ * certo é silêncio: a tela já degrada sozinha.
+ */
+function isDriverScopeRefusal(status: number, parsed: ParsedApiError): boolean {
+  return status === 403 && parsed.code === DRIVER_SCOPE_ERROR_CODE;
+}
+
+/**
  * Global HTTP error interceptor. It owns EXACTLY ONE class of feedback: the toast for
  * problems the screen cannot meaningfully explain or recover from.
  *
@@ -73,6 +93,8 @@ function isDriverIdentityRefusal(status: number, parsed: ParsedApiError): boolea
  * - 403 → "Acesso negado" toast.
  * - 403 com `code` DRIVER_IDENTITY_NOT_RESOLVED → NÃO é falta de permissão: reemite o
  *   token do motorista e reenvia a requisição; só cai no /login se a reemissão falhar.
+ * - 403 com `code` DRIVER_SCOPE_FORBIDDEN → é falta de permissão MESMO, e definitiva:
+ *   sem reemissão (seria laço) e sem toast genérico. Ver `isDriverScopeRefusal`.
  * - 5xx → toast with the backend message or a generic one, user stays put.
  *
  * Durante uma sessão de impersonação, 401 e 403 têm tratamento próprio e
@@ -157,6 +179,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       // Está ACIMA de `OWNED_HTTP_ERRORS` de propósito: a tela pode ser dona dos
       // erros de negócio dela, mas credencial incompleta é assunto de sessão,
       // como o 401.
+      // ANTES do desvio de identidade de propósito: são dois 403 de motorista
+      // separados só pelo `code`, e este não tem recuperação possível. Sair
+      // aqui garante que nenhuma reemissão de token seja disparada por ele.
+      if (isDriverScopeRefusal(status, parsed)) {
+        return throwError(() => error);
+      }
+
       if (isDriverIdentityRefusal(status, parsed)) {
         const reauthenticate = () => {
           session.clear();

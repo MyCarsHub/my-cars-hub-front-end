@@ -2,6 +2,8 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router, RouterStateSnapshot } from '@angular/router';
 import { NotificationService } from './notification.service';
 import { SessionService } from './session.service';
+import { DRIVER_SCOPE_MESSAGE } from './driver-scope.context';
+import { homeRouteForRole } from '../utils/home-route';
 
 /** Papel → como o produto o chama em português. */
 const ROLE_LABELS: Readonly<Record<string, string>> = {
@@ -68,6 +70,53 @@ const deniedMessage = (url: string, allowedRoles: readonly string[], role: strin
 /** Tempo de leitura: são três orações, o padrão de 5s não dá conta. */
 const EXPLANATION_DURATION_MS = 10_000;
 
+/**
+ * Nome humano da casa de cada papel, para a frase dizer para onde a pessoa FOI.
+ *
+ * Sem rótulo conhecido a mensagem NÃO inventa destino: ela para antes de afirmar
+ * para onde a pessoa foi. Se `homeRouteForRole` mudar, o texto degrada em vez de
+ * mentir — e mentir é exatamente o defeito que esta resolução existe para não
+ * criar (ver o cabeçalho de `driverDeniedMessage`).
+ */
+const HOME_LABELS: Readonly<Record<string, string>> = {
+    '/alugueis': 'os aluguéis',
+    '/dashboard': 'o painel',
+};
+
+/**
+ * FEAT-0108 — o desvio da recusa deixou de ser `/dashboard` fixo, e o DRIVER
+ * ganhou texto próprio. Duas decisões, uma de cada vez:
+ *
+ * ## O DESTINO
+ *
+ * Mandar todo rejeitado para `/dashboard` funcionava enquanto todo membro podia
+ * vê-lo. Desde o FIX-0360 essa tela é 403 para um DRIVER — medido no backend por
+ * `DriverScopeFilterOrderSecurityConfigTest`, que prova
+ * `GET /v1/dashboard/summary` respondendo 403 a um token de motorista. Não há
+ * laço de roteador (a rota `dashboard` não tem `canActivate`): o dano é outro e
+ * é pior de diagnosticar — o motorista chega a uma tela cuja API recusa, o que
+ * parece defeito do produto e não falta de permissão.
+ *
+ * ## O TEXTO, e por que o do FIX-0387 não serve ao motorista
+ *
+ * A mensagem do FIX-0387 termina em "por isso você voltou ao painel". Esse texto
+ * está ACOPLADO ao destino: com o motorista indo para os aluguéis, a frase
+ * passaria a descrever errado o que aconteceu. Por isso o DRIVER lê uma frase
+ * própria, que nomeia o destino REAL, e OWNER/MANAGER seguem lendo a do
+ * FIX-0387 sem um caractere de diferença — o desvio deles não mudou.
+ *
+ * ## UMA notificação, não duas
+ *
+ * O evento é um só, então a mensagem é uma só. Entre duas frases verdadeiras
+ * ganha a mais ESPECÍFICA, que é a regra do próprio FIX-0387 aplicada a ele
+ * mesmo: causa distinguível não vira frase genérica. Duas notificações no mesmo
+ * evento não são mais informação — são ruído que faz não ler nenhuma.
+ */
+const driverDeniedMessage = (home: string): string => {
+    const label = HOME_LABELS[home];
+    return label ? `${DRIVER_SCOPE_MESSAGE} Você foi levado para ${label}.` : DRIVER_SCOPE_MESSAGE;
+};
+
 export const roleGuard = (
     allowedRoles: string[]
 ): CanActivateFn => {
@@ -98,7 +147,13 @@ export const roleGuard = (
         // `{} as RouterStateSnapshot` (app.routes.roles.spec) e um acesso cru
         // as derrubaria com TypeError — a mensagem cai no texto sem area.
         const url = typeof state?.url === 'string' ? state.url : '';
-        const message = deniedMessage(url, allowedRoles, role);
+        // O papel continua vindo do TOKEN (FIX-0363). A versão desta casca que
+        // ficou parada nove dias lia `sessionService.getItem('selectedRole')`, o
+        // espelho editável pelo DevTools que o FIX-0363 removeu de propósito;
+        // trazê-la de volta reintroduziria elevação de papel pelo navegador.
+        const home = homeRouteForRole(role);
+        const message =
+            role === 'DRIVER' ? driverDeniedMessage(home) : deniedMessage(url, allowedRoles, role);
         // Pai e filho da mesma árvore carregam o MESMO `roleGuard` (ex.:
         // `/configuracoes` e seu filho ''), então uma navegação pode negar duas
         // vezes. Sem esta checagem o usuário leva o texto empilhado em dobro.
@@ -106,6 +161,6 @@ export const roleGuard = (
             notifications.push('warning', message, EXPLANATION_DURATION_MS);
         }
 
-        return router.createUrlTree(['/dashboard']);
+        return router.createUrlTree([home]);
     };
 };

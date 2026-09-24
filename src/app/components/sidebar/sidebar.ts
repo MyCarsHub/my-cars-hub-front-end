@@ -51,17 +51,26 @@ const ICON_SUPPORT = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height=
 
 const NAV_ITEMS: NavItem[] = [
   { route: '/admin', label: 'Administração', icon: ICON_ADMIN, requiresPlatformAdmin: true },
+  // FEAT-0108 — `/v1/dashboard/**` não está na lista de permitidos do FIX-0360:
+  // para um DRIVER esta tela é 403 inteira, medido no backend por
+  // `DriverScopeFilterOrderSecurityConfigTest` (GET /v1/dashboard/summary
+  // responde 403 a um token de motorista). Sem `roles` ela era o primeiro item
+  // do menu dele e a landing pós-login.
   {
     route: '/dashboard',
     label: 'Dashboard',
     icon: ICON_DASHBOARD,
+    roles: ['OWNER', 'MANAGER'],
     tourKey: TOUR_ANCHORS.dashboard,
   },
   {
+    // FEAT-0108 — DRIVER entra aqui: `/v1/rentals` e os sub-recursos do próprio
+    // aluguel são EXATAMENTE o que o FIX-0360 libera para ele. Era o único item
+    // do menu que servia ao motorista e o único que estava escondido dele.
     route: '/alugueis',
     label: 'Aluguéis',
     icon: ICON_RENTALS,
-    roles: ['OWNER', 'MANAGER'],
+    roles: ['OWNER', 'MANAGER', 'DRIVER'],
     tourKey: TOUR_ANCHORS.rentals,
   },
   {
@@ -123,9 +132,17 @@ const NAV_ITEMS: NavItem[] = [
     roles: ['OWNER'],
     tourKey: TOUR_ANCHORS.reports,
   },
-  // Transversal (CNH, CRLV, seguro, financiamento) — fica fora do grupo "Frota"
-  // e sem restrição de papel, como a rota `/alertas`.
-  { route: '/alertas', label: 'Alertas', icon: ICON_ALERTS, tourKey: TOUR_ANCHORS.alerts },
+  // Transversal (CNH, CRLV, seguro, financiamento) — fica fora do grupo "Frota".
+  // FEAT-0108: deixou de ser sem restrição. `/v1/alerts` não está na lista de
+  // permitidos do FIX-0360, então para um DRIVER a tela é 403 — os vencimentos
+  // aqui são os da FROTA, não os dele.
+  {
+    route: '/alertas',
+    label: 'Alertas',
+    icon: ICON_ALERTS,
+    roles: ['OWNER', 'MANAGER'],
+    tourKey: TOUR_ANCHORS.alerts,
+  },
   { route: '/roadmap', label: 'Roadmap', icon: ICON_ROADMAP, tourKey: TOUR_ANCHORS.roadmap },
   { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'] },
   {
