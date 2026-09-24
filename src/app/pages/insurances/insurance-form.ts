@@ -12,6 +12,8 @@ import {
   toCents,
   toReais,
 } from '../../components/vehicles/insurance-form-fields/insurance-utils';
+import { formatPtBrMoney } from '../../utils/ptbr-number';
+import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
@@ -64,7 +66,7 @@ export class InsuranceForm implements OnInit {
       insurer: ['', [Validators.required, Validators.maxLength(120)]],
       policyNumber: ['', [Validators.required, Validators.maxLength(60)]],
       coverageType: ['' as InsuranceCoverage | '', [Validators.required]],
-      premiumAmount: [0, [Validators.required, Validators.min(0.01)]],
+      premiumAmount: ['', [ptBrMoneyValidator({ minCents: 1 })]],
       deductibleAmount: [null as number | null, [Validators.min(0)]],
       startDate: ['', [Validators.required]],
       endDate: ['', [Validators.required]],
@@ -92,7 +94,7 @@ export class InsuranceForm implements OnInit {
           insurer: i.insurer,
           policyNumber: i.policyNumber,
           coverageType: i.coverageType,
-          premiumAmount: toReais(i.premiumAmount) ?? 0,
+          premiumAmount: formatPtBrMoney(i.premiumAmount),
           deductibleAmount: toReais(i.deductibleAmount),
           startDate: i.startDate,
           endDate: i.endDate,
@@ -132,7 +134,7 @@ export class InsuranceForm implements OnInit {
       insurer: raw.insurer.trim(),
       policyNumber: raw.policyNumber.trim(),
       coverageType: raw.coverageType as InsuranceCoverage,
-      premiumAmount: toCents(Number(raw.premiumAmount)) ?? 0,
+      premiumAmount: ptBrMoneyCents(raw.premiumAmount) ?? 0,
       deductibleAmount: raw.deductibleAmount != null ? toCents(Number(raw.deductibleAmount)) : null,
       startDate: raw.startDate,
       endDate: raw.endDate,

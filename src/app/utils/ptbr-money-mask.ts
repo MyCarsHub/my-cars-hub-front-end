@@ -1,3 +1,4 @@
+import { AbstractControl } from '@angular/forms';
 import { formatPtBrNumber, MONEY_DECIMALS } from './ptbr-number';
 
 /**
@@ -239,4 +240,51 @@ export function applyPtBrMoneyMask(event: Event, previous: string): PtBrMoneyMas
   target.value = result.value;
   target.setSelectionRange(result.caret, result.caret);
   return result;
+}
+
+/**
+ * O valor que ESTA máscara escreveu por último em cada controle.
+ *
+ * Não dá para perguntar ao próprio controle: quando o `(input)` do template
+ * roda, o `DefaultValueAccessor` do `formControlName` JÁ gravou o texto novo,
+ * então `control.value` é o valor DEPOIS da tecla, não antes. Com ele como
+ * `previous`, a heurística de "o backspace só comeu pontuação" daria verdadeiro
+ * em toda tecla de apagar e a máscara removeria um dígito a mais — "45.000" →
+ * backspace → "450" em vez de "4.500". Medido, não suposto: há um teste que
+ * pina exatamente esse caso.
+ *
+ * `WeakMap` para não segurar controle nenhum vivo depois que a tela morre. A
+ * ausência de entrada (primeira tecla, ou logo após a semeadura da edição) cai
+ * no valor do controle, que aí É o anterior correto.
+ */
+const lastMaskedValue = new WeakMap<AbstractControl, string>();
+
+/**
+ * A ponte para REACTIVE FORMS do mesmo helper que o diálogo de venda usa: em
+ * vez de devolver o resultado para o chamador guardar no seu signal, escreve o
+ * valor mascarado no próprio `FormControl`.
+ *
+ * O valor/caret são reaplicados DEPOIS do `setValue` porque o
+ * `DefaultValueAccessor` reescreve o `input` ao receber o valor novo; sem isso
+ * o cursor pularia para o fim a cada tecla, que é o que inviabiliza edição no
+ * celular.
+ */
+export function applyPtBrMoneyMaskToControl(
+  event: Event,
+  control: AbstractControl | null | undefined,
+): void {
+  const recorded = control ? lastMaskedValue.get(control) : undefined;
+  const previous = recorded ?? (typeof control?.value === 'string' ? control.value : '');
+  const result = applyPtBrMoneyMask(event, previous);
+
+  if (control) {
+    lastMaskedValue.set(control, result.value);
+    control.setValue(result.value, { emitEvent: true });
+  }
+
+  const target = event.target;
+  if (target instanceof HTMLInputElement) {
+    target.value = result.value;
+    target.setSelectionRange(result.caret, result.caret);
+  }
 }
