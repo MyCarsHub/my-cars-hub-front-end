@@ -41,6 +41,9 @@ const TEST_ROUTES: Routes = [
   { path: 'dashboard', component: StubPage },
   { path: 'veiculos', component: StubPage },
   { path: 'manutencoes', component: StubPage },
+  // FEAT-0142 — sem a rota registrada o `navigateByUrl('/vistorias')` não chega
+  // a lugar nenhum, o grupo não expande e o caso passaria por AUSÊNCIA de sinal.
+  { path: 'vistorias', component: StubPage },
   { path: 'configuracoes', component: StubPage },
   { path: 'configuracoes/integracoes', component: StubPage },
 ];
@@ -255,6 +258,33 @@ describe('Sidebar', () => {
 
       expect(group('Frota')?.getAttribute('aria-expanded')).toBe('false');
       expect(group('Configurações')?.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    /**
+     * FEAT-0142 — "Frota → Vistorias", pedido do dono.
+     *
+     * O caso NOMEIA o item, que é o que faltava: a suíte já provava o MECANISMO
+     * de realce de grupo, mas nenhum caso dizia "Vistorias", então o item podia
+     * sumir do `NAV_ITEMS` sem nada ficar vermelho.
+     *
+     * Afirma as duas metades do pedido: que o item EXISTE e que ele é FILHO de
+     * Frota — não item de primeiro nível. As duas asserções são de PRESENÇA, e
+     * é de propósito: uma asserção de ausência aqui passaria contra um menu
+     * vazio, que é o modo de falhar que este projeto já pagou quatro vezes.
+     */
+    it('"Vistorias" é filha de Frota, e não item de primeiro nível', async () => {
+      await goTo('/vistorias');
+
+      // Filha: o grupo pai abriu sozinho e o link do filho está no DOM.
+      expect(group('Frota')?.getAttribute('aria-expanded')).toBe('true');
+      expect(childLink('Vistorias')).not.toBeNull();
+      expect(childLink('Vistorias')?.getAttribute('href')).toBe('/vistorias');
+
+      // E não de primeiro nível: nenhum item raiz do menu aponta para lá.
+      const topLevel = (component as unknown as { navItems: () => { route?: string }[] })
+        .navItems()
+        .map((item) => item.route);
+      expect(topLevel).not.toContain('/vistorias');
     });
 
     /**
