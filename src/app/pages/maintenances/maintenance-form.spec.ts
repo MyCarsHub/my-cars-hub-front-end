@@ -1047,4 +1047,88 @@ describe('MaintenanceForm — digitação pt-BR pelo DOM (nunca setValue)', () =
     component.submit();
     expect(create).not.toHaveBeenCalled();
   });
+  /**
+   * FIX-0538 — AUSENTE nao e TIPO ERRADO.
+   *
+   * Aqui se usa `setValue` DE PROPOSITO, ao contrario do resto do arquivo: escrever
+   * direto no modelo e justamente como um valor de tipo errado entra no controle (uma
+   * fixture, um patch, um mapeamento de API que esqueceu de formatar). Digitar no input
+   * nunca produziria um numero, entao digitar nao alcanca este defeito.
+   *
+   * O que estes testes travam, em ordem de custo:
+   *
+   * 1. Numero NAO e aceito. Medido em b4a35d6, `45` passava como valido e virava
+   *    R$ 45,00, e `1500` virava R$ 1.500,00 — coercao silenciosa, que e o defeito que
+   *    o campo de texto existe para matar. Continua invalido, agora por FORMATO.
+   * 2. `required` fica reservado para o que de fato nao foi preenchido, para que quem
+   *    depura pare de procurar um campo vazio que nao existe.
+   */
+  describe('validadores: ausente x tipo errado (FIX-0538)', () => {
+    /**
+     * `setValue` aqui e DE PROPOSITO, ao contrario do resto do arquivo: escrever direto
+     * no modelo e exatamente como um valor de tipo errado entra no controle (fixture,
+     * patch, mapeamento de API que esqueceu de formatar). Digitar no input nunca
+     * produziria um numero — digitar nao alcanca este defeito.
+     */
+    function controlFor(path: string, seed?: (c: ExposedForm) => void): AbstractControl {
+      const { component } = configure(null);
+      seed?.(component);
+      const control = component.form.get(path);
+      expect(control, `controle ${path} nao encontrado`).not.toBeNull();
+      return control!;
+    }
+
+    function errorsAfter(control: AbstractControl, value: unknown): Record<string, unknown> | null {
+      control.setValue(value as never);
+      return control.errors as Record<string, unknown> | null;
+    }
+
+    it('dinheiro: null, undefined, vazio e so-espaco sao AUSENTE -> required', () => {
+      const labour = controlFor('labourReais');
+      for (const absent of [null, undefined, '', '   ']) {
+        expect(errorsAfter(labour, absent), `valor ${JSON.stringify(absent)}`).toEqual({
+          required: true,
+        });
+      }
+    });
+
+    it('dinheiro: numero e TIPO ERRADO -> moneyFormat, e nunca vira dinheiro valido', () => {
+      // Medido em b4a35d6: `45` era ACEITO como R$ 45,00 (errors === null) e `1500`
+      // virava R$ 1.500,00. Coercao silenciosa — o defeito que o campo de texto mata.
+      const labour = controlFor('labourReais');
+      for (const wrong of [45, 1500, 0]) {
+        expect(errorsAfter(labour, wrong), `valor ${JSON.stringify(wrong)}`).toEqual({
+          moneyFormat: true,
+        });
+      }
+    });
+
+    it('dinheiro: tipo errado NUNCA reporta required — e a confusao que o no existe para matar', () => {
+      const labour = controlFor('labourReais');
+      for (const wrong of [45, 45.5, {}, [], true]) {
+        const errors = errorsAfter(labour, wrong);
+        expect(errors, `valor ${JSON.stringify(wrong)}`).not.toBeNull();
+        expect(errors, `valor ${JSON.stringify(wrong)}`).not.toHaveProperty('required');
+      }
+    });
+
+    it('dinheiro: texto pt-BR valido continua passando — a regra so ficou mais precisa', () => {
+      const labour = controlFor('labourReais');
+      expect(errorsAfter(labour, '45,00')).toBeNull();
+      expect(errorsAfter(labour, '1.500,50')).toBeNull();
+    });
+
+    it('quantidade: ausente -> required, numero -> quantityFormat', () => {
+      const quantity = controlFor('items.0.quantity', (c) => c.addItem());
+      expect(errorsAfter(quantity, '')).toEqual({ required: true });
+      expect(errorsAfter(quantity, 3)).toEqual({ quantityFormat: true });
+    });
+
+    it('hodometro OPCIONAL aceita vazio, mas opcional nao vale para tipo errado', () => {
+      const hodometer = controlFor('hodometerReading');
+      // Vazio num hodometro opcional e estado legitimo ("ainda nao sei").
+      expect(errorsAfter(hodometer, '')).toBeNull();
+      expect(errorsAfter(hodometer, 150000)).toEqual({ hodometerFormat: true });
+    });
+  });
 });
