@@ -393,4 +393,68 @@ describe('InspectionsList', () => {
       });
     });
   });
+  /**
+   * FIX-0565 — a regiao viva anunciava uma frase FIXA de falha de carregamento, enquanto o
+   * banner mostrava a causa que o servico apurou. Num 403 os dois canais contavam historias
+   * diferentes sobre o MESMO evento, e so quem enxerga recebia a verdadeira. Quem usa leitor
+   * de tela ouvia "nao foi possivel carregar" e ficava recarregando uma tela que nunca abriria.
+   *
+   * Os testes abaixo comparam os DOIS canais entre si em vez de conferir duas strings
+   * esperadas: o que precisa valer e que eles nao possam divergir, e nao que cada um case com
+   * um literal que o teste tambem escreveu.
+   */
+  describe('FIX-0565 — o aria-live diz a MESMA coisa que o banner', () => {
+    function liveRegion(fixture: ReturnType<typeof render>): string {
+      const el = (fixture.nativeElement as HTMLElement).querySelector('[aria-live]');
+      if (!el) throw new Error('a regiao viva sumiu da tela');
+      return (el.textContent ?? '').trim();
+    }
+
+    function bannerText(fixture: ReturnType<typeof render>): string {
+      const el = (fixture.nativeElement as HTMLElement).querySelector('app-alert-banner');
+      if (!el) throw new Error('o banner de erro nao esta na tela');
+      return (el.textContent ?? '').trim();
+    }
+
+    it('403: anuncia a RECUSA, a mesma frase que o banner exibe', () => {
+      const fixture = render();
+      error.set('Você não tem permissão para ver as vistorias desta empresa.');
+      fixture.detectChanges();
+
+      expect(liveRegion(fixture)).toBe(bannerText(fixture));
+      expect(liveRegion(fixture)).toContain('permissão');
+      // O defeito: a recusa sendo anunciada como falha de carregamento.
+      expect(liveRegion(fixture)).not.toContain('Não foi possível carregar');
+    });
+
+    /**
+     * CONTRAPESO: a metade que ja estava certa. A falha generica continua sendo anunciada
+     * como sempre foi — se isto ficar vermelho, o conserto quebrou o que funcionava.
+     */
+    it('falha generica: segue anunciando o erro de carregamento, igual ao banner', () => {
+      const fixture = render();
+      error.set('Não foi possível carregar as vistorias.');
+      fixture.detectChanges();
+
+      expect(liveRegion(fixture)).toBe(bannerText(fixture));
+      expect(liveRegion(fixture)).toContain('Não foi possível carregar as vistorias.');
+    });
+
+    /** Qualquer causa NOVA que o servico venha a distinguir chega sozinha aos dois canais. */
+    it('uma causa futura do servico atravessa sem ninguem tocar na tela', () => {
+      const fixture = render();
+      error.set('Uma causa que ainda nao existe.');
+      fixture.detectChanges();
+
+      expect(liveRegion(fixture)).toBe('Uma causa que ainda nao existe.');
+    });
+
+    it('sem erro, a regiao viva segue contando as vistorias', () => {
+      const fixture = render();
+      total.set(3);
+      fixture.detectChanges();
+
+      expect(liveRegion(fixture)).toBe('3 vistorias encontradas.');
+    });
+  });
 });
