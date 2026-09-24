@@ -34,8 +34,22 @@ jobs:
       - name: Test
         run: npx ng test --watch=false
 
+      # --stats-json emits the esbuild metafile that the initial-bundle guard reads.
       - name: Build (production)
-        run: npx ng build --configuration=production
+        run: npx ng build --configuration=production --stats-json
+
+      # FIX-0564 — wired up in the same commit that made @sentry dynamic, which is
+      # the condition the script's own docblock set for turning it into a gate.
+      #
+      # NO continue-on-error, and NO `|| true`: the step must fail the job on ANY
+      # non-zero exit. That includes exit 2 ("could not measure"), which is not a
+      # pass — a build that blows the 1 MB error budget writes no dist at all, so a
+      # missing stats.json is a likely symptom of the very problem being guarded.
+      #   exit 0  every rule holds
+      #   exit 1  a forbidden package is back in the initial graph
+      #   exit 2  could not measure — still red, on purpose
+      - name: Assert initial bundle (no @sentry in the static graph)
+        run: node scripts/assert-initial-bundle.mjs
 
       - name: Upload dist artifact
         if: github.ref == 'refs/heads/main'
