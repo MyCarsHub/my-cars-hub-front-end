@@ -1,5 +1,4 @@
-import { inject } from '@angular/core';
-import { Router, Routes } from '@angular/router';
+import { Routes } from '@angular/router';
 import { authGuard } from './services/auth-guard';
 import { roleGuard } from './services/role.guard';
 import { adminGuard } from './services/admin.guard';
@@ -38,20 +37,16 @@ export const routes: Routes = [
         },
     },
     {
-        // FIX-0298 / FIX-0288 — ONE auth screen. `pages/auth` replaced the three that had
-        // drifted apart (`pages/google-login`, which was live here, plus `pages/login` and
-        // `pages/signup`, already orphaned). `/login` stays the canonical URL because every
-        // guard, interceptor and landing CTA already points at it.
         path: 'login',
-        loadComponent: () => import('./pages/auth/auth').then((m) => m.Auth),
+        loadComponent: () =>
+            import('./pages/google-login/google-login').then(
+                (m) => m.GoogleLogin
+            ),
     },
     {
-        // Old saved links and old e-mails must keep landing somewhere useful: `/signup`
-        // redirects to the unified screen ALREADY on the `criar conta` half, so the
-        // intention the old URL carried survives the redirect.
         path: 'signup',
+        redirectTo: 'login',
         pathMatch: 'full',
-        redirectTo: () => inject(Router).parseUrl('/login?mode=signup'),
     },
     {
         path: 'oauth-success',
