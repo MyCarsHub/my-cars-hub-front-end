@@ -31,6 +31,40 @@ describe('invite-errors — as duas causas do 403 no aceite (FIX-0555)', () => {
     expect(copy).not.toContain('cadastro de motorista');
   });
 
+  /**
+   * O STATUS REAL da divergencia e 400, nao 403: o backend lanca InvalidDataException e o
+   * handler devolve BAD REQUEST. Classificar pelo status deixava este caso caindo em "este
+   * convite nao e mais valido, peca um novo" - uma instrucao que nao conserta nada, porque o
+   * convite esta valido e o problema e a conta. Por isso a leitura e pelo CODIGO.
+   */
+  it('INVITE_EMAIL_MISMATCH e reconhecido no 400, que e o status REAL dele', () => {
+    const copy = inviteErrorCopy(err(400, { code: 'INVITE_EMAIL_MISMATCH' }), 'accept');
+
+    expect(copy).toContain('outro e-mail');
+    expect(copy).not.toContain('não é mais válido');
+    expect(inviteAcceptCause(err(400, { code: 'INVITE_EMAIL_MISMATCH' }))).toBe('email-mismatch');
+  });
+
+  it('o codigo vale INDEPENDENTE do status - nao so nos dois que o backend usa hoje', () => {
+    expect(inviteAcceptCause(err(409, { code: 'DRIVER_IDENTITY_NOT_RESOLVED' }))).toBe(
+      'driver-identity-missing',
+    );
+    expect(inviteAcceptCause(err(500, { code: 'INVITE_EMAIL_MISMATCH' }))).toBe('email-mismatch');
+  });
+
+  /**
+   * O MESMO 400 mudo ainda e lancado por token em branco e por convite nao-PENDING. So a
+   * divergencia ganhou codigo. Sem codigo, o 400 NAO pode virar "outro e-mail": seria trocar
+   * uma afirmacao errada por outra, que e o defeito deste no repetido uma camada acima.
+   */
+  it('400 MUDO nao vira divergencia de e-mail - segue com a copy generica', () => {
+    const copy = inviteErrorCopy(err(400), 'accept');
+
+    expect(copy).toContain('não é mais válido');
+    expect(copy).not.toContain('outro e-mail');
+    expect(inviteAcceptCause(err(400))).toBeNull();
+  });
+
   it('as duas causas produzem mensagens DIFERENTES', () => {
     const driver = inviteErrorCopy(err(403, { code: 'DRIVER_IDENTITY_NOT_RESOLVED' }), 'accept');
     const mismatch = inviteErrorCopy(err(403, { code: 'INVITE_EMAIL_MISMATCH' }), 'accept');
@@ -62,11 +96,13 @@ describe('invite-errors — as duas causas do 403 no aceite (FIX-0555)', () => {
     expect(copy).toContain('cadastro de motorista');
   });
 
-  it('a causa so existe para o 403 do aceite', () => {
+  it('sem codigo, so o 403 significa divergencia - os demais status nao ganham causa', () => {
     expect(inviteAcceptCause(err(403, { code: 'DRIVER_IDENTITY_NOT_RESOLVED' }))).toBe(
       'driver-identity-missing',
     );
+    expect(inviteAcceptCause(err(403))).toBe('email-mismatch');
     expect(inviteAcceptCause(err(410))).toBeNull();
+    expect(inviteAcceptCause(err(409))).toBeNull();
     expect(inviteAcceptCause(new Error('nao e HttpErrorResponse'))).toBeNull();
   });
 
