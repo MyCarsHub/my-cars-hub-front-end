@@ -48,3 +48,55 @@ describe('ptbr-money.validator', () => {
     expect(errors).toEqual({ min: { min: 10 } });
   });
 });
+
+/**
+ * FIX-0538 — AUSENTE nao e TIPO ERRADO, e a diferenca so aparece no campo OPCIONAL.
+ *
+ * Antes, todo nao-texto era coagido para '' e caia no ramo do campo vazio. Em campo
+ * obrigatorio ainda saia `required`, que ao menos recusa. Em campo OPCIONAL saia
+ * `null`: o formulario ACEITAVA, e no submit `ptBrMoneyCents` fazia a mesma coercao
+ * e devolvia `null` — o valor sumia sem uma linha de aviso.
+ *
+ * Os quatro casos abaixo sao a tabela inteira: {ausente, nao-texto} x {obrigatorio,
+ * opcional}. So uma celula mudou, e e justamente a que ninguem olhava.
+ */
+describe('ptbr-money.validator — ausente x tipo errado (FIX-0538)', () => {
+  function errorsForRaw(value: unknown, options = {}): Record<string, unknown> | null {
+    return ptBrMoneyValidator(options)(new FormControl(value)) as Record<string, unknown> | null;
+  }
+
+  it('AUSENTE: obrigatorio pede o campo, opcional aceita', () => {
+    for (const absent of [null, undefined, '', '   ']) {
+      expect(errorsForRaw(absent), `obrigatorio com ${JSON.stringify(absent)}`).toEqual({
+        required: true,
+      });
+      expect(
+        errorsForRaw(absent, { optional: true }),
+        `opcional com ${JSON.stringify(absent)}`,
+      ).toBeNull();
+    }
+  });
+
+  it('NAO-TEXTO e recusado como FORMATO, mesmo quando o campo e opcional', () => {
+    for (const wrong of [45, 1500, 0, true, {}, []]) {
+      expect(errorsForRaw(wrong), `obrigatorio com ${JSON.stringify(wrong)}`).toEqual({
+        moneyFormat: true,
+      });
+      // A celula que mudou: opcional vale para AUSENTE, nao para valor de tipo errado.
+      expect(
+        errorsForRaw(wrong, { optional: true }),
+        `opcional com ${JSON.stringify(wrong)}`,
+      ).toEqual({ moneyFormat: true });
+    }
+  });
+
+  /**
+   * O numero e o caso caro: `String(45)` e `'45'`, que a gramatica pt-BR aceitaria.
+   * Recusar no validador e o que impede 45 de virar R$ 45,00 por acidente.
+   */
+  it('um numero nao vira dinheiro por coercao em nenhum dos dois modos', () => {
+    expect(errorsForRaw(45)).toEqual({ moneyFormat: true });
+    expect(errorsForRaw(45, { optional: true })).toEqual({ moneyFormat: true });
+    expect(ptBrMoneyCents(45 as unknown as string)).toBeNull();
+  });
+});

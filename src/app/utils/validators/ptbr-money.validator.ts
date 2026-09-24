@@ -24,14 +24,38 @@ export interface PtBrMoneyValidatorOptions {
   minCents?: number;
 }
 
+/**
+ * FIX-0538 — AUSENTE e TIPO ERRADO nao sao a mesma coisa.
+ *
+ * Esta funcao abria com uma coercao (`typeof value === 'string' ? ... : ''`) que
+ * jogava TODO nao-texto no mesmo ramo do campo vazio. Em campo obrigatorio ainda
+ * saia `required`, o que ao menos recusava; em campo OPCIONAL saia `null`, ou
+ * seja, ACEITAVA — e no submit `ptBrMoneyCents` fazia a mesma coercao e devolvia
+ * `null`, entao o valor era DESCARTADO EM SILENCIO.
+ *
+ * Opcional vale para AUSENTE, nao para valor de tipo errado. A regra vem do
+ * FIX-0538, que a estabeleceu nos validadores de manutencao; este arquivo se
+ * chama fonte unica da verdade e nao pode contradiz-la.
+ */
+type RawKind = 'absent' | 'not-text' | 'text';
+
+function classifyRaw(value: unknown): RawKind {
+  if (value === null || value === undefined) return 'absent';
+  if (typeof value !== 'string') return 'not-text';
+  return value.trim() === '' ? 'absent' : 'text';
+}
+
 export function ptBrMoneyValidator(options: PtBrMoneyValidatorOptions = {}): ValidatorFn {
   const optional = options.optional === true;
   const minCents = options.minCents ?? 0;
 
   return (control: AbstractControl): ValidationErrors | null => {
-    const raw = typeof control.value === 'string' ? control.value.trim() : '';
-    if (raw === '') return optional ? null : { required: true };
+    const kind = classifyRaw(control.value);
+    if (kind === 'absent') return optional ? null : { required: true };
+    // Opcional vale para AUSENTE, nao para lixo: nao-texto e invalido nos dois modos.
+    if (kind === 'not-text') return { moneyFormat: true };
 
+    const raw = (control.value as string).trim();
     const { scaled, error } = parsePtBrMoneyCents(raw);
     if (error !== null || scaled === null) return { moneyFormat: true };
     if (scaled < minCents) return { min: { min: minCents / 100 } };
@@ -48,8 +72,11 @@ export function ptBrMoneyValidator(options: PtBrMoneyValidatorOptions = {}): Val
  * agrupamento pt-BR e transformaria "45.000,00" em `NaN`.
  */
 export function ptBrMoneyCents(value: string | null | undefined): number | null {
-  const raw = typeof value === 'string' ? value.trim() : '';
-  if (raw === '') return null;
-  const { scaled, error } = parsePtBrMoneyCents(raw);
+  // Mesma classificacao do validador, para os dois nunca discordarem sobre o que
+  // e "vazio". Nao-texto nao chega aqui: o validador o recusa com `moneyFormat`
+  // antes do submit. Devolver `null` seria justamente o descarte silencioso que a
+  // distincao existe para impedir — a recusa e la, nao aqui.
+  if (classifyRaw(value) !== 'text') return null;
+  const { scaled, error } = parsePtBrMoneyCents((value as string).trim());
   return error !== null ? null : scaled;
 }
