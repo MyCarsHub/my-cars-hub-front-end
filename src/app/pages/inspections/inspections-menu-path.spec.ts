@@ -43,10 +43,20 @@ describe('Vistorias — menu -> rota -> lista', () => {
   @Component({ template: '', changeDetection: ChangeDetectionStrategy.OnPush })
   class StubPage {}
 
+  /*
+   * Este fixture tem EXATAMENTE os campos que `InspectionListItem` declara, e
+   * isso e deliberado: `rentalCode`, `documentId` e `documentSignedUrl` saíram
+   * do tipo porque nao ha fonte para eles no banco — nao ha coluna de codigo de
+   * aluguel e nao ha tabela de documento de vistoria. A justificativa completa
+   * mora em `types/inspection.types.ts`.
+   *
+   * Eles estavam aqui porque esta branch bifurcou ANTES da remocao. O merge com
+   * develop e LIMPO e mesmo assim nao compilava: merge sem conflito e compilacao
+   * sao perguntas diferentes.
+   */
   const ITEM: InspectionListItem = {
     id: 'insp-1',
     rentalId: 'rent-1',
-    rentalCode: 'LOC-0001',
     vehicleId: 'veh-1',
     vehiclePlate: 'ABC1D23',
     vehicleBrand: 'Fiat',
@@ -55,8 +65,6 @@ describe('Vistorias — menu -> rota -> lista', () => {
     kind: 'CHECKIN',
     performedAt: '2026-09-10T12:00:00Z',
     photoCount: 14,
-    documentId: 'doc-1',
-    documentSignedUrl: 'https://files.example/insp-1.pdf',
   };
 
   function signInAs(role: string): void {
