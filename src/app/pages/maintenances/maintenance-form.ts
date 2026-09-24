@@ -100,16 +100,38 @@ const HODOMETER_DECIMALS = 0;
  * a tela de detalhe imprime `150.000 km`, e redigitar essa string num `type="number"`
  * entregava `hodometerReading: 150` — mil vezes menos, sem recusa e sem mensagem.
  */
+/**
+ * FIX-0538 — AUSENTE e TIPO ERRADO nao sao a mesma coisa, e confundi-los custa caro.
+ *
+ * Os tres validadores abaixo comecavam com `String(raw).trim() === ''`. Essa coercao
+ * apagava a diferenca entre "nao preencheu" e "veio outra coisa que nao texto", e o
+ * resultado medido em b4a35d6 era pior do que um diagnostico ruim: `String(45)` e
+ * `'45'`, que a gramatica pt-BR aceita, entao um NUMERO passava batido e virava
+ * R$ 45,00 — exatamente a coercao silenciosa que o campo de texto existe para impedir.
+ * Com 1500 o estrago e maior: vira R$ 1.500,00.
+ *
+ * O contrato nao muda: estes campos guardam TEXTO pt-BR. Numero nao e aceito — agora
+ * e RECUSADO com o codigo de formato, em vez de aceito por acidente. E o que de fato
+ * nao foi preenchido continua caindo em `required`.
+ */
+type RawKind = 'absent' | 'not-text' | 'text';
+
+function classifyRaw(value: unknown): RawKind {
+  if (value === null || value === undefined) return 'absent';
+  if (typeof value !== 'string') return 'not-text';
+  return value.trim() === '' ? 'absent' : 'text';
+}
+
 function quantityValidator(control: AbstractControl): ValidationErrors | null {
-  const raw = control.value as string;
-  if (raw === null || raw === undefined || String(raw).trim() === '') {
-    return { required: true };
-  }
+  const raw = control.value as unknown;
+  const kind = classifyRaw(raw);
+  if (kind === 'absent') return { required: true };
+  if (kind === 'not-text') return { quantityFormat: true };
 
   // Formato inválido e casa decimal a mais compartilham a chave `quantityFormat` de
   // propósito: uma mensagem só cobre as duas causas ("vírgula para decimais, até 3
   // casas, ponto só para milhar") e o contrato de erro do campo continua o mesmo.
-  const milli = parseQuantityMilli(raw);
+  const milli = parseQuantityMilli(raw as string);
   if (milli === null) return { quantityFormat: true };
   if (milli <= 0) return { quantityMin: true };
   if (milli > QUANTITY_MAX * 1000) return { quantityMax: { max: QUANTITY_MAX } };
@@ -125,12 +147,12 @@ function quantityValidator(control: AbstractControl): ValidationErrors | null {
  */
 function moneyValidator(maxCents?: number): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
-    const raw = control.value as string;
-    if (raw === null || raw === undefined || String(raw).trim() === '') {
-      return { required: true };
-    }
+    const raw = control.value as unknown;
+    const kind = classifyRaw(raw);
+    if (kind === 'absent') return { required: true };
+    if (kind === 'not-text') return { moneyFormat: true };
 
-    const { scaled, error } = parsePtBrMoneyCents(raw);
+    const { scaled, error } = parsePtBrMoneyCents(raw as string);
     if (error === 'decimals') return { moneyDecimals: { max: MONEY_DECIMALS } };
     if (error !== null || scaled === null) return { moneyFormat: true };
     if (maxCents !== undefined && scaled > maxCents) return { max: { max: maxCents / 100 } };
@@ -150,12 +172,13 @@ function moneyValidator(maxCents?: number): ValidatorFn {
  */
 function hodometerValidator(required: boolean): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
-    const raw = control.value as string;
-    if (raw === null || raw === undefined || String(raw).trim() === '') {
-      return required ? { required: true } : null;
-    }
+    const raw = control.value as unknown;
+    const kind = classifyRaw(raw);
+    if (kind === 'absent') return required ? { required: true } : null;
+    // Opcional vale para AUSENTE, nao para lixo: um nao-texto e invalido nos dois casos.
+    if (kind === 'not-text') return { hodometerFormat: true };
 
-    const { scaled, error } = parsePtBrNumber(raw, HODOMETER_DECIMALS);
+    const { scaled, error } = parsePtBrNumber(raw as string, HODOMETER_DECIMALS);
     // Casa decimal aqui é quase sempre o separador trocado (`150,000`). Recusa com
     // mensagem — nunca lido como 150, nunca como 150000 por adivinhação.
     if (error === 'decimals') return { hodometerDecimals: true };
