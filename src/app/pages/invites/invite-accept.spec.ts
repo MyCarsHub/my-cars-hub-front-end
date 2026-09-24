@@ -244,4 +244,45 @@ describe('InviteAccept — página pública de aceite', () => {
     expect(validate).not.toHaveBeenCalled();
     expect(component.errorMessage()).toContain('Link de convite inválido');
   });
+  /**
+   * FIX-0555 — a tela acusava o usuario de um erro que ele nao cometeu.
+   *
+   * O dono tentou aceitar um convite DUAS vezes em producao com o e-mail CERTO e leu que o
+   * convite era de outro e-mail. A tela ainda oferecia "entrar com outra conta", o que o fez
+   * repetir a tentativa e falhar igual. O botao aqui nao e detalhe: e o que transforma a
+   * mensagem errada em trabalho perdido.
+   */
+  function switchAccountButton(fixture: ComponentFixture<InviteAccept>): HTMLElement | null {
+    return Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => (b.textContent ?? '').includes('Entrar com outra conta')) as HTMLElement | null;
+  }
+
+  function errorWithCode(code: string): HttpErrorResponse {
+    return new HttpErrorResponse({ status: 403, error: { code } });
+  }
+
+  it('403 por falta de cadastro de motorista: nomeia a causa e NAO oferece trocar de conta', () => {
+    store['token'] = 'de-outro-usuario';
+    accept.mockReturnValue(throwError(() => errorWithCode('DRIVER_IDENTITY_NOT_RESOLVED')));
+
+    const { component, fixture } = render('raw-token');
+
+    expect(component.errorMessage()).toContain('cadastro de motorista');
+    expect(component.errorMessage()).toContain('gestor');
+    expect(component.errorMessage()).not.toContain('outro e-mail');
+    // O botao que empurrava o convidado para o erro que ele nao cometeu.
+    expect(switchAccountButton(fixture)).toBeUndefined();
+  });
+
+  it('403 por divergencia de e-mail: copy de hoje E o botao de trocar de conta seguem', () => {
+    store['token'] = 'de-outro-usuario';
+    accept.mockReturnValue(throwError(() => errorWithCode('INVITE_EMAIL_MISMATCH')));
+
+    const { component, fixture } = render('raw-token');
+
+    expect(component.errorMessage()).toContain('outro e-mail');
+    // Aqui trocar de conta E a acao certa, entao o botao tem de continuar existindo.
+    expect(switchAccountButton(fixture)).toBeDefined();
+  });
 });

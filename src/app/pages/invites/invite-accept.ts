@@ -7,7 +7,7 @@ import { AuthService } from '../../services/auth.service';
 import { InvitesService } from '../../services/invites.service';
 import { LoginService } from '../../services/loginService';
 import { SessionService } from '../../services/session.service';
-import { inviteErrorCopy } from '../../services/invite-errors';
+import { InviteAcceptCause, inviteAcceptCause, inviteErrorCopy } from '../../services/invite-errors';
 import { ValidateInviteResponse } from '../../types/invite.types';
 import { PENDING_INVITE_TOKEN_KEY } from './invite-session';
 import { companyRoleLabel } from '../../utils/role-labels';
@@ -73,12 +73,22 @@ export class InviteAccept implements OnInit {
     this.details()?.userExists ? 'Entrar com o Google' : 'Criar conta com o Google',
   );
 
+  /** Qual das duas causas produziu o 403 do aceite (FIX-0555); `null` para os demais erros. */
+  private readonly acceptCause = signal<InviteAcceptCause | null>(null);
+
   /**
    * A validated invite that failed on accept is recoverable by logging in as the invited
    * e-mail — the usual cause is being signed in as somebody else in this tab.
+   *
+   * FIX-0555 — MENOS quando a causa é a falta de cadastro de motorista. Aí trocar de conta
+   * não resolve nada: a ação é do gestor, e oferecer o botão empurra o convidado a repetir
+   * a tentativa e falhar igual, que foi o que aconteceu em produção.
    */
   protected readonly canSwitchAccount = computed(
-    () => this.step() === 'error' && this.details() !== null,
+    () =>
+      this.step() === 'error' &&
+      this.details() !== null &&
+      this.acceptCause() !== 'driver-identity-missing',
   );
 
   ngOnInit(): void {
@@ -186,6 +196,7 @@ export class InviteAccept implements OnInit {
    */
   private fail(err: unknown, fallback: string): void {
     this.apiErrors.claim(err);
+    this.acceptCause.set(inviteAcceptCause(err));
     this.errorMessage.set(inviteErrorCopy(err, 'accept') ?? this.apiErrors.messageFor(err, fallback));
     this.step.set('error');
   }
