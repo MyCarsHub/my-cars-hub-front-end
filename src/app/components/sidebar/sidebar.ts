@@ -82,6 +82,17 @@ const NAV_ITEMS: NavItem[] = [
         icon: ICON_MAINT,
         roles: ['OWNER', 'MANAGER'],
       },
+      // FEAT-0142 — "Frota → Vistorias", pedido do dono, e FILHA de Frota:
+      // entre Manutenções e Multas, nunca item de primeiro nível. `roles` casa
+      // com o `roleGuard(['OWNER', 'MANAGER'])` da rota `/vistorias` em
+      // `app.routes.ts` — os dois conjuntos são iguais, então o item nunca
+      // oferece porta que o guard bata na cara.
+      {
+        route: '/vistorias',
+        label: 'Vistorias',
+        icon: ICON_MAINT,
+        roles: ['OWNER', 'MANAGER'],
+      },
       { route: '/multas', label: 'Multas', icon: ICON_FINES, roles: ['OWNER', 'MANAGER'] },
       {
         route: '/sinistros',
