@@ -1,5 +1,4 @@
 import {
-  APP_INITIALIZER,
   ApplicationConfig,
   ErrorHandler,
   inject,
@@ -9,14 +8,12 @@ import {
 import {
   provideRouter,
   withComponentInputBinding,
-  Router,
   TitleStrategy,
 } from '@angular/router';
 import { provideClientHydration } from '@angular/platform-browser';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
-import * as Sentry from '@sentry/angular';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './services/auth.interceptor';
@@ -26,6 +23,7 @@ import { PageTitleStrategy } from './services/page-title.strategy';
 import { prerenderApiBaseInterceptor } from './services/prerender-api-base.interceptor';
 import { ImpersonationService } from './services/impersonation.service';
 import { TenantCachesService } from './services/tenant-caches.service';
+import { TelemetryErrorHandler } from './services/telemetry-error-handler';
 import { environment } from '../environments/environment';
 
 export const appConfig: ApplicationConfig = {
@@ -71,19 +69,22 @@ export const appConfig: ApplicationConfig = {
       enabled: environment.production,
       registrationStrategy: 'registerWhenStable:30000',
     }),
-    {
-      provide: ErrorHandler,
-      useValue: Sentry.createErrorHandler(),
-    },
-    {
-      provide: Sentry.TraceService,
-      deps: [Router],
-    },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: () => () => {},
-      deps: [Sentry.TraceService],
-      multi: true,
-    },
+    /*
+     * FIX-0564 — this used to be `Sentry.createErrorHandler()`, plus a
+     * `Sentry.TraceService` provider and an `APP_INITIALIZER` whose only job was
+     * to force that service to be constructed.
+     *
+     * All three referenced the `Sentry` namespace while the provider array was
+     * being BUILT, which made `@sentry/angular` a static import of this file and
+     * put 241.84 kB into the initial bundle of every visit — for an SDK that
+     * reports nothing, because `environment.sentryDsn` is empty.
+     *
+     * The error handler now reaches the SDK through `TelemetryService`, which
+     * loads it dynamically. Router tracing did not disappear: `TraceService` is
+     * constructed in `main.ts` after bootstrap, inside the same dynamic import
+     * that calls `Sentry.init()` — it only ever did anything once a client was
+     * initialised, and now it is created in the same place.
+     */
+    { provide: ErrorHandler, useClass: TelemetryErrorHandler },
   ],
 };

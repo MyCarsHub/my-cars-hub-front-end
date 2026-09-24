@@ -109,10 +109,23 @@ export class InspectionsList implements OnInit {
   protected readonly hasPrev = computed(() => this.page() > 0);
   protected readonly hasNext = computed(() => this.page() + 1 < this.totalPages());
 
-  /** Região viva: trocar filtro troca a lista sem mover foco nem rota. */
+  /**
+   * Região viva: trocar filtro troca a lista sem mover foco nem rota.
+   *
+   * FIX-0565 — o erro sai de `error()`, a MESMA fonte que o banner renderiza, e não de uma
+   * cópia da frase. A cópia era o defeito: o serviço já separa recusa de falha, mas aqui
+   * estava escrito "não foi possível carregar" fixo, então num 403 quem enxerga lia
+   * "você não tem permissão" e quem usa leitor de tela ouvia uma falha de carregamento.
+   * Duas frases para o mesmo evento é uma que está errada — e a errada mandava o usuário
+   * recarregar uma tela que nunca ia abrir.
+   *
+   * Ler a fonte em vez de repeti-la é o que impede as duas de divergirem de novo quando
+   * alguém acrescentar a próxima causa no serviço.
+   */
   protected readonly liveStatus = computed(() => {
     if (this.loading()) return 'Carregando vistorias…';
-    if (this.error()) return 'Não foi possível carregar as vistorias.';
+    const loadError = this.error();
+    if (loadError) return loadError;
     const count = this.total();
     if (count === 0) {
       return this.hasActiveFilters()
