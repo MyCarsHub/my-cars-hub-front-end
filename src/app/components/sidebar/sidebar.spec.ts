@@ -53,6 +53,20 @@ describe('Sidebar', () => {
   let fixture: ComponentFixture<Sidebar>;
   let layout: LayoutStore;
 
+  /**
+   * O papel do menu vem do TOKEN desde o FIX-0363: setar so o tenant deixa o
+   * papel vazio e esconde todo item com `roles`. Helper unico para os dois
+   * lugares que precisam de um papel, para nao divergirem de novo.
+   */
+  function signInAs(role: string): void {
+    const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+    const b64 = btoa(JSON.stringify(payload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    sessionStorage.setItem('token', `header.${b64}.signature`);
+  }
+
   beforeEach(async () => {
     sessionStorage.clear();
     await TestBed.configureTestingModule({
@@ -82,6 +96,7 @@ describe('Sidebar', () => {
    * a intenção do teste (as âncoras continuam no DOM) é a mesma.
    */
   it('emite as âncoras data-tour que o tour guiado procura', () => {
+    signInAs('OWNER');
     layout.tenants.set([tenant('OWNER')]);
     layout.selectedTenant.set(tenant('OWNER'));
     fixture.detectChanges();
@@ -104,9 +119,14 @@ describe('Sidebar', () => {
    */
   describe('menu do DRIVER (FEAT-0108)', () => {
     function labelsFor(role: string): string[] {
-      // `selectedTenant` e um signal PROPRIO, nao derivado de `tenants`: e ele
-      // que `allowedItems` le. Setar so `tenants` deixa o papel vazio e esconde
-      // todo item com `roles`, mascarando o que este teste quer observar.
+      // O papel do menu vem do TOKEN desde o FIX-0363 — `selectedTenant` sozinho
+      // NAO decide mais (ver `sidebar-role-source.spec.ts`). Esta versao do
+      // helper ficou parada antes daquela mudanca e setava so o tenant, o que
+      // deixava o papel vazio e escondia todo item com `roles`: o teste media um
+      // menu sem papel nenhum e parecia acusar a feature.
+      signInAs(role);
+      // O tenant continua sendo setado porque `allowedItems` tambem depende de
+      // haver empresa selecionada para oferecer item de tenant.
       layout.tenants.set([tenant(role)]);
       layout.selectedTenant.set(tenant(role));
       fixture.detectChanges();
