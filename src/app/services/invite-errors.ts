@@ -56,6 +56,7 @@ const ACCEPT_COPY: Readonly<Record<number, string>> = {
 const DRIVER_IDENTITY_NOT_RESOLVED = 'DRIVER_IDENTITY_NOT_RESOLVED';
 const INVITE_EMAIL_MISMATCH = 'INVITE_EMAIL_MISMATCH';
 const INVITE_CPF_MISMATCH = 'INVITE_CPF_MISMATCH';
+const DRIVER_REGISTRATION_REQUIRED = 'DRIVER_REGISTRATION_REQUIRED';
 
 
 /**
@@ -74,7 +75,12 @@ const DRIVER_IDENTITY_MISSING_COPY =
   'Você ainda não tem cadastro de motorista nesta empresa. ' +
   'Peça ao gestor para cadastrar você antes de aceitar o convite.';
 
-export type InviteAcceptCause = 'driver-identity-missing' | 'email-mismatch' | 'cpf-mismatch';
+export type InviteAcceptCause =
+  | 'driver-identity-missing'
+  | 'email-mismatch'
+  | 'cpf-mismatch'
+  /** Não é erro para o usuário ler: manda a tela abrir o onboarding do motorista. */
+  | 'driver-registration-required';
 
 function errorCode(error: HttpErrorResponse): string | null {
   const body = error.error as { code?: unknown } | null | undefined;
@@ -96,6 +102,7 @@ export function inviteAcceptCause(error: unknown): InviteAcceptCause | null {
   if (code === DRIVER_IDENTITY_NOT_RESOLVED) return 'driver-identity-missing';
   if (code === INVITE_EMAIL_MISMATCH) return 'email-mismatch';
   if (code === INVITE_CPF_MISMATCH) return 'cpf-mismatch';
+  if (code === DRIVER_REGISTRATION_REQUIRED) return 'driver-registration-required';
 
   // Sem código (ou com um desconhecido) só o 403 continua significando divergência, que é o
   // comportamento de hoje. Os outros status seguem com o mapa por status, intocados: o mesmo
