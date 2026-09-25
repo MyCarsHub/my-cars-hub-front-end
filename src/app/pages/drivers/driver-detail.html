@@ -29,6 +29,18 @@
 
       <!-- Desktop actions (top-right) -->
       <div class="hidden lg:flex shrink-0 items-center gap-2">
+        @if (!inviteBlockedReason()) {
+          <button
+            type="button"
+            (click)="invite()"
+            [disabled]="inviting()"
+            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                   bg-white border border-neutral-200 hover:bg-neutral-50 transition-colors
+                   text-primary-700 disabled:opacity-60 disabled:cursor-wait
+                   focus:outline-none focus:ring-2 focus:ring-primary-400">
+            {{ inviting() ? 'Enviando convite…' : 'Convidar' }}
+          </button>
+        }
         @if (canToggleStatus()) {
           <button
             type="button"
@@ -50,6 +62,17 @@
 
     @if (actionError(); as actionMessage) {
       <app-alert-banner class="mb-4" variant="error" [message]="actionMessage" />
+    }
+
+    <!--
+      Por que uma frase e não um botão escondido: um botão que some é
+      indistinguível de uma tela quebrada. Fica FORA dos blocos `lg:hidden` /
+      `hidden lg:flex` de propósito — dentro de um deles, a explicação existiria
+      só numa largura, e no celular (que é onde esta tela é usada) sumir sem
+      explicar é exatamente o defeito que se quer evitar.
+    -->
+    @if (inviteBlockedReason(); as reason) {
+      <p class="mb-4 text-xs text-neutral-500 leading-relaxed">{{ reason }}</p>
     }
 
     @if (activeRental(); as rental) {
@@ -272,6 +295,24 @@
 
     <!-- Mobile actions (bottom) -->
     <div class="lg:hidden mt-6 space-y-3">
+      <!--
+        Convidar nasce AQUI, do cadastro, e não de um formulário avulso: o aceite
+        vincula por `contacts.email`, então convidar alguém que já existe é o que
+        torna o aceite possível. Ver o bloco em `driver-detail.ts`.
+        A razão de NÃO poder convidar é renderizada uma vez só, acima, para não
+        existir só numa das larguras.
+      -->
+      @if (!inviteBlockedReason()) {
+        <button
+          type="button"
+          (click)="invite()"
+          [disabled]="inviting()"
+          class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium
+                 bg-white border border-neutral-200 hover:bg-neutral-50 transition-colors
+                 text-primary-700 disabled:opacity-60 disabled:cursor-wait">
+          {{ inviting() ? 'Enviando convite…' : 'Convidar para o aplicativo' }}
+        </button>
+      }
       @if (canToggleStatus()) {
         <button
           type="button"
