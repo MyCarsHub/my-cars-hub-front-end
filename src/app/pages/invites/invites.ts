@@ -14,6 +14,17 @@ import { NotificationService } from '../../services/notification.service';
 import { inviteErrorCopy } from '../../services/invite-errors';
 import { InviteResponse, InviteRole, InviteStatus } from '../../types/invite.types';
 import { companyRoleLabel } from '../../utils/role-labels';
+import {
+  applyMaskedDocumentInput,
+  cpfShapeValidator,
+  maskCpf,
+  normalizeCpf,
+} from '../../utils/document-mask';
+import { cpfValidator } from '../../utils/validators/cpf.validator';
+import { applyMaskedPhoneInput, normalizePhone } from '../../utils/phone-mask';
+
+/** Mesmo padrao do onboarding (`step-personal`): DDD + numero, com ou sem mascara. */
+const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
 const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
 const LIST_FALLBACK = 'Não foi possível carregar os convites.';
@@ -102,16 +113,90 @@ export class Invites implements OnInit {
     { value: 'DRIVER', label: 'Motorista' },
   ];
 
+  /**
+   * O convite de GERENTE nao era um campo faltando: era uma porta fechada.
+   *
+   * O backend exige `name`, `cpf` e `phone` quando o cargo e MANAGER
+   * (`ERROR_MANAGER_DATA_REQUIRED`), e este formulario mandava so `{email, role}`. Como o
+   * select SEMPRE ofereceu "Gerenciador", escolher esse cargo produzia 400 em 100% das
+   * tentativas — o fluxo de convite de gerente existia no backend e na tela do convidado, e
+   * a unica porta de entrada nao conseguia criar um.
+   *
+   * O proprio `invite.types.ts` ja documentava a regra. O tipo sabia; o formulario nao.
+   */
   protected readonly inviteForm = this.fb.group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
     role: ['DRIVER' as InviteRole, [Validators.required]],
+    name: [''],
+    cpf: [''],
+    phone: [''],
   });
+
+  protected readonly nameMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o nome de quem vai gerenciar.',
+    maxlength: 'O nome deve ter no máximo 180 caracteres.',
+  };
+  protected readonly cpfMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o CPF do gerenciador.',
+    cpfShape: 'CPF inválido. Use o formato 000.000.000-00.',
+    cpfInvalid: 'CPF inválido.',
+  };
+  protected readonly phoneMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o telefone do gerenciador.',
+    pattern: 'Telefone inválido. Use DDD + número.',
+  };
+
+  /** Só o cargo MANAGER pede os dados pessoais — a tela segue a mesma regra do backend. */
+  protected readonly requiresManagerData = computed(() => this.roleValue() === 'MANAGER');
 
   protected readonly emailMessages: Readonly<Record<string, string>> = {
     required: 'Informe o e-mail de quem você quer convidar.',
     email: 'Informe um e-mail válido.',
     maxlength: 'O e-mail deve ter no máximo 255 caracteres.',
   };
+
+  /** Espelha o cargo num signal para o template e o `computed` reagirem à troca do select. */
+  private readonly roleValue = signal<InviteRole>('DRIVER');
+
+  /**
+   * Liga e desliga a obrigatoriedade quando o cargo muda, NOS DOIS SENTIDOS.
+   *
+   * Motorista → Gerenciador acende os três campos sem o usuário precisar tocar neles;
+   * o caminho inverso apaga a exigência E os erros, porque `updateValueAndValidity` com os
+   * validadores removidos revalida o controle como válido — um erro que ficasse preso na
+   * tela pararia um envio de motorista que está perfeitamente correto.
+   */
+  private syncManagerValidators(role: InviteRole): void {
+    const { name, cpf, phone } = this.inviteForm.controls;
+
+    if (role === 'MANAGER') {
+      name.setValidators([Validators.required, Validators.maxLength(180)]);
+      // O controle guarda TEXTO MASCARADO, então os dois validadores leem TEXTO —
+      // `cpfShapeValidator` sobre a máscara e `cpfValidator` sobre os dígitos que ele
+      // extrai. Validar isto com algo que espera número enxergaria o campo como vazio, e o
+      // sintoma seria "obrigatório ignorado", não "formato inválido".
+      cpf.setValidators([Validators.required, cpfShapeValidator(), cpfValidator()]);
+      phone.setValidators([Validators.required, Validators.pattern(PHONE_PATTERN)]);
+    } else {
+      name.clearValidators();
+      cpf.clearValidators();
+      phone.clearValidators();
+    }
+
+    name.updateValueAndValidity({ emitEvent: false });
+    cpf.updateValueAndValidity({ emitEvent: false });
+    phone.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /** Máscara progressiva de CPF, caret preservado — mesma do onboarding. */
+  protected onCpfInput(event: Event): void {
+    applyMaskedDocumentInput(event, this.inviteForm.controls.cpf, maskCpf);
+  }
+
+  /** Máscara progressiva de telefone, caret preservado. */
+  protected onPhoneInput(event: Event): void {
+    applyMaskedPhoneInput(event, this.inviteForm.controls.phone);
+  }
 
   protected readonly rows = computed<InviteRow[]>(() =>
     this.invites.invites().map((invite) => ({
@@ -129,6 +214,11 @@ export class Invites implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.inviteForm.controls.role.valueChanges.subscribe((role) => {
+      const next = (role ?? 'DRIVER') as InviteRole;
+      this.roleValue.set(next);
+      this.syncManagerValidators(next);
+    });
   }
 
   protected load(): void {
@@ -162,12 +252,33 @@ export class Invites implements OnInit {
     const raw = this.inviteForm.getRawValue();
     this.sending.set(true);
 
+    const role = (raw.role ?? 'DRIVER') as InviteRole;
+    // DRIVER envia EXATAMENTE o que enviava antes — o backend ignora os três campos nesse
+    // cargo, e omiti-los mantém o caminho do motorista byte a byte igual ao de hoje.
+    // MANAGER manda dígitos crus; o backend normaliza, mas normalizar aqui é o que o resto
+    // do app já faz e não depende disso.
+    const payload =
+      role === 'MANAGER'
+        ? {
+            email: raw.email ?? '',
+            role,
+            name: (raw.name ?? '').trim(),
+            cpf: normalizeCpf(raw.cpf ?? ''),
+            phone: normalizePhone(raw.phone ?? ''),
+          }
+        : { email: raw.email ?? '', role };
+
     this.invites
-      .create({ email: raw.email ?? '', role: raw.role ?? 'DRIVER' })
+      .create(payload)
       .subscribe({
         next: (invite) => {
           this.sending.set(false);
-          this.inviteForm.reset({ email: '', role: 'DRIVER' });
+          this.inviteForm.reset({ email: '', role: 'DRIVER', name: '', cpf: '', phone: '' });
+          // `reset` não dispara `valueChanges` do jeito que o sync espera em todos os
+          // casos; realinhar explicitamente evita o formulário voltar exigindo dados de
+          // gerente depois de um convite de gerente enviado com sucesso.
+          this.roleValue.set('DRIVER');
+          this.syncManagerValidators('DRIVER');
           this.notifications.success(`Convite enviado para ${invite.email}.`);
         },
         error: (err: HttpErrorResponse) => {
