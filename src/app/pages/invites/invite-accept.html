@@ -77,6 +77,108 @@
         </p>
       }
 
+      @case ('onboarding') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Confirme seus dados
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Falta pouco para você entrar em
+          <span class="font-semibold text-neutral-900">{{ companyName() }}</span>
+          como {{ roleLabel() }}.
+        </p>
+
+        @if (onboardingError(); as formError) {
+          <div class="mt-4">
+            <app-alert-banner variant="error" [message]="formError" />
+          </div>
+        }
+
+        <!-- Coluna única: o convidado abre este link no CELULAR, direto do e-mail. Cada
+             campo ocupa a largura toda e os alvos têm min-h-12, então nada depende de
+             precisão de toque em 360px. -->
+        <form [formGroup]="onboardingForm" (ngSubmit)="submitOnboarding()" class="mt-6 space-y-4">
+          <app-form-field
+            label="Nome completo"
+            controlId="invite-name"
+            [required]="true"
+            [control]="onboardingForm.controls.name"
+            [messages]="nameMessages"
+          >
+            <input
+              appFieldControl
+              formControlName="name"
+              type="text"
+              autocomplete="name"
+              placeholder="Seu nome completo"
+              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                     text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                     focus:border-primary-600 transition-colors" />
+          </app-form-field>
+
+          <!-- O CPF NÃO vem pré-preenchido, e isso é decisão de PII: a rota de validação é
+               anônima e o backend não devolve o CPF nem mascarado. O convidado digita. -->
+          <app-form-field
+            label="CPF"
+            controlId="invite-cpf"
+            [required]="true"
+            hint="O mesmo CPF que o gestor usou no convite."
+            [control]="onboardingForm.controls.cpf"
+            [messages]="cpfMessages"
+          >
+            <input
+              appFieldControl
+              formControlName="cpf"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="000.000.000-00"
+              maxlength="14"
+              (input)="onCpfInput($event)"
+              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                     text-neutral-800 tabular-nums focus:outline-none focus:ring-2
+                     focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+          </app-form-field>
+
+          <app-form-field
+            label="Telefone"
+            controlId="invite-phone"
+            [required]="true"
+            [control]="onboardingForm.controls.phone"
+            [messages]="phoneMessages"
+          >
+            <input
+              appFieldControl
+              formControlName="phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              placeholder="(00) 00000-0000"
+              maxlength="15"
+              (input)="onPhoneInput($event)"
+              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                     text-neutral-800 tabular-nums focus:outline-none focus:ring-2
+                     focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+          </app-form-field>
+
+          <button
+            type="submit"
+            [disabled]="submitting()"
+            [attr.aria-busy]="submitting() ? 'true' : null"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                   disabled:opacity-60 disabled:cursor-wait"
+          >
+            {{ submitting() ? 'Confirmando…' : 'Confirmar e entrar' }}
+          </button>
+        </form>
+
+        <p class="mt-4 text-xs text-neutral-500 leading-relaxed">
+          Seus dados são usados apenas para o seu cadastro nesta empresa.
+        </p>
+      }
+
       @case ('mismatch') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
           Este convite é para outra conta

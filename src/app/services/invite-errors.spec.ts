@@ -65,6 +65,28 @@ describe('invite-errors — as duas causas do 403 no aceite (FIX-0555)', () => {
     expect(inviteAcceptCause(err(400))).toBeNull();
   });
 
+  /**
+   * FEAT-0167 — a TERCEIRA causa, e a unica cuja acao e corrigir um campo em vez de sair
+   * da tela. Precisa ser distinguivel das outras duas, senao quem errou um digito de CPF
+   * recebe "troque de conta" e recomeca o fluxo inteiro a toa.
+   */
+  it('INVITE_CPF_MISMATCH aponta o CPF, e nao a conta nem o gestor', () => {
+    const copy = inviteErrorCopy(err(400, { code: 'INVITE_CPF_MISMATCH' }), 'accept');
+
+    expect(copy).toContain('CPF');
+    expect(copy).not.toContain('Saia da conta');
+    expect(copy).not.toContain('cadastro de motorista');
+    expect(inviteAcceptCause(err(400, { code: 'INVITE_CPF_MISMATCH' }))).toBe('cpf-mismatch');
+  });
+
+  it('as TRES causas produzem mensagens diferentes entre si', () => {
+    const driver = inviteErrorCopy(err(403, { code: 'DRIVER_IDENTITY_NOT_RESOLVED' }), 'accept');
+    const mismatch = inviteErrorCopy(err(400, { code: 'INVITE_EMAIL_MISMATCH' }), 'accept');
+    const cpf = inviteErrorCopy(err(400, { code: 'INVITE_CPF_MISMATCH' }), 'accept');
+
+    expect(new Set([driver, mismatch, cpf]).size).toBe(3);
+  });
+
   it('as duas causas produzem mensagens DIFERENTES', () => {
     const driver = inviteErrorCopy(err(403, { code: 'DRIVER_IDENTITY_NOT_RESOLVED' }), 'accept');
     const mismatch = inviteErrorCopy(err(403, { code: 'INVITE_EMAIL_MISMATCH' }), 'accept');

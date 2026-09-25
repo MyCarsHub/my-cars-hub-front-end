@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
+  AcceptInviteRequest,
   AcceptInviteResponse,
   CreateInviteRequest,
   InviteResponse,
@@ -101,10 +102,12 @@ export class InvitesService {
    * TEMPORALLY token: the invitee has just logged in with Google and belongs to no
    * company yet, so a company-scoped token cannot exist at this point.
    */
-  accept(rawToken: string): Observable<AcceptInviteResponse> {
+  accept(rawToken: string, payload?: AcceptInviteRequest): Observable<AcceptInviteResponse> {
+    // FEAT-0167 — MANAGER sends the onboarding body; DRIVER keeps posting the empty object
+    // it always posted. `payload ?? {}` is what keeps the driver path byte-identical.
     return this.http.post<AcceptInviteResponse>(
       `${BASE}/accept/${encodeURIComponent(rawToken)}`,
-      {},
+      payload ?? {},
     );
   }
 

@@ -55,14 +55,26 @@ const ACCEPT_COPY: Readonly<Record<number, string>> = {
  */
 const DRIVER_IDENTITY_NOT_RESOLVED = 'DRIVER_IDENTITY_NOT_RESOLVED';
 const INVITE_EMAIL_MISMATCH = 'INVITE_EMAIL_MISMATCH';
+const INVITE_CPF_MISMATCH = 'INVITE_CPF_MISMATCH';
 
+
+/**
+ * FEAT-0167 — a terceira causa, e a única cuja ação é CORRIGIR UM CAMPO.
+ *
+ * As outras duas tiram o convidado da tela (trocar de conta, falar com o gestor); esta o
+ * mantém no formulário, porque o que está errado é o que ele acabou de digitar. Mandar
+ * quem errou um dígito "entrar com outra conta" seria repetir o defeito do FIX-0555.
+ */
+const CPF_MISMATCH_COPY =
+  'O CPF informado não confere com o do convite. ' +
+  'Confira os números e tente de novo, ou peça ao gestor para reenviar o convite.';
 
 /** Ação é do GESTOR, não do convidado — por isso não oferece trocar de conta. */
 const DRIVER_IDENTITY_MISSING_COPY =
   'Você ainda não tem cadastro de motorista nesta empresa. ' +
   'Peça ao gestor para cadastrar você antes de aceitar o convite.';
 
-export type InviteAcceptCause = 'driver-identity-missing' | 'email-mismatch';
+export type InviteAcceptCause = 'driver-identity-missing' | 'email-mismatch' | 'cpf-mismatch';
 
 function errorCode(error: HttpErrorResponse): string | null {
   const body = error.error as { code?: unknown } | null | undefined;
@@ -83,6 +95,7 @@ export function inviteAcceptCause(error: unknown): InviteAcceptCause | null {
   const code = errorCode(error);
   if (code === DRIVER_IDENTITY_NOT_RESOLVED) return 'driver-identity-missing';
   if (code === INVITE_EMAIL_MISMATCH) return 'email-mismatch';
+  if (code === INVITE_CPF_MISMATCH) return 'cpf-mismatch';
 
   // Sem código (ou com um desconhecido) só o 403 continua significando divergência, que é o
   // comportamento de hoje. Os outros status seguem com o mapa por status, intocados: o mesmo
@@ -102,6 +115,7 @@ export function inviteErrorCopy(error: unknown, context: InviteErrorContext): st
     const cause = inviteAcceptCause(error);
     if (cause === 'driver-identity-missing') return DRIVER_IDENTITY_MISSING_COPY;
     if (cause === 'email-mismatch') return EMAIL_MISMATCH_COPY;
+    if (cause === 'cpf-mismatch') return CPF_MISMATCH_COPY;
   }
   const copy = context === 'accept' ? ACCEPT_COPY : MANAGE_COPY;
   return copy[error.status] ?? null;
