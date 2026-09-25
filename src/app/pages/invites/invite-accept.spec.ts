@@ -285,4 +285,163 @@ describe('InviteAccept — página pública de aceite', () => {
     // Aqui trocar de conta E a acao certa, entao o botao tem de continuar existindo.
     expect(switchAccountButton(fixture)).toBeDefined();
   });
+  /**
+   * FEAT-0167 — a tela que fecha o ciclo. Aceites completados na historia deste sistema
+   * ate aqui: ZERO. O convidado GERENTE confirma nome e telefone (pre-preenchidos) e DIGITA
+   * o CPF, que o backend compara com o cofre.
+   *
+   * O CPF nao e pre-preenchido e isso e decisao de PII, nao esquecimento: a rota de
+   * validacao e ANONIMA, quem tem o link le a resposta, e por isso o backend nao devolve o
+   * CPF nem mascarado. Ha um teste abaixo fixando que o campo nasce VAZIO.
+   */
+  describe('FEAT-0167 — onboarding do convidado gerente', () => {
+    const managerDetails: ValidateInviteResponse = {
+      ...details,
+      name: 'Fulano de Tal',
+      phoneNumber: '11987654321',
+      requiresManagerOnboarding: true,
+    };
+
+    /** CPF valido em digito verificador, para o form passar na validacao local. */
+    const VALID_CPF = '529.982.247-25';
+
+    function codeError(status: number, code: string): HttpErrorResponse {
+      return new HttpErrorResponse({ status, error: { code } });
+    }
+
+    function field(fixture: ComponentFixture<InviteAccept>, id: string): HTMLInputElement {
+      const el = (fixture.nativeElement as HTMLElement).querySelector(`#${id}`);
+      if (!el) throw new Error(`campo ${id} nao esta na tela`);
+      return el as HTMLInputElement;
+    }
+
+    function type(input: HTMLInputElement, value: string): void {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    }
+
+    function submit(fixture: ComponentFixture<InviteAccept>): void {
+      const form = (fixture.nativeElement as HTMLElement).querySelector('form');
+      if (!form) throw new Error('o formulario nao esta na tela');
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+    }
+
+    function openForm(): ComponentFixture<InviteAccept> {
+      store['token'] = 'temporally-token';
+      validate.mockReturnValue(of(managerDetails));
+      const { fixture } = render('raw-token');
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('gerente com onboarding NAO aceita sozinho: para no formulario', () => {
+      const fixture = openForm();
+
+      expect(accept).not.toHaveBeenCalled();
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Confirme seus dados');
+    });
+
+    it('nome e telefone chegam pre-preenchidos, e o telefone vem MASCARADO', () => {
+      const fixture = openForm();
+
+      expect(field(fixture, 'invite-name').value).toBe('Fulano de Tal');
+      expect(field(fixture, 'invite-phone').value).toBe('(11) 98765-4321');
+    });
+
+    /** A decisao de PII, fixada em teste para ninguem "consertar" depois. */
+    it('o CPF nasce VAZIO — a rota anonima nao devolve CPF para pre-preencher', () => {
+      const fixture = openForm();
+
+      expect(field(fixture, 'invite-cpf').value).toBe('');
+    });
+
+    it('caminho feliz: confirma os dados e chega a MANAGER ativo', () => {
+      const fixture = openForm();
+      type(field(fixture, 'invite-cpf'), VALID_CPF);
+      fixture.detectChanges();
+
+      submit(fixture);
+
+      // Digitos crus no corpo, mesmo que a tela mostre mascarado.
+      expect(accept).toHaveBeenCalledWith('raw-token', {
+        name: 'Fulano de Tal',
+        cpf: '52998224725',
+        phone: '11987654321',
+      });
+      expect(applyFinishResponse).toHaveBeenCalledWith(acceptResponse);
+      expect(store[PENDING_INVITE_TOKEN_KEY]).toBeUndefined();
+    });
+
+    it('form invalido nao chama o servidor', () => {
+      const fixture = openForm();
+      // CPF vazio: o form barra antes de sair da tela.
+      submit(fixture);
+
+      expect(accept).not.toHaveBeenCalled();
+    });
+
+    /**
+     * O erro cuja acao e CORRIGIR O CAMPO. Mandar quem errou um digito para a tela de erro
+     * o obrigaria a recomecar o fluxo inteiro — e seria repetir o defeito do FIX-0555.
+     */
+    it('CPF divergente MANTEM o convidado no formulario, com o campo marcado', () => {
+      const fixture = openForm();
+      type(field(fixture, 'invite-cpf'), VALID_CPF);
+      fixture.detectChanges();
+      accept.mockReturnValue(throwError(() => codeError(400, 'INVITE_CPF_MISMATCH')));
+
+      submit(fixture);
+
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      // Continua no formulario: o campo ainda esta na tela.
+      expect((fixture.nativeElement as HTMLElement).querySelector('#invite-cpf')).not.toBeNull();
+      expect(text).toContain('não confere');
+      expect(text).not.toContain('Não foi possível usar este convite');
+    });
+
+    it('e-mail divergente TIRA da tela: vai para o erro e oferece trocar de conta', () => {
+      const fixture = openForm();
+      type(field(fixture, 'invite-cpf'), VALID_CPF);
+      fixture.detectChanges();
+      accept.mockReturnValue(throwError(() => codeError(400, 'INVITE_EMAIL_MISMATCH')));
+
+      submit(fixture);
+
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('outro e-mail');
+      expect((fixture.nativeElement as HTMLElement).querySelector('#invite-cpf')).toBeNull();
+    });
+
+    /** Nao regredir o FIX-0555: aqui trocar de conta NAO e a acao, e o botao nao aparece. */
+    it('motorista sem cadastro: mensagem do gestor e NENHUM botao de trocar conta', () => {
+      const fixture = openForm();
+      type(field(fixture, 'invite-cpf'), VALID_CPF);
+      fixture.detectChanges();
+      accept.mockReturnValue(throwError(() => codeError(403, 'DRIVER_IDENTITY_NOT_RESOLVED')));
+
+      submit(fixture);
+
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('cadastro de motorista');
+      expect(text).toContain('gestor');
+      const switchBtn = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+      ).find((b) => (b.textContent ?? '').includes('Entrar com outra conta'));
+      expect(switchBtn).toBeUndefined();
+    });
+
+    /**
+     * CONTRAPESO: o fluxo que JA existia. Sem `requiresManagerOnboarding` o aceite dispara
+     * sozinho e SEM corpo. Se isto ficar vermelho, a metade que ja funcionava quebrou.
+     */
+    it('sem requiresManagerOnboarding o aceite segue direto e SEM corpo', () => {
+      store['token'] = 'temporally-token';
+      validate.mockReturnValue(of({ ...details, role: 'DRIVER' as const }));
+
+      render('raw-token');
+
+      expect(accept).toHaveBeenCalledWith('raw-token');
+    });
+  });
 });

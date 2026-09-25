@@ -8,11 +8,25 @@ import { InvitesService } from '../../services/invites.service';
 import { LoginService } from '../../services/loginService';
 import { SessionService } from '../../services/session.service';
 import { InviteAcceptCause, inviteAcceptCause, inviteErrorCopy } from '../../services/invite-errors';
-import { ValidateInviteResponse } from '../../types/invite.types';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import {
+  applyMaskedDocumentInput,
+  cpfShapeValidator,
+  maskCpf,
+  normalizeCpf,
+} from '../../utils/document-mask';
+import { cpfValidator } from '../../utils/validators/cpf.validator';
+import { applyMaskedPhoneInput, maskPhone, normalizePhone } from '../../utils/phone-mask';
+
+import { AcceptInviteRequest, ValidateInviteResponse } from '../../types/invite.types';
 import { PENDING_INVITE_TOKEN_KEY } from './invite-session';
 import { companyRoleLabel } from '../../utils/role-labels';
 
-type AcceptStep = 'validating' | 'ready' | 'accepting' | 'mismatch' | 'error';
+/** Mesmo padrao do onboarding (`step-personal`): DDD + numero, com ou sem mascara. */
+const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
+
+type AcceptStep = 'validating' | 'ready' | 'onboarding' | 'accepting' | 'mismatch' | 'error';
 
 /**
  * Public landing page for the invitation e-mail.
@@ -40,7 +54,7 @@ type AcceptStep = 'validating' | 'ready' | 'accepting' | 'mismatch' | 'error';
 @Component({
   selector: 'app-invite-accept',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgOptimizedImage, RouterLink, AlertBanner],
+  imports: [NgOptimizedImage, RouterLink, AlertBanner, ReactiveFormsModule, FormField, FieldControl],
   templateUrl: './invite-accept.html',
 })
 export class InviteAccept implements OnInit {
@@ -73,8 +87,42 @@ export class InviteAccept implements OnInit {
     this.details()?.userExists ? 'Entrar com o Google' : 'Criar conta com o Google',
   );
 
-  /** Qual das duas causas produziu o 403 do aceite (FIX-0555); `null` para os demais erros. */
+  /** Qual causa produziu o erro do aceite (FIX-0555/FEAT-0167); `null` para os demais erros. */
   private readonly acceptCause = signal<InviteAcceptCause | null>(null);
+
+  private readonly fb = inject(FormBuilder);
+
+  /** Erro do servidor mostrado DENTRO do formulário, sem derrubar a tela (FEAT-0167). */
+  protected readonly onboardingError = signal<string | null>(null);
+  protected readonly submitting = signal(false);
+
+  protected readonly nameMessages: Readonly<Record<string, string>> = {
+    required: 'Informe seu nome completo.',
+  };
+  protected readonly cpfMessages: Readonly<Record<string, string>> = {
+    required: 'Informe seu CPF.',
+    cpfShape: 'CPF inválido. Use o formato 000.000.000-00.',
+    cpfInvalid: 'CPF inválido.',
+    cpfMismatch: 'Este CPF não confere com o do convite.',
+  };
+  protected readonly phoneMessages: Readonly<Record<string, string>> = {
+    required: 'Informe seu telefone.',
+    pattern: 'Telefone inválido. Use DDD + número.',
+  };
+
+  /**
+   * FEAT-0167 — o que o convidado GERENTE confirma antes de virar membro.
+   *
+   * Nome e telefone chegam pré-preenchidos do convite. O CPF NÃO: a rota de validação é
+   * ANÔNIMA, quem tem o link lê a resposta, e por isso o backend não devolve o CPF nem
+   * mascarado. O convidado digita, e o servidor compara com o cofre. Não há o que
+   * pré-preencher aqui — a ausência é a decisão, não uma lacuna.
+   */
+  protected readonly onboardingForm = this.fb.nonNullable.group({
+    name: ['', [Validators.required]],
+    cpf: ['', [Validators.required, cpfShapeValidator(), cpfValidator()]],
+    phone: ['', [Validators.required, Validators.pattern(PHONE_PATTERN)]],
+  });
 
   /**
    * A validated invite that failed on accept is recoverable by logging in as the invited
@@ -162,14 +210,71 @@ export class InviteAccept implements OnInit {
       return;
     }
 
+    // FEAT-0167 — o gerente confirma os dados ANTES do aceite; o motorista segue direto,
+    // sem corpo, exatamente como sempre foi.
+    if (details.requiresManagerOnboarding === true) {
+      this.startOnboarding(details);
+      return;
+    }
+
     this.acceptInvite();
   }
 
-  private acceptInvite(): void {
+  /**
+   * Abre o formulário já com o que o convite sabe. Nome e telefone re-mascarados na
+   * hidratação, porque o backend guarda dígitos crus e o convidado precisa RECONHECER os
+   * próprios dados para confirmá-los.
+   */
+  private startOnboarding(details: ValidateInviteResponse): void {
+    this.onboardingForm.patchValue({
+      name: details.name ?? '',
+      phone: maskPhone(details.phoneNumber ?? ''),
+    });
+    this.onboardingError.set(null);
+    this.step.set('onboarding');
+  }
+
+  /** Máscara progressiva de CPF, caret preservado. */
+  protected onCpfInput(event: Event): void {
+    applyMaskedDocumentInput(event, this.onboardingForm.controls.cpf, maskCpf);
+  }
+
+  /** Máscara progressiva de telefone, caret preservado. */
+  protected onPhoneInput(event: Event): void {
+    applyMaskedPhoneInput(event, this.onboardingForm.controls.phone);
+  }
+
+  protected submitOnboarding(): void {
+    if (this.submitting()) return;
+
+    if (this.onboardingForm.invalid) {
+      this.onboardingForm.markAllAsTouched();
+      return;
+    }
+
+    const raw = this.onboardingForm.getRawValue();
+    this.submitting.set(true);
+    this.onboardingError.set(null);
+    // Dígitos crus no corpo: o backend aceita mascarado, mas mandar normalizado é o que o
+    // resto do app faz e evita depender da normalização dele.
+    this.acceptInvite({
+      name: raw.name.trim(),
+      cpf: normalizeCpf(raw.cpf),
+      phone: normalizePhone(raw.phone),
+    });
+  }
+
+  private acceptInvite(payload?: AcceptInviteRequest): void {
     this.step.set('accepting');
     this.errorMessage.set(null);
 
-    this.invites.accept(this.token).subscribe({
+    // Sem corpo, a chamada e a MESMA de antes — nem um argumento a mais. O caminho do
+    // motorista nao pode mudar de forma so porque o do gerente ganhou um corpo.
+    const accept$ = payload
+      ? this.invites.accept(this.token, payload)
+      : this.invites.accept(this.token);
+
+    accept$.subscribe({
       next: (response) => {
         this.session.removeItem(PENDING_INVITE_TOKEN_KEY);
         // Same session writes as the onboarding finish: ACCESS token + the selected
@@ -184,8 +289,23 @@ export class InviteAccept implements OnInit {
         this.invites.reset();
         this.router.navigate(['/dashboard'], { replaceUrl: true });
       },
-      error: (err: unknown) =>
-        this.fail(err, 'Não foi possível aceitar este convite. Tente novamente.'),
+      error: (err: unknown) => {
+        this.submitting.set(false);
+        // FEAT-0167 — CPF errado é o único dos três cujo conserto é AQUI: o convidado
+        // digitou um dígito errado. Voltar para a tela de erro o tiraria do formulário e o
+        // obrigaria a recomeçar o fluxo inteiro por causa de um campo. Os outros dois erros
+        // realmente exigem sair (trocar de conta, falar com o gestor) e seguem caindo em
+        // `fail`.
+        if (payload && inviteAcceptCause(err) === 'cpf-mismatch') {
+          this.apiErrors.claim(err);
+          this.onboardingForm.controls.cpf.setErrors({ cpfMismatch: true });
+          this.onboardingForm.controls.cpf.markAsTouched();
+          this.onboardingError.set(inviteErrorCopy(err, 'accept'));
+          this.step.set('onboarding');
+          return;
+        }
+        this.fail(err, 'Não foi possível aceitar este convite. Tente novamente.');
+      },
     });
   }
 
