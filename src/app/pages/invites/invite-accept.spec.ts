@@ -662,8 +662,19 @@ describe('InviteAccept — página pública de aceite', () => {
       expect(has(fixture, 'drv-license')).toBe(true);
     });
 
-    /** Teto do plano: o motorista nao resolve isto, e nao pode ser mandado tentar de novo. */
-    it('402 explica que quem resolve e a empresa, sem culpar o motorista', () => {
+    /**
+     * 402 e 409 saem do MESMO metodo do backend (`enforceDriverLimit`) por razoes
+     * DIFERENTES, e por isso nao podem compartilhar frase:
+     *   sem assinatura / sem plano -> AccessBlockedException -> 402
+     *   no teto (current >= limit) -> HasConflictException(MSG_LIMIT_REACHED) -> 409
+     *
+     * Medido em origin/main d78c142, 2026-09-25. Ate esta data a tela dizia "a empresa
+     * precisa liberar uma vaga" para o 402 — ou seja, mandava um motorista de empresa SEM
+     * ASSINATURA pedir VAGA. A empresa olhava as vagas, achava tudo certo, e ninguem
+     * resolvia. Mesma familia do defeito do convite: duas causas colapsadas numa frase, e a
+     * frase escolhendo o diagnostico errado de quem le.
+     */
+    it('402 nomeia a ASSINATURA, nao a vaga', () => {
       const fixture = openByError();
       fillAll(fixture);
       accept.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 402 })));
@@ -671,8 +682,58 @@ describe('InviteAccept — página pública de aceite', () => {
       submit(fixture);
 
       const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('assinatura');
+      // A causa errada que estava no lugar.
+      expect(text).not.toContain('vaga');
+      // A direcao nao muda: quem resolve segue sendo a empresa, e o motorista nao e culpado
+      // nem mandado repetir.
       expect(text).toContain('empresa');
       expect(text.toLowerCase()).not.toContain('tente de novo');
+      expect(has(fixture, 'drv-license')).toBe(true);
+    });
+
+    /**
+     * CONTRAPESO do 402: o TETO chega como 409 e tem de exibir a mensagem DO SERVIDOR
+     * (`MSG_LIMIT_REACHED`), nunca uma copy fixa da tela. Se caisse na copy de convite, o
+     * teto apareceria como "convite ja utilizado" — outro erro da mesma familia.
+     */
+    it('409 de TETO mostra a mensagem do servidor, nao uma copy fixa da tela', () => {
+      const fixture = openByError();
+      fillAll(fixture);
+      accept.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { message: 'Limite de motoristas do plano atingido.' },
+            }),
+        ),
+      );
+
+      submit(fixture);
+
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('Limite de motoristas do plano atingido.');
+      expect(text).not.toContain('já foi utilizado');
+      expect(text).not.toContain('assinatura');
+      expect(has(fixture, 'drv-license')).toBe(true);
+    });
+
+    /**
+     * O 409 carrega DUAS causas (CNH repetida e teto), entao o fallback nao pode nomear
+     * uma delas: sem mensagem do servidor, dizer "CNH ja cadastrada" para um teto seria
+     * repetir exatamente o defeito que este no corrige.
+     */
+    it('409 sem mensagem do servidor cai num fallback que NAO chuta a causa', () => {
+      const fixture = openByError();
+      fillAll(fixture);
+      accept.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
+
+      submit(fixture);
+
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).not.toContain('CNH já está cadastrada');
+      expect(text).not.toContain('assinatura');
       expect(has(fixture, 'drv-license')).toBe(true);
     });
 
