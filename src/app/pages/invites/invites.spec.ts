@@ -107,13 +107,30 @@ describe('Invites — envio e gestão de convites', () => {
     vi.useRealTimers();
   });
 
+  /**
+   * Este teste afirmava `{email, role: 'MANAGER'}` — ou seja, fixava em verde exatamente o
+   * payload que o backend recusa com `ERROR_MANAGER_DATA_REQUIRED`. O assunto dele (o trim
+   * do e-mail) continua o mesmo; o que mudou foi a afirmação sobre o corpo enviado.
+   */
   it('envia o convite com o e-mail sem espaços e o papel escolhido', () => {
     const { component } = render();
 
-    component.inviteForm.setValue({ email: '  novo@empresa.com.br  ', role: 'MANAGER' });
+    component.inviteForm.patchValue({
+      email: '  novo@empresa.com.br  ',
+      role: 'MANAGER',
+      name: 'Fulano de Tal',
+      cpf: '529.982.247-25',
+      phone: '(11) 98765-4321',
+    });
     component.send();
 
-    expect(create).toHaveBeenCalledWith({ email: 'novo@empresa.com.br', role: 'MANAGER' });
+    expect(create).toHaveBeenCalledWith({
+      email: 'novo@empresa.com.br',
+      role: 'MANAGER',
+      name: 'Fulano de Tal',
+      cpf: '52998224725',
+      phone: '11987654321',
+    });
     expect(notifySuccess).toHaveBeenCalledWith('Convite enviado para novo@empresa.com.br.');
     expect(component.inviteForm.getRawValue().email).toBe('');
   });
@@ -121,7 +138,7 @@ describe('Invites — envio e gestão de convites', () => {
   it('não chama a API com e-mail inválido', () => {
     const { component } = render();
 
-    component.inviteForm.setValue({ email: 'sem-arroba', role: 'DRIVER' });
+    component.inviteForm.patchValue({ email: 'sem-arroba', role: 'DRIVER' });
     component.send();
 
     expect(create).not.toHaveBeenCalled();
@@ -191,7 +208,7 @@ describe('Invites — envio e gestão de convites', () => {
     const { component } = render();
     create.mockReturnValue(throwError(() => error(403)));
 
-    component.inviteForm.setValue({ email: 'novo@empresa.com.br', role: 'DRIVER' });
+    component.inviteForm.patchValue({ email: 'novo@empresa.com.br', role: 'DRIVER' });
     component.send();
 
     expect(component.createError()).toContain('não tem permissão');
@@ -201,7 +218,7 @@ describe('Invites — envio e gestão de convites', () => {
     const { component } = render();
     create.mockReturnValue(throwError(() => error(429)));
 
-    component.inviteForm.setValue({ email: 'novo@empresa.com.br', role: 'DRIVER' });
+    component.inviteForm.patchValue({ email: 'novo@empresa.com.br', role: 'DRIVER' });
     component.send();
 
     expect(component.createError()).toContain('Muitas tentativas');
@@ -225,5 +242,134 @@ describe('Invites — envio e gestão de convites', () => {
     component.confirmCancel();
 
     expect(component.listError()).toContain('mudou de status');
+  });
+  /**
+   * O convite de GERENTE nao era um campo faltando: era uma porta fechada.
+   *
+   * O backend exige name/cpf/phone para MANAGER; o formulario mandava so {email, role}; e o
+   * select SEMPRE ofereceu "Gerenciador". Logo, escolher esse cargo dava 400 em 100% das
+   * tentativas. Os testes abaixo cobrem a porta que abriu e, principalmente, o contrapeso:
+   * o motorista tem de continuar enviando EXATAMENTE o que enviava.
+   */
+  describe('dados do gerenciador, condicionais ao cargo', () => {
+    const VALID_CPF = '529.982.247-25';
+
+    function fillManager(component: { inviteForm: FormGroup }): void {
+      component.inviteForm.patchValue({
+        email: 'gerente@empresa.com.br',
+        role: 'MANAGER',
+        name: 'Fulano de Tal',
+        cpf: VALID_CPF,
+        phone: '(11) 98765-4321',
+      });
+    }
+
+    it('MOTORISTA envia so email e role, com os campos novos vazios', () => {
+      const { component } = render();
+
+      component.inviteForm.patchValue({ email: 'motorista@empresa.com.br', role: 'DRIVER' });
+      component.send();
+
+      expect(create).toHaveBeenCalledWith({
+        email: 'motorista@empresa.com.br',
+        role: 'DRIVER',
+      });
+    });
+
+    it('MOTORISTA e valido mesmo com nome, CPF e telefone em branco', () => {
+      const { component } = render();
+
+      component.inviteForm.patchValue({ email: 'motorista@empresa.com.br', role: 'DRIVER' });
+
+      expect(component.inviteForm.valid).toBe(true);
+    });
+
+    /** O caso do dono: o que hoje produz 400 em toda tentativa. */
+    it('GERENTE com os dados completos chega a chamar a API', () => {
+      const { component } = render();
+
+      fillManager(component);
+      component.send();
+
+      expect(create).toHaveBeenCalledWith({
+        email: 'gerente@empresa.com.br',
+        role: 'MANAGER',
+        name: 'Fulano de Tal',
+        cpf: '52998224725',
+        phone: '11987654321',
+      });
+    });
+
+    it('GERENTE sem os dados NAO chama a API — a tela barra antes do 400', () => {
+      const { component } = render();
+
+      component.inviteForm.patchValue({ email: 'gerente@empresa.com.br', role: 'MANAGER' });
+      component.send();
+
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    /** Sentido 1: trocar para Gerenciador ACENDE a exigencia sem o usuario tocar nos campos. */
+    it('Motorista -> Gerenciador acende a obrigatoriedade sozinho', () => {
+      const { component } = render();
+
+      component.inviteForm.patchValue({ email: 'alguem@empresa.com.br', role: 'DRIVER' });
+      expect(component.inviteForm.valid).toBe(true);
+
+      component.inviteForm.controls['role'].setValue('MANAGER');
+
+      expect(component.inviteForm.valid).toBe(false);
+      expect(component.inviteForm.get('cpf')?.hasError('required')).toBe(true);
+    });
+
+    /** Sentido 2: e voltar APAGA a exigencia, sem deixar erro preso na tela. */
+    it('Gerenciador -> Motorista apaga a obrigatoriedade E os erros', () => {
+      const { component } = render();
+
+      component.inviteForm.patchValue({ email: 'alguem@empresa.com.br', role: 'MANAGER' });
+      component.inviteForm.markAllAsTouched();
+      expect(component.inviteForm.valid).toBe(false);
+
+      component.inviteForm.controls['role'].setValue('DRIVER');
+
+      expect(component.inviteForm.valid).toBe(true);
+      expect(component.inviteForm.get('cpf')?.errors).toBeNull();
+      expect(component.inviteForm.get('name')?.errors).toBeNull();
+      expect(component.inviteForm.get('phone')?.errors).toBeNull();
+    });
+
+    /**
+     * A armadilha registrada neste projeto: campo mascarado guarda TEXTO. Um validador que
+     * esperasse numero leria o campo como VAZIO e o sintoma seria "obrigatorio ignorado",
+     * nao "formato invalido". Aqui o CPF mascarado tem de ser aceito.
+     */
+    it('o CPF MASCARADO e aceito — a validacao le TEXTO, nao numero', () => {
+      const { component } = render();
+
+      fillManager(component);
+
+      expect(component.inviteForm.get('cpf')?.errors).toBeNull();
+      expect(component.inviteForm.valid).toBe(true);
+    });
+
+    it('CPF com digito verificador errado e recusado', () => {
+      const { component } = render();
+
+      fillManager(component);
+      component.inviteForm.get('cpf')?.setValue('111.111.111-11');
+
+      expect(component.inviteForm.get('cpf')?.hasError('cpfInvalid')).toBe(true);
+    });
+
+    it('depois de enviar um convite de GERENTE o form volta para Motorista, sem exigencia', () => {
+      const { component } = render();
+
+      fillManager(component);
+      component.send();
+
+      expect(component.inviteForm.getRawValue().role).toBe('DRIVER');
+      expect(component.inviteForm.valid).toBe(false); // e-mail vazio
+      expect(component.inviteForm.get('cpf')?.errors).toBeNull();
+    });
   });
 });
