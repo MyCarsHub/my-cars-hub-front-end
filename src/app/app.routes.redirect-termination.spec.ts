@@ -24,6 +24,13 @@ import { NotificationService } from './services/notification.service';
  * uma subárvore que não continha `/dashboard`. "Zero laços em N rotas e M guards"
  * é afirmação; "zero laços" não é.
  *
+ * >>> 11/11 AQUI NÃO SIGNIFICA SUÍTE VERDE. Este instrumento vê a árvore de
+ * ROTAS e nada mais: um destino novo pode satisfazer o invariante daqui e ainda
+ * quebrar um teste unitário que afirmava o destino antigo — aconteceu, com
+ * `onboarding.guard.spec.ts`. Depois de mexer em guard, rota, canActivate ou
+ * interceptor, rode a SUÍTE INTEIRA; o verde local deste arquivo é exatamente o
+ * momento em que se para de medir. <<<
+ *
  * LIMITE DECLARADO: só os guards SÍNCRONOS e puros são executados — `roleGuard`
  * e `adminGuard`. `authGuard`, `onboardingGuard`, `billingAccessGuard` e
  * `firstVehicleGuard` fazem HTTP e não são exercitados aqui; eles são CONTADOS e
@@ -142,12 +149,21 @@ describe('app.routes — redirect de guard termina (FIX-0579)', () => {
    * O INVARIANTE FORTE, e é ele que o node pediu: nenhum destino de redirect pode
    * ser uma rota em que o MESMO usuário seria recusado outra vez.
    *
-   * É mais estrito que "não cicla", e a diferença é o que pegou o segundo
-   * fallback: com o ramo `!role` já consertado, `/admin` -> `/dashboard` ->
-   * `/login` TERMINA, então um teste de ciclo passa. Mas o primeiro salto ainda
-   * manda a pessoa para uma rota que a recusa, e é o `role.guard` que a salva —
-   * um acoplamento invisível: mude o destino do `!role` e `/admin` volta a
-   * loopar. Exigir que o destino seja ADMITIDO remove o acoplamento.
+   * É mais estrito que "não cicla", e a diferença NÃO É RIGOR DECORATIVO: é a
+   * única forma com PODER DE DETECÇÃO aqui. Medido neste repo: plantando de volta
+   * o fallback do `adminGuard`, a asserção de CICLO passa VERDE — porque com o
+   * ramo `!role` já consertado a cadeia `/admin` -> `/dashboard` -> `/login`
+   * TERMINA. O defeito existia e o instrumento não o via. Só a exigência de que o
+   * destino seja ADMITIDO o acusa.
+   *
+   * O ciclo também esconde um acoplamento: o primeiro salto manda a pessoa para
+   * uma rota que a recusa, e é o `role.guard` que a salva — mude o destino do
+   * ramo `!role` e `/admin` volta a loopar.
+   *
+   * >>> SE ALGUÉM ACHAR ESTA ASSERÇÃO "exagerada, o teste de ciclo basta e é mais
+   * simples": não basta. Foi exatamente essa troca que deixou o laço invisível por
+   * duas revisões. Enfraquecer daqui para uma checagem de ciclo devolve o ponto
+   * cego. <<<
    */
   /*
    * VIOLAÇÕES CONHECIDAS, declaradas uma a uma. A asserção é de IGUALDADE com
@@ -156,13 +172,12 @@ describe('app.routes — redirect de guard termina (FIX-0579)', () => {
    * silêncio é allowlist; esta tem de encolher.
    */
   const KNOWN_VIOLATIONS: readonly string[] = [
-    // `onboardingCompleteGuard` manda PLATFORM_ADMIN para `/dashboard`, que passou
-    // a recusá-lo (sem papel de empresa) e o devolve a `/admin`. TERMINA em dois
-    // saltos, então não é laço — mas o primeiro destino recusa. O conserto é em
-    // `pages/onboarding/onboarding.guard.ts`, FORA do conjunto de arquivos deste
-    // lote: mandar o admin direto para `/admin` ali. Reportado e pendente de
-    // decisão de escopo; não é defeito descoberto e escondido.
-    'PLATFORM_ADMIN sem papel de empresa: /onboarding -> /dashboard',
+    // VAZIA, e é para continuar. A entrada que existia aqui era o
+    // `onboardingCompleteGuard` mandando PLATFORM_ADMIN para `/dashboard`;
+    // consertada em `pages/onboarding/onboarding.guard.ts` no mesmo lote que
+    // criou a violação. Acrescentar entrada aqui é declarar dívida, não
+    // dispensá-la: a asserção é de IGUALDADE, então consertar sem remover a
+    // linha também fica vermelho. Lista que só cresce é allowlist.
   ];
 
   it.each(SESSIONS)('$label: o destino de todo redirect é ADMITIDO, não recusado de novo', ({ label, token }) => {

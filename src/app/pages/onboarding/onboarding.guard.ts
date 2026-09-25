@@ -45,10 +45,19 @@ export const onboardingCompleteGuard: CanActivateFn = () => {
   const router = inject(Router);
   const sessionService = inject(SessionService);
 
-  // PLATFORM_ADMIN must never render the onboarding page — kick them to
-  // /dashboard immediately.
+  /*
+   * PLATFORM_ADMIN must never render the onboarding page.
+   *
+   * FIX-0579 — the destination is /admin, not /dashboard. Sending them to
+   * /dashboard worked until that route acquired roleGuard(['OWNER','MANAGER']):
+   * a platform admin with no company role has a null company role, so the
+   * dashboard refuses him and forwards to /admin anyway. It terminated, so it
+   * was never a loop - but the first hop landed on a route that refuses the same
+   * user, which is the invariant asserted in
+   * app.routes.redirect-termination.spec.ts. One hop, no bounce.
+   */
   if (sessionService.isPlatformAdmin()) {
-    return router.createUrlTree(['/dashboard']);
+    return router.createUrlTree(['/admin']);
   }
 
   if (sessionService.isOnboardingCompleted()) {
