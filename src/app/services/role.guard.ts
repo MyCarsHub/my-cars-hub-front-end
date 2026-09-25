@@ -133,10 +133,28 @@ export const roleGuard = (
         const role = sessionService.getCompanyRoleFromToken();
 
         if (!role) {
-            // Sem papel não há o que explicar em termos de PERMISSÃO: é sessão
-            // ausente ou expirada, e disso trata o `authGuard`. Dizer "seu
-            // acesso é de X" aqui seria inventar um X.
-            return router.createUrlTree(['/dashboard']);
+            /*
+             * Sem papel não há o que explicar em termos de PERMISSÃO — dizer "seu
+             * acesso é de X" aqui seria inventar um X. O que MUDA é o destino.
+             *
+             * FIX-0579 — este ramo devolvia `/dashboard`, e o comentário anterior
+             * dizia que de sessão ausente ou expirada "trata o authGuard". Isso é
+             * FALSO HOJE: `getToken()` não valida `exp`, então um token vencido
+             * atravessa o `authGuard` (que devolve `true` sem HTTP quando a
+             * sessão já foi carregada), chega aqui com papel nulo e era mandado
+             * para `/dashboard` — rota que passou a ter este mesmo guard. Laço,
+             * sem tela e sem chegar ao login. A validação de `exp` é a CAUSA e
+             * está no FIX-0580; aqui se fecha o laço, não a causa.
+             *
+             * Papel nulo NÃO é só token vencido: um PLATFORM_ADMIN sem papel de
+             * empresa chega aqui com token VÁLIDO e sessão legítima. Mandá-lo ao
+             * login seria deslogar um admin por não ter papel de tenant, então
+             * ele vai para a casa dele — `/admin` tem só o `adminGuard`, que o
+             * admite, e nenhum `roleGuard` na subárvore.
+             */
+            return router.createUrlTree([
+                sessionService.isPlatformAdmin() ? '/admin' : '/login',
+            ]);
         }
 
         if (allowedRoles.includes(role)) {

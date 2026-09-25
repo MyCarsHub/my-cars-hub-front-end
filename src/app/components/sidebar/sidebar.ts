@@ -49,6 +49,16 @@ const ICON_SETTINGS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height
 const ICON_PROFILE = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 const ICON_SUPPORT = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.52 3.48A11.9 11.9 0 0 0 12 0C5.37 0 0 5.37 0 12a11.9 11.9 0 0 0 1.72 6.19L0 24l5.99-1.68A11.94 11.94 0 0 0 12 24c6.63 0 12-5.37 12-12 0-3.19-1.24-6.19-3.48-8.52zM12 22a9.9 9.9 0 0 1-5.05-1.38l-.36-.21-3.55.99.99-3.47-.24-.36A9.9 9.9 0 0 1 2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10zm5.42-7.47c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.66.15-.2.3-.76.96-.93 1.15-.17.2-.35.22-.65.07-.3-.15-1.24-.46-2.36-1.46-.87-.78-1.46-1.73-1.63-2.03-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.66-1.6-.9-2.19-.24-.57-.48-.5-.66-.51h-.56c-.2 0-.5.07-.76.37-.26.3-1 1-1 2.44 0 1.44 1.03 2.83 1.17 3.03.15.2 2.04 3.11 4.94 4.36 2.9 1.25 2.9.83 3.42.78.52-.05 1.75-.71 2-1.4.24-.7.24-1.28.17-1.4-.07-.13-.27-.2-.57-.35z"/></svg>`;
 
+/*
+ * FEAT-0108 — `isAdmin` NÃO isenta do filtro de `roles`: os dois predicados são
+ * independentes em `allowedItems`. Consequência, e ela é mudança de
+ * comportamento numa população que JÁ está em produção: um PLATFORM_ADMIN SEM
+ * papel de empresa perde Painel e Alertas do menu, porque ambos passaram a
+ * exigir OWNER|MANAGER. É defensável — as duas telas são escopadas por empresa e
+ * um admin sem empresa não tem o que ler nelas —, mas não estava escrito em
+ * lugar nenhum, então fica escrito aqui. O item `/admin` acima não depende de
+ * papel de empresa e continua aparecendo.
+ */
 const NAV_ITEMS: NavItem[] = [
   { route: '/admin', label: 'Administração', icon: ICON_ADMIN, requiresPlatformAdmin: true },
   // FEAT-0108 — `/v1/dashboard/**` não está na lista de permitidos do FIX-0360:
