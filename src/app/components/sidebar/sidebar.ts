@@ -58,6 +58,13 @@ const ICON_ROADMAP = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height=
 const ICON_BILLING = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
 const ICON_COMPANY = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h.01"/><path d="M9 13h.01"/><path d="M9 17h.01"/><path d="M15 9h.01"/><path d="M15 13h.01"/><path d="M15 17h.01"/></svg>`;
 const ICON_INTEGRATIONS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+/*
+ * FIX-0553 — o desenho e o MESMO `user-plus` que a propria tela de Convites usa
+ * no cabecalho (`pages/invites/invites.html`), reusado verbatim: o item do menu e
+ * a tela que ele abre mostram o mesmo glifo, e nao ha dois desenhos de convite no
+ * produto.
+ */
+const ICON_INVITES = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>`;
 const ICON_SETTINGS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 const ICON_PROFILE = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 const ICON_SUPPORT = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.52 3.48A11.9 11.9 0 0 0 12 0C5.37 0 0 5.37 0 12a11.9 11.9 0 0 0 1.72 6.19L0 24l5.99-1.68A11.94 11.94 0 0 0 12 24c6.63 0 12-5.37 12-12 0-3.19-1.24-6.19-3.48-8.52zM12 22a9.9 9.9 0 0 1-5.05-1.38l-.36-.21-3.55.99.99-3.47-.24-.36A9.9 9.9 0 0 1 2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10zm5.42-7.47c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.66.15-.2.3-.76.96-.93 1.15-.17.2-.35.22-.65.07-.3-.15-1.24-.46-2.36-1.46-.87-.78-1.46-1.73-1.63-2.03-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.66-1.6-.9-2.19-.24-.57-.48-.5-.66-.51h-.56c-.2 0-.5.07-.76.37-.26.3-1 1-1 2.44 0 1.44 1.03 2.83 1.17 3.03.15.2 2.04 3.11 4.94 4.36 2.9 1.25 2.9.83 3.42.78.52-.05 1.75-.71 2-1.4.24-.7.24-1.28.17-1.4-.07-.13-.27-.2-.57-.35z"/></svg>`;
@@ -200,6 +207,29 @@ const NAV_ITEMS: NavItem[] = [
         icon: ICON_COMPANY,
         roles: ['OWNER'],
         tourKey: TOUR_ANCHORS.contractTemplate,
+      },
+      /*
+       * FIX-0553 — Convites nao tinha ponto de entrada NENHUM: a rota
+       * (`configuracoes/convites`), a tela e o verbete do `role.guard` existiam, e
+       * so se chegava digitando o endereco. O atalho tinha sido removido de
+       * proposito enquanto o fluxo de convite era refeito (ver o cabecalho de
+       * `company-settings.ts`) — o fluxo foi refeito, e a tela acabou de ganhar os
+       * quatro campos que fazem o convite de GERENTE funcionar. A razao da remocao
+       * venceu; o atalho volta.
+       *
+       * `roles: ['OWNER']` casa EXATAMENTE com o `roleGuard(['OWNER'])` da rota e
+       * com o do pai `/configuracoes` — nem mais, nem menos, entao o item nunca
+       * oferece porta que o guard bata na cara.
+       *
+       * Sem `tourKey` de proposito: as irmas tem porque estao no tour guiado, e
+       * acrescentar um passo exigiria mexer em `TOUR_ANCHORS` e no servico do tour,
+       * que e outro no. A ausencia nao afeta a navegacao.
+       */
+      {
+        route: '/configuracoes/convites',
+        label: 'Convites',
+        icon: ICON_INVITES,
+        roles: ['OWNER'],
       },
     ],
   },
