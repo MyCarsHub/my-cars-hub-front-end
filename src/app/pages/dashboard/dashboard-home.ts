@@ -321,10 +321,10 @@ export class DashboardHome {
          * cada motorista ver a CNH de todos os outros e o CRLV de toda a frota:
          * vazamento de tenant, não lacuna de escopo.
          *
-         * Abrir a rota NÃO é recortar o dado. O nó que der escopo por motorista
-         * ao endpoint de alertas remove esta trava e o `isOperator()` do chip de
-         * documentos em `dashboard-home.html`; até ele existir, esconder é o
-         * comportamento correto.
+         * Abrir a rota NÃO é recortar o dado. O FEAT-0178 é o nó que dá escopo
+         * por motorista ao endpoint de alertas; ele remove esta trava, o
+         * `isOperator()` do chip em `dashboard-home.html` e o `roleGuard` de
+         * `/alertas`. Até ele existir, esconder é o comportamento correto.
          */
         if (!this.isOperator()) return false;
         return (

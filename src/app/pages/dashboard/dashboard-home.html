@@ -52,10 +52,10 @@
         impede é o backend: `DocumentAlertService.listDocumentAlerts` recorta só
         por empresa, sem recorte por motorista, então abrir a rota hoje mostraria
         a CNH de todos os motoristas e o CRLV de toda a frota a cada um deles.
-        Abrir a rota não é recortar o dado. Quando o endpoint ganhar escopo por
-        motorista, remova o `isOperator()` daqui e a trava em
-        `dashboard-home.ts` (`showAlerts`). Ver o bloco lá para o raciocínio
-        completo. <<<
+        Abrir a rota não é recortar o dado. O nó que fecha esta dívida é o
+        FEAT-0178 (escopo por motorista no endpoint de alertas): com ele,
+        remova o `isOperator()` daqui e a trava em `dashboard-home.ts`
+        (`showAlerts`). Ver o bloco lá para o raciocínio completo. <<<
     -->
     @if (showAlerts()) {
         @if (summary(); as s) {
