@@ -508,24 +508,32 @@ export class InviteAccept implements OnInit {
         if (payload && this.step() === 'accepting' && isDriverPayload(payload)) {
           const status = err instanceof HttpErrorResponse ? err.status : 0;
 
-          // CNH já usada nesta empresa: a mensagem é do SERVIDOR, que sabe o caso
-          // concreto. Uma frase minha aqui seria um palpite por cima de um fato.
+          // 402 e 409 saem do MESMO método do backend (`enforceDriverLimit`), por razões
+          // DIFERENTES, e é por isso que não podem dividir frase:
+          //   sem assinatura / sem plano  -> AccessBlockedException          -> 402
+          //   no teto (current >= limit)  -> HasConflictException            -> 409
+          //
+          // O 409 ainda chega pela CNH repetida, então este status tem DUAS causas e a tela
+          // não escolhe entre elas: mostra a mensagem do SERVIDOR, que sabe qual é. O
+          // fallback é deliberadamente sem causa — nomear uma delas faria um 409 de teto sem
+          // corpo aparecer como "CNH já cadastrada", que é o mesmo defeito uma camada abaixo.
           if (status === 409) {
             this.driverError.set(
-              this.apiErrors.messageFor(err, 'Esta CNH já está cadastrada nesta empresa.'),
+              this.apiErrors.messageFor(err, 'Não foi possível concluir seu cadastro nesta empresa.'),
             );
             this.step.set('driver-onboarding');
             return;
           }
 
-          // Teto do plano. O limite de motoristas é 200 em TODOS os planos — teto de
-          // segurança, não limite comercial, então isto praticamente não acontece. Tratado
-          // para não virar tela branca, e nada além disso: uma frase curta que diz que quem
-          // resolve é a empresa, sem mandar o motorista "tentar de novo".
+          // Assinatura, NÃO vaga. Mandar quem esbarrou na assinatura pedir uma vaga faz a
+          // empresa olhar o lugar errado, achar que está tudo certo, e ninguém resolver.
+          // O teto de motoristas é 200 em todos os planos — guardrail, não limite comercial —
+          // e de qualquer forma ele vem como 409, não por aqui.
           if (status === 402) {
             this.apiErrors.claim(err);
             this.driverError.set(
-              'A empresa precisa liberar uma vaga de motorista. Avise quem te convidou.',
+              'A assinatura desta empresa precisa ser regularizada antes de incluir motoristas. ' +
+                'Avise quem te convidou.',
             );
             this.step.set('driver-onboarding');
             return;
