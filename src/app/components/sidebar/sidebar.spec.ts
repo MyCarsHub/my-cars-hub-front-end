@@ -53,6 +53,20 @@ describe('Sidebar', () => {
   let fixture: ComponentFixture<Sidebar>;
   let layout: LayoutStore;
 
+  /**
+   * O papel do menu vem do TOKEN desde o FIX-0363: setar so o tenant deixa o
+   * papel vazio e esconde todo item com `roles`. Helper unico para os dois
+   * lugares que precisam de um papel, para nao divergirem de novo.
+   */
+  function signInAs(role: string): void {
+    const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+    const b64 = btoa(JSON.stringify(payload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    sessionStorage.setItem('token', `header.${b64}.signature`);
+  }
+
   beforeEach(async () => {
     sessionStorage.clear();
     await TestBed.configureTestingModule({
@@ -73,14 +87,86 @@ describe('Sidebar', () => {
   /**
    * Contrato com o tour guiado. As âncoras são `data-tour`, e não `aria-label`,
    * justamente para sobreviverem a mudanças de copy — mas isso só vale se
-   * alguém verificar que elas continuam sendo emitidas. Sem papel selecionado,
-   * os itens abertos a todos são os que devem estar no DOM.
+   * alguém verificar que elas continuam sendo emitidas.
+   *
+   * FEAT-0108 — este teste rodava SEM papel selecionado, quando "dashboard" e
+   * "alerts" eram itens abertos a todos. Não são mais: ambos viraram
+   * OWNER/MANAGER porque o FIX-0360 os fechou para o motorista. O tour é do
+   * dono da frota, então a âncora passa a ser verificada com um OWNER —
+   * a intenção do teste (as âncoras continuam no DOM) é a mesma.
    */
   it('emite as âncoras data-tour que o tour guiado procura', () => {
+    signInAs('OWNER');
+    layout.tenants.set([tenant('OWNER')]);
+    layout.selectedTenant.set(tenant('OWNER'));
+    fixture.detectChanges();
+
     const host: HTMLElement = fixture.nativeElement;
     expect(host.querySelector('[data-tour="dashboard"]')).not.toBeNull();
     expect(host.querySelector('[data-tour="alerts"]')).not.toBeNull();
     expect(host.querySelector('[data-tour="roadmap"]')).not.toBeNull();
+  });
+
+  /**
+   * FEAT-0108 — o menu do motorista.
+   *
+   * O nó nasceu de um sintoma ("o app parece quebrado"), mas o defeito estava
+   * AQUI, e nos dois sentidos: o menu OFERECIA ao motorista duas telas que são
+   * 403 inteiras para ele (`/v1/dashboard/**` e `/v1/alerts` estão fora da
+   * lista de permitidos do FIX-0360) e ESCONDIA a única que o escopo dele
+   * libera (`/v1/rentals`). Um motorista via um menu onde nada do que aparecia
+   * funcionava e o que funcionava não aparecia.
+   */
+  describe('menu do DRIVER (FEAT-0108)', () => {
+    function labelsFor(role: string): string[] {
+      // O papel do menu vem do TOKEN desde o FIX-0363 — `selectedTenant` sozinho
+      // NAO decide mais (ver `sidebar-role-source.spec.ts`). Esta versao do
+      // helper ficou parada antes daquela mudanca e setava so o tenant, o que
+      // deixava o papel vazio e escondia todo item com `roles`: o teste media um
+      // menu sem papel nenhum e parecia acusar a feature.
+      signInAs(role);
+      // O tenant continua sendo setado porque `allowedItems` tambem depende de
+      // haver empresa selecionada para oferecer item de tenant.
+      layout.tenants.set([tenant(role)]);
+      layout.selectedTenant.set(tenant(role));
+      fixture.detectChanges();
+      const host: HTMLElement = fixture.nativeElement;
+      return Array.from(host.querySelectorAll('a.nav-link')).map(
+        (a) => a.getAttribute('aria-label') ?? (a.textContent ?? '').trim(),
+      );
+    }
+
+    it('oferece Aluguéis ao motorista — a área que o escopo dele alcança', () => {
+      expect(labelsFor('DRIVER').join(' | ')).toContain('Aluguéis');
+    });
+
+    it('não oferece Dashboard nem Alertas ao motorista', () => {
+      const labels = labelsFor('DRIVER').join(' | ');
+      expect(labels).not.toContain('Dashboard');
+      expect(labels).not.toContain('Alertas');
+    });
+
+    it('não oferece nenhuma área de frota ao motorista', () => {
+      const labels = labelsFor('DRIVER').join(' | ');
+      for (const area of ['Veículos', 'Motoristas', 'Relatórios', 'Assinatura', 'Multas']) {
+        expect(labels).not.toContain(area);
+      }
+    });
+
+    /** Utilitários sem tenant continuam de pé: perfil lê `/v1/auth/me`. */
+    it('mantém Perfil e Suporte para o motorista', () => {
+      const labels = labelsFor('DRIVER').join(' | ');
+      expect(labels).toContain('Perfil');
+      expect(labels).toContain('Suporte');
+    });
+
+    /** O OWNER não perde nada — a mudança é só sobre quem o menu exclui. */
+    it('não muda o menu do OWNER', () => {
+      const labels = labelsFor('OWNER').join(' | ');
+      expect(labels).toContain('Dashboard');
+      expect(labels).toContain('Alertas');
+      expect(labels).toContain('Aluguéis');
+    });
   });
 
   /**

@@ -37,6 +37,7 @@ import {
   DRIVER_IDENTITY_RETRIED,
 } from './driver-identity.context';
 import { DriverIdentityRecoveryService } from './driver-identity-recovery.service';
+import { DRIVER_SCOPE_ERROR_CODE } from './driver-scope.context';
 
 function makeError(status: number, body?: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error: body, url: 'http://localhost/v1/x' });
@@ -436,6 +437,128 @@ describe('errorInterceptor', () => {
  * - `SILENT_HTTP_ERRORS` (fire-and-forget) mantém o contrato antigo: TUDO
  *   desligado, inclusive o desvio de sessão.
  */
+/**
+ * FEAT-0108 — `DRIVER_SCOPE_FORBIDDEN` (backend FIX-0360).
+ *
+ * O IRMAO de `DRIVER_IDENTITY_NOT_RESOLVED`: mesmo status 403, mesmo usuario,
+ * e conduta OPOSTA. Identidade significa "credencial incompleta" e se resolve
+ * reemitindo o token; escopo significa "esta area nao e sua" e NAO tem
+ * recuperacao — reemitir levaria a mesma recusa, em laco.
+ *
+ * Os dois precisam ser provados lado a lado, porque so o `code` os separa.
+ */
+describe('errorInterceptor — 403 DRIVER_SCOPE_FORBIDDEN', () => {
+  let sessionClear: Mock;
+  let routerNavigate: Mock;
+  let notifyError: Mock;
+  let notifyWarning: Mock;
+  let scheduleSafetyNet: Mock;
+  let reissueToken: Mock<() => Observable<string>>;
+
+  const scopeBody = {
+    message: 'Seu acesso de motorista nao inclui esta area.',
+    code: DRIVER_SCOPE_ERROR_CODE,
+  };
+
+  beforeEach(() => {
+    sessionClear = vi.fn();
+    routerNavigate = vi.fn();
+    notifyError = vi.fn();
+    notifyWarning = vi.fn();
+    scheduleSafetyNet = vi.fn();
+    reissueToken = vi.fn(() => of('token-novo'));
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: SessionService, useValue: { clear: sessionClear } },
+        { provide: Router, useValue: { navigate: routerNavigate } },
+        {
+          provide: NotificationService,
+          useValue: { error: notifyError, warning: notifyWarning },
+        },
+        { provide: ApiErrorService, useValue: { scheduleSafetyNet } },
+        {
+          provide: DriverIdentityRecoveryService,
+          useValue: { reissueToken: () => reissueToken() },
+        },
+        {
+          provide: ImpersonationService,
+          useValue: { active: () => false, expire: vi.fn() },
+        },
+      ],
+    });
+  });
+
+  async function runScope(body: unknown = scopeBody) {
+    const req = new HttpRequest('GET', 'http://localhost/v1/vehicles');
+    const next: HttpHandlerFn = () => throwError(() => makeError(403, body));
+    const result$ = TestBed.runInInjectionContext(() => errorInterceptor(req, next));
+    let caught: unknown;
+    await lastValueFrom(
+      result$.pipe(
+        catchError((err) => {
+          caught = err;
+          return EMPTY;
+        }),
+      ),
+      { defaultValue: null },
+    );
+    return caught;
+  }
+
+  /** O ponto central do no: escopo NAO dispara o caminho de recuperacao. */
+  it('nao reemite o token — o token esta certo, a area e que nao e dele', async () => {
+    await runScope();
+
+    expect(reissueToken).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Sem isto, um motorista abrindo `/alugueis` levaria DOIS toasts de "Acesso
+   * negado": os filtros da tela pedem `/v1/vehicles` e `/v1/drivers`, que o
+   * escopo dele nao alcanca. A tela ja degrada sozinha; o toast so acusaria o
+   * usuario de um erro que nao e dele.
+   */
+  it('nao mostra o toast generico de acesso negado', async () => {
+    await runScope();
+
+    expect(notifyWarning).not.toHaveBeenCalled();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it('nao limpa a sessao nem manda para o /login', async () => {
+    await runScope();
+
+    expect(sessionClear).not.toHaveBeenCalled();
+    expect(routerNavigate).not.toHaveBeenCalled();
+  });
+
+  it('nao arma a rede de seguranca de 4xx', async () => {
+    await runScope();
+
+    expect(scheduleSafetyNet).not.toHaveBeenCalled();
+  });
+
+  it('reemite o erro para a tela decidir', async () => {
+    const caught = await runScope();
+
+    expect(caught).toBeInstanceOf(HttpErrorResponse);
+    expect((caught as HttpErrorResponse).status).toBe(403);
+  });
+
+  /**
+   * REGRESSAO DO FEAT-0106: um 403 SEM o code de escopo continua no caminho
+   * antigo. Se este teste passar a falhar, o desvio novo comeu o do irmao.
+   */
+  it('nao captura um 403 comum, que segue com o toast generico', async () => {
+    await runScope({ message: 'Acesso negado.' });
+
+    expect(notifyWarning).toHaveBeenCalledWith('Acesso negado');
+    expect(reissueToken).not.toHaveBeenCalled();
+  });
+});
+
 describe('errorInterceptor — OWNED_HTTP_ERRORS e SILENT_HTTP_ERRORS', () => {
   let sessionClear: ReturnType<typeof vi.fn>;
   let routerNavigate: ReturnType<typeof vi.fn>;
