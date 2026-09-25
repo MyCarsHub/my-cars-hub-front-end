@@ -46,6 +46,9 @@ const TEST_ROUTES: Routes = [
   { path: 'vistorias', component: StubPage },
   { path: 'configuracoes', component: StubPage },
   { path: 'configuracoes/integracoes', component: StubPage },
+  // FIX-0553 — mesma razão do `vistorias` acima: sem a rota registrada o caso
+  // passaria por AUSÊNCIA de sinal em vez de por presença do item.
+  { path: 'configuracoes/convites', component: StubPage },
 ];
 
 describe('Sidebar', () => {
@@ -371,6 +374,31 @@ describe('Sidebar', () => {
         .navItems()
         .map((item) => item.route);
       expect(topLevel).not.toContain('/vistorias');
+    });
+
+    /**
+     * FIX-0553 — "Configurações → Convites", pedido do dono.
+     *
+     * A tela de Convites existia com rota, verbete no `role.guard` e os quatro
+     * campos novos do convite de gerente, e NÃO HAVIA COMO CHEGAR NELA a não ser
+     * digitando o endereço: o atalho tinha sido removido enquanto o fluxo era
+     * refeito. Este caso NOMEIA o item, para que ele não possa sumir de novo em
+     * silêncio — que é exatamente como ele sumiu a primeira vez.
+     *
+     * Mesma forma do caso de Vistorias acima, e pelo mesmo motivo: asserções de
+     * PRESENÇA, porque uma de ausência passaria contra um menu vazio.
+     */
+    it('"Convites" é filha de Configurações, e não item de primeiro nível', async () => {
+      await goTo('/configuracoes/convites');
+
+      expect(group('Configurações')?.getAttribute('aria-expanded')).toBe('true');
+      expect(childLink('Convites')).not.toBeNull();
+      expect(childLink('Convites')?.getAttribute('href')).toBe('/configuracoes/convites');
+
+      const topLevel = (component as unknown as { navItems: () => { route?: string }[] })
+        .navItems()
+        .map((item) => item.route);
+      expect(topLevel).not.toContain('/configuracoes/convites');
     });
 
     /**
