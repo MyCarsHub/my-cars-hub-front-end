@@ -11,6 +11,8 @@
  */
 
 /** Roles an invite may grant. `OWNER` is rejected by the backend with a 400. */
+import { LicenseCategory } from './driver.types';
+
 export type InviteRole = 'MANAGER' | 'DRIVER';
 
 export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED' | 'REVOKED';
@@ -79,6 +81,30 @@ export interface AcceptInviteRequest {
   name: string;
   cpf: string;
   phone: string;
+}
+
+/** Endereço do motorista no aceite — mesmos campos do cadastro manual. */
+export interface InviteAddressRequest {
+  street: string;
+  number: string;
+  complement: string;
+  district: string;
+  cep: string;
+  city: string;
+  uf: string;
+}
+
+/**
+ * Corpo do aceite quando o convidado é MOTORISTA e ainda NÃO tem cadastro.
+ *
+ * Quem já tem cadastro continua postando SEM corpo nenhum — mandar um corpo nesse caso
+ * pediria dados que o sistema já conhece.
+ */
+export interface DriverAcceptInviteRequest extends AcceptInviteRequest {
+  licenseNumber: string;
+  licenseCategory: LicenseCategory;
+  licenseExpiry: string;
+  address: InviteAddressRequest;
 }
 
 /**
