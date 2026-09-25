@@ -179,6 +179,269 @@
         </p>
       }
 
+      @case ('driver-onboarding') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Confirme seus dados
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Falta pouco para você entrar em
+          <span class="font-semibold text-neutral-900">{{ companyName() }}</span>
+          como {{ roleLabel() }}.
+        </p>
+
+        @if (driverError(); as formError) {
+          <div class="mt-4">
+            <app-alert-banner variant="error" [message]="formError" />
+          </div>
+        }
+
+        <!-- Coluna única: o motorista preenche isto no celular, sempre. Os campos de
+             endereço só viram duas colunas a partir de sm. -->
+        <form [formGroup]="driverForm" (ngSubmit)="submitDriverOnboarding()" class="mt-6 space-y-4">
+            <app-form-field
+              label="Nome completo"
+              controlId="drv-name"
+              [required]="true"
+              [control]="driverForm.controls.name"
+              [messages]="nameMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="name"
+                type="text"
+                autocomplete="name" maxlength="180" placeholder="Seu nome completo"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+            <app-form-field
+              label="CPF"
+              controlId="drv-cpf"
+              [required]="true"
+              [control]="driverForm.controls.cpf"
+              [messages]="cpfMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="cpf"
+                type="text"
+                inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" (input)="onDriverCpfInput($event)"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+            <app-form-field
+              label="Telefone"
+              controlId="drv-phone"
+              [required]="true"
+              [control]="driverForm.controls.phone"
+              [messages]="phoneMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="phone"
+                type="tel"
+                inputmode="tel" autocomplete="tel" maxlength="15" placeholder="(00) 00000-0000" (input)="onDriverPhoneInput($event)"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+
+          <div class="pt-2">
+            <h2 class="text-sm font-semibold text-neutral-900">Sua CNH</h2>
+          </div>
+            <app-form-field
+              label="Número da CNH"
+              controlId="drv-license"
+              [required]="true"
+              [control]="driverForm.controls.licenseNumber"
+              [messages]="licenseMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="licenseNumber"
+                type="text"
+                inputmode="numeric" autocomplete="off" maxlength="11" placeholder="11 caracteres" (input)="onLicenseInput($event)"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+          <app-form-field
+            label="Categoria"
+            controlId="drv-category"
+            [required]="true"
+            [control]="driverForm.controls.licenseCategory"
+          >
+            <select
+              appFieldControl
+              formControlName="licenseCategory"
+              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                     text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                     focus:border-primary-600 transition-colors">
+              @for (category of licenseCategories; track category) {
+                <option [value]="category">{{ category }}</option>
+              }
+            </select>
+          </app-form-field>
+            <app-form-field
+              label="Validade da CNH"
+              controlId="drv-expiry"
+              [required]="true"
+              [control]="driverForm.controls.licenseExpiry"
+              [messages]="expiryMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="licenseExpiry"
+                type="date"
+                
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+
+          <div class="pt-2">
+            <h2 class="text-sm font-semibold text-neutral-900">Seu endereço</h2>
+          </div>
+            <app-form-field
+              label="CEP"
+              controlId="drv-cep"
+              [required]="true"
+              [control]="driverForm.controls.cep"
+              [messages]="cepMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="cep"
+                type="text"
+                inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000" (input)="onCepInput($event)"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+          @if (cepLoading()) {
+            <p class="text-xs text-neutral-500">Buscando endereço…</p>
+          }
+            <app-form-field
+              label="Rua"
+              controlId="drv-street"
+              [required]="true"
+              [control]="driverForm.controls.street"
+              [messages]="requiredOnly"
+            >
+              <input
+                appFieldControl
+                formControlName="street"
+                type="text"
+                autocomplete="address-line1" maxlength="180"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <app-form-field
+              label="Número"
+              controlId="drv-number"
+              [required]="false"
+              [control]="driverForm.controls.number"
+              [messages]="requiredOnly"
+            >
+              <input
+                appFieldControl
+                formControlName="number"
+                type="text"
+                inputmode="numeric" placeholder="Sem número? deixe vazio"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+            <app-form-field
+              label="Complemento"
+              controlId="drv-complement"
+              [required]="false"
+              [control]="driverForm.controls.complement"
+              [messages]="requiredOnly"
+            >
+              <input
+                appFieldControl
+                formControlName="complement"
+                type="text"
+                placeholder="Apto, bloco…"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+          </div>
+            <app-form-field
+              label="Bairro"
+              controlId="drv-district"
+              [required]="true"
+              [control]="driverForm.controls.district"
+              [messages]="requiredOnly"
+            >
+              <input
+                appFieldControl
+                formControlName="district"
+                type="text"
+                maxlength="120"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <app-form-field
+              label="Cidade"
+              controlId="drv-city"
+              [required]="true"
+              [control]="driverForm.controls.city"
+              [messages]="requiredOnly"
+            >
+              <input
+                appFieldControl
+                formControlName="city"
+                type="text"
+                maxlength="120"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+            <app-form-field
+              label="UF"
+              controlId="drv-uf"
+              [required]="true"
+              [control]="driverForm.controls.uf"
+              [messages]="ufMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="uf"
+                type="text"
+                maxlength="2" placeholder="SP" style="text-transform:uppercase"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors" />
+            </app-form-field>
+          </div>
+
+          <button
+            type="submit"
+            [disabled]="submitting()"
+            [attr.aria-busy]="submitting() ? 'true' : null"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                   disabled:opacity-60 disabled:cursor-wait"
+          >
+            {{ submitting() ? 'Confirmando…' : 'Confirmar e entrar' }}
+          </button>
+        </form>
+
+        <p class="mt-4 text-xs text-neutral-500 leading-relaxed">
+          Seus dados são usados apenas para o seu cadastro nesta empresa.
+        </p>
+      }
+
       @case ('mismatch') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
           Este convite é para outra conta
