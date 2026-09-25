@@ -390,6 +390,32 @@ export const routes: Routes = [
                         data: { pageTitle: 'Vistorias' },
                     },
                     {
+                        // A CAPTURA aceita MOTORISTA, a listagem nao. O dono pediu que
+                        // "dono, motorista e gerenciador" facam vistoria; quem vistoria
+                        // qual veiculo quem decide e o backend (motorista so o carro de
+                        // um aluguel ATIVO dele), e a tela trata o 403 explicando a regra.
+                        // Guardar esta rota so para OWNER/MANAGER tiraria do motorista
+                        // exatamente o que foi pedido.
+                        path: 'vistorias/nova',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
+                        loadComponent: () =>
+                            import('./pages/inspections/inspection-capture').then(
+                                (m) => m.InspectionCapture
+                            ),
+                        data: { pageTitle: 'Fazer vistoria' },
+                    },
+                    {
+                        // RETOMADA: a captura reabre pelo id e `capturedAngles` diz o que
+                        // falta. Sem isto, uma ligacao no meio das 14 fotos custaria todas.
+                        path: 'vistorias/:id/captura',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
+                        loadComponent: () =>
+                            import('./pages/inspections/inspection-capture').then(
+                                (m) => m.InspectionCapture
+                            ),
+                        data: { pageTitle: 'Fazer vistoria' },
+                    },
+                    {
                         path: 'multas',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
