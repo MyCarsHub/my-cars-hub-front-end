@@ -444,4 +444,248 @@ describe('InviteAccept — página pública de aceite', () => {
       expect(accept).toHaveBeenCalledWith('raw-token');
     });
   });
+  /**
+   * Onboarding do MOTORISTA — a ultima peca do fluxo.
+   *
+   * A mecanica e DIFERENTE da do gerente de proposito: o gerente decide por flag (derivado
+   * de `role`, de graca), o motorista decide pelo CODIGO DE ERRO, porque a pergunta
+   * equivalente exigiria ler a tabela de motoristas a partir de um endpoint PUBLICO.
+   * Quem ja tem cadastro aceita em UM passo, sem ver formulario.
+   */
+  describe('onboarding do motorista', () => {
+    const VALID_CPF = '529.982.247-25';
+
+    const driverDetails: ValidateInviteResponse = { ...details, role: 'DRIVER' };
+
+    /** O convite REAL do dono: nasceu so com e-mail, sem nome nem telefone. */
+    const bareDetails: ValidateInviteResponse = {
+      email: 'convidado@empresa.com.br',
+      role: 'DRIVER',
+      companyName: 'Locadora Alfa',
+      userExists: false,
+    };
+
+    function codeError(status: number, code: string): HttpErrorResponse {
+      return new HttpErrorResponse({ status, error: { code } });
+    }
+
+    function field(fixture: ComponentFixture<InviteAccept>, id: string): HTMLInputElement {
+      const el = (fixture.nativeElement as HTMLElement).querySelector('#' + id);
+      if (!el) throw new Error('campo ' + id + ' nao esta na tela');
+      return el as HTMLInputElement;
+    }
+
+    function has(fixture: ComponentFixture<InviteAccept>, id: string): boolean {
+      return (fixture.nativeElement as HTMLElement).querySelector('#' + id) !== null;
+    }
+
+    function type(input: HTMLInputElement, value: string): void {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    }
+
+    function submit(fixture: ComponentFixture<InviteAccept>): void {
+      const form = (fixture.nativeElement as HTMLElement).querySelector('form');
+      if (!form) throw new Error('o formulario nao esta na tela');
+      form.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+    }
+
+    /** Abre o form pelo caminho real: aceite sem corpo -> 400 com o codigo. */
+    function openByError(
+      response: ValidateInviteResponse = driverDetails,
+    ): ComponentFixture<InviteAccept> {
+      store['token'] = 'temporally-token';
+      validate.mockReturnValue(of(response));
+      accept.mockReturnValue(throwError(() => codeError(400, 'DRIVER_REGISTRATION_REQUIRED')));
+      const { fixture } = render('raw-token');
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function fillAll(fixture: ComponentFixture<InviteAccept>): void {
+      type(field(fixture, 'drv-name'), 'Fulano de Tal');
+      type(field(fixture, 'drv-cpf'), VALID_CPF);
+      type(field(fixture, 'drv-phone'), '(11) 98765-4321');
+      type(field(fixture, 'drv-license'), 'ABC12345678');
+      type(field(fixture, 'drv-expiry'), '2030-01-31');
+      type(field(fixture, 'drv-cep'), '01310-100');
+      type(field(fixture, 'drv-street'), 'Avenida Paulista');
+      type(field(fixture, 'drv-district'), 'Bela Vista');
+      type(field(fixture, 'drv-city'), 'Sao Paulo');
+      type(field(fixture, 'drv-uf'), 'SP');
+      fixture.detectChanges();
+    }
+
+    /** O CAMINHO DO DONO HOJE: quem ja tem cadastro nao ve formulario nenhum. */
+    it('motorista JA cadastrado aceita em um passo, sem corpo e sem formulario', () => {
+      store['token'] = 'temporally-token';
+      validate.mockReturnValue(of(driverDetails));
+
+      const { fixture } = render('raw-token');
+
+      expect(accept).toHaveBeenCalledWith('raw-token');
+      expect(has(fixture, 'drv-cpf')).toBe(false);
+    });
+
+    it('o 400 com DRIVER_REGISTRATION_REQUIRED ABRE o formulario', () => {
+      const fixture = openByError();
+
+      expect(has(fixture, 'drv-cpf')).toBe(true);
+      expect(has(fixture, 'drv-license')).toBe(true);
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+        'Nao foi possivel usar este convite',
+      );
+    });
+
+    /**
+     * O CASO REAL DO DONO: o convite PENDING dele nasceu so com e-mail. Se a tela so
+     * funcionasse pre-preenchida, e justamente este caminho que quebraria.
+     */
+    it('convite SEM nome e telefone abre o formulario em branco, e funciona', () => {
+      const fixture = openByError(bareDetails);
+
+      expect(field(fixture, 'drv-name').value).toBe('');
+      expect(field(fixture, 'drv-phone').value).toBe('');
+
+      accept.mockReturnValue(of(acceptResponse));
+      fillAll(fixture);
+      submit(fixture);
+
+      expect(applyFinishResponse).toHaveBeenCalledWith(acceptResponse);
+    });
+
+    it('quando o convite TEM os dados, eles chegam pre-preenchidos e mascarados', () => {
+      const fixture = openByError({
+        ...driverDetails,
+        name: 'Fulano de Tal',
+        phoneNumber: '11987654321',
+      });
+
+      expect(field(fixture, 'drv-name').value).toBe('Fulano de Tal');
+      expect(field(fixture, 'drv-phone').value).toBe('(11) 98765-4321');
+    });
+
+    /** O CPF nunca vem do servidor: rota anonima. Vale para as duas telas irmas. */
+    it('o CPF nasce VAZIO mesmo quando o convite traz nome e telefone', () => {
+      const fixture = openByError({
+        ...driverDetails,
+        name: 'Fulano de Tal',
+        phoneNumber: '11987654321',
+      });
+
+      expect(field(fixture, 'drv-cpf').value).toBe('');
+    });
+
+    it('caminho feliz: reenvia COM corpo completo, com digitos crus', () => {
+      const fixture = openByError();
+      accept.mockReturnValue(of(acceptResponse));
+      fillAll(fixture);
+
+      submit(fixture);
+
+      expect(accept).toHaveBeenLastCalledWith('raw-token', {
+        name: 'Fulano de Tal',
+        cpf: '52998224725',
+        phone: '11987654321',
+        licenseNumber: 'ABC12345678',
+        licenseCategory: 'B',
+        licenseExpiry: '2030-01-31',
+        address: {
+          street: 'Avenida Paulista',
+          number: '',
+          complement: '',
+          district: 'Bela Vista',
+          cep: '01310100',
+          city: 'Sao Paulo',
+          uf: 'SP',
+        },
+      });
+    });
+
+    it('form incompleto nao chama o servidor', () => {
+      const fixture = openByError();
+      accept.mockClear();
+
+      submit(fixture);
+
+      expect(accept).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A armadilha registrada: campo mascarado guarda TEXTO. Um validador que esperasse
+     * numero leria o CPF como VAZIO, e o sintoma pareceria "obrigatorio ignorado".
+     */
+    it('o CPF MASCARADO e aceito — a validacao le TEXTO', () => {
+      const fixture = openByError();
+      accept.mockReturnValue(of(acceptResponse));
+      fillAll(fixture);
+
+      submit(fixture);
+
+      expect(accept).toHaveBeenLastCalledWith(
+        'raw-token',
+        expect.objectContaining({ cpf: '52998224725' }),
+      );
+    });
+
+    it('CNH fora do padrao de 11 caracteres barra o envio', () => {
+      const fixture = openByError();
+      fillAll(fixture);
+      type(field(fixture, 'drv-license'), 'ABC123');
+      fixture.detectChanges();
+      accept.mockClear();
+
+      submit(fixture);
+
+      expect(accept).not.toHaveBeenCalled();
+    });
+
+    /** CNH ja usada: a mensagem e do SERVIDOR, que conhece o caso concreto. */
+    it('409 mostra a mensagem DO SERVIDOR e mantem o convidado no formulario', () => {
+      const fixture = openByError();
+      fillAll(fixture);
+      accept.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { message: 'CNH ja cadastrada para outro motorista.' },
+            }),
+        ),
+      );
+
+      submit(fixture);
+
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('CNH ja cadastrada para outro motorista.');
+      expect(has(fixture, 'drv-license')).toBe(true);
+    });
+
+    /** Teto do plano: o motorista nao resolve isto, e nao pode ser mandado tentar de novo. */
+    it('402 explica que quem resolve e a empresa, sem culpar o motorista', () => {
+      const fixture = openByError();
+      fillAll(fixture);
+      accept.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 402 })));
+
+      submit(fixture);
+
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('empresa');
+      expect(text.toLowerCase()).not.toContain('tente de novo');
+      expect(has(fixture, 'drv-license')).toBe(true);
+    });
+
+    /** CONTRAPESO: o gerente continua decidindo pelo FLAG, mecanica intocada. */
+    it('o gerente segue abrindo pelo flag, sem depender de erro nenhum', () => {
+      store['token'] = 'temporally-token';
+      validate.mockReturnValue(of({ ...details, requiresManagerOnboarding: true }));
+
+      const { fixture } = render('raw-token');
+      fixture.detectChanges();
+
+      expect(accept).not.toHaveBeenCalled();
+      expect((fixture.nativeElement as HTMLElement).querySelector('#invite-cpf')).not.toBeNull();
+    });
+  });
 });

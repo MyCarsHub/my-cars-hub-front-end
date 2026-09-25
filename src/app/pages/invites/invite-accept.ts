@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -19,14 +20,35 @@ import {
 import { cpfValidator } from '../../utils/validators/cpf.validator';
 import { applyMaskedPhoneInput, maskPhone, normalizePhone } from '../../utils/phone-mask';
 
-import { AcceptInviteRequest, ValidateInviteResponse } from '../../types/invite.types';
+import {
+  AcceptInviteRequest,
+  DriverAcceptInviteRequest,
+  ValidateInviteResponse,
+} from '../../types/invite.types';
+import { LicenseCategory } from '../../types/driver.types';
+import { CepLookupResult, CepService } from '../../services/cep.service';
+import { applyMaskedCepInput, normalizeCep } from '../../utils/cep-mask';
 import { PENDING_INVITE_TOKEN_KEY } from './invite-session';
 import { companyRoleLabel } from '../../utils/role-labels';
+
+/** Só o corpo do motorista traz CNH — é o que separa os dois formulários no erro. */
+function isDriverPayload(
+  payload: AcceptInviteRequest | DriverAcceptInviteRequest,
+): payload is DriverAcceptInviteRequest {
+  return 'licenseNumber' in payload;
+}
 
 /** Mesmo padrao do onboarding (`step-personal`): DDD + numero, com ou sem mascara. */
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
-type AcceptStep = 'validating' | 'ready' | 'onboarding' | 'accepting' | 'mismatch' | 'error';
+type AcceptStep =
+  | 'validating'
+  | 'ready'
+  | 'onboarding'
+  | 'driver-onboarding'
+  | 'accepting'
+  | 'mismatch'
+  | 'error';
 
 /**
  * Public landing page for the invitation e-mail.
@@ -217,6 +239,27 @@ export class InviteAccept implements OnInit {
       return;
     }
 
+    // O MOTORISTA NÃO TEM FLAG, E ISSO É DELIBERADO — não é assimetria por esquecimento.
+    //
+    // `requiresManagerOnboarding` é barato: o backend o deriva de `role == MANAGER`, um
+    // campo que já vem nesta mesma resposta. Não consulta nada e não revela nada.
+    //
+    // A pergunta equivalente para o motorista — "esta empresa já tem motorista com este
+    // e-mail?" — só se responde LENDO A TABELA DE MOTORISTAS, e este endpoint é PÚBLICO:
+    // responde a quem só tem um link, sem autenticação. Publicar esse flag seria abrir uma
+    // leitura sobre o cadastro do tenant para qualquer portador de link.
+    //
+    // O espelho "perfeito" (flag = role == DRIVER, sem consulta) foi RECUSADO por piorar o
+    // caminho principal: o motorista convidado a partir do próprio cadastro JÁ TEM tudo, e
+    // seria mandado digitar CNH e endereço à toa.
+    //
+    // Então aqui a decisão é do SERVIDOR: tentamos o aceite sem corpo, e o
+    // DRIVER_REGISTRATION_REQUIRED abre o formulário. Quem já tem cadastro entra em um
+    // passo, sem ver formulário nenhum; a ida perdida só acontece para quem precisa mesmo
+    // preencher.
+    //
+    // Se você veio "consertar a assimetria": as duas telas decidem por mecânicas diferentes
+    // porque as duas perguntas têm custos diferentes. Não implemente o flag do motorista.
     this.acceptInvite();
   }
 
@@ -244,6 +287,163 @@ export class InviteAccept implements OnInit {
     applyMaskedPhoneInput(event, this.onboardingForm.controls.phone);
   }
 
+  // ---------------------------------------------------------------------------------
+  // Onboarding do MOTORISTA — irmão do de gerente, mesma mecânica de confirmação.
+  // ---------------------------------------------------------------------------------
+
+  private readonly cepService = inject(CepService);
+
+  protected readonly cepLoading = signal(false);
+  protected readonly driverError = signal<string | null>(null);
+
+  /** Categorias vêm do enum do cadastro de motorista — não redigitadas aqui. */
+  protected readonly licenseCategories: readonly LicenseCategory[] = [
+    'A',
+    'B',
+    'C',
+    'D',
+    'E',
+    'AB',
+    'AC',
+    'AD',
+    'AE',
+  ];
+
+  protected readonly licenseMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o número da CNH.',
+    pattern: 'A CNH tem 11 caracteres, sem pontos ou traços.',
+  };
+  protected readonly expiryMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a validade da CNH.',
+  };
+  protected readonly cepMessages: Readonly<Record<string, string>> = {
+    required: 'Informe o CEP.',
+    pattern: 'CEP inválido. Use 00000-000.',
+  };
+  protected readonly requiredOnly: Readonly<Record<string, string>> = {
+    required: 'Campo obrigatório.',
+  };
+  protected readonly ufMessages: Readonly<Record<string, string>> = {
+    required: 'Informe a UF.',
+    pattern: 'Use a sigla de 2 letras.',
+  };
+
+  /**
+   * FEAT — o motorista CONFIRMA o que o convite já sabe e DIGITA o que falta.
+   *
+   * Nome, CPF e telefone chegam pré-preenchidos QUANDO o convite os tem. Os convites que já
+   * estão em produção nasceram só com e-mail, então estes três podem vir VAZIOS — por isso
+   * são `required` aqui e não apenas "confirmáveis": o caminho em branco é o caso real do
+   * dono, não uma borda.
+   *
+   * `licenseNumber` usa o MESMO padrão do cadastro manual (11 alfanuméricos), não uma regra
+   * nova escrita para esta tela.
+   */
+  protected readonly driverForm = this.fb.nonNullable.group({
+    name: ['', [Validators.required, Validators.maxLength(180)]],
+    cpf: ['', [Validators.required, cpfShapeValidator(), cpfValidator()]],
+    phone: ['', [Validators.required, Validators.pattern(PHONE_PATTERN)]],
+    licenseNumber: ['', [Validators.required, Validators.pattern(/^[A-Za-z0-9]{11}$/)]],
+    licenseCategory: ['B' as LicenseCategory, [Validators.required]],
+    licenseExpiry: ['', [Validators.required]],
+    cep: ['', [Validators.required, Validators.pattern(/^\d{5}-?\d{3}$/)]],
+    street: ['', [Validators.required, Validators.maxLength(180)]],
+    number: [''],
+    complement: [''],
+    district: ['', [Validators.required, Validators.maxLength(120)]],
+    city: ['', [Validators.required, Validators.maxLength(120)]],
+    uf: ['', [Validators.required, Validators.pattern(/^[A-Za-z]{2}$/)]],
+  });
+
+  /**
+   * Abre o formulário do motorista. Os três primeiros campos são pré-preenchidos SÓ com o
+   * que o convite tem — `?? ''` é o caso real dos convites antigos, não um detalhe.
+   */
+  private startDriverOnboarding(details: ValidateInviteResponse): void {
+    // `?? ''` NÃO é defensividade decorativa: os convites que estão em produção hoje
+    // nasceram só com e-mail, então nome e telefone chegam nulos e o formulário abre em
+    // branco. Esse é o caso real, não a borda.
+    //
+    // O CPF nunca é pré-preenchido: a rota de validação é anônima e o backend não o
+    // devolve, nem mascarado. O convidado digita e o servidor compara com o cofre.
+    this.driverForm.patchValue({
+      name: details.name ?? '',
+      phone: maskPhone(details.phoneNumber ?? ''),
+    });
+    this.driverError.set(null);
+    this.step.set('driver-onboarding');
+  }
+
+  protected onDriverCpfInput(event: Event): void {
+    applyMaskedDocumentInput(event, this.driverForm.controls.cpf, maskCpf);
+  }
+
+  protected onDriverPhoneInput(event: Event): void {
+    applyMaskedPhoneInput(event, this.driverForm.controls.phone);
+  }
+
+  protected onLicenseInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const raw = input.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 11).toUpperCase();
+    input.value = raw;
+    this.driverForm.controls.licenseNumber.setValue(raw);
+  }
+
+  /** CEP reusa o `CepService` que a tela da empresa já usa — não há uma segunda busca. */
+  protected onCepInput(event: Event): void {
+    applyMaskedCepInput(event, this.driverForm.controls.cep);
+    const digits = normalizeCep(this.driverForm.controls.cep.value);
+    if (digits.length !== 8) return;
+
+    this.cepLoading.set(true);
+    this.cepService.lookup(digits).subscribe({
+      next: (found: CepLookupResult | null) => {
+        this.cepLoading.set(false);
+        if (!found) return;
+        // Não sobrescreve o que o usuário já digitou à mão.
+        const patch: Record<string, string> = {};
+        if (!this.driverForm.controls.street.value) patch['street'] = found.street;
+        if (!this.driverForm.controls.district.value) patch['district'] = found.district;
+        if (!this.driverForm.controls.city.value) patch['city'] = found.city;
+        if (!this.driverForm.controls.uf.value) patch['uf'] = found.uf;
+        this.driverForm.patchValue(patch);
+      },
+      // A busca é conveniência: se o ViaCEP cair, o endereço continua preenchível à mão.
+      error: () => this.cepLoading.set(false),
+    });
+  }
+
+  protected submitDriverOnboarding(): void {
+    if (this.submitting()) return;
+
+    if (this.driverForm.invalid) {
+      this.driverForm.markAllAsTouched();
+      return;
+    }
+
+    const raw = this.driverForm.getRawValue();
+    this.submitting.set(true);
+    this.driverError.set(null);
+
+    this.acceptInvite({
+      name: raw.name.trim(),
+      cpf: normalizeCpf(raw.cpf),
+      phone: normalizePhone(raw.phone),
+      licenseNumber: raw.licenseNumber.trim().toUpperCase(),
+      licenseCategory: raw.licenseCategory,
+      licenseExpiry: raw.licenseExpiry,
+      address: {
+        street: raw.street.trim(),
+        number: raw.number.trim(),
+        complement: raw.complement.trim(),
+        district: raw.district.trim(),
+        cep: normalizeCep(raw.cep),
+        city: raw.city.trim(),
+        uf: raw.uf.trim().toUpperCase(),
+      },
+    });
+  }
+
   protected submitOnboarding(): void {
     if (this.submitting()) return;
 
@@ -264,7 +464,7 @@ export class InviteAccept implements OnInit {
     });
   }
 
-  private acceptInvite(payload?: AcceptInviteRequest): void {
+  private acceptInvite(payload?: AcceptInviteRequest | DriverAcceptInviteRequest): void {
     this.step.set('accepting');
     this.errorMessage.set(null);
 
@@ -291,6 +491,46 @@ export class InviteAccept implements OnInit {
       },
       error: (err: unknown) => {
         this.submitting.set(false);
+        const cause = inviteAcceptCause(err);
+
+        // O CAMINHO PRINCIPAL do motorista. Isto NÃO é erro para o usuário ler: é o
+        // servidor pedindo o formulário, e é assim que a tela descobre que falta cadastro.
+        if (cause === 'driver-registration-required') {
+          this.apiErrors.claim(err);
+          const current = this.details();
+          if (current) {
+            this.startDriverOnboarding(current);
+            return;
+          }
+        }
+
+        // Erros que pertencem ao FORMULÁRIO do motorista: mantêm o convidado nele.
+        if (payload && this.step() === 'accepting' && isDriverPayload(payload)) {
+          const status = err instanceof HttpErrorResponse ? err.status : 0;
+
+          // CNH já usada nesta empresa: a mensagem é do SERVIDOR, que sabe o caso
+          // concreto. Uma frase minha aqui seria um palpite por cima de um fato.
+          if (status === 409) {
+            this.driverError.set(
+              this.apiErrors.messageFor(err, 'Esta CNH já está cadastrada nesta empresa.'),
+            );
+            this.step.set('driver-onboarding');
+            return;
+          }
+
+          // Teto do plano. O limite de motoristas é 200 em TODOS os planos — teto de
+          // segurança, não limite comercial, então isto praticamente não acontece. Tratado
+          // para não virar tela branca, e nada além disso: uma frase curta que diz que quem
+          // resolve é a empresa, sem mandar o motorista "tentar de novo".
+          if (status === 402) {
+            this.apiErrors.claim(err);
+            this.driverError.set(
+              'A empresa precisa liberar uma vaga de motorista. Avise quem te convidou.',
+            );
+            this.step.set('driver-onboarding');
+            return;
+          }
+        }
         // FEAT-0167 — CPF errado é o único dos três cujo conserto é AQUI: o convidado
         // digitou um dígito errado. Voltar para a tela de erro o tiraria do formulário e o
         // obrigaria a recomeçar o fluxo inteiro por causa de um campo. Os outros dois erros
