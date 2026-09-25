@@ -237,9 +237,23 @@ describe('DashboardHome — o que a tela oferece é o que o guard aceita', () =>
     expect(GUARDS_BY_PATH.get('/veiculos')?.length).toBe(1);
     expect(GUARDS_BY_PATH.get('/multas')?.length).toBe(1);
     expect(GUARDS_BY_PATH.get('/manutencoes')?.length).toBe(1);
-    // e `/alertas` existe e NÃO tem guard — é o que torna um chip legítimo
+    /*
+     * ESTA ASSERÇÃO MUDOU DE LADO em 2026-09-25 (FEAT-0108). Antes afirmava que
+     * `/alertas` NÃO tinha guard — era isso que tornava o chip de documentos um
+     * chip legítimo para o motorista. Agora afirma que TEM.
+     *
+     * O propósito do teste é o mesmo: provar que a varredura leu a árvore de
+     * verdade, porque um mapa vazio faria tudo parecer permitido. `/alertas`
+     * serve a esse propósito dos dois lados — o que não serve é a colheita
+     * vazia.
+     *
+     * TEMPORÁRIO, e o motivo está no FEAT-0178: `/v1/alerts` não está no
+     * `DriverReadScopePolicy` e o `DocumentAlertService` recorta só por empresa.
+     * Quando o endpoint ganhar escopo por motorista, o guard sai e esta linha
+     * volta para `0`.
+     */
     expect(GUARDS_BY_PATH.has('/alertas')).toBe(true);
-    expect(GUARDS_BY_PATH.get('/alertas')?.length ?? 0).toBe(0);
+    expect(GUARDS_BY_PATH.get('/alertas')?.length).toBe(1);
   });
 
   // ------------------------------------------------------- IGUALDADE DAS PONTAS
@@ -256,14 +270,32 @@ describe('DashboardHome — o que a tela oferece é o que o guard aceita', () =>
   );
 
   // -------------------------------------- NÃO ESCONDA O QUE FUNCIONA
-  it('o motorista CONTINUA vendo o chip de documentos — ele leva a /alertas, que ele pode abrir', () => {
+  /*
+   * INVERTIDO em 2026-09-25 (FEAT-0108), e é DÍVIDA, não regra de produto.
+   *
+   * Este teste afirmava o contrário: que o motorista CONTINUAVA vendo o chip,
+   * porque `/alertas` não tinha guard e ele podia abrir. Isso era verdade sobre
+   * o FRONTEND e falso sobre a API — `/v1/alerts` nunca esteve no
+   * `DriverReadScopePolicy`, então a tela era 403 inteira. O chip prometia uma
+   * porta que o servidor fechava.
+   *
+   * O dono decidiu que o motorista DEVE ver os alertas de CNH e documento DELE.
+   * O que impede é o backend: `DocumentAlertService.listDocumentAlerts` recorta
+   * só por empresa, sem corte por motorista, então abrir hoje mostraria a CNH de
+   * todos os motoristas e o CRLV da frota inteira a cada um. Abrir a rota não é
+   * recortar o dado.
+   *
+   * ESTE TESTE É O ALARME DA DÍVIDA: quando o FEAT-0178 der escopo por motorista
+   * ao endpoint, ele volta a afirmar que o chip aparece. Enquanto isso, se o
+   * chip reaparecer sem o backend recortar, é aqui que tem de gritar.
+   */
+  it('o motorista NÃO vê o chip de documentos enquanto /alertas não recorta por motorista (FEAT-0178)', () => {
     const host = render('DRIVER');
 
-    const targets = chipTargets(host);
-    expect(targets).toEqual(['/alertas']);
-    expect(guardAdmits('/alertas')).toBe(true);
-    // e o chip está mesmo na tela, com o rótulo dele
-    expect(host.textContent).toContain('Documentos a vencer');
+    expect(chipTargets(host)).toEqual([]);
+    // A razão de esconder: o guard recusa o destino. As duas pontas concordam.
+    expect(guardAdmits('/alertas')).toBe(false);
+    expect(host.textContent).not.toContain('Documentos a vencer');
   });
 
   it('sem o alerta de documentos, o motorista não fica com uma faixa VAZIA no lugar', () => {
@@ -348,10 +380,17 @@ describe('DashboardHome — o que a tela oferece é o que o guard aceita', () =>
   });
 
   // ------------------------------------------------- omissão não vira permissão
+  /*
+   * Segue a inversão acima (FEAT-0108, 2026-09-25): sessão sem token é tratada
+   * como não-operador, e não-operador deixou de ver o chip de documentos. A
+   * regra afirmada é a mesma de antes — omissão não vira permissão —, só que
+   * agora ela nega também o único chip que escapava. Volta a `['/alertas']`
+   * quando o FEAT-0178 fechar a dívida.
+   */
   it('token ausente é tratado como não-operador, como faz o roleGuard', () => {
     const host = render(null);
 
     expect(quickActionTargets(host)).toEqual([]);
-    expect(chipTargets(host)).toEqual(['/alertas']);
+    expect(chipTargets(host)).toEqual([]);
   });
 });

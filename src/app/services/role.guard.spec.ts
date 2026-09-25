@@ -190,8 +190,16 @@ describe('roleGuard - mensagem de negacao (FIX-0387)', () => {
     expect(toast.duration).toBeGreaterThan(5000);
   });
 
-  it('rota de OWNER+MANAGER negada a um DRIVER nomeia os DOIS papeis', () => {
-    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+  /*
+   * FEAT-0108 — este teste usava um DRIVER para provar que a frase nomeia os
+   * DOIS papeis. O DRIVER passou a ler mensagem PROPRIA (uma so notificacao por
+   * evento de recusa), entao o invariante do FIX-0387 se prova com VIEWER, que e
+   * o outro papel fora da rota. O caso do motorista esta especificado no bloco
+   * 'FEAT-0108' no fim do arquivo. O que se afirma aqui e o que se afirmava
+   * antes: a frase nomeia os dois donos da area.
+   */
+  it('rota de OWNER+MANAGER negada a outro papel nomeia os DOIS papeis', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'VIEWER' }));
 
     run(['OWNER', 'MANAGER'], '/veiculos');
 
@@ -270,5 +278,131 @@ describe('roleGuard - mensagem de negacao (FIX-0387)', () => {
     run(['OWNER'], '/billing?plano=pro');
 
     expect(messages()[0]).toContain('Assinatura e cobran\u00e7a');
+  });
+});
+
+/**
+ * FEAT-0108 — a casca do motorista, e o CONTRAPESO da decisao.
+ *
+ * Duas coisas foram decididas ao reparentar este trabalho sobre o develop, e as
+ * duas sao testadas nos DOIS sentidos, porque um teste que so prova a metade
+ * nova deixa a metade que ja estava certa sem guarda:
+ *
+ * 1. O DRIVER le mensagem PROPRIA, que nomeia o destino REAL. A do FIX-0387
+ *    termina em "voce voltou ao painel" e o motorista NAO vai para o painel —
+ *    reaproveitar aquele texto seria descrever errado o que aconteceu.
+ * 2. UMA notificacao por evento de recusa. Combinar as duas mensagens nao daria
+ *    mais informacao; daria ruido que faz nao ler nenhuma.
+ *
+ * E o que NAO pode mudar: OWNER e MANAGER continuam lendo a frase do FIX-0387
+ * BYTE A BYTE, e continuam sendo mandados ao painel. O FIX-0387 esta em
+ * producao e foi pedido pelo dono.
+ */
+describe('roleGuard - FEAT-0108: casca do motorista', () => {
+  const encodePayload = (payload: Record<string, unknown>): string => {
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const buildToken = (payload: Record<string, unknown>): string =>
+    `${encodePayload({ alg: 'HS256', typ: 'JWT' })}.${encodePayload(payload)}.sig`;
+
+  function run(allowed: string[], url: string): boolean | UrlTree {
+    const state = { url } as RouterStateSnapshot;
+    return TestBed.runInInjectionContext(
+      () => roleGuard(allowed)(null as never, state) as boolean | UrlTree,
+    );
+  }
+
+  function messages(): string[] {
+    return TestBed.inject(NotificationService)
+      .notifications()
+      .map((n) => n.message);
+  }
+
+  function target(result: boolean | UrlTree): string {
+    return TestBed.inject(Router).serializeUrl(result as UrlTree);
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [SessionService] });
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('desvia o motorista recusado para a casa DELE, nao para o painel que o recusa', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+
+    expect(target(run(['OWNER', 'MANAGER'], '/veiculos'))).toBe('/alugueis');
+  });
+
+  it('a mensagem do motorista nomeia o destino REAL, nao o painel', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+
+    run(['OWNER', 'MANAGER'], '/veiculos');
+
+    const [message] = messages();
+    expect(message).toContain('os aluguéis');
+    expect(message).not.toContain('painel');
+  });
+
+  /** O evento e um so: duas notificacoes seria o defeito, nao o dobro da ajuda. */
+  it('o motorista recebe UMA notificacao, nao duas', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+
+    run(['OWNER', 'MANAGER'], '/veiculos');
+
+    expect(messages()).toHaveLength(1);
+  });
+
+  it('o motorista NAO recebe a frase do FIX-0387 junto da dele', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+
+    run(['OWNER', 'MANAGER'], '/veiculos');
+
+    expect(messages()[0]).not.toContain('Fale com o proprietário');
+  });
+
+  /*
+   * O CONTRAPESO, e o teste mais importante deste bloco: a frase que OWNER e
+   * MANAGER leem hoje em producao esta afirmada INTEIRA. Se um caractere dela
+   * mudar — inclusive "voce voltou ao painel", que e o trecho que a decisao do
+   * motorista deixou de reaproveitar — este teste fica vermelho.
+   */
+  it('a frase do MANAGER continua identica, caractere por caractere', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/billing');
+
+    expect(messages()[0]).toBe(
+      'Assinatura e cobrança: área exclusiva do proprietário. ' +
+        'Seu acesso nesta empresa é de gerente, por isso você voltou ao painel. ' +
+        'Fale com o proprietário se precisar entrar.',
+    );
+  });
+
+  it('OWNER e MANAGER continuam indo para o painel', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    expect(target(run(['OWNER'], '/billing'))).toBe('/dashboard');
+  });
+
+  it('a recusa do MANAGER continua avisando — a mensagem nao desapareceu', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'MANAGER' }));
+
+    run(['OWNER'], '/billing');
+
+    expect(messages()).toHaveLength(1);
+  });
+
+  it('o motorista entra onde o escopo dele alcanca', () => {
+    sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
+
+    expect(run(['OWNER', 'MANAGER', 'DRIVER'], '/alugueis')).toBe(true);
+    expect(messages()).toHaveLength(0);
   });
 });

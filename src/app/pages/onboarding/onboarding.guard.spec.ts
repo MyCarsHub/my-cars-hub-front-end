@@ -52,12 +52,25 @@ describe('onboardingGuard (PLATFORM_ADMIN bypass)', () => {
     expect(onboarding.loadState).not.toHaveBeenCalled();
   });
 
-  it('onboardingCompleteGuard redirects PLATFORM_ADMIN to /dashboard', () => {
+  /*
+   * THIS ASSERTION CHANGED SIDES on 2026-09-25 (FIX-0579). It used to assert
+   * '/dashboard', and it named that destination in its own title.
+   *
+   * Why the destination moved: /dashboard acquired roleGuard(['OWNER','MANAGER']).
+   * A PLATFORM_ADMIN has no company role, so sending him there landed him on a
+   * route that refuses him and forwards to /admin anyway. It terminated in two
+   * hops, so it was never a loop - but the first hop was a refusal, which
+   * app.routes.redirect-termination.spec.ts asserts against. One hop now.
+   *
+   * The other two assertions are untouched: it still returns a UrlTree, and it
+   * still must not touch loadState.
+   */
+  it('onboardingCompleteGuard redirects PLATFORM_ADMIN to /admin', () => {
     session.isPlatformAdmin.mockReturnValue(true);
     const router = TestBed.inject(Router);
     const result = run(onboardingCompleteGuard);
     expect(result).toBeInstanceOf(UrlTree);
-    expect(router.serializeUrl(result as UrlTree)).toBe('/dashboard');
+    expect(router.serializeUrl(result as UrlTree)).toBe('/admin');
     expect(onboarding.loadState).not.toHaveBeenCalled();
   });
 });

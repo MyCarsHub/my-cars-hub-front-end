@@ -173,15 +173,28 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
    * `mustOffer` fecha a segunda direção: sem ele, um menu que tratasse todo
    * mundo como motorista passaria — ele nunca oferece rota recusada.
    */
+  /*
+   * FEAT-0108, 2026-09-25 — a sonda mudou, o invariante NAO. O que se afirma
+   * aqui continua sendo "TOKEN VENCE ESPELHO".
+   *
+   * `/dashboard` era a sonda de "o menu nao encolheu" porque era o unico item
+   * SEM trava de papel: aparecia para todos, inclusive para o papel do espelho.
+   * A casca do motorista poe `roles` nele, entao ele deixou de discriminar
+   * qualquer coisa. Sonda que nao discrimina nao defende invariante.
+   *
+   * `mustNotOffer` e a metade que faz a sonda FALHAR se o espelho vencer: com
+   * token DRIVER e espelho OWNER, um menu lido do espelho ofereceria `/billing`.
+   * Sem essa metade, um menu generoso demais passaria.
+   */
   const CASES = [
-    { tokenRole: 'DRIVER', mirrorRole: 'OWNER', mustOffer: '/dashboard' },
-    { tokenRole: 'MANAGER', mirrorRole: 'DRIVER', mustOffer: '/alugueis' },
-    { tokenRole: 'OWNER', mirrorRole: 'DRIVER', mustOffer: '/billing' },
+    { tokenRole: 'DRIVER', mirrorRole: 'OWNER', mustOffer: '/alugueis', mustNotOffer: '/billing' },
+    { tokenRole: 'MANAGER', mirrorRole: 'DRIVER', mustOffer: '/veiculos', mustNotOffer: '/billing' },
+    { tokenRole: 'OWNER', mirrorRole: 'DRIVER', mustOffer: '/billing', mustNotOffer: null },
   ] as const;
 
   it.each(CASES)(
-    'IGUALDADE: token $tokenRole + espelho $mirrorRole — nenhuma rota do menu é recusada pelo guard, e $mustOffer é oferecida',
-    ({ tokenRole, mirrorRole, mustOffer }) => {
+    'IGUALDADE: token $tokenRole + espelho $mirrorRole — nenhuma rota do menu é recusada pelo guard, oferece $mustOffer e não oferece $mustNotOffer',
+    ({ tokenRole, mirrorRole, mustOffer, mustNotOffer }) => {
       seedDivergentSession(tokenRole, mirrorRole);
 
       const offered = offeredRoutes();
@@ -191,6 +204,11 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
       expect(bounced).toEqual([]);
       // Ponta 2 — e o menu não encolheu: o papel do TOKEN manda nas duas vias.
       expect(offered).toContain(mustOffer);
+      // Ponta 3 — e não CRESCEU para o papel do espelho. É esta que fica
+      // vermelha se alguém voltar a ler `selectedTenant().role`.
+      if (mustNotOffer) {
+        expect(offered).not.toContain(mustNotOffer);
+      }
     },
   );
 
@@ -207,10 +225,14 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
 
     const offered = offeredRoutes();
 
-    // Se o menu voltar a ler `selectedTenant().role`, estas duas invertem.
-    expect(offered).not.toContain('/alugueis');
+    // Se o menu voltar a ler `selectedTenant().role`, estas invertem.
+    // FEAT-0108, 2026-09-25 — o menu do motorista passou a ter forma PROPRIA:
+    // `/alugueis` entrou (e a casa dele) e `/dashboard` saiu (a API responde 403
+    // para esse papel). Antes desta data o motorista nao tinha portal nenhum, e
+    // a ausencia de `/alugueis` descrevia essa ausencia, nao uma regra.
+    expect(offered).toContain('/alugueis');
     expect(offered).not.toContain('/veiculos');
-    expect(offered).toContain('/dashboard');
+    expect(offered).not.toContain('/dashboard');
     expect(offered).toContain('/perfil');
   });
 
@@ -228,9 +250,17 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
 
     const offered = offeredRoutes();
 
+    // FEAT-0108, 2026-09-25 — INVERSAO DELIBERADA, e o nome do teste sempre quis
+    // dizer isto. A assercao antiga afirmava que a shell SEM TOKEN ainda oferecia
+    // `/dashboard`, o unico item que nao tinha trava de papel. Mas menu oferecido
+    // sem token e menu cujos itens levam todos a 403 ou ao redirect de login:
+    // mostra-lo revela a ESTRUTURA do produto a quem nao autenticou e promete
+    // navegacao que nao existe. Ausencia de papel virava permissao na forma mais
+    // benigna possivel — um item de menu —, e foi por isso que passou batido.
+    // NAO "restaure" o comportamento antigo achando que conserta regressao.
     expect(offered).not.toContain('/alugueis');
     expect(offered).not.toContain('/billing');
-    expect(offered).toContain('/dashboard');
+    expect(offered).not.toContain('/dashboard');
   });
 
   // ------------------------------------------------ a troca de empresa reavalia
@@ -239,7 +269,13 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
     const fixture = TestBed.createComponent(Sidebar);
     fixture.detectChanges();
     const menu = menuOf(fixture);
-    expect(menu.navItems().map((item) => item.route)).not.toContain('/alugueis');
+    // A sonda saiu de `/alugueis` para `/dashboard`: o motorista passou a TER
+    // `/alugueis`, entao ele nao distingue mais os dois papeis, enquanto
+    // `/dashboard` passou a distinguir exatamente por ter ganhado trava de papel.
+    // (`/veiculos` nao serve aqui: e filho de grupo, e este teste le so os itens
+    // de primeiro nivel.) O mecanismo sob teste — o menu reavalia quando o sinal
+    // do tenant muda — e o mesmo de antes.
+    expect(menu.navItems().map((item) => item.route)).not.toContain('/dashboard');
 
     // É a ordem real do `layout.store.ts`: o token novo chega ANTES de o
     // tenant ser gravado. Um menu que só olhasse o token, sem depender do
@@ -248,7 +284,7 @@ describe('Sidebar — o papel do menu vem da MESMA fonte do roleGuard', () => {
     TestBed.inject(LayoutStore).selectedTenant.set({ ...tenant('OWNER'), id: 't-2' });
     fixture.detectChanges();
 
-    expect(menu.navItems().map((item) => item.route)).toContain('/alugueis');
+    expect(menu.navItems().map((item) => item.route)).toContain('/dashboard');
   });
 
   it('a sessão de verdade não diverge: espelho e token concordando dão o mesmo menu', () => {
