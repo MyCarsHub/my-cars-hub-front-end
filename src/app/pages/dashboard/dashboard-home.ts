@@ -307,13 +307,26 @@ export class DashboardHome {
         const a = this.summary()?.alerts;
         if (!a) return false;
         /**
-         * FEAT-0146 — para quem não é operador, só o chip de documentos conta:
-         * é o único que não leva a rota de `roleGuard`. Sem isto a faixa
-         * abriria com os contadores dos OUTROS chips e, como todos eles estão
-         * travados, renderizaria uma seção VAZIA na tela do motorista — um
-         * buraco no lugar de um alerta.
+         * FEAT-0146 — para quem não é operador, TODO chip desta faixa leva a uma
+         * rota de `roleGuard`, então a faixa inteira sai. Deixá-la abrir
+         * renderizaria uma seção VAZIA na tela — um buraco no lugar de um alerta.
+         *
+         * DÍVIDA TÉCNICA, NÃO REGRA DE PRODUTO (FEAT-0108, 2026-09-25).
+         *
+         * O dono decidiu o contrário do que este código faz: o motorista DEVE
+         * ver os alertas de CNH e dos documentos DELE. O que impede é o backend,
+         * não o produto — `DocumentAlertService.listDocumentAlerts` recorta só
+         * por EMPRESA (`requireTenant()` → `findDocumentAlerts(companyId, …)`) e
+         * não tem recorte por motorista. Abrir `/alertas` ao DRIVER hoje faria
+         * cada motorista ver a CNH de todos os outros e o CRLV de toda a frota:
+         * vazamento de tenant, não lacuna de escopo.
+         *
+         * Abrir a rota NÃO é recortar o dado. O nó que der escopo por motorista
+         * ao endpoint de alertas remove esta trava e o `isOperator()` do chip de
+         * documentos em `dashboard-home.html`; até ele existir, esconder é o
+         * comportamento correto.
          */
-        if (!this.isOperator()) return (a.docsExpiring7d?.count ?? 0) > 0;
+        if (!this.isOperator()) return false;
         return (
             a.openFines.count > 0 ||
             a.openMaintenances.count > 0 ||

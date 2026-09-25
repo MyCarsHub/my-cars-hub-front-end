@@ -42,15 +42,25 @@
         chip, tocava e o guard o devolvia para cá — a tela recarregando nela
         mesma, sem erro e sem explicação.
 
-        >>> O chip de "Documentos a vencer" NÃO é travado, de propósito: ele vai
-        para `/alertas`, que não tem `roleGuard`. O motorista PODE abrir, então
-        esconder seria trocar um defeito por outro — é a única coisa acionável
-        que esta tela oferece a ele. <<<
+        FEAT-0108 (2026-09-25) — o chip de "Documentos a vencer" PASSOU a ser
+        travado. Ele era a exceção porque `/alertas` não tinha `roleGuard` e o
+        motorista podia abrir; agora tem, porque `/v1/alerts` não está na lista
+        de permitidos do `DriverReadScopePolicy` e a tela era 403 inteira.
+
+        >>> ISTO É DÍVIDA TÉCNICA COM DATA, NÃO REGRA DE PRODUTO. O dono decidiu
+        que o motorista DEVE ver os alertas de CNH e documento DELE. O que
+        impede é o backend: `DocumentAlertService.listDocumentAlerts` recorta só
+        por empresa, sem recorte por motorista, então abrir a rota hoje mostraria
+        a CNH de todos os motoristas e o CRLV de toda a frota a cada um deles.
+        Abrir a rota não é recortar o dado. Quando o endpoint ganhar escopo por
+        motorista, remova o `isOperator()` daqui e a trava em
+        `dashboard-home.ts` (`showAlerts`). Ver o bloco lá para o raciocínio
+        completo. <<<
     -->
     @if (showAlerts()) {
         @if (summary(); as s) {
             <section class="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 mb-4">
-                @if (s.alerts.docsExpiring7d?.count; as docsExpiringCount) {
+                @if (isOperator() && s.alerts.docsExpiring7d?.count; as docsExpiringCount) {
                     <app-alert-chip
                         variant="danger"
                         label="Documentos a vencer (7d)"
