@@ -17,6 +17,7 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
+import { InvitesService } from '../../services/invites.service';
 import { DriverDocumentsCard } from './driver-documents-card';
 import { DriverResponse, DriverStatus } from '../../types/driver.types';
 import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
@@ -43,6 +44,7 @@ export class DriverDetail implements OnInit {
   private readonly rentalService = inject(RentalService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
+  private readonly invites = inject(InvitesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -54,6 +56,43 @@ export class DriverDetail implements OnInit {
   protected readonly toggleStatusOpen = signal(false);
   protected readonly togglingStatus = signal(false);
   protected readonly actionError = signal<string | null>(null);
+  protected readonly inviting = signal(false);
+
+  /**
+   * FEAT — o convite de motorista NASCE DO CADASTRO.
+   *
+   * Um convite de DRIVER só é aceito se já existir cadastro de motorista naquela
+   * empresa com aquele e-mail de CONTATO: o aceite faz o vínculo por
+   * `contacts.email`. Convidar a partir de um motorista que já existe elimina o
+   * estado impossível por construção — foi exatamente ele que quebrou em
+   * produção (convite aceito, transação revertida, convite eternamente PENDING,
+   * reenviar nunca resolvendo).
+   *
+   * Por isso o e-mail usado é SEMPRE `contact.email` do cadastro, e nunca um
+   * digitado à parte: um convite com e-mail diferente do contato recria o mesmo
+   * defeito.
+   */
+  protected readonly inviteState = computed<'ready' | 'no-email' | 'linked'>(() => {
+    const d = this.driver();
+    if (d?.userId) return 'linked';
+    return d?.contact?.email?.trim() ? 'ready' : 'no-email';
+  });
+
+  /**
+   * Por que uma frase e não um botão escondido: um botão que some é
+   * indistinguível de uma tela quebrada. Quem olha precisa saber POR QUE não
+   * pode convidar e o que fazer a respeito.
+   */
+  protected readonly inviteBlockedReason = computed<string | null>(() => {
+    switch (this.inviteState()) {
+      case 'no-email':
+        return 'Este motorista não tem e-mail cadastrado no contato. Edite o cadastro e informe um e-mail para poder convidá-lo.';
+      case 'linked':
+        return 'Este motorista já tem acesso ao aplicativo.';
+      default:
+        return null;
+    }
+  });
 
   protected readonly rentals = signal<RentalListItemDto[]>([]);
   protected readonly rentalsLoading = signal(false);
@@ -121,6 +160,38 @@ export class DriverDetail implements OnInit {
       this.load(id);
       this.loadRentals(id);
     }
+  }
+
+  protected invite(): void {
+    const d = this.driver();
+    const email = d?.contact?.email?.trim();
+    if (!email || this.inviting() || this.inviteState() !== 'ready') return;
+
+    this.inviting.set(true);
+    this.actionError.set(null);
+
+    // Reusa o MESMO service da tela de convites: duplicar a criação aqui faria
+    // as duas telas divergirem no contrato sem ninguém perceber.
+    this.invites.create({ email, role: 'DRIVER', name: d?.name ?? undefined }).subscribe({
+      next: () => {
+        this.inviting.set(false);
+        this.notifications.success(`Convite enviado para ${email}.`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.inviting.set(false);
+        /*
+         * A mensagem vem do SERVIDOR, não de um mapa local. Medido no backend:
+         * o 409 da criação tem duas causas com textos próprios — "Já existe um
+         * convite pendente para o e-mail: <e-mail>" e "Este usuário já é membro
+         * da empresa." O 409 do mapa de convites diz "mudou de status enquanto
+         * você agia sobre ele", que descreve ação sobre convite EXISTENTE e
+         * estaria errado aqui.
+         */
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível enviar o convite.'),
+        );
+      },
+    });
   }
 
   private load(id: string): void {
