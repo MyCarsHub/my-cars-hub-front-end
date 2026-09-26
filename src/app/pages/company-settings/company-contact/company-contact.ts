@@ -24,6 +24,7 @@ import { clearServerErrors } from '../../../services/api-error';
 import { CepLookupResult, CepService } from '../../../services/cep.service';
 import { CompanyContactService } from '../../../services/company-contact.service';
 import { NotificationService } from '../../../services/notification.service';
+import { SessionService } from '../../../services/session.service';
 import {
   CompanyContactPayload,
   CompanyContactSnapshot,
@@ -156,6 +157,50 @@ export class CompanyContact implements OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sessionService = inject(SessionService);
+
+  /**
+   * FIX-0623 — quem pode SALVAR esta tela.
+   *
+   * `PUT /v1/companies/me` passa por `RoleGuard.assertCompanyOwnerRole` no
+   * servidor: OWNER e so OWNER. A ausencia do bypass ali e deliberada e esta
+   * pinada pelo FIX-0505 — nao e lapso que vai ser afrouxado depois.
+   *
+   * Esta pagina nao tem item de menu: so se chega digitando a URL. Quem chegar
+   * sem ser OWNER encontrava o formulario INTEIRO e so descobria o 403 no
+   * clique de salvar, depois de preencher onze campos. A tela agora nao OFERECE
+   * o que o servidor vai recusar — mesmo molde da irma `company-settings.ts`.
+   *
+   * Isto e recorte de UI, NAO controle de acesso, e a distincao e o que faz o
+   * recorte continuar valendo quando o guard de rota muda: quem barra o acesso
+   * e o backend, e a regra acima ("so OWNER salva") nao depende de qual papel o
+   * `roleGuard` de `/configuracoes` admite hoje. Deliberadamente escrito sem
+   * afirmar isso — o FEAT-0228 abre a area ao MANAGER, e um comentario que
+   * fixasse o papel do guard nasceria com data de validade.
+   *
+   * O recorte e a pagina toda porque o `PUT` substitui o bloco de contato
+   * INTEIRO: nao existe metade salvavel para deixar de pe.
+   *
+   * O papel vem do TOKEN, nunca do espelho `selectedRole` do `sessionStorage`:
+   * o espelho e editavel pelo DevTools e fica stale numa troca de empresa.
+   * Papel nulo (token ausente ou sem claim) NAO vira permissao por omissao.
+   */
+  /*
+   * Avaliado UMA vez, na construcao, e isso e suficiente — nao por descuido.
+   *
+   * Nao virou `computed()` de proposito: `getCompanyRoleFromToken()` le o
+   * `sessionStorage` direto, nao um signal. Um `computed` sem dependencia
+   * reativa cachearia na primeira leitura e se comportaria IGUAL a isto, com a
+   * aparencia de ser reativo — reasseguranca falsa, que e pior que a linha
+   * honesta.
+   *
+   * O que torna uma leitura so bastante: trocar de empresa reemite o token e
+   * NAVEGA, e esta pagina e lazy — a instancia morre e a proxima le o token
+   * novo. Se algum dia a troca passar a acontecer SEM navegar, o padrao correto
+   * esta no `menuRole` da sidebar: um `computed` que le o signal do tenant como
+   * GATILHO de reexecucao e devolve o papel do token.
+   */
+  protected readonly isOwner = this.sessionService.getCompanyRoleFromToken() === 'OWNER';
 
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
@@ -378,6 +423,9 @@ export class CompanyContact implements OnInit {
   private cepRetryFromButton = false;
 
   ngOnInit(): void {
+    // Sem formulario nao ha o que preencher, entao o GET nem sai: seria uma
+    // requisicao cuja resposta nao teria onde aterrissar.
+    if (!this.isOwner) return;
     this.watchCepQueries();
     this.reload();
   }
