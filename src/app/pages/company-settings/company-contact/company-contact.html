@@ -5,7 +5,23 @@
   <app-back-link link="/configuracoes" label="Voltar para Configurações" placement="top" />
 
   <div class="space-y-4 sm:space-y-6">
-    @if (loading()) {
+    <!--
+      FIX-0623 — quem chega aqui sem ser OWNER (nao ha item de menu: so por URL)
+      nao pode salvar: `PUT /v1/companies/me` e OWNER-only no servidor. Em vez do
+      formulario inteiro que so revelaria o 403 no clique de salvar, ele le a
+      frase que explica de quem e a tela. Nao e controle de acesso — e a tela
+      nao oferecer o que o servidor vai recusar.
+    -->
+    @if (!isOwner) {
+      <app-alert-banner
+        variant="info"
+        message="Os dados de contato da empresa são editados apenas pelo proprietário."
+      />
+      <p class="text-sm text-neutral-600">
+        Você continua com acesso às Configurações; só este bloco é exclusivo do proprietário,
+        porque é ele que identifica a empresa nos contratos gerados.
+      </p>
+    } @else if (loading()) {
       <div class="space-y-3" aria-hidden="true">
         <div class="h-32 rounded-xl bg-neutral-100 animate-pulse"></div>
         <div class="h-64 rounded-xl bg-neutral-100 animate-pulse"></div>
