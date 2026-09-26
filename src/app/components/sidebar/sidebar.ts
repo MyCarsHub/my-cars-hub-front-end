@@ -133,6 +133,19 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ['OWNER', 'MANAGER'],
       },
       { route: '/multas', label: 'Multas', icon: ICON_FINES, roles: ['OWNER', 'MANAGER'] },
+      {
+        route: '/sinistros',
+        label: 'Sinistros',
+        icon: ICON_INCIDENTS,
+        roles: ['OWNER', 'MANAGER'],
+      },
+      {
+        route: '/financiamentos',
+        label: 'Financiamentos',
+        icon: ICON_FINANCING,
+        roles: ['OWNER', 'MANAGER'],
+      },
+      { route: '/seguros', label: 'Seguros', icon: ICON_INSURANCE, roles: ['OWNER', 'MANAGER'] },
     ],
   },
   {
