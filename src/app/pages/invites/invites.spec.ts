@@ -10,6 +10,7 @@ import { Invites } from './invites';
 import { ApiErrorService } from '../../services/api-error.service';
 import { InvitesService } from '../../services/invites.service';
 import { NotificationService } from '../../services/notification.service';
+import { INVITE_TTL_DAYS } from '../../types/invite.types';
 import type { InviteResponse } from '../../types/invite.types';
 
 /**
@@ -371,5 +372,27 @@ describe('Invites — envio e gestão de convites', () => {
       expect(component.inviteForm.valid).toBe(false); // e-mail vazio
       expect(component.inviteForm.get('cpf')?.errors).toBeNull();
     });
+  });
+
+  /**
+   * A copy do formulário PROMETE uma janela de validade, e essa janela é do backend
+   * (`InvitesService.INVITE_TTL_DAYS`). Nenhuma resposta a expõe, então o frontend a
+   * espelha em `INVITE_TTL_DAYS` — e este teste falha se alguém voltar a digitar um número
+   * ou uma unidade direto na frase, que é como a tela passou a prometer 24 horas enquanto
+   * o convite durava 7 dias.
+   *
+   * LIMITE DESTE TESTE: ele prova que a frase e o espelho não divergem. Ele NÃO prova que
+   * o espelho acompanha o backend — isso é de `InvitesServiceTest`, que afirma a janela no
+   * aceite.
+   */
+  it('a validade prometida no formulário é a do TTL espelhado, e em dias', () => {
+    const { fixture } = render();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    const promised = /vale por\s+(\d+)\s+(horas?|dias?)/.exec(text);
+
+    expect(promised).not.toBeNull();
+    expect(Number(promised?.[1])).toBe(INVITE_TTL_DAYS);
+    expect(promised?.[2]).toMatch(/^dias?$/);
   });
 });

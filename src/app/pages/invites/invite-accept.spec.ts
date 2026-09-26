@@ -12,6 +12,7 @@ import { InvitesService } from '../../services/invites.service';
 import { LoginService } from '../../services/loginService';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
+import { INVITE_TTL_DAYS } from '../../types/invite.types';
 import type { AcceptInviteResponse, ValidateInviteResponse } from '../../types/invite.types';
 
 /**
@@ -748,5 +749,23 @@ describe('InviteAccept — página pública de aceite', () => {
       expect(accept).not.toHaveBeenCalled();
       expect((fixture.nativeElement as HTMLElement).querySelector('#invite-cpf')).not.toBeNull();
     });
+  });
+
+  /**
+   * A tela pública também PROMETE a janela de validade, e `GET /invites/validate/{token}`
+   * não devolve expiração nenhuma — então a frase espelha `INVITE_TTL_DAYS`. Este teste
+   * falha se o número ou a unidade voltar a ser digitado na copy.
+   *
+   * LIMITE: prova que frase e espelho concordam, não que o espelho acompanha o backend.
+   */
+  it('a validade prometida ao convidado é a do TTL espelhado, e em dias', () => {
+    const { fixture } = render('raw-token');
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    const promised = /vale por\s+(\d+)\s+(horas?|dias?)/.exec(text);
+
+    expect(promised).not.toBeNull();
+    expect(Number(promised?.[1])).toBe(INVITE_TTL_DAYS);
+    expect(promised?.[2]).toMatch(/^dias?$/);
   });
 });

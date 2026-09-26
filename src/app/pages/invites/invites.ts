@@ -12,7 +12,12 @@ import { clearServerErrors } from '../../services/api-error';
 import { InvitesService } from '../../services/invites.service';
 import { NotificationService } from '../../services/notification.service';
 import { inviteErrorCopy } from '../../services/invite-errors';
-import { InviteResponse, InviteRole, InviteStatus } from '../../types/invite.types';
+import {
+  INVITE_TTL_LABEL,
+  InviteResponse,
+  InviteRole,
+  InviteStatus,
+} from '../../types/invite.types';
 import { companyRoleLabel } from '../../utils/role-labels';
 import {
   applyMaskedDocumentInput,
@@ -74,7 +79,14 @@ interface InviteRow extends InviteResponse {
  *   raw token (by design), so the link itself can never be rebuilt here — resending is
  *   the only way to get a working link back to the invitee.
  *
- * Invites are valid for 24 hours. Do not write copy promising anything else.
+ * The validity window is the BACKEND's, and its name is `InvitesService.INVITE_TTL_DAYS`.
+ * No response carries it, so the frontend mirrors it ONCE in `INVITE_TTL_DAYS`
+ * (`types/invite.types.ts`) and the copy below interpolates `INVITE_TTL_LABEL`. Read the
+ * value from the constant, never from this comment: the previous version of this comment
+ * wrote the number down, the backend then changed it, and the screen went on promising a
+ * window that had stopped being true. The owner resent live invites because of it — which
+ * burns one of the 3 allowed resends and rotates the token, killing the link the invitee
+ * already has. If the backend TTL changes, change the constant and nothing else.
  */
 @Component({
   selector: 'app-invites',
@@ -107,6 +119,9 @@ export class Invites implements OnInit {
   /** Id of the invite whose row action is in flight — disables just that row. */
   protected readonly busyId = signal<string | null>(null);
   protected readonly pendingCancel = signal<InviteRow | null>(null);
+
+  /** Validity promised in the form copy — mirror of the backend TTL, never a typed number. */
+  protected readonly ttlLabel = INVITE_TTL_LABEL;
 
   protected readonly roles: ReadonlyArray<{ value: InviteRole; label: string }> = [
     { value: 'MANAGER', label: 'Gerenciador' },
