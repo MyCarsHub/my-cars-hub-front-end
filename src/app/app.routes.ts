@@ -534,30 +534,49 @@ export const routes: Routes = [
                         data: { pageTitle: 'Relatórios' },
                     },
                     {
-                        // TODA a área de Configurações é OWNER-only. O único
-                        // motivo para o MANAGER entrar aqui era a regra de multa
-                        // por devolução em atraso, que ele podia editar; essa
-                        // edição saiu do produto (a regra continua valendo e
-                        // sendo aplicada pelo backend, mas não tem mais tela).
-                        // Sem ela, sobrava para o MANAGER uma página só de
-                        // leitura com tudo escondido — então o acesso foi
-                        // fechado. Cada filho repete `OWNER` para que nenhum
-                        // guard filho afirme ser mais permissivo que o pai.
-                        // Isto é navegação: quem de fato barra a escrita é o
-                        // backend, que exige OWNER nesses endpoints.
+                        /*
+                         * FEAT-0228 — a área voltou para o MANAGER. A regra do
+                         * produto é uma só: **gerente é dono MENOS billing**.
+                         * Decisão do dono.
+                         *
+                         * O texto anterior ("TODA a área é OWNER-only", porque a
+                         * regra de multa por atraso perdeu a tela) era verdade e
+                         * deixou de ser. Substituído em vez de complementado: um
+                         * comentário que afirma o contrário do código abaixo dele
+                         * é pior que comentário nenhum.
+                         *
+                         * Cada filho repete `['OWNER', 'MANAGER']` — o pai é a
+                         * trava real, e o filho não pode AFIRMAR ser mais
+                         * permissivo que ela.
+                         *
+                         * ## O que o backend de fato permite (medido, não suposto)
+                         *
+                         * Convites (`InvitesService`), contratos
+                         * (`ContractTemplateService`) e integrações
+                         * (`CompanyAsaasIntegrationService`) já aceitam
+                         * OWNER **ou** MANAGER — esses três estão inteiros.
+                         *
+                         * A EXCEÇÃO é a aba Empresa (e `contato`): as duas gravam
+                         * por `PUT /v1/companies/me`, que passa por
+                         * `RoleGuard.assertCompanyOwnerRole` — OWNER-only no
+                         * backend. O MANAGER abre e LÊ (leitura é liberada a todo
+                         * membro), mas gravar responde 403. Abrir o guard aqui é o
+                         * que a decisão do dono manda; alinhar o backend é
+                         * FEAT-0228-BE, reportado como `depends-on`.
+                         */
                         path: 'configuracoes',
-                        canActivate: [roleGuard(['OWNER'])],
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [
                             {
                                 path: '',
                                 pathMatch: 'full',
                                 component: CompanySettings,
-                                canActivate: [roleGuard(['OWNER'])],
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 data: { pageTitle: 'Configurações' },
                             },
                             {
                                 path: 'integracoes',
-                                canActivate: [roleGuard(['OWNER'])],
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/integrations/integrations-hub'
@@ -566,7 +585,7 @@ export const routes: Routes = [
                             },
                             {
                                 path: 'integracoes/asaas',
-                                canActivate: [roleGuard(['OWNER'])],
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/integrations/asaas-integration'
@@ -586,10 +605,14 @@ export const routes: Routes = [
                                 // Configurações: o PUT substitui o bloco de
                                 // contato INTEIRO, então esta tela não pode
                                 // herdar a corrida de carregamento daquela.
-                                // OWNER-only para casar com o backend, que exige
-                                // OWNER em PUT /v1/companies/me.
+                                // FEAT-0228 — navegação aberta ao MANAGER com o
+                                // resto da área. A ESCRITA aqui continua
+                                // OWNER-only no backend
+                                // (`PUT /v1/companies/me` →
+                                // `RoleGuard.assertCompanyOwnerRole`): o gerente
+                                // lê, e salvar responde 403 até FEAT-0228-BE.
                                 path: 'contato',
-                                canActivate: [roleGuard(['OWNER'])],
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/company-contact/company-contact'
@@ -598,7 +621,7 @@ export const routes: Routes = [
                             },
                             {
                                 path: 'contratos',
-                                canActivate: [roleGuard(['OWNER'])],
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import(
                                         './pages/company-settings/contract-template/contract-template'
@@ -607,7 +630,7 @@ export const routes: Routes = [
                             },
                             {
                                 path: 'convites',
-                                canActivate: [roleGuard(['OWNER'])],
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                                 loadComponent: () =>
                                     import('./pages/invites/invites').then(
                                         (m) => m.Invites

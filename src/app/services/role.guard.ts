@@ -117,10 +117,31 @@ const driverDeniedMessage = (home: string): string => {
     return label ? `${DRIVER_SCOPE_MESSAGE} Você foi levado para ${label}.` : DRIVER_SCOPE_MESSAGE;
 };
 
+/**
+ * FIX-0607 — um `roleGuard` carrega os papeis que admite como DADO legivel
+ * (`allowedRoles`), e nao so como closure. E isso que torna a paridade
+ * nav-vs-guard verificavel: `sidebar-guard-parity.spec.ts` precisa achar, na
+ * arvore de rotas, QUAIS `canActivate` sao filtros de papel — os outros
+ * (`authGuard`, `onboardingGuard`, `billingAccessGuard`) negam por motivos que
+ * nada tem a ver com papel e fabricariam divergencia falsa se fossem rodados.
+ *
+ * O metadado so LOCALIZA o guard; quem responde "este papel entra?" continua
+ * sendo a execucao real do guard com um token real, como o
+ * `app.routes.roles.spec.ts` ja fazia. Comparar dois arrays por inspecao
+ * provaria que as listas casam, nao que o comportamento casa.
+ */
+export interface RoleGuardFn extends CanActivateFn {
+    readonly allowedRoles: readonly string[];
+}
+
+/** `true` para os `canActivate` que filtram por papel, e so para eles. */
+export const isRoleGuard = (guard: unknown): guard is RoleGuardFn =>
+    typeof guard === 'function' && Array.isArray((guard as Partial<RoleGuardFn>).allowedRoles);
+
 export const roleGuard = (
     allowedRoles: string[]
-): CanActivateFn => {
-    return (_route, state: RouterStateSnapshot) => {
+): RoleGuardFn => {
+    const guard: CanActivateFn = (_route, state: RouterStateSnapshot) => {
         const router = inject(Router);
         const sessionService = inject(SessionService);
         const notifications = inject(NotificationService);
@@ -181,4 +202,6 @@ export const roleGuard = (
 
         return router.createUrlTree([home]);
     };
+
+    return Object.assign(guard, { allowedRoles: [...allowedRoles] as readonly string[] });
 };
