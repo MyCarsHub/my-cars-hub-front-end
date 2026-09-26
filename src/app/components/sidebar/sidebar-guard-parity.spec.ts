@@ -121,8 +121,71 @@ describe('paridade nav x guard de rota', () => {
 
   const navRoutes = flattenNav(NAV_ITEMS).filter((item) => !item.requiresPlatformAdmin);
 
-  it('o nav nao esta vazio (guarda contra um teste que varre zero itens)', () => {
-    expect(navRoutes.length).toBeGreaterThan(10);
+  /**
+   * O INVENTARIO EXATO do menu — nao um piso.
+   *
+   * ## Por que isto existe, e por que a versao anterior nao servia
+   *
+   * A primeira versao deste teste era `expect(navRoutes.length)
+   * .toBeGreaterThan(10)` com 20 rotas reais. Ela existia para impedir que a
+   * varredura passasse a vazio, e para ISSO bastava. Nao bastou para o que
+   * aconteceu DE VERDADE: um commit capturou o arquivo com tres filhos de Frota
+   * removidos (Sinistros, Financiamentos, Seguros) e a suite inteira passou,
+   * 8 de 8. O produto perdeu tres telas da navegacao e nenhum teste piscou —
+   * 17 ainda e maior que 10.
+   *
+   * A licao generaliza: um PISO so detecta o desaparecimento TOTAL. Some um
+   * item, somem tres, some a metade — enquanto sobrar mais que o piso, o piso
+   * aprova. Como guarda anti-vacuidade estava certo; como guarda de inventario
+   * era cego, e era de inventario que se precisava.
+   *
+   * ## Por que a LISTA e nao a contagem
+   *
+   * Uma contagem exata (`toBe(20)`) pegaria aquele caso. Nao pega trocar uma
+   * rota por outra, que mantem o numero e muda o produto. E, quando quebra, um
+   * numero diz "era 20, virou 17" — a lista diz QUAIS tres sumiram, que e a
+   * unica forma que dispensa investigar.
+   *
+   * Este teste NAO opina sobre papeis; so sobre o que existe. Mexer no menu de
+   * proposito quebra aqui, e a correcao e atualizar esta lista no mesmo commit
+   * — deliberadamente uma decisao consciente, nao um verde automatico.
+   */
+  const EXPECTED_NAV_ROUTES: readonly string[] = [
+    '/dashboard',
+    '/alugueis',
+    '/veiculos',
+    '/manutencoes',
+    '/vistorias',
+    '/multas',
+    '/sinistros',
+    '/financiamentos',
+    '/seguros',
+    '/motoristas',
+    '/relatorios',
+    '/alertas',
+    '/roadmap',
+    '/billing',
+    '/configuracoes',
+    '/configuracoes/integracoes',
+    '/configuracoes/contratos',
+    '/configuracoes/convites',
+    '/suporte',
+    '/perfil',
+  ];
+
+  it('o menu tem EXATAMENTE as rotas esperadas — nem uma a menos', () => {
+    expect(navRoutes.map((item) => item.route)).toEqual(EXPECTED_NAV_ROUTES);
+  });
+
+  /**
+   * A forma da arvore, pela mesma razao: a lista acima achata pais e filhos, e
+   * sozinha nao veria um filho PROMOVIDO a item de topo (mesmas rotas, outro
+   * menu). Os numeros sao os da base medida por AST: 12 de topo, 11 filhos.
+   */
+  it('a arvore do menu mantem a forma: 12 itens de topo, 11 filhos', () => {
+    const children = NAV_ITEMS.reduce((total, item) => total + (item.children?.length ?? 0), 0);
+
+    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 12, filhos: 11 });
   });
 
   /**
