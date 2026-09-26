@@ -11,7 +11,7 @@ import { SessionService } from '../../services/session.service';
 import { TOUR_ANCHORS } from '../tour/tour.types';
 import { companyRoleLabel } from '../../utils/role-labels';
 
-interface NavItem {
+export interface NavItem {
   route?: string;
   label: string;
   icon: string;
@@ -79,7 +79,7 @@ const ICON_SUPPORT = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height=
  * lugar nenhum, então fica escrito aqui. O item `/admin` acima não depende de
  * papel de empresa e continua aparecendo.
  */
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { route: '/admin', label: 'Administração', icon: ICON_ADMIN, requiresPlatformAdmin: true },
   // FEAT-0108 — `/v1/dashboard/**` não está na lista de permitidos do FIX-0360:
   // para um DRIVER esta tela é 403 inteira, medido no backend por
@@ -156,10 +156,21 @@ const NAV_ITEMS: NavItem[] = [
     tourKey: TOUR_ANCHORS.drivers,
   },
   {
+    /*
+     * FIX-0607 — estava `roles: ['OWNER']` enquanto a rota rodava
+     * `roleGuard(['OWNER', 'MANAGER'])` (`app.routes.ts`, rota `relatorios`).
+     * O gerente TINHA a permissão e não via o item: chegava só digitando a URL.
+     * Não dava erro nenhum, e por isso ninguém reportou — a tela simplesmente
+     * não existia para ele.
+     *
+     * A paridade que este item quebrava agora é teste:
+     * `sidebar-guard-parity.spec.ts` varre NAV_ITEMS contra os guards reais e
+     * falha nos DOIS sentidos.
+     */
     route: '/relatorios',
     label: 'Relatórios',
     icon: ICON_REPORTS,
-    roles: ['OWNER'],
+    roles: ['OWNER', 'MANAGER'],
     tourKey: TOUR_ANCHORS.reports,
   },
   // Transversal (CNH, CRLV, seguro, financiamento) — fica fora do grupo "Frota".
@@ -180,32 +191,37 @@ const NAV_ITEMS: NavItem[] = [
     icon: ICON_SETTINGS,
     tourKey: TOUR_ANCHORS.settingsGroup,
     children: [
-      // "Avisos de vencimento" e "Devolução com atraso" saíram daqui: o primeiro
-      // virou seção de `/alertas`; o segundo saiu do produto — a regra da multa
-      // continua valendo, mas não tem mais tela. Sem ela, o MANAGER não tem mais
-      // o que fazer aqui: a área toda é OWNER-only (ver `roleGuard` de
-      // `/configuracoes` em `app.routes.ts`). Como o grupo é descartado quando
-      // nenhum filho passa, marcar os filhos basta para o MANAGER nunca ver
-      // "Configurações" — e assim nenhum link leva a um guard que o rejeita.
+      // FEAT-0228 — esta área VOLTOU para o MANAGER: a regra do produto agora é
+      // uma só, **gerente é dono MENOS billing**. Decisão do dono.
+      //
+      // O texto anterior ("a área toda é OWNER-only", porque a regra de multa
+      // por atraso perdeu a tela e sobrava só leitura) era verdade e deixou de
+      // ser. Substituído, não complementado: um comentário que afirma o
+      // contrário do código abaixo dele é pior que comentário nenhum.
+      //
+      // O que continua OWNER-only é `/billing` (Assinatura), acima — plano e
+      // cobrança, só ele. Não reintroduza `roles: ['OWNER']` nestes filhos
+      // achando que restaura o fix antigo: `sidebar-guard-parity.spec.ts`
+      // reprova, e os `roleGuard` de `app.routes.ts` mudaram junto.
       {
         route: '/configuracoes',
         label: 'Empresa',
         icon: ICON_COMPANY,
-        roles: ['OWNER'],
+        roles: ['OWNER', 'MANAGER'],
         exactMatch: true,
       },
       {
         route: '/configuracoes/integracoes',
         label: 'Integrações',
         icon: ICON_INTEGRATIONS,
-        roles: ['OWNER'],
+        roles: ['OWNER', 'MANAGER'],
         tourKey: TOUR_ANCHORS.integrations,
       },
       {
         route: '/configuracoes/contratos',
         label: 'Contratos',
         icon: ICON_COMPANY,
-        roles: ['OWNER'],
+        roles: ['OWNER', 'MANAGER'],
         tourKey: TOUR_ANCHORS.contractTemplate,
       },
       /*
@@ -217,9 +233,11 @@ const NAV_ITEMS: NavItem[] = [
        * quatro campos que fazem o convite de GERENTE funcionar. A razao da remocao
        * venceu; o atalho volta.
        *
-       * `roles: ['OWNER']` casa EXATAMENTE com o `roleGuard(['OWNER'])` da rota e
-       * com o do pai `/configuracoes` — nem mais, nem menos, entao o item nunca
-       * oferece porta que o guard bata na cara.
+       * FEAT-0228 atualizou o papel: `roles: ['OWNER', 'MANAGER']` casa com o
+       * `roleGuard(['OWNER', 'MANAGER'])` da rota e com o do pai
+       * `/configuracoes` — nem mais, nem menos, entao o item nunca oferece
+       * porta que o guard bata na cara. Quem prova a igualdade agora e
+       * `sidebar-guard-parity.spec.ts`, nao este paragrafo.
        *
        * Sem `tourKey` de proposito: as irmas tem porque estao no tour guiado, e
        * acrescentar um passo exigiria mexer em `TOUR_ANCHORS` e no servico do tour,
@@ -229,7 +247,7 @@ const NAV_ITEMS: NavItem[] = [
         route: '/configuracoes/convites',
         label: 'Convites',
         icon: ICON_INVITES,
-        roles: ['OWNER'],
+        roles: ['OWNER', 'MANAGER'],
       },
     ],
   },

@@ -14,14 +14,25 @@ import { routes } from './app.routes';
 import { SessionService } from './services/session.service';
 
 /**
- * Guards the access boundary of `/configuracoes`, which is OWNER-only.
+ * Guarda a fronteira de acesso de `/configuracoes` — hoje OWNER **e** MANAGER.
  *
- * MANAGER perdeu o acesso quando a regra de multa por atraso — o único motivo
- * para ele entrar aqui — saiu do produto. Estes testes executam os guards de
- * verdade, em vez de conferir o array `canActivate` por inspeção: um
- * `roleGuard(['OWNER', 'MANAGER'])` que reapareça em qualquer filho falha aqui.
+ * FEAT-0228 inverteu a regra que este arquivo prendia. O MANAGER tinha perdido
+ * a área quando a regra de multa por atraso saiu do produto; a decisão do dono
+ * devolveu tudo a ele exceto billing, então o que estas asserções travam mudou
+ * de lado: antes provavam que o gerente era BARRADO, agora provam que ele
+ * ENTRA — e que `/billing` seguiu sem ele.
  *
- * Vale só para navegação. Quem de fato barra escrita é o backend.
+ * Reescrito, não acrescentado: manter o `it` antigo ao lado do novo deixaria o
+ * arquivo afirmando as duas coisas, e um dos dois estaria sempre mentindo.
+ *
+ * Estes testes executam os guards de verdade, em vez de conferir o array
+ * `canActivate` por inspeção.
+ *
+ * Vale só para navegação. Quem de fato barra escrita é o backend — e lá a área
+ * NÃO é uniforme: convites, contratos e integrações aceitam OWNER|MANAGER, mas
+ * `PUT /v1/companies/me` (abas Empresa e Dados de contato) segue OWNER-only por
+ * `RoleGuard.assertCompanyOwnerRole`. Navegação aberta, escrita 403 até
+ * FEAT-0228-BE.
  *
  * FIX-0363 — este spec usa o SessionService REAL e um JWT de verdade, em vez de
  * um dublê com `getItem`. O dublê antigo devolvia `selectedRole` do
@@ -66,7 +77,7 @@ function collectGuards(route: Route, prefix: string): GuardedPath[] {
   return [...own, ...nested];
 }
 
-describe('/configuracoes é OWNER-only', () => {
+describe('/configuracoes admite OWNER e MANAGER', () => {
   let guards: GuardedPath[];
 
   beforeEach(() => {
@@ -120,13 +131,33 @@ describe('/configuracoes é OWNER-only', () => {
     }
   });
 
-  it('manda o MANAGER para o dashboard em toda a área', () => {
+  /**
+   * FEAT-0228 — o inverso exato do que este `it` afirmava. Se um
+   * `roleGuard(['OWNER'])` voltar a qualquer filho, falha aqui.
+   */
+  it('deixa o MANAGER entrar em toda a área', () => {
     for (const { path, guard } of guards) {
+      expect(runGuard(guard, 'MANAGER'), `MANAGER foi barrado em ${path}`).toBe(true);
+    }
+  });
+
+  /** A fronteira que FEAT-0228 NÃO move: plano e assinatura seguem do dono. */
+  it('mantém /billing fora do MANAGER', () => {
+    const billing = findRoute(routes, 'billing');
+    expect(billing, 'a rota `billing` sumiu da árvore').toBeDefined();
+
+    for (const { path, guard } of collectGuards(billing as Route, '')) {
       const result = runGuard(guard, 'MANAGER');
 
-      expect(result, `MANAGER ainda entra em ${path}`).not.toBe(true);
+      expect(result, `MANAGER entrou em ${path}`).not.toBe(true);
       const router = TestBed.inject(Router);
       expect(router.serializeUrl(result as UrlTree)).toBe('/dashboard');
+    }
+  });
+
+  it('continua mandando o DRIVER embora da área', () => {
+    for (const { path, guard } of guards) {
+      expect(runGuard(guard, 'DRIVER'), `DRIVER entrou em ${path}`).not.toBe(true);
     }
   });
 
@@ -136,7 +167,7 @@ describe('/configuracoes é OWNER-only', () => {
    */
   it('não deixa o selectedRole do armazenamento abrir a área', () => {
     for (const { path, guard } of guards) {
-      sessionStorage.setItem('token', tokenWithRole('MANAGER'));
+      sessionStorage.setItem('token', tokenWithRole('DRIVER'));
       sessionStorage.setItem('selectedRole', 'OWNER');
 
       const result = TestBed.runInInjectionContext(() =>
