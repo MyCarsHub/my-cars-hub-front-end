@@ -66,8 +66,31 @@ export class Profile implements OnInit, OnDestroy {
   protected readonly selectedCompanyName = computed(
     () => this.session.getItem('selectedCompanyName') ?? '—',
   );
+  /**
+   * Papel na empresa ativa, lido do TOKEN — a MESMA fonte do `roleGuard` e da
+   * trava de plano abaixo.
+   *
+   * FEAT-0230 — era `getItem('selectedRole')`, e era o ÚLTIMO espelho de papel
+   * do app (`rental-form`, `company-settings`, `tour.service`, `sidebar` e
+   * `dashboard-home` já leem o token). Este não abria porta nenhuma — é texto —,
+   * mas mostrava à pessoa um papel diferente do que o servidor aplica: o espelho
+   * é editável por DevTools e fica STALE na troca de empresa, e um papel exibido
+   * que discorda do efetivo transforma um 403 legítimo em mistério.
+   *
+   * `null` (token ausente, expirado ou sem o claim) cai no travessão e não em
+   * "Dono": omissão não vira papel, a mesma regra fail-closed de
+   * `session.service.ts:getCompanyRoleFromToken`.
+   *
+   * Na impersonação o token devolve `IMPERSONATED_ROLE`, que é exatamente o valor
+   * que `impersonation.service` grava no espelho — a sessão de suporte continua
+   * vendo o mesmo papel que via.
+   *
+   * NÃO confundir com `roleLabel(company.role)` da lista "Empresas com acesso":
+   * ali o papel é de CADA linha, não o da empresa ativa, e não há token de outra
+   * empresa para consultar.
+   */
   protected readonly selectedRole = computed(
-    () => this.session.getItem('selectedRole') ?? '—',
+    () => this.session.getCompanyRoleFromToken() ?? '—',
   );
 
   /**

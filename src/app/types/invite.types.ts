@@ -18,6 +18,31 @@ export type InviteRole = 'MANAGER' | 'DRIVER';
 export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED' | 'REVOKED';
 
 /**
+ * Dias que um convite continua valido — ESPELHO da constante do backend
+ * `InvitesService.INVITE_TTL_DAYS` (`my-cars-hub-back-end`, `origin/main @ 09f165f`).
+ *
+ * O TTL e decisao do backend e nenhuma rota o expoe: `GET /v1/invites` devolve o
+ * `expiresAt` de cada convite (e a lista mostra essa data real), mas os dois lugares que
+ * PROMETEM a janela nao tem de onde le-la — o formulario de envio fala antes de existir
+ * convite, e a tela publica de aceite so recebe `ValidateInviteResponse`, que nao carrega
+ * expiracao alguma. Por isso o numero e espelhado aqui, UMA vez.
+ *
+ * Se o TTL do backend mudar, mude esta constante e mais nada: as duas frases e os dois
+ * testes derivam dela. Nao redigite o numero num template nem num comentario — foi
+ * exatamente assim que a tela passou a prometer 24 horas depois que o backend ja tinha
+ * mudado a janela.
+ *
+ * A anotacao `: number` e LOAD-BEARING, nao e redundancia: sem ela o TypeScript estreita a
+ * constante para o tipo literal `7`, e o ternario de plural de `INVITE_TTL_LABEL` abaixo
+ * (`=== 1`) vira erro de compilacao TS2367 — "comparacao sem sobreposicao". Remove-la por
+ * parecer ruido quebra o build numa linha que nao parece ter relacao com esta.
+ */
+export const INVITE_TTL_DAYS: number = 7;
+
+/** `INVITE_TTL_DAYS` como copy pt-BR ("N dias"), para nenhuma frase fixar o numero. */
+export const INVITE_TTL_LABEL = `${INVITE_TTL_DAYS} ${INVITE_TTL_DAYS === 1 ? 'dia' : 'dias'}`;
+
+/**
  * Body of `POST /v1/invites`. The backend lowercases `email` before storing it.
  *
  * FEAT-0167 — `name`, `cpf` and `phone` are REQUIRED when `role` is MANAGER and IGNORED
