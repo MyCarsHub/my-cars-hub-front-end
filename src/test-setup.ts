@@ -27,9 +27,28 @@
  *
  * Limpa no inicio do ARQUIVO, de proposito, e nao a cada teste: um
  * `beforeEach` global apagaria o que specs legitimamente montam em `beforeAll`.
+ *
+ * ## O `localStorage` entra junto, e a assimetria de prova e deliberada
+ *
+ * O defeito medido foi no `sessionStorage`. O `localStorage` NAO tem defeito
+ * observado — tem a mesma ESTRUTURA: tres specs escrevem nele e tres servicos
+ * de producao leem (`rental-draft.service`, `consent.service`,
+ * `plan-intent.service`), sob o MESMO mecanismo habilitante, porque `isolate`
+ * tambem nao o resseta.
+ *
+ * Normalmente "existe" nao justifica mexer — existencia nao e comportamento.
+ * A excecao aqui foi decidida, e o criterio e este: a estrutura ja esta
+ * MEDIDA (nao suposta), o mecanismo e identico ao que acabou de custar um
+ * ciclo de release, e a correcao e a mesma linha num arquivo que ja estava
+ * sendo tocado. Esperar a mordida custaria um PR e um CI inteiros para
+ * escrever a linha de baixo.
  */
 if (typeof sessionStorage !== 'undefined') {
   sessionStorage.clear();
+}
+
+if (typeof localStorage !== 'undefined') {
+  localStorage.clear();
 }
 
 /**
