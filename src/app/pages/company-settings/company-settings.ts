@@ -102,9 +102,23 @@ function centre(element: HTMLElement | null): void {
  * proprietário. O `GET` da empresa segue o mesmo recorte: sem o formulário não há o que
  * preencher, e assim nenhuma requisição que voltaria 403 chega a sair.
  *
- * O cartão Equipe (atalho de Convites) saiu da tela: o produto está refazendo o fluxo de
- * convites e removeu seus pontos de entrada da UI. A rota `configuracoes/convites` e o
- * `InvitesService` continuam existindo — só o atalho daqui foi removido.
+ * O cartão Equipe (atalho de Convites) continua fora desta tela, mas **a razão mudou** —
+ * e o texto que estava aqui agora descrevia o oposto da realidade.
+ *
+ * O que dizia, e era verdade quando foi escrito: que o produto estava refazendo o fluxo de
+ * convites e "removeu seus pontos de entrada da UI".
+ *
+ * O que é verdade HOJE: o fluxo foi refeito e o ponto de entrada VOLTOU — Convites é item
+ * do menu lateral (`components/sidebar/sidebar.ts`, filho de Configurações), e está em
+ * produção (medido em `origin/main`). Quem lesse o parágrafo antigo concluiria que a tela
+ * de convites continua inalcançável e sairia procurando o que recolocar, ou pior,
+ * recolocaria um segundo atalho.
+ *
+ * A ausência DAQUI é que deixou de ter motivo próprio: com a entrada no menu, um cartão de
+ * atalho nesta página seria um segundo caminho para a mesma tela. Não é resíduo do fluxo
+ * antigo — é a decisão de ter UM ponto de entrada, e ele fica no menu.
+ *
+ * A rota `configuracoes/convites` e o `InvitesService` nunca deixaram de existir.
  *
  * Fora do OWNER o grid vira uma coluna só (não há coluna lateral) — é o layout desse
  * cenário de defesa em profundidade, não um caminho que o produto ofereça.
