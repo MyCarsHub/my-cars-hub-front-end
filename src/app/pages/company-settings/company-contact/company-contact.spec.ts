@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CompanyContact } from './company-contact';
 import { CepService, type CepLookupResult } from '../../../services/cep.service';
@@ -29,6 +29,23 @@ import { EMPTY_COMPANY_CONTACT } from '../../../types/company-contact.types';
  *  - erro de validação não vira requisição.
  */
 describe('CompanyContact (Configurações → Dados de contato)', () => {
+  /*
+   * Este arquivo NAO deixa papel para tras.
+   *
+   * O ultimo teste daqui assina como `DRIVER`, e um token de motorista herdado
+   * derrubava `rental-inspection-card.spec.ts` no worker seguinte — o cartao
+   * deriva `isDriver` do token e troca os `input[type=file]` pela camera ao
+   * vivo. So quebrava no CI, onde os dois arquivos caiam juntos nessa ordem.
+   *
+   * O `sessionStorage.clear()` do `src/test-setup.ts` ja faz cada arquivo
+   * COMECAR limpo, e e ele que fecha a classe toda. Este `afterAll` e a metade
+   * boa-vizinha da mesma regra: nao depender de que o proximo arquivo se
+   * defenda. As duas pontas, porque uma so deixa a armadilha de pe.
+   */
+  afterAll(() => {
+    sessionStorage.clear();
+  });
+
   const encodePayload = (payload: Record<string, unknown>): string =>
     btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
       .replace(/\+/g, '-')
