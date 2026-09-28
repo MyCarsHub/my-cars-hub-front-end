@@ -23,6 +23,7 @@ import { applyMaskedPhoneInput, maskPhone, normalizePhone } from '../../utils/ph
 import {
   AcceptInviteRequest,
   DriverAcceptInviteRequest,
+  INVITE_TTL_LABEL,
   ValidateInviteResponse,
 } from '../../types/invite.types';
 import { LicenseCategory } from '../../types/driver.types';
@@ -96,6 +97,12 @@ export class InviteAccept implements OnInit {
   protected readonly redirecting = signal(false);
   /** E-mail da sessão aberta nesta aba, só quando ele diverge do convidado. */
   protected readonly signedInEmail = signal('');
+
+  /**
+   * Validity promised to the invitee. `ValidateInviteResponse` carries no expiry, so this
+   * is the mirrored backend TTL (`types/invite.types.ts`) — not a number typed in the copy.
+   */
+  protected readonly ttlLabel = INVITE_TTL_LABEL;
 
   protected readonly companyName = computed(() => this.details()?.companyName ?? '');
   protected readonly invitedEmail = computed(() => this.details()?.email ?? '');
