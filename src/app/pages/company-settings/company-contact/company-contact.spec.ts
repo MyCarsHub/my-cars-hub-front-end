@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CompanyContact } from './company-contact';
 import { CepService, type CepLookupResult } from '../../../services/cep.service';
@@ -29,6 +29,37 @@ import { EMPTY_COMPANY_CONTACT } from '../../../types/company-contact.types';
  *  - erro de validação não vira requisição.
  */
 describe('CompanyContact (Configurações → Dados de contato)', () => {
+  /*
+   * Este arquivo NAO deixa papel para tras.
+   *
+   * O ultimo teste daqui assina como `DRIVER`, e um token de motorista herdado
+   * derrubava `rental-inspection-card.spec.ts` no worker seguinte — o cartao
+   * deriva `isDriver` do token e troca os `input[type=file]` pela camera ao
+   * vivo. So quebrava no CI, onde os dois arquivos caiam juntos nessa ordem.
+   *
+   * O `sessionStorage.clear()` do `src/test-setup.ts` ja faz cada arquivo
+   * COMECAR limpo, e e ele que fecha a classe toda. Este `afterAll` e a metade
+   * boa-vizinha da mesma regra: nao depender de que o proximo arquivo se
+   * defenda. As duas pontas, porque uma so deixa a armadilha de pe.
+   */
+  afterAll(() => {
+    sessionStorage.clear();
+  });
+
+  const encodePayload = (payload: Record<string, unknown>): string =>
+    btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+  /** JWT com o claim `role`, na forma que o backend emite. */
+  const signInAs = (role: string): void => {
+    sessionStorage.setItem(
+      'token',
+      `${encodePayload({ alg: 'HS256', typ: 'JWT' })}.${encodePayload({ role })}.sig`,
+    );
+  };
+
   const FILLED: CompanyContactBlock = {
     phone: '(11) 98765-4321',
     email: 'contato@locadora.com.br',
@@ -83,6 +114,14 @@ describe('CompanyContact (Configurações → Dados de contato)', () => {
     );
     // `CepService` engole erro de rede e devolve `null` — o mesmo `null` de CEP inexistente.
     lookupSpy = vi.fn(() => of<CepLookupResult | null>(VIACEP_PAULISTA));
+
+    // FIX-0623 — a tela passou a recortar por papel, lido do TOKEN. Sem um token
+    // aqui o papel seria `null` e TODA a suite acima montaria sem formulario,
+    // passando a vazio. O `SessionService` entra REAL, pelo mesmo caminho de
+    // producao: um dublê com `getCompanyRoleFromToken` nao pode divergir de uma
+    // implementacao que ele nao dubla (mesma razao do `app.routes.roles.spec`).
+    sessionStorage.clear();
+    signInAs('OWNER');
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -684,6 +723,115 @@ describe('CompanyContact (Configurações → Dados de contato)', () => {
       expect(contactGroup(fixture).form.controls.contact.getRawValue().addressCep).toBe(
         '01000-00',
       );
+    });
+  });
+  /**
+   * FIX-0623 — a porta pintada de aberta.
+   *
+   * `/configuracoes/contato` nao tem item de menu: so se chega digitando a URL.
+   * A rota SERA aberta ao MANAGER pelo FEAT-0228 — NESTA base ela ainda e
+   * OWNER-only (`app.routes.ts:592` e o pai `:549`). A ESCRITA e OWNER-only
+   * hoje e depois: `PUT /v1/companies/me` passa por
+   * `RoleGuard.assertCompanyOwnerRole` (medido em `CompanyService.java:357` de
+   * origin/main, deliberado e pinado pelo FIX-0505).
+   *
+   * E disso que vem o valor do recorte: quem chegar sem ser OWNER encontraria o
+   * formulario inteiro e so descobriria o 403 no clique de salvar, depois de
+   * preencher onze campos.
+   *
+   * O conserto e o MESMO molde da tela irma (`company-settings.ts`): a tela nao
+   * OFERECE o que o servidor vai recusar. Nao fecha a rota, so nao pinta de
+   * editavel o que nao e — e por isso o recorte independe de qual papel o
+   * `roleGuard` admite em cada momento.
+   *
+   * O recorte aqui e a pagina inteira porque o `PUT` e um so e substitui o bloco
+   * de contato INTEIRO: nao existe metade salvavel para deixar de pe.
+   */
+  describe('papéis (FIX-0623)', () => {
+    const formOf = (fixture: ComponentFixture<CompanyContact>) =>
+      host(fixture).querySelector('form');
+
+    const saveButton = (fixture: ComponentFixture<CompanyContact>) =>
+      host(fixture).querySelector('button[type="submit"]');
+
+    it('OWNER continua vendo o formulário e o botão de salvar', () => {
+      configure();
+      const fixture = render();
+
+      // CONTROLE POSITIVO: se a montagem nao renderizasse nada, estas tres
+      // falhariam em vez de passar a vazio — e o teste do MANAGER abaixo
+      // passaria por ausencia de sinal.
+      expect(formOf(fixture)).not.toBeNull();
+      expect(saveButton(fixture)).not.toBeNull();
+      expect(loadSpy).toHaveBeenCalled();
+    });
+
+    it('MANAGER não recebe formulário nem botão de salvar', () => {
+      configure();
+      signInAs('MANAGER');
+      const fixture = render();
+
+      expect(formOf(fixture)).toBeNull();
+      expect(saveButton(fixture)).toBeNull();
+    });
+
+    it('MANAGER lê por que a tela não é dele, em vez de uma página vazia', () => {
+      configure();
+      signInAs('MANAGER');
+      const fixture = render();
+
+      expect(host(fixture).textContent).toContain('proprietário');
+    });
+
+    /**
+     * Sem formulario nao ha o que preencher: o GET nem sai. Evita uma
+     * requisicao cujo resultado nao teria onde ser mostrado.
+     */
+    it('MANAGER não dispara o GET que não tem onde aterrissar', () => {
+      configure();
+      signInAs('MANAGER');
+      render();
+
+      expect(loadSpy).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A fonte, prendida nas DUAS direcoes. `selectedRole` e o espelho editavel
+     * pelo DevTools; se a trava passasse a le-lo, um destes dois quebraria.
+     */
+    it('o espelho NÃO decide: token OWNER + espelho MANAGER mostra a tela do dono', () => {
+      configure();
+      signInAs('OWNER');
+      sessionStorage.setItem('selectedRole', 'MANAGER');
+      const fixture = render();
+
+      expect(formOf(fixture)).not.toBeNull();
+    });
+
+    it('o inverso: token MANAGER + espelho OWNER não mostra o formulário', () => {
+      configure();
+      signInAs('MANAGER');
+      sessionStorage.setItem('selectedRole', 'OWNER');
+      const fixture = render();
+
+      expect(formOf(fixture)).toBeNull();
+    });
+
+    /** Papel desconhecido NAO vira permissao por omissao. */
+    it('sem token não há formulário', () => {
+      configure();
+      sessionStorage.clear();
+      const fixture = render();
+
+      expect(formOf(fixture)).toBeNull();
+    });
+
+    it('DRIVER também não', () => {
+      configure();
+      signInAs('DRIVER');
+      const fixture = render();
+
+      expect(formOf(fixture)).toBeNull();
     });
   });
 });
