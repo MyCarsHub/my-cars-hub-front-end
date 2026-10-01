@@ -91,12 +91,11 @@ export class CompanyMembers implements OnInit {
   /**
    * Who may manage members, read from the TOKEN — the same source as `roleGuard`.
    *
-   * This is NOT the defence: the backend answers 403 to a DRIVER regardless
-   * (`FORBIDDEN_MEMBER_MANAGEMENT`). It exists because the route that will carry this
-   * screen is not registered yet, so without an in-component gate a DRIVER who reached the
-   * component would watch the list call fail with a raw error instead of being told plainly
-   * that the screen is not theirs. When the route lands with
-   * `roleGuard(['OWNER', 'MANAGER'])`, this stays as the second barrier.
+   * This is NOT the defence, and it is not the first barrier either. The route carries
+   * `roleGuard(['OWNER', 'MANAGER'])` and the backend answers 403 to a DRIVER regardless
+   * (`FORBIDDEN_MEMBER_MANAGEMENT`); this is the third. It earns its place by what it
+   * renders: a DRIVER who reaches the component by any route reads a sentence saying the
+   * screen is not theirs, instead of watching the list call fail with a raw error.
    */
   protected readonly canManageMembers = computed(() => {
     const role = this.session.getCompanyRoleFromToken();
@@ -117,6 +116,19 @@ export class CompanyMembers implements OnInit {
     this.load();
   }
 
+  /**
+   * Recarrega o roster. Chamado no `ngOnInit` e pelo botao Atualizar.
+   *
+   * LOW-1 da revisao — a mensagem do 404 dizia "Atualize a lista" e NAO havia como atualizar:
+   * `load()` so rodava na entrada, entao a pessoa tinha de sair da tela e voltar. Instrucao
+   * que nao se consegue seguir e pior que nenhuma.
+   *
+   * O botao serve a um segundo caso, que e o achado 7 da revisao: esta tela nao mostra QUANDO
+   * a lista foi carregada, entao lista velha e lista atual sao indistinguiveis. Enquanto nao
+   * houver carimbo de horario, poder recarregar de proposito e o que permite a quem administra
+   * confiar no que esta vendo — inclusive quando outra pessoa remove alguem com esta tela
+   * aberta.
+   */
   protected load(): void {
     this.listError.set(null);
     this.members.list().subscribe({

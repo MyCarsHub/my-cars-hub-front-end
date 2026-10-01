@@ -319,4 +319,42 @@ describe('CompanyMembers — roster da empresa', () => {
       'podem ver quem tem acesso',
     );
   });
+  // ------------------------------------------------------- ATUALIZAR (LOW-1)
+  /**
+   * A mensagem do 404 pede "Atualize a lista". Antes disto nao havia como: `load()` so rodava
+   * no `ngOnInit`, entao a unica forma era sair da tela e voltar — instrucao que a pessoa nao
+   * consegue seguir, que e pior que nenhuma.
+   */
+  it('o botao Atualizar recarrega o roster', () => {
+    const fixture = render('OWNER');
+    expect(list).toHaveBeenCalledTimes(1);
+
+    const refresh = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => (b.textContent ?? '').includes('Atualizar'));
+    expect(refresh, 'a tela manda atualizar e nao oferece como').toBeDefined();
+
+    refresh?.click();
+    fixture.detectChanges();
+
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it('a frase do 404 e o botao que a cumpre convivem na mesma tela', () => {
+    const fixture = render('OWNER');
+    remove.mockReturnValue(throwError(() => error(404)));
+
+    removeButtonOf(fixture, 'Motorista Caio')?.click();
+    fixture.detectChanges();
+    confirmDialogButton(fixture, 'Remover acesso')?.click();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Atualize a lista');
+    // A instrucao tem de ter como ser seguida SEM sair da tela.
+    const refresh = Array.from(host.querySelectorAll('button')).find((b) =>
+      (b.textContent ?? '').includes('Atualizar'),
+    );
+    expect(refresh).toBeDefined();
+  });
 });
