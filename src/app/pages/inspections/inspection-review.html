@@ -1,0 +1,194 @@
+<!--
+  Mobile-first: o dono também decide isto no celular. Uma coluna, fotos em
+  largura total até `sm`, alvos de toque de 48px ou mais, e nada de confirmação
+  escondida — aprovar e recusar são dois botões visíveis, lado a lado só quando
+  há largura para isso.
+-->
+<div class="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4">
+  <p class="text-sm font-semibold text-neutral-900">Fotos enviadas</p>
+
+  @if (loadingPhotos()) {
+    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3" aria-hidden="true">
+      <div class="h-40 rounded-lg bg-neutral-200 animate-pulse"></div>
+      <div class="h-40 rounded-lg bg-neutral-200 animate-pulse"></div>
+    </div>
+    <p class="sr-only" role="status" aria-live="polite">Carregando as fotos da vistoria…</p>
+  }
+
+  @if (!loadingPhotos() && hasPhotos()) {
+    <ul class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      @for (photo of photos(); track photo.id) {
+        <li class="rounded-lg border border-neutral-200 bg-white overflow-hidden">
+          <!--
+            O rótulo vem do `angle` do contrato, não da ordem: quem aprova
+            precisa saber que está olhando a traseira, e não a terceira foto.
+          -->
+          @if (photo.signedUrl; as url) {
+            <img
+              [src]="url"
+              [alt]="'Foto da vistoria: ' + photo.label"
+              (error)="onImageError()"
+              class="w-full h-40 object-cover bg-neutral-100"
+            />
+          } @else {
+            <!--
+              A foto EXISTE e não pôde ser exibida — a assinatura dela falhou.
+              A frase diz isso com todas as letras, e não "sem foto": mandar o
+              motorista refotografar o que já está no servidor seria puni-lo
+              por uma falha nossa.
+            -->
+            <div
+              class="w-full h-40 flex items-center justify-center bg-neutral-100 px-3 text-center"
+            >
+              <p class="text-xs font-medium text-neutral-600">
+                Esta foto não carregou agora. Ela está salva — tente de novo.
+              </p>
+            </div>
+          }
+          <div class="px-3 py-2">
+            <p data-angle-label class="text-xs font-semibold text-neutral-700">
+              {{ photo.label }}
+              @if (!photo.signedUrl) {
+                <span class="font-normal text-neutral-500">· não carregou</span>
+              }
+            </p>
+            <!--
+              QUANDO foi tirada. Numa vistoria periódica, foto de hoje e foto de
+              três semanas atrás são indistinguíveis sem isto, e aprovar a
+              segunda como atual é aprovar um estado que já mudou.
+            -->
+            <p data-taken-at class="mt-0.5 text-[11px] text-neutral-500 tabular-nums">
+              {{ photo.takenAt }}
+            </p>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  <!--
+    Falha PARCIAL — o caso que de fato acontece, porque o backend isola por
+    foto. Aprovar fica fora: ver 13 de 14 não é ver.
+  -->
+  @if (!loadingPhotos() && hasPhotos() && unavailable().length > 0) {
+    <div class="mt-3">
+      <app-alert-banner variant="warning">
+        Não foi possível carregar
+        {{ unavailable().length === 1 ? 'a foto' : 'as fotos' }} de:
+        @for (photo of unavailable(); track photo.id) {
+          <strong>{{ photo.label }}</strong
+          >{{ $last ? '' : ', ' }}
+        }
+        . Aprovar só fica disponível com todas visíveis.
+      </app-alert-banner>
+    </div>
+  }
+
+  @if (expired()) {
+    <div class="mt-3">
+      <app-alert-banner
+        variant="warning"
+        message="Os links das fotos expiraram. Feche e abra esta vistoria de novo para vê-las."
+      />
+    </div>
+  }
+
+  <!--
+    Sem foto não há decisão: aprovar às cegas é assinar em branco. Aqui só
+    existe o caminho de recarregar.
+  -->
+  @if (canRetryPhotos()) {
+    <div class="mt-3">
+      <app-alert-banner
+        variant="error"
+        [message]="
+          photosError() ??
+          'Esta vistoria não tem fotos para revisar. Sem elas não é possível aprovar.'
+        "
+      />
+      <button
+        type="button"
+        data-retry-photos
+        (click)="loadPhotos()"
+        class="mt-3 w-full sm:w-auto min-h-12 inline-flex items-center justify-center rounded-xl
+               border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-800
+               hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+               focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+      >
+        Tentar carregar as fotos de novo
+      </button>
+    </div>
+  }
+
+  @if (decisionLabel(); as label) {
+    <div class="mt-4">
+      <app-alert-banner variant="success" [message]="label" />
+    </div>
+  }
+
+  @if (canReject()) {
+    <div class="mt-4 border-t border-neutral-200 pt-4">
+      <label for="reject-reason" class="block text-sm font-semibold text-neutral-900">
+        Motivo da recusa
+      </label>
+      <p class="mt-1 text-xs text-neutral-600">
+        Obrigatório para recusar. É o que o motorista vai ler para saber o que refazer.
+      </p>
+      <textarea
+        id="reject-reason"
+        data-reject-reason
+        rows="3"
+        maxlength="1000"
+        [value]="reason()"
+        (input)="onReasonInput($event)"
+        [attr.aria-invalid]="reasonMissing() ? 'true' : null"
+        class="mt-2 w-full rounded-xl border px-3 py-2 text-sm text-neutral-900
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+        [class.border-red-400]="reasonMissing()"
+        [class.border-neutral-300]="!reasonMissing()"
+      ></textarea>
+
+      @if (reasonMissing()) {
+        <p class="mt-1 text-xs font-semibold text-red-700" role="alert">
+          Escreva o motivo da recusa antes de recusar.
+        </p>
+      }
+
+      @if (decisionError(); as message) {
+        <div class="mt-3">
+          <app-alert-banner variant="error" [message]="message" />
+        </div>
+      }
+
+      <div class="mt-4 flex flex-col sm:flex-row gap-2">
+        @if (canApprove()) {
+        <button
+          type="button"
+          data-approve
+          (click)="approve()"
+          [disabled]="deciding()"
+          class="w-full sm:flex-1 min-h-12 inline-flex items-center justify-center rounded-xl
+                 bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700
+                 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
+        >
+          {{ deciding() ? 'Registrando…' : 'Aprovar vistoria' }}
+        </button>
+        }
+        <button
+          type="button"
+          data-reject
+          (click)="reject()"
+          [disabled]="deciding()"
+          class="w-full sm:flex-1 min-h-12 inline-flex items-center justify-center rounded-xl
+                 border border-red-300 bg-white px-4 text-sm font-semibold text-red-700
+                 hover:bg-red-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-red-600 focus-visible:ring-offset-2
+                 disabled:opacity-60 disabled:cursor-wait"
+        >
+          Recusar com motivo
+        </button>
+      </div>
+    </div>
+  }
+</div>

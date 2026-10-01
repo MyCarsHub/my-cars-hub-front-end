@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { NgOptimizedImage } from '@angular/common';
+import { DOCUMENT, NgOptimizedImage } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { TimeoutError, timeout } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { AuthService } from '../../services/auth.service';
 import { InvitesService } from '../../services/invites.service';
+import { TenantCachesService } from '../../services/tenant-caches.service';
 import { LoginService } from '../../services/loginService';
 import { SessionService } from '../../services/session.service';
 import { InviteAcceptCause, inviteAcceptCause, inviteErrorCopy } from '../../services/invite-errors';
@@ -42,6 +44,29 @@ function isDriverPayload(
 /** Mesmo padrao do onboarding (`step-personal`): DDD + numero, com ou sem mascara. */
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
+/**
+ * Quanto a tela espera a navegacao assentar antes de assumir que ela nao vai acontecer.
+ *
+ * Generoso de proposito: o caminho feliz resolve em milissegundos, entao este numero so e
+ * alcancado quando algo realmente travou. Curto demais transformaria uma navegacao lenta
+ * numa mensagem de erro desnecessaria.
+ */
+const NAVIGATION_GRACE_MS = 8000;
+
+/**
+ * Teto de espera de CADA chamada desta tela.
+ *
+ * MEDIUM-1 da revisao — a rede de seguranca cobria a navegacao POS-aceite e deixava de fora
+ * os dois estados de espera que vem ANTES: `validating` (o `validate`) e `accepting` (o
+ * `accept`). Pendurar nao e errar: sem resposta nao ha `error`, e sem `error` a tela ficava
+ * no MESMO spinner eterno que este arquivo existe para matar — o defeito do dono
+ * reaparecendo um passo antes.
+ *
+ * Nenhum interceptor cobre isto: o unico com timeout no projeto NAO esta registrado em
+ * `app.config`. Entao o teto e aqui, por chamada.
+ */
+const REQUEST_GRACE_MS = 15000;
+
 type AcceptStep =
   | 'validating'
   | 'ready'
@@ -49,6 +74,17 @@ type AcceptStep =
   | 'driver-onboarding'
   | 'accepting'
   | 'mismatch'
+  /**
+   * O aceite DEU CERTO no servidor e a navegacao para dentro do app nao aconteceu.
+   * Estado proprio porque a tela nao pode continuar em 'accepting': o trabalho acabou,
+   * e o spinner afirmaria que ainda esta em curso.
+   */
+  | 'linked'
+  /**
+   * O `accept` nao respondeu no tempo. Pode ter funcionado no servidor — a tela NAO sabe, e
+   * por isso nao afirma nenhum dos dois lados.
+   */
+  | 'unconfirmed'
   | 'error';
 
 /**
@@ -88,6 +124,8 @@ export class InviteAccept implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly loginService = inject(LoginService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly tenantCaches = inject(TenantCachesService);
+  private readonly document = inject(DOCUMENT);
 
   private token = '';
 
@@ -130,13 +168,13 @@ export class InviteAccept implements OnInit {
   };
   protected readonly cpfMessages: Readonly<Record<string, string>> = {
     required: 'Informe seu CPF.',
-    cpfShape: 'CPF inválido. Use o formato 000.000.000-00.',
-    cpfInvalid: 'CPF inválido.',
+    cpfShape: 'Faltou algum número do CPF — confira os 11 dígitos do seu documento.',
+    cpfInvalid: 'Esse CPF não confere. Confira os números no seu documento.',
     cpfMismatch: 'Este CPF não confere com o do convite.',
   };
   protected readonly phoneMessages: Readonly<Record<string, string>> = {
     required: 'Informe seu telefone.',
-    pattern: 'Telefone inválido. Use DDD + número.',
+    pattern: 'Confira o telefone com o DDD, como (11) 91234-5678.',
   };
 
   /**
@@ -184,7 +222,7 @@ export class InviteAccept implements OnInit {
     // and the query param is the only place it survives for sure.
     this.session.setItem(PENDING_INVITE_TOKEN_KEY, token);
 
-    this.invites.validate(token).subscribe({
+    this.invites.validate(token).pipe(timeout(REQUEST_GRACE_MS)).subscribe({
       next: (details) => {
         this.details.set(details);
         // Coming back from Google there is already a token — finish without a second click.
@@ -194,8 +232,19 @@ export class InviteAccept implements OnInit {
         }
         this.step.set('ready');
       },
-      error: (err: unknown) =>
-        this.fail(err, 'Não foi possível verificar este convite. Tente novamente.'),
+      error: (err: unknown) => {
+        // Pendurou: nao e convite invalido, e falta de resposta. Dizer "convite invalido"
+        // aqui mandaria a pessoa pedir outro convite para resolver uma queda de rede.
+        if (err instanceof TimeoutError) {
+          this.fail(
+            err,
+            'Não tivemos resposta do servidor. Confira sua conexão e abra o link do ' +
+              'e-mail novamente.',
+          );
+          return;
+        }
+        this.fail(err, 'Não foi possível verificar este convite. Tente novamente.');
+      },
     });
   }
 
@@ -208,6 +257,60 @@ export class InviteAccept implements OnInit {
   }
 
   /** Drops the current (wrong) session and restarts the Google flow for this invite. */
+  /**
+   * A REDE DE SEGURANCA. `router.navigate()` devolve `Promise<boolean>` e um `false` e
+   * SILENCIOSO: guard que recusa nao lanca, nao loga e nao troca de tela. Ninguem tratava
+   * esse `false`, e por isso um aceite BEM-SUCEDIDO terminava num spinner permanente.
+   *
+   * Tres saidas, nao uma:
+   *
+   * - `false` — algum guard recusou. O caso medido era o laco billing/role, mas qualquer
+   *   guard futuro produz o mesmo sintoma, e e por isso que o tratamento e do RESULTADO e
+   *   nao daquele laco.
+   * - rejeicao — o router estoura o limite de redirecionamentos e a promessa REJEITA em vez
+   *   de resolver `false`. Tratar so o `false` deixaria metade do defeito de pe.
+   * - nunca assentar — o `timeout` cobre a navegacao que simplesmente nao volta. Sem ele a
+   *   tela continua presa exatamente como antes.
+   *
+   * Em TODAS, o estado final e 'linked', nunca 'error': a conta FOI vinculada. Dizer que
+   * falhou seria mentir para quem acabou de ser adicionado a empresa com sucesso.
+   */
+  private goToDashboard(): void {
+    let settled = false;
+    const land = (navigated: boolean): void => {
+      if (settled) return;
+      settled = true;
+      if (!navigated) {
+        this.step.set('linked');
+      }
+    };
+
+    const timer = setTimeout(() => land(false), NAVIGATION_GRACE_MS);
+
+    this.router.navigate(['/dashboard'], { replaceUrl: true }).then(
+      (ok) => {
+        clearTimeout(timer);
+        land(ok === true);
+      },
+      () => {
+        clearTimeout(timer);
+        land(false);
+      },
+    );
+  }
+
+  /**
+   * Saida do estado 'linked': recarga COMPLETA da pagina, nao `router.navigate`.
+   *
+   * Navegar pelo router de novo bateria nos mesmos guards com o mesmo estado em memoria e
+   * recusaria de novo. Uma recarga descarta todo cache por empresa que sobrou e refaz a
+   * decisao com o token novo — e o unico caminho que nao depende de adivinhar qual guard
+   * recusou.
+   */
+  protected reloadIntoApp(): void {
+    this.document.defaultView?.location.assign('/');
+  }
+
   protected switchAccount(): void {
     if (this.redirecting()) return;
     this.auth.logout();
@@ -239,9 +342,39 @@ export class InviteAccept implements OnInit {
       return;
     }
 
-    // FEAT-0167 — o gerente confirma os dados ANTES do aceite; o motorista segue direto,
-    // sem corpo, exatamente como sempre foi.
-    if (details.requiresManagerOnboarding === true) {
+    /*
+     * FEAT-0266 — O GERENTE TAMBEM SEGUE DIRETO, quando o convite carrega o que o aceite
+     * precisa. Isto era um pedagio na porta, e MEDIDO no backend ele era desnecessario:
+     *
+     *   InvitesController:accept -> @RequestBody(required = false)
+     *   InvitesService:requireManagerOnboardingIsResolvable -> exige documentId + nome +
+     *   telefone RESOLVIVEIS, e os resolve DO PROPRIO CONVITE antes de olhar o corpo. O CPF
+     *   so e conferido se vier preenchido (hasText): nunca e obrigatorio.
+     *
+     * Como a criacao de convite MANAGER exige nome, CPF e telefone (FEAT-0167), um convite
+     * moderno e sempre resolvivel — e a pessoa nao precisa redigitar nada. Tres campos a
+     * menos na porta para o caso comum.
+     *
+     * ## Por que o teste e NOME + TELEFONE, e nao o codigo do erro
+     *
+     * O caminho obvio seria tentar sem corpo e abrir o formulario se voltasse
+     * ERROR_MANAGER_CONFIRMATION_REQUIRED. NAO DA, hoje: aquele erro e lancado como
+     * `InvalidDataException(mensagem)` SEM codigo (InvitesService:833), ao contrario do
+     * irmao do motorista, que tem CODE_DRIVER_REGISTRATION_REQUIRED. E um 400 mudo — e o
+     * 400 mudo deste endpoint tambem sai de token em branco e de convite nao-PENDING, como
+     * `invite-errors.ts` ja avisa. Abrir formulario em cima dele pediria dados a quem tem um
+     * convite JA USADO. Casar a mensagem em portugues seria pior.
+     *
+     * Entao o discriminador e DADO, nao erro: `name` e `phoneNumber` vem nesta resposta, e
+     * um convite que os tem foi criado sob a regra que tambem exigia o CPF — logo tem
+     * documentId, logo e resolvivel. Faltando qualquer um dos dois, cai no formulario de
+     * antes: nenhum convite legado para de funcionar.
+     *
+     * A INFERENCIA que isto carrega, declarada: "tem nome e telefone" implica "tem
+     * documentId". Ela vale porque os tres nasceram obrigatorios no mesmo FEAT-0167. Para
+     * virar FATO, o backend precisa dar codigo ao erro do gerente — proposto como no.
+     */
+    if (details.requiresManagerOnboarding === true && !this.inviteCarriesManagerData(details)) {
       this.startOnboarding(details);
       return;
     }
@@ -268,6 +401,17 @@ export class InviteAccept implements OnInit {
     // Se você veio "consertar a assimetria": as duas telas decidem por mecânicas diferentes
     // porque as duas perguntas têm custos diferentes. Não implemente o flag do motorista.
     this.acceptInvite();
+  }
+
+  /**
+   * O convite ja traz o que o aceite do gerente precisa resolver?
+   *
+   * Nome E telefone, os dois. Meio preenchido nao serve: o backend exige os dois
+   * resolviveis, e um convite com so um deles cai no 400 mudo que esta tela nao sabe
+   * distinguir.
+   */
+  private inviteCarriesManagerData(details: ValidateInviteResponse): boolean {
+    return (details.name ?? '').trim().length > 0 && (details.phoneNumber ?? '').trim().length > 0;
   }
 
   /**
@@ -318,21 +462,22 @@ export class InviteAccept implements OnInit {
 
   protected readonly licenseMessages: Readonly<Record<string, string>> = {
     required: 'Informe o número da CNH.',
-    pattern: 'A CNH tem 11 caracteres, sem pontos ou traços.',
+    // "11 caracteres" descreve o CAMPO; isto descreve o que a pessoa tem na mão.
+    pattern: 'Digite os 11 números que aparecem na frente da sua CNH, sem pontos nem traços.',
   };
   protected readonly expiryMessages: Readonly<Record<string, string>> = {
     required: 'Informe a validade da CNH.',
   };
   protected readonly cepMessages: Readonly<Record<string, string>> = {
     required: 'Informe o CEP.',
-    pattern: 'CEP inválido. Use 00000-000.',
+    pattern: 'Confira o CEP — são 8 números, como 01310-100.',
   };
   protected readonly requiredOnly: Readonly<Record<string, string>> = {
-    required: 'Campo obrigatório.',
+    required: 'Preencha este campo para continuar.',
   };
   protected readonly ufMessages: Readonly<Record<string, string>> = {
     required: 'Informe a UF.',
-    pattern: 'Use a sigla de 2 letras.',
+    pattern: 'Use a sigla do estado com 2 letras, como SP.',
   };
 
   /**
@@ -403,7 +548,7 @@ export class InviteAccept implements OnInit {
     if (digits.length !== 8) return;
 
     this.cepLoading.set(true);
-    this.cepService.lookup(digits).subscribe({
+    this.cepService.lookup(digits).pipe(timeout(REQUEST_GRACE_MS)).subscribe({
       next: (found: CepLookupResult | null) => {
         this.cepLoading.set(false);
         if (!found) return;
@@ -477,9 +622,9 @@ export class InviteAccept implements OnInit {
 
     // Sem corpo, a chamada e a MESMA de antes — nem um argumento a mais. O caminho do
     // motorista nao pode mudar de forma so porque o do gerente ganhou um corpo.
-    const accept$ = payload
-      ? this.invites.accept(this.token, payload)
-      : this.invites.accept(this.token);
+    const accept$ = (
+      payload ? this.invites.accept(this.token, payload) : this.invites.accept(this.token)
+    ).pipe(timeout(REQUEST_GRACE_MS));
 
     accept$.subscribe({
       next: (response) => {
@@ -492,12 +637,43 @@ export class InviteAccept implements OnInit {
         // the shell would otherwise render an empty identity until the next login.
         const email = this.details()?.email;
         if (email) this.session.setItem('email', email);
-        // The cache belongs to whatever tenant was open before this accept.
-        this.invites.reset();
-        this.router.navigate(['/dashboard'], { replaceUrl: true });
+        /*
+         * A CAUSA do spinner eterno (medido): aceitar um convite E UMA TROCA DE TENANT, e
+         * esta linha zerava SO o cache de convites. Todo o resto dos caches por empresa
+         * seguia com o veredito do tenant ANTERIOR — e `BillingAccessService` e um deles.
+         *
+         * Com o `isBlocked()` da empresa de quem convidou ainda em memoria,
+         * `billingAccessGuard` desviava `/dashboard` para `/billing`; `/billing` e
+         * `roleGuard(['OWNER'])` e o convidado nunca e OWNER, entao o roleGuard devolvia
+         * o convidado para a casa do papel dele, que o billingAccessGuard desviava de
+         * novo para `/billing`: LACO. O router cancela, `navigate()` nao abre tela
+         * nenhuma, e a pagina ficava em 'accepting' para sempre.
+         *
+         * `resetAll()` e o que `layout.store` e `impersonation.service` ja chamam em toda
+         * troca de empresa — o aceite era o unico caminho de troca que nao chamava. Ele
+         * inclui o cache de convites, porque `InvitesService` se registra no mesmo
+         * registro.
+         */
+        this.tenantCaches.resetAll();
+        this.goToDashboard();
       },
       error: (err: unknown) => {
         this.submitting.set(false);
+
+        /*
+         * MEDIUM-1 — SEM RESPOSTA NAO E FALHA. O `accept` pode ter gravado o vinculo e so a
+         * resposta ter se perdido; o servidor e a autoridade e a tela nao sabe. Entao a copy
+         * nao afirma nem sucesso nem fracasso, e a acao oferecida — entrar no aplicativo —
+         * e a unica que RESOLVE nos dois casos: se funcionou, a pessoa entra; se nao, ela ve
+         * que nao entrou. Mandar "tente de novo" seria pior: um segundo aceite do mesmo
+         * convite volta 409.
+         */
+        if (err instanceof TimeoutError) {
+          this.apiErrors.claim(err);
+          this.step.set('unconfirmed');
+          return;
+        }
+
         const cause = inviteAcceptCause(err);
 
         // O CAMINHO PRINCIPAL do motorista. Isto NÃO é erro para o usuário ler: é o
@@ -551,6 +727,35 @@ export class InviteAccept implements OnInit {
         // obrigaria a recomeçar o fluxo inteiro por causa de um campo. Os outros dois erros
         // realmente exigem sair (trocar de conta, falar com o gestor) e seguem caindo em
         // `fail`.
+        /*
+         * MEDIUM-2 — A FRASE DO 400 MUDO, no ramo que este no criou.
+         *
+         * Tentamos SEM corpo porque o convite trazia nome e telefone. Se o backend recusou
+         * assim mesmo com um 400 sem codigo, a copy generica dizia "Este convite nao e mais
+         * valido. Peca a empresa para enviar um novo convite." — FALSO e, pior, INUTIL: um
+         * convite novo cai no mesmo lugar, entao a pessoa pede, recebe, clica e trava outra
+         * vez.
+         *
+         * E a tela nao tem como saber qual dos casos foi: aquele mesmo 400 mudo sai de
+         * convite JA USADO e de "o servidor quer o formulario" (achado 6 da revisao), e o
+         * erro do gerente e lancado sem codigo. Entao a frase ADMITE o que nao se sabe e
+         * aponta a unica acao que pode resolver os dois: falar com quem convidou. Quando o
+         * backend der codigo ao erro, isto vira deteccao e cada caso ganha a frase propria.
+         */
+        const mudo400 =
+          err instanceof HttpErrorResponse && err.status === 400 && cause === null;
+        if (!payload && mudo400) {
+          this.apiErrors.claim(err);
+          this.acceptCause.set(null);
+          this.errorMessage.set(
+            'Não conseguimos concluir seu acesso, e o convite pode já ter sido usado. ' +
+              'Fale com quem te convidou para confirmar — pedir um novo convite pode não ' +
+              'resolver.',
+          );
+          this.step.set('error');
+          return;
+        }
+
         if (payload && inviteAcceptCause(err) === 'cpf-mismatch') {
           this.apiErrors.claim(err);
           this.onboardingForm.controls.cpf.setErrors({ cpfMismatch: true });

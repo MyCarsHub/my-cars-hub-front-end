@@ -63,6 +63,26 @@
       </div>
 
       <!--
+        A FILA DO DONO. Sem este filtro a aprovação existiria e ninguém a
+        encontraria: "Aguardando aprovação" é o único estado que pede ação de
+        alguém, e é por aqui que ele chega nele.
+      -->
+      <div class="space-y-2">
+        <p
+          id="insp-status-label"
+          class="text-xs font-medium text-neutral-500 uppercase tracking-wide"
+        >
+          Situação
+        </p>
+        <app-filter-chip-group
+          [options]="statusChips"
+          [value]="status()"
+          ariaLabelledby="insp-status-label"
+          (selectionChange)="onStatusChange($event)"
+        />
+      </div>
+
+      <!--
         Seletor de período REAPROVEITADO do dashboard (movido para
         `components/` neste diff). Um segundo seletor de intervalo seria uma
         segunda régua de datas para manter em sincronia.
@@ -124,12 +144,28 @@
                 <p class="text-xs text-neutral-500 truncate">{{ item.driverName }}</p>
               }
             </div>
-            <span
-              class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
-                     font-medium uppercase tracking-wide bg-neutral-100 text-neutral-700"
-            >
-              {{ kindLabel(item.kind) }}
-            </span>
+            <div class="shrink-0 flex flex-col items-end gap-1">
+              <span
+                class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+                       font-medium uppercase tracking-wide bg-neutral-100 text-neutral-700"
+              >
+                {{ kindLabel(item.kind) }}
+              </span>
+              <span
+                class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+                       font-medium uppercase tracking-wide"
+                [class.bg-amber-100]="item.status === 'SUBMITTED'"
+                [class.text-amber-800]="item.status === 'SUBMITTED'"
+                [class.bg-emerald-100]="item.status === 'APPROVED'"
+                [class.text-emerald-800]="item.status === 'APPROVED'"
+                [class.bg-red-100]="item.status === 'REJECTED'"
+                [class.text-red-800]="item.status === 'REJECTED'"
+                [class.bg-neutral-100]="item.status === 'PENDING'"
+                [class.text-neutral-600]="item.status === 'PENDING'"
+              >
+                {{ statusLabel(item.status) }}
+              </span>
+            </div>
           </div>
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
@@ -146,8 +182,8 @@
             em que o laudo existir a mudança chega num lugar que ninguém olha.
             Resta o caminho para o aluguel, que é onde a vistoria vive hoje.
           -->
-          @if (item.rentalId) {
-            <div class="flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            @if (item.rentalId) {
               <a
                 [routerLink]="['/alugueis', item.rentalId]"
                 class="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-neutral-200
@@ -155,7 +191,34 @@
               >
                 Ver no aluguel
               </a>
-            </div>
+            }
+
+            <!--
+              A decisão abre AQUI, na linha, sem rota nova: ela é sobre esta
+              vistoria. Uma por vez — duas galerias de 14 fotos abertas no
+              celular e a decisão erra de vistoria.
+            -->
+            @if (awaitingReview(item)) {
+              <button
+                type="button"
+                data-review-toggle
+                [attr.aria-expanded]="reviewingId() === item.id"
+                (click)="toggleReview(item.id)"
+                class="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-primary-200
+                       bg-primary-50 text-sm font-semibold text-primary-800 hover:bg-primary-100
+                       transition-colors focus:outline-none focus-visible:ring-2
+                       focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+              >
+                {{ reviewingId() === item.id ? 'Fechar revisão' : 'Revisar e decidir' }}
+              </button>
+            }
+          </div>
+
+          @if (reviewingId() === item.id) {
+            <app-inspection-review
+              [inspectionId]="item.id"
+              (decided)="onDecided($event)"
+            />
           }
         </div>
       }

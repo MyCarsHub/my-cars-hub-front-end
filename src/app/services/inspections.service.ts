@@ -3,7 +3,14 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
-import { InspectionFilters, InspectionListItem } from '../types/inspection.types';
+import {
+  CreateInspectionRequest,
+  Inspection,
+  InspectionFilters,
+  InspectionListItem,
+  InspectionPhoto,
+  InspectionReviewResult,
+} from '../types/inspection.types';
 import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/inspections`;
@@ -68,6 +75,7 @@ export class InspectionsService {
       ['vehicleId', filters.vehicleId],
       ['rentalId', filters.rentalId],
       ['kind', filters.kind],
+      ['status', filters.status],
       ['from', filters.from],
       ['to', filters.to],
     ];
@@ -75,6 +83,90 @@ export class InspectionsService {
       if (value) params = params.set(key, value);
     }
     return params;
+  }
+
+  /** `POST /v1/inspections` — abre a vistoria e devolve o RETRATO do roteiro. */
+  create(payload: CreateInspectionRequest): Observable<Inspection> {
+    return this.http.post<Inspection>(BASE, payload);
+  }
+
+  /** `GET /v1/inspections/{id}` — `requiredAngles` + `capturedAngles`, base da retomada. */
+  getOne(id: string): Observable<Inspection> {
+    return this.http.get<Inspection>(`${BASE}/${id}`);
+  }
+
+  /**
+   * `POST /v1/inspections/{id}/photos/{angle}` — UMA foto por vez, de propósito.
+   *
+   * Subir tudo no fim significaria que uma queda de conexão com 13 fotos na memória
+   * custa as 13. Subindo uma a uma, custa uma — e a resposta traz `capturedAngles`
+   * atualizado, então a tela não precisa adivinhar o que já foi.
+   */
+  uploadPhoto(id: string, angle: string, file: File): Observable<Inspection> {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http.post<Inspection>(
+      `${BASE}/${id}/photos/${encodeURIComponent(angle)}`,
+      body,
+    );
+  }
+
+  /**
+   * `POST /v1/inspections/{id}/submit` — ENTREGA a vistoria para aprovacao.
+   *
+   * Medido com o backend: `COMPLETED` so e alcancavel por `submit` seguido de
+   * `approve`, e nenhuma tela chamava `submit`. Consequencia real — nenhuma
+   * vistoria fechava, para NENHUM papel, nem com o dono operando. A chamada
+   * faltava do lado do frontend; e esta.
+   *
+   * Nao e idempotente do ponto de vista do produto: depois dela quem fotografou
+   * nao fotografa mais nesta vistoria, a menos que seja recusada. Por isso a
+   * tela exige clique explicito e nunca dispara isto como efeito de ter
+   * completado o roteiro.
+   *
+   * O retorno e `InspectionReviewResult`, NAO `Inspection` — ele nao traz
+   * `requiredAngles` nem `capturedAngles`. Quem chamar NAO pode usar esta
+   * resposta para substituir a vistoria em memoria; serve para ler o `status`
+   * novo. Ver o cabecalho de `InspectionReviewResult`.
+   */
+  submit(id: string): Observable<InspectionReviewResult> {
+    return this.http.post<InspectionReviewResult>(`${BASE}/${id}/submit`, {});
+  }
+
+  /**
+   * `GET /v1/inspections/{id}/photos` — as fotos enviadas, com o angulo de cada.
+   *
+   * Quem aprova TEM de ver antes de decidir; aprovar sem ver e assinar em
+   * branco. Por isso a tela nao oferece aprovacao enquanto esta lista nao
+   * chegou — lista vazia ou falha viram "tentar de novo", nunca um botao de
+   * aprovar habilitado.
+   *
+   * As URLs sao assinadas e EXPIRAM. Nao ha cache aqui de proposito: guardar
+   * uma lista dessas e guardar links que morrem sozinhos.
+   */
+  photos(id: string): Observable<InspectionPhoto[]> {
+    return this.http.get<InspectionPhoto[]>(`${BASE}/${id}/photos`);
+  }
+
+  /**
+   * `POST /v1/inspections/{id}/approve` — fecha a ocorrencia do ciclo.
+   *
+   * E a APROVACAO, nao o envio, que faz a cobranca parar: so uma vistoria
+   * `APPROVED` fecha a ocorrencia. OWNER/MANAGER, travado no servidor.
+   */
+  approve(id: string): Observable<InspectionReviewResult> {
+    return this.http.post<InspectionReviewResult>(`${BASE}/${id}/approve`, {});
+  }
+
+  /**
+   * `POST /v1/inspections/{id}/reject` — recusa COM MOTIVO.
+   *
+   * O motivo e obrigatorio no servidor (nao vazio, ate 1000 caracteres) e a
+   * tela tambem o exige: quem refotografa precisa saber o que estava errado.
+   * Recusar nao fecha o ciclo — o periodo segue devido.
+   */
+  reject(id: string, reason: string): Observable<InspectionReviewResult> {
+    return this.http.post<InspectionReviewResult>(`${BASE}/${id}/reject`, { reason });
   }
 
   list(filters: InspectionFilters = {}): Observable<PagedResponse<InspectionListItem>> {
