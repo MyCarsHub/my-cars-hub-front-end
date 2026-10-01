@@ -148,13 +148,13 @@ export class InviteAccept implements OnInit {
   };
   protected readonly cpfMessages: Readonly<Record<string, string>> = {
     required: 'Informe seu CPF.',
-    cpfShape: 'CPF inválido. Use o formato 000.000.000-00.',
-    cpfInvalid: 'CPF inválido.',
+    cpfShape: 'Faltou algum número do CPF — confira os 11 dígitos do seu documento.',
+    cpfInvalid: 'Esse CPF não confere. Confira os números no seu documento.',
     cpfMismatch: 'Este CPF não confere com o do convite.',
   };
   protected readonly phoneMessages: Readonly<Record<string, string>> = {
     required: 'Informe seu telefone.',
-    pattern: 'Telefone inválido. Use DDD + número.',
+    pattern: 'Confira o telefone com o DDD, como (11) 91234-5678.',
   };
 
   /**
@@ -311,9 +311,39 @@ export class InviteAccept implements OnInit {
       return;
     }
 
-    // FEAT-0167 — o gerente confirma os dados ANTES do aceite; o motorista segue direto,
-    // sem corpo, exatamente como sempre foi.
-    if (details.requiresManagerOnboarding === true) {
+    /*
+     * FEAT-0266 — O GERENTE TAMBEM SEGUE DIRETO, quando o convite carrega o que o aceite
+     * precisa. Isto era um pedagio na porta, e MEDIDO no backend ele era desnecessario:
+     *
+     *   InvitesController:accept -> @RequestBody(required = false)
+     *   InvitesService:requireManagerOnboardingIsResolvable -> exige documentId + nome +
+     *   telefone RESOLVIVEIS, e os resolve DO PROPRIO CONVITE antes de olhar o corpo. O CPF
+     *   so e conferido se vier preenchido (hasText): nunca e obrigatorio.
+     *
+     * Como a criacao de convite MANAGER exige nome, CPF e telefone (FEAT-0167), um convite
+     * moderno e sempre resolvivel — e a pessoa nao precisa redigitar nada. Tres campos a
+     * menos na porta para o caso comum.
+     *
+     * ## Por que o teste e NOME + TELEFONE, e nao o codigo do erro
+     *
+     * O caminho obvio seria tentar sem corpo e abrir o formulario se voltasse
+     * ERROR_MANAGER_CONFIRMATION_REQUIRED. NAO DA, hoje: aquele erro e lancado como
+     * `InvalidDataException(mensagem)` SEM codigo (InvitesService:833), ao contrario do
+     * irmao do motorista, que tem CODE_DRIVER_REGISTRATION_REQUIRED. E um 400 mudo — e o
+     * 400 mudo deste endpoint tambem sai de token em branco e de convite nao-PENDING, como
+     * `invite-errors.ts` ja avisa. Abrir formulario em cima dele pediria dados a quem tem um
+     * convite JA USADO. Casar a mensagem em portugues seria pior.
+     *
+     * Entao o discriminador e DADO, nao erro: `name` e `phoneNumber` vem nesta resposta, e
+     * um convite que os tem foi criado sob a regra que tambem exigia o CPF — logo tem
+     * documentId, logo e resolvivel. Faltando qualquer um dos dois, cai no formulario de
+     * antes: nenhum convite legado para de funcionar.
+     *
+     * A INFERENCIA que isto carrega, declarada: "tem nome e telefone" implica "tem
+     * documentId". Ela vale porque os tres nasceram obrigatorios no mesmo FEAT-0167. Para
+     * virar FATO, o backend precisa dar codigo ao erro do gerente — proposto como no.
+     */
+    if (details.requiresManagerOnboarding === true && !this.inviteCarriesManagerData(details)) {
       this.startOnboarding(details);
       return;
     }
@@ -340,6 +370,17 @@ export class InviteAccept implements OnInit {
     // Se você veio "consertar a assimetria": as duas telas decidem por mecânicas diferentes
     // porque as duas perguntas têm custos diferentes. Não implemente o flag do motorista.
     this.acceptInvite();
+  }
+
+  /**
+   * O convite ja traz o que o aceite do gerente precisa resolver?
+   *
+   * Nome E telefone, os dois. Meio preenchido nao serve: o backend exige os dois
+   * resolviveis, e um convite com so um deles cai no 400 mudo que esta tela nao sabe
+   * distinguir.
+   */
+  private inviteCarriesManagerData(details: ValidateInviteResponse): boolean {
+    return (details.name ?? '').trim().length > 0 && (details.phoneNumber ?? '').trim().length > 0;
   }
 
   /**
@@ -390,21 +431,22 @@ export class InviteAccept implements OnInit {
 
   protected readonly licenseMessages: Readonly<Record<string, string>> = {
     required: 'Informe o número da CNH.',
-    pattern: 'A CNH tem 11 caracteres, sem pontos ou traços.',
+    // "11 caracteres" descreve o CAMPO; isto descreve o que a pessoa tem na mão.
+    pattern: 'Digite os 11 números que aparecem na frente da sua CNH, sem pontos nem traços.',
   };
   protected readonly expiryMessages: Readonly<Record<string, string>> = {
     required: 'Informe a validade da CNH.',
   };
   protected readonly cepMessages: Readonly<Record<string, string>> = {
     required: 'Informe o CEP.',
-    pattern: 'CEP inválido. Use 00000-000.',
+    pattern: 'Confira o CEP — são 8 números, como 01310-100.',
   };
   protected readonly requiredOnly: Readonly<Record<string, string>> = {
-    required: 'Campo obrigatório.',
+    required: 'Preencha este campo para continuar.',
   };
   protected readonly ufMessages: Readonly<Record<string, string>> = {
     required: 'Informe a UF.',
-    pattern: 'Use a sigla de 2 letras.',
+    pattern: 'Use a sigla do estado com 2 letras, como SP.',
   };
 
   /**

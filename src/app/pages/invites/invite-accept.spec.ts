@@ -315,6 +315,19 @@ describe('InviteAccept — página pública de aceite', () => {
       requiresManagerOnboarding: true,
     };
 
+    /**
+     * FEAT-0266 — `managerDetails` e o convite MODERNO: traz nome E telefone, entao o aceite
+     * do backend resolve tudo sozinho e o gerente NAO ve formulario. Era este o convite que
+     * parava na porta, e o pedagio era desnecessario (medido:
+     * `InvitesController:accept` recebe `@RequestBody(required = false)`).
+     *
+     * O formulario continua existindo para o convite LEGADO — criado antes de nome, CPF e
+     * telefone virarem obrigatorios na criacao (FEAT-0167) —, e e com ele que os casos de
+     * formulario abaixo passam a rodar. Faltando QUALQUER um dos dois, a tela pede.
+     */
+    const legacyNoPhone: ValidateInviteResponse = { ...managerDetails, phoneNumber: undefined };
+    const legacyNoName: ValidateInviteResponse = { ...managerDetails, name: undefined };
+
     /** CPF valido em digito verificador, para o form passar na validacao local. */
     const VALID_CPF = '529.982.247-25';
 
@@ -340,26 +353,53 @@ describe('InviteAccept — página pública de aceite', () => {
       fixture.detectChanges();
     }
 
-    function openForm(): ComponentFixture<InviteAccept> {
+    function openForm(
+      details: ValidateInviteResponse = legacyNoPhone,
+    ): ComponentFixture<InviteAccept> {
       store['token'] = 'temporally-token';
-      validate.mockReturnValue(of(managerDetails));
+      validate.mockReturnValue(of(details));
       const { fixture } = render('raw-token');
       fixture.detectChanges();
       return fixture;
     }
 
-    it('gerente com onboarding NAO aceita sozinho: para no formulario', () => {
+    /**
+     * FEAT-0266 — O CASO COMUM, e o que este no existe para consertar: convite de gerente
+     * com nome e telefone na linha entra em UM passo, sem formulario e sem corpo no POST.
+     *
+     * CONTRAPESO dos casos de formulario abaixo: sem ele, uma reforma que abrisse o
+     * formulario SEMPRE continuaria passando em todos eles.
+     */
+    it('convite de gerente COMPLETO entra direto, sem formulario e sem corpo', () => {
+      const fixture = openForm(managerDetails);
+
+      // Sem corpo: o backend deriva nome, telefone e CPF do proprio convite.
+      expect(accept).toHaveBeenCalledWith('raw-token');
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).not.toContain('Confirme seus dados');
+      expect((fixture.nativeElement as HTMLElement).querySelector('#invite-cpf')).toBeNull();
+    });
+
+    it('convite LEGADO (sem telefone na linha) ainda para no formulario', () => {
       const fixture = openForm();
 
       expect(accept).not.toHaveBeenCalled();
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('Confirme seus dados');
     });
 
-    it('nome e telefone chegam pre-preenchidos, e o telefone vem MASCARADO', () => {
+    it('o que o convite legado TRAZ vem pre-preenchido; o que falta nasce vazio', () => {
       const fixture = openForm();
 
       expect(field(fixture, 'invite-name').value).toBe('Fulano de Tal');
+      expect(field(fixture, 'invite-phone').value).toBe('');
+    });
+
+    /** A mascara do telefone na hidratacao, no convite legado que o TRAZ. */
+    it('telefone que vem do convite chega MASCARADO', () => {
+      const fixture = openForm(legacyNoName);
+
       expect(field(fixture, 'invite-phone').value).toBe('(11) 98765-4321');
+      expect(field(fixture, 'invite-name').value).toBe('');
     });
 
     /** A decisao de PII, fixada em teste para ninguem "consertar" depois. */
@@ -372,6 +412,8 @@ describe('InviteAccept — página pública de aceite', () => {
     it('caminho feliz: confirma os dados e chega a MANAGER ativo', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      // O convite legado nao trouxe telefone, entao ele e digitado aqui.
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
 
       submit(fixture);
@@ -401,6 +443,7 @@ describe('InviteAccept — página pública de aceite', () => {
     it('CPF divergente MANTEM o convidado no formulario, com o campo marcado', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
       accept.mockReturnValue(throwError(() => codeError(400, 'INVITE_CPF_MISMATCH')));
 
@@ -416,6 +459,7 @@ describe('InviteAccept — página pública de aceite', () => {
     it('e-mail divergente TIRA da tela: vai para o erro e oferece trocar de conta', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
       accept.mockReturnValue(throwError(() => codeError(400, 'INVITE_EMAIL_MISMATCH')));
 
@@ -430,6 +474,7 @@ describe('InviteAccept — página pública de aceite', () => {
     it('motorista sem cadastro: mensagem do gestor e NENHUM botao de trocar conta', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
       accept.mockReturnValue(throwError(() => codeError(403, 'DRIVER_IDENTITY_NOT_RESOLVED')));
 
