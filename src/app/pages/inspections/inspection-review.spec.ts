@@ -500,4 +500,46 @@ describe('InspectionReview', () => {
       expect(approveBtn(fixture)).not.toBeNull();
     });
   });
+  /**
+   * QUANDO cada foto foi tirada.
+   *
+   * Numa vistoria PERIODICA, foto de hoje e foto de tres semanas atras sao
+   * indistinguiveis para quem aprova. Sem a data o dono aprova como ATUAL um
+   * estado que pode nao ser mais verdade — e medir o estado atual e a razao de
+   * a vistoria periodica existir.
+   */
+  describe('data de cada foto', () => {
+    const dates = (f: ComponentFixture<InspectionReview>) =>
+      Array.from(host(f).querySelectorAll('[data-taken-at]')).map((p) =>
+        (p.textContent ?? '').trim(),
+      );
+
+    it('mostra a data de CADA foto, uma por foto', () => {
+      configure();
+      const fixture = render();
+
+      expect(dates(fixture).length).toBe(2);
+      expect(dates(fixture)[0]).toContain('01/10/2026');
+    });
+
+    /** O caso que motivou: uma foto velha no meio de uma vistoria de hoje. */
+    it('uma foto de semanas atras aparece com a data dela, nao com a das outras', () => {
+      configure();
+      photos.mockReturnValue(
+        of([PHOTOS[0], { ...PHOTOS[1], createdDate: '2026-09-10T08:30:00' }]),
+      );
+      const fixture = render();
+
+      expect(dates(fixture)[0]).toContain('01/10/2026');
+      expect(dates(fixture)[1]).toContain('10/09/2026');
+    });
+
+    it('a foto indisponivel tambem mostra quando foi tirada', () => {
+      configure();
+      photos.mockReturnValue(of([PHOTOS[0], { ...PHOTOS[1], signedUrl: null }]));
+      const fixture = render();
+
+      expect(dates(fixture).length).toBe(2);
+    });
+  });
 });

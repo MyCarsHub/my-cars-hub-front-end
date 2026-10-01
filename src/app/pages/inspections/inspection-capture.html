@@ -96,6 +96,28 @@
     @if (uploadError(); as message) {
       <div class="mt-4">
         <app-alert-banner variant="error" [message]="message" />
+
+        <!--
+          REENVIAR, não refotografar. A foto já está na memória; na rua, em 3G,
+          falha de upload é o caso comum, e refazer a foto a cada falha ensina
+          a pessoa que o aplicativo não funciona. Fotografar de novo continua
+          possível pelo botão do ângulo — só deixou de ser a única saída.
+        -->
+        @if (canRetryUpload()) {
+          <button
+            type="button"
+            data-retry-upload
+            (click)="retryUpload()"
+            [disabled]="uploading()"
+            class="mt-3 w-full min-h-14 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 text-white text-base font-semibold px-5 py-4
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                   disabled:opacity-60 disabled:cursor-wait"
+          >
+            {{ uploading() ? 'Enviando…' : 'Reenviar esta foto' }}
+          </button>
+        }
       </div>
     }
 

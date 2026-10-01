@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -395,6 +395,137 @@ describe('InspectionCapture', () => {
       const shown = text(fixture);
       expect(shown).not.toContain('Vistoria enviada');
       expect(shown.toLowerCase()).toContain('permiss');
+    });
+  });
+  /**
+   * MEDIUM-1 — A FOTO RECEM-TIRADA NAO PODE SE PERDER NO ERRO.
+   *
+   * Na rua, em 3G, falha de upload e o caso COMUM. Se "tente de novo"
+   * significasse reabrir a camera, a pessoa refotografaria o mesmo angulo a
+   * cada falha — tres vezes e ela conclui que o aplicativo nao funciona, e
+   * esta certa.
+   *
+   * O arquivo ja esta na memoria: reenviar O MESMO e de graca.
+   */
+  describe('reenvio da foto que falhou', () => {
+    const retryBtn = (f: ComponentFixture<InspectionCapture>) =>
+      (f.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-retry-upload]');
+
+    function failUpload(): ComponentFixture<InspectionCapture> {
+      configure({ id: 'insp-1' }, {});
+      const fixture = render();
+      uploadPhoto.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+      const file = new File(['x'], 'frente.jpg', { type: 'image/jpeg' });
+      const cmp = fixture.componentInstance as unknown as {
+        openCamera(a: string): void;
+        onCaptured(f: File): void;
+      };
+      // A camera precisa estar aberta: `onCaptured` le o angulo de `activeAngle`.
+      cmp.openCamera('FRONT');
+      cmp.onCaptured(file);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('apos a falha, oferece REENVIAR — nao refotografar', () => {
+      const fixture = failUpload();
+
+      expect(retryBtn(fixture)).not.toBeNull();
+      expect(retryBtn(fixture)?.textContent ?? '').toContain('Reenviar');
+    });
+
+    it('o reenvio manda O MESMO arquivo, sem abrir a camera', () => {
+      const fixture = failUpload();
+      const sentFirst = uploadPhoto.mock.calls[0][2] as File;
+
+      uploadPhoto.mockReturnValue(of(inspection));
+      retryBtn(fixture)?.click();
+      fixture.detectChanges();
+
+      expect(uploadPhoto).toHaveBeenCalledTimes(2);
+      const sentAgain = uploadPhoto.mock.calls[1][2] as File;
+      expect(sentAgain).toBe(sentFirst);
+      // Mesmo angulo, e NENHUMA camera aberta: reenviar nao e refotografar.
+      expect(uploadPhoto.mock.calls[1][1]).toBe(uploadPhoto.mock.calls[0][1]);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('app-live-camera-sheet'),
+      ).toBeNull();
+    });
+
+    it('reenvio bem-sucedido limpa o erro e o pendente', () => {
+      const fixture = failUpload();
+
+      uploadPhoto.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
+      retryBtn(fixture)?.click();
+      fixture.detectChanges();
+
+      expect(retryBtn(fixture)).toBeNull();
+      expect(text(fixture)).toContain('1 de 3 fotos');
+    });
+
+    it('fotografar de novo continua possivel — so nao e a unica saida', () => {
+      const fixture = failUpload();
+      const cmp = fixture.componentInstance as unknown as { openCamera(a: string): void };
+
+      cmp.openCamera('FRONT');
+      fixture.detectChanges();
+
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('app-live-camera-sheet'),
+      ).not.toBeNull();
+    });
+  });
+  /**
+   * LOW-2 — a navegacao recusada nao pode ficar muda.
+   *
+   * `void router.navigate(...)` engolia os DOIS modos de falha: `false` (um
+   * guard recusou) e a rejeicao da promessa. Nos dois a pessoa olhava uma tela
+   * que nao mudou, sem nada a fazer — a mesma familia do convite que ficou
+   * girando para sempre.
+   *
+   * A vistoria JA FOI CRIADA quando isto acontece: o que falha e so o
+   * endereco, e o que se perde e a retomada. Por isso a mensagem manda
+   * continuar por ali e NAO recarregar.
+   */
+  describe('navegacao apos criar a vistoria', () => {
+    function renderWithNavigate(
+      navigate: () => Promise<boolean>,
+    ): ComponentFixture<InspectionCapture> {
+      configure({}, { vehicleId: 'veh-1' });
+      const router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigate').mockImplementation(navigate as never);
+      return render();
+    }
+
+    it('guard que RECUSA (false) vira mensagem acionavel, nao silencio', async () => {
+      const fixture = renderWithNavigate(() => Promise.resolve(false));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const shown = text(fixture);
+      expect(shown).toContain('não recarregue');
+      // A tela continua utilizavel: a vistoria existe e os angulos estao la.
+      expect(shown).toContain('0 de 3 fotos');
+    });
+
+    it('promessa REJEITADA tambem e tratada', async () => {
+      const fixture = renderWithNavigate(() => Promise.reject(new Error('boom')));
+      await fixture.whenStable();
+      // O ramo rejeitado passa por `.then` ANTES de chegar ao `.catch`, entao
+      // precisa de um tick de microtarefa a mais que o ramo `false`. Em
+      // producao a diferenca nao existe; aqui ela decide se o teste ve o efeito.
+      await Promise.resolve();
+      fixture.detectChanges();
+
+      expect(text(fixture)).toContain('não recarregue');
+    });
+
+    it('navegacao OK nao mostra aviso nenhum', async () => {
+      const fixture = renderWithNavigate(() => Promise.resolve(true));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(text(fixture)).not.toContain('não recarregue');
     });
   });
 });

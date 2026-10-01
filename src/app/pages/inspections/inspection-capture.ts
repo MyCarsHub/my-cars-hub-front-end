@@ -16,6 +16,14 @@ import { LiveCameraSheet } from '../rentals/documents/live-camera-sheet';
 import { angleLabel } from './angle-label';
 
 
+/**
+ * A vistoria existe; so o endereco nao trocou. Recarregar perderia a
+ * retomada, entao a frase diz o que fazer para nao perde-la.
+ */
+const NAV_FAILED_MESSAGE =
+  'A vistoria foi criada, mas não conseguimos abrir o endereço dela. ' +
+  'Continue fotografando por aqui; não recarregue a página.';
+
 interface AngleSlot {
   readonly angle: string;
   readonly label: string;
@@ -43,6 +51,20 @@ export class InspectionCapture implements OnInit {
   protected readonly activeAngle = signal<string | null>(null);
   protected readonly uploading = signal(false);
   protected readonly uploadError = signal<string | null>(null);
+
+  /**
+   * A foto que FALHOU ao subir, guardada para reenviar.
+   *
+   * Sem isto, "tente de novo" significava reabrir a camera e refotografar o
+   * mesmo angulo. Na rua, em 3G, falha de upload e o caso COMUM — e refazer a
+   * foto a cada falha ensina a pessoa que o aplicativo nao funciona. O arquivo
+   * ja esta na memoria; reenviar o MESMO nao custa nada.
+   *
+   * Limpo no sucesso e ao abrir a camera de proposito: pendente que sobrevive
+   * ao proximo envio reenviaria uma foto velha.
+   */
+  private readonly pendingUpload = signal<{ angle: string; file: File } | null>(null);
+  protected readonly canRetryUpload = computed(() => this.pendingUpload() !== null);
 
   /**
    * O FECHAMENTO. Tres sinais, porque "enviando", "enviada" e "falhou ao
@@ -140,9 +162,24 @@ export class InspectionCapture implements OnInit {
         this.loading.set(false);
         // A URL passa a apontar para a vistoria criada: recarregar a página ou voltar
         // a ela depois retoma em vez de abrir uma segunda vistoria do mesmo carro.
-        void this.router.navigate(['/vistorias', created.id, 'captura'], {
-          replaceUrl: true,
-        });
+        /*
+         * LOW-2 — a promessa NAO e descartada.
+         *
+         * `void router.navigate(...)` engolia os dois modos de falha: `false`
+         * (um guard recusou) e a rejeicao (erro no roteamento). Nos dois a
+         * pessoa ficava olhando uma tela que nao mudou, sem nada a fazer — a
+         * mesma familia do convite que ficou girando para sempre.
+         *
+         * A vistoria JA FOI CRIADA aqui: o fracasso e so do endereco, e o que
+         * se perde e a retomada. Por isso a mensagem e acionavel e nomeia o
+         * efeito real, em vez de dizer "erro ao navegar".
+         */
+        this.router
+          .navigate(['/vistorias', created.id, 'captura'], { replaceUrl: true })
+          .then((ok) => {
+            if (!ok) this.uploadError.set(NAV_FAILED_MESSAGE);
+          })
+          .catch(() => this.uploadError.set(NAV_FAILED_MESSAGE));
       },
       error: (err: unknown) => this.fail(err, 'Não foi possível iniciar a vistoria.'),
     });
@@ -160,7 +197,20 @@ export class InspectionCapture implements OnInit {
 
   protected openCamera(angle: string): void {
     this.uploadError.set(null);
+    this.pendingUpload.set(null);
     this.activeAngle.set(angle);
+  }
+
+  /**
+   * REENVIA o arquivo que falhou — nao abre a camera.
+   *
+   * Fotografar de novo continua possivel pelo botao do angulo; o que muda e
+   * que deixou de ser a UNICA saida depois de um erro de rede.
+   */
+  protected retryUpload(): void {
+    const pending = this.pendingUpload();
+    if (!pending || this.uploading()) return;
+    this.send(pending.angle, pending.file);
   }
 
   protected closeCamera(): void {
@@ -198,13 +248,19 @@ export class InspectionCapture implements OnInit {
       next: (updated) => {
         this.inspection.set(updated);
         this.uploading.set(false);
+        this.pendingUpload.set(null);
       },
       error: (err: unknown) => {
         this.uploading.set(false);
-        // Falha de UMA foto não derruba a tela: as anteriores já estão no servidor e o
-        // usuário repete só esta. Era esse o ponto de subir uma a uma.
+        // A foto FICA guardada: o erro nao pode custar a foto que ela acabou de
+        // tirar. Falha de UMA foto tambem nao derruba a tela — as anteriores ja
+        // estao no servidor. Era esse o ponto de subir uma a uma.
+        this.pendingUpload.set({ angle, file });
         this.uploadError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível enviar esta foto. Tente de novo.'),
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível enviar esta foto. Ela não se perdeu — reenvie.',
+          ),
         );
       },
     });

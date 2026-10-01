@@ -45,12 +45,22 @@
               </p>
             </div>
           }
-          <p data-angle-label class="px-3 py-2 text-xs font-semibold text-neutral-700">
-            {{ photo.label }}
-            @if (!photo.signedUrl) {
-              <span class="font-normal text-neutral-500">· não carregou</span>
-            }
-          </p>
+          <div class="px-3 py-2">
+            <p data-angle-label class="text-xs font-semibold text-neutral-700">
+              {{ photo.label }}
+              @if (!photo.signedUrl) {
+                <span class="font-normal text-neutral-500">· não carregou</span>
+              }
+            </p>
+            <!--
+              QUANDO foi tirada. Numa vistoria periódica, foto de hoje e foto de
+              três semanas atrás são indistinguíveis sem isto, e aprovar a
+              segunda como atual é aprovar um estado que já mudou.
+            -->
+            <p data-taken-at class="mt-0.5 text-[11px] text-neutral-500 tabular-nums">
+              {{ photo.takenAt }}
+            </p>
+          </div>
         </li>
       }
     </ul>

@@ -16,12 +16,42 @@ import { ApiErrorService } from '../../services/api-error.service';
 import type { InspectionPhoto, InspectionReviewResult } from '../../types/inspection.types';
 import { angleLabel, angleOrder } from './angle-label';
 
+/**
+ * QUANDO a foto foi tirada, em formato que gente lê.
+ *
+ * ## Por que isto é defeito de aprovação, e não enfeite
+ *
+ * Numa vistoria PERIÓDICA, foto de hoje e foto de três semanas atrás são
+ * indistinguíveis para quem aprova. Sem a data o dono aprova como ATUAL um
+ * estado que pode não ser mais verdade — e medir estado atual é exatamente a
+ * razão de a vistoria periódica existir.
+ *
+ * Mostra data E hora: as 14 fotos de uma sessão normal compartilham o dia, e é
+ * a que destoa que precisa saltar aos olhos.
+ *
+ * `createdDate` vem sem fuso (LocalDateTime do backend), então é lido como
+ * horário local — que é o do pátio onde a foto foi tirada.
+ */
+function formatTakenAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 interface PhotoView {
   /** Chave ESTAVEL do `@for` — nunca a `signedUrl`, que e reassinada. */
   readonly id: string;
   /** `null` = a foto existe, mas a assinatura dela falhou. */
   readonly signedUrl: string | null;
   readonly label: string;
+  /** Quando a foto foi tirada, já legível. */
+  readonly takenAt: string;
 }
 
 /**
@@ -185,6 +215,7 @@ export class InspectionReview {
             id: photo.id,
             signedUrl: photo.signedUrl,
             label: angleLabel(photo.angle),
+            takenAt: formatTakenAt(photo.createdDate),
           })),
         );
       },
