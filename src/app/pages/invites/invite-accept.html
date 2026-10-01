@@ -508,6 +508,51 @@
         </p>
       }
 
+      @case ('linked') {
+        <!--
+          O ACEITE DEU CERTO. Esta tela existe porque a navegacao para dentro do app nao
+          aconteceu, e nao porque o convite falhou — por isso nada aqui diz "erro" ou
+          "nao foi possivel aceitar", e o banner e `success`, nao `error`. Quem chega aqui
+          JA e membro da empresa.
+
+          MOBILE-FIRST: botao de largura total com alvo de 48px (`min-h-12`), igual aos
+          outros CTAs deste cartao, que e o unico layout desta tela em qualquer largura.
+        -->
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Sua conta foi vinculada
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Você já faz parte de
+          <span class="font-semibold text-neutral-900">{{ companyName() }}</span>
+          como {{ roleLabel() }}. Só não conseguimos abrir o aplicativo automaticamente
+          nesta aba.
+        </p>
+
+        <div class="mt-4">
+          <app-alert-banner
+            variant="success"
+            message="O convite foi aceito. Nada precisa ser refeito — é só entrar."
+          />
+        </div>
+
+        <div class="mt-6 flex flex-col gap-3">
+          <button
+            type="button"
+            (click)="reloadIntoApp()"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Entrar no MyCarsHub
+          </button>
+          <p class="text-xs text-neutral-500 leading-relaxed">
+            Se esta tela voltar, entre novamente com a conta convidada — o acesso já está
+            liberado.
+          </p>
+        </div>
+      }
+
       @case ('error') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
           Não foi possível usar este convite

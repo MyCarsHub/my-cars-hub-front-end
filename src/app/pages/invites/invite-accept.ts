@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { NgOptimizedImage } from '@angular/common';
+import { DOCUMENT, NgOptimizedImage } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { AuthService } from '../../services/auth.service';
 import { InvitesService } from '../../services/invites.service';
+import { TenantCachesService } from '../../services/tenant-caches.service';
 import { LoginService } from '../../services/loginService';
 import { SessionService } from '../../services/session.service';
 import { InviteAcceptCause, inviteAcceptCause, inviteErrorCopy } from '../../services/invite-errors';
@@ -42,6 +43,15 @@ function isDriverPayload(
 /** Mesmo padrao do onboarding (`step-personal`): DDD + numero, com ou sem mascara. */
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
+/**
+ * Quanto a tela espera a navegacao assentar antes de assumir que ela nao vai acontecer.
+ *
+ * Generoso de proposito: o caminho feliz resolve em milissegundos, entao este numero so e
+ * alcancado quando algo realmente travou. Curto demais transformaria uma navegacao lenta
+ * numa mensagem de erro desnecessaria.
+ */
+const NAVIGATION_GRACE_MS = 8000;
+
 type AcceptStep =
   | 'validating'
   | 'ready'
@@ -49,6 +59,12 @@ type AcceptStep =
   | 'driver-onboarding'
   | 'accepting'
   | 'mismatch'
+  /**
+   * O aceite DEU CERTO no servidor e a navegacao para dentro do app nao aconteceu.
+   * Estado proprio porque a tela nao pode continuar em 'accepting': o trabalho acabou,
+   * e o spinner afirmaria que ainda esta em curso.
+   */
+  | 'linked'
   | 'error';
 
 /**
@@ -88,6 +104,8 @@ export class InviteAccept implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly loginService = inject(LoginService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly tenantCaches = inject(TenantCachesService);
+  private readonly document = inject(DOCUMENT);
 
   private token = '';
 
@@ -208,6 +226,60 @@ export class InviteAccept implements OnInit {
   }
 
   /** Drops the current (wrong) session and restarts the Google flow for this invite. */
+  /**
+   * A REDE DE SEGURANCA. `router.navigate()` devolve `Promise<boolean>` e um `false` e
+   * SILENCIOSO: guard que recusa nao lanca, nao loga e nao troca de tela. Ninguem tratava
+   * esse `false`, e por isso um aceite BEM-SUCEDIDO terminava num spinner permanente.
+   *
+   * Tres saidas, nao uma:
+   *
+   * - `false` — algum guard recusou. O caso medido era o laco billing/role, mas qualquer
+   *   guard futuro produz o mesmo sintoma, e e por isso que o tratamento e do RESULTADO e
+   *   nao daquele laco.
+   * - rejeicao — o router estoura o limite de redirecionamentos e a promessa REJEITA em vez
+   *   de resolver `false`. Tratar so o `false` deixaria metade do defeito de pe.
+   * - nunca assentar — o `timeout` cobre a navegacao que simplesmente nao volta. Sem ele a
+   *   tela continua presa exatamente como antes.
+   *
+   * Em TODAS, o estado final e 'linked', nunca 'error': a conta FOI vinculada. Dizer que
+   * falhou seria mentir para quem acabou de ser adicionado a empresa com sucesso.
+   */
+  private goToDashboard(): void {
+    let settled = false;
+    const land = (navigated: boolean): void => {
+      if (settled) return;
+      settled = true;
+      if (!navigated) {
+        this.step.set('linked');
+      }
+    };
+
+    const timer = setTimeout(() => land(false), NAVIGATION_GRACE_MS);
+
+    this.router.navigate(['/dashboard'], { replaceUrl: true }).then(
+      (ok) => {
+        clearTimeout(timer);
+        land(ok === true);
+      },
+      () => {
+        clearTimeout(timer);
+        land(false);
+      },
+    );
+  }
+
+  /**
+   * Saida do estado 'linked': recarga COMPLETA da pagina, nao `router.navigate`.
+   *
+   * Navegar pelo router de novo bateria nos mesmos guards com o mesmo estado em memoria e
+   * recusaria de novo. Uma recarga descarta todo cache por empresa que sobrou e refaz a
+   * decisao com o token novo — e o unico caminho que nao depende de adivinhar qual guard
+   * recusou.
+   */
+  protected reloadIntoApp(): void {
+    this.document.defaultView?.location.assign('/');
+  }
+
   protected switchAccount(): void {
     if (this.redirecting()) return;
     this.auth.logout();
@@ -492,9 +564,25 @@ export class InviteAccept implements OnInit {
         // the shell would otherwise render an empty identity until the next login.
         const email = this.details()?.email;
         if (email) this.session.setItem('email', email);
-        // The cache belongs to whatever tenant was open before this accept.
-        this.invites.reset();
-        this.router.navigate(['/dashboard'], { replaceUrl: true });
+        /*
+         * A CAUSA do spinner eterno (medido): aceitar um convite E UMA TROCA DE TENANT, e
+         * esta linha zerava SO o cache de convites. Todo o resto dos caches por empresa
+         * seguia com o veredito do tenant ANTERIOR — e `BillingAccessService` e um deles.
+         *
+         * Com o `isBlocked()` da empresa de quem convidou ainda em memoria,
+         * `billingAccessGuard` desviava `/dashboard` para `/billing`; `/billing` e
+         * `roleGuard(['OWNER'])` e o convidado nunca e OWNER, entao o roleGuard devolvia
+         * o convidado para a casa do papel dele, que o billingAccessGuard desviava de
+         * novo para `/billing`: LACO. O router cancela, `navigate()` nao abre tela
+         * nenhuma, e a pagina ficava em 'accepting' para sempre.
+         *
+         * `resetAll()` e o que `layout.store` e `impersonation.service` ja chamam em toda
+         * troca de empresa — o aceite era o unico caminho de troca que nao chamava. Ele
+         * inclui o cache de convites, porque `InvitesService` se registra no mesmo
+         * registro.
+         */
+        this.tenantCaches.resetAll();
+        this.goToDashboard();
       },
       error: (err: unknown) => {
         this.submitting.set(false);
