@@ -111,7 +111,7 @@
               type="text"
               autocomplete="name"
               placeholder="Seu nome completo"
-              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                      text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                      focus:border-primary-600 transition-colors" />
           </app-form-field>
@@ -211,7 +211,7 @@
                 formControlName="name"
                 type="text"
                 autocomplete="name" maxlength="180" placeholder="Seu nome completo"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -227,7 +227,7 @@
                 formControlName="cpf"
                 type="text"
                 inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" (input)="onDriverCpfInput($event)"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -243,7 +243,7 @@
                 formControlName="phone"
                 type="tel"
                 inputmode="tel" autocomplete="tel" maxlength="15" placeholder="(00) 00000-0000" (input)="onDriverPhoneInput($event)"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -262,8 +262,8 @@
                 appFieldControl
                 formControlName="licenseNumber"
                 type="text"
-                inputmode="numeric" autocomplete="off" maxlength="11" placeholder="11 caracteres" (input)="onLicenseInput($event)"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                inputmode="numeric" autocomplete="off" maxlength="11" placeholder="Os 11 números da frente da CNH" (input)="onLicenseInput($event)"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -276,7 +276,7 @@
             <select
               appFieldControl
               formControlName="licenseCategory"
-              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                      text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                      focus:border-primary-600 transition-colors">
               @for (category of licenseCategories; track category) {
@@ -296,7 +296,7 @@
                 formControlName="licenseExpiry"
                 type="date"
                 
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -316,7 +316,7 @@
                 formControlName="cep"
                 type="text"
                 inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000" (input)="onCepInput($event)"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -335,7 +335,7 @@
                 formControlName="street"
                 type="text"
                 autocomplete="address-line1" maxlength="180"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -352,7 +352,7 @@
                 formControlName="number"
                 type="text"
                 inputmode="numeric" placeholder="Sem número? deixe vazio"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -368,7 +368,7 @@
                 formControlName="complement"
                 type="text"
                 placeholder="Apto, bloco…"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -385,7 +385,7 @@
                 formControlName="district"
                 type="text"
                 maxlength="120"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -402,7 +402,7 @@
                 formControlName="city"
                 type="text"
                 maxlength="120"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -418,7 +418,7 @@
                 formControlName="uf"
                 type="text"
                 maxlength="2" placeholder="SP" style="text-transform:uppercase"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-sm
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
                        text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors" />
             </app-form-field>
@@ -506,6 +506,95 @@
         <p class="mt-4 text-xs text-neutral-500 leading-relaxed">
           Sair daqui encerra a sessão desta aba. O convite continua válido pelo prazo do e-mail.
         </p>
+      }
+
+      @case ('linked') {
+        <!--
+          O ACEITE DEU CERTO. Esta tela existe porque a navegacao para dentro do app nao
+          aconteceu, e nao porque o convite falhou — por isso nada aqui diz "erro" ou
+          "nao foi possivel aceitar", e o banner e `success`, nao `error`. Quem chega aqui
+          JA e membro da empresa.
+
+          MOBILE-FIRST: botao de largura total com alvo de 48px (`min-h-12`), igual aos
+          outros CTAs deste cartao, que e o unico layout desta tela em qualquer largura.
+        -->
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Sua conta foi vinculada
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Você já faz parte de
+          <span class="font-semibold text-neutral-900">{{ companyName() }}</span>
+          como {{ roleLabel() }}. Só não conseguimos abrir o aplicativo automaticamente
+          nesta aba.
+        </p>
+
+        <div class="mt-4">
+          <app-alert-banner
+            variant="success"
+            message="O convite foi aceito. Nada precisa ser refeito — é só entrar."
+          />
+        </div>
+
+        <div class="mt-6 flex flex-col gap-3">
+          <button
+            type="button"
+            (click)="reloadIntoApp()"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Entrar no MyCarsHub
+          </button>
+          <p class="text-xs text-neutral-500 leading-relaxed">
+            Se esta tela voltar, entre novamente com a conta convidada — o acesso já está
+            liberado.
+          </p>
+        </div>
+      }
+
+      @case ('unconfirmed') {
+        <!--
+          MEDIUM-1 — o `accept` nao respondeu no tempo. NAO afirmamos sucesso (seria mentir
+          se nao gravou) nem fracasso (seria mentir se gravou): o servidor e a autoridade.
+          Banner `warning`, nao `error`, porque nada se sabe ter dado errado.
+
+          A acao oferecida resolve nos DOIS casos — entrando, a pessoa VE se entrou. Nao ha
+          botao de "tentar de novo" de proposito: um segundo aceite do mesmo convite volta
+          409 e a pessoa leria "convite ja utilizado" como se tivesse errado algo.
+        -->
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Não tivemos resposta do servidor
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Seu convite para
+          <span class="font-semibold text-neutral-900">{{ companyName() }}</span>
+          pode já ter sido aceito. Entre no aplicativo para conferir antes de tentar de novo.
+        </p>
+
+        <div class="mt-4">
+          <app-alert-banner
+            variant="warning"
+            message="Não sabemos se o acesso foi gravado. Entrar é a forma de ver."
+          />
+        </div>
+
+        <div class="mt-6 flex flex-col gap-3">
+          <button
+            type="button"
+            (click)="reloadIntoApp()"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Entrar no MyCarsHub
+          </button>
+          <p class="text-xs text-neutral-500 leading-relaxed">
+            Se você não entrar, abra o link do e-mail de novo mais tarde ou fale com quem te
+            convidou.
+          </p>
+        </div>
       }
 
       @case ('error') {

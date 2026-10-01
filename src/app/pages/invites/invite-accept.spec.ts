@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InviteAccept } from './invite-accept';
@@ -12,6 +12,7 @@ import { InvitesService } from '../../services/invites.service';
 import { LoginService } from '../../services/loginService';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
+import { TenantCachesService } from '../../services/tenant-caches.service';
 import { INVITE_TTL_DAYS } from '../../types/invite.types';
 import type { AcceptInviteResponse, ValidateInviteResponse } from '../../types/invite.types';
 
@@ -50,12 +51,16 @@ describe('InviteAccept — página pública de aceite', () => {
   let logout: ReturnType<typeof vi.fn>;
   let loginWithGoogle: ReturnType<typeof vi.fn>;
   let reset: ReturnType<typeof vi.fn>;
+  let resetAll: ReturnType<typeof vi.fn>;
 
   function error(status: number): HttpErrorResponse {
     return new HttpErrorResponse({ status, error: { message: 'falhou' } });
   }
 
-  function render(token: string | null): {
+  function render(
+    token: string | null,
+    navigateImpl: () => Promise<boolean> = () => Promise.resolve(true),
+  ): {
     fixture: ComponentFixture<InviteAccept>;
     component: Harness;
     navigate: ReturnType<typeof vi.fn>;
@@ -75,6 +80,7 @@ describe('InviteAccept — página pública de aceite', () => {
           },
         },
         { provide: InvitesService, useValue: { validate, accept, reset } },
+        { provide: TenantCachesService, useValue: { resetAll } },
         { provide: AuthService, useValue: { applyFinishResponse, logout } },
         { provide: LoginService, useValue: { loginWithGoogle } },
         {
@@ -103,7 +109,7 @@ describe('InviteAccept — página pública de aceite', () => {
       ],
     });
 
-    const navigate = vi.fn(() => Promise.resolve(true));
+    const navigate = vi.fn(navigateImpl);
     const router = TestBed.inject(Router);
     router.navigate = navigate as unknown as Router['navigate'];
 
@@ -123,6 +129,7 @@ describe('InviteAccept — página pública de aceite', () => {
     });
     loginWithGoogle = vi.fn();
     reset = vi.fn();
+    resetAll = vi.fn();
   });
 
   afterEach(() => {
@@ -162,7 +169,12 @@ describe('InviteAccept — página pública de aceite', () => {
     expect(applyFinishResponse).toHaveBeenCalledWith(acceptResponse);
     expect(navigate).toHaveBeenCalledWith(['/dashboard'], { replaceUrl: true });
     expect(store[PENDING_INVITE_TOKEN_KEY]).toBeUndefined();
-    expect(reset).toHaveBeenCalled();
+    // Era `expect(reset)` — o reset SO do cache de convites. A intencao do caso continua a
+    // mesma ("o cache do tenant anterior cai"), e o conserto do spinner eterno a cumpre de
+    // forma mais FORTE: `resetAll()` zera todos os caches por empresa, e o de convites esta
+    // entre eles porque `InvitesService` se registra no mesmo `TenantResetRegistry`.
+    // Afirmar `invites.reset()` aqui era afirmar o MECANISMO; o que importa e o resultado.
+    expect(resetAll).toHaveBeenCalled();
   });
 
   /**
@@ -303,6 +315,19 @@ describe('InviteAccept — página pública de aceite', () => {
       requiresManagerOnboarding: true,
     };
 
+    /**
+     * FEAT-0266 — `managerDetails` e o convite MODERNO: traz nome E telefone, entao o aceite
+     * do backend resolve tudo sozinho e o gerente NAO ve formulario. Era este o convite que
+     * parava na porta, e o pedagio era desnecessario (medido:
+     * `InvitesController:accept` recebe `@RequestBody(required = false)`).
+     *
+     * O formulario continua existindo para o convite LEGADO — criado antes de nome, CPF e
+     * telefone virarem obrigatorios na criacao (FEAT-0167) —, e e com ele que os casos de
+     * formulario abaixo passam a rodar. Faltando QUALQUER um dos dois, a tela pede.
+     */
+    const legacyNoPhone: ValidateInviteResponse = { ...managerDetails, phoneNumber: undefined };
+    const legacyNoName: ValidateInviteResponse = { ...managerDetails, name: undefined };
+
     /** CPF valido em digito verificador, para o form passar na validacao local. */
     const VALID_CPF = '529.982.247-25';
 
@@ -328,26 +353,53 @@ describe('InviteAccept — página pública de aceite', () => {
       fixture.detectChanges();
     }
 
-    function openForm(): ComponentFixture<InviteAccept> {
+    function openForm(
+      details: ValidateInviteResponse = legacyNoPhone,
+    ): ComponentFixture<InviteAccept> {
       store['token'] = 'temporally-token';
-      validate.mockReturnValue(of(managerDetails));
+      validate.mockReturnValue(of(details));
       const { fixture } = render('raw-token');
       fixture.detectChanges();
       return fixture;
     }
 
-    it('gerente com onboarding NAO aceita sozinho: para no formulario', () => {
+    /**
+     * FEAT-0266 — O CASO COMUM, e o que este no existe para consertar: convite de gerente
+     * com nome e telefone na linha entra em UM passo, sem formulario e sem corpo no POST.
+     *
+     * CONTRAPESO dos casos de formulario abaixo: sem ele, uma reforma que abrisse o
+     * formulario SEMPRE continuaria passando em todos eles.
+     */
+    it('convite de gerente COMPLETO entra direto, sem formulario e sem corpo', () => {
+      const fixture = openForm(managerDetails);
+
+      // Sem corpo: o backend deriva nome, telefone e CPF do proprio convite.
+      expect(accept).toHaveBeenCalledWith('raw-token');
+      const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).not.toContain('Confirme seus dados');
+      expect((fixture.nativeElement as HTMLElement).querySelector('#invite-cpf')).toBeNull();
+    });
+
+    it('convite LEGADO (sem telefone na linha) ainda para no formulario', () => {
       const fixture = openForm();
 
       expect(accept).not.toHaveBeenCalled();
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('Confirme seus dados');
     });
 
-    it('nome e telefone chegam pre-preenchidos, e o telefone vem MASCARADO', () => {
+    it('o que o convite legado TRAZ vem pre-preenchido; o que falta nasce vazio', () => {
       const fixture = openForm();
 
       expect(field(fixture, 'invite-name').value).toBe('Fulano de Tal');
+      expect(field(fixture, 'invite-phone').value).toBe('');
+    });
+
+    /** A mascara do telefone na hidratacao, no convite legado que o TRAZ. */
+    it('telefone que vem do convite chega MASCARADO', () => {
+      const fixture = openForm(legacyNoName);
+
       expect(field(fixture, 'invite-phone').value).toBe('(11) 98765-4321');
+      expect(field(fixture, 'invite-name').value).toBe('');
     });
 
     /** A decisao de PII, fixada em teste para ninguem "consertar" depois. */
@@ -360,6 +412,8 @@ describe('InviteAccept — página pública de aceite', () => {
     it('caminho feliz: confirma os dados e chega a MANAGER ativo', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      // O convite legado nao trouxe telefone, entao ele e digitado aqui.
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
 
       submit(fixture);
@@ -389,6 +443,7 @@ describe('InviteAccept — página pública de aceite', () => {
     it('CPF divergente MANTEM o convidado no formulario, com o campo marcado', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
       accept.mockReturnValue(throwError(() => codeError(400, 'INVITE_CPF_MISMATCH')));
 
@@ -404,6 +459,7 @@ describe('InviteAccept — página pública de aceite', () => {
     it('e-mail divergente TIRA da tela: vai para o erro e oferece trocar de conta', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
       accept.mockReturnValue(throwError(() => codeError(400, 'INVITE_EMAIL_MISMATCH')));
 
@@ -418,6 +474,7 @@ describe('InviteAccept — página pública de aceite', () => {
     it('motorista sem cadastro: mensagem do gestor e NENHUM botao de trocar conta', () => {
       const fixture = openForm();
       type(field(fixture, 'invite-cpf'), VALID_CPF);
+      type(field(fixture, 'invite-phone'), '(11) 98765-4321');
       fixture.detectChanges();
       accept.mockReturnValue(throwError(() => codeError(403, 'DRIVER_IDENTITY_NOT_RESOLVED')));
 
@@ -767,5 +824,176 @@ describe('InviteAccept — página pública de aceite', () => {
     expect(promised).not.toBeNull();
     expect(Number(promised?.[1])).toBe(INVITE_TTL_DAYS);
     expect(promised?.[2]).toMatch(/^dias?$/);
+  });
+  // ------------------------------------------- O ACEITE DEU CERTO E A TELA TRAVOU
+  /**
+   * O defeito de producao: convite aceito, servidor gravou, e a tela ficou em
+   * "Entrando na empresa..." para sempre. A conta ENTRAVA normalmente em outra aba.
+   *
+   * ## A causa, e por que o teste dela e sobre o cache e nao sobre o laco
+   *
+   * Aceitar e uma TROCA DE TENANT. O codigo zerava so o cache de convites, entao os
+   * caches por empresa seguiam com o veredito da empresa de QUEM CONVIDOU —
+   * `BillingAccessService` entre eles. Com `isBlocked()` velho em memoria,
+   * `billingAccessGuard` mandava `/dashboard` para `/billing`, que e
+   * `roleGuard(['OWNER'])`, que devolvia o convidado (nunca OWNER) para a casa do papel
+   * dele, que o billing desviava outra vez: laco. `navigate()` nao abria tela nenhuma.
+   *
+   * Afirmar o LACO aqui exigiria montar a arvore de rotas real com os tres guards; o que
+   * este teste afirma e o passo que faltava e que o conserto acrescenta — a troca de tenant
+   * passa a zerar TODOS os caches, como `layout.store` e `impersonation.service` ja faziam.
+   */
+  it('aceitar zera os caches de TODA a empresa, nao so o de convites', () => {
+    store['token'] = 'temporally-token';
+
+    render('raw-token');
+
+    expect(accept).toHaveBeenCalledWith('raw-token');
+    expect(resetAll).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * A REDE DE SEGURANCA, e e ela que impede o defeito de voltar por OUTRO motivo.
+   *
+   * `router.navigate()` devolve `Promise<boolean>` e o `false` e silencioso: guard que
+   * recusa nao lanca, nao loga e nao troca de tela. Os tres casos abaixo sao as tres
+   * formas de a navegacao nao acontecer, e todas tinham o MESMO sintoma antes: spinner
+   * permanente.
+   *
+   * A asserticao central nao e "aparece alguma mensagem" — e que a tela sai de
+   * "Entrando na empresa...". Enquanto aquele texto estiver na tela, o usuario nao tem
+   * saida, que era exatamente o defeito.
+   */
+  it.each([
+    ['recusada por um guard (resolve false)', () => Promise.resolve(false)],
+    ['rejeitada (limite de redirecionamentos)', () => Promise.reject(new Error('loop'))],
+  ] as const)('navegacao %s mostra saida acionavel, nao spinner eterno', async (_label, impl) => {
+    store['token'] = 'temporally-token';
+
+    const { fixture } = render('raw-token', impl as () => Promise<boolean>);
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Entrando na empresa');
+    expect(text).toContain('Sua conta foi vinculada');
+    // A frase tem de ser VERDADEIRA: o aceite funcionou. Nada de "nao foi possivel".
+    expect(text).not.toContain('Não foi possível usar este convite');
+    // E tem de haver um caminho clicavel para sair daqui.
+    const cta = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => (b.textContent ?? '').includes('Entrar no MyCarsHub'));
+    expect(cta).toBeDefined();
+  });
+
+  it('navegacao que nunca assenta tambem sai do spinner, pelo timeout', async () => {
+    store['token'] = 'temporally-token';
+
+    // Promessa que nunca resolve: a navegacao que simplesmente nao volta. Sem o timeout a
+    // tela fica presa exatamente como no defeito original.
+    const { fixture } = render('raw-token', () => new Promise<boolean>(() => {}));
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Entrando na empresa');
+
+    vi.advanceTimersByTime(8000);
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Entrando na empresa');
+    expect(text).toContain('Sua conta foi vinculada');
+  });
+
+  it('a navegacao que FUNCIONA nao mostra a tela de saida — contrapeso', () => {
+    // Sem este caso, um conserto que mostrasse 'linked' SEMPRE passaria nos de cima.
+    store['token'] = 'temporally-token';
+
+    const { fixture, navigate } = render('raw-token');
+
+    expect(navigate).toHaveBeenCalledWith(['/dashboard'], { replaceUrl: true });
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Sua conta foi vinculada',
+    );
+  });
+  // ------------------------------- NENHUM ESTADO DE ESPERA SEM SAIDA (MEDIUM-1)
+  /**
+   * A rede de seguranca cobria a navegacao POS-aceite e deixava de fora os dois estados de
+   * espera que vem ANTES. Pendurar nao e errar: sem resposta nao existe `error`, e sem
+   * `error` a tela ficava no MESMO spinner eterno — o defeito do dono um passo antes.
+   *
+   * Nenhum interceptor cobre isso: o unico com timeout do projeto nao esta registrado.
+   */
+  it('validate que nunca responde sai do spinner e diz o que fazer', () => {
+    validate.mockReturnValue(NEVER);
+
+    const { fixture } = render('raw-token');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Verificando');
+
+    vi.advanceTimersByTime(15000);
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Verificando');
+    expect(text).toContain('Não tivemos resposta do servidor');
+    expect(text).toContain('Confira sua conexão');
+    // E NAO a frase que mandaria pedir outro convite por causa de uma queda de rede.
+    expect(text).not.toContain('Peça à empresa para enviar um novo');
+  });
+
+  it('accept que nunca responde nao afirma sucesso NEM fracasso', () => {
+    store['token'] = 'temporally-token';
+    accept.mockReturnValue(NEVER);
+
+    const { fixture } = render('raw-token');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Entrando na empresa');
+
+    vi.advanceTimersByTime(15000);
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Entrando na empresa');
+    expect(text).toContain('Não tivemos resposta');
+    expect(text).toContain('pode já ter sido aceito');
+    // Nao mente para nenhum lado: nem "vinculada", nem "nao foi possivel".
+    expect(text).not.toContain('Sua conta foi vinculada');
+    expect(text).not.toContain('Não foi possível usar este convite');
+    // E ha saida clicavel.
+    const cta = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => (b.textContent ?? '').includes('Entrar no MyCarsHub'));
+    expect(cta).toBeDefined();
+  });
+
+  // ------------------------------------------- A FRASE DO 400 MUDO (MEDIUM-2)
+  /**
+   * O convite trazia nome e telefone, entao tentamos SEM corpo. O backend recusou com um 400
+   * SEM codigo — e a tela nao tem como saber se foi "convite ja usado" ou "o servidor quer o
+   * formulario": os dois saem iguais.
+   *
+   * A copy generica dizia "Este convite nao e mais valido. Peca a empresa para enviar um
+   * novo convite." Falso, e inutil: um convite novo cai no mesmo lugar, e a pessoa pede,
+   * recebe, clica e trava de novo. Este caso trava essa frase fora daquele ramo.
+   */
+  it('400 sem codigo na tentativa sem corpo nao manda pedir outro convite', () => {
+    store['token'] = 'temporally-token';
+    validate.mockReturnValue(
+      of({ ...details, name: 'Fulano de Tal', phoneNumber: '11987654321', requiresManagerOnboarding: true }),
+    );
+    accept.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 400, error: {} })));
+
+    const { fixture } = render('raw-token');
+    fixture.detectChanges();
+
+    // Entrou pelo caminho novo: sem corpo.
+    expect(accept).toHaveBeenCalledWith('raw-token');
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    // A instrucao que NAO resolve fica de fora.
+    expect(text).not.toContain('Peça à empresa para enviar um novo convite');
+    expect(text).not.toContain('não é mais válido');
+    // O que entra: admite o que nao se sabe e aponta uma acao que pode resolver.
+    expect(text).toContain('pode já ter sido usado');
+    expect(text).toContain('Fale com quem te convidou');
   });
 });
