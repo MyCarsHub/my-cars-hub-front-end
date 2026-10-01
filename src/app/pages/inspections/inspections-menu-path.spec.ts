@@ -64,6 +64,7 @@ describe('Vistorias — menu -> rota -> lista', () => {
     driverName: 'Fulano de Tal',
     kind: 'CHECKIN',
     performedAt: '2026-09-10T12:00:00Z',
+    status: 'APPROVED',
     photoCount: 14,
   };
 

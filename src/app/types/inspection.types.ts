@@ -40,6 +40,104 @@ export interface Inspection {
    * Quem for dizer o que faltou lê DAQUI, nunca do checklist atual.
    */
   readonly requiredAngles: readonly string[];
+  /**
+   * Ângulos que JÁ têm foto. A tela de captura sabe o que falta subtraindo isto de
+   * `requiredAngles` — é o que permite RETOMAR uma vistoria interrompida em vez de
+   * recomeçar. Refotografar um ângulo SUBSTITUI (índice único no backend), então
+   * reenviar não duplica.
+   */
+  readonly capturedAngles: readonly string[];
+}
+
+/**
+ * Estado do CICLO DE REVISAO — o que `submit`, `approve`, `reject` devolvem.
+ *
+ * ## Isto NAO e uma `Inspection`, e confundir as duas ja custou um defeito
+ *
+ * `POST /{id}/submit` devolve `InspectionReviewResponseDto`, nao `InspectionDto`:
+ * NAO tem `requiredAngles` nem `capturedAngles`. A primeira versao do
+ * `submit()` tipou o retorno como `Inspection` e a tela fazia
+ * `inspection.set(resposta)` — em producao o cartao de progresso perderia os
+ * angulos no instante do envio, e a lista de fotos esvaziaria.
+ *
+ * O TypeScript nao pegou (forma de runtime) e o spec passou porque o DUBLE
+ * devolvia uma `Inspection` completa. O duble mentiu sobre o contrato, e um
+ * duble que mente prova o CONTRARIO do que acontece em producao. Este tipo
+ * existe para que o duble tenha uma forma certa para copiar.
+ *
+ * Campo a campo com o record do backend.
+ */
+/**
+ * Uma foto enviada, como `GET /v1/inspections/{id}/photos` devolve.
+ *
+ * Campo a campo com o DTO real — ele espelha o irmao de fotos de aluguel.
+ *
+ * `angle` vem EXPLICITO, nao derivado da ordem: quem aprova precisa saber que
+ * esta olhando a traseira, e nao a terceira foto. Ordem nao e rotulo.
+ *
+ * `signedUrl` tem VALIDADE CURTA e MUDA A CADA RECARGA. Nao guarde, nao
+ * cacheie, e NUNCA use como chave de lista — veja `id`.
+ *
+ * ## `storagePath` NAO existe aqui, e a ausencia e deliberada
+ *
+ * O backend nao expoe o caminho do objeto no bucket: ele seria chave de acesso
+ * ao storage. Nao o acrescente "para completar o tipo" se um dia vazar na
+ * resposta — a ausencia e a decisao.
+ */
+export interface InspectionPhoto {
+  /**
+   * Chave ESTAVEL da lista. E por ela que o `@for` rastreia.
+   *
+   * Nao use `signedUrl`: ela e reassinada a cada carga, entao o Angular
+   * destruiria e recriaria toda a galeria a cada recarga — e no celular isso e
+   * 14 imagens baixadas de novo. Indice tambem nao: reordenar embaralha.
+   */
+  readonly id: string;
+  readonly inspectionId: string;
+  readonly angle: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  /**
+   * URL assinada, ou `null` quando a assinatura DAQUELA foto falhou.
+   *
+   * O backend isola a falha por item: uma foto que nao assina nao derruba a
+   * resposta inteira — antes derrubava, e a tela mostrava zero em vez de 13 de
+   * 14. O item continua vindo, com `signedUrl` nulo, e NAO e omitido: omitir
+   * faria a lista parecer completa quando nao esta.
+   *
+   * Nulo significa "a foto EXISTE e nao consegui exibir", nunca "nao tem foto
+   * deste angulo". A distincao decide o que a tela pode afirmar.
+   */
+  readonly signedUrl: string | null;
+  /** Quando a foto foi enviada (ISO). */
+  readonly createdDate: string;
+}
+
+export interface InspectionReviewResult {
+  readonly id: string;
+  /** `PENDING` -> `SUBMITTED` -> `APPROVED` | `REJECTED`. */
+  readonly status: InspectionStatus;
+  /** Nulo em vistoria que nao nasceu de um agendamento (frota avulsa). */
+  readonly scheduleId: string | null;
+  /** Data DEVIDA do ciclo (ISO). Nula sem agendamento. */
+  readonly dueAt: string | null;
+  readonly pdfDocumentId: string | null;
+  /** A vistoria que esta substitui, quando nasceu de uma recusa. */
+  readonly supersedesId: string | null;
+}
+
+/**
+ * Os quatro estados que o backend emite. `APPROVED` e o unico que FECHA a
+ * ocorrencia do ciclo — submeter nao basta, e por isso o lembrete do motor
+ * continua ate alguem aprovar.
+ */
+export type InspectionStatus = 'PENDING' | 'SUBMITTED' | 'REJECTED' | 'APPROVED';
+
+/** Corpo de `POST /v1/inspections`. `rentalId` nulo = vistoria de FROTA. */
+export interface CreateInspectionRequest {
+  vehicleId: string;
+  rentalId: string | null;
+  kind: InspectionKind;
 }
 
 /**
@@ -76,6 +174,11 @@ export interface InspectionListItem {
    * do backend entrar, porque genérico de TypeScript não valida nada em runtime.
    */
   readonly photoCount: number;
+  /**
+   * Em que ponto do ciclo a vistoria esta. E por este campo que o dono acha o
+   * que lhe cabe decidir: `SUBMITTED` e a fila de aprovacao.
+   */
+  readonly status: InspectionStatus;
   /*
    * TRÊS CAMPOS SAÍRAM DAQUI, e nenhum por descuido — nenhum tem coluna atrás.
    *
@@ -110,6 +213,8 @@ export interface InspectionFilters {
   readonly vehicleId?: string | null;
   readonly rentalId?: string | null;
   readonly kind?: InspectionKind | null;
+  /** Filtra pelo ponto do ciclo. E o que da ao dono a fila do que aprovar. */
+  readonly status?: InspectionStatus | null;
   readonly from?: string | null;
   readonly to?: string | null;
   readonly page?: number;

@@ -13,10 +13,38 @@ import { DateRange, DateRangePicker } from '../../components/date-range-picker/d
 import { InspectionsService } from '../../services/inspections.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import { InspectionKind, InspectionListItem } from '../../types/inspection.types';
+import {
+  InspectionKind,
+  InspectionListItem,
+  InspectionReviewResult,
+  InspectionStatus,
+} from '../../types/inspection.types';
+import { InspectionReview } from './inspection-review';
 
 /** Chip de tipo. `'ALL'` é "todas" — não vai para a query. */
 type KindChip = FilterChipOption<InspectionKind | 'ALL'>;
+type StatusChip = FilterChipOption<InspectionStatus | 'ALL'>;
+
+/**
+ * A FILA DO DONO. `SUBMITTED` vem primeiro depois de "Todas" porque e o unico
+ * estado que PEDE acao de alguem: e a vistoria que ja foi fotografada e esta
+ * parada esperando aprovacao. Sem este filtro a aprovacao existiria mas
+ * ninguem a encontraria.
+ */
+const STATUS_CHIPS: readonly StatusChip[] = [
+  { value: 'ALL', label: 'Todas' },
+  { value: 'SUBMITTED', label: 'Aguardando aprovação' },
+  { value: 'PENDING', label: 'Em andamento' },
+  { value: 'APPROVED', label: 'Aprovadas' },
+  { value: 'REJECTED', label: 'Recusadas' },
+];
+
+const STATUS_LABELS: Readonly<Record<InspectionStatus, string>> = {
+  PENDING: 'Em andamento',
+  SUBMITTED: 'Aguardando aprovação',
+  APPROVED: 'Aprovada',
+  REJECTED: 'Recusada',
+};
 
 const KIND_CHIPS: readonly KindChip[] = [
   { value: 'ALL', label: 'Todas' },
@@ -55,6 +83,7 @@ const KIND_LABEL: Record<InspectionKind, string> = {
     AlertBanner,
     FilterChipGroup,
     DateRangePicker,
+    InspectionReview,
   ],
   templateUrl: './inspections-list.html',
 })
@@ -64,6 +93,7 @@ export class InspectionsList implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
 
   protected readonly kindChips = KIND_CHIPS;
+  protected readonly statusChips = STATUS_CHIPS;
 
   protected readonly items = this.service.items;
   protected readonly loading = this.service.loading;
@@ -78,6 +108,13 @@ export class InspectionsList implements OnInit {
   protected readonly vehicleId = signal<string>('');
   protected readonly rentalId = signal<string>('');
   protected readonly kind = signal<InspectionKind | 'ALL'>('ALL');
+  protected readonly status = signal<InspectionStatus | 'ALL'>('ALL');
+
+  /**
+   * Qual linha esta ABERTA para revisao. Uma por vez: duas galerias de 14 fotos
+   * abertas no celular e rolagem infinita, e a decisao erra de vistoria.
+   */
+  protected readonly reviewingId = signal<string | null>(null);
   protected readonly range = signal<DateRange | null>(null);
 
   /**
@@ -92,6 +129,7 @@ export class InspectionsList implements OnInit {
       this.vehicleId() !== '' ||
       this.rentalId().trim() !== '' ||
       this.kind() !== 'ALL' ||
+      this.status() !== 'ALL' ||
       this.range() !== null,
   );
 
@@ -169,6 +207,34 @@ export class InspectionsList implements OnInit {
     this.reload(0);
   }
 
+  protected onStatusChange(value: InspectionStatus | 'ALL'): void {
+    this.status.set(value);
+    this.reviewingId.set(null);
+    this.reload(0);
+  }
+
+  protected statusLabel(value: InspectionStatus): string {
+    return STATUS_LABELS[value] ?? value;
+  }
+
+  /** So faz sentido revisar o que foi ENVIADO e ainda nao foi decidido. */
+  protected awaitingReview(item: InspectionListItem): boolean {
+    return item.status === 'SUBMITTED';
+  }
+
+  protected toggleReview(id: string): void {
+    this.reviewingId.update((current) => (current === id ? null : id));
+  }
+
+  /**
+   * Decidida: a linha mudou de estado no servidor, entao a lista recarrega em
+   * vez de a tela remendar o item em memoria — o status novo vem de quem manda.
+   */
+  protected onDecided(_result: InspectionReviewResult): void {
+    this.reviewingId.set(null);
+    this.reload(this.page());
+  }
+
   protected onRangeChange(range: DateRange | null): void {
     this.range.set(range);
     this.reload(0);
@@ -207,12 +273,14 @@ export class InspectionsList implements OnInit {
   private reload(page: number): void {
     const range = this.range();
     const kind = this.kind();
+    const status = this.status();
     this.service
       .list({
         page,
         vehicleId: this.vehicleId() || null,
         rentalId: this.rentalId().trim() || null,
         kind: kind === 'ALL' ? null : kind,
+        status: status === 'ALL' ? null : status,
         from: range?.from ?? null,
         to: range?.to ?? null,
       })

@@ -32,6 +32,7 @@ describe('InspectionsList', () => {
     driverName: 'Fulano de Tal',
     kind: 'CHECKIN',
     performedAt: '2026-09-10T12:00:00Z',
+    status: 'APPROVED',
     photoCount: 14,
   };
 
@@ -44,6 +45,7 @@ describe('InspectionsList', () => {
     onVehicleChange: (v: string) => void;
     onRentalChange: (v: string) => void;
     onKindChange: (v: 'CHECKIN' | 'CHECKOUT' | 'FLEET' | 'ALL') => void;
+    onStatusChange: (v: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'ALL') => void;
     onRangeChange: (r: { from: string; to: string } | null) => void;
     clearFilters: () => void;
   }
@@ -70,6 +72,11 @@ describe('InspectionsList', () => {
             size: signal(20),
             loading: signal(false),
             list: listSpy,
+            // O filho `app-inspection-review` e renderizado DE VERDADE quando a
+            // linha abre, entao o duble precisa do contrato dele tambem.
+            photos: vi.fn().mockReturnValue(of([])),
+            approve: vi.fn(),
+            reject: vi.fn(),
           },
         },
         {
@@ -455,6 +462,60 @@ describe('InspectionsList', () => {
       fixture.detectChanges();
 
       expect(liveRegion(fixture)).toBe('3 vistorias encontradas.');
+    });
+  });
+  /**
+   * A FILA DA APROVACAO dentro da listagem que ja existe — sem rota nova.
+   *
+   * Sem o filtro de situacao a aprovacao seria inalcancavel na pratica: o dono
+   * teria a tela e nenhum caminho ate a vistoria que a espera.
+   */
+  describe('fila de aprovacao', () => {
+    const submitted: InspectionListItem = { ...item, id: 'insp-sub', status: 'SUBMITTED' };
+
+    it('o filtro de situacao chega na API', () => {
+      configure();
+      const fixture = render();
+      (fixture.componentInstance as unknown as Internals).onStatusChange('SUBMITTED');
+      fixture.detectChanges();
+
+      expect(listSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'SUBMITTED' }),
+      );
+    });
+
+    it('"Todas" NAO manda status — filtro ausente nao e filtro vazio', () => {
+      configure();
+      const fixture = render();
+      (fixture.componentInstance as unknown as Internals).onStatusChange('ALL');
+      fixture.detectChanges();
+
+      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ status: null }));
+    });
+
+    it('so a vistoria ENVIADA oferece revisar', () => {
+      configure();
+      items.set([{ ...item, status: 'APPROVED' }]);
+      total.set(1);
+      const fixture = render();
+
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-review-toggle]'),
+      ).toBeNull();
+    });
+
+    it('a decisao abre NA LINHA, sem sair da listagem', () => {
+      configure();
+      items.set([submitted]);
+      total.set(1);
+      const fixture = render();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('app-inspection-review')).toBeNull();
+      host.querySelector<HTMLButtonElement>('[data-review-toggle]')?.click();
+      fixture.detectChanges();
+
+      expect(host.querySelector('app-inspection-review')).not.toBeNull();
     });
   });
 });
