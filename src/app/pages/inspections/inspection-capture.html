@@ -36,14 +36,62 @@
         ></div>
       </div>
 
-      @if (isComplete()) {
+      @if (isComplete() && !submitted()) {
         <div class="mt-4">
           <app-alert-banner variant="success">
-            Todos os ângulos do roteiro têm foto. Você pode refazer qualquer uma abaixo.
+            Todos os ângulos do roteiro têm foto. Você pode refazer qualquer uma abaixo
+            antes de finalizar.
+          </app-alert-banner>
+        </div>
+      }
+
+      @if (submitted()) {
+        <div class="mt-4">
+          <app-alert-banner variant="success">
+            Vistoria enviada para aprovação. O dono da empresa vai aprovar ou recusar;
+            se for recusada, você poderá fotografar de novo.
           </app-alert-banner>
         </div>
       }
     </div>
+
+    <!--
+      O FECHAMENTO. Fica FORA do cartão de progresso, como última ação da tela.
+
+      Só aparece com o roteiro completo, e NUNCA dispara sozinho: completar o
+      roteiro não é entregar a vistoria. Depois do envio a pessoa não troca mais
+      foto nenhuma até o dono decidir, então ela precisa ver que está finalizando
+      — a frase de aviso vem ANTES do botão, não escondida atrás dele.
+    -->
+    @if (isComplete() && !submitted()) {
+      <div class="mt-4 rounded-2xl bg-white border border-neutral-200 p-4 sm:p-6">
+        <p class="text-sm font-semibold text-neutral-900">Finalizar a vistoria</p>
+        <p class="mt-1 text-sm text-neutral-600">
+          Ao enviar, esta vistoria vai para aprovação do dono e você não poderá trocar
+          as fotos — a menos que ela seja recusada.
+        </p>
+
+        @if (submitError(); as message) {
+          <div class="mt-3">
+            <app-alert-banner variant="error" [message]="message" />
+          </div>
+        }
+
+        <button
+          type="button"
+          data-submit-inspection
+          (click)="submitInspection()"
+          [disabled]="submitting()"
+          class="mt-4 w-full min-h-14 inline-flex items-center justify-center rounded-xl
+                 bg-primary-500 text-white text-base font-semibold px-5 py-4
+                 hover:bg-primary-600 transition-colors focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                 disabled:opacity-60 disabled:cursor-wait"
+        >
+          {{ submitting() ? 'Enviando…' : 'Finalizar e enviar vistoria' }}
+        </button>
+      </div>
+    }
 
     @if (uploadError(); as message) {
       <div class="mt-4">
@@ -53,7 +101,7 @@
 
     <!-- Botão principal: um alvo grande, com o nome do PRÓXIMO ângulo. Com o celular
          numa mão só, o caminho feliz não deve exigir mirar num item da lista. -->
-    @if (nextPending(); as next) {
+    @if (canCapture() && nextPending(); as next) {
       <button
         type="button"
         (click)="openCamera(next.angle)"
@@ -87,17 +135,20 @@
 
           <span class="flex-1 min-w-0 text-sm text-neutral-800 break-words">{{ slot.label }}</span>
 
-          <button
-            type="button"
-            (click)="openCamera(slot.angle)"
-            [disabled]="uploading()"
-            class="shrink-0 min-h-11 px-3 py-2 rounded-lg text-xs font-semibold
-                   border border-neutral-200 text-neutral-700 hover:bg-neutral-50
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
-                   disabled:opacity-60"
-          >
-            {{ slot.done ? 'Refazer' : 'Fotografar' }}
-          </button>
+          <!-- Refoto encerra com o envio: ver `canCapture` no componente. -->
+          @if (canCapture()) {
+            <button
+              type="button"
+              (click)="openCamera(slot.angle)"
+              [disabled]="uploading()"
+              class="shrink-0 min-h-11 px-3 py-2 rounded-lg text-xs font-semibold
+                     border border-neutral-200 text-neutral-700 hover:bg-neutral-50
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                     disabled:opacity-60"
+            >
+              {{ slot.done ? 'Refazer' : 'Fotografar' }}
+            </button>
+          }
 
           <!-- Galeria some para o MOTORISTA: a foto dele tem de ser do momento. A razão
                está no componente, em `canPickFromGallery`. -->

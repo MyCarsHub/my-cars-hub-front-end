@@ -6,19 +6,15 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { ApiErrorService } from '../../services/api-error.service';
 import { InspectionsService } from '../../services/inspections.service';
 import { SessionService } from '../../services/session.service';
-import { Inspection, InspectionKind } from '../../types/inspection.types';
+import { Inspection, InspectionKind, InspectionStatus } from '../../types/inspection.types';
 // A câmera ao vivo do ALUGUEL, importada SEM alteração. O dono foi literal: "o do
 // aluguel não é para mexer". Preferi o acoplamento entre pastas a extrair o
 // componente para um lugar compartilhado, porque a extração mexeria em arquivos de
 // `rentals` — e o contrato dela (`label` entra, `captured`/`cancelled` saem) já é
 // exatamente o que esta tela precisa.
 import { LiveCameraSheet } from '../rentals/documents/live-camera-sheet';
+import { angleLabel } from './angle-label';
 
-/** Rótulo legível do ângulo — o backend manda a chave, a tela mostra o nome. */
-function angleLabel(angle: string): string {
-  const text = angle.replace(/_/g, ' ').toLowerCase();
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
 
 interface AngleSlot {
   readonly angle: string;
@@ -49,6 +45,29 @@ export class InspectionCapture implements OnInit {
   protected readonly uploadError = signal<string | null>(null);
 
   /**
+   * O FECHAMENTO. Tres sinais, porque "enviando", "enviada" e "falhou ao
+   * enviar" sao estados distintos e a pessoa precisa distinguir os tres.
+   *
+   * `submitted` e local e nao vem do servidor: `Inspection` nao tem campo de
+   * status, e eu nao invento um para o tipo casar — seria contrato que o
+   * backend nao prometeu.
+   */
+  protected readonly submitting = signal(false);
+  protected readonly submitError = signal<string | null>(null);
+
+  /**
+   * O status que o SERVIDOR devolveu no envio — nao um booleano local.
+   *
+   * `null` = ainda nao enviamos nesta sessao. A tela nao inventa o estado: ela
+   * repete o que o backend respondeu.
+   */
+  protected readonly reviewStatus = signal<InspectionStatus | null>(null);
+
+  protected readonly submitted = computed(
+    () => this.reviewStatus() === 'SUBMITTED' || this.reviewStatus() === 'APPROVED',
+  );
+
+  /**
    * MOTORISTA SÓ FOTOGRAFA NO MOMENTO — sem galeria. Não é preferência de UI.
    *
    * Uma foto da galeria pode ser de outro dia ou de outro carro, e é exatamente isso
@@ -60,8 +79,16 @@ export class InspectionCapture implements OnInit {
    * não uma inconsistência. Removê-lo mata a garantia sem ninguém notar.
    */
   protected readonly canPickFromGallery = computed(
-    () => this.session.getCompanyRoleFromToken() !== 'DRIVER',
+    () => this.session.getCompanyRoleFromToken() !== 'DRIVER' && !this.submitted(),
   );
+
+  /**
+   * Depois de ENVIADA a vistoria sai das maos de quem fotografou: o dono aprova
+   * ou recusa, e ate isso ela nao troca mais foto nenhuma. Continuar oferecendo
+   * camera e refoto seria a tela prometendo o que o servidor vai recusar — o
+   * mesmo defeito da porta pintada de aberta, de novo.
+   */
+  protected readonly canCapture = computed(() => !this.submitted());
 
   /** Os ângulos vêm da VISTORIA (retrato do roteiro no dia), nunca de lista fixa. */
   protected readonly slots = computed<AngleSlot[]>(() => {
@@ -181,6 +208,79 @@ export class InspectionCapture implements OnInit {
         );
       },
     });
+  }
+
+  /**
+   * ENTREGA a vistoria. Chamado SO pelo clique — nunca por `isComplete()` virar
+   * verdadeiro.
+   *
+   * Os tres guardas da primeira linha nao sao defensividade decorativa:
+   * incompleto o botao nem existe (mas um duplo-toque no limite da ultima foto
+   * chegaria aqui), `submitting` evita a segunda chamada do toque repetido — que
+   * no celular e a regra, nao a excecao — e `submitted` evita reenviar o que
+   * ja saiu.
+   */
+  protected submitInspection(): void {
+    const current = this.inspection();
+    if (!current || !this.isComplete() || this.submitting() || this.submitted()) {
+      return;
+    }
+
+    this.submitting.set(true);
+    this.submitError.set(null);
+
+    this.service.submit(current.id).subscribe({
+      /*
+       * NAO faca `inspection.set(result)` aqui.
+       *
+       * `result` e um `InspectionReviewResult`: nao tem `requiredAngles` nem
+       * `capturedAngles`. Sobrescrever a vistoria com ele esvazia o cartao de
+       * progresso e a lista de angulos no instante do envio — era o defeito
+       * desta linha, e o TypeScript nao o pegava porque a forma so diverge em
+       * runtime. Da resposta sai o STATUS; os angulos ficam onde estao.
+       *
+       * `dueAt` vem na resposta e NAO e usado aqui de proposito: ele e a data
+       * devida do ciclo, e o ciclo so FECHA na aprovacao. Mostra-lo apos o
+       * envio diria que algo se resolveu quando nada se resolveu ainda.
+       */
+      next: (result) => {
+        this.submitting.set(false);
+        this.reviewStatus.set(result.status);
+      },
+      error: (err: unknown) => {
+        this.submitting.set(false);
+        this.apiErrors.claim(err);
+        this.submitError.set(this.submitFailureMessage(err));
+      },
+    });
+  }
+
+  /**
+   * A frase da FALHA DE ENVIO, e ela tem de negar as DUAS leituras erradas.
+   *
+   * As fotos sobem UMA A UMA e ja estao no servidor, entao falhar aqui nao
+   * perdeu trabalho nenhum. Mas a pessoa acabou de tocar em "finalizar" e esta
+   * em pe na rua: sem dizer isso explicitamente ela conclui que perdeu as 14
+   * fotos — ou, pior, que a vistoria foi entregue quando nao foi. Por isso a
+   * mensagem afirma o estado real (fotos salvas, envio nao concluido) em vez de
+   * so repetir o erro do servidor.
+   *
+   * O 403 e um caso ESPERADO enquanto o recorte do motorista nao sobe no
+   * backend, e tem frase propria em vez de virar "erro inesperado".
+   */
+  private submitFailureMessage(err: unknown): string {
+    if (err instanceof HttpErrorResponse && err.status === 403) {
+      return (
+        'Suas fotos estão salvas, mas você não tem permissão para finalizar esta ' +
+        'vistoria. Peça ao dono ou ao gerente da empresa para finalizar.'
+      );
+    }
+
+    return this.apiErrors.messageFor(
+      err,
+      'Não conseguimos finalizar a vistoria agora. Suas fotos estão salvas — ' +
+        'nada foi perdido. Tente enviar de novo.',
+    );
   }
 
   private fail(err: unknown, fallback: string): void {
