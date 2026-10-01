@@ -135,8 +135,8 @@ describe('InspectionReview', () => {
     const fixture = render();
 
     expect(images(fixture).length).toBe(2);
-    // Mais recente primeiro: `BACK` (10:04) vem antes de `FRONT` (10:00).
-    expect(images(fixture)[0].getAttribute('src')).toBe(PHOTOS[1].signedUrl);
+    // Ordem canonica do roteiro: `FRONT` antes de `BACK`.
+    expect(images(fixture)[0].getAttribute('src')).toBe(PHOTOS[0].signedUrl);
     // O rotulo e do contrato (`angle`), nao da ordem, e vem EM PORTUGUES do
     // mesmo `angleLabel` da captura: o mesmo angulo nao pode ter dois nomes, e
     // quem fotografa na rua nao traduz nada para achar o lado do carro.
@@ -341,22 +341,57 @@ describe('InspectionReview', () => {
     expect(decided).toEqual([APPROVED]);
   });
   /**
-   * `createdDate` ordena, e `id` identifica. Os dois vieram do DTO real e
-   * nenhum e cosmetico: ordem errada enterra a refoto que decide, e chave
-   * instavel remonta a galeria inteira a cada recarga.
+   * A ORDEM e do ROTEIRO, e `id` identifica. Nenhum dos dois e cosmetico:
+   * ordem imprevisivel obriga quem aprova a ler rotulo por rotulo para saber
+   * onde esta, e chave instavel remonta a galeria inteira a cada recarga.
    */
   describe('ordem e identidade das fotos', () => {
-    it('mostra a MAIS RECENTE primeiro, qualquer que seja a ordem do servidor', () => {
+    const labelsOf = (f: ComponentFixture<InspectionReview>) =>
+      Array.from(host(f).querySelectorAll('[data-angle-label]')).map((p) =>
+        (p.textContent ?? '').trim(),
+      );
+
+    it('mostra na ordem CANONICA do roteiro, qualquer que seja a ordem do servidor', () => {
       configure();
-      // Servidor devolve na ordem "errada" de proposito: ordem de resposta nao
-      // e contrato, e a tela nao pode depender dela.
-      photos.mockReturnValue(of([PHOTOS[0], PHOTOS[1]]));
+      // Servidor devolve invertido de proposito: ordem de resposta NAO e
+      // contrato, e a tela nao pode depender dela.
+      photos.mockReturnValue(of([PHOTOS[1], PHOTOS[0]]));
       const fixture = render();
 
-      const labels = Array.from(host(fixture).querySelectorAll('li p')).map(
-        (p) => p.textContent?.trim(),
+      expect(labelsOf(fixture)).toEqual(['Frente', 'Traseira']);
+    });
+
+    /**
+     * NAO ordena por data: dentro de uma vistoria ha uma foto por angulo, entao
+     * a data so embaralharia o roteiro. Aqui a mais RECENTE e a `FRONT`, e ela
+     * continua em primeiro por ser a primeira do roteiro — nao por ser recente.
+     */
+    it('a data nao decide a ordem', () => {
+      configure();
+      photos.mockReturnValue(
+        of([
+          { ...PHOTOS[0], createdDate: '2026-10-01T23:59:00' },
+          { ...PHOTOS[1], createdDate: '2026-10-01T00:01:00' },
+        ]),
       );
-      expect(labels).toEqual(['Traseira', 'Frente']);
+      const fixture = render();
+
+      expect(labelsOf(fixture)).toEqual(['Frente', 'Traseira']);
+    });
+
+    /** Roteiro e configuravel por empresa: chave fora da lista vai para o FIM. */
+    it('angulo desconhecido fica depois dos do roteiro, sem se intercalar', () => {
+      configure();
+      photos.mockReturnValue(
+        of([
+          { ...PHOTOS[0], id: 'ph-x', angle: 'TETO_SOLAR', createdDate: '2026-10-01T09:00:00' },
+          PHOTOS[1],
+          PHOTOS[0],
+        ]),
+      );
+      const fixture = render();
+
+      expect(labelsOf(fixture)).toEqual(['Frente', 'Traseira', 'Teto solar']);
     });
 
     it('a chave da lista NAO e a signedUrl: reassinar nao recria a galeria', () => {
@@ -374,6 +409,95 @@ describe('InspectionReview', () => {
       // O elemento e o MESMO no DOM; so o src mudou. Com `track signedUrl` o
       // Angular teria destruido e recriado as 14 imagens.
       expect(images(fixture)[0]).toBe(before);
+    });
+  });
+  /**
+   * FALHA PARCIAL — e esta que vai acontecer de verdade.
+   *
+   * O backend isola a assinatura por foto: antes, UMA que falhasse derrubava a
+   * resposta inteira e a tela mostrava zero em vez de 13 de 14. Agora o item
+   * vem com `signedUrl` nulo e NAO e omitido, porque omitir faria a lista
+   * parecer completa.
+   *
+   * O teste de falha que ja existia era a lista INTEIRA caindo. Este e o outro,
+   * e e o comum.
+   */
+  describe('foto indisponivel (signedUrl nulo)', () => {
+    const partial = () => [PHOTOS[0], { ...PHOTOS[1], signedUrl: null }];
+
+    it('NAO oferece aprovar com qualquer foto indisponivel — ver 13 de 14 nao e ver', () => {
+      configure();
+      photos.mockReturnValue(of(partial()));
+      const fixture = render();
+
+      expect(approveBtn(fixture)).toBeNull();
+    });
+
+    it('diz QUAL angulo nao carregou', () => {
+      configure();
+      photos.mockReturnValue(of(partial()));
+      const fixture = render();
+
+      expect(text(fixture)).toContain('Traseira');
+      expect(text(fixture)).toContain('não carregou');
+    });
+
+    it('o item NAO some da lista: 2 angulos continuam listados', () => {
+      configure();
+      photos.mockReturnValue(of(partial()));
+      const fixture = render();
+
+      const labels = Array.from(host(fixture).querySelectorAll('[data-angle-label]'));
+      expect(labels.length).toBe(2);
+      // Sem img quebrada: o lugar existe, com explicacao no lugar da imagem.
+      expect(images(fixture).length).toBe(1);
+    });
+
+    /**
+     * A copia distingue "nao carregou" de "nao tem foto", e a distincao e o que
+     * impede recusar pelo motivo errado — mandar refotografar o que ja esta
+     * salvo seria punir o motorista por uma falha nossa.
+     */
+    it('diz que a foto esta SALVA, nao que falta', () => {
+      configure();
+      photos.mockReturnValue(of(partial()));
+      const fixture = render();
+
+      expect(text(fixture)).toContain('está salva');
+    });
+
+    it('oferece tentar de novo', () => {
+      configure();
+      photos.mockReturnValue(of(partial()));
+      const fixture = render();
+
+      expect(host(fixture).querySelector('[data-retry-photos]')).not.toBeNull();
+    });
+
+    /** Assimetria deliberada: recusar aponta problema, aprovar afirma que esta tudo certo. */
+    it('RECUSAR continua disponivel, com motivo', () => {
+      configure();
+      photos.mockReturnValue(of(partial()));
+      const fixture = render();
+      typeReason(fixture, 'A frente está fora de foco.');
+
+      rejectBtn(fixture)?.click();
+      fixture.detectChanges();
+
+      expect(reject).toHaveBeenCalledWith('insp-1', 'A frente está fora de foco.');
+    });
+
+    it('assinando de novo com sucesso, aprovar volta', () => {
+      configure();
+      photos.mockReturnValue(of(partial()));
+      const fixture = render();
+      expect(approveBtn(fixture)).toBeNull();
+
+      photos.mockReturnValue(of(PHOTOS));
+      host(fixture).querySelector<HTMLButtonElement>('[data-retry-photos]')?.click();
+      fixture.detectChanges();
+
+      expect(approveBtn(fixture)).not.toBeNull();
     });
   });
 });

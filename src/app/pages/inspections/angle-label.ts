@@ -54,3 +54,27 @@ export function angleLabel(angle: string): string {
   const text = angle.replace(/_/g, ' ').toLowerCase();
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/**
+ * Posição do ângulo na ORDEM CANÔNICA do roteiro — a mesma de
+ * `RENTAL_PHOTO_ANGLES`, que casa com o grid do PDF gerado pelo backend.
+ *
+ * ## Por que a ordem é do roteiro e não da data
+ *
+ * Dentro de uma vistoria há no máximo UMA foto por ângulo (índice único no
+ * backend): refotografar SUBSTITUI, não acrescenta. Então não existe par
+ * "versão velha / versão nova" para a data desempatar, e ordenar por
+ * `createdDate` não destaca correção nenhuma — só embaralha o roteiro, e
+ * embaralha diferente a cada vistoria.
+ *
+ * Quem aprova olha 14 fotos em sequência. Ordem previsível — frente, traseira,
+ * laterais, pneus, painel — deixa a pessoa criar ritmo e PERCEBER O QUE FALTA.
+ * Ordem por data obriga a ler o rótulo de cada uma para saber onde está.
+ *
+ * Ângulo fora da lista (o roteiro é configurável por empresa) vai para o FIM,
+ * depois dos conhecidos, em vez de se intercalar numa posição arbitrária.
+ */
+export function angleOrder(angle: string): number {
+  const index = RENTAL_PHOTO_ANGLES.findIndex(({ value }) => value === angle);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}

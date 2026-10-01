@@ -97,8 +97,19 @@ export interface InspectionPhoto {
   readonly angle: string;
   readonly mimeType: string;
   readonly sizeBytes: number;
-  readonly signedUrl: string;
-  /** Quando a foto foi enviada (ISO). Ordena a mais recente primeiro. */
+  /**
+   * URL assinada, ou `null` quando a assinatura DAQUELA foto falhou.
+   *
+   * O backend isola a falha por item: uma foto que nao assina nao derruba a
+   * resposta inteira — antes derrubava, e a tela mostrava zero em vez de 13 de
+   * 14. O item continua vindo, com `signedUrl` nulo, e NAO e omitido: omitir
+   * faria a lista parecer completa quando nao esta.
+   *
+   * Nulo significa "a foto EXISTE e nao consegui exibir", nunca "nao tem foto
+   * deste angulo". A distincao decide o que a tela pode afirmar.
+   */
+  readonly signedUrl: string | null;
+  /** Quando a foto foi enviada (ISO). */
   readonly createdDate: string;
 }
 

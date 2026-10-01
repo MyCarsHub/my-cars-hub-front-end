@@ -14,12 +14,13 @@ import { InspectionsService } from '../../services/inspections.service';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import type { InspectionPhoto, InspectionReviewResult } from '../../types/inspection.types';
-import { angleLabel } from './angle-label';
+import { angleLabel, angleOrder } from './angle-label';
 
 interface PhotoView {
   /** Chave ESTAVEL do `@for` — nunca a `signedUrl`, que e reassinada. */
   readonly id: string;
-  readonly signedUrl: string;
+  /** `null` = a foto existe, mas a assinatura dela falhou. */
+  readonly signedUrl: string | null;
   readonly label: string;
 }
 
@@ -91,10 +92,47 @@ export class InspectionReview {
    * falhar. Nos dois últimos casos a saída é tentar de novo, não decidir.
    */
   protected readonly hasPhotos = computed(() => (this.photos()?.length ?? 0) > 0);
-  protected readonly canRetryPhotos = computed(
-    () => !this.loadingPhotos() && !this.hasPhotos(),
+
+  /**
+   * Angulos cuja foto EXISTE mas nao pode ser exibida (assinatura falhou).
+   *
+   * E a falha PARCIAL, e e ela que acontece de verdade: o backend isola por
+   * item, entao o caso comum nao e a lista inteira cair, e sim uma foto de
+   * catorze faltar.
+   */
+  protected readonly unavailable = computed(
+    () => (this.photos() ?? []).filter((photo) => photo.signedUrl === null),
   );
-  protected readonly showDecision = computed(
+
+  protected readonly allVisible = computed(
+    () => this.hasPhotos() && this.unavailable().length === 0,
+  );
+
+  /** Recarregar serve tanto para lista vazia quanto para foto que nao assinou. */
+  protected readonly canRetryPhotos = computed(
+    () => !this.loadingPhotos() && (!this.hasPhotos() || this.unavailable().length > 0),
+  );
+
+  /**
+   * APROVAR exige ver TUDO. "Nao se aprova sem ver" vale igual para a falha
+   * parcial: ver 13 de 14 nao e ver, e o angulo que faltou e justamente o que
+   * ninguem conferiu.
+   */
+  protected readonly canApprove = computed(
+    () => this.canDecide() && this.allVisible() && this.decision() === null,
+  );
+
+  /**
+   * RECUSAR continua disponivel com foto indisponivel, e a razao e assimetrica:
+   * aprovar afirma que esta tudo certo — afirmacao que exige ter visto tudo —,
+   * enquanto recusar aponta um problema que a pessoa JA identificou no que viu.
+   *
+   * O risco desta assimetria e recusar pelo motivo errado: o rotulo diz que a
+   * foto nao CARREGOU, nao que ela falta, para ninguem mandar o motorista
+   * refotografar o que ja esta no servidor. A copia do lugar vazio carrega essa
+   * distincao — se ela se perder, a assimetria vira defeito.
+   */
+  protected readonly canReject = computed(
     () => this.canDecide() && this.hasPhotos() && this.decision() === null,
   );
 
@@ -124,15 +162,24 @@ export class InspectionReview {
       next: (list) => {
         this.loadingPhotos.set(false);
         /*
-         * MAIS RECENTE PRIMEIRO. Quando uma vistoria recusada e refotografada,
-         * e a foto nova que decide — ela tem de estar no topo, nao enterrada
-         * depois da que foi recusada.
+         * ORDEM CANONICA DO ROTEIRO — frente, traseira, laterais, pneus, painel.
          *
-         * Ordenamos NOS, por `createdDate`, em vez de confiar na ordem que o
-         * servidor mandou: ordem de resposta nao e contrato, e o dia em que ela
-         * mudar ninguem vai ligar os pontos.
+         * Quem aprova ve 14 fotos em sequencia, e ordem previsivel e o que
+         * deixa perceber o que falta sem ler rotulo por rotulo. Ordenar por
+         * data nao serviria: ha uma foto por angulo (indice unico no backend),
+         * entao refoto SUBSTITUI e nao existe par velha/nova para a data
+         * desempatar — so embaralharia o roteiro, diferente a cada vistoria.
+         *
+         * Ordenamos NOS, em vez de confiar na ordem que o servidor mandou:
+         * ordem de resposta nao e contrato, e o dia em que ela mudar ninguem
+         * vai ligar os pontos. `createdDate` fica como desempate estavel para
+         * angulos fora do roteiro conhecido.
          */
-        const ordered = [...list].sort((a, b) => b.createdDate.localeCompare(a.createdDate));
+        const ordered = [...list].sort(
+          (a, b) =>
+            angleOrder(a.angle) - angleOrder(b.angle) ||
+            a.createdDate.localeCompare(b.createdDate),
+        );
         this.photos.set(
           ordered.map((photo: InspectionPhoto) => ({
             id: photo.id,
@@ -170,7 +217,7 @@ export class InspectionReview {
   }
 
   protected approve(): void {
-    if (!this.showDecision() || this.deciding()) return;
+    if (!this.canApprove() || this.deciding()) return;
     this.run(this.service.approve(this.inspectionId()));
   }
 
@@ -180,7 +227,7 @@ export class InspectionReview {
    * e quem vai refotografar precisa saber o que estava errado.
    */
   protected reject(): void {
-    if (!this.showDecision() || this.deciding()) return;
+    if (!this.canReject() || this.deciding()) return;
 
     this.reasonTouched.set(true);
     const reason = this.reason().trim();
