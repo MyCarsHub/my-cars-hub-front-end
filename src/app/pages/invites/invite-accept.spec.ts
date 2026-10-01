@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InviteAccept } from './invite-accept';
@@ -916,5 +916,84 @@ describe('InviteAccept — página pública de aceite', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
       'Sua conta foi vinculada',
     );
+  });
+  // ------------------------------- NENHUM ESTADO DE ESPERA SEM SAIDA (MEDIUM-1)
+  /**
+   * A rede de seguranca cobria a navegacao POS-aceite e deixava de fora os dois estados de
+   * espera que vem ANTES. Pendurar nao e errar: sem resposta nao existe `error`, e sem
+   * `error` a tela ficava no MESMO spinner eterno — o defeito do dono um passo antes.
+   *
+   * Nenhum interceptor cobre isso: o unico com timeout do projeto nao esta registrado.
+   */
+  it('validate que nunca responde sai do spinner e diz o que fazer', () => {
+    validate.mockReturnValue(NEVER);
+
+    const { fixture } = render('raw-token');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Verificando');
+
+    vi.advanceTimersByTime(15000);
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Verificando');
+    expect(text).toContain('Não tivemos resposta do servidor');
+    expect(text).toContain('Confira sua conexão');
+    // E NAO a frase que mandaria pedir outro convite por causa de uma queda de rede.
+    expect(text).not.toContain('Peça à empresa para enviar um novo');
+  });
+
+  it('accept que nunca responde nao afirma sucesso NEM fracasso', () => {
+    store['token'] = 'temporally-token';
+    accept.mockReturnValue(NEVER);
+
+    const { fixture } = render('raw-token');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Entrando na empresa');
+
+    vi.advanceTimersByTime(15000);
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toContain('Entrando na empresa');
+    expect(text).toContain('Não tivemos resposta');
+    expect(text).toContain('pode já ter sido aceito');
+    // Nao mente para nenhum lado: nem "vinculada", nem "nao foi possivel".
+    expect(text).not.toContain('Sua conta foi vinculada');
+    expect(text).not.toContain('Não foi possível usar este convite');
+    // E ha saida clicavel.
+    const cta = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).find((b) => (b.textContent ?? '').includes('Entrar no MyCarsHub'));
+    expect(cta).toBeDefined();
+  });
+
+  // ------------------------------------------- A FRASE DO 400 MUDO (MEDIUM-2)
+  /**
+   * O convite trazia nome e telefone, entao tentamos SEM corpo. O backend recusou com um 400
+   * SEM codigo — e a tela nao tem como saber se foi "convite ja usado" ou "o servidor quer o
+   * formulario": os dois saem iguais.
+   *
+   * A copy generica dizia "Este convite nao e mais valido. Peca a empresa para enviar um
+   * novo convite." Falso, e inutil: um convite novo cai no mesmo lugar, e a pessoa pede,
+   * recebe, clica e trava de novo. Este caso trava essa frase fora daquele ramo.
+   */
+  it('400 sem codigo na tentativa sem corpo nao manda pedir outro convite', () => {
+    store['token'] = 'temporally-token';
+    validate.mockReturnValue(
+      of({ ...details, name: 'Fulano de Tal', phoneNumber: '11987654321', requiresManagerOnboarding: true }),
+    );
+    accept.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 400, error: {} })));
+
+    const { fixture } = render('raw-token');
+    fixture.detectChanges();
+
+    // Entrou pelo caminho novo: sem corpo.
+    expect(accept).toHaveBeenCalledWith('raw-token');
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    // A instrucao que NAO resolve fica de fora.
+    expect(text).not.toContain('Peça à empresa para enviar um novo convite');
+    expect(text).not.toContain('não é mais válido');
+    // O que entra: admite o que nao se sabe e aponta uma acao que pode resolver.
+    expect(text).toContain('pode já ter sido usado');
+    expect(text).toContain('Fale com quem te convidou');
   });
 });

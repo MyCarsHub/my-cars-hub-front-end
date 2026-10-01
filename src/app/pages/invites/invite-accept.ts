@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { DOCUMENT, NgOptimizedImage } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { TimeoutError, timeout } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { AuthService } from '../../services/auth.service';
@@ -52,6 +53,20 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
  */
 const NAVIGATION_GRACE_MS = 8000;
 
+/**
+ * Teto de espera de CADA chamada desta tela.
+ *
+ * MEDIUM-1 da revisao — a rede de seguranca cobria a navegacao POS-aceite e deixava de fora
+ * os dois estados de espera que vem ANTES: `validating` (o `validate`) e `accepting` (o
+ * `accept`). Pendurar nao e errar: sem resposta nao ha `error`, e sem `error` a tela ficava
+ * no MESMO spinner eterno que este arquivo existe para matar — o defeito do dono
+ * reaparecendo um passo antes.
+ *
+ * Nenhum interceptor cobre isto: o unico com timeout no projeto NAO esta registrado em
+ * `app.config`. Entao o teto e aqui, por chamada.
+ */
+const REQUEST_GRACE_MS = 15000;
+
 type AcceptStep =
   | 'validating'
   | 'ready'
@@ -65,6 +80,11 @@ type AcceptStep =
    * e o spinner afirmaria que ainda esta em curso.
    */
   | 'linked'
+  /**
+   * O `accept` nao respondeu no tempo. Pode ter funcionado no servidor — a tela NAO sabe, e
+   * por isso nao afirma nenhum dos dois lados.
+   */
+  | 'unconfirmed'
   | 'error';
 
 /**
@@ -202,7 +222,7 @@ export class InviteAccept implements OnInit {
     // and the query param is the only place it survives for sure.
     this.session.setItem(PENDING_INVITE_TOKEN_KEY, token);
 
-    this.invites.validate(token).subscribe({
+    this.invites.validate(token).pipe(timeout(REQUEST_GRACE_MS)).subscribe({
       next: (details) => {
         this.details.set(details);
         // Coming back from Google there is already a token — finish without a second click.
@@ -212,8 +232,19 @@ export class InviteAccept implements OnInit {
         }
         this.step.set('ready');
       },
-      error: (err: unknown) =>
-        this.fail(err, 'Não foi possível verificar este convite. Tente novamente.'),
+      error: (err: unknown) => {
+        // Pendurou: nao e convite invalido, e falta de resposta. Dizer "convite invalido"
+        // aqui mandaria a pessoa pedir outro convite para resolver uma queda de rede.
+        if (err instanceof TimeoutError) {
+          this.fail(
+            err,
+            'Não tivemos resposta do servidor. Confira sua conexão e abra o link do ' +
+              'e-mail novamente.',
+          );
+          return;
+        }
+        this.fail(err, 'Não foi possível verificar este convite. Tente novamente.');
+      },
     });
   }
 
@@ -517,7 +548,7 @@ export class InviteAccept implements OnInit {
     if (digits.length !== 8) return;
 
     this.cepLoading.set(true);
-    this.cepService.lookup(digits).subscribe({
+    this.cepService.lookup(digits).pipe(timeout(REQUEST_GRACE_MS)).subscribe({
       next: (found: CepLookupResult | null) => {
         this.cepLoading.set(false);
         if (!found) return;
@@ -591,9 +622,9 @@ export class InviteAccept implements OnInit {
 
     // Sem corpo, a chamada e a MESMA de antes — nem um argumento a mais. O caminho do
     // motorista nao pode mudar de forma so porque o do gerente ganhou um corpo.
-    const accept$ = payload
-      ? this.invites.accept(this.token, payload)
-      : this.invites.accept(this.token);
+    const accept$ = (
+      payload ? this.invites.accept(this.token, payload) : this.invites.accept(this.token)
+    ).pipe(timeout(REQUEST_GRACE_MS));
 
     accept$.subscribe({
       next: (response) => {
@@ -628,6 +659,21 @@ export class InviteAccept implements OnInit {
       },
       error: (err: unknown) => {
         this.submitting.set(false);
+
+        /*
+         * MEDIUM-1 — SEM RESPOSTA NAO E FALHA. O `accept` pode ter gravado o vinculo e so a
+         * resposta ter se perdido; o servidor e a autoridade e a tela nao sabe. Entao a copy
+         * nao afirma nem sucesso nem fracasso, e a acao oferecida — entrar no aplicativo —
+         * e a unica que RESOLVE nos dois casos: se funcionou, a pessoa entra; se nao, ela ve
+         * que nao entrou. Mandar "tente de novo" seria pior: um segundo aceite do mesmo
+         * convite volta 409.
+         */
+        if (err instanceof TimeoutError) {
+          this.apiErrors.claim(err);
+          this.step.set('unconfirmed');
+          return;
+        }
+
         const cause = inviteAcceptCause(err);
 
         // O CAMINHO PRINCIPAL do motorista. Isto NÃO é erro para o usuário ler: é o
@@ -681,6 +727,35 @@ export class InviteAccept implements OnInit {
         // obrigaria a recomeçar o fluxo inteiro por causa de um campo. Os outros dois erros
         // realmente exigem sair (trocar de conta, falar com o gestor) e seguem caindo em
         // `fail`.
+        /*
+         * MEDIUM-2 — A FRASE DO 400 MUDO, no ramo que este no criou.
+         *
+         * Tentamos SEM corpo porque o convite trazia nome e telefone. Se o backend recusou
+         * assim mesmo com um 400 sem codigo, a copy generica dizia "Este convite nao e mais
+         * valido. Peca a empresa para enviar um novo convite." — FALSO e, pior, INUTIL: um
+         * convite novo cai no mesmo lugar, entao a pessoa pede, recebe, clica e trava outra
+         * vez.
+         *
+         * E a tela nao tem como saber qual dos casos foi: aquele mesmo 400 mudo sai de
+         * convite JA USADO e de "o servidor quer o formulario" (achado 6 da revisao), e o
+         * erro do gerente e lancado sem codigo. Entao a frase ADMITE o que nao se sabe e
+         * aponta a unica acao que pode resolver os dois: falar com quem convidou. Quando o
+         * backend der codigo ao erro, isto vira deteccao e cada caso ganha a frase propria.
+         */
+        const mudo400 =
+          err instanceof HttpErrorResponse && err.status === 400 && cause === null;
+        if (!payload && mudo400) {
+          this.apiErrors.claim(err);
+          this.acceptCause.set(null);
+          this.errorMessage.set(
+            'Não conseguimos concluir seu acesso, e o convite pode já ter sido usado. ' +
+              'Fale com quem te convidou para confirmar — pedir um novo convite pode não ' +
+              'resolver.',
+          );
+          this.step.set('error');
+          return;
+        }
+
         if (payload && inviteAcceptCause(err) === 'cpf-mismatch') {
           this.apiErrors.claim(err);
           this.onboardingForm.controls.cpf.setErrors({ cpfMismatch: true });

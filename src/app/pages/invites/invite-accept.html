@@ -553,6 +553,50 @@
         </div>
       }
 
+      @case ('unconfirmed') {
+        <!--
+          MEDIUM-1 — o `accept` nao respondeu no tempo. NAO afirmamos sucesso (seria mentir
+          se nao gravou) nem fracasso (seria mentir se gravou): o servidor e a autoridade.
+          Banner `warning`, nao `error`, porque nada se sabe ter dado errado.
+
+          A acao oferecida resolve nos DOIS casos — entrando, a pessoa VE se entrou. Nao ha
+          botao de "tentar de novo" de proposito: um segundo aceite do mesmo convite volta
+          409 e a pessoa leria "convite ja utilizado" como se tivesse errado algo.
+        -->
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Não tivemos resposta do servidor
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Seu convite para
+          <span class="font-semibold text-neutral-900">{{ companyName() }}</span>
+          pode já ter sido aceito. Entre no aplicativo para conferir antes de tentar de novo.
+        </p>
+
+        <div class="mt-4">
+          <app-alert-banner
+            variant="warning"
+            message="Não sabemos se o acesso foi gravado. Entrar é a forma de ver."
+          />
+        </div>
+
+        <div class="mt-6 flex flex-col gap-3">
+          <button
+            type="button"
+            (click)="reloadIntoApp()"
+            class="w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 text-white text-sm font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Entrar no MyCarsHub
+          </button>
+          <p class="text-xs text-neutral-500 leading-relaxed">
+            Se você não entrar, abra o link do e-mail de novo mais tarde ou fale com quem te
+            convidou.
+          </p>
+        </div>
+      }
+
       @case ('error') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
           Não foi possível usar este convite
