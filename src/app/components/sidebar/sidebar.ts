@@ -52,6 +52,7 @@ const ICON_FINES = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="2
 const ICON_INCIDENTS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4.9 16.1 3.3-3.3"/><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/><path d="m18.5 3-1.7 3.4 2.7.6-2 3"/></svg>`;
 const ICON_FINANCING = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
 const ICON_INSURANCE = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`;
+const ICON_MEMBERS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 const ICON_DRIVERS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 const ICON_REPORTS = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
 const ICON_ROADMAP = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>`;
@@ -247,6 +248,28 @@ export const NAV_ITEMS: NavItem[] = [
         route: '/configuracoes/convites',
         label: 'Convites',
         icon: ICON_INVITES,
+        roles: ['OWNER', 'MANAGER'],
+      },
+      /*
+       * FEAT-0266 — Membros ao lado de Convites, que e o vizinho logico: quem JA
+       * tem acesso e quem ainda NAO tem sao a mesma pergunta em dois tempos.
+       *
+       * A tela nasceu alcancavel so por URL, e isso nao e entregue: ninguem digita
+       * `/configuracoes/membros`. Mesmo defeito que o FIX-0553 consertou para
+       * Convites, uma carta antes — rota, tela e guard existindo sem porta.
+       *
+       * `roles` casa EXATAMENTE com o `roleGuard(['OWNER', 'MANAGER'])` da rota e com
+       * o do pai `/configuracoes`: nem mais, nem menos, para o item nunca oferecer
+       * porta que o guard bata na cara. Quem prova a igualdade e
+       * `sidebar-guard-parity.spec.ts`, nao este paragrafo.
+       *
+       * Sem `tourKey`, pela mesma razao que Convites: acrescentar um passo exigiria
+       * mexer em `TOUR_ANCHORS` e no servico do tour, que e outro no.
+       */
+      {
+        route: '/configuracoes/membros',
+        label: 'Membros',
+        icon: ICON_MEMBERS,
         roles: ['OWNER', 'MANAGER'],
       },
     ],
