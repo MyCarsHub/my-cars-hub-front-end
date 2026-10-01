@@ -3,7 +3,12 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
-import { InspectionFilters, InspectionListItem } from '../types/inspection.types';
+import {
+  CreateInspectionRequest,
+  Inspection,
+  InspectionFilters,
+  InspectionListItem,
+} from '../types/inspection.types';
 import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/inspections`;
@@ -75,6 +80,32 @@ export class InspectionsService {
       if (value) params = params.set(key, value);
     }
     return params;
+  }
+
+  /** `POST /v1/inspections` — abre a vistoria e devolve o RETRATO do roteiro. */
+  create(payload: CreateInspectionRequest): Observable<Inspection> {
+    return this.http.post<Inspection>(BASE, payload);
+  }
+
+  /** `GET /v1/inspections/{id}` — `requiredAngles` + `capturedAngles`, base da retomada. */
+  getOne(id: string): Observable<Inspection> {
+    return this.http.get<Inspection>(`${BASE}/${id}`);
+  }
+
+  /**
+   * `POST /v1/inspections/{id}/photos/{angle}` — UMA foto por vez, de propósito.
+   *
+   * Subir tudo no fim significaria que uma queda de conexão com 13 fotos na memória
+   * custa as 13. Subindo uma a uma, custa uma — e a resposta traz `capturedAngles`
+   * atualizado, então a tela não precisa adivinhar o que já foi.
+   */
+  uploadPhoto(id: string, angle: string, file: File): Observable<Inspection> {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http.post<Inspection>(
+      `${BASE}/${id}/photos/${encodeURIComponent(angle)}`,
+      body,
+    );
   }
 
   list(filters: InspectionFilters = {}): Observable<PagedResponse<InspectionListItem>> {

@@ -40,6 +40,20 @@ export interface Inspection {
    * Quem for dizer o que faltou lê DAQUI, nunca do checklist atual.
    */
   readonly requiredAngles: readonly string[];
+  /**
+   * Ângulos que JÁ têm foto. A tela de captura sabe o que falta subtraindo isto de
+   * `requiredAngles` — é o que permite RETOMAR uma vistoria interrompida em vez de
+   * recomeçar. Refotografar um ângulo SUBSTITUI (índice único no backend), então
+   * reenviar não duplica.
+   */
+  readonly capturedAngles: readonly string[];
+}
+
+/** Corpo de `POST /v1/inspections`. `rentalId` nulo = vistoria de FROTA. */
+export interface CreateInspectionRequest {
+  vehicleId: string;
+  rentalId: string | null;
+  kind: InspectionKind;
 }
 
 /**
