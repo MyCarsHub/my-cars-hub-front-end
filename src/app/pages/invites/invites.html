@@ -1,7 +1,10 @@
-<app-default-page-layout
-  title="Convites"
-  description="Convide pessoas para acessar a sua empresa no MyCarsHub."
->
+<!--
+  A MOLDURA e condicional, o CONTEUDO nao: `embedded` troca o cabecalho de pagina por
+  nada, e o cartao do formulario e o MESMO objeto nos dois casos. O `ng-template` existe
+  para que ele nao seja escrito duas vezes — duas copias divergiriam na primeira
+  mudanca de regra de cargo.
+-->
+<ng-template #inviteBody>
   <!--
     Empilhado em TODA largura: formulário em cima, listagem embaixo. Antes eram
     duas colunas (`grid lg:grid-cols-3`), o que em 375px empurrava a lista para
@@ -191,4 +194,15 @@
     -->
   </div>
 
-</app-default-page-layout>
+</ng-template>
+
+@if (embedded()) {
+  <ng-container [ngTemplateOutlet]="inviteBody" />
+} @else {
+<app-default-page-layout
+  title="Convites"
+  description="Convide pessoas para acessar a sua empresa no MyCarsHub."
+>
+    <ng-container [ngTemplateOutlet]="inviteBody" />
+  </app-default-page-layout>
+}

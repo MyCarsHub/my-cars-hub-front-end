@@ -18,6 +18,71 @@
         message="Esta tela é do dono e dos gerenciadores da empresa."
       />
     } @else {
+      <!--
+        RESUMO PRIMEIRO, e e o que faltava: a tela nao respondia "como esta minha equipe?"
+        sem contar linhas. Quatro numeros, grandes, visiveis sem clicar.
+
+        MOBILE-FIRST: 2 colunas em 375px e 4 a partir de `sm`. Quatro cartoes em uma linha
+        no celular daria numero de 11px — ilegivel para quem a tela atende. O numero usa
+        `text-3xl` porque ele E o conteudo; o rotulo fica menor, acima.
+      -->
+      <section
+        class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4"
+        aria-label="Resumo da equipe"
+      >
+        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+          <!--
+            "PENDENTES", nao "enviados": o numero conta so PENDING, e convite EXPIRADO
+            tambem foi enviado — esta mesma tela o LISTA, e a ordenacao o poe na frente.
+            Com expirados na empresa, "enviados" diria 3 enquanto a lista mostra 5.
+            O subtitulo ja descrevia o numero certo; era o TITULO que discordava dele.
+          -->
+          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+            Convites pendentes
+          </p>
+          <p class="mt-1 text-3xl font-bold text-primary-700 tabular-nums">
+            {{ pendingInvitesCount() }}
+          </p>
+          <p class="text-xs text-neutral-500">aguardando resposta</p>
+        </div>
+        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+            Convites aceitos
+          </p>
+          <p class="mt-1 text-3xl font-bold text-success-900 tabular-nums">
+            {{ acceptedInvitesCount() }}
+          </p>
+          <p class="text-xs text-neutral-500">entraram na empresa</p>
+        </div>
+        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+            Gerenciadores
+          </p>
+          <p class="mt-1 text-3xl font-bold text-neutral-900 tabular-nums">
+            {{ managersCount() }}
+          </p>
+          <p class="text-xs text-neutral-500">com acesso de gestão</p>
+        </div>
+        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+            Motoristas
+          </p>
+          <p class="mt-1 text-3xl font-bold text-neutral-900 tabular-nums">
+            {{ driversCount() }}
+          </p>
+          <p class="text-xs text-neutral-500">com acesso de motorista</p>
+        </div>
+      </section>
+
+      @if (inviteOpen()) {
+        <!--
+          O FORMULARIO ABRE AQUI. E o MESMO componente da rota `/configuracoes/convites`,
+          com `embedded` trocando so a moldura — nao ha segunda copia do formulario, e por
+          isso a regra de nome/CPF/telefone por cargo nao pode divergir entre os dois.
+        -->
+        <app-invites [embedded]="true" (sent)="onInviteSent()" />
+      }
+
       <app-page-card title="Pessoas da empresa">
         <div cardIcon class="p-2 bg-primary-low rounded-lg">
           <svg
@@ -56,18 +121,34 @@
             {{ loading() ? 'Atualizando…' : 'Atualizar' }}
           </button>
           <!--
-            O botão leva ao formulário que JÁ existe em `/configuracoes/convites`. Esta tela
-            não reescreve o formulário de convite; ela só deixou de ser o segundo lugar onde
-            a mesma pessoa pode ser procurada.
+            CONVIDAR SEM SAIR DA TELA. Antes isto navegava para `/configuracoes/convites`, e
+            sair da lista para convidar era metade da reclamacao: a pessoa perdia de vista
+            justamente o lugar onde o convite ia aparecer.
+            Alvo de 48px — o botao principal desta tela.
           -->
-          <a
-            routerLink="/configuracoes/convites"
-            class="min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold inline-flex
+          <button
+            type="button"
+            (click)="toggleInvite()"
+            [attr.aria-expanded]="inviteOpen()"
+            class="min-h-12 px-4 py-2 rounded-xl text-sm font-semibold inline-flex
                    items-center bg-primary-500 text-white hover:bg-primary-600 shadow-sm
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
                    focus-visible:ring-offset-2"
           >
-            Convidar pessoa
+            {{ inviteOpen() ? 'Fechar' : 'Convidar pessoa' }}
+          </button>
+          <!--
+            A ROTA CONTINUA EXISTINDO e continua alcancavel: link que ja circula nao quebra,
+            e `members.spec.ts` afirma este href — era a garantia do FIX-0553.
+          -->
+          <a
+            routerLink="/configuracoes/convites"
+            class="min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold inline-flex
+                   items-center border border-neutral-200 text-neutral-700 bg-white
+                   hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                   focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Abrir em página
           </a>
         </div>
 

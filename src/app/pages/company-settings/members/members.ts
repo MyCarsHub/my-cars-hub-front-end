@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Invites } from '../../invites/invites';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../../components/core/page-card/page-card';
@@ -57,9 +58,33 @@ interface PersonRow {
   removeLabel: string;
 }
 
-const STATE_ACTIVE = 'bg-emerald-50 text-emerald-700 border-emerald-100';
-const STATE_PENDING = 'bg-amber-50 text-amber-700 border-amber-100';
-const STATE_EXPIRED = 'bg-neutral-100 text-neutral-700 border-neutral-200';
+/*
+ * ESTADOS PELOS TOKENS DO SISTEMA (`styles.css`), nunca cor solta.
+ *
+ * Estes tres eram `emerald-*` e `amber-*` do Tailwind cru — paleta que nao existe no guia
+ * deste produto. Trocados pelas rampas do sistema, e a escolha de CADA um tem razao:
+ *
+ * - COM ACESSO usa a rampa success. `success-100` de fundo com `success-900` de texto,
+ *   porque a nota do proprio token diz que `success-500` da 2,54:1 sobre branco e so serve
+ *   de preenchimento, e que texto pequeno pede o 900.
+ * - CONVITE ENVIADO e CONVITE EXPIRADO usam `primary-low` com `primary-700`: laranja em
+ *   intensidade BAIXA. Laranja e a cor da acao neste sistema, entao em tom baixo ele diz
+ *   "precisa de voce" sem competir com o botao primario preenchido.
+ *   Expirado NAO pode ser neutro: neutro diz "isto nao importa", e e a linha que PEDE acao
+ *   e que a ordenacao poe em primeiro lugar — cor e ordem contariam historias diferentes.
+ *   Os dois dividem a MATIZ porque dividem a natureza — alguem esperando do outro lado —
+ *   mas NAO a intensidade: expirado e mais pesado (fundo e borda mais fortes, texto mais
+ *   escuro) e pendente e o tom baixo. Duas intensidades da mesma rampa dizem "mesma
+ *   familia, urgencias diferentes", e dao para aprender sem ler o rotulo — que e o ponto
+ *   de estado ser cor E forma, e nao so palavra. Se os dois fossem identicos, so o texto
+ *   os separaria.
+ * - O sistema NAO tem token de aviso/ambar: a paleta e laranja, verde, azul exclusivo de
+ *   aluguel e os neutros. Conferido token por token. Inventar um ambar aqui seria criar
+ *   paleta paralela.
+ */
+const STATE_ACTIVE = 'bg-success-100 text-success-900 border-success-100';
+const STATE_PENDING = 'bg-primary-low text-primary-700 border-primary-100';
+const STATE_EXPIRED = 'bg-primary-100 text-primary-800 border-primary-300';
 
 /**
  * Pessoas da empresa — UMA lista com quem tem acesso e quem foi convidado.
@@ -105,7 +130,7 @@ const STATE_EXPIRED = 'bg-neutral-100 text-neutral-700 border-neutral-200';
 @Component({
   selector: 'app-company-members',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, RouterLink, DefaultPageLayout, PageCard, AlertBanner, ConfirmDialog],
+  imports: [DatePipe, RouterLink, Invites, DefaultPageLayout, PageCard, AlertBanner, ConfirmDialog],
   templateUrl: './members.html',
 })
 export class CompanyMembers implements OnInit {
@@ -173,6 +198,36 @@ export class CompanyMembers implements OnInit {
 
   protected readonly isEmpty = computed(() => this.loaded() && this.rows().length === 0);
   protected readonly activeCount = computed(() => this.members.members().length);
+
+  /**
+   * O painel de convite abre AQUI, nao em outra pagina.
+   *
+   * Bloco que expande, e nao modal nem gaveta: no celular um modal com seis campos cobre a
+   * tela inteira e tira a lista de vista, e e a lista que diz se o convite chegou. O bloco
+   * empurra a lista para baixo e os dois continuam na mesma rolagem.
+   */
+  protected readonly inviteOpen = signal(false);
+
+  /**
+   * OS QUATRO NUMEROS, e todos saem do que a tela JA carregou — duas listas, zero chamada
+   * nova. Medido antes de escrever: convite tem `status`, membro tem `role`.
+   *
+   * `invites()` traz TODOS os status, e e por isso que "aceitos" existe: ele nao aparece na
+   * lista de linhas (convite aceito e a pessoa que o roster ja devolve) mas e contavel, e e
+   * exatamente o numero que responde "quantos convites viraram gente".
+   */
+  protected readonly pendingInvitesCount = computed(
+    () => this.invites.invites().filter((i) => i.status === 'PENDING').length,
+  );
+  protected readonly acceptedInvitesCount = computed(
+    () => this.invites.invites().filter((i) => i.status === 'ACCEPTED').length,
+  );
+  protected readonly managersCount = computed(
+    () => this.members.members().filter((m) => m.role === 'MANAGER').length,
+  );
+  protected readonly driversCount = computed(
+    () => this.members.members().filter((m) => m.role === 'DRIVER').length,
+  );
   protected readonly invitedCount = computed(
     () => this.rows().filter((r) => r.kind === 'invite').length,
   );
@@ -196,6 +251,23 @@ export class CompanyMembers implements OnInit {
     this.members.list().subscribe({
       error: (error: HttpErrorResponse) => this.listError.set(this.listMessage(error)),
     });
+    this.invites.list().subscribe({
+      error: (error: HttpErrorResponse) => this.listError.set(this.listMessage(error)),
+    });
+  }
+
+  protected toggleInvite(): void {
+    this.inviteOpen.update((open) => !open);
+  }
+
+  /**
+   * Convite enviado de dentro desta tela: fecha o painel e RELE os convites, para a linha
+   * nova aparecer como "Convite enviado" sem a pessoa precisar atualizar nada.
+   *
+   * So os convites: enviar convite nao mexe no roster.
+   */
+  protected onInviteSent(): void {
+    this.inviteOpen.set(false);
     this.invites.list().subscribe({
       error: (error: HttpErrorResponse) => this.listError.set(this.listMessage(error)),
     });
