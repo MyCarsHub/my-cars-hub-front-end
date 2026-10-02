@@ -8,10 +8,21 @@
  *    the vehicle screen: that is the only place holding the id the call requires.
  * 2. **`GET` returns ONE schedule, not a list.** A vehicle has at most one active schedule.
  *    Listing every schedule in the fleet has no endpoint at all.
- * 3. **Fleet-wide scheduling is NOT reachable.** The table (V86) accepts a null vehicle,
- *    but no route does: `vehicleId` is a mandatory path variable and the service takes a
- *    plain `UUID` with no null branch. Do not build a "whole fleet" option against this
- *    contract — it needs a new endpoint.
+ * 3. **Fleet-wide scheduling EXISTS NOW, em rota propria** (FEAT-0273, backend
+ *    `origin/main @ 2e1ecbe`): `POST /v1/inspection-schedules/fleet` cria a linha de
+ *    `vehicle_id` nulo, e `GET /v1/inspection-schedules` lista frota e veiculos juntos.
+ *    A rota por veiculo continua sendo sobre UM carro; sao duas rotas de proposito, para
+ *    uma URL nao significar duas coisas.
+ *
+ *    **PRECEDENCIA, medida no SQL e nao suposta:** `findEffectiveSchedule` faz
+ *    `ORDER BY (s.vehicle_id IS NULL) LIMIT 1`, e em Postgres `false` ordena antes de
+ *    `true` — entao o agendamento DO VEICULO vence o da frota. Criar frota nao altera nem
+ *    recusa os de veiculo existentes.
+ *
+ *    **O QUE AINDA NAO EXISTE:** desligar ou alterar a linha de FROTA. O unico `DELETE` e
+ *    o por veiculo, e `deactivate` busca por `findActiveByVehicle`, que nao alcanca
+ *    `vehicle_id` nulo. Nao desenhe botao de desligar na frota antes de
+ *    `DELETE /v1/inspection-schedules/fleet` existir.
  */
 
 /**
@@ -75,10 +86,27 @@ export interface CreateInspectionScheduleRequest {
  */
 export interface InspectionScheduleResponse {
   id: string;
-  vehicleId: string;
+  /**
+   * `null` E O AGENDAMENTO DE FROTA, e e so isso que o distingue: uma linha sem veiculo
+   * vale para todos os carros elegiveis da empresa, inclusive os cadastrados depois.
+   *
+   * Era `string` quando so existia a rota por veiculo. Qualquer leitura que assuma string
+   * aqui trata a regra da frota como se fosse de um carro chamado "null".
+   */
+  vehicleId: string | null;
   frequency: InspectionFrequency;
   startDate: string;
   nextDueDate: string;
   reminderIntervalDays: number;
   active: boolean;
+}
+
+/**
+ * `true` quando a linha e a regra da FROTA e nao de um carro.
+ *
+ * Existe como funcao para a comparacao com `null` morar em UM lugar: espalhar
+ * `vehicleId === null` pela tela e como a mesma pergunta ganha duas respostas diferentes.
+ */
+export function isFleetSchedule(schedule: InspectionScheduleResponse): boolean {
+  return schedule.vehicleId === null;
 }

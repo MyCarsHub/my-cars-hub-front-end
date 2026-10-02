@@ -1,0 +1,331 @@
+<!--
+  AGENDAMENTO NO ESCOPO DA EMPRESA.
+
+  O desenho segue o sistema de `styles.css` — tokens, nunca cor solta:
+  . ACAO: primary-500 preenchido, primary-600 no hover. UMA so com esse peso na tela.
+  . TEXTO: neutral-900 (Carbon) no titulo, neutral-500/600 no apoio.
+  . ATIVO: rampa success. Preenchimento usa success-800, que e o piso que a nota de
+    contraste exige para texto branco em cima (success-700 reprova AA por 0,15).
+  . PRECISA DE VOCE: primary-low com primary-700 — laranja em intensidade BAIXA. Expirado
+    nao pode ser neutro: neutro diz "isto nao importa", e esta e a linha que PEDE acao e
+    que a ordenacao poe na frente. Cor e forma contariam historias diferentes.
+  . DESLIGADO: ai sim neutro, porque ai o neutro diz a verdade — nao pede nada de ninguem.
+
+  HIERARQUIA POR TAMANHO: a proxima data e o numero grande da linha (responde "quando isso
+  me cobra?"); a frequencia e o rotulo pequeno em cima dela.
+
+  AGRUPAMENTO POR ESPACO, nao por borda: a faixa da frota, um respiro, e os carros.
+-->
+<section class="space-y-4" aria-label="Agendamento de vistorias">
+  @if (error(); as message) {
+    <app-alert-banner variant="error" [message]="message" />
+  }
+
+  @if (loading() && !loaded()) {
+    <p role="status" class="text-sm text-neutral-500">Carregando agendamentos…</p>
+  }
+
+  @if (loadFailed()) {
+    <!--
+      Falha NAO e vazio: a tela nao sabe se ha regra de frota, e convidar a agendar sobre
+      uma que talvez exista bateria no 400 de "ja existe". A saida e reler.
+    -->
+    <button
+      type="button"
+      (click)="load()"
+      [disabled]="loading()"
+      class="w-full sm:w-auto min-h-12 px-4 py-3 rounded-xl text-sm font-semibold border
+             border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+             focus-visible:ring-offset-2 disabled:opacity-60"
+    >
+      {{ loading() ? 'Carregando…' : 'Tentar de novo' }}
+    </button>
+  }
+
+  @if (isEmpty() && !formOpen()) {
+    <!--
+      TELA VAZIA E UM CONVITE QUE OCUPA TUDO, nao uma lista vazia com um botao no canto.
+      A frase e a que o dono quer dizer ao cliente, e ela e VERDADE medida: a linha de
+      `vehicle_id` nulo vale para os carros cadastrados depois.
+    -->
+    <div
+      class="rounded-2xl border border-primary-100 bg-primary-50 p-6 sm:p-10 text-center
+             flex flex-col items-center gap-4"
+    >
+      <span
+        class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white
+               text-primary-700 border border-primary-100"
+        aria-hidden="true"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+          <path d="m9 16 2 2 4-4" />
+        </svg>
+      </span>
+
+      <h2 class="text-xl sm:text-2xl font-bold text-neutral-900">
+        Agende uma vez e vale para todos os carros
+      </h2>
+      <p class="max-w-prose text-sm sm:text-base text-neutral-600 leading-relaxed">
+        A vistoria periódica passa a valer para a frota inteira — inclusive para os carros
+        que você cadastrar depois. O sistema avisa sozinho quando cada um vencer.
+      </p>
+
+      <button
+        type="button"
+        (click)="openForm()"
+        class="w-full sm:w-auto min-h-12 px-6 py-3 rounded-xl text-base font-semibold
+               bg-primary-500 text-white shadow-sm hover:bg-primary-600 transition-colors
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+               focus-visible:ring-offset-2"
+      >
+        Agendar para toda a frota
+      </button>
+    </div>
+  }
+
+  @if (!isEmpty() && !formOpen() && !hasFleetRule() && loaded() && !loadFailed()) {
+    <!--
+      Ha regras de carro mas NAO de frota: a acao primaria segue sendo a da frota, agora
+      numa faixa compacta — a lista e que manda quando a tela tem conteudo.
+    -->
+    <div
+      class="rounded-2xl border border-primary-100 bg-primary-50 p-4 flex flex-col
+             sm:flex-row sm:items-center gap-3 sm:gap-4"
+    >
+      <p class="flex-1 text-sm text-neutral-700 leading-relaxed">
+        <span class="font-semibold text-neutral-900">Agende uma vez e vale para todos.</span>
+        Os carros sem regra própria passam a ser vistoriados pela regra da frota.
+      </p>
+      <button
+        type="button"
+        (click)="openForm()"
+        class="w-full sm:w-auto shrink-0 min-h-12 px-5 py-3 rounded-xl text-sm font-semibold
+               bg-primary-500 text-white shadow-sm hover:bg-primary-600 transition-colors
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+               focus-visible:ring-offset-2"
+      >
+        Agendar para toda a frota
+      </button>
+    </div>
+  }
+
+  @if (formOpen()) {
+    <form
+      [formGroup]="scheduleForm"
+      (ngSubmit)="saveFleet()"
+      class="rounded-2xl border border-primary-100 bg-white p-4 sm:p-6 space-y-4"
+    >
+      <div>
+        <h2 class="text-lg font-bold text-neutral-900">Agendar para toda a frota</h2>
+        <p class="mt-1 text-sm text-neutral-600 leading-relaxed">
+          Vale para os carros que não têm regra própria, inclusive os que você cadastrar
+          depois.
+        </p>
+      </div>
+
+      <app-form-field
+        label="Com que frequência"
+        controlId="fleet-frequency"
+        [required]="true"
+        [control]="scheduleForm.get('frequency')"
+      >
+        <select
+          appFieldControl
+          formControlName="frequency"
+          id="fleet-frequency"
+          class="w-full min-h-12 bg-neutral-50 border rounded-xl px-4 py-3 text-base
+                 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                 focus:border-primary-600 transition-colors"
+        >
+          @for (option of frequencies; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </app-form-field>
+
+      <app-form-field
+        label="Começando em"
+        controlId="fleet-start"
+        [required]="true"
+        [control]="scheduleForm.get('startDate')"
+        [messages]="startDateMessages"
+      >
+        <input
+          appFieldControl
+          type="date"
+          formControlName="startDate"
+          id="fleet-start"
+          class="w-full min-h-12 bg-neutral-50 border rounded-xl px-4 py-3 text-base
+                 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                 focus:border-primary-600 transition-colors"
+        />
+      </app-form-field>
+
+      <app-form-field
+        label="Avisar quantos dias antes"
+        controlId="fleet-reminder"
+        [control]="scheduleForm.get('reminderIntervalDays')"
+        [messages]="reminderMessages"
+        hint="Deixe em branco para usar o aviso padrão do sistema."
+      >
+        <input
+          appFieldControl
+          type="number"
+          inputmode="numeric"
+          min="1"
+          formControlName="reminderIntervalDays"
+          id="fleet-reminder"
+          placeholder="7"
+          class="w-full min-h-12 bg-neutral-50 border rounded-xl px-4 py-3 text-base
+                 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                 focus:border-primary-600 transition-colors"
+        />
+      </app-form-field>
+
+      <div class="flex flex-col sm:flex-row gap-2">
+        <button
+          type="submit"
+          [disabled]="saving()"
+          class="w-full sm:w-auto min-h-12 px-6 py-3 rounded-xl text-base font-semibold
+                 bg-primary-500 text-white shadow-sm hover:bg-primary-600 transition-colors
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {{ saving() ? 'Agendando…' : 'Agendar para toda a frota' }}
+        </button>
+        <button
+          type="button"
+          (click)="closeForm()"
+          [disabled]="saving()"
+          class="w-full sm:w-auto min-h-12 px-4 py-3 rounded-xl text-sm font-semibold border
+                 border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                 focus-visible:ring-offset-2 disabled:opacity-60"
+        >
+          Cancelar
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (rows().length > 0) {
+    <ul class="space-y-3">
+      @for (row of rows(); track row.id) {
+        <!--
+          FROTA vs CARRO POR FORMA, nao por cor inventada: a linha de frota e larga, com
+          faixa lateral laranja e sem recuo; a de carro e recuada e de borda neutra. A um
+          olhar, uma e REGRA e a outra e EXCECAO.
+        -->
+        <li
+          class="rounded-xl bg-white p-3 sm:p-4"
+          [class]="
+            row.fleet
+              ? 'border border-primary-200 border-l-4 border-l-primary-500'
+              : 'border border-neutral-200 sm:ml-6'
+          "
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm font-bold text-neutral-900 break-words">{{ row.title }}</p>
+              <p class="text-xs text-neutral-500">{{ row.frequencyLabel }}</p>
+            </div>
+
+            <!--
+              ATIVO em verde do sistema: `success-800` e o piso de preenchimento com texto
+              branco em cima (success-700 reprova AA por 0,15, pela nota nos tokens).
+            -->
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                     bg-success-800 text-white shrink-0"
+            >
+              Ativo
+            </span>
+          </div>
+
+          <!-- A PROXIMA DATA E O DADO MAIS IMPORTANTE: numero, nao texto miudo. -->
+          <div class="mt-3 flex flex-wrap items-end gap-x-6 gap-y-2">
+            <div>
+              <p class="text-xs text-neutral-500">Próxima vistoria</p>
+              <p class="text-2xl sm:text-3xl font-bold text-neutral-900 tabular-nums leading-tight">
+                {{ row.nextDueDate | date: 'dd/MM/yyyy' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-neutral-500">Aviso</p>
+              <p class="text-sm font-semibold text-neutral-700 tabular-nums">
+                {{ row.reminderIntervalDays }} dias antes
+              </p>
+            </div>
+          </div>
+
+          @if (row.precedenceNote) {
+            <!--
+              A PRECEDENCIA EM PORTUGUES, com a regra medida no SQL: o especifico vence o de
+              frota por `ORDER BY (vehicle_id IS NULL)`. Frase, nao selo que ninguem decifra.
+            -->
+            <p class="mt-3 text-xs text-neutral-600 leading-relaxed">{{ row.precedenceNote }}</p>
+          }
+
+          @if (row.canDeactivate) {
+            <div class="mt-3">
+              <button
+                type="button"
+                (click)="askDeactivate(row)"
+                [disabled]="saving()"
+                [attr.aria-label]="'Desligar vistoria periódica de ' + row.title"
+                class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl text-sm font-semibold
+                       border border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                       focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Desligar
+              </button>
+            </div>
+          } @else if (row.lockedReason) {
+            <!--
+              LINHA SEM ACAO MAS COM EXPLICACAO. O endpoint que desliga a regra da frota nao
+              existe ainda; ausencia silenciosa faria procurar o botao que nao ha.
+            -->
+            <p
+              class="mt-3 rounded-lg bg-primary-low px-3 py-2 text-xs text-primary-700
+                     leading-relaxed"
+            >
+              {{ row.lockedReason }}
+            </p>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+@if (pendingDeactivate(); as target) {
+  <app-confirm-dialog
+    [open]="true"
+    title="Desligar vistoria periódica"
+    [message]="
+      target.title +
+      ' deixa de gerar vistorias automáticas e de receber avisos. Você pode agendar de novo depois.'
+    "
+    confirmLabel="Desligar"
+    cancelLabel="Manter"
+    variant="danger"
+    (confirmed)="confirmDeactivate()"
+    (cancelled)="dismissDeactivate()"
+  />
+}
