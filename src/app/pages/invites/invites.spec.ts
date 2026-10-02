@@ -18,6 +18,15 @@ import type { InviteResponse } from '../../types/invite.types';
  * falhas que precisam de texto próprio: 403 (sem permissão), 409 (conflito), 410
  * (expirado, separado do 404) e 429 (excesso de requisições).
  */
+/*
+ * A LISTAGEM SAIU DESTA TELA (FEAT-0267), e com ela os seis casos que a cobriam: status por
+ * linha, acoes so nos acionaveis, empilhamento form-em-cima-lista-embaixo, reenvio, cancelar
+ * com confirmacao, e as frases de 410 e 409 das duas acoes.
+ *
+ * Nao foram APAGADOS: a mesma cobertura vive em `members.spec.ts`, onde a lista passou a
+ * existir junto com os membros. Esta tela ficou com um proposito so — o formulario — e o que
+ * sobrou aqui cobre exatamente isso.
+ */
 describe('Invites — envio e gestão de convites', () => {
   const pending: InviteResponse = {
     id: 'inv-1',
@@ -145,66 +154,6 @@ describe('Invites — envio e gestão de convites', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('lista os convites com status e ações apenas nos acionáveis', () => {
-    const { fixture } = render();
-
-    const text: string = fixture.nativeElement.textContent;
-    expect(list).toHaveBeenCalled();
-    expect(text).toContain('novo@empresa.com.br');
-    expect(text).toContain('Aguardando');
-    expect(text).toContain('Aceito');
-    // Só o PENDING oferece reenviar/cancelar; o ACCEPTED seria 400 no backend.
-    expect(fixture.nativeElement.querySelectorAll('button[aria-label^="Reenviar"]')).toHaveLength(1);
-    expect(fixture.nativeElement.querySelectorAll('button[aria-label^="Cancelar"]')).toHaveLength(1);
-  });
-
-  /**
-   * Layout pedido pelo dono do produto: formulário EM CIMA, listagem EMBAIXO,
-   * empilhados. Antes eram duas colunas (`grid lg:grid-cols-3`), o que em 375px
-   * escondia a lista atrás de um formulário inteiro. O teste ancora a ordem e a
-   * ausência de colunas para que uma edição futura não volte atrás em silêncio.
-   */
-  it('empilha formulário em cima e listagem embaixo, sem colunas lado a lado', () => {
-    const { fixture } = render();
-    const host = fixture.nativeElement as HTMLElement;
-
-    const cards = Array.from(host.querySelectorAll('app-page-card'));
-    expect(cards.map((c) => c.querySelector('h2')?.textContent?.trim())).toEqual([
-      'Convidar pessoa',
-      'Convites enviados',
-    ]);
-    // O formulário precisa estar DENTRO do primeiro cartão, não do segundo.
-    expect(cards[0].querySelector('form')).not.toBeNull();
-    expect(cards[1].querySelector('form')).toBeNull();
-
-    // Nenhum ancestral dos cartões distribui o conteúdo em colunas.
-    const columnised = Array.from(host.querySelectorAll('[class*="grid-cols"]')).filter((el) =>
-      el.querySelector('app-page-card'),
-    );
-    expect(columnised).toEqual([]);
-  });
-
-  it('reenvia pelo id e recarrega a lista para pegar o novo prazo', () => {
-    const { component } = render();
-    list.mockClear();
-
-    component.resend({ id: 'inv-1', email: 'novo@empresa.com.br' });
-
-    expect(resend).toHaveBeenCalledWith('inv-1');
-    expect(list).toHaveBeenCalledTimes(1);
-    expect(notifySuccess).toHaveBeenCalledWith('Convite reenviado para novo@empresa.com.br.');
-  });
-
-  it('só cancela depois da confirmação', () => {
-    const { component } = render();
-
-    component.askCancel({ id: 'inv-1', email: 'novo@empresa.com.br' });
-    expect(cancel).not.toHaveBeenCalled();
-
-    component.confirmCancel();
-    expect(cancel).toHaveBeenCalledWith('inv-1');
-  });
-
   it('403 no envio explica que falta permissão', () => {
     const { component } = render();
     create.mockReturnValue(throwError(() => error(403)));
@@ -223,26 +172,6 @@ describe('Invites — envio e gestão de convites', () => {
     component.send();
 
     expect(component.createError()).toContain('Muitas tentativas');
-  });
-
-  it('410 no reenvio fala em expirado, não em inexistente', () => {
-    const { component } = render();
-    resend.mockReturnValue(throwError(() => error(410)));
-
-    component.resend({ id: 'inv-1', email: 'novo@empresa.com.br' });
-
-    expect(component.listError()).toContain('expirou');
-    expect(component.listError()).not.toContain('não existe');
-  });
-
-  it('409 no cancelamento pede para atualizar a lista', () => {
-    const { component } = render();
-    cancel.mockReturnValue(throwError(() => error(409)));
-
-    component.askCancel({ id: 'inv-1', email: 'novo@empresa.com.br' });
-    component.confirmCancel();
-
-    expect(component.listError()).toContain('mudou de status');
   });
   /**
    * O convite de GERENTE nao era um campo faltando: era uma porta fechada.
