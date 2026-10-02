@@ -37,98 +37,6 @@
       Agendar vistoria periódica
     </a>
   </div>
-  <app-page-card title="Filtros" class="mb-4 sm:mb-6">
-    <div class="p-3 sm:p-4 space-y-4">
-      <!--
-        Os três filtros do pedido do dono, COMBINÁVEIS: veículo E locação E
-        período. Cada um recarrega a lista e volta para a página 0 — manter a
-        página ao trocar o filtro mostraria "página 3 de 1".
-      -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <!--
-          `min-w-0` NÃO é decoração: item de grade nasce com `min-width:auto` e
-          se recusa a encolher abaixo do conteúdo. Uma placa longa dentro do
-          select empurraria a grade e a página inteira rolaria para o lado no
-          celular — foi exatamente assim que o dashboard quebrou.
-        -->
-        <div class="min-w-0 space-y-1">
-          <label for="insp-vehicle" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-            Veículo
-          </label>
-          <select
-            id="insp-vehicle"
-            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
-                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
-            [value]="vehicleId()"
-            (change)="onVehicleChange($any($event.target).value)"
-          >
-            <option value="">Todos os veículos</option>
-            @for (v of vehicleOptions(); track v.id) {
-              <option [value]="v.id">{{ v.label }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="min-w-0 space-y-1">
-          <label for="insp-rental" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-            Locação
-          </label>
-          <input
-            id="insp-rental"
-            type="search"
-            placeholder="Código ou id da locação"
-            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
-                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
-            [value]="rentalId()"
-            (change)="onRentalChange($any($event.target).value)"
-          />
-        </div>
-      </div>
-
-      <div class="space-y-2">
-        <p id="insp-kind-label" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-          Tipo
-        </p>
-        <app-filter-chip-group
-          [options]="kindChips"
-          [value]="kind()"
-          ariaLabelledby="insp-kind-label"
-          (selectionChange)="onKindChange($event)"
-        />
-      </div>
-
-      <!--
-        A FILA DO DONO. Sem este filtro a aprovação existiria e ninguém a
-        encontraria: "Aguardando aprovação" é o único estado que pede ação de
-        alguém, e é por aqui que ele chega nele.
-      -->
-      <div class="space-y-2">
-        <p
-          id="insp-status-label"
-          class="text-xs font-medium text-neutral-500 uppercase tracking-wide"
-        >
-          Situação
-        </p>
-        <app-filter-chip-group
-          [options]="statusChips"
-          [value]="status()"
-          ariaLabelledby="insp-status-label"
-          (selectionChange)="onStatusChange($event)"
-        />
-      </div>
-
-      <!--
-        Seletor de período REAPROVEITADO do dashboard (movido para
-        `components/` neste diff). Um segundo seletor de intervalo seria uma
-        segunda régua de datas para manter em sincronia.
-      -->
-      <div class="space-y-2">
-        <p class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Período</p>
-        <app-date-range-picker [initialPreset]="null" (rangeChange)="onRangeChange($event)" />
-      </div>
-    </div>
-  </app-page-card>
-
   <app-page-card title="Vistorias">
     <div class="p-3 sm:p-4 space-y-4">
       @if (error(); as loadError) {
@@ -164,9 +72,28 @@
             </button>
           </div>
         } @else {
-          <p class="text-center py-10 text-sm text-neutral-500">
-            Nenhuma vistoria registrada ainda. Elas aparecem aqui assim que a primeira for feita.
-          </p>
+          <!--
+            O ESTADO VAZIO OFERECE A ACAO.
+            "Elas aparecem aqui assim que a primeira for feita" descrevia o vazio e nao
+            dizia COMO sair dele — e e a primeira tela que um cliente ve, numa empresa que
+            ainda nao tem vistoria nenhuma. O botao e a saida, e e o mesmo destino da porta
+            no topo.
+          -->
+          <div class="py-10 flex flex-col items-center gap-3 text-center">
+            <p class="text-sm text-neutral-600 leading-relaxed">
+              Nenhuma vistoria ainda. Faça a primeira e ela aparece aqui.
+            </p>
+            <a
+              [routerLink]="['/vistorias', 'nova']"
+              class="w-full sm:w-auto min-h-12 inline-flex items-center justify-center rounded-xl
+                     bg-primary-500 text-white text-sm font-semibold px-5 py-3 shadow-sm
+                     hover:bg-primary-600 transition-colors focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-600
+                     focus-visible:ring-offset-2"
+            >
+              Fazer a primeira vistoria
+            </a>
+          </div>
         }
       }
 
@@ -283,6 +210,115 @@
           </button>
         </div>
       }
+    </div>
+  </app-page-card>
+
+  <!--
+    LISTA PRIMEIRO, FILTROS DEPOIS E FECHADOS.
+
+    Filtro em cima de tabela vazia e a pior coisa que esta tela podia exibir: quem abre
+    quer VER as vistorias, e a tela respondia com um painel de controles. Agora o
+    conteudo vem primeiro e o filtro fica onde se procura quando a lista ja e grande
+    demais.
+
+    `storageKey` guarda aberto/fechado na sessao: quem filtra muito nao precisa reabrir
+    o painel a cada visita, e quem nunca filtra nunca ve.
+  -->
+  <app-page-card
+    title="Filtros"
+    class="mt-4 sm:mt-6"
+    [collapsible]="true"
+    [defaultOpen]="false"
+    storageKey="inspections-filters-open"
+  >
+    <div class="p-3 sm:p-4 space-y-4">
+      <!--
+        Os três filtros do pedido do dono, COMBINÁVEIS: veículo E locação E
+        período. Cada um recarrega a lista e volta para a página 0 — manter a
+        página ao trocar o filtro mostraria "página 3 de 1".
+      -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!--
+          `min-w-0` NÃO é decoração: item de grade nasce com `min-width:auto` e
+          se recusa a encolher abaixo do conteúdo. Uma placa longa dentro do
+          select empurraria a grade e a página inteira rolaria para o lado no
+          celular — foi exatamente assim que o dashboard quebrou.
+        -->
+        <div class="min-w-0 space-y-1">
+          <label for="insp-vehicle" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+            Veículo
+          </label>
+          <select
+            id="insp-vehicle"
+            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
+                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            [value]="vehicleId()"
+            (change)="onVehicleChange($any($event.target).value)"
+          >
+            <option value="">Todos os veículos</option>
+            @for (v of vehicleOptions(); track v.id) {
+              <option [value]="v.id">{{ v.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="min-w-0 space-y-1">
+          <label for="insp-rental" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+            Locação
+          </label>
+          <input
+            id="insp-rental"
+            type="search"
+            placeholder="Código ou id da locação"
+            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
+                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            [value]="rentalId()"
+            (change)="onRentalChange($any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <p id="insp-kind-label" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+          Tipo
+        </p>
+        <app-filter-chip-group
+          [options]="kindChips"
+          [value]="kind()"
+          ariaLabelledby="insp-kind-label"
+          (selectionChange)="onKindChange($event)"
+        />
+      </div>
+
+      <!--
+        A FILA DO DONO. Sem este filtro a aprovação existiria e ninguém a
+        encontraria: "Aguardando aprovação" é o único estado que pede ação de
+        alguém, e é por aqui que ele chega nele.
+      -->
+      <div class="space-y-2">
+        <p
+          id="insp-status-label"
+          class="text-xs font-medium text-neutral-500 uppercase tracking-wide"
+        >
+          Situação
+        </p>
+        <app-filter-chip-group
+          [options]="statusChips"
+          [value]="status()"
+          ariaLabelledby="insp-status-label"
+          (selectionChange)="onStatusChange($event)"
+        />
+      </div>
+
+      <!--
+        Seletor de período REAPROVEITADO do dashboard (movido para
+        `components/` neste diff). Um segundo seletor de intervalo seria uma
+        segunda régua de datas para manter em sincronia.
+      -->
+      <div class="space-y-2">
+        <p class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Período</p>
+        <app-date-range-picker [initialPreset]="null" (rangeChange)="onRangeChange($event)" />
+      </div>
     </div>
   </app-page-card>
 </app-default-page-layout>

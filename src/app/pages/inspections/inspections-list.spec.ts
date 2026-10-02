@@ -91,9 +91,30 @@ describe('InspectionsList', () => {
     });
   }
 
-  function render() {
+  /** O botao de abrir/fechar DO CARTAO DE FILTROS, achado pelo titulo do cartao. */
+  function filtersToggle(fixture: ReturnType<typeof render>): HTMLButtonElement | null {
+    const card = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('app-page-card'),
+    ).find((c) => (c.textContent ?? '').includes('Filtros'));
+    return card?.querySelector<HTMLButtonElement>('button[aria-expanded]') ?? null;
+  }
+
+  /**
+   * Os filtros passaram a nascer FECHADOS (lista antes, filtro depois), entao os controles
+   * nao estao no DOM na primeira pintura. `render()` abre o painel por padrao, porque e isso
+   * que a maioria dos casos abaixo precisa; quem quer medir o estado INICIAL passa
+   * `{ openFilters: false }`.
+   */
+  function render({ openFilters = true }: { openFilters?: boolean } = {}) {
     const fixture = TestBed.createComponent(InspectionsList);
     fixture.detectChanges();
+    if (openFilters) {
+      // ESCOPADO ao cartao de Filtros. Um seletor global de `button[aria-expanded]` pega o
+      // botao "Revisar e decidir" DA LINHA, que tambem usa `aria-expanded` — e abria uma
+      // revisao em vez do painel de filtros, derrubando um caso que nada tinha com isso.
+      filtersToggle(fixture)?.click();
+      fixture.detectChanges();
+    }
     return fixture;
   }
 
@@ -111,6 +132,10 @@ describe('InspectionsList', () => {
   }
 
   beforeEach(() => {
+    // `storageKey` do cartao de Filtros persiste aberto/fechado na sessao. O setup global
+    // limpa no inicio do ARQUIVO, nao a cada caso, entao sem esta linha o primeiro caso que
+    // abre o painel deixa os seguintes abertos: suite dependente de ORDEM.
+    sessionStorage.clear();
     configure();
   });
 
@@ -542,5 +567,51 @@ describe('InspectionsList', () => {
     expect(hrefs, 'quem abre Vistorias nao descobre que a vistoria periodica existe').toContain(
       '/veiculos',
     );
+  });
+  // ------------------------------------------- LISTA ANTES, FILTRO DEPOIS
+  /**
+   * Filtro em cima de tabela vazia era a pior coisa que esta tela podia exibir numa
+   * demonstracao: quem abre quer VER as vistorias, e a tela respondia com um painel de
+   * controles. O conteudo passou a vir primeiro, e o filtro fica fechado onde se procura
+   * quando a lista ja e grande demais.
+   */
+  it('a lista vem ANTES dos filtros na ordem do documento', () => {
+    const fixture = render({ openFilters: false });
+    const titulos = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('app-page-card'),
+    ).map((c) => (c.querySelector('h2, h3')?.textContent ?? '').trim());
+
+    const iLista = titulos.findIndex((t) => t.includes('Vistorias'));
+    const iFiltros = titulos.findIndex((t) => t.includes('Filtros'));
+    expect(iLista).toBeGreaterThanOrEqual(0);
+    expect(iFiltros).toBeGreaterThanOrEqual(0);
+    expect(iLista).toBeLessThan(iFiltros);
+  });
+
+  it('os filtros nascem FECHADOS, e os controles so existem depois de abrir', () => {
+    const fechado = render({ openFilters: false });
+    expect(
+      (fechado.nativeElement as HTMLElement).querySelector('select'),
+      'os controles de filtro estao na tela antes de alguem pedir',
+    ).toBeNull();
+
+    const aberto = render();
+    expect((aberto.nativeElement as HTMLElement).querySelector('select')).not.toBeNull();
+  });
+  /**
+   * A PRIMEIRA TELA QUE UM CLIENTE VE numa empresa sem vistoria nenhuma. A copy antiga
+   * descrevia o vazio ("elas aparecem aqui assim que a primeira for feita") e nao dizia COMO
+   * sair dele. O estado vazio agora oferece a acao, para o mesmo destino da porta no topo.
+   */
+  it('o estado vazio OFERECE a acao, nao so descreve o vazio', () => {
+    const fixture = render({ openFilters: false });
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.textContent).toContain('Nenhuma vistoria ainda');
+    const cta = Array.from(host.querySelectorAll('a')).find((a) =>
+      (a.textContent ?? '').includes('Fazer a primeira vistoria'),
+    );
+    expect(cta, 'o estado vazio descreve o problema e nao oferece saida').toBeDefined();
+    expect(cta?.getAttribute('href')).toBe('/vistorias/nova');
   });
 });
