@@ -122,6 +122,7 @@ describe('/configuracoes admite OWNER e MANAGER', () => {
       '/configuracoes/contato',
       '/configuracoes/contratos',
       '/configuracoes/convites',
+      '/configuracoes/membros',
     ]);
   });
 
