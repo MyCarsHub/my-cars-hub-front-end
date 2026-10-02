@@ -31,6 +31,7 @@ describe('LayoutStore — troca de tenant', () => {
   let httpGet: ReturnType<typeof vi.fn>;
   let httpPost: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.fn>;
+  let navigateByUrl: ReturnType<typeof vi.fn>;
   let unreadCountResponse: number;
   let layout: LayoutStore;
   let feed: NotificationFeedService;
@@ -50,6 +51,8 @@ describe('LayoutStore — troca de tenant', () => {
       selectedCompanyId: 'company-a',
     };
     navigate = vi.fn();
+    // A troca passa pelo pivo ANTES do destino; sem este dobro o `.then` estoura.
+    navigateByUrl = vi.fn(() => Promise.resolve(true));
     httpGet = vi.fn((url: string) =>
       String(url).endsWith('/unread-count')
         ? of({ count: unreadCountResponse })
@@ -67,7 +70,7 @@ describe('LayoutStore — troca de tenant', () => {
         LayoutStore,
         NotificationFeedService,
         { provide: PLATFORM_ID, useValue: 'browser' },
-        { provide: Router, useValue: { navigate } },
+        { provide: Router, useValue: { navigate, navigateByUrl } },
         { provide: HttpClient, useValue: { get: httpGet, post: httpPost, patch: vi.fn() } },
         {
           provide: SessionService,
@@ -141,7 +144,7 @@ describe('LayoutStore — troca de tenant', () => {
     expect(billingAccess.status()).toBeNull();
   });
 
-  it('persiste a seleção e navega para o dashboard', () => {
+  it('persiste a seleção e navega para o dashboard', async () => {
     layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
 
     expect(store['selectedCompanyId']).toBe('company-b');
@@ -149,6 +152,8 @@ describe('LayoutStore — troca de tenant', () => {
     expect(store['selectedRole']).toBe('MANAGER');
     expect(layout.selectedTenant().id).toBe('company-b');
     expect(layout.isTenantOpen()).toBe(false);
+    // O destino chega DEPOIS do pivo, entao a asserticao espera a promessa assentar.
+    await Promise.resolve();
     expect(navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 
@@ -158,7 +163,7 @@ describe('LayoutStore — troca de tenant', () => {
    * deixava a barra lateral anunciando a empresa B enquanto TODA chamada seguinte
    * respondia dados da empresa A.
    */
-  it('pede o token da nova empresa e só navega depois de persistir', () => {
+  it('pede o token da nova empresa e só navega depois de persistir', async () => {
     let tokenAoNavegar: string | undefined;
     navigate.mockImplementation(() => {
       tokenAoNavegar = store['token'];
@@ -171,6 +176,8 @@ describe('LayoutStore — troca de tenant', () => {
       {},
     );
     expect(store['token']).toBe('jwt-da-company-b');
+    // O destino agora vem DEPOIS do pivo, entao `navigate` roda num microtask.
+    await Promise.resolve();
     expect(tokenAoNavegar).toBe('jwt-da-company-b');
   });
 
@@ -193,7 +200,7 @@ describe('LayoutStore — troca de tenant', () => {
     expect(toasts.notifications().some((n) => n.kind === 'error')).toBe(true);
   });
 
-  it('um segundo clique enquanto a troca está em voo não dispara outra chamada', () => {
+  it('um segundo clique enquanto a troca está em voo não dispara outra chamada', async () => {
     let emit: ((value: { token: string }) => void) | null = null;
     httpPost.mockReturnValue(
       new Observable<{ token: string }>((subscriber) => {
@@ -214,6 +221,7 @@ describe('LayoutStore — troca de tenant', () => {
     emit!({ token: 'jwt-da-company-b' });
 
     expect(layout.switchingTenantId()).toBeNull();
+    await Promise.resolve();
     expect(navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 
@@ -279,7 +287,7 @@ describe('LayoutStore — troca de tenant', () => {
      * A troca JA deu certo e o token novo ja esta gravado: uma falha ao reler a
      * lista nao pode desfazer nada nem alarmar quem trocou com sucesso.
      */
-    it('ignora em silencio uma falha do /auth/me, sem desfazer a troca', () => {
+    it('ignora em silencio uma falha do /auth/me, sem desfazer a troca', async () => {
       httpGet.mockImplementation((url: string) => {
         const u = String(url);
         if (u.endsWith('/auth/me')) {
@@ -292,6 +300,7 @@ describe('LayoutStore — troca de tenant', () => {
       layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
 
       expect(store['selectedCompanyId']).toBe('company-b');
+      await Promise.resolve();
       expect(navigate).toHaveBeenCalledWith(['/dashboard']);
       expect(layout.tenants().map((t) => t.id)).toEqual(['company-a', 'company-b']);
     });
@@ -313,6 +322,7 @@ describe('LayoutStore durante uma sessão de impersonação', () => {
 
   let store: Record<string, string>;
   let navigate: ReturnType<typeof vi.fn>;
+  let navigateByUrl: ReturnType<typeof vi.fn>;
   let httpPost: ReturnType<typeof vi.fn>;
   let layout: LayoutStore;
 
@@ -324,6 +334,8 @@ describe('LayoutStore durante uma sessão de impersonação', () => {
       selectedCompanyId: 'admin-co',
     };
     navigate = vi.fn();
+    // A troca passa pelo pivo ANTES do destino; sem este dobro o `.then` estoura.
+    navigateByUrl = vi.fn(() => Promise.resolve(true));
     httpPost = vi.fn(() => of({ token: 'jwt-da-admin-co-2' }));
 
     TestBed.configureTestingModule({
@@ -331,7 +343,7 @@ describe('LayoutStore durante uma sessão de impersonação', () => {
         LayoutStore,
         NotificationFeedService,
         { provide: PLATFORM_ID, useValue: 'browser' },
-        { provide: Router, useValue: { navigate } },
+        { provide: Router, useValue: { navigate, navigateByUrl } },
         {
           provide: HttpClient,
           useValue: { get: vi.fn(() => of({ count: 0 })), post: httpPost, patch: vi.fn() },
@@ -396,11 +408,72 @@ describe('LayoutStore durante uma sessão de impersonação', () => {
     expect(layout.isTenantOpen()).toBe(false);
   });
 
-  it('sem sessão de impersonação a troca de empresa continua normal', () => {
+  it('sem sessão de impersonação a troca de empresa continua normal', async () => {
     layout.selectTenant({ id: 'admin-co-2', name: 'Outra do admin', role: 'MANAGER', initial: 'O' });
 
     expect(store['selectedCompanyId']).toBe('admin-co-2');
     expect(store['token']).toBe('jwt-da-admin-co-2');
+    await Promise.resolve();
     expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
+
+  // ================== TROCAR ESTANDO NO DESTINO (P0 de producao) ==================
+  /**
+   * O DEFEITO, reproduzido em producao: trocar de empresa pelo seletor nao trocava os dados.
+   * O seletor passava a dizer a empresa nova e o painel continuava com os numeros da
+   * anterior.
+   *
+   * A CAUSA: a troca terminava em `navigate(['/dashboard'])`. Estando a pessoa JA no
+   * dashboard — a tela inicial, logo o caso comum — isso e um NO-OP: o Angular reaproveita o
+   * componente, `ngOnInit` nao roda de novo e nada recarrega. Trocar estando em OUTRA tela
+   * funcionava, o que fazia o defeito parecer intermitente.
+   *
+   * O conserto passa por uma rota-pivo inerte antes do destino, o que forca a recriacao da
+   * arvore. Este caso afirma a SEQUENCIA, que e o mecanismo: sem o pivo, o destino sozinho
+   * nao recria nada.
+   */
+  it('a troca passa pelo PIVO antes do destino, para recriar as telas', async () => {
+    layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
+    await Promise.resolve();
+
+    expect(navigateByUrl).toHaveBeenCalledWith('/trocando-empresa', {
+      skipLocationChange: true,
+    });
+    expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
+
+  /**
+   * A ORDEM importa e por isso tem caso proprio: destino antes do pivo recriaria a tela e
+   * depois a jogaria fora, voltando ao no-op. E `skipLocationChange` mantem a URL — sem
+   * ele, a barra de endereco mostraria a rota-pivo por um instante.
+   */
+  it('o pivo vem ANTES do destino, e sem mudar a URL', async () => {
+    const ordem: string[] = [];
+    navigateByUrl.mockImplementation((url: string) => {
+      ordem.push('pivo:' + url);
+      return Promise.resolve(true);
+    });
+    navigate.mockImplementation((commands: unknown[]) => {
+      ordem.push('destino:' + String(commands[0]));
+      return Promise.resolve(true);
+    });
+
+    layout.selectTenant({ id: 'company-b', name: 'Beta', role: 'MANAGER', initial: 'B' });
+    await Promise.resolve();
+
+    expect(ordem).toEqual(['pivo:/trocando-empresa', 'destino:/dashboard']);
+  });
+
+  /**
+   * CONTRAPESO: reselecionar a MESMA empresa nao e troca e nao pode custar uma recriacao de
+   * tudo. O `commitTenant` ja protegia o descarte de cache com essa condicao; o pivo nao
+   * pode escapar dela.
+   */
+  it('reselecionar a mesma empresa nao passa pelo pivo', async () => {
+    // Neste describe a empresa corrente e `admin-co` (ver o `store` do beforeEach).
+    layout.selectTenant({ id: 'admin-co', name: 'Admin Co', role: 'OWNER', initial: 'A' });
+    await Promise.resolve();
+
+    expect(navigateByUrl).not.toHaveBeenCalled();
   });
 });

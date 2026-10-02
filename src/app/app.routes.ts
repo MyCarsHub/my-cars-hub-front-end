@@ -12,6 +12,7 @@ import {
     onboardingCompleteGuard,
 } from './pages/onboarding/onboarding.guard';
 import { CompanySettings } from './pages/company-settings/company-settings';
+import { TenantSwitchPivot } from './components/core/tenant-switch-pivot/tenant-switch-pivot';
 
 export const routes: Routes = [
     {
@@ -153,6 +154,25 @@ export const routes: Routes = [
                         // FIX-0360. O guard manda o motorista para a casa dele
                         // (`homeRouteForRole`), o que também conserta os cinco
                         // pontos que apontam a landing pós-login para cá.
+                        /*
+                         * PIVO DA TROCA DE EMPRESA. Nao e navegavel por menu nem por link, e
+                         * nao desenha nada: existe para `layout.store` passar por ela e forcar
+                         * a recriacao das telas depois de trocar de tenant.
+                         *
+                         * Sem isso, trocar de empresa ESTANDO no dashboard era um no-op — o
+                         * componente era reaproveitado, `ngOnInit` nao rodava e os numeros da
+                         * empresa anterior ficavam na tela.
+                         *
+                         * Dentro da arvore autenticada de proposito: assim ela herda
+                         * `authGuard` e o `canActivateChild`, e nao abre caminho novo para
+                         * ninguem. Sem `roleGuard`: ela nao mostra dado nenhum, e filtrar por
+                         * papel aqui quebraria a troca de empresa do motorista.
+                         */
+                        path: 'trocando-empresa',
+                        component: TenantSwitchPivot,
+                        data: { pageTitle: 'Trocando de empresa' },
+                    },
+                    {
                         path: 'dashboard',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         loadComponent: () =>

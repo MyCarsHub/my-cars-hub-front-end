@@ -164,7 +164,12 @@ export class LayoutStore {
     // tick imediato em vez de esperar o próximo poll de 60s (FIX-0272).
     // Só quando a empresa MUDA: reselecionar a mesma no menu não pode custar
     // um recarregamento de tudo — `syncTenant()` abaixo já é idempotente.
-    if (this.sessionService.getItem('selectedCompanyId') !== tenant.id) {
+    //
+    // O booleano e lido UMA vez e reusado na navegacao abaixo, porque as duas decisoes
+    // respondem a mesma pergunta: "a empresa mudou?". Ler a chave de novo depois do
+    // `setItem` daria sempre `false` e a segunda decisao nunca dispararia.
+    const companyChanged = this.sessionService.getItem('selectedCompanyId') !== tenant.id;
+    if (companyChanged) {
       this.tenantCaches.resetAll();
     }
 
@@ -173,6 +178,34 @@ export class LayoutStore {
     this.sessionService.setItem('selectedRole', tenant.role);
 
     this.tenantCaches.syncTenant();
+
+    /*
+     * RECRIAR, nao so navegar. Isto terminava em `navigate(['/dashboard'])`, e estando a
+     * pessoa JA no dashboard — a tela inicial, logo o caso comum — a navegacao era um
+     * NO-OP: o Angular reaproveita o componente, `ngOnInit` nao roda de novo, e nada
+     * recarrega. O seletor passava a mostrar a empresa nova e os numeros continuavam sendo
+     * os da anterior. Trocar estando em OUTRA tela funcionava, o que fazia o defeito
+     * parecer intermitente.
+     *
+     * O conserto fica AQUI, no ponto unico da troca, e nao em cada tela: se a regra fosse
+     * "cada tela reage ao tenant", toda tela nova precisaria LEMBRAR de reagir, e a que
+     * esquecesse mostraria dado da empresa errada em silencio. Mesma doenca do cache por
+     * empresa, que ja exige registro explicito.
+     *
+     * O pivo e uma rota inerte (`/trocando-empresa`) e nao `'/'`: medido, a rota raiz deste
+     * app e a LANDING PAGE publica, com chunk proprio — montaria marketing no meio da troca.
+     *
+     * SO QUANDO A EMPRESA MUDA, pela mesma razao que o descarte de cache acima: reselecionar
+     * a mesma empresa no menu nao pode custar a recriacao de todas as telas. Sem esta
+     * condicao o pivo recriaria a arvore para confirmar o que ja estava na tela — e um clique
+     * sem efeito pretendido passaria a ter o custo de um recarregamento.
+     */
+    if (companyChanged) {
+      this.router
+        .navigateByUrl('/trocando-empresa', { skipLocationChange: true })
+        .then(() => this.router.navigate(['/dashboard']));
+      return;
+    }
 
     this.router.navigate(['/dashboard']);
   }
