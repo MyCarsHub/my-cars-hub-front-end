@@ -14,18 +14,23 @@ import { INVITE_TTL_DAYS } from '../../types/invite.types';
 import type { InviteResponse } from '../../types/invite.types';
 
 /**
- * Cobre o que o usuário faz nesta tela — enviar, listar, reenviar, cancelar — e as quatro
- * falhas que precisam de texto próprio: 403 (sem permissão), 409 (conflito), 410
- * (expirado, separado do 404) e 429 (excesso de requisições).
- */
-/*
- * A LISTAGEM SAIU DESTA TELA (FEAT-0267), e com ela os seis casos que a cobriam: status por
- * linha, acoes so nos acionaveis, empilhamento form-em-cima-lista-embaixo, reenvio, cancelar
- * com confirmacao, e as frases de 410 e 409 das duas acoes.
+ * Cobre o que o usuário faz NESTA tela, que é UMA coisa: enviar o convite. Mais as falhas do
+ * envio que precisam de texto próprio — 403 (sem permissão) e 429 (excesso de requisições).
  *
- * Nao foram APAGADOS: a mesma cobertura vive em `members.spec.ts`, onde a lista passou a
- * existir junto com os membros. Esta tela ficou com um proposito so — o formulario — e o que
- * sobrou aqui cobre exatamente isso.
+ * A LISTAGEM SAIU DAQUI (FEAT-0267) e com ela os seis casos que a cobriam: status por linha,
+ * ações só nos acionáveis, empilhamento form-em-cima-lista-embaixo, reenvio, cancelar com
+ * confirmação, e as frases de 410 e 409 das duas ações. A lista agora vive em Membros, junto
+ * com os membros, e é `members.spec.ts` quem a cobre.
+ *
+ * E UMA CORREÇÃO DESTE PRÓPRIO CABEÇALHO, porque ele já mentiu: a versão anterior afirmava
+ * que "a mesma cobertura vive em members.spec.ts". NÃO VIVIA. O caso `410 no reenvio fala em
+ * expirado, não em inexistente` saiu daqui e não foi reposto lá — e o mesmo diff inverteu a
+ * frase do 410, juntando-a com a do 404. A garantia foi removida no diff que introduziu a
+ * regressão que ela pegaria.
+ *
+ * O pino existe agora em `members.spec.ts`, e o aprendizado fica escrito aqui: quem move
+ * specs de arquivo decide o que reaponta, e "cobertura equivalente" é afirmação a VERIFICAR
+ * caso por caso, não a declarar em bloco.
  */
 describe('Invites — envio e gestão de convites', () => {
   const pending: InviteResponse = {

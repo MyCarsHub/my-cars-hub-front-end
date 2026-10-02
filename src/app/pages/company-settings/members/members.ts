@@ -141,11 +141,25 @@ export class CompanyMembers implements OnInit {
     const memberRows = this.members.members().map((m) => this.toMemberRow(m, myId));
     memberRows.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
 
+    /*
+     * A juncao e por STATUS, e sozinha ela deixa passar um caso: quem JA e membro ativo e
+     * tem um convite PENDENTE aparece duas vezes, uma em cada estado. O dedupe por E-MAIL
+     * fecha isso, e a linha do MEMBRO ganha — ela e a autoridade, porque o acesso ja existe
+     * e o convite redundante nao concede nada.
+     *
+     * Raro por construcao: `createInvite` do backend nao deixa nascer convite para quem tem
+     * vinculo vivo. Sobra linha legada e corrida. Custa duas linhas, entao e aqui e nao num
+     * no proprio.
+     */
+    const activeEmails = new Set(
+      this.members.members().map((m) => m.email.trim().toLowerCase()),
+    );
     const pending = this.invites
       .invites()
       // ACEITO fica de fora: e a mesma pessoa que o roster ja traz. CANCELADO e REVOGADO
       // tambem — nao ha ninguem esperando do outro lado.
-      .filter((i) => i.status === 'PENDING' || i.status === 'EXPIRED');
+      .filter((i) => i.status === 'PENDING' || i.status === 'EXPIRED')
+      .filter((i) => !activeEmails.has((i.email ?? '').trim().toLowerCase()));
     // Expirado antes de pendente: e o convite que JA falhou, e o unico que nao vai
     // resolver sozinho. Ordenado pelo STATUS, nao pelo rotulo — comparar o texto da tela
     // amarraria a ordem a uma decisao de copy.
@@ -254,6 +268,18 @@ export class CompanyMembers implements OnInit {
         this.notifications.success(
           'Novo convite enviado para ' + row.title + '. O link anterior deixou de valer.',
         );
+        /*
+         * HIGH-2 — RELER, nao adivinhar. O servidor rotaciona o token E move o `expiresAt`.
+         * Sem esta releitura a linha fica com a data e o rotulo antigos, entao "Convite
+         * expirado" PERMANECE na tela depois de um reenvio BEM-SUCEDIDO — e quem administra
+         * reenvia outra vez. Cada tentativa queima 1 dos 3 reenvios e mata o link anterior,
+         * entao a pessoa do outro lado recebe tres e-mails e so o ultimo funciona.
+         *
+         * So a fonte de CONVITES e relida: um reenvio nao muda o roster.
+         */
+        this.invites.list().subscribe({
+          error: (err: HttpErrorResponse) => this.listError.set(this.listMessage(err)),
+        });
       },
       error: (error: HttpErrorResponse) => {
         this.busyId.set(null);
@@ -342,9 +368,25 @@ export class CompanyMembers implements OnInit {
     return this.apiErrors.messageFor(error, 'Não foi possível remover o acesso.');
   }
 
+  /**
+   * HIGH-1 — 410 e 404 NAO sao a mesma resposta e nao pedem a mesma acao:
+   *
+   * - **410 e EXPIRADO**, e expirado se RECUPERA por reenvio: o backend aceita reenviar um
+   *   convite expirado (`RESENDABLE_STATUSES` = PENDING + EXPIRED). Mandar "atualize a
+   *   lista" aqui esconde a acao que resolve.
+   * - **404 e NUNCA EXISTIU** — ou e de outra empresa, ou ja foi cancelado. Nao ha o que
+   *   reenviar; o que resolve e recarregar e convidar de novo.
+   *
+   * As duas frases dividiam uma linha, e a frase era a do 404. O spec que pegava isso
+   * (`410 no reenvio fala em expirado, nao em inexistente`) saiu no MESMO diff que
+   * introduziu a inversao — ver o caso que o repoe em `members.spec.ts`.
+   */
   private inviteActionMessage(error: HttpErrorResponse, row: PersonRow): string {
-    if (error.status === 404 || error.status === 410) {
-      return 'Este convite já não existe. Atualize a lista.';
+    if (error.status === 410) {
+      return 'O convite de ' + row.title + ' expirou. Use Reenviar convite para enviar um novo.';
+    }
+    if (error.status === 404) {
+      return 'Este convite já não existe. Atualize a lista e convide a pessoa de novo.';
     }
     if (error.status === 409) {
       return 'Este convite já foi utilizado por ' + row.title + '. Atualize a lista.';

@@ -538,4 +538,105 @@ describe('CompanyMembers — roster da empresa', () => {
     expect(cta, 'sem este botao o formulario de convite fica inalcancavel').toBeDefined();
     expect(cta?.getAttribute('href')).toBe('/configuracoes/convites');
   });
+  // ====================== OS PINOS QUE A REVISAO MANDOU REPOR ======================
+  /**
+   * HIGH-1, E A FORMA IMPORTA MAIS QUE O DEFEITO.
+   *
+   * O spec que pegava isto existia — `410 no reenvio fala em expirado, nao em inexistente` —
+   * e saiu no MESMO diff que inverteu a frase. Nao foi coincidencia: quem move specs de
+   * arquivo decide o que reaponta, e o que parece redundante e justamente o que estava
+   * segurando. Este caso e aquele pino, reposto no arquivo onde a acao passou a morar.
+   *
+   * 410 e EXPIRADO e se recupera por REENVIO. 404 NUNCA EXISTIU e pede recarga. Juntar os
+   * dois faz a tela mandar atualizar a lista quando o que resolve e reenviar.
+   */
+  it('410 fala em EXPIRADO e aponta o reenvio; 404 fala em inexistente e aponta a recarga', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite]);
+    const resendBtn = () =>
+      Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').includes('Reenviar'),
+      );
+
+    resendInvite.mockReturnValue(throwError(() => error(410)));
+    resendBtn()?.click();
+    fixture.detectChanges();
+
+    let text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('expirou');
+    expect(text).toContain('Reenviar convite para enviar um novo');
+    // A frase do 404 NAO pode aparecer aqui: ela manda fazer o que nao resolve.
+    expect(text).not.toContain('já não existe');
+
+    resendInvite.mockReturnValue(throwError(() => error(404)));
+    resendBtn()?.click();
+    fixture.detectChanges();
+
+    text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('já não existe');
+    expect(text).toContain('convide a pessoa de novo');
+    expect(text).not.toContain('expirou');
+  });
+
+  /**
+   * HIGH-2 — o servidor rotaciona o token E move o `expiresAt`. Sem reler, a linha fica com
+   * data e rotulo antigos e "Convite expirado" PERMANECE depois de um reenvio que deu certo.
+   * Quem administra reenvia de novo, e cada tentativa queima 1 dos 3 reenvios e mata o link
+   * anterior: a pessoa do outro lado recebe tres e-mails e so o ultimo funciona.
+   */
+  it('reenvio bem-sucedido RELE os convites, e nao adivinha o novo prazo', () => {
+    const fixture = render('OWNER', [owner], [expiredInvite]);
+    expect(inviteList).toHaveBeenCalledTimes(1);
+
+    Array.from(rowOf(fixture, 'expirada@empresa.com.br').querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Reenviar'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(resendInvite).toHaveBeenCalledWith('inv-2');
+    expect(inviteList).toHaveBeenCalledTimes(2);
+    // O roster NAO muda com um reenvio: relê-lo seria uma ida a mais sem resposta nova.
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  /** A frase do 409 do cancelamento existia sem nenhum teste. */
+  it('409 no cancelamento diz que o convite JA FOI USADO, e pede recarga', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite]);
+    cancelInvite.mockReturnValue(throwError(() => error(409)));
+
+    Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Cancelar'))
+      ?.click();
+    fixture.detectChanges();
+    confirmDialogButton(fixture, 'Cancelar convite')?.click();
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('já foi utilizado');
+    expect(text).toContain('Atualize a lista');
+  });
+
+  /**
+   * A juncao e por STATUS; so ela deixava quem JA e membro e tem convite pendente aparecer
+   * DUAS vezes. A linha do membro ganha: o acesso ja existe e o convite redundante nao
+   * concede nada.
+   */
+  it('quem ja e membro e tem convite pendente aparece UMA vez, como membro', () => {
+    const duplicado = { ...pendingInvite, email: 'bruno@empresa.com.br' };
+    const fixture = render('OWNER', [owner, manager], [duplicado]);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const linhas = Array.from(host.querySelectorAll('li')).filter((li) =>
+      (li.textContent ?? '').includes('bruno@empresa.com.br'),
+    );
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0].textContent).toContain('Com acesso');
+  });
+
+  it('o dedupe compara e-mail sem caixa nem espaco', () => {
+    const duplicado = { ...pendingInvite, email: '  BRUNO@Empresa.COM.BR ' };
+    const fixture = render('OWNER', [owner, manager], [duplicado]);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).not.toContain('Convite enviado');
+  });
 });
