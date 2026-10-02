@@ -9,9 +9,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompanyMembers } from './members';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanyMembersService } from '../../../services/company-members.service';
+import { InvitesService } from '../../../services/invites.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import type { CompanyMemberResponse } from '../../../types/company-member.types';
+import type { InviteResponse } from '../../../types/invite.types';
 
 /**
  * FEAT-0266 — a tela do roster, e as quatro regras que ela nao pode perder.
@@ -50,7 +52,34 @@ describe('CompanyMembers — roster da empresa', () => {
     memberSince: '2026-05-20T12:00:00Z',
   };
 
+  const pendingInvite: InviteResponse = {
+    id: 'inv-1',
+    email: 'convidada@empresa.com.br',
+    role: 'MANAGER',
+    status: 'PENDING',
+    expiresAt: '2026-10-08T12:00:00Z',
+    createDate: '2026-10-01T12:00:00Z',
+  };
+
+  const expiredInvite: InviteResponse = {
+    ...pendingInvite,
+    id: 'inv-2',
+    email: 'expirada@empresa.com.br',
+    status: 'EXPIRED',
+  };
+
+  /** ACEITO: a MESMA pessoa que o roster ja devolve. Nunca pode virar linha. */
+  const acceptedInvite: InviteResponse = {
+    ...pendingInvite,
+    id: 'inv-3',
+    email: 'bruno@empresa.com.br',
+    status: 'ACCEPTED',
+  };
+
   let list: ReturnType<typeof vi.fn>;
+  let inviteList: ReturnType<typeof vi.fn>;
+  let resendInvite: ReturnType<typeof vi.fn>;
+  let cancelInvite: ReturnType<typeof vi.fn>;
   let remove: ReturnType<typeof vi.fn>;
   let success: ReturnType<typeof vi.fn>;
   let members: ReturnType<typeof signal<CompanyMemberResponse[]>>;
@@ -66,6 +95,7 @@ describe('CompanyMembers — roster da empresa', () => {
   function render(
     tokenRole: string | null,
     roster: CompanyMemberResponse[] = [owner, manager, driver],
+    invites: InviteResponse[] = [],
     listImpl?: () => ReturnType<typeof of>,
   ): ComponentFixture<CompanyMembers> {
     TestBed.resetTestingModule();
@@ -82,6 +112,13 @@ describe('CompanyMembers — roster da empresa', () => {
     );
     remove = vi.fn(() => of(undefined));
     success = vi.fn();
+    const inviteSignal = signal<InviteResponse[]>([]);
+    inviteList = vi.fn(() => {
+      inviteSignal.set(invites);
+      return of(invites);
+    });
+    resendInvite = vi.fn(() => of(undefined));
+    cancelInvite = vi.fn(() => of(undefined));
 
     TestBed.configureTestingModule({
       imports: [CompanyMembers],
@@ -98,6 +135,17 @@ describe('CompanyMembers — roster da empresa', () => {
             memberCount: signal(roster.length).asReadonly(),
             list,
             remove,
+          },
+        },
+        {
+          provide: InvitesService,
+          useValue: {
+            invites: inviteSignal.asReadonly(),
+            loading: signal(false).asReadonly(),
+            loaded: signal(true).asReadonly(),
+            list: inviteList,
+            resend: resendInvite,
+            cancel: cancelInvite,
           },
         },
         {
@@ -313,7 +361,7 @@ describe('CompanyMembers — roster da empresa', () => {
   });
 
   it('403 na listagem explica de quem e a tela, sem erro cru', () => {
-    const fixture = render('MANAGER', [], () => throwError(() => error(403)));
+    const fixture = render('MANAGER', [], [], () => throwError(() => error(403)));
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'podem ver quem tem acesso',
@@ -337,7 +385,10 @@ describe('CompanyMembers — roster da empresa', () => {
     refresh?.click();
     fixture.detectChanges();
 
+    // As DUAS fontes recarregam: a lista e uma juncao, e meia atualizacao mostraria
+    // membros novos com convites velhos na mesma tela.
     expect(list).toHaveBeenCalledTimes(2);
+    expect(inviteList).toHaveBeenCalledTimes(2);
   });
 
   it('a frase do 404 e o botao que a cumpre convivem na mesma tela', () => {
@@ -356,5 +407,236 @@ describe('CompanyMembers — roster da empresa', () => {
       (b.textContent ?? '').includes('Atualizar'),
     );
     expect(refresh).toBeDefined();
+  });
+  // ============================ A LISTA UNIFICADA (FEAT-0267) ============================
+  /**
+   * A razao de produto: quem convidou alguem ha dois dias nao sabia em qual das duas telas
+   * procurar. O convidado nao e um objeto diferente de um membro — e o MESMO objeto num
+   * estado anterior.
+   */
+  it('membro e convidado aparecem na MESMA lista, cada um com seu estado', () => {
+    const fixture = render('OWNER', [owner, manager], [pendingInvite]);
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect(text).toContain('Dona Ana');
+    expect(text).toContain('convidada@empresa.com.br');
+    expect(text).toContain('Com acesso');
+    expect(text).toContain('Convite enviado');
+  });
+
+  /**
+   * O DEFEITO QUE A JUNCAO CRUA CAUSARIA, e por isso ele tem caso proprio: convite ACEITO e
+   * a mesma pessoa que o roster ja devolve. Juntar sem filtrar pintaria quem entrou por
+   * convite DUAS vezes — uma como membro e outra como convite aceito. Pareceria defeito de
+   * dados e seria defeito de juncao.
+   */
+  it('convite ACEITO nao vira linha: a pessoa aparece UMA vez, como membro', () => {
+    const fixture = render('OWNER', [owner, manager], [acceptedInvite]);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const linhas = Array.from(host.querySelectorAll('li')).filter((li) =>
+      (li.textContent ?? '').includes('bruno@empresa.com.br'),
+    );
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0].textContent).toContain('Com acesso');
+    expect(linhas[0].textContent).not.toContain('Convite');
+  });
+
+  it('a ordem poe convites na frente, e expirado antes de pendente', () => {
+    const fixture = render('OWNER', [owner, manager], [pendingInvite, expiredInvite]);
+    const estados = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('li'),
+    ).map((li) => {
+      const t = li.textContent ?? '';
+      if (t.includes('Convite expirado')) return 'expirado';
+      if (t.includes('Convite enviado')) return 'pendente';
+      return 'membro';
+    });
+
+    // Quem abre esta tela abre para AGIR: so a linha de convite tem prazo.
+    expect(estados.slice(0, 2)).toEqual(['expirado', 'pendente']);
+    expect(estados.slice(2).every((e) => e === 'membro')).toBe(true);
+  });
+
+  // ------------------------------------------------- ACOES DO CONVITE
+  it('linha de convite oferece reenviar e cancelar, e nao remover acesso', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite]);
+    const row = rowOf(fixture, 'convidada@empresa.com.br');
+    const labels = Array.from(row.querySelectorAll('button')).map((b) =>
+      (b.textContent ?? '').trim(),
+    );
+
+    expect(labels).toContain('Reenviar convite');
+    expect(labels).toContain('Cancelar convite');
+    expect(labels.some((l) => l.includes('Remover acesso'))).toBe(false);
+  });
+
+  /**
+   * MEDIDO no backend, nao suposto: `RESENDABLE_STATUSES` e `[PENDING, EXPIRED]` e o
+   * cancelamento so recusa convite ACEITO. Entao o convite expirado tem as DUAS acoes — e
+   * por isso ele e LISTADO em vez de escondido: esconder faria quem administra acreditar que
+   * a pessoa ainda esta pendente, ou nao saber que ela nunca entrou.
+   */
+  it('convite EXPIRADO tambem oferece as duas acoes, porque as duas funcionam', () => {
+    const fixture = render('OWNER', [owner], [expiredInvite]);
+    const row = rowOf(fixture, 'expirada@empresa.com.br');
+    const labels = Array.from(row.querySelectorAll('button')).map((b) =>
+      (b.textContent ?? '').trim(),
+    );
+
+    expect(row.textContent).toContain('Convite expirado');
+    expect(labels).toContain('Reenviar convite');
+    expect(labels).toContain('Cancelar convite');
+  });
+
+  it('reenviar chama pelo id do CONVITE e avisa que o link anterior morreu', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite]);
+
+    Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Reenviar'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(resendInvite).toHaveBeenCalledWith('inv-1');
+    // O reenvio ROTACIONA o token: o link que a pessoa talvez tenha no WhatsApp morreu.
+    expect(success).toHaveBeenCalledWith(
+      expect.stringContaining('link anterior deixou de valer'),
+    );
+  });
+
+  it('cancelar convite so chama o servidor depois da confirmacao', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite]);
+
+    Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Cancelar'))
+      ?.click();
+    fixture.detectChanges();
+    expect(cancelInvite).not.toHaveBeenCalled();
+
+    confirmDialogButton(fixture, 'Cancelar convite')?.click();
+    fixture.detectChanges();
+
+    expect(cancelInvite).toHaveBeenCalledWith('inv-1');
+  });
+
+  // ------------------------------------- O PONTO DE ENTRADA DO CONVITE
+  /**
+   * FEAT-0267 — esta asserticao e a GARANTIA DO FIX-0553 mudando de lugar. Aquele nó existia
+   * porque a tela de convite tinha rota, guard e formulario e NENHUM caminho ate ela, e o
+   * caso do sidebar foi escrito para que o item nao pudesse sumir em silencio.
+   *
+   * O item do menu saiu de proposito; o caminho agora e este botao. Se ele sumir, o
+   * formulario de convite volta a ser inalcancavel — o mesmo defeito, no mesmo produto, duas
+   * voltas depois. Por isso a asserticao mora aqui agora.
+   */
+  it('o botao Convidar pessoa aponta para o formulario que ja existe', () => {
+    const fixture = render('OWNER');
+    const cta = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('a'),
+    ).find((a) => (a.textContent ?? '').includes('Convidar pessoa'));
+
+    expect(cta, 'sem este botao o formulario de convite fica inalcancavel').toBeDefined();
+    expect(cta?.getAttribute('href')).toBe('/configuracoes/convites');
+  });
+  // ====================== OS PINOS QUE A REVISAO MANDOU REPOR ======================
+  /**
+   * HIGH-1, E A FORMA IMPORTA MAIS QUE O DEFEITO.
+   *
+   * O spec que pegava isto existia — `410 no reenvio fala em expirado, nao em inexistente` —
+   * e saiu no MESMO diff que inverteu a frase. Nao foi coincidencia: quem move specs de
+   * arquivo decide o que reaponta, e o que parece redundante e justamente o que estava
+   * segurando. Este caso e aquele pino, reposto no arquivo onde a acao passou a morar.
+   *
+   * 410 e EXPIRADO e se recupera por REENVIO. 404 NUNCA EXISTIU e pede recarga. Juntar os
+   * dois faz a tela mandar atualizar a lista quando o que resolve e reenviar.
+   */
+  it('410 fala em EXPIRADO e aponta o reenvio; 404 fala em inexistente e aponta a recarga', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite]);
+    const resendBtn = () =>
+      Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').includes('Reenviar'),
+      );
+
+    resendInvite.mockReturnValue(throwError(() => error(410)));
+    resendBtn()?.click();
+    fixture.detectChanges();
+
+    let text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('expirou');
+    expect(text).toContain('Reenviar convite para enviar um novo');
+    // A frase do 404 NAO pode aparecer aqui: ela manda fazer o que nao resolve.
+    expect(text).not.toContain('já não existe');
+
+    resendInvite.mockReturnValue(throwError(() => error(404)));
+    resendBtn()?.click();
+    fixture.detectChanges();
+
+    text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('já não existe');
+    expect(text).toContain('convide a pessoa de novo');
+    expect(text).not.toContain('expirou');
+  });
+
+  /**
+   * HIGH-2 — o servidor rotaciona o token E move o `expiresAt`. Sem reler, a linha fica com
+   * data e rotulo antigos e "Convite expirado" PERMANECE depois de um reenvio que deu certo.
+   * Quem administra reenvia de novo, e cada tentativa queima 1 dos 3 reenvios e mata o link
+   * anterior: a pessoa do outro lado recebe tres e-mails e so o ultimo funciona.
+   */
+  it('reenvio bem-sucedido RELE os convites, e nao adivinha o novo prazo', () => {
+    const fixture = render('OWNER', [owner], [expiredInvite]);
+    expect(inviteList).toHaveBeenCalledTimes(1);
+
+    Array.from(rowOf(fixture, 'expirada@empresa.com.br').querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Reenviar'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(resendInvite).toHaveBeenCalledWith('inv-2');
+    expect(inviteList).toHaveBeenCalledTimes(2);
+    // O roster NAO muda com um reenvio: relê-lo seria uma ida a mais sem resposta nova.
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  /** A frase do 409 do cancelamento existia sem nenhum teste. */
+  it('409 no cancelamento diz que o convite JA FOI USADO, e pede recarga', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite]);
+    cancelInvite.mockReturnValue(throwError(() => error(409)));
+
+    Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Cancelar'))
+      ?.click();
+    fixture.detectChanges();
+    confirmDialogButton(fixture, 'Cancelar convite')?.click();
+    fixture.detectChanges();
+
+    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('já foi utilizado');
+    expect(text).toContain('Atualize a lista');
+  });
+
+  /**
+   * A juncao e por STATUS; so ela deixava quem JA e membro e tem convite pendente aparecer
+   * DUAS vezes. A linha do membro ganha: o acesso ja existe e o convite redundante nao
+   * concede nada.
+   */
+  it('quem ja e membro e tem convite pendente aparece UMA vez, como membro', () => {
+    const duplicado = { ...pendingInvite, email: 'bruno@empresa.com.br' };
+    const fixture = render('OWNER', [owner, manager], [duplicado]);
+    const host = fixture.nativeElement as HTMLElement;
+
+    const linhas = Array.from(host.querySelectorAll('li')).filter((li) =>
+      (li.textContent ?? '').includes('bruno@empresa.com.br'),
+    );
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0].textContent).toContain('Com acesso');
+  });
+
+  it('o dedupe compara e-mail sem caixa nem espaco', () => {
+    const duplicado = { ...pendingInvite, email: '  BRUNO@Empresa.COM.BR ' };
+    const fixture = render('OWNER', [owner, manager], [duplicado]);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).not.toContain('Convite enviado');
   });
 });
