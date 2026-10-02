@@ -3,10 +3,12 @@ import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnInit,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Invites } from '../../invites/invites';
@@ -137,6 +139,65 @@ const STATE_EXPIRED = 'bg-primary-100 text-primary-800 border-primary-300';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DatePipe, RouterLink, Invites, DefaultPageLayout, PageCard, AlertBanner, ConfirmDialog],
   templateUrl: './members.html',
+  styles: `
+    /*
+      CSS DE COMPONENTE porque ::backdrop e as keyframes nao sao expressaveis como
+      utilitario. Cores por VAR do sistema (styles.css), nunca hex solto.
+    */
+    .invite-dialog {
+      border: 0;
+      padding: 0;
+      background: var(--color-white);
+      color: var(--color-black);
+      width: 100%;
+      max-width: 28rem;
+      border-radius: 1rem 1rem 0 0;
+      /* CELULAR: folha colada embaixo. A margem automatica em cima, com a altura cheia,
+         e o que empurra o dialogo para o rodape sem position fixed. */
+      margin: auto auto 0;
+      max-height: 90dvh;
+      overflow-y: auto;
+      animation: invite-sheet-up 200ms ease-out;
+    }
+
+    .invite-dialog::backdrop {
+      /* Fundo escurecido com desfoque leve: o conteudo atras fica reconhecivel, entao a
+         pessoa nao perde o contexto da lista que ela estava lendo. */
+      background: rgb(16 16 16 / 45%);
+      backdrop-filter: blur(2px);
+    }
+
+    @media (min-width: 640px) {
+      .invite-dialog {
+        /* DESKTOP: caixa centrada e ESTREITA. Campo de e-mail com a largura da tela e
+           ilegivel, e e o defeito que a largura maxima existe para impedir. */
+        margin: auto;
+        border-radius: 1rem;
+        animation: invite-fade-in 150ms ease-out;
+      }
+    }
+
+    @keyframes invite-sheet-up {
+      from {
+        transform: translateY(1.5rem);
+        opacity: 0;
+      }
+    }
+
+    @keyframes invite-fade-in {
+      from {
+        transform: scale(0.98);
+        opacity: 0;
+      }
+    }
+
+    /* Movimento so onde da retorno: quem pediu menos movimento recebe o dialogo pronto. */
+    @media (prefers-reduced-motion: reduce) {
+      .invite-dialog {
+        animation: none;
+      }
+    }
+  `,
 })
 export class CompanyMembers implements OnInit {
   private readonly members = inject(CompanyMembersService);
@@ -211,6 +272,13 @@ export class CompanyMembers implements OnInit {
    * tela inteira e tira a lista de vista, e e a lista que diz se o convite chegou. O bloco
    * empurra a lista para baixo e os dois continuam na mesma rolagem.
    */
+  /**
+   * O elemento `<dialog>` nativo. Guardado por `viewChild` porque `showModal()` e `close()`
+   * sao metodos DO ELEMENTO — e sao eles que trazem foco preso, Esc e fundo sem rolagem.
+   */
+  private readonly inviteDialog = viewChild<ElementRef<HTMLDialogElement>>('inviteDialog');
+
+  /** Espelha se o dialogo esta aberto, para o resto da tela nao perguntar ao DOM. */
   protected readonly inviteOpen = signal(false);
 
   /**
@@ -261,8 +329,26 @@ export class CompanyMembers implements OnInit {
     });
   }
 
-  protected toggleInvite(): void {
-    this.inviteOpen.update((open) => !open);
+  protected openInvite(): void {
+    this.inviteOpen.set(true);
+    // `showModal()` e nao `show()`: so a forma modal prende o foco e bloqueia o fundo.
+    this.inviteDialog()?.nativeElement.showModal();
+  }
+
+  protected closeInvite(): void {
+    // `close()` dispara o evento `close`, e e `onDialogClose` quem baixa o sinal — assim
+    // fechar pelo X, pelo Esc ou por codigo passa pelo MESMO caminho.
+    this.inviteDialog()?.nativeElement.close();
+  }
+
+  /**
+   * Chamado pelo evento `close` do proprio elemento, inclusive quando quem fechou foi o Esc.
+   *
+   * Sem isto, Esc fecharia o dialogo e deixaria `inviteOpen` em `true` — a tela acreditaria
+   * que ha um dialogo aberto que nao existe mais.
+   */
+  protected onDialogClose(): void {
+    this.inviteOpen.set(false);
   }
 
   /**
@@ -272,7 +358,9 @@ export class CompanyMembers implements OnInit {
    * So os convites: enviar convite nao mexe no roster.
    */
   protected onInviteSent(): void {
-    this.inviteOpen.set(false);
+    // FECHAR E A CONFIRMACAO. Em falha este metodo nao roda: o `sent` so emite no sucesso,
+    // entao o dialogo fica aberto com o que a pessoa digitou e a mensagem dentro dele.
+    this.closeInvite();
     this.invites.list().subscribe({
       error: (error: HttpErrorResponse) => this.listError.set(this.listMessage(error)),
     });

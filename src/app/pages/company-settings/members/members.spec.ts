@@ -26,6 +26,30 @@ import type { InviteResponse } from '../../../types/invite.types';
  * A remocao grava `status = 'REMOVED'` e MANTEM a linha — apagar deixaria um token assinado
  * continuar valendo. Nenhum caso aqui assume delecao, e a copy fala em perder acesso.
  */
+/*
+ * O JSDOM DESTE PROJETO NAO IMPLEMENTA `<dialog>`: `showModal()` e `close()` nao existem
+ * ("is not a function"), e o `open` nunca muda sozinho. Medido, nao suposto.
+ *
+ * Entao estes dois metodos sao emprestados aqui, e o que isso cobre e o CONTRATO DO
+ * COMPONENTE: que ele chama `showModal()` ao abrir, que fecha pelo mesmo caminho
+ * (X, Esc e codigo) e que baixa o proprio sinal quando o elemento dispara `close`.
+ *
+ * O QUE ESTES CASOS NAO PROVAM, e e deliberado dizer: foco preso dentro do dialogo, o Esc
+ * do navegador e o fundo que nao rola. Essas tres sao garantias da PLATAFORMA — foram a
+ * razao de escolher `<dialog>` em vez de uma div — e so um navegador real as demonstra.
+ * Um stub que as simulasse estaria medindo o proprio stub.
+ */
+const dialogProto = HTMLDialogElement?.prototype as HTMLDialogElement | undefined;
+if (dialogProto && typeof dialogProto.showModal !== 'function') {
+  dialogProto.showModal = function (this: HTMLDialogElement): void {
+    this.open = true;
+  };
+  dialogProto.close = function (this: HTMLDialogElement): void {
+    this.open = false;
+    this.dispatchEvent(new Event('close'));
+  };
+}
+
 describe('CompanyMembers — roster da empresa', () => {
   const ME = 'user-eu';
 
@@ -530,43 +554,77 @@ describe('CompanyMembers — roster da empresa', () => {
    * formulario de convite volta a ser inalcancavel — o mesmo defeito, no mesmo produto, duas
    * voltas depois. Por isso a asserticao mora aqui agora.
    */
-  it('o formulario de convite tem DOIS caminhos, e os dois seguem existindo', () => {
+  /**
+   * FEAT-0553 vive aqui, e agora com UM caminho em vez de dois.
+   *
+   * O link "Abrir em pagina" SAIU de proposito: com o convite abrindo em dialogo nesta tela,
+   * mandar a pessoa para outra tela era oferecer o caminho pior. A rota continua existindo —
+   * link que ja circula nao quebra — mas deixou de ter atalho aqui.
+   *
+   * Entao o que nao pode sumir em silencio e o BOTAO. Se ele desaparecer, o formulario de
+   * convite fica inalcancavel desta tela, que e exatamente o defeito que o FIX-0553
+   * consertou uma vez.
+   */
+  it('o convite tem UM caminho: o botao, e o link para a rota saiu', () => {
     const fixture = render('OWNER');
     const host = fixture.nativeElement as HTMLElement;
 
-    // 1) O caminho principal: abre ALI, sem sair da tela.
     const abrir = Array.from(host.querySelectorAll('button')).find((b) =>
       (b.textContent ?? '').includes('Convidar pessoa'),
     );
-    expect(abrir, 'sem este botao nao ha como convidar nesta tela').toBeDefined();
+    expect(abrir, 'sem este botao o convite fica inalcancavel desta tela').toBeDefined();
 
-    // 2) A rota continua alcancavel — era a garantia do FIX-0553, e link que circula nao
-    //    pode quebrar. Trocou de rotulo ("Abrir em pagina"), nao de destino.
+    // E o atalho para a rota nao volta por descuido: ele foi removido por decisao.
     const link = Array.from(host.querySelectorAll('a')).find(
       (a) => a.getAttribute('href') === '/configuracoes/convites',
     );
-    expect(link, 'a rota do formulario deixou de ser alcancavel desta tela').toBeDefined();
+    expect(link).toBeUndefined();
   });
 
   /**
    * A critica do dono, literal: clicar em Convidar LEVAVA PARA OUTRA PAGINA. Sair da lista
    * para convidar e perder de vista justamente o lugar onde o convite vai aparecer.
    */
-  it('o formulario abre DENTRO da tela, e nao esta visivel antes do clique', () => {
+  /**
+   * O dialogo nativo esta SEMPRE no DOM — o que muda e a propriedade `open`. Afirmar
+   * ausencia do elemento aqui seria afirmar a coisa errada: ele existe fechado.
+   */
+  it('o dialogo nasce FECHADO e abre no clique, com o formulario real dentro', () => {
     const fixture = render('OWNER');
     const host = fixture.nativeElement as HTMLElement;
+    const dialog = host.querySelector('dialog') as HTMLDialogElement;
 
-    expect(host.querySelector('app-invites')).toBeNull();
+    expect(dialog, 'o dialogo nao esta no template').not.toBeNull();
+    expect(dialog.open).toBe(false);
+    // O formulario e o MESMO componente da rota, nao uma segunda copia da regra de cargo.
+    expect(dialog.querySelector('app-invites')).not.toBeNull();
 
     Array.from(host.querySelectorAll('button'))
       .find((b) => (b.textContent ?? '').includes('Convidar pessoa'))
       ?.click();
     fixture.detectChanges();
 
-    // O formulario REAL, o mesmo componente da rota — nao uma segunda copia.
-    expect(host.querySelector('app-invites')).not.toBeNull();
-    // E a lista continua na tela: o painel empurra, nao cobre.
-    expect(host.querySelector('ul')).not.toBeNull();
+    expect(dialog.open).toBe(true);
+  });
+
+  /** Esc fecha pelo elemento, e o sinal da tela tem de acompanhar — senao ela acredita
+   * que ha um dialogo aberto que nao existe mais. */
+  it('fechar pelo elemento (Esc) baixa o estado da tela', () => {
+    const fixture = render('OWNER');
+    const host = fixture.nativeElement as HTMLElement;
+    const dialog = host.querySelector('dialog') as HTMLDialogElement;
+
+    Array.from(host.querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Convidar pessoa'))
+      ?.click();
+    fixture.detectChanges();
+    expect(dialog.open).toBe(true);
+
+    // E o que o Esc faz: fecha o elemento e dispara `close`.
+    dialog.close();
+    fixture.detectChanges();
+
+    expect(dialog.open).toBe(false);
   });
 
   // ------------------------------------------ OS QUATRO NUMEROS DO TOPO
@@ -758,8 +816,10 @@ describe('CompanyMembers — roster da empresa', () => {
     invitesCmp.sent.emit();
     fixture.detectChanges();
 
-    // Painel fechado …
-    expect((fixture.nativeElement as HTMLElement).querySelector('app-invites')).toBeNull();
+    // Dialogo FECHADO — o elemento continua no DOM, o que muda e `open`.
+    expect(
+      ((fixture.nativeElement as HTMLElement).querySelector('dialog') as HTMLDialogElement).open,
+    ).toBe(false);
     // … e os convites relidos. So eles: enviar convite nao mexe no roster.
     expect(inviteList).toHaveBeenCalledTimes(2);
     expect(list).toHaveBeenCalledTimes(1);
