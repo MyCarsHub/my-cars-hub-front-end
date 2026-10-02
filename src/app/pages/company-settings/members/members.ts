@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Invites } from '../../invites/invites';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../../components/core/page-card/page-card';
@@ -105,7 +106,7 @@ const STATE_EXPIRED = 'bg-neutral-100 text-neutral-700 border-neutral-200';
 @Component({
   selector: 'app-company-members',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, RouterLink, DefaultPageLayout, PageCard, AlertBanner, ConfirmDialog],
+  imports: [DatePipe, RouterLink, Invites, DefaultPageLayout, PageCard, AlertBanner, ConfirmDialog],
   templateUrl: './members.html',
 })
 export class CompanyMembers implements OnInit {
@@ -173,6 +174,36 @@ export class CompanyMembers implements OnInit {
 
   protected readonly isEmpty = computed(() => this.loaded() && this.rows().length === 0);
   protected readonly activeCount = computed(() => this.members.members().length);
+
+  /**
+   * O painel de convite abre AQUI, nao em outra pagina.
+   *
+   * Bloco que expande, e nao modal nem gaveta: no celular um modal com seis campos cobre a
+   * tela inteira e tira a lista de vista, e e a lista que diz se o convite chegou. O bloco
+   * empurra a lista para baixo e os dois continuam na mesma rolagem.
+   */
+  protected readonly inviteOpen = signal(false);
+
+  /**
+   * OS QUATRO NUMEROS, e todos saem do que a tela JA carregou — duas listas, zero chamada
+   * nova. Medido antes de escrever: convite tem `status`, membro tem `role`.
+   *
+   * `invites()` traz TODOS os status, e e por isso que "aceitos" existe: ele nao aparece na
+   * lista de linhas (convite aceito e a pessoa que o roster ja devolve) mas e contavel, e e
+   * exatamente o numero que responde "quantos convites viraram gente".
+   */
+  protected readonly pendingInvitesCount = computed(
+    () => this.invites.invites().filter((i) => i.status === 'PENDING').length,
+  );
+  protected readonly acceptedInvitesCount = computed(
+    () => this.invites.invites().filter((i) => i.status === 'ACCEPTED').length,
+  );
+  protected readonly managersCount = computed(
+    () => this.members.members().filter((m) => m.role === 'MANAGER').length,
+  );
+  protected readonly driversCount = computed(
+    () => this.members.members().filter((m) => m.role === 'DRIVER').length,
+  );
   protected readonly invitedCount = computed(
     () => this.rows().filter((r) => r.kind === 'invite').length,
   );
@@ -196,6 +227,23 @@ export class CompanyMembers implements OnInit {
     this.members.list().subscribe({
       error: (error: HttpErrorResponse) => this.listError.set(this.listMessage(error)),
     });
+    this.invites.list().subscribe({
+      error: (error: HttpErrorResponse) => this.listError.set(this.listMessage(error)),
+    });
+  }
+
+  protected toggleInvite(): void {
+    this.inviteOpen.update((open) => !open);
+  }
+
+  /**
+   * Convite enviado de dentro desta tela: fecha o painel e RELE os convites, para a linha
+   * nova aparecer como "Convite enviado" sem a pessoa precisar atualizar nada.
+   *
+   * So os convites: enviar convite nao mexe no roster.
+   */
+  protected onInviteSent(): void {
+    this.inviteOpen.set(false);
     this.invites.list().subscribe({
       error: (error: HttpErrorResponse) => this.listError.set(this.listMessage(error)),
     });
