@@ -518,4 +518,29 @@ describe('InspectionsList', () => {
       expect(host.querySelector('app-inspection-review')).not.toBeNull();
     });
   });
+  // ------------------------------------------------------------------- A PORTA
+  /**
+   * O ciclo manual inteiro — fazer, enviar, aprovar — ja funcionava em producao, e NENHUM
+   * template apontava para `/vistorias/nova`: a funcionalidade existia e ninguem chegava
+   * nela. Este caso NOMEIA os dois caminhos para que nao possam sumir em silencio, que e
+   * exatamente como eles nunca existiram.
+   *
+   * Afirma DESTINO (`href`), nao texto de botao: rotulo muda por decisao de copy, destino e
+   * contrato de rota. Ja perdi um pino por procurar o texto.
+   */
+  it('a tela oferece FAZER vistoria e um caminho para o AGENDAMENTO', () => {
+    const fixture = render();
+    const hrefs = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('a'),
+    ).map((a) => a.getAttribute('href'));
+
+    expect(hrefs, 'sem este link o ciclo manual fica inalcancavel desta tela').toContain(
+      '/vistorias/nova',
+    );
+    // O agendamento e POR VEICULO (as rotas do backend sao /v1/vehicles/{id}/...), entao o
+    // caminho honesto e a frota — nao uma tela de agendamento que nao existe.
+    expect(hrefs, 'quem abre Vistorias nao descobre que a vistoria periodica existe').toContain(
+      '/veiculos',
+    );
+  });
 });

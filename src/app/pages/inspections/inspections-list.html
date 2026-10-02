@@ -2,6 +2,41 @@
   title="Vistorias"
   description="Todas as vistorias da frota, por veículo, locação e período."
 >
+  <!--
+    A PORTA.
+    O ciclo manual inteiro — fazer, enviar, aprovar — ja funciona em producao, e nada
+    nesta tela levava a ele: nenhum arquivo de template apontava para `/vistorias/nova`.
+    A funcionalidade existia e ninguem CHEGAVA nela.
+
+    E o segundo link e o mesmo defeito um nivel acima: a vistoria periodica so era
+    alcancavel de DENTRO de um veiculo, entao quem abre Vistorias nao descobria que ela
+    existe. Ele aponta para a frota, porque o agendamento e POR VEICULO — as tres rotas do
+    backend sao `/v1/vehicles/{vehicleId}/inspection-schedule`, e e o veiculo que carrega
+    o id. A copy diz isso em vez de prometer uma tela que nao existe.
+
+    MOBILE-FIRST: empilhado e de largura total no celular, lado a lado a partir de `sm`,
+    alvos de 48px.
+  -->
+  <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4 sm:mb-6">
+    <a
+      [routerLink]="['/vistorias', 'nova']"
+      class="w-full sm:w-auto min-h-12 inline-flex items-center justify-center rounded-xl
+             bg-primary-500 text-white text-sm font-semibold px-5 py-3 shadow-sm
+             hover:bg-primary-600 transition-colors focus:outline-none
+             focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+    >
+      Fazer vistoria
+    </a>
+    <a
+      routerLink="/veiculos"
+      class="w-full sm:w-auto min-h-12 inline-flex items-center justify-center rounded-xl
+             border border-neutral-200 bg-white text-sm font-semibold text-neutral-700
+             px-5 py-3 hover:bg-neutral-50 transition-colors focus:outline-none
+             focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+    >
+      Agendar vistoria periódica
+    </a>
+  </div>
   <app-page-card title="Filtros" class="mb-4 sm:mb-6">
     <div class="p-3 sm:p-4 space-y-4">
       <!--
