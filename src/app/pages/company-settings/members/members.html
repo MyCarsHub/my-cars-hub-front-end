@@ -31,8 +31,14 @@
         aria-label="Resumo da equipe"
       >
         <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
+          <!--
+            "PENDENTES", nao "enviados": o numero conta so PENDING, e convite EXPIRADO
+            tambem foi enviado — esta mesma tela o LISTA, e a ordenacao o poe na frente.
+            Com expirados na empresa, "enviados" diria 3 enquanto a lista mostra 5.
+            O subtitulo ja descrevia o numero certo; era o TITULO que discordava dele.
+          -->
           <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-            Convites enviados
+            Convites pendentes
           </p>
           <p class="mt-1 text-3xl font-bold text-amber-700 tabular-nums">
             {{ pendingInvitesCount() }}

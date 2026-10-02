@@ -593,6 +593,29 @@ describe('CompanyMembers — roster da empresa', () => {
     expect(numeros).toEqual(['1', '1', '1', '1']);
   });
 
+  /**
+   * O cartao conta so PENDING, e convite EXPIRADO tambem foi ENVIADO — esta tela o lista, e
+   * a ordenacao o poe na frente. O titulo "Convites enviados" discordava do proprio numero:
+   * com expirados na empresa diria 3 enquanto a lista mostra 5. O subtitulo ja estava certo.
+   */
+  it('o cartao se chama PENDENTES, porque expirado tambem foi enviado', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite, expiredInvite]);
+    const resumo = (fixture.nativeElement as HTMLElement).querySelector(
+      '[aria-label="Resumo da equipe"]',
+    );
+    const text: string = resumo?.textContent ?? '';
+
+    expect(text).toContain('Convites pendentes');
+    // O titulo antigo prometia incluir o expirado, e o numero nao o inclui.
+    expect(text).not.toContain('Convites enviados');
+    // A lista mostra DOIS; o cartao conta UM, e agora o titulo diz qual dos dois.
+    const numeros = Array.from(resumo?.querySelectorAll('p.text-3xl') ?? []).map((p) =>
+      (p.textContent ?? '').trim(),
+    );
+    expect(numeros[0]).toBe('1');
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('li')).toHaveLength(3);
+  });
+
   it('o resumo conta ACEITOS, que nao aparecem como linha da lista', () => {
     // `acceptedInvite` e filtrado da lista (a pessoa ja e membro) mas e contavel: e o
     // numero que responde "quantos convites viraram gente".
