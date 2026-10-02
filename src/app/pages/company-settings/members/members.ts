@@ -64,20 +64,25 @@ interface PersonRow {
  * Estes tres eram `emerald-*` e `amber-*` do Tailwind cru — paleta que nao existe no guia
  * deste produto. Trocados pelas rampas do sistema, e a escolha de CADA um tem razao:
  *
- * - COM ACESSO usa a rampa success. `success-100` de fundo com `success-900` de texto,
- *   porque a nota do proprio token diz que `success-500` da 2,54:1 sobre branco e so serve
- *   de preenchimento, e que texto pequeno pede o 900.
- * - CONVITE ENVIADO e CONVITE EXPIRADO usam `primary-low` com `primary-700`: laranja em
- *   intensidade BAIXA. Laranja e a cor da acao neste sistema, entao em tom baixo ele diz
- *   "precisa de voce" sem competir com o botao primario preenchido.
+ * Os VALORES estao nas constantes abaixo e so la — esta prosa nao os repete, porque foi
+ * exatamente assim que ela ficou velha: a versao anterior deste paragrafo afirmava que
+ * pendente e expirado usavam o MESMO tom, descrevendo um desenho que eu havia rejeitado
+ * duas linhas depois, no mesmo comentario. Um paragrafo que acerta metade e erra a outra e
+ * pior que um errado inteiro: ninguem controla a ordem de leitura, e quem leu a metade
+ * velha "conserta" a diferenca de cor achando que e descuido.
+ *
+ * - COM ACESSO usa a rampa SUCCESS, nos passos que a nota de contraste do proprio token
+ *   exige — ela diz qual passo e so preenchimento e qual serve a texto pequeno. A nota e a
+ *   autoridade; numero copiado para ca envelheceria, nome de token nao.
+ * - CONVITE ENVIADO e CONVITE EXPIRADO usam a rampa PRIMARY, em DOIS passos diferentes.
+ *   Laranja e a cor da acao neste sistema, entao em tom baixo ele diz "precisa de voce"
+ *   sem competir com o botao primario preenchido — e expirado e o passo MAIS PESADO.
+ *   Dividem a matiz porque dividem a natureza (alguem esperando do outro lado) e NAO a
+ *   intensidade, porque as urgencias sao diferentes. Duas intensidades de uma rampa dao
+ *   para aprender sem ler o rotulo, que e o ponto de estado ser cor E forma; identicos,
+ *   so o texto os separaria.
  *   Expirado NAO pode ser neutro: neutro diz "isto nao importa", e e a linha que PEDE acao
  *   e que a ordenacao poe em primeiro lugar — cor e ordem contariam historias diferentes.
- *   Os dois dividem a MATIZ porque dividem a natureza — alguem esperando do outro lado —
- *   mas NAO a intensidade: expirado e mais pesado (fundo e borda mais fortes, texto mais
- *   escuro) e pendente e o tom baixo. Duas intensidades da mesma rampa dizem "mesma
- *   familia, urgencias diferentes", e dao para aprender sem ler o rotulo — que e o ponto
- *   de estado ser cor E forma, e nao so palavra. Se os dois fossem identicos, so o texto
- *   os separaria.
  * - O sistema NAO tem token de aviso/ambar: a paleta e laranja, verde, azul exclusivo de
  *   aluguel e os neutros. Conferido token por token. Inventar um ambar aqui seria criar
  *   paleta paralela.
