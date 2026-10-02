@@ -27,25 +27,29 @@
        fica pronta, e nao grava cookie nem envia hit ate alguem aceitar no banner
        (`components/core/consent-banner`). Esse e o unico arranjo que deixa a tag
        existir sem contradizer a politica de privacidade.
-       `wait_for_update` da a janela em que o `consent update` do nosso banner chega
-       antes de qualquer envio.
-       Fica em `index.html` e nao num componente porque precisa estar no HTML
-       prerenderizado, antes de o Angular subir. Mora fora do `<app-root>`, entao nao
-       participa da hidratacao. -->
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('consent', 'default', {
-      ad_storage: 'denied',
-      ad_user_data: 'denied',
-      ad_personalization: 'denied',
-      analytics_storage: 'denied',
-      wait_for_update: 500
-    });
-    gtag('js', new Date());
-    gtag('config', 'G-SW8RSDYTQN');
-  </script>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SW8RSDYTQN"></script>
+
+       O BOOTSTRAP MORA EM `/gtag-init.js`, NAO AQUI, e isso NAO e organizacao.
+       A CSP de producao (`vercel.json`) usa `script-src` sem `'unsafe-inline'`.
+       Enquanto este bloco foi inline ele era INERTE: `window.gtag` ficava
+       `undefined`, `dataLayer` nem chegava a existir, e o GA passou meses sem
+       receber um unico hit com a tag aparentemente instalada no HTML. Um arquivo
+       de mesma origem e coberto por `script-src 'self'` sem abrir excecao
+       nenhuma na politica.
+
+       NAO devolva este codigo para ca, e nao resolva com hash sha256: o hash
+       muda com qualquer edicao, inclusive espaco em branco, e volta a ficar
+       inerte em silencio. O proprio Angular ja foi configurado com essa
+       restricao em mente — ver `withEventReplay()` recusado em `app.config.ts`.
+
+       O loader do googletagmanager e injetado de dentro do arquivo, DEPOIS do
+       gate de host de producao: assim localhost e preview nao sujam a
+       propriedade real. Nada e carregado do Google fora de producao.
+
+       Fica no `index.html` (e nao num componente) porque precisa estar no HTML
+       prerenderizado, antes de o Angular subir. Mora fora do `<app-root>`,
+       entao nao participa da hidratacao. Sincrono de proposito: a fila do
+       `dataLayer` tem de existir antes de o loader assincrono processa-la. -->
+  <script src="/gtag-init.js"></script>
 
   <!-- SEO + Social Sharing -->
   <meta name="description" content="MyCarsHub — sistema para quem aluga carros para motoristas de aplicativo: contratos, cobranças, multas, manutenções e vistorias em um só lugar." />
