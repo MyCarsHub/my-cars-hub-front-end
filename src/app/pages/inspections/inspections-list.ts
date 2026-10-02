@@ -20,6 +20,7 @@ import {
   InspectionStatus,
 } from '../../types/inspection.types';
 import { InspectionReview } from './inspection-review';
+import { InspectionSchedulesBlock } from './inspection-schedules-block/inspection-schedules-block';
 
 /** Chip de tipo. `'ALL'` é "todas" — não vai para a query. */
 type KindChip = FilterChipOption<InspectionKind | 'ALL'>;
@@ -84,6 +85,7 @@ const KIND_LABEL: Record<InspectionKind, string> = {
     FilterChipGroup,
     DateRangePicker,
     InspectionReview,
+    InspectionSchedulesBlock,
   ],
   templateUrl: './inspections-list.html',
 })

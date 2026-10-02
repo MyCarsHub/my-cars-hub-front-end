@@ -3,6 +3,22 @@
   description="Todas as vistorias da frota, por veículo, locação e período."
 >
   <!--
+    AGENDAMENTO NO TOPO, antes da porta e antes da lista.
+
+    A acao primaria desta tela e "Agendar para toda a frota" — e a frase que o dono quer
+    dizer ao cliente, e agendar carro a carro eram dez visitas a dez telas numa frota de
+    dez. O cartao dentro do veiculo continua existindo e e o lugar certo para "este carro
+    em particular"; aqui e o escopo da empresa.
+
+    `vehicleOptions` ja e carregado por esta tela para o filtro: a lista de agendamentos
+    devolve so o `vehicleId`, e e daqui que a linha de carro tira placa e modelo.
+  -->
+  <app-inspection-schedules-block
+    [vehicleOptions]="vehicleOptions()"
+    class="block mb-4 sm:mb-6"
+  />
+
+  <!--
     A PORTA.
     O ciclo manual inteiro — fazer, enviar, aprovar — ja funciona em producao, e nada
     nesta tela levava a ele: nenhum arquivo de template apontava para `/vistorias/nova`.

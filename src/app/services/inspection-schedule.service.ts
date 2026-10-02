@@ -40,7 +40,37 @@ export class InspectionScheduleService {
     return this.http.post<InspectionScheduleResponse>(this.url(vehicleId), payload);
   }
 
-  /** `DELETE` — desativa. 204 sem corpo. */
+  /**
+   * `POST /v1/inspection-schedules/fleet` — a regra da FROTA, uma linha sem veiculo.
+   *
+   * Rota propria, nao a por veiculo com id opcional: o backend decidiu assim para uma URL
+   * nao significar duas coisas. 400 quando a empresa JA tem uma regra de frota vigente —
+   * o UNIQUE parcial garante no maximo uma, e a tela trata isso como "ja existe", nao como
+   * falha.
+   */
+  createForFleet(
+    payload: CreateInspectionScheduleRequest,
+  ): Observable<InspectionScheduleResponse> {
+    return this.http.post<InspectionScheduleResponse>(
+      `${environment.apiUrl}/inspection-schedules/fleet`,
+      payload,
+    );
+  }
+
+  /**
+   * `GET /v1/inspection-schedules` — frota E veiculos, vigentes, da empresa do token.
+   *
+   * Empresa sem nenhum devolve LISTA VAZIA, nao 404 — ao contrario do `get` por veiculo.
+   * As duas rotas respondem perguntas diferentes e por isso respondem o vazio de formas
+   * diferentes; tratar esta como aquela faria a tela achar que a leitura falhou.
+   */
+  listForCompany(): Observable<InspectionScheduleResponse[]> {
+    return this.http.get<InspectionScheduleResponse[]>(
+      `${environment.apiUrl}/inspection-schedules`,
+    );
+  }
+
+  /** `DELETE` — desativa o agendamento DE UM VEICULO. 204 sem corpo. */
   deactivate(vehicleId: string): Observable<void> {
     return this.http.delete<void>(this.url(vehicleId));
   }
