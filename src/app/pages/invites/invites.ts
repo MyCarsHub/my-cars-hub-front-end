@@ -1,5 +1,15 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -56,6 +66,7 @@ const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
   selector: 'app-invites',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NgTemplateOutlet,
     ReactiveFormsModule,
     DefaultPageLayout,
     PageCard,
@@ -66,6 +77,20 @@ const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
   templateUrl: './invites.html',
 })
 export class Invites implements OnInit {
+  /**
+   * `true` quando este formulario esta DENTRO de outra tela (o painel de Membros) e nao na
+   * propria rota. Troca so a MOLDURA: sem `embedded`, o componente desenha o cabecalho de
+   * pagina; com `embedded`, entrega so o cartao.
+   *
+   * O formulario em si — validadores, mascaras, a regra de nome/CPF/telefone por cargo e o
+   * envio — e EXATAMENTE o mesmo nos dois lugares, porque e o mesmo componente. Duplicar o
+   * formulario para ganhar um painel teria criado duas regras de cargo para divergirem.
+   */
+  readonly embedded = input(false);
+
+  /** Emitido depois de um convite enviado com sucesso, para a lista de quem hospeda recarregar. */
+  readonly sent = output<void>();
+
   private readonly fb = inject(FormBuilder);
   private readonly invites = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
@@ -225,6 +250,8 @@ export class Invites implements OnInit {
           this.roleValue.set('DRIVER');
           this.syncManagerValidators('DRIVER');
           this.notifications.success(`Convite enviado para ${invite.email}.`);
+          // Quem hospeda recarrega: a linha nova tem de aparecer como 'Convite enviado'.
+          this.sent.emit();
         },
         error: (err: HttpErrorResponse) => {
           this.sending.set(false);

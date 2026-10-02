@@ -7,6 +7,7 @@ import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CompanyMembers } from './members';
+import { Invites } from '../../invites/invites';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanyMembersService } from '../../../services/company-members.service';
 import { InvitesService } from '../../../services/invites.service';
@@ -529,14 +530,105 @@ describe('CompanyMembers — roster da empresa', () => {
    * formulario de convite volta a ser inalcancavel — o mesmo defeito, no mesmo produto, duas
    * voltas depois. Por isso a asserticao mora aqui agora.
    */
-  it('o botao Convidar pessoa aponta para o formulario que ja existe', () => {
+  it('o formulario de convite tem DOIS caminhos, e os dois seguem existindo', () => {
     const fixture = render('OWNER');
-    const cta = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('a'),
-    ).find((a) => (a.textContent ?? '').includes('Convidar pessoa'));
+    const host = fixture.nativeElement as HTMLElement;
 
-    expect(cta, 'sem este botao o formulario de convite fica inalcancavel').toBeDefined();
-    expect(cta?.getAttribute('href')).toBe('/configuracoes/convites');
+    // 1) O caminho principal: abre ALI, sem sair da tela.
+    const abrir = Array.from(host.querySelectorAll('button')).find((b) =>
+      (b.textContent ?? '').includes('Convidar pessoa'),
+    );
+    expect(abrir, 'sem este botao nao ha como convidar nesta tela').toBeDefined();
+
+    // 2) A rota continua alcancavel — era a garantia do FIX-0553, e link que circula nao
+    //    pode quebrar. Trocou de rotulo ("Abrir em pagina"), nao de destino.
+    const link = Array.from(host.querySelectorAll('a')).find(
+      (a) => a.getAttribute('href') === '/configuracoes/convites',
+    );
+    expect(link, 'a rota do formulario deixou de ser alcancavel desta tela').toBeDefined();
+  });
+
+  /**
+   * A critica do dono, literal: clicar em Convidar LEVAVA PARA OUTRA PAGINA. Sair da lista
+   * para convidar e perder de vista justamente o lugar onde o convite vai aparecer.
+   */
+  it('o formulario abre DENTRO da tela, e nao esta visivel antes do clique', () => {
+    const fixture = render('OWNER');
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('app-invites')).toBeNull();
+
+    Array.from(host.querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Convidar pessoa'))
+      ?.click();
+    fixture.detectChanges();
+
+    // O formulario REAL, o mesmo componente da rota — nao uma segunda copia.
+    expect(host.querySelector('app-invites')).not.toBeNull();
+    // E a lista continua na tela: o painel empurra, nao cobre.
+    expect(host.querySelector('ul')).not.toBeNull();
+  });
+
+  // ------------------------------------------ OS QUATRO NUMEROS DO TOPO
+  /**
+   * O que o dono pediu nominalmente: a tela nao respondia "como esta minha equipe?" sem
+   * contar linhas. Os quatro saem do que a tela JA carregou — duas listas, zero chamada
+   * nova.
+   */
+  it('o resumo conta convites pendentes, aceitos, gerenciadores e motoristas', () => {
+    const fixture = render(
+      'OWNER',
+      [owner, manager, driver],
+      [pendingInvite, expiredInvite, acceptedInvite],
+    );
+    const resumo = (fixture.nativeElement as HTMLElement).querySelector(
+      '[aria-label="Resumo da equipe"]',
+    );
+    if (!resumo) throw new Error('o resumo nao esta na tela');
+
+    const numeros = Array.from(resumo.querySelectorAll('p.text-3xl')).map((p) =>
+      (p.textContent ?? '').trim(),
+    );
+    // pendentes=1 (o expirado NAO conta como pendente), aceitos=1, gerentes=1, motoristas=1
+    expect(numeros).toEqual(['1', '1', '1', '1']);
+  });
+
+  /**
+   * O cartao conta so PENDING, e convite EXPIRADO tambem foi ENVIADO — esta tela o lista, e
+   * a ordenacao o poe na frente. O titulo "Convites enviados" discordava do proprio numero:
+   * com expirados na empresa diria 3 enquanto a lista mostra 5. O subtitulo ja estava certo.
+   */
+  it('o cartao se chama PENDENTES, porque expirado tambem foi enviado', () => {
+    const fixture = render('OWNER', [owner], [pendingInvite, expiredInvite]);
+    const resumo = (fixture.nativeElement as HTMLElement).querySelector(
+      '[aria-label="Resumo da equipe"]',
+    );
+    const text: string = resumo?.textContent ?? '';
+
+    expect(text).toContain('Convites pendentes');
+    // O titulo antigo prometia incluir o expirado, e o numero nao o inclui.
+    expect(text).not.toContain('Convites enviados');
+    // A lista mostra DOIS; o cartao conta UM, e agora o titulo diz qual dos dois.
+    const numeros = Array.from(resumo?.querySelectorAll('p.text-3xl') ?? []).map((p) =>
+      (p.textContent ?? '').trim(),
+    );
+    expect(numeros[0]).toBe('1');
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('li')).toHaveLength(3);
+  });
+
+  it('o resumo conta ACEITOS, que nao aparecem como linha da lista', () => {
+    // `acceptedInvite` e filtrado da lista (a pessoa ja e membro) mas e contavel: e o
+    // numero que responde "quantos convites viraram gente".
+    const fixture = render('OWNER', [owner], [acceptedInvite]);
+    const resumo = (fixture.nativeElement as HTMLElement).querySelector(
+      '[aria-label="Resumo da equipe"]',
+    );
+    const numeros = Array.from(resumo?.querySelectorAll('p.text-3xl') ?? []).map((p) =>
+      (p.textContent ?? '').trim(),
+    );
+
+    expect(numeros[1]).toBe('1');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Convite enviado');
   });
   // ====================== OS PINOS QUE A REVISAO MANDOU REPOR ======================
   /**
@@ -638,5 +730,71 @@ describe('CompanyMembers — roster da empresa', () => {
 
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).not.toContain('Convite enviado');
+  });
+  /**
+   * O CAMINHO DA DEMONSTRACAO, ponta a ponta: envia do painel, o painel fecha e a lista
+   * RELE — a linha nova tem de aparecer como "Convite enviado" sem a pessoa atualizar nada.
+   *
+   * Dispara o `output` do formulario real em vez de preencher os campos: o que esta sob
+   * teste aqui e a LIGACAO entre os dois componentes. O formulario em si ja tem os proprios
+   * casos em `invites.spec.ts`, e duplica-los aqui testaria o form duas vezes e a ligacao
+   * nenhuma.
+   */
+  it('enviar do painel fecha o painel e rele a lista', () => {
+    const fixture = render('OWNER');
+    const host = fixture.nativeElement as HTMLElement;
+
+    Array.from(host.querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').includes('Convidar pessoa'))
+      ?.click();
+    fixture.detectChanges();
+    expect(inviteList).toHaveBeenCalledTimes(1);
+
+    const invitesCmp = fixture.debugElement
+      .queryAll((node) => node.componentInstance instanceof Invites)
+      .map((node) => node.componentInstance as Invites)[0];
+    expect(invitesCmp, 'o formulario embutido nao esta na tela').toBeDefined();
+
+    invitesCmp.sent.emit();
+    fixture.detectChanges();
+
+    // Painel fechado …
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-invites')).toBeNull();
+    // … e os convites relidos. So eles: enviar convite nao mexe no roster.
+    expect(inviteList).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+  // ------------------------------------------- ESTADO POR COR DO SISTEMA
+  /**
+   * Os estados usavam `amber-*` e `emerald-*` do Tailwind cru — paleta que nao existe no
+   * guia deste produto. Agora saem das rampas do sistema, e este caso trava as duas coisas
+   * que importam: que nao volte cor crua, e que PENDENTE e EXPIRADO nao fiquem IDENTICOS.
+   *
+   * Se os dois tivessem a mesma aparencia, so o texto os separaria — e estado tem de ser
+   * cor E forma, aprendivel antes da leitura. Expirado e o tom mais pesado da MESMA matiz:
+   * mesma familia, urgencias diferentes. Neutro para expirado estaria errado: neutro diz
+   * "isto nao importa" sobre a linha que a ordenacao poe em primeiro lugar.
+   */
+  it('os estados usam as rampas do sistema, e expirado NAO e igual a pendente', () => {
+    const fixture = render('OWNER', [owner, manager], [pendingInvite, expiredInvite]);
+    const chipOf = (title: string): string => {
+      const span = rowOf(fixture, title).querySelector('span[class*="rounded-full"]');
+      return span?.className ?? '';
+    };
+
+    const pendente = chipOf('convidada@empresa.com.br');
+    const expirado = chipOf('expirada@empresa.com.br');
+    const ativo = chipOf('Gerente Bruno');
+
+    // Nenhuma cor crua de Tailwind.
+    for (const cls of [pendente, expirado, ativo]) {
+      expect(cls).not.toMatch(/amber-|emerald-/);
+    }
+    // Mesma matiz nos dois de convite, intensidades diferentes.
+    expect(pendente).toContain('primary');
+    expect(expirado).toContain('primary');
+    expect(expirado).not.toBe(pendente);
+    // Com acesso sai da rampa verde do sistema.
+    expect(ativo).toContain('success');
   });
 });
