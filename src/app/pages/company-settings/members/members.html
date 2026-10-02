@@ -74,15 +74,6 @@
         </div>
       </section>
 
-      @if (inviteOpen()) {
-        <!--
-          O FORMULARIO ABRE AQUI. E o MESMO componente da rota `/configuracoes/convites`,
-          com `embedded` trocando so a moldura — nao ha segunda copia do formulario, e por
-          isso a regra de nome/CPF/telefone por cargo nao pode divergir entre os dois.
-        -->
-        <app-invites [embedded]="true" (sent)="onInviteSent()" />
-      }
-
       <app-page-card title="Pessoas da empresa">
         <div cardIcon class="p-2 bg-primary-low rounded-lg">
           <svg
@@ -128,28 +119,20 @@
           -->
           <button
             type="button"
-            (click)="toggleInvite()"
-            [attr.aria-expanded]="inviteOpen()"
+            (click)="openInvite()"
             class="min-h-12 px-4 py-2 rounded-xl text-sm font-semibold inline-flex
                    items-center bg-primary-500 text-white hover:bg-primary-600 shadow-sm
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
                    focus-visible:ring-offset-2"
           >
-            {{ inviteOpen() ? 'Fechar' : 'Convidar pessoa' }}
+            Convidar pessoa
           </button>
           <!--
-            A ROTA CONTINUA EXISTINDO e continua alcancavel: link que ja circula nao quebra,
-            e `members.spec.ts` afirma este href — era a garantia do FIX-0553.
+            O LINK "Abrir em pagina" SAIU: com o convite abrindo aqui, mandar a pessoa para
+            outra tela era oferecer o caminho pior. A ROTA `/configuracoes/convites` continua
+            existindo e continua sendo o formulario — link que ja circula nao quebra —, ela
+            so deixou de ter atalho nesta tela.
           -->
-          <a
-            routerLink="/configuracoes/convites"
-            class="min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold inline-flex
-                   items-center border border-neutral-200 text-neutral-700 bg-white
-                   hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
-                   focus-visible:ring-primary-600 focus-visible:ring-offset-2"
-          >
-            Abrir em página
-          </a>
         </div>
 
         <div class="p-4 sm:p-6 space-y-4">
@@ -311,3 +294,63 @@
     />
   }
 </app-default-page-layout>
+
+<!--
+  O CONVITE EM DIALOGO NATIVO.
+
+  `<dialog>` com `showModal()` em vez de div: foco preso dentro, Esc que fecha e fundo que
+  nao rola saem DE GRACA do elemento, em vez de serem tres comportamentos reimplementados a
+  mao. E novidade neste repo — o `ConfirmDialog` e div com role="dialog" — mas o raio fica
+  neste arquivo e os dois convivem sem reescrever nada.
+
+  O FORMULARIO DENTRO E O MESMO COMPONENTE da rota, com `embedded`. Ele JA abre com dois
+  campos (e-mail e cargo, com DRIVER no padrao) e JA revela nome, CPF e telefone so quando
+  o cargo e Gerenciador — a revelacao progressiva nao foi escrita aqui, ela existe desde o
+  FEAT-0167 e e por isso que o dialogo cabe em qualquer tela.
+
+  FORMATO POR LARGURA: folha deslizante colada embaixo no celular (o padrao que esse publico
+  conhece de aplicativo), caixa centrada e estreita no desktop — campo de e-mail com a
+  largura da tela e ilegivel.
+
+  FECHA AO ENVIAR, FICA ABERTO AO FALHAR: o fechamento E a confirmacao. Em erro o dialogo
+  permanece com o que a pessoa digitou, e a mensagem aparece dentro dele — fechar e perder o
+  preenchimento e o pior resultado possivel aqui.
+-->
+<dialog #inviteDialog (close)="onDialogClose()" class="invite-dialog">
+  <div class="p-4 sm:p-5">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-bold text-neutral-900">Convidar pessoa</h2>
+        <p class="mt-0.5 text-sm text-neutral-600">
+          Ela recebe um e-mail e entra com a conta Google dela.
+        </p>
+      </div>
+      <button
+        type="button"
+        (click)="closeInvite()"
+        aria-label="Fechar"
+        class="shrink-0 min-h-[44px] min-w-[44px] inline-flex items-center justify-center
+               rounded-xl text-neutral-500 hover:bg-neutral-50 focus:outline-none
+               focus-visible:ring-2 focus-visible:ring-primary-600"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <app-invites [embedded]="true" (sent)="onInviteSent()" />
+</dialog>
