@@ -764,4 +764,37 @@ describe('CompanyMembers — roster da empresa', () => {
     expect(inviteList).toHaveBeenCalledTimes(2);
     expect(list).toHaveBeenCalledTimes(1);
   });
+  // ------------------------------------------- ESTADO POR COR DO SISTEMA
+  /**
+   * Os estados usavam `amber-*` e `emerald-*` do Tailwind cru — paleta que nao existe no
+   * guia deste produto. Agora saem das rampas do sistema, e este caso trava as duas coisas
+   * que importam: que nao volte cor crua, e que PENDENTE e EXPIRADO nao fiquem IDENTICOS.
+   *
+   * Se os dois tivessem a mesma aparencia, so o texto os separaria — e estado tem de ser
+   * cor E forma, aprendivel antes da leitura. Expirado e o tom mais pesado da MESMA matiz:
+   * mesma familia, urgencias diferentes. Neutro para expirado estaria errado: neutro diz
+   * "isto nao importa" sobre a linha que a ordenacao poe em primeiro lugar.
+   */
+  it('os estados usam as rampas do sistema, e expirado NAO e igual a pendente', () => {
+    const fixture = render('OWNER', [owner, manager], [pendingInvite, expiredInvite]);
+    const chipOf = (title: string): string => {
+      const span = rowOf(fixture, title).querySelector('span[class*="rounded-full"]');
+      return span?.className ?? '';
+    };
+
+    const pendente = chipOf('convidada@empresa.com.br');
+    const expirado = chipOf('expirada@empresa.com.br');
+    const ativo = chipOf('Gerente Bruno');
+
+    // Nenhuma cor crua de Tailwind.
+    for (const cls of [pendente, expirado, ativo]) {
+      expect(cls).not.toMatch(/amber-|emerald-/);
+    }
+    // Mesma matiz nos dois de convite, intensidades diferentes.
+    expect(pendente).toContain('primary');
+    expect(expirado).toContain('primary');
+    expect(expirado).not.toBe(pendente);
+    // Com acesso sai da rampa verde do sistema.
+    expect(ativo).toContain('success');
+  });
 });
