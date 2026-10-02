@@ -663,6 +663,23 @@ export const routes: Routes = [
                                     ),
                                 data: { pageTitle: 'Convites' },
                             },
+                            {
+                                // FEAT-0266 — quem JA tem acesso, ao lado de Convites, que
+                                // e quem ainda NAO tem. As duas telas sao a mesma pergunta em
+                                // dois tempos, e o roster so lista vinculo ACTIVE: quem esta
+                                // convidado aparece na outra.
+                                //
+                                // OWNER + MANAGER espelha o backend: `CompanyMemberService`
+                                // admite os dois em `MEMBER_MANAGEMENT_ROLES` e responde 403
+                                // ao motorista. O guard le o papel do TOKEN, a mesma fonte.
+                                path: 'membros',
+                                canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/company-settings/members/members'
+                                    ).then((m) => m.CompanyMembers),
+                                data: { pageTitle: 'Membros' },
+                            },
                         ],
                     },
                     {
