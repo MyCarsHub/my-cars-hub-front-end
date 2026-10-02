@@ -168,7 +168,6 @@ describe('paridade nav x guard de rota', () => {
     '/configuracoes',
     '/configuracoes/integracoes',
     '/configuracoes/contratos',
-    '/configuracoes/convites',
     '/configuracoes/membros',
     '/suporte',
     '/perfil',
@@ -186,7 +185,7 @@ describe('paridade nav x guard de rota', () => {
   it('a arvore do menu mantem a forma: 12 itens de topo, 11 filhos', () => {
     const children = NAV_ITEMS.reduce((total, item) => total + (item.children?.length ?? 0), 0);
 
-    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 12, filhos: 12 });
+    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 12, filhos: 11 });
   });
 
   /**

@@ -1,9 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
-import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
@@ -14,9 +12,7 @@ import { NotificationService } from '../../services/notification.service';
 import { inviteErrorCopy } from '../../services/invite-errors';
 import {
   INVITE_TTL_LABEL,
-  InviteResponse,
   InviteRole,
-  InviteStatus,
 } from '../../types/invite.types';
 import { companyRoleLabel } from '../../utils/role-labels';
 import {
@@ -32,38 +28,6 @@ import { applyMaskedPhoneInput, normalizePhone } from '../../utils/phone-mask';
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
 const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
-const LIST_FALLBACK = 'Não foi possível carregar os convites.';
-
-/** Statuses on which `resend` / `cancel` are accepted — anything else is a 400. */
-const ACTIONABLE: ReadonlySet<InviteStatus> = new Set<InviteStatus>(['PENDING', 'EXPIRED']);
-
-const STATUS_LABELS: Readonly<Record<string, string>> = {
-  PENDING: 'Aguardando',
-  ACCEPTED: 'Aceito',
-  EXPIRED: 'Expirado',
-  CANCELLED: 'Cancelado',
-  REVOKED: 'Cancelado',
-};
-
-const STATUS_CLASSES: Readonly<Record<string, string>> = {
-  PENDING: 'bg-amber-50 text-amber-800 border-amber-200',
-  ACCEPTED: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-  EXPIRED: 'bg-rose-50 text-rose-800 border-rose-200',
-  CANCELLED: 'bg-neutral-100 text-neutral-600 border-neutral-200',
-  REVOKED: 'bg-neutral-100 text-neutral-600 border-neutral-200',
-};
-
-/** Row shape the template renders — labels and classes resolved off the hot path. */
-interface InviteRow extends InviteResponse {
-  statusLabel: string;
-  statusClass: string;
-  roleLabel: string;
-  actionable: boolean;
-  /** Accessible names — the visible labels are just "Reenviar" / "Cancelar", which
-   *  would give every row in the list an identical, useless accessible name. */
-  resendLabel: string;
-  cancelLabel: string;
-}
 
 /**
  * Convites — the only route to this page is `/configuracoes/convites`, and the whole
@@ -92,14 +56,12 @@ interface InviteRow extends InviteResponse {
   selector: 'app-invites',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
     ReactiveFormsModule,
     DefaultPageLayout,
     PageCard,
     AlertBanner,
     FormField,
     FieldControl,
-    ConfirmDialog,
   ],
   templateUrl: './invites.html',
 })
@@ -108,17 +70,8 @@ export class Invites implements OnInit {
   private readonly invites = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
-
-  protected readonly loading = this.invites.loading;
-  protected readonly loaded = this.invites.loaded;
-  protected readonly pendingCount = this.invites.pendingCount;
-
-  protected readonly listError = signal<string | null>(null);
   protected readonly createError = signal<string | null>(null);
   protected readonly sending = signal(false);
-  /** Id of the invite whose row action is in flight — disables just that row. */
-  protected readonly busyId = signal<string | null>(null);
-  protected readonly pendingCancel = signal<InviteRow | null>(null);
 
   /** Validity promised in the form copy — mirror of the backend TTL, never a typed number. */
   protected readonly ttlLabel = INVITE_TTL_LABEL;
@@ -212,34 +165,11 @@ export class Invites implements OnInit {
   protected onPhoneInput(event: Event): void {
     applyMaskedPhoneInput(event, this.inviteForm.controls.phone);
   }
-
-  protected readonly rows = computed<InviteRow[]>(() =>
-    this.invites.invites().map((invite) => ({
-      ...invite,
-      statusLabel: STATUS_LABELS[invite.status] ?? invite.status,
-      statusClass: STATUS_CLASSES[invite.status] ?? STATUS_CLASSES['CANCELLED'],
-      roleLabel: companyRoleLabel(invite.role),
-      actionable: ACTIONABLE.has(invite.status),
-      resendLabel: `Reenviar convite para ${invite.email}`,
-      cancelLabel: `Cancelar convite de ${invite.email}`,
-    })),
-  );
-
-  protected readonly isEmpty = computed(() => this.loaded() && this.rows().length === 0);
-
   ngOnInit(): void {
-    this.load();
     this.inviteForm.controls.role.valueChanges.subscribe((role) => {
       const next = (role ?? 'DRIVER') as InviteRole;
       this.roleValue.set(next);
       this.syncManagerValidators(next);
-    });
-  }
-
-  protected load(): void {
-    this.listError.set(null);
-    this.invites.list().subscribe({
-      error: (err: HttpErrorResponse) => this.listError.set(this.messageFor(err, LIST_FALLBACK)),
     });
   }
 
@@ -301,53 +231,6 @@ export class Invites implements OnInit {
           this.handleCreateError(err);
         },
       });
-  }
-
-  protected resend(row: InviteRow): void {
-    if (this.busyId()) return;
-    this.busyId.set(row.id);
-    this.listError.set(null);
-
-    this.invites.resend(row.id).subscribe({
-      next: () => {
-        this.busyId.set(null);
-        this.notifications.success(`Convite reenviado para ${row.email}.`);
-        // `expiresAt` moved on the server — re-read instead of guessing the new deadline.
-        this.load();
-      },
-      error: (err: HttpErrorResponse) => {
-        this.busyId.set(null);
-        this.listError.set(this.messageFor(err, 'Não foi possível reenviar o convite.'));
-      },
-    });
-  }
-
-  protected askCancel(row: InviteRow): void {
-    this.pendingCancel.set(row);
-  }
-
-  protected dismissCancel(): void {
-    this.pendingCancel.set(null);
-  }
-
-  protected confirmCancel(): void {
-    const row = this.pendingCancel();
-    if (!row) return;
-
-    this.pendingCancel.set(null);
-    this.busyId.set(row.id);
-    this.listError.set(null);
-
-    this.invites.cancel(row.id).subscribe({
-      next: () => {
-        this.busyId.set(null);
-        this.notifications.success(`Convite de ${row.email} cancelado.`);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.busyId.set(null);
-        this.listError.set(this.messageFor(err, 'Não foi possível cancelar o convite.'));
-      },
-    });
   }
 
   /**

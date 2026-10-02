@@ -49,6 +49,7 @@ const TEST_ROUTES: Routes = [
   // FIX-0553 — mesma razão do `vistorias` acima: sem a rota registrada o caso
   // passaria por AUSÊNCIA de sinal em vez de por presença do item.
   { path: 'configuracoes/convites', component: StubPage },
+  { path: 'configuracoes/membros', component: StubPage },
 ];
 
 describe('Sidebar', () => {
@@ -377,28 +378,33 @@ describe('Sidebar', () => {
     });
 
     /**
-     * FIX-0553 — "Configurações → Convites", pedido do dono.
+     * FEAT-0267 — este caso ERA sobre "Configurações → Convites" (FIX-0553), e existia para
+     * que aquele item nao pudesse sumir do menu em silencio, porque foi assim que ele sumiu
+     * a primeira vez. O item SAIU de proposito: Convites e Membros eram duas telas para a
+     * mesma pergunta, e dois itens apontando para a mesma lista fariam a pessoa desconfiar
+     * da tela.
      *
-     * A tela de Convites existia com rota, verbete no `role.guard` e os quatro
-     * campos novos do convite de gerente, e NÃO HAVIA COMO CHEGAR NELA a não ser
-     * digitando o endereço: o atalho tinha sido removido enquanto o fluxo era
-     * refeito. Este caso NOMEIA o item, para que ele não possa sumir de novo em
-     * silêncio — que é exatamente como ele sumiu a primeira vez.
+     * A GARANTIA NAO FOI EMBORA, MUDOU DE LUGAR: o que nao pode sumir em silencio agora e o
+     * PONTO DE ENTRADA do convite, que passou a ser o botao "Convidar pessoa" dentro de
+     * Membros — e e `members.spec.ts` quem o nomeia, apontando para a mesma rota.
      *
-     * Mesma forma do caso de Vistorias acima, e pelo mesmo motivo: asserções de
-     * PRESENÇA, porque uma de ausência passaria contra um menu vazio.
+     * Aqui o caso vira o equivalente para Membros, na mesma forma: asserção de PRESENÇA,
+     * porque uma de ausência passaria contra um menu vazio.
      */
-    it('"Convites" é filha de Configurações, e não item de primeiro nível', async () => {
-      await goTo('/configuracoes/convites');
+    it('"Membros" é filha de Configurações, e Convites não tem mais item próprio', async () => {
+      await goTo('/configuracoes/membros');
 
       expect(group('Configurações')?.getAttribute('aria-expanded')).toBe('true');
-      expect(childLink('Convites')).not.toBeNull();
-      expect(childLink('Convites')?.getAttribute('href')).toBe('/configuracoes/convites');
+      expect(childLink('Membros')).not.toBeNull();
+      expect(childLink('Membros')?.getAttribute('href')).toBe('/configuracoes/membros');
+
+      // Convites deixou de ter item: a tela segue existindo, alcancada de dentro de Membros.
+      expect(childLink('Convites')).toBeNull();
 
       const topLevel = (component as unknown as { navItems: () => { route?: string }[] })
         .navItems()
         .map((item) => item.route);
-      expect(topLevel).not.toContain('/configuracoes/convites');
+      expect(topLevel).not.toContain('/configuracoes/membros');
     });
 
     /**
