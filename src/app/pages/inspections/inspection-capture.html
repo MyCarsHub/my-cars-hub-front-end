@@ -18,23 +18,24 @@
       Voltar para vistorias
     </a>
   } @else {
-    <!-- Progresso primeiro: quem está em pé ao redor do carro precisa saber quanto
-         falta antes de qualquer outra coisa. -->
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4 sm:p-6">
-      <div class="flex items-baseline justify-between gap-3">
-        <p class="text-sm font-semibold text-neutral-900">
-          {{ doneCount() }} de {{ totalCount() }} fotos
-        </p>
+    <!--
+      O MESMO INVOLUCRO DO CARD DE ALUGUEL: `app-page-card`, e nao `rounded-2xl bg-white
+      border` escrito a mao — o chrome a mao duplicava o que o PageCard ja faz, e era uma
+      das divergencias apontadas.
+
+      A BARRA DE PROGRESSO DE PAGINA SAIU. O card de aluguel nao tem nenhuma: o progresso
+      dele vive DENTRO do quadro que esta subindo. Aqui a contagem fica no cabecalho, como
+      informacao, e o progresso por foto voltou para o quadro.
+    -->
+    <app-page-card title="Fotos da vistoria">
+      <div cardActions class="text-xs font-semibold text-neutral-500">
+        {{ doneCount() }} de {{ totalCount() }} fotos
         @if (isComplete()) {
-          <span class="text-xs font-semibold text-emerald-700">Vistoria completa</span>
+          <span class="ml-2 text-success-900">· completa</span>
         }
       </div>
-      <div class="mt-2 h-2 rounded-full bg-neutral-100 overflow-hidden">
-        <div
-          class="h-full bg-primary-500 transition-all"
-          [style.width.%]="totalCount() ? (doneCount() / totalCount()) * 100 : 0"
-        ></div>
-      </div>
+
+      <div class="p-4 sm:p-6 space-y-4">
 
       @if (isComplete() && !submitted()) {
         <div class="mt-4">
@@ -53,7 +54,149 @@
           </app-alert-banner>
         </div>
       }
-    </div>
+
+        <p class="text-sm text-neutral-600">
+          Toque em qualquer ângulo para fotografar. A ordem é sua.
+        </p>
+
+        <!--
+          A GRADE DO CARD DE ALUGUEL, ponto a ponto: `grid-cols-2 sm:grid-cols-3
+          lg:grid-cols-4 gap-3`, quadro `aspect-square` de borda tracejada, e a MINIATURA
+          REAL da foto dentro dele.
+
+          Era uma lista de uma coluna com um círculo de check, e a foto nunca voltava para a
+          tela. Agora o preview local entra no instante da captura e a URL assinada do
+          servidor assume depois — `slot.previewUrl || slot.signedUrl`, a mesma precedência
+          do aluguel.
+
+          QUALQUER ORDEM: o `nextPending` deixou de ser porteiro. `openCamera(angle)` sempre
+          aceitou um ângulo qualquer; era o template que forçava a fila.
+        -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          @for (slot of slots(); track slot.angle) {
+            <div class="relative">
+              <button
+                type="button"
+                (click)="openCamera(slot.angle)"
+                [disabled]="uploading() || !canCapture()"
+                class="group relative w-full aspect-square rounded-xl border-2 border-dashed
+                       border-neutral-300 hover:border-primary-400 bg-neutral-50
+                       overflow-hidden text-left transition-colors disabled:opacity-60
+                       disabled:cursor-not-allowed"
+                [attr.aria-label]="(slot.done ? 'Refazer foto: ' : 'Fotografar: ') + slot.label"
+              >
+                @if (slot.previewUrl || slot.signedUrl; as url) {
+                  <img
+                    [src]="url"
+                    [alt]="slot.label"
+                    class="absolute inset-0 w-full h-full object-cover"
+                  />
+                  <span
+                    class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-medium px-2 py-1 truncate"
+                  >
+                    {{ slot.label }}
+                  </span>
+                } @else if (slot.done) {
+                  <!--
+                    A FOTO EXISTE e a assinatura dela não veio. Dizer "sem foto" mandaria a
+                    pessoa refotografar o que já está no servidor — punir quem fez certo por
+                    uma falha nossa. Mesma leitura que o review já aplica.
+                  -->
+                  <div
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-2
+                           text-center bg-success-50"
+                  >
+                    <span class="text-[11px] font-semibold text-success-900">{{ slot.label }}</span>
+                    <span class="text-[10px] text-neutral-600 leading-tight">
+                      Foto enviada; não foi possível exibir agora
+                    </span>
+                  </div>
+                } @else {
+                  <div
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-2 text-center"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="text-neutral-400 group-hover:text-primary-700 transition-colors"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                      />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <span
+                      class="text-[11px] font-medium text-neutral-500 group-hover:text-primary-700 transition-colors"
+                    >
+                      {{ slot.label }}
+                    </span>
+                  </div>
+                }
+
+                @if (slot.uploading) {
+                  <!-- O progresso voltou para DENTRO do quadro, como no aluguel. -->
+                  <div
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 p-2"
+                  >
+                    <p class="text-xs font-medium text-neutral-800">Enviando…</p>
+                    <div class="w-3/4 h-1 rounded-full bg-neutral-200 overflow-hidden">
+                      <div class="h-full w-1/2 bg-primary-500 animate-pulse"></div>
+                    </div>
+                  </div>
+                }
+              </button>
+
+              <!--
+                GALERIA, e ela some para o MOTORISTA: a foto dele tem de ser do momento. A
+                razão está em `canPickFromGallery`, no componente — é um controle, não uma
+                inconsistência de UI.
+              -->
+              @if (canPickFromGallery()) {
+                <label
+                  class="absolute top-1.5 right-1.5 min-h-[44px] min-w-[44px] inline-flex
+                         items-center justify-center rounded-lg bg-white/90 border
+                         border-neutral-200 text-neutral-700 cursor-pointer hover:bg-white
+                         focus-within:ring-2 focus-within:ring-primary-600"
+                  [attr.title]="'Escolher da galeria: ' + slot.label"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="9" cy="9" r="2" />
+                    <path d="m21 15-4.35-4.35a2 2 0 0 0-2.83 0L3 21" />
+                  </svg>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    class="sr-only"
+                    [attr.aria-label]="'Escolher da galeria: ' + slot.label"
+                    (change)="onFilePicked($event, slot.angle)"
+                  />
+                </label>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </app-page-card>
 
     <!--
       O FECHAMENTO. Fica FORA do cartão de progresso, como última ação da tela.
@@ -121,78 +264,6 @@
       </div>
     }
 
-    <!-- Botão principal: um alvo grande, com o nome do PRÓXIMO ângulo. Com o celular
-         numa mão só, o caminho feliz não deve exigir mirar num item da lista. -->
-    @if (canCapture() && nextPending(); as next) {
-      <button
-        type="button"
-        (click)="openCamera(next.angle)"
-        [disabled]="uploading()"
-        class="mt-4 w-full min-h-14 inline-flex items-center justify-center rounded-xl
-               bg-neutral-900 text-white text-base font-semibold px-5 py-4
-               hover:bg-primary-600 transition-colors focus:outline-none
-               focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
-               disabled:opacity-60 disabled:cursor-wait"
-      >
-        {{ uploading() ? 'Enviando…' : 'Fotografar: ' + next.label }}
-      </button>
-    }
-
-    <!-- Uma linha por ângulo: coluna única, alvos altos, sem depender de precisão. -->
-    <ul class="mt-4 space-y-2">
-      @for (slot of slots(); track slot.angle) {
-        <li
-          class="rounded-xl border bg-white p-3 flex items-center gap-3"
-          [class.border-emerald-200]="slot.done"
-          [class.border-neutral-200]="!slot.done"
-        >
-          <span
-            class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-            [class.bg-emerald-100]="slot.done"
-            [class.text-emerald-700]="slot.done"
-            [class.bg-neutral-100]="!slot.done"
-            [class.text-neutral-500]="!slot.done"
-            >{{ slot.done ? '✓' : '—' }}</span
-          >
-
-          <span class="flex-1 min-w-0 text-sm text-neutral-800 break-words">{{ slot.label }}</span>
-
-          <!-- Refoto encerra com o envio: ver `canCapture` no componente. -->
-          @if (canCapture()) {
-            <button
-              type="button"
-              (click)="openCamera(slot.angle)"
-              [disabled]="uploading()"
-              class="shrink-0 min-h-11 px-3 py-2 rounded-lg text-xs font-semibold
-                     border border-neutral-200 text-neutral-700 hover:bg-neutral-50
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
-                     disabled:opacity-60"
-            >
-              {{ slot.done ? 'Refazer' : 'Fotografar' }}
-            </button>
-          }
-
-          <!-- Galeria some para o MOTORISTA: a foto dele tem de ser do momento. A razão
-               está no componente, em `canPickFromGallery`. -->
-          @if (canPickFromGallery()) {
-            <label
-              class="shrink-0 min-h-11 px-3 py-2 rounded-lg text-xs font-semibold
-                     border border-neutral-200 text-neutral-700 hover:bg-neutral-50
-                     cursor-pointer inline-flex items-center"
-            >
-              Galeria
-              <input
-                type="file"
-                accept="image/*"
-                class="sr-only"
-                [attr.aria-label]="'Escolher da galeria: ' + slot.label"
-                (change)="onFilePicked($event, slot.angle)"
-              />
-            </label>
-          }
-        </li>
-      }
-    </ul>
 
     @if (activeAngle()) {
       <app-live-camera-sheet
