@@ -542,4 +542,63 @@ describe('InspectionReview', () => {
       expect(dates(fixture).length).toBe(2);
     });
   });
+  /**
+   * PARIDADE COM O CARD DE FOTOS DO ALUGUEL
+   * (`pages/rentals/documents/rental-inspection-card`).
+   *
+   * A referencia e aquele card e NAO `vehicles-list`: esta tela julga FOTO POR
+   * FOTO, como a do aluguel. Padrao de lista serve a lista.
+   *
+   * Sem estas asercoes a convergencia e invisivel para a suite — e volta a
+   * divergir na proxima edicao de qualquer um dos dois lados, que foi
+   * exatamente como as duas telas acabaram diferentes.
+   */
+  describe('paridade com o card de fotos do aluguel', () => {
+    it('usa o MESMO involucro: app-page-card', () => {
+      configure();
+      const fixture = render();
+
+      expect(host(fixture).querySelector('app-page-card')).not.toBeNull();
+    });
+
+    it('a grade e 2 colunas no celular, 3 no sm, 4 no lg', () => {
+      configure();
+      const fixture = render();
+      const grid = host(fixture).querySelector('ul');
+
+      expect(grid?.className).toContain('grid-cols-2');
+      expect(grid?.className).toContain('sm:grid-cols-3');
+      expect(grid?.className).toContain('lg:grid-cols-4');
+    });
+
+    /**
+     * QUADRO QUADRADO, e a imagem preenchendo em absoluto — nao `h-40` no
+     * `<img>`. Altura fixa recorta diferente conforme a largura da coluna;
+     * `aspect-square` mantem o enquadramento igual em qualquer tela, e e isso
+     * que deixa comparar dois angulos sem um parecer esticado.
+     */
+    it('cada foto vive num quadro QUADRADO, preenchido em absoluto', () => {
+      configure();
+      const fixture = render();
+      const tiles = host(fixture).querySelectorAll('li .aspect-square');
+
+      expect(tiles.length).toBe(2);
+      for (const img of images(fixture)) {
+        expect(img.className).toContain('absolute');
+        expect(img.className).toContain('object-cover');
+        expect(img.className, 'altura fixa voltou e o enquadramento varia por coluna')
+          .not.toContain('h-40');
+      }
+    });
+
+    /** O lugar da foto que nao assinou tambem e quadrado: a grade nao deforma. */
+    it('a foto indisponivel ocupa o mesmo quadro quadrado', () => {
+      configure();
+      photos.mockReturnValue(of([PHOTOS[0], { ...PHOTOS[1], signedUrl: null }]));
+      const fixture = render();
+
+      expect(host(fixture).querySelectorAll('li .aspect-square').length).toBe(2);
+      expect(host(fixture).textContent).toContain('está salva');
+    });
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { PageCard } from '../../components/core/page-card/page-card';
 import { InspectionsService } from '../../services/inspections.service';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -78,7 +79,7 @@ interface PhotoView {
 @Component({
   selector: 'app-inspection-review',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner],
+  imports: [AlertBanner, PageCard],
   templateUrl: './inspection-review.html',
 })
 export class InspectionReview {
