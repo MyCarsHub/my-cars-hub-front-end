@@ -92,11 +92,20 @@ describe('InspectionsList', () => {
   }
 
   /** O botao de abrir/fechar DO CARTAO DE FILTROS, achado pelo titulo do cartao. */
+  /**
+   * O GATILHO EXATO, por `data-testid`.
+   *
+   * Procurar `button[aria-expanded]` dentro do cartao que contem a palavra
+   * "Filtros" parou de funcionar quando a tela virou UM cartao so: o primeiro
+   * botao com `aria-expanded` passou a ser "Fazer vistoria", entao o helper
+   * abria o seletor de carro e o painel de filtros continuava fechado — e o
+   * teste acusava o template em vez do proprio seletor. Mesmo hook que
+   * `vehicles-list` usa.
+   */
   function filtersToggle(fixture: ReturnType<typeof render>): HTMLButtonElement | null {
-    const card = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('app-page-card'),
-    ).find((c) => (c.textContent ?? '').includes('Filtros'));
-    return card?.querySelector<HTMLButtonElement>('button[aria-expanded]') ?? null;
+    return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="filters-toggle"]',
+    );
   }
 
   /**
@@ -553,20 +562,33 @@ describe('InspectionsList', () => {
    * Afirma DESTINO (`href`), nao texto de botao: rotulo muda por decisao de copy, destino e
    * contrato de rota. Ja perdi um pino por procurar o texto.
    */
+  /**
+   * AS DUAS PORTAS DESTA TELA, agora como ACOES e nao como links.
+   *
+   * O que mudou e por que o teste mudou com isso:
+   *  - AGENDAR deixou de apontar para `/veiculos`. O agendamento nao mora mais
+   *    na tela do veiculo — o card de la foi removido, e a regra se cria aqui,
+   *    com alvo frota OU um carro. Mandar a pessoa para Veiculos agora seria
+   *    mandar para um lugar onde a funcionalidade nao esta mais.
+   *  - FAZER deixou de ser `<a href="/vistorias/nova">`. A captura exige
+   *    `?vehicleId=`; um link cru chega la e so sabe dizer que falta um carro.
+   *    O botao pergunta o carro ANTES de navegar.
+   *
+   * O invariante e o mesmo de antes: desta tela se alcanca o ciclo manual E se
+   * descobre que a vistoria periodica existe. So o mecanismo deixou de ser href.
+   */
   it('a tela oferece FAZER vistoria e um caminho para o AGENDAMENTO', () => {
     const fixture = render();
-    const hrefs = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('a'),
-    ).map((a) => a.getAttribute('href'));
+    const host = fixture.nativeElement as HTMLElement;
 
-    expect(hrefs, 'sem este link o ciclo manual fica inalcancavel desta tela').toContain(
-      '/vistorias/nova',
-    );
-    // O agendamento e POR VEICULO (as rotas do backend sao /v1/vehicles/{id}/...), entao o
-    // caminho honesto e a frota — nao uma tela de agendamento que nao existe.
-    expect(hrefs, 'quem abre Vistorias nao descobre que a vistoria periodica existe').toContain(
-      '/veiculos',
-    );
+    expect(
+      host.querySelector('[data-start-inspection]'),
+      'sem isto o ciclo manual fica inalcancavel desta tela',
+    ).not.toBeNull();
+    expect(
+      host.querySelector('[data-schedule-inspection]'),
+      'quem abre Vistorias nao descobre que a vistoria periodica existe',
+    ).not.toBeNull();
   });
   // ------------------------------------------- LISTA ANTES, FILTRO DEPOIS
   /**
@@ -575,27 +597,55 @@ describe('InspectionsList', () => {
    * controles. O conteudo passou a vir primeiro, e o filtro fica fechado onde se procura
    * quando a lista ja e grande demais.
    */
-  it('a lista vem ANTES dos filtros na ordem do documento', () => {
+  /**
+   * A TELA VIROU UM CARD SO, no padrao de `vehicles-list`: nao ha mais um card
+   * "Vistorias" e um card "Filtros" em sequencia.
+   *
+   * ATENCAO ao que isto troca, porque troca de verdade: no DESKTOP a grade de
+   * filtros fica ACIMA da lista, como em Veiculos. O que preserva a decisao
+   * anterior ("lista primeiro") e o recolhimento mobile-only: no celular — onde
+   * a reclamacao nasceu, com o filtro comendo a primeira tela — os controles
+   * comecam fechados e a lista e a primeira coisa visivel.
+   *
+   * Se o dono preferir a grade abaixo da lista tambem no desktop, e mover um
+   * bloco; o teste que fixa isso e este, e nao a lembranca de ninguem.
+   */
+  it('e UM card, com os filtros recolhidos no celular acima da lista', () => {
     const fixture = render({ openFilters: false });
-    const titulos = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('app-page-card'),
-    ).map((c) => (c.querySelector('h2, h3')?.textContent ?? '').trim());
+    const host = fixture.nativeElement as HTMLElement;
 
-    const iLista = titulos.findIndex((t) => t.includes('Vistorias'));
-    const iFiltros = titulos.findIndex((t) => t.includes('Filtros'));
-    expect(iLista).toBeGreaterThanOrEqual(0);
-    expect(iFiltros).toBeGreaterThanOrEqual(0);
-    expect(iLista).toBeLessThan(iFiltros);
+    expect(host.querySelectorAll('app-page-card').length).toBe(1);
+
+    const markup = host.innerHTML;
+    expect(markup.indexOf('insp-filtros')).toBeGreaterThan(-1);
+    // O gatilho de recolher existe e e so do celular.
+    const toggle = host.querySelector('[data-testid="filters-toggle"]');
+    expect(toggle).not.toBeNull();
+    expect(toggle?.closest('.sm\\:hidden')).not.toBeNull();
   });
 
-  it('os filtros nascem FECHADOS, e os controles so existem depois de abrir', () => {
+  /**
+   * FECHADOS ao nascer, no celular.
+   *
+   * O mecanismo mudou e vale dizer qual: antes os controles eram REMOVIDOS do
+   * DOM; agora o painel e escondido por classe (`hidden`), que e o padrao do
+   * FIX-0284 em `vehicles-list`. `display:none` tambem sai da arvore de
+   * acessibilidade e do foco, entao a garantia para quem usa a tela e a mesma —
+   * mas o `querySelector` passa a encontrar o elemento, e e por isso que este
+   * teste mede a CLASSE e nao a ausencia.
+   */
+  it('os filtros nascem recolhidos, e abrem quando a pessoa pede', () => {
     const fechado = render({ openFilters: false });
+    const painelFechado = (fechado.nativeElement as HTMLElement).querySelector('#insp-filtros');
+    expect(painelFechado, 'o painel de filtros desapareceu do template').not.toBeNull();
     expect(
-      (fechado.nativeElement as HTMLElement).querySelector('select'),
-      'os controles de filtro estao na tela antes de alguem pedir',
-    ).toBeNull();
+      painelFechado?.classList.contains('hidden'),
+      'os controles de filtro aparecem antes de alguem pedir',
+    ).toBe(true);
 
     const aberto = render();
+    const painelAberto = (aberto.nativeElement as HTMLElement).querySelector('#insp-filtros');
+    expect(painelAberto?.classList.contains('hidden')).toBe(false);
     expect((aberto.nativeElement as HTMLElement).querySelector('select')).not.toBeNull();
   });
   /**

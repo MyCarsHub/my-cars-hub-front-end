@@ -171,30 +171,13 @@
     </div>
 
     <!--
-      VISTORIA PERIODICA + FAZER VISTORIA.
-      Aqui, na tela do veiculo, porque as tres rotas do agendamento sao
-      `/v1/vehicles/{vehicleId}/inspection-schedule`: este e o unico lugar que JA tem o id
-      que a chamada exige, e e onde a pessoa esta quando pensa "este carro precisa de
-      vistoria periodica".
+      VISTORIA SAIU DAQUI, e nao por descuido.
+      O agendamento periodico mora agora na tela de Vistorias, num formulario UNICO
+      com seletor de alvo (toda a frota ou um carro) — antes eram dois formularios
+      identicos campo a campo, um aqui e um la, e agendar carro a carro numa frota de
+      dez eram dez visitas a dez telas. Nao recoloque um cartao de agendamento aqui:
+      a terceira copia e o defeito, nao a conveniencia.
     -->
-    <div class="mb-4 sm:mb-6 space-y-4">
-      <app-inspection-schedule-card [vehicleId]="v.id" />
-
-      <!--
-        O ciclo MANUAL, desbloqueado: `vistorias/nova` aceita `?vehicleId=`, entao o carro
-        ja vai escolhido e a pessoa nao precisa procura-lo numa lista.
-      -->
-      <a
-        [routerLink]="['/vistorias', 'nova']"
-        [queryParams]="{ vehicleId: v.id }"
-        class="w-full min-h-12 inline-flex items-center justify-center rounded-xl border
-               border-neutral-200 bg-white text-sm font-semibold text-neutral-700 px-5 py-3
-               hover:bg-neutral-50 transition-colors focus:outline-none focus-visible:ring-2
-               focus-visible:ring-primary-600 focus-visible:ring-offset-2"
-      >
-        Fazer vistoria agora
-      </a>
-    </div>
 
     <!-- Gerência do veículo CTA -->
     <a

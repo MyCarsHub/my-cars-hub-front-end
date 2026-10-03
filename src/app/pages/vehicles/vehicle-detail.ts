@@ -16,7 +16,6 @@ import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dial
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { VehicleDocumentsCard } from './vehicle-documents-card';
-import { InspectionScheduleCard } from './inspection-schedule-card/inspection-schedule-card';
 import {
   SellVehicleDialog,
   SellVehicleFormValue,
@@ -52,7 +51,6 @@ const IPVA_STATUS_LABEL: Record<IpvaStatus, { label: string; chip: string }> = {
     DetailActions,
     AlertBanner,
     VehicleDocumentsCard,
-    InspectionScheduleCard,
     SellVehicleDialog,
   ],
   templateUrl: './vehicle-detail.html',
