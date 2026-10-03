@@ -1,60 +1,232 @@
 <app-default-page-layout
   title="Vistorias"
-  description="Todas as vistorias da frota, por veículo, locação e período."
+  description="Todas as vistorias da frota, por veiculo e periodo."
 >
   <!--
-    AGENDAMENTO NO TOPO, antes da porta e antes da lista.
-
-    A acao primaria desta tela e "Agendar para toda a frota" — e a frase que o dono quer
-    dizer ao cliente, e agendar carro a carro eram dez visitas a dez telas numa frota de
-    dez. O cartao dentro do veiculo continua existindo e e o lugar certo para "este carro
-    em particular"; aqui e o escopo da empresa.
-
-    `vehicleOptions` ja e carregado por esta tela para o filtro: a lista de agendamentos
-    devolve so o `vehicleId`, e e daqui que a linha de carro tira placa e modelo.
+    A ESTRUTURA E A DE `vehicles-list`, e de proposito: mesma casa, mesma
+    moldura. `DefaultPageLayout` + `PageCard title`, acao primaria em
+    `cardActions`, filtros em grade abaixo com o recolhimento mobile-only do
+    FIX-0284. Esta tela nao inventa estetica — ela para de ser a excecao.
   -->
-  <app-inspection-schedules-block
-    [vehicleOptions]="vehicleOptions()"
-    class="block mb-4 sm:mb-6"
-  />
+  <app-page-card title="Lista">
+    <!--
+      DUAS acoes, e a segunda existe por necessidade e nao por simetria:
+      AGENDAR cria a regra periodica (o pedido do dono: "quero o agendamento").
+      FAZER abre a captura agora. Ela era alcancavel pelo card de Detalhes do
+      Veiculo, que saiu — sem ela aqui, a captura ficaria sem nenhuma porta.
+    -->
+    <div cardActions class="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        data-schedule-inspection
+        (click)="openSchedule()"
+        class="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white
+               text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Agendar vistoria
+      </button>
 
-  <!--
-    A PORTA.
-    O ciclo manual inteiro — fazer, enviar, aprovar — ja funciona em producao, e nada
-    nesta tela levava a ele: nenhum arquivo de template apontava para `/vistorias/nova`.
-    A funcionalidade existia e ninguem CHEGAVA nela.
+      <button
+        type="button"
+        data-start-inspection
+        [attr.aria-expanded]="startOpen()"
+        (click)="toggleStart()"
+        class="inline-flex items-center gap-2 border border-neutral-200 bg-white text-neutral-700
+               hover:bg-neutral-50 text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+      >
+        {{ startOpen() ? 'Cancelar' : 'Fazer vistoria' }}
+      </button>
+    </div>
 
-    E o segundo link e o mesmo defeito um nivel acima: a vistoria periodica so era
-    alcancavel de DENTRO de um veiculo, entao quem abre Vistorias nao descobria que ela
-    existe. Ele aponta para a frota, porque o agendamento e POR VEICULO — as tres rotas do
-    backend sao `/v1/vehicles/{vehicleId}/inspection-schedule`, e e o veiculo que carrega
-    o id. A copy diz isso em vez de prometer uma tela que nao existe.
-
-    MOBILE-FIRST: empilhado e de largura total no celular, lado a lado a partir de `sm`,
-    alvos de 48px.
-  -->
-  <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4 sm:mb-6">
-    <a
-      [routerLink]="['/vistorias', 'nova']"
-      class="w-full sm:w-auto min-h-12 inline-flex items-center justify-center rounded-xl
-             bg-primary-500 text-white text-sm font-semibold px-5 py-3 shadow-sm
-             hover:bg-primary-600 transition-colors focus:outline-none
-             focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
-    >
-      Fazer vistoria
-    </a>
-    <a
-      routerLink="/veiculos"
-      class="w-full sm:w-auto min-h-12 inline-flex items-center justify-center rounded-xl
-             border border-neutral-200 bg-white text-sm font-semibold text-neutral-700
-             px-5 py-3 hover:bg-neutral-50 transition-colors focus:outline-none
-             focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
-    >
-      Agendar vistoria periódica
-    </a>
-  </div>
-  <app-page-card title="Vistorias">
     <div class="p-3 sm:p-4 space-y-4">
+      <!--
+        A PORTA ATE A CAPTURA. A captura exige `?vehicleId=`: sem ele ela so sabe
+        dizer que falta um carro. Perguntar aqui e o que evita mandar a pessoa
+        para uma tela que ja nasce em erro.
+      -->
+      @if (startOpen()) {
+        <div class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
+          <label for="start-vehicle" class="block text-sm font-semibold text-neutral-900">
+            Qual carro voce vai vistoriar agora?
+          </label>
+          <select
+            id="start-vehicle"
+            data-start-vehicle
+            class="w-full min-h-12 rounded-xl border border-neutral-300 px-3 text-sm text-neutral-900
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+            [value]="startVehicleId()"
+            (change)="onStartVehicleChange($any($event.target).value)"
+          >
+            <option value="">Escolha o carro</option>
+            @for (v of vehicleOptions(); track v.id) {
+              <option [value]="v.id">{{ v.label }}</option>
+            }
+          </select>
+
+          @if (startError(); as message) {
+            <app-alert-banner variant="error" [message]="message" />
+          }
+
+          <button
+            type="button"
+            data-start-confirm
+            (click)="startInspection()"
+            class="w-full min-h-14 inline-flex items-center justify-center rounded-xl
+                   bg-neutral-900 px-6 text-base font-semibold text-white hover:bg-primary-600
+                   transition-colors focus:outline-none focus-visible:ring-2
+                   focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Comecar vistoria
+          </button>
+        </div>
+      }
+
+      <!--
+        FILTROS: grade no desktop, recolhidos no celular com CONTADOR.
+        Padrao do FIX-0284 em `vehicles-list`: recolher sem pista faria um filtro
+        esquecido explicar uma lista curta sem nada na tela que o diga.
+      -->
+      <div class="sm:hidden flex items-center gap-2">
+        <button
+          type="button"
+          data-testid="filters-toggle"
+          (click)="toggleFilters()"
+          [attr.aria-expanded]="filtersOpen()"
+          aria-controls="insp-filtros"
+          [attr.aria-label]="filtersButtonLabel()"
+          class="flex-1 min-h-[44px] flex items-center justify-between gap-2 px-3 py-2.5
+                 text-sm font-medium text-neutral-700 border border-neutral-200 rounded-xl
+                 hover:bg-neutral-50 transition-colors
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        >
+          <span class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            <span>
+              Filtros@if (activeFiltersCount() > 0) {<span data-testid="filters-count"> &middot; {{ activeFiltersCount() }}</span>}
+            </span>
+          </span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"
+            [style.transform]="filtersOpen() ? 'rotate(180deg)' : 'rotate(0deg)'"
+            style="transition: transform .2s ease">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        @if (!filtersOpen() && activeFiltersCount() > 0) {
+          <button
+            type="button"
+            data-testid="filters-clear-shortcut"
+            (click)="clearFilters()"
+            class="shrink-0 min-h-[44px] px-3 py-2.5 rounded-xl text-sm font-medium
+                   text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          >
+            Limpar filtros
+          </button>
+        }
+      </div>
+
+      <div id="insp-filtros" class="space-y-3 sm:block" [class.hidden]="!filtersOpen()">
+      <!--
+        Os três filtros do pedido do dono, COMBINÁVEIS: veículo E locação E
+        período. Cada um recarrega a lista e volta para a página 0 — manter a
+        página ao trocar o filtro mostraria "página 3 de 1".
+      -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!--
+          `min-w-0` NÃO é decoração: item de grade nasce com `min-width:auto` e
+          se recusa a encolher abaixo do conteúdo. Uma placa longa dentro do
+          select empurraria a grade e a página inteira rolaria para o lado no
+          celular — foi exatamente assim que o dashboard quebrou.
+        -->
+        <div class="min-w-0 space-y-1">
+          <label for="insp-vehicle" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+            Veículo
+          </label>
+          <select
+            id="insp-vehicle"
+            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
+                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            [value]="vehicleId()"
+            (change)="onVehicleChange($any($event.target).value)"
+          >
+            <option value="">Todos os veículos</option>
+            @for (v of vehicleOptions(); track v.id) {
+              <option [value]="v.id">{{ v.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="min-w-0 space-y-1">
+          <label for="insp-rental" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+            Locação
+          </label>
+          <input
+            id="insp-rental"
+            type="search"
+            placeholder="Código ou id da locação"
+            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
+                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+            [value]="rentalId()"
+            (change)="onRentalChange($any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <p id="insp-kind-label" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+          Tipo
+        </p>
+        <app-filter-chip-group
+          [options]="kindChips"
+          [value]="kind()"
+          ariaLabelledby="insp-kind-label"
+          (selectionChange)="onKindChange($event)"
+        />
+      </div>
+
+      <!--
+        A FILA DO DONO. Sem este filtro a aprovação existiria e ninguém a
+        encontraria: "Aguardando aprovação" é o único estado que pede ação de
+        alguém, e é por aqui que ele chega nele.
+      -->
+      <div class="space-y-2">
+        <p
+          id="insp-status-label"
+          class="text-xs font-medium text-neutral-500 uppercase tracking-wide"
+        >
+          Situação
+        </p>
+        <app-filter-chip-group
+          [options]="statusChips"
+          [value]="status()"
+          ariaLabelledby="insp-status-label"
+          (selectionChange)="onStatusChange($event)"
+        />
+      </div>
+
+      <!--
+        Seletor de período REAPROVEITADO do dashboard (movido para
+        `components/` neste diff). Um segundo seletor de intervalo seria uma
+        segunda régua de datas para manter em sincronia.
+      -->
+      <div class="space-y-2">
+        <p class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Período</p>
+        <app-date-range-picker [initialPreset]="null" (rangeChange)="onRangeChange($event)" />
+      </div>
+
       @if (error(); as loadError) {
         <app-alert-banner variant="error" [message]="loadError" />
       }
@@ -227,114 +399,22 @@
         </div>
       }
     </div>
+    </div>
   </app-page-card>
 
   <!--
-    LISTA PRIMEIRO, FILTROS DEPOIS E FECHADOS.
+    AGENDAMENTO NO TOPO, antes da porta e antes da lista.
 
-    Filtro em cima de tabela vazia e a pior coisa que esta tela podia exibir: quem abre
-    quer VER as vistorias, e a tela respondia com um painel de controles. Agora o
-    conteudo vem primeiro e o filtro fica onde se procura quando a lista ja e grande
-    demais.
+    A acao primaria desta tela e "Agendar para toda a frota" — e a frase que o dono quer
+    dizer ao cliente, e agendar carro a carro eram dez visitas a dez telas numa frota de
+    dez. O cartao dentro do veiculo continua existindo e e o lugar certo para "este carro
+    em particular"; aqui e o escopo da empresa.
 
-    `storageKey` guarda aberto/fechado na sessao: quem filtra muito nao precisa reabrir
-    o painel a cada visita, e quem nunca filtra nunca ve.
+    `vehicleOptions` ja e carregado por esta tela para o filtro: a lista de agendamentos
+    devolve so o `vehicleId`, e e daqui que a linha de carro tira placa e modelo.
   -->
-  <app-page-card
-    title="Filtros"
-    class="mt-4 sm:mt-6"
-    [collapsible]="true"
-    [defaultOpen]="false"
-    storageKey="inspections-filters-open"
-  >
-    <div class="p-3 sm:p-4 space-y-4">
-      <!--
-        Os três filtros do pedido do dono, COMBINÁVEIS: veículo E locação E
-        período. Cada um recarrega a lista e volta para a página 0 — manter a
-        página ao trocar o filtro mostraria "página 3 de 1".
-      -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <!--
-          `min-w-0` NÃO é decoração: item de grade nasce com `min-width:auto` e
-          se recusa a encolher abaixo do conteúdo. Uma placa longa dentro do
-          select empurraria a grade e a página inteira rolaria para o lado no
-          celular — foi exatamente assim que o dashboard quebrou.
-        -->
-        <div class="min-w-0 space-y-1">
-          <label for="insp-vehicle" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-            Veículo
-          </label>
-          <select
-            id="insp-vehicle"
-            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
-                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
-            [value]="vehicleId()"
-            (change)="onVehicleChange($any($event.target).value)"
-          >
-            <option value="">Todos os veículos</option>
-            @for (v of vehicleOptions(); track v.id) {
-              <option [value]="v.id">{{ v.label }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="min-w-0 space-y-1">
-          <label for="insp-rental" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-            Locação
-          </label>
-          <input
-            id="insp-rental"
-            type="search"
-            placeholder="Código ou id da locação"
-            class="w-full min-w-0 min-h-[44px] bg-white border border-neutral-200 rounded-xl px-3 text-sm
-                   text-neutral-800 focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
-            [value]="rentalId()"
-            (change)="onRentalChange($any($event.target).value)"
-          />
-        </div>
-      </div>
-
-      <div class="space-y-2">
-        <p id="insp-kind-label" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-          Tipo
-        </p>
-        <app-filter-chip-group
-          [options]="kindChips"
-          [value]="kind()"
-          ariaLabelledby="insp-kind-label"
-          (selectionChange)="onKindChange($event)"
-        />
-      </div>
-
-      <!--
-        A FILA DO DONO. Sem este filtro a aprovação existiria e ninguém a
-        encontraria: "Aguardando aprovação" é o único estado que pede ação de
-        alguém, e é por aqui que ele chega nele.
-      -->
-      <div class="space-y-2">
-        <p
-          id="insp-status-label"
-          class="text-xs font-medium text-neutral-500 uppercase tracking-wide"
-        >
-          Situação
-        </p>
-        <app-filter-chip-group
-          [options]="statusChips"
-          [value]="status()"
-          ariaLabelledby="insp-status-label"
-          (selectionChange)="onStatusChange($event)"
-        />
-      </div>
-
-      <!--
-        Seletor de período REAPROVEITADO do dashboard (movido para
-        `components/` neste diff). Um segundo seletor de intervalo seria uma
-        segunda régua de datas para manter em sincronia.
-      -->
-      <div class="space-y-2">
-        <p class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Período</p>
-        <app-date-range-picker [initialPreset]="null" (rangeChange)="onRangeChange($event)" />
-      </div>
-    </div>
-  </app-page-card>
+  <app-inspection-schedules-block
+    [vehicleOptions]="vehicleOptions()"
+    class="block mt-4 sm:mt-6"
+  />
 </app-default-page-layout>

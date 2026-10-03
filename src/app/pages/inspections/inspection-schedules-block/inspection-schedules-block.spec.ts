@@ -47,6 +47,7 @@ describe('InspectionSchedulesBlock — agendamento da empresa', () => {
 
   let list: ReturnType<typeof vi.fn>;
   let createForFleet: ReturnType<typeof vi.fn>;
+  let create: ReturnType<typeof vi.fn>;
   let deactivate: ReturnType<typeof vi.fn>;
   let success: ReturnType<typeof vi.fn>;
 
@@ -60,6 +61,7 @@ describe('InspectionSchedulesBlock — agendamento da empresa', () => {
     TestBed.resetTestingModule();
     list = vi.fn(listImpl);
     createForFleet = vi.fn(() => of(fleet));
+    create = vi.fn(() => of(fleet));
     deactivate = vi.fn(() => of(undefined));
     success = vi.fn();
 
@@ -70,7 +72,7 @@ describe('InspectionSchedulesBlock — agendamento da empresa', () => {
         ApiErrorService,
         {
           provide: InspectionScheduleService,
-          useValue: { listForCompany: list, createForFleet, deactivate },
+          useValue: { listForCompany: list, createForFleet, create, deactivate },
         },
         {
           provide: NotificationService,
@@ -294,5 +296,109 @@ describe('InspectionSchedulesBlock — agendamento da empresa', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'dono e os gerenciadores podem agendar',
     );
+  });
+  /**
+   * A CAPACIDADE QUE TROCOU DE CASA, e que nao pode se perder na mudanca.
+   *
+   * Agendar UM carro so existia dentro de Detalhes do Veiculo
+   * (`pages/vehicles/inspection-schedule-card`), num formulario identico campo a
+   * campo a este. Aquele card foi removido: o agendamento nao mora mais na tela
+   * do veiculo. Se este bloco nao soubesse agendar um carro especifico, a
+   * remocao teria APAGADO a capacidade em vez de mudar o lugar dela.
+   *
+   * Por isso os dois caminhos sao testados aqui: frota e carro escolhido, cada
+   * um no seu endpoint.
+   */
+  describe('alvo da regra: frota ou um carro', () => {
+    function openWith(fixture: ReturnType<typeof render>, target: 'FLEET' | 'VEHICLE') {
+      const host = fixture.nativeElement as HTMLElement;
+      button(fixture, 'Agendar para toda a frota')?.click();
+      fixture.detectChanges();
+      const sel = target === 'VEHICLE' ? '[data-target-vehicle]' : '[data-target-fleet]';
+      const radio = host.querySelector<HTMLInputElement>(sel);
+      radio?.click();
+      fixture.detectChanges();
+      return host;
+    }
+
+    it('FROTA e o padrao — e a frase que o dono quer dizer', () => {
+      const fixture = render();
+      const host = fixture.nativeElement as HTMLElement;
+      button(fixture, 'Agendar para toda a frota')?.click();
+      fixture.detectChanges();
+
+      expect(host.querySelector<HTMLInputElement>('[data-target-fleet]')?.checked).toBe(true);
+      // Sem alvo de veiculo escolhido, o seletor de carro nem aparece.
+      expect(host.querySelector('[data-schedule-vehicle]')).toBeNull();
+    });
+
+    it('escolher UM CARRO revela o seletor de veiculo', () => {
+      const fixture = render();
+      const host = openWith(fixture, 'VEHICLE');
+
+      expect(host.querySelector('[data-schedule-vehicle]')).not.toBeNull();
+    });
+
+    /** O caminho novo: mesmo payload, endpoint do VEICULO. */
+    it('salva no endpoint do VEICULO quando o alvo e um carro', () => {
+      const fixture = render();
+      const host = openWith(fixture, 'VEHICLE');
+      const cmp = fixture.componentInstance as unknown as {
+        scheduleForm: { patchValue(v: Record<string, unknown>): void };
+        save(): void;
+      };
+      cmp.scheduleForm.patchValue({
+        vehicleId: 'veh-1',
+        frequency: 'MONTHLY',
+        startDate: '2026-11-01',
+      });
+      fixture.detectChanges();
+      cmp.save();
+      fixture.detectChanges();
+
+      expect(create).toHaveBeenCalledWith('veh-1', {
+        frequency: 'MONTHLY',
+        startDate: '2026-11-01',
+      });
+      expect(createForFleet).not.toHaveBeenCalled();
+      expect(host).toBeDefined();
+    });
+
+    /**
+     * O erro que seria silencioso e caro: alvo VEICULO sem carro escolhido NAO
+     * pode cair no endpoint da frota. Seriam TODOS os carros agendados quando se
+     * pediu um — e o usuario nao veria diferenca na hora.
+     */
+    it('alvo VEICULO sem carro escolhido NAO vira regra de frota', () => {
+      const fixture = render();
+      openWith(fixture, 'VEHICLE');
+      const cmp = fixture.componentInstance as unknown as {
+        scheduleForm: { patchValue(v: Record<string, unknown>): void };
+        save(): void;
+      };
+      cmp.scheduleForm.patchValue({ frequency: 'MONTHLY', startDate: '2026-11-01' });
+      fixture.detectChanges();
+      cmp.save();
+      fixture.detectChanges();
+
+      expect(createForFleet).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('a frota continua usando o endpoint da frota', () => {
+      const fixture = render();
+      openWith(fixture, 'FLEET');
+      const cmp = fixture.componentInstance as unknown as {
+        scheduleForm: { patchValue(v: Record<string, unknown>): void };
+        save(): void;
+      };
+      cmp.scheduleForm.patchValue({ frequency: 'MONTHLY', startDate: '2026-11-01' });
+      fixture.detectChanges();
+      cmp.save();
+      fixture.detectChanges();
+
+      expect(createForFleet).toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+    });
   });
 });

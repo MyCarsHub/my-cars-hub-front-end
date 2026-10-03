@@ -9,6 +9,7 @@ import {
   input,
   signal,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
@@ -130,7 +131,26 @@ export class InspectionSchedulesBlock implements OnInit {
     return [...fleet, ...vehicles];
   });
 
+  /**
+   * O ALVO da regra. Antes havia DOIS formularios identicos campo a campo — um
+   * para a frota (aqui) e um para um veiculo (`pages/vehicles/
+   * inspection-schedule-card`, removido). Mesmas tres perguntas, mesmos
+   * validators, mesmas mensagens, em dois arquivos.
+   *
+   * Agora e UM formulario com um alvo. O alvo decide o endpoint: frota chama
+   * `createForFleet`, veiculo chama `create(vehicleId)`. Mover o formulario de
+   * casa sem unificar teria criado uma TERCEIRA copia.
+   */
   protected readonly scheduleForm = this.fb.group({
+    target: this.fb.nonNullable.control<'FLEET' | 'VEHICLE'>('FLEET', {
+      validators: [Validators.required],
+    }),
+    /**
+     * Obrigatorio SO quando o alvo e um veiculo. Validacao condicional em vez de
+     * sempre-obrigatorio: exigir veiculo para uma regra de frota recusaria o
+     * caminho mais comum da tela.
+     */
+    vehicleId: this.fb.nonNullable.control(''),
     frequency: this.fb.nonNullable.control<InspectionFrequency>('MONTHLY', {
       validators: [Validators.required],
     }),
@@ -170,8 +190,15 @@ export class InspectionSchedulesBlock implements OnInit {
     });
   }
 
-  protected openForm(): void {
-    this.scheduleForm.reset({ frequency: 'MONTHLY', startDate: '', reminderIntervalDays: null });
+  /** `FLEET` por padrao: e a frase que o dono quer dizer ao cliente. */
+  openForm(target: 'FLEET' | 'VEHICLE' = 'FLEET'): void {
+    this.scheduleForm.reset({
+      target,
+      vehicleId: '',
+      frequency: 'MONTHLY',
+      startDate: '',
+      reminderIntervalDays: null,
+    });
     this.error.set(null);
     this.formOpen.set(true);
   }
@@ -180,22 +207,54 @@ export class InspectionSchedulesBlock implements OnInit {
     this.formOpen.set(false);
   }
 
-  protected saveFleet(): void {
+  /**
+   * NAO use `computed(() => form.controls.target.value)`: um `computed` sem
+   * dependencia REATIVA le o valor uma vez e cacheia — o template nunca
+   * reagiria ao radio, e a aparencia de reatividade e pior que a linha honesta.
+   * Um `FormControl` nao e signal; `valueChanges` e o que de fato emite.
+   */
+  private readonly target = toSignal(this.scheduleForm.controls.target.valueChanges, {
+    initialValue: this.scheduleForm.controls.target.value,
+  });
+
+  protected readonly targetIsVehicle = computed(() => this.target() === 'VEHICLE');
+
+  /**
+   * SALVA a regra, no alvo escolhido.
+   *
+   * O payload das tres perguntas e IDENTICO nos dois caminhos — o backend expoe
+   * dois endpoints porque o escopo difere, nao porque o corpo difere. Por isso o
+   * corpo e montado uma vez e so a chamada ramifica.
+   */
+  protected save(): void {
     if (this.saving()) return;
+
+    const raw = this.scheduleForm.getRawValue();
+    const vehicleTarget = raw.target === 'VEHICLE';
+
+    // Veiculo vazio com alvo VEHICLE nao pode virar regra de frota por omissao:
+    // seriam todos os carros agendados quando se pediu um.
+    if (vehicleTarget && !raw.vehicleId) {
+      this.scheduleForm.controls.vehicleId.setErrors({ required: true });
+      this.scheduleForm.markAllAsTouched();
+      return;
+    }
     if (this.scheduleForm.invalid) {
       this.scheduleForm.markAllAsTouched();
       return;
     }
 
-    const raw = this.scheduleForm.getRawValue();
+    const payload = {
+      frequency: raw.frequency,
+      startDate: raw.startDate,
+      ...(raw.reminderIntervalDays ? { reminderIntervalDays: raw.reminderIntervalDays } : {}),
+    };
+
     this.saving.set(true);
     this.error.set(null);
-    this.schedules
-      .createForFleet({
-        frequency: raw.frequency,
-        startDate: raw.startDate,
-        ...(raw.reminderIntervalDays ? { reminderIntervalDays: raw.reminderIntervalDays } : {}),
-      })
+    (vehicleTarget
+      ? this.schedules.create(raw.vehicleId, payload)
+      : this.schedules.createForFleet(payload))
       .subscribe({
         next: () => {
           this.saving.set(false);
