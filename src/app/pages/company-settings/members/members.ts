@@ -53,6 +53,8 @@ interface PersonRow {
   dateLabel: string;
   date: string;
   canRemove: boolean;
+  /** Sou EU nesta linha? Muda o verbo: sair da empresa, nao remover alguem. */
+  isSelf: boolean;
   canResend: boolean;
   canCancel: boolean;
   /** Por que nao ha acao, quando nao ha — a ausencia e explicada, nao silenciosa. */
@@ -228,8 +230,17 @@ export class CompanyMembers implements OnInit {
   });
 
   protected readonly rows = computed<PersonRow[]>(() => {
-    const myId = this.session.getItem('id');
-    const memberRows = this.members.members().map((m) => this.toMemberRow(m, myId));
+    const myId = this.session.getUserId();
+    /*
+     * A CONTAGEM DE DONOS SAI DA PROPRIA LISTA, e isso e correto e nao atalho:
+     * `GET /companies/{id}/members` devolve SO vinculo ACTIVE, que e exatamente
+     * o universo que o backend conta em `countActiveOwners`. Uma segunda
+     * chamada para contar seria uma segunda verdade para o mesmo fato.
+     */
+    const activeOwners = this.members.members().filter((m) => m.role === 'OWNER').length;
+    const memberRows = this.members
+      .members()
+      .map((m) => this.toMemberRow(m, myId, activeOwners));
     memberRows.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
 
     /*
@@ -453,9 +464,35 @@ export class CompanyMembers implements OnInit {
     });
   }
 
-  private toMemberRow(member: CompanyMemberResponse, myId: string | null): PersonRow {
+  /**
+   * AS TRES TRAVAS DO BACKEND, DECIDIDAS AQUI — e nao esperando o erro.
+   *
+   * Lidas em `CompanyMemberService.removeMember` (origin/main):
+   *
+   *  1 e 2. alvo e OWNER e NAO sou eu  -> 403. As duas primeiras travas sao o
+   *         MESMO ramo no backend: o papel do ALVO decide, nao o do ator. Entao
+   *         vale tanto para o MANAGER quanto para outro OWNER.
+   *  3.     alvo e OWNER e SOU eu      -> permitido se houver OUTRO dono ACTIVE;
+   *         409 so quando sou o ULTIMO.
+   *
+   * O que o backend PERMITE e a tela antes nao oferecia: um dono SAIR quando
+   * existe outro dono, e um gerente remover o proprio acesso. `canRemove` era
+   * `!isSelf && !isOwner`, mais restritivo que a regra real — e isso tornava a
+   * trava 3 INALCANCAVEL: o ramo do 409 em `removeMessage` era codigo morto.
+   *
+   * Decidir aqui, por papel + contagem, e o ponto do no: reagir ao 403/409
+   * deixaria a trava 3 furada mesmo com a suite verde, porque nada no front
+   * afirmaria a regra — a tela so repetiria o que o servidor respondesse.
+   */
+  private toMemberRow(
+    member: CompanyMemberResponse,
+    myId: string | null,
+    activeOwners: number,
+  ): PersonRow {
     const isSelf = myId !== null && myId === member.userId;
     const isOwner = member.role === 'OWNER';
+    const isLastOwner = isOwner && isSelf && activeOwners <= 1;
+    const canRemove = isSelf ? !isLastOwner : !isOwner;
     return {
       kind: 'member',
       id: member.userId,
@@ -466,11 +503,12 @@ export class CompanyMembers implements OnInit {
       stateClass: STATE_ACTIVE,
       dateLabel: 'Com acesso desde',
       date: member.memberSince,
-      canRemove: !isSelf && !isOwner,
+      canRemove,
+      isSelf,
       canResend: false,
       canCancel: false,
-      lockedReason: this.lockedReason(isSelf, isOwner),
-      removeLabel: 'Remover acesso de ' + member.name,
+      lockedReason: this.lockedReason(isSelf, isOwner, isLastOwner),
+      removeLabel: isSelf ? 'Sair desta empresa' : 'Remover acesso de ' + member.name,
     };
   }
 
@@ -488,6 +526,7 @@ export class CompanyMembers implements OnInit {
       dateLabel: expired ? 'Expirou em' : 'Expira em',
       date: invite.expiresAt,
       canRemove: false,
+      isSelf: false,
       // Medido no backend: reenvio aceita PENDING e EXPIRED; cancelamento recusa so ACEITO.
       canResend: true,
       canCancel: true,
@@ -496,12 +535,38 @@ export class CompanyMembers implements OnInit {
     };
   }
 
-  private lockedReason(isSelf: boolean, isOwner: boolean): string {
-    if (isSelf && isOwner) {
-      return 'Você é o dono desta empresa e não pode remover o seu próprio acesso.';
+  /**
+   * O MOTIVO que acompanha o botao desabilitado.
+   *
+   * Botao ausente e botao desabilitado nao sao a mesma escolha, e aqui a
+   * segunda e a certa: a pessoa precisa APRENDER a regra. Ausencia nao ensina
+   * nada — quem procura "remover" e nao acha conclui que a tela esta quebrada,
+   * tenta pela API, ou pede para outra pessoa tentar.
+   *
+   * (Onde a acao nunca e legitima — aprovar vistoria sem ver as fotos — a
+   * escolha se inverte e o botao nao deve existir. O que separa os dois casos e
+   * se a regra tem excecao: a trava do ultimo dono DEIXA de valer no instante
+   * em que um segundo dono aparece, e o texto diz como sair dela.)
+   */
+  private lockedReason(isSelf: boolean, isOwner: boolean, isLastOwner: boolean): string {
+    if (isLastOwner) {
+      /*
+       * NAO prometa "promova outro dono": ISSO NAO EXISTE NESTE PRODUTO.
+       * Medido no backend — convite recusa `OWNER` como papel
+       * (`InvitesService`), o unico escritor de `role = OWNER` e o onboarding
+       * (`UserCompanyRoleRepositoryImpl.INSERT_OWNER`), e nao ha endpoint de
+       * troca de papel. Logo uma empresa tem UM dono, sempre, e esta trava e
+       * permanente para ele.
+       *
+       * A primeira versao desta frase dizia "promova outra pessoa a dono antes
+       * de sair" — copy mandando fazer o que o sistema nao permite, que e o
+       * mesmo defeito da porta que nao abre.
+       */
+      return 'Você é o único dono desta empresa, e o acesso do dono não pode ser removido.';
     }
-    if (isSelf) return 'Você não pode remover o seu próprio acesso.';
-    if (isOwner) return 'O acesso do dono da empresa não pode ser removido aqui.';
+    if (isOwner && !isSelf) {
+      return 'O acesso do dono da empresa não pode ser removido aqui.';
+    }
     return '';
   }
 

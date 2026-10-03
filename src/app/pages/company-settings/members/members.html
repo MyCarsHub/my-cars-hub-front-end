@@ -194,19 +194,34 @@
                     </div>
                   </dl>
 
-                  @if (row.canRemove) {
+                  <!--
+                    DESABILITADO COM MOTIVO, nao ausente.
+
+                    A trava do backend nao pode aparecer como 403 depois do
+                    clique, e tambem nao pode aparecer como botao que nunca
+                    existiu: quem procura "remover" e nao encontra conclui que a
+                    tela esta quebrada. O botao fica, apagado, e o `aria-describedby`
+                    liga o foco ao texto que explica por que.
+                  -->
+                  @if (row.kind === 'member') {
                     <div class="mt-3">
                       <button
                         type="button"
+                        data-remove-member
                         (click)="askRemove(row)"
-                        [disabled]="busyId() !== null"
+                        [disabled]="!row.canRemove || busyId() !== null"
                         [attr.aria-label]="row.removeLabel"
+                        [attr.aria-describedby]="row.lockedReason ? 'lock-' + row.id : null"
                         class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl text-sm font-semibold
                                border border-red-200 text-red-700 bg-white hover:bg-red-50
                                focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600
                                focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {{ busyId() === row.id ? 'Removendo…' : 'Remover acesso' }}
+                        @if (busyId() === row.id) {
+                          {{ row.isSelf ? 'Saindo…' : 'Removendo…' }}
+                        } @else {
+                          {{ row.isSelf ? 'Sair desta empresa' : 'Remover acesso' }}
+                        }
                       </button>
                     </div>
                   }
@@ -249,7 +264,7 @@
                       A ausência da ação é EXPLICADA, não silenciosa: um botão que
                       simplesmente não está ali faz a pessoa procurar o que não existe.
                     -->
-                    <p class="mt-3 text-xs text-neutral-500">{{ row.lockedReason }}</p>
+                    <p [id]="'lock-' + row.id" class="mt-3 text-xs text-neutral-500">{{ row.lockedReason }}</p>
                   }
                 </li>
               }
@@ -261,16 +276,26 @@
   </div>
 
   @if (pendingRemoval(); as target) {
+    <!--
+      A confirmacao fala na SEGUNDA pessoa quando sou eu que estou saindo.
+      "Dona Ana perde o acesso" para a propria Ana le como se fosse outra
+      pessoa, e o aviso que mais importa muda: para si mesmo, o que assusta e
+      perder o acesso AGORA e depender de um convite de outra pessoa para
+      voltar — nao ha como se reconvidar.
+    -->
     <app-confirm-dialog
       [open]="true"
-      title="Remover acesso"
+      [title]="target.isSelf ? 'Sair desta empresa' : 'Remover acesso'"
       [message]="
-        target.title +
-        ' perde o acesso a esta empresa imediatamente. Os dados que essa pessoa cadastrou' +
-        ' continuam na empresa, e você pode dar acesso de novo por um novo convite.'
+        target.isSelf
+          ? 'Você perde o acesso a esta empresa imediatamente. Os dados que você cadastrou' +
+            ' continuam na empresa, e só quem ficou pode te convidar de novo.'
+          : target.title +
+            ' perde o acesso a esta empresa imediatamente. Os dados que essa pessoa cadastrou' +
+            ' continuam na empresa, e você pode dar acesso de novo por um novo convite.'
       "
-      confirmLabel="Remover acesso"
-      cancelLabel="Manter acesso"
+      [confirmLabel]="target.isSelf ? 'Sair da empresa' : 'Remover acesso'"
+      [cancelLabel]="target.isSelf ? 'Continuar aqui' : 'Manter acesso'"
       variant="danger"
       (confirmed)="confirmRemove()"
       (cancelled)="dismissRemove()"
