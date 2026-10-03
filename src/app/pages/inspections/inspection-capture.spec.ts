@@ -56,6 +56,7 @@ describe('InspectionCapture', () => {
   let create: ReturnType<typeof vi.fn>;
   let getOne: ReturnType<typeof vi.fn>;
   let uploadPhoto: ReturnType<typeof vi.fn>;
+  let photos: ReturnType<typeof vi.fn>;
   let submit: ReturnType<typeof vi.fn>;
   let role: string;
 
@@ -64,6 +65,11 @@ describe('InspectionCapture', () => {
     create = vi.fn().mockReturnValue(of(inspection));
     getOne = vi.fn().mockReturnValue(of(inspection));
     uploadPhoto = vi.fn().mockReturnValue(of(inspection));
+    // A tela passou a LER a lista de fotos para mostrar a miniatura real. Sem este
+    // dobro, `service.photos` e `undefined` e a chamada estoura DENTRO de um subscribe
+    // — erro que o runner relata e nao reprova, entao a suite ficaria verde sobre um
+    // caminho quebrado.
+    photos = vi.fn().mockReturnValue(of([]));
     // O DUBLE DEVOLVE A FORMA DO SERVIDOR, nao uma `Inspection`.
     // Ver `SUBMITTED_RESULT`: a versao anterior devolvia `inspection` aqui e foi
     // isso — nao o tipo — que deixou o defeito passar verde.
@@ -74,7 +80,7 @@ describe('InspectionCapture', () => {
       providers: [
         provideRouter([]),
         ApiErrorService,
-        { provide: InspectionsService, useValue: { create, getOne, uploadPhoto, submit } },
+        { provide: InspectionsService, useValue: { create, getOne, uploadPhoto, submit, photos } },
         { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
         {
           provide: ActivatedRoute,
@@ -156,8 +162,21 @@ describe('InspectionCapture', () => {
 
     expect(getOne).toHaveBeenCalledWith('insp-1');
     expect(text(fixture)).toContain('1 de 3 fotos');
-    // O botao principal aponta o PROXIMO pendente, nao o primeiro do roteiro.
-    expect(text(fixture)).toContain('Fotografar: Traseira');
+
+    /*
+     * A ORDEM DEIXOU DE SER IMPOSTA. Antes havia um botao principal apontando o PROXIMO
+     * pendente, e este caso afirmava o texto dele ("Fotografar: Traseira").
+     *
+     * A grade do card de aluguel aceita qualquer ordem, entao o que se afirma agora e que
+     * TODO angulo tem o seu proprio alvo — inclusive os que ja tem foto, porque refazer uma
+     * foto e um caso de uso real e nao um desvio.
+     */
+    const alvos = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button[aria-label]'),
+    ).map((b) => b.getAttribute('aria-label'));
+    expect(alvos).toContain('Refazer foto: Frente');
+    expect(alvos).toContain('Fotografar: Traseira');
+    expect(alvos).toContain('Fotografar: Lateral esquerda');
   });
 
   it('com todos os angulos fotografados mostra o estado de concluida', () => {
@@ -168,7 +187,9 @@ describe('InspectionCapture', () => {
     const fixture = render();
 
     expect(text(fixture)).toContain('3 de 3 fotos');
-    expect(text(fixture)).toContain('Vistoria completa');
+    // A contagem e o estado vivem no cabecalho do card; a barra de progresso de pagina saiu,
+    // porque o card de aluguel nao tem nenhuma.
+    expect(text(fixture)).toContain('completa');
   });
 
   /**
@@ -181,7 +202,12 @@ describe('InspectionCapture', () => {
     const fixture = render();
 
     expect(galleryInputs(fixture)).toBe(0);
-    expect(text(fixture)).toContain('Fotografar');
+    // A camera continua disponivel: o alvo de cada quadro nomeia o angulo no `aria-label`,
+    // porque o rotulo visivel agora e a propria miniatura.
+    const alvos = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button[aria-label]'),
+    ).map((b) => b.getAttribute('aria-label'));
+    expect(alvos.some((l) => (l ?? '').startsWith('Fotografar: '))).toBe(true);
   });
 
   it('OWNER e MANAGER tem galeria em cada angulo', () => {
@@ -527,5 +553,63 @@ describe('InspectionCapture', () => {
 
       expect(text(fixture)).not.toContain('não recarregue');
     });
+  });
+  // =============== A MINIATURA REAL (o conserto que o dono pediu) ===============
+  /**
+   * O DEFEITO: a foto nunca voltava para a tela. O retorno era um circulo de 32px com um
+   * check numa lista de uma coluna, enquanto o card de aluguel mostra a MINIATURA da foto
+   * tirada. Quem fotografa 14 angulos em pe ao redor do carro nao tinha como conferir o que
+   * registrou.
+   *
+   * A tela tambem nao buscava foto nenhuma — `done` vinha de `capturedAngles` — entao a
+   * miniatura exigiu passar a LER `GET /inspections/{id}/photos`. Estes casos pinam as duas
+   * metades: a leitura e a exibicao.
+   */
+  it('le as fotos da vistoria e mostra a miniatura real no quadro', () => {
+    configure({ id: 'insp-1' }, {});
+    getOne.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
+    photos.mockReturnValue(
+      of([{ id: 'p1', angle: 'FRONT', label: 'Frente', signedUrl: 'https://x/frente.jpg' }]),
+    );
+    const fixture = render();
+
+    expect(photos).toHaveBeenCalledWith('insp-1');
+    const imgs = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('img'),
+    ).map((i) => i.getAttribute('src'));
+    expect(imgs).toContain('https://x/frente.jpg');
+  });
+
+  /**
+   * A FOTO EXISTE e a assinatura nao veio — o contrato permite `signedUrl` nula com a foto
+   * presente, e o review ja trata assim. Dizer "sem foto" mandaria refotografar o que esta
+   * no servidor: punir quem fez certo por uma falha nossa.
+   */
+  it('angulo com foto e sem URL assinada diz que a foto existe, nao que falta', () => {
+    configure({ id: 'insp-1' }, {});
+    getOne.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
+    photos.mockReturnValue(
+      of([{ id: 'p1', angle: 'FRONT', label: 'Frente', signedUrl: null }]),
+    );
+    const fixture = render();
+
+    expect(text(fixture)).toContain('Foto enviada');
+    expect(text(fixture)).not.toContain('sem foto');
+  });
+
+  /** A GRADE, e nao a lista de uma coluna: a forma do card de aluguel, ponto a ponto. */
+  it('desenha os angulos em GRADE de 2/3/4 colunas, nao em lista', () => {
+    configure({}, { vehicleId: 'veh-1' });
+    const fixture = render();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const grade = host.querySelector('.grid.grid-cols-2');
+    expect(grade, 'a grade do card de aluguel nao esta na tela').not.toBeNull();
+    expect(grade?.className).toContain('sm:grid-cols-3');
+    expect(grade?.className).toContain('lg:grid-cols-4');
+    // E cada quadro e quadrado, como o do aluguel — nao uma linha de altura livre.
+    expect(host.querySelectorAll('.aspect-square').length).toBe(3);
+    // A lista de uma coluna saiu.
+    expect(host.querySelector('ul')).toBeNull();
   });
 });

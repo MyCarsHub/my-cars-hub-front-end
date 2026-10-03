@@ -1,7 +1,16 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { PageCard } from '../../components/core/page-card/page-card';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../services/api-error.service';
 import { InspectionsService } from '../../services/inspections.service';
@@ -24,19 +33,34 @@ const NAV_FAILED_MESSAGE =
   'A vistoria foi criada, mas não conseguimos abrir o endereço dela. ' +
   'Continue fotografando por aqui; não recarregue a página.';
 
+/**
+ * Um quadro da grade, com a MESMA forma do slot do card de aluguel
+ * (`rental-inspection-card.ts`), porque a tela passou a ser a mesma coisa visualmente e
+ * duas formas diferentes para o mesmo quadro divergiriam no primeiro ajuste.
+ *
+ * `previewUrl` e `signedUrl` existem os DOIS, e a ordem importa: o preview local aparece no
+ * instante da foto, e a URL do servidor e a que sobrevive a recarga. O aluguel resolve
+ * assim (`slot.previewUrl || slot.photo?.signedUrl`) e aqui e igual.
+ */
 interface AngleSlot {
   readonly angle: string;
   readonly label: string;
   readonly done: boolean;
+  /** `objectURL` da foto que acabou de ser tirada — feedback imediato, antes do servidor. */
+  readonly previewUrl: string | null;
+  /** URL assinada vinda de `GET /inspections/{id}/photos`; curta e reassinada a cada carga. */
+  readonly signedUrl: string | null;
+  /** `true` so no quadro cuja foto esta subindo AGORA — o envio e um por vez. */
+  readonly uploading: boolean;
 }
 
 @Component({
   selector: 'app-inspection-capture',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, AlertBanner, RouterLink, LiveCameraSheet],
+  imports: [DefaultPageLayout, PageCard, AlertBanner, RouterLink, LiveCameraSheet],
   templateUrl: './inspection-capture.html',
 })
-export class InspectionCapture implements OnInit {
+export class InspectionCapture implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly service = inject(InspectionsService);
@@ -112,15 +136,45 @@ export class InspectionCapture implements OnInit {
    */
   protected readonly canCapture = computed(() => !this.submitted());
 
+  /**
+   * URL assinada por angulo, de `GET /inspections/{id}/photos`.
+   *
+   * A tela NAO buscava foto nenhuma: o `done` vinha de `capturedAngles` e o retorno visual
+   * era um circulo com check. Mostrar a foto de verdade — que e o padrao do card de aluguel
+   * — exige a lista de fotos, entao esta busca e parte do conserto e nao enfeite.
+   *
+   * `signedUrl` pode vir NULA com a foto existindo (o contrato diz isso e o review ja trata):
+   * nesse caso o quadro mostra que a foto esta la e nao pode ser exibida, nunca "sem foto".
+   */
+  private readonly signedByAngle = signal<Record<string, string | null>>({});
+
+  /**
+   * `objectURL` local por angulo, criado no instante da captura.
+   *
+   * E o que faz a foto VOLTAR PARA A TELA na hora, sem esperar upload nem reassinatura — o
+   * mesmo recurso do card de aluguel. Revogado ao ser substituido e na saida da tela, senao
+   * cada refotografia deixa um blob preso na memoria.
+   */
+  private readonly previewByAngle = signal<Record<string, string>>({});
+
+  /** O angulo cuja foto esta subindo agora. O envio e um por vez. */
+  private readonly sendingAngle = signal<string | null>(null);
+
   /** Os ângulos vêm da VISTORIA (retrato do roteiro no dia), nunca de lista fixa. */
   protected readonly slots = computed<AngleSlot[]>(() => {
     const current = this.inspection();
     if (!current) return [];
     const done = new Set(current.capturedAngles);
+    const signed = this.signedByAngle();
+    const preview = this.previewByAngle();
+    const sending = this.sendingAngle();
     return current.requiredAngles.map((angle) => ({
       angle,
       label: angleLabel(angle),
       done: done.has(angle),
+      previewUrl: preview[angle] ?? null,
+      signedUrl: signed[angle] ?? null,
+      uploading: sending === angle,
     }));
   });
 
@@ -190,6 +244,9 @@ export class InspectionCapture implements OnInit {
       next: (found) => {
         this.inspection.set(found);
         this.loading.set(false);
+        // Quem CONTINUA uma vistoria precisa ver o que ja fotografou: sem isto, reabrir a
+        // tela mostrava quadros vazios para angulos que estao no servidor.
+        this.loadPhotos(id);
       },
       error: (err: unknown) => this.fail(err, 'Não foi possível abrir esta vistoria.'),
     });
@@ -217,6 +274,46 @@ export class InspectionCapture implements OnInit {
     this.activeAngle.set(null);
   }
 
+  /**
+   * Le a lista de fotos e guarda a URL assinada por angulo.
+   *
+   * Falha em SILENCIO de proposito: o preview local ja mostra o que foi fotografado nesta
+   * sessao, e a tela existe para FOTOGRAFAR. Transformar uma falha de reassinatura em faixa
+   * de erro pararia a captura por causa da miniatura — o contrario da prioridade.
+   */
+  private loadPhotos(id: string): void {
+    this.service.photos(id).subscribe({
+      next: (photos) => {
+        const map: Record<string, string | null> = {};
+        for (const photo of photos ?? []) {
+          map[photo.angle] = photo.signedUrl;
+        }
+        this.signedByAngle.set(map);
+      },
+      error: () => undefined,
+    });
+  }
+
+  /** Troca o preview local do angulo, revogando o anterior para nao vazar blob. */
+  private setPreview(angle: string, file: File): void {
+    const anterior = this.previewByAngle()[angle];
+    if (anterior) URL.revokeObjectURL(anterior);
+    this.previewByAngle.update((map) => ({ ...map, [angle]: URL.createObjectURL(file) }));
+  }
+
+  /**
+   * Revoga TODOS os previews na saida.
+   *
+   * Cada foto tirada cria um `objectURL`, e eles nao sao coletados sozinhos: numa vistoria de
+   * 14 angulos, refotografar algumas vezes deixaria dezenas de blobs presos pelo resto da
+   * sessao. O card de aluguel faz o mesmo.
+   */
+  ngOnDestroy(): void {
+    for (const url of Object.values(this.previewByAngle())) {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   /** Foto da galeria — só chega aqui para OWNER/MANAGER; o template esconde do motorista. */
   protected onFilePicked(event: Event, angle: string): void {
     const input = event.target as HTMLInputElement;
@@ -241,17 +338,28 @@ export class InspectionCapture implements OnInit {
     const current = this.inspection();
     if (!current || this.uploading()) return;
 
+    // A FOTO VOLTA PARA A TELA AGORA, antes de qualquer resposta: o preview local entra no
+    // quadro no instante da captura, igual ao card de aluguel. Sem isto a pessoa fotografa e
+    // nao ve nada mudar ate o upload terminar — na rua, em 3G, isso e muito tempo.
+    this.setPreview(angle, file);
+
     this.uploading.set(true);
+    this.sendingAngle.set(angle);
     this.uploadError.set(null);
 
     this.service.uploadPhoto(current.id, angle, file).subscribe({
       next: (updated) => {
         this.inspection.set(updated);
         this.uploading.set(false);
+        this.sendingAngle.set(null);
         this.pendingUpload.set(null);
+        // A URL assinada so existe depois de a foto estar no servidor; e ela que sobrevive
+        // a uma recarga, entao vale reler a lista.
+        this.loadPhotos(current.id);
       },
       error: (err: unknown) => {
         this.uploading.set(false);
+        this.sendingAngle.set(null);
         // A foto FICA guardada: o erro nao pode custar a foto que ela acabou de
         // tirar. Falha de UMA foto tambem nao derruba a tela — as anteriores ja
         // estao no servidor. Era esse o ponto de subir uma a uma.
