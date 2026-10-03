@@ -178,6 +178,14 @@ describe('CompanyMembers — roster da empresa', () => {
           useValue: {
             // `id` e quem EU sou: e o que decide "a sua propria linha".
             getItem: vi.fn((key: string) => (key === 'id' ? ME : null)),
+            /*
+             * `getUserId()` e o acessor NOMEADO para o mesmo dado — hoje ele e
+             * literalmente `getItem('id')`, porque o JWT deste produto NAO
+             * carrega claim de id de usuario (tem `role`, `companyId`,
+             * `system_role`, `exp`, `impersonation`). O duble expoe os dois para
+             * nao decidir qual a tela usa.
+             */
+            getUserId: vi.fn(() => ME),
             getCompanyRoleFromToken: vi.fn(() => tokenRole),
           },
         },
@@ -204,8 +212,16 @@ describe('CompanyMembers — roster da empresa', () => {
     fixture: ComponentFixture<CompanyMembers>,
     name: string,
   ): HTMLButtonElement | undefined {
-    return Array.from(rowOf(fixture, name).querySelectorAll('button')).find((b) =>
-      (b.textContent ?? '').includes('Remover acesso'),
+    /*
+     * Por `data-remove-member`, e nao pelo TEXTO.
+     *
+     * O rotulo depende de quem e a linha: "Remover acesso" para outra pessoa,
+     * "Sair desta empresa" para mim. Casar por texto fazia o helper devolver
+     * `undefined` nas linhas de auto-remocao e o teste acusava o template, que
+     * estava certo.
+     */
+    return (
+      rowOf(fixture, name).querySelector<HTMLButtonElement>('[data-remove-member]') ?? undefined
     );
   }
 
@@ -296,31 +312,76 @@ describe('CompanyMembers — roster da empresa', () => {
 
   // ------------------------------------------- O DONO NAO REMOVE A SI MESMO
   /**
-   * Nao existe transferencia de propriedade nesta base — o unico escritor de OWNER e o
-   * onboarding, e convite nao concede propriedade. Uma empresa que perde o dono nao
-   * recupera, entao a tela nunca oferece.
+   * TRAVA 3 — o ULTIMO dono nao sai, e agora isso e DECIDIDO AQUI.
    *
-   * O botao ausente vem com RAZAO escrita: botao que simplesmente nao esta ali faz a pessoa
-   * procurar o que nao existe.
+   * Antes a tela nem oferecia: `canRemove` era `!isSelf && !isOwner`, e o ramo
+   * do 409 em `removeMessage` era codigo morto, inalcancavel. A regra existia
+   * no servidor e a tela nao a afirmava — ela so repetiria o erro se algum dia
+   * um clique chegasse la.
+   *
+   * Agora o botao EXISTE e fica DESABILITADO com a razao ao lado, decidido por
+   * papel + contagem de donos ACTIVE da propria lista.
+   *
+   * Medido no backend, e e o que torna esta trava permanente para o dono:
+   * convite recusa `OWNER` como papel, o unico escritor de `role = OWNER` e o
+   * onboarding, e nao existe endpoint de troca de papel. Uma empresa tem UM
+   * dono, sempre. Por isso a frase NAO manda promover ninguem.
    */
-  it('o dono nao recebe botao para remover a si mesmo, e le o porque', () => {
+  it('o ultimo dono ve o botao DESABILITADO, com o motivo, e nao um 403 depois do clique', () => {
     const fixture = render('OWNER', [{ ...owner, userId: ME }, manager]);
 
-    expect(removeButtonOf(fixture, 'Dona Ana')).toBeUndefined();
-    expect(rowOf(fixture, 'Dona Ana').textContent).toContain('não pode remover o seu próprio');
+    const botao = removeButtonOf(fixture, 'Dona Ana');
+    expect(botao, 'o botao sumiu: a pessoa procura "sair" e nao acha').toBeDefined();
+    expect(botao?.disabled).toBe(true);
+    expect(rowOf(fixture, 'Dona Ana').textContent).toContain('único dono desta empresa');
+    // E a copy NAO manda fazer o que o produto nao permite.
+    expect(rowOf(fixture, 'Dona Ana').textContent).not.toContain('Promova');
   });
 
-  it('ninguem remove a propria linha, nem gerente', () => {
+  /**
+   * O CASO QUE O PRODUTO NAO ALCANCA HOJE, e esta aqui de proposito.
+   *
+   * Com DOIS donos ACTIVE o backend permite o dono sair. O produto nao sabe
+   * criar o segundo dono, entao este estado nao ocorre em producao — e o teste
+   * fixa a regra para o dia em que a transferencia de propriedade existir. Sem
+   * ele, quem construir a transferencia nao descobre que a trava depende da
+   * CONTAGEM e nao do papel.
+   */
+  it('com DOIS donos, o dono pode sair — a trava e a contagem, nao o papel', () => {
+    const outroDono = { ...owner, userId: 'owner-2', name: 'Dono Carlos' };
+    const fixture = render('OWNER', [{ ...owner, userId: ME }, outroDono]);
+
+    const botao = removeButtonOf(fixture, 'Dona Ana');
+    expect(botao).toBeDefined();
+    expect(botao?.disabled).toBe(false);
+  });
+
+  /**
+   * O GERENTE SAI SOZINHO, e esta e a capacidade REAL que a tela ganhou: o
+   * backend sempre permitiu (nao ha regra contra alvo nao-OWNER), e a tela
+   * bloqueava com `!isSelf`.
+   */
+  it('o gerente pode remover o PROPRIO acesso', () => {
     const fixture = render('MANAGER', [owner, { ...manager, userId: ME }]);
 
-    expect(removeButtonOf(fixture, 'Gerente Bruno')).toBeUndefined();
+    const botao = removeButtonOf(fixture, 'Gerente Bruno');
+    expect(botao).toBeDefined();
+    expect(botao?.disabled).toBe(false);
+    // O verbo muda: nao se "remove o acesso" de si mesmo, se SAI.
+    expect(botao?.textContent).toContain('Sair');
   });
 
-  /** O backend recusa remover OWNER por outro membro — nem por outro OWNER. A tela espelha. */
-  it('a linha do DONO nao e removivel por outra pessoa', () => {
+  /**
+   * TRAVAS 1 e 2 — o backend recusa remover OWNER por OUTRO membro, e nem por
+   * outro OWNER. As duas sao o MESMO ramo la (o papel do ALVO decide, nao o do
+   * ator), entao sao o mesmo ramo aqui.
+   */
+  it('a linha do DONO nao e removivel por outra pessoa: botao desabilitado com motivo', () => {
     const fixture = render('OWNER', [owner, { ...manager, userId: ME }]);
 
-    expect(removeButtonOf(fixture, 'Dona Ana')).toBeUndefined();
+    const botao = removeButtonOf(fixture, 'Dona Ana');
+    expect(botao).toBeDefined();
+    expect(botao?.disabled).toBe(true);
     expect(rowOf(fixture, 'Dona Ana').textContent).toContain('dono da empresa não pode ser');
   });
 
@@ -856,5 +917,32 @@ describe('CompanyMembers — roster da empresa', () => {
     expect(expirado).not.toBe(pendente);
     // Com acesso sai da rampa verde do sistema.
     expect(ativo).toContain('success');
+  });
+  /**
+   * A CONFIRMACAO DE SAIDA fala na segunda pessoa, e o aviso MUDA.
+   *
+   * Para si mesmo o risco nao e "essa pessoa perde o acesso": e que nao ha como
+   * se reconvidar. Quem sai depende de alguem que ficou — e se essa pessoa era
+   * a unica gerente, nao sobra ninguem que possa convidar.
+   */
+  it('a saida propria avisa que so quem fica pode convidar de volta', () => {
+    const fixture = render('MANAGER', [owner, { ...manager, userId: ME }]);
+
+    removeButtonOf(fixture, 'Gerente Bruno')?.click();
+    fixture.detectChanges();
+    const dialogo = (fixture.nativeElement as HTMLElement).querySelector('[role="dialog"]');
+
+    expect(dialogo?.textContent).toContain('Você perde o acesso');
+    expect(dialogo?.textContent).toContain('só quem ficou pode te convidar');
+  });
+
+  it('remover OUTRA pessoa continua falando dela, na terceira pessoa', () => {
+    const fixture = render('OWNER', [{ ...owner, userId: ME }, manager]);
+
+    removeButtonOf(fixture, 'Gerente Bruno')?.click();
+    fixture.detectChanges();
+    const dialogo = (fixture.nativeElement as HTMLElement).querySelector('[role="dialog"]');
+
+    expect(dialogo?.textContent).toContain('Gerente Bruno perde o acesso');
   });
 });
