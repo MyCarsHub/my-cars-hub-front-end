@@ -1,6 +1,14 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { of } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -93,6 +101,7 @@ export class InspectionsList implements OnInit {
   private readonly service = inject(InspectionsService);
   private readonly vehicles = inject(VehiclesService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly router = inject(Router);
 
   protected readonly kindChips = KIND_CHIPS;
   protected readonly statusChips = STATUS_CHIPS;
@@ -117,6 +126,84 @@ export class InspectionsList implements OnInit {
    * abertas no celular e rolagem infinita, e a decisao erra de vistoria.
    */
   protected readonly reviewingId = signal<string | null>(null);
+  /**
+   * O bloco de agendamento vive ABAIXO da lista, mas a acao primaria da tela
+   * fica no topo, em `cardActions` — como em `vehicles-list`. O botao de lá
+   * abre o formulario de cá: uma acao, um formulario, nenhuma copia nova.
+   */
+  private readonly scheduleBlock = viewChild(InspectionSchedulesBlock);
+
+  protected openSchedule(): void {
+    this.scheduleBlock()?.openForm('FLEET');
+  }
+
+  /**
+   * FILTROS recolhidos no CELULAR apenas (`sm:hidden` no gatilho). No desktop a
+   * grade cabe e esconder seria esconder sem motivo.
+   */
+  protected readonly filtersOpen = signal(false);
+
+  protected toggleFilters(): void {
+    this.filtersOpen.update((open) => !open);
+  }
+
+  /**
+   * O CONTADOR e obrigatorio, nao enfeite: recolhido sem ele, um filtro
+   * esquecido explicaria uma lista curta sem nenhuma pista na tela.
+   */
+  protected readonly activeFiltersCount = computed(() => {
+    let count = 0;
+    if (this.vehicleId() !== '') count++;
+    if (this.status() !== 'ALL') count++;
+    if (this.kind() !== 'ALL') count++;
+    if (this.range() !== null) count++;
+    return count;
+  });
+
+  protected readonly filtersButtonLabel = computed(() => {
+    const n = this.activeFiltersCount();
+    return n > 0 ? `Filtros, ${n} ativo${n > 1 ? 's' : ''}` : 'Filtros';
+  });
+
+  /** A PORTA ate a captura: ela exige `?vehicleId=`, entao o carro vem daqui. */
+  protected readonly startOpen = signal(false);
+  protected readonly startVehicleId = signal('');
+  protected readonly startError = signal<string | null>(null);
+
+  protected toggleStart(): void {
+    this.startError.set(null);
+    this.startOpen.update((open) => !open);
+  }
+
+  protected onStartVehicleChange(value: string): void {
+    this.startVehicleId.set(value);
+    this.startError.set(null);
+  }
+
+  /**
+   * Abre a captura COM o carro escolhido.
+   *
+   * O card de Detalhes do Veiculo era o unico lugar que passava `vehicleId`, e
+   * ele saiu. Sem este passo, o botao levaria a captura a nascer em erro — porta
+   * que existe e nao abre, que foi o defeito do dia.
+   */
+  protected startInspection(): void {
+    const vehicleId = this.startVehicleId();
+    if (!vehicleId) {
+      this.startError.set('Escolha o carro que voce vai vistoriar.');
+      return;
+    }
+
+    // A promessa NAO e descartada: guard que recusa deixaria a pessoa olhando
+    // uma tela que nao mudou, sem nada a fazer.
+    this.router
+      .navigate(['/vistorias', 'nova'], { queryParams: { vehicleId } })
+      .then((ok) => {
+        if (!ok) this.startError.set('Nao foi possivel abrir a tela de vistoria.');
+      })
+      .catch(() => this.startError.set('Nao foi possivel abrir a tela de vistoria.'));
+  }
+
   protected readonly range = signal<DateRange | null>(null);
 
   /**

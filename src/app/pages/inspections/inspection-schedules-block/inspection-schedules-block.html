@@ -127,16 +127,74 @@
   @if (formOpen()) {
     <form
       [formGroup]="scheduleForm"
-      (ngSubmit)="saveFleet()"
+      (ngSubmit)="save()"
       class="rounded-2xl border border-primary-100 bg-white p-4 sm:p-6 space-y-4"
     >
       <div>
-        <h2 class="text-lg font-bold text-neutral-900">Agendar para toda a frota</h2>
+        <h2 class="text-lg font-bold text-neutral-900">Agendar vistoria periódica</h2>
         <p class="mt-1 text-sm text-neutral-600 leading-relaxed">
-          Vale para os carros que não têm regra própria, inclusive os que você cadastrar
-          depois.
+          @if (targetIsVehicle()) {
+            A regra do carro escolhido vence a da frota.
+          } @else {
+            Vale para os carros que não têm regra própria, inclusive os que você cadastrar
+            depois.
+          }
         </p>
       </div>
+
+      <!--
+        O ALVO. Antes eram DOIS formularios identicos em telas diferentes: frota
+        aqui, um-carro dentro de Detalhes do Veiculo. Agendar carro a carro numa
+        frota de dez eram dez visitas a dez telas, e manter as duas copias em
+        sincronia era trabalho que ninguem fazia.
+
+        Frota vem PRIMEIRO e e o padrao: e a frase que o dono quer dizer ao
+        cliente. O carro especifico continua possivel, agora sem sair daqui.
+      -->
+      <fieldset class="space-y-2">
+        <legend class="text-sm font-semibold text-neutral-900">Para quais carros?</legend>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <label
+            class="min-h-12 flex items-center gap-2 rounded-xl border px-3 cursor-pointer
+                   has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50
+                   border-neutral-200 hover:bg-neutral-50"
+          >
+            <input type="radio" formControlName="target" value="FLEET" data-target-fleet
+              class="accent-primary-500" />
+            <span class="text-sm font-medium text-neutral-800">Toda a frota</span>
+          </label>
+          <label
+            class="min-h-12 flex items-center gap-2 rounded-xl border px-3 cursor-pointer
+                   has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50
+                   border-neutral-200 hover:bg-neutral-50"
+          >
+            <input type="radio" formControlName="target" value="VEHICLE" data-target-vehicle
+              class="accent-primary-500" />
+            <span class="text-sm font-medium text-neutral-800">Um carro só</span>
+          </label>
+        </div>
+      </fieldset>
+
+      @if (targetIsVehicle()) {
+        <app-form-field
+          label="Qual carro"
+          controlId="schedule-vehicle"
+          [required]="true"
+          [control]="scheduleForm.get('vehicleId')"
+        >
+          <select
+            app-field-control
+            formControlName="vehicleId"
+            id="schedule-vehicle"
+            data-schedule-vehicle
+          >
+            <option value="">Escolha o carro</option>
+            @for (v of vehicleOptions(); track v.id) {
+              <option [value]="v.id">{{ v.label }}</option>
+            }
+          </select>
+        </app-form-field>
+      }
 
       <app-form-field
         label="Com que frequência"
