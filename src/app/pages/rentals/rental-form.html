@@ -195,31 +195,67 @@
         </div>
 
         @if (caucaoAmountPositive()) {
-          <div class="flex items-start gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold text-neutral-900">
-                Caução recebida por fora (dinheiro / PIX manual)
-              </p>
-              <p class="text-xs text-neutral-500 mt-1 leading-relaxed">
-                Marque quando o valor da caução já foi recebido por outro meio. Nenhuma nova
-                cobrança de caução é gerada e, se já houver uma em aberto no Asaas, ela é
-                cancelada.
-              </p>
-            </div>
-            <label class="relative inline-flex shrink-0 cursor-pointer items-center min-h-[44px]">
+          <label
+            for="rental-caucao-paid"
+            data-testid="caucao-paid-card"
+            class="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-xl border p-4
+                   border-neutral-200 bg-neutral-50
+                   has-checked:border-emerald-600 has-checked:bg-emerald-50
+                   has-focus-visible:ring-2 has-focus-visible:ring-primary-400 has-focus-visible:ring-offset-2
+                   transition-colors motion-reduce:transition-none"
+          >
+            <span aria-hidden="true"
+              class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full
+                     bg-neutral-200 text-neutral-700">
+              @if (caucaoPaidOn()) {
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                  stroke-linejoin="round" data-testid="caucao-paid-check">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              } @else {
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <rect x="2" y="6" width="20" height="12" rx="2"/>
+                  <circle cx="12" cy="12" r="2"/>
+                  <path d="M6 12h.01M18 12h.01"/>
+                </svg>
+              }
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold text-neutral-900">Recebi o Caução por fora</span>
+              <span class="mt-1 block text-xs leading-relaxed text-neutral-600">
+                Dinheiro ou PIX manual — nenhuma cobrança será gerada no Asaas.
+              </span>
+              @if (caucaoPaidOn()) {
+                <span data-testid="caucao-paid-confirmation"
+                  class="mt-1 block text-xs font-semibold leading-relaxed text-emerald-800">
+                  Caução marcada como recebida — não será cobrada.
+                </span>
+              }
+              @if (isEdit()) {
+                <span data-testid="caucao-paid-edit-note"
+                  class="mt-1 block text-xs leading-relaxed text-neutral-600">
+                  Se já houver uma cobrança de caução em aberto no Asaas, ela será cancelada.
+                </span>
+              }
+            </span>
+            <span class="relative inline-flex shrink-0 items-center self-center">
               <input
                 id="rental-caucao-paid"
                 type="checkbox"
+                role="switch"
                 formControlName="caucaoPaid"
-                class="sr-only peer" />
+                class="peer sr-only" />
               <span aria-hidden="true"
-                class="w-12 h-7 rounded-full bg-neutral-200 peer-checked:bg-emerald-500
-                       transition-colors relative
-                       after:content-[''] after:absolute after:top-0.5 after:left-0.5
-                       after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
-                       after:transition-transform peer-checked:after:translate-x-5"></span>
-            </label>
-          </div>
+                class="relative h-7 w-12 rounded-full bg-neutral-500 transition-colors
+                       motion-reduce:transition-none peer-checked:bg-emerald-700
+                       after:absolute after:left-0.5 after:top-0.5 after:size-6 after:rounded-full
+                       after:bg-white after:shadow after:content-[''] after:transition-transform
+                       motion-reduce:after:transition-none peer-checked:after:translate-x-5"></span>
+            </span>
+          </label>
         }
 
         <!-- Live computed total -->
