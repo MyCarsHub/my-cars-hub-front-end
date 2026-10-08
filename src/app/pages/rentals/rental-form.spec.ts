@@ -156,26 +156,27 @@ describe('RentalForm picker filters', () => {
       fixture.detectChanges();
       const card = root.querySelector(CARD) as HTMLLabelElement;
       expect(card.textContent).toContain('Recebi o Caução por fora');
-      expect(card.textContent).toContain('nenhuma cobrança será gerada no Asaas');
+      expect(card.textContent).toContain('Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
+      expect(card.textContent).not.toContain('Dinheiro ou PIX manual');
       expect(card.textContent).not.toContain('Caução recebida por fora (dinheiro / PIX manual)');
       const input = root.querySelector(SWITCH) as HTMLInputElement;
       expect(input.getAttribute('role')).toBe('switch');
       expect(input.type).toBe('checkbox');
-      // Cartão inteiro é o alvo de toque: o próprio <label> envolve e aponta para o input.
+      // Título + ajuda + switch formam um único alvo de toque: o <label> envolve e aponta para o input.
       expect(card.htmlFor).toBe('rental-caucao-paid');
       expect(card.contains(input)).toBe(true);
     });
 
-    it('OFF é neutro; clicar no cartão (não só no switch) liga o controle caucaoPaid e mostra a confirmação', () => {
+    it('sem borda/tint de linha nem ícone no rótulo; o banner azul só existe ligado; clicar no rótulo liga o controle', () => {
       const { fixture, root, cmp } = render();
       cmp.form.patchValue({ caucaoReais: '500,00' });
       fixture.detectChanges();
       const input = root.querySelector(SWITCH) as HTMLInputElement;
+      const CONF = '[data-testid="caucao-paid-confirmation"]';
       expect(input.checked).toBe(false);
-      expect(root.querySelector('[data-testid="caucao-paid-confirmation"]')).toBeNull();
-      expect(root.querySelector('[data-testid="caucao-paid-check"]')).toBeNull();
+      expect(root.querySelector(CONF)).toBeNull();
 
-      // Clique no texto do cartão, fora do input.
+      // Clique no texto do rótulo, fora do input.
       (root.querySelector(CARD) as HTMLElement).querySelector('span.font-semibold')!.dispatchEvent(
         new MouseEvent('click', { bubbles: true }),
       );
@@ -183,28 +184,45 @@ describe('RentalForm picker filters', () => {
 
       expect(cmp.form.controls.caucaoPaid.value).toBe(true);
       expect(input.checked).toBe(true);
-      const confirmation = root.querySelector('[data-testid="caucao-paid-confirmation"]');
-      expect(confirmation?.textContent).toContain('Caução marcada como recebida — não será cobrada');
-      expect(root.querySelector('[data-testid="caucao-paid-check"]')).not.toBeNull();
+      // Criação: a descrição segue visível e NÃO há banner.
+      expect(root.querySelector(CONF)).toBeNull();
+      expect((root.querySelector(CARD) as HTMLElement).textContent).toContain(
+        'Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
+
+      const labelHtml = (root.querySelector(CARD) as HTMLElement).outerHTML;
+      expect(labelHtml).not.toContain('primary-500/10');
+      expect(labelHtml).not.toMatch(/border/);
+      expect(labelHtml).not.toContain('<svg');
+      expect(labelHtml).toContain('peer-checked:bg-emerald-500');
 
       input.click();
       fixture.detectChanges();
       expect(cmp.form.controls.caucaoPaid.value).toBe(false);
-      expect(root.querySelector('[data-testid="caucao-paid-confirmation"]')).toBeNull();
+      expect(root.querySelector(CONF)).toBeNull();
+      expect((root.querySelector(CARD) as HTMLElement).textContent).toContain(
+        'Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
     });
 
-    it('a nota do Asaas só aparece ao editar um aluguel existente', () => {
+    it('a nota do Asaas só aparece ao editar e só com o switch ligado, dentro do banner', () => {
+      const NOTE = '[data-testid="caucao-paid-edit-note"]';
       const created = render();
-      created.cmp.form.patchValue({ caucaoReais: '500,00' });
+      created.cmp.form.patchValue({ caucaoReais: '500,00', caucaoPaid: true });
       created.fixture.detectChanges();
-      expect(created.root.querySelector('[data-testid="caucao-paid-edit-note"]')).toBeNull();
+      expect(created.root.querySelector(NOTE)).toBeNull();
       TestBed.resetTestingModule();
 
       const { fixture, root, cmp } = render('rental-1');
       cmp.form.patchValue({ caucaoReais: '500,00' });
       fixture.detectChanges();
-      const note = root.querySelector('[data-testid="caucao-paid-edit-note"]');
+      expect(root.querySelector(NOTE)).toBeNull();
+      cmp.form.patchValue({ caucaoPaid: true });
+      fixture.detectChanges();
+      const note = root.querySelector(NOTE);
       expect(note?.textContent).toContain('cobrança de caução em aberto no Asaas');
+      const banner = root.querySelector('[data-testid="caucao-paid-confirmation"]') as HTMLElement;
+      expect(banner.contains(note)).toBe(true);
+      expect(banner.className).toContain('bg-blue-50');
+      expect(banner.textContent).not.toContain('nenhuma cobrança será gerada');
     });
   });
 });
