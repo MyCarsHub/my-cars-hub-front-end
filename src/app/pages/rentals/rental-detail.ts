@@ -678,6 +678,33 @@ export class RentalDetail implements OnInit {
   }
 
   /**
+   * Caução recebida por fora (`rental.caucaoPaid`) sem cobrança PAGA no Asaas:
+   * a verdade é "recebida", mesmo que reste uma cobrança aberta/cancelada criada
+   * antes da correção no backend. Uma cobrança PAID continua sendo exibida como
+   * sempre.
+   */
+  protected readonly caucaoReceivedOutside = computed<boolean>(() => {
+    const r = this.rental();
+    if (!r?.caucaoPaid) return false;
+    const cc = this.caucaoCharge();
+    return cc === null || cc.status === 'CANCELED' || this.MARK_PAID_STATUSES.includes(cc.status);
+  });
+
+  /** Cobrança de caução ainda aberta no Asaas apesar de `caucaoPaid` — o dono precisa salvar o aluguel para reconciliar. */
+  protected readonly caucaoStaleOpenCharge = computed<boolean>(() => {
+    const cc = this.caucaoCharge();
+    return this.caucaoReceivedOutside() && cc !== null && this.MARK_PAID_STATUSES.includes(cc.status);
+  });
+
+  /** Chip da linha de caução: "Recebida por fora" quando aplicável, senão o status da cobrança. */
+  protected caucaoChipInfo(charge: RentalChargeDto): { label: string; chip: string } {
+    if (this.caucaoReceivedOutside()) {
+      return { label: 'Recebida por fora', chip: 'bg-emerald-100 text-emerald-800' };
+    }
+    return this.chargeStatusInfo(charge);
+  }
+
+  /**
    * Status que ainda podem ser pagos pelo link do provedor.
    *
    * `PAST_DUE` NÃO é terminal — o `checkoutUrl` do Asaas segue válido depois do
