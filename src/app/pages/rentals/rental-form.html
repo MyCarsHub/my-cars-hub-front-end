@@ -195,49 +195,56 @@
         </div>
 
         @if (caucaoAmountPositive()) {
-          <label
-            for="rental-caucao-paid"
-            data-testid="caucao-paid-card"
-            class="flex min-h-[44px] cursor-pointer items-center gap-4 rounded-xl border p-4
-                   border-neutral-200 bg-neutral-50
-                   has-checked:border-primary-500 has-checked:bg-primary-500/10
-                   has-focus-visible:ring-2 has-focus-visible:ring-primary-400 has-focus-visible:ring-offset-2
-                   transition-colors motion-reduce:transition-none"
-          >
-            <span class="min-w-0 flex-1">
-              <span class="block text-sm font-semibold text-neutral-900">Recebi o Caução por fora</span>
-              <span class="mt-1 block text-xs leading-relaxed text-neutral-600">
-                Dinheiro ou PIX manual — nenhuma cobrança será gerada no Asaas.
+          <div class="space-y-3">
+            <label
+              for="rental-caucao-paid"
+              data-testid="caucao-paid-card"
+              class="flex min-h-[44px] cursor-pointer items-start gap-4 rounded-xl
+                     has-focus-visible:ring-2 has-focus-visible:ring-primary-400 has-focus-visible:ring-offset-2
+                     motion-reduce:transition-none"
+            >
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-semibold text-neutral-900">Recebi o Caução por fora</span>
+                <span class="mt-1 block text-xs leading-relaxed text-neutral-500">Dinheiro ou PIX manual.</span>
               </span>
-              @if (caucaoPaidOn()) {
-                <span data-testid="caucao-paid-confirmation"
-                  class="mt-1 block text-xs font-semibold leading-relaxed text-primary-700">
-                  Caução marcada como recebida — não será cobrada.
-                </span>
-              }
-              @if (isEdit()) {
-                <span data-testid="caucao-paid-edit-note"
-                  class="mt-1 block text-xs leading-relaxed text-neutral-600">
-                  Se já houver uma cobrança de caução em aberto no Asaas, ela será cancelada.
-                </span>
-              }
-            </span>
-            <span class="relative inline-flex shrink-0 items-center">
-              <input
-                id="rental-caucao-paid"
-                type="checkbox"
-                role="switch"
-                formControlName="caucaoPaid"
-                class="sr-only peer" />
-              <span aria-hidden="true"
-                class="w-12 h-7 rounded-full bg-neutral-300 peer-checked:bg-primary-600
-                       transition-colors motion-reduce:transition-none relative
-                       after:content-[''] after:absolute after:top-0.5 after:left-0.5
-                       after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
-                       after:transition-transform motion-reduce:after:transition-none
-                       peer-checked:after:translate-x-5"></span>
-            </span>
-          </label>
+
+              <!-- Toggle -->
+              <span class="relative inline-flex shrink-0 items-center">
+                <input
+                  id="rental-caucao-paid"
+                  type="checkbox"
+                  role="switch"
+                  formControlName="caucaoPaid"
+                  class="sr-only peer" />
+                <span aria-hidden="true"
+                  class="w-12 h-7 rounded-full bg-neutral-200 peer-checked:bg-emerald-500
+                         transition-colors motion-reduce:transition-none relative
+                         after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                         after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
+                         after:transition-transform motion-reduce:after:transition-none
+                         peer-checked:after:translate-x-5"></span>
+              </span>
+            </label>
+
+            @if (caucaoPaidOn()) {
+              <div data-testid="caucao-paid-confirmation"
+                class="rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm p-3 flex items-start gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" class="shrink-0 mt-0.5 text-blue-600" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                <div class="min-w-0 text-xs leading-relaxed">
+                  <p>Caução marcada como recebida — nenhuma cobrança será gerada no Asaas.</p>
+                  @if (isEdit()) {
+                    <p data-testid="caucao-paid-edit-note" class="mt-1">
+                      Se já houver uma cobrança de caução em aberto no Asaas, ela será cancelada.
+                    </p>
+                  }
+                </div>
+              </div>
+            }
+          </div>
         }
 
         <!-- Live computed total -->
