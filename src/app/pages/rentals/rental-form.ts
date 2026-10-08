@@ -440,6 +440,9 @@ export class RentalForm implements OnInit {
     () => (ptBrMoneyCents(this.formValue()?.caucaoReais) ?? 0) > 0,
   );
 
+  /** Estado ligado do toggle, para o cartão (ícone e confirmação) refletirem o controle. */
+  protected readonly caucaoPaidOn = computed(() => this.formValue()?.caucaoPaid === true);
+
   /**
    * Retirada dentro do período (regra espelhada do backend).
    *
