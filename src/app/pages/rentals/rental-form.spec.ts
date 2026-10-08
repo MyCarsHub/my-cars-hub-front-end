@@ -156,7 +156,8 @@ describe('RentalForm picker filters', () => {
       fixture.detectChanges();
       const card = root.querySelector(CARD) as HTMLLabelElement;
       expect(card.textContent).toContain('Recebi o Caução por fora');
-      expect(card.textContent).toContain('Dinheiro ou PIX manual.');
+      expect(card.textContent).toContain('Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
+      expect(card.textContent).not.toContain('Dinheiro ou PIX manual');
       expect(card.textContent).not.toContain('Caução recebida por fora (dinheiro / PIX manual)');
       const input = root.querySelector(SWITCH) as HTMLInputElement;
       expect(input.getAttribute('role')).toBe('switch');
@@ -183,9 +184,10 @@ describe('RentalForm picker filters', () => {
 
       expect(cmp.form.controls.caucaoPaid.value).toBe(true);
       expect(input.checked).toBe(true);
-      const banner = root.querySelector(CONF) as HTMLElement;
-      expect(banner.textContent).toContain('Caução marcada como recebida — nenhuma cobrança será gerada no Asaas.');
-      expect(banner.className).toContain('bg-blue-50');
+      // Criação: a descrição segue visível e NÃO há banner.
+      expect(root.querySelector(CONF)).toBeNull();
+      expect((root.querySelector(CARD) as HTMLElement).textContent).toContain(
+        'Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
 
       const labelHtml = (root.querySelector(CARD) as HTMLElement).outerHTML;
       expect(labelHtml).not.toContain('primary-500/10');
@@ -197,6 +199,8 @@ describe('RentalForm picker filters', () => {
       fixture.detectChanges();
       expect(cmp.form.controls.caucaoPaid.value).toBe(false);
       expect(root.querySelector(CONF)).toBeNull();
+      expect((root.querySelector(CARD) as HTMLElement).textContent).toContain(
+        'Caução marcado como recebido, nenhuma cobrança será feita no Asaas.');
     });
 
     it('a nota do Asaas só aparece ao editar e só com o switch ligado, dentro do banner', () => {
@@ -215,7 +219,10 @@ describe('RentalForm picker filters', () => {
       fixture.detectChanges();
       const note = root.querySelector(NOTE);
       expect(note?.textContent).toContain('cobrança de caução em aberto no Asaas');
-      expect(root.querySelector('[data-testid="caucao-paid-confirmation"]')!.contains(note)).toBe(true);
+      const banner = root.querySelector('[data-testid="caucao-paid-confirmation"]') as HTMLElement;
+      expect(banner.contains(note)).toBe(true);
+      expect(banner.className).toContain('bg-blue-50');
+      expect(banner.textContent).not.toContain('nenhuma cobrança será gerada');
     });
   });
 });

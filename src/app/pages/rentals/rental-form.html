@@ -205,7 +205,7 @@
             >
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-semibold text-neutral-900">Recebi o Caução por fora</span>
-                <span class="mt-1 block text-xs leading-relaxed text-neutral-500">Dinheiro ou PIX manual.</span>
+                <span class="mt-1 block text-xs leading-relaxed text-neutral-500">Caução marcado como recebido, nenhuma cobrança será feita no Asaas.</span>
               </span>
 
               <!-- Toggle -->
@@ -226,7 +226,7 @@
               </span>
             </label>
 
-            @if (caucaoPaidOn()) {
+            @if (caucaoPaidOn() && isEdit()) {
               <div data-testid="caucao-paid-confirmation"
                 class="rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm p-3 flex items-start gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
@@ -235,12 +235,9 @@
                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                 </svg>
                 <div class="min-w-0 text-xs leading-relaxed">
-                  <p>Caução marcada como recebida — nenhuma cobrança será gerada no Asaas.</p>
-                  @if (isEdit()) {
-                    <p data-testid="caucao-paid-edit-note" class="mt-1">
-                      Se já houver uma cobrança de caução em aberto no Asaas, ela será cancelada.
-                    </p>
-                  }
+                  <p data-testid="caucao-paid-edit-note">
+                    Se já houver uma cobrança de caução em aberto no Asaas, ela será cancelada.
+                  </p>
                 </div>
               </div>
             }
