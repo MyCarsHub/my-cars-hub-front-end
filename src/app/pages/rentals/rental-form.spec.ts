@@ -126,6 +126,87 @@ describe('RentalForm picker filters', () => {
     fixture.detectChanges();
     expect(cmp.caucaoAmountPositive()).toBe(true);
   });
+
+  describe('caução recebida por fora: cartão', () => {
+    const CARD = '[data-testid="caucao-paid-card"]';
+    const SWITCH = '#rental-caucao-paid';
+
+    function render(editId: string | null = null) {
+      configure(editId);
+      const fixture = TestBed.createComponent(RentalForm);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const cmp = fixture.componentInstance as unknown as {
+        form: { patchValue: (v: Record<string, unknown>) => void; controls: { caucaoPaid: { value: boolean } } };
+      };
+      return { fixture, root, cmp };
+    }
+
+    it('não renderiza o cartão sem valor de caução e renderiza com valor', () => {
+      const { fixture, root, cmp } = render();
+      expect(root.querySelector(CARD)).toBeNull();
+      cmp.form.patchValue({ caucaoReais: '500,00' });
+      fixture.detectChanges();
+      expect(root.querySelector(CARD)).not.toBeNull();
+    });
+
+    it('mostra o rótulo exato, ajuda curta e switch acessível associado ao rótulo', () => {
+      const { fixture, root, cmp } = render();
+      cmp.form.patchValue({ caucaoReais: '500,00' });
+      fixture.detectChanges();
+      const card = root.querySelector(CARD) as HTMLLabelElement;
+      expect(card.textContent).toContain('Recebi o Caução por fora');
+      expect(card.textContent).toContain('nenhuma cobrança será gerada no Asaas');
+      expect(card.textContent).not.toContain('Caução recebida por fora (dinheiro / PIX manual)');
+      const input = root.querySelector(SWITCH) as HTMLInputElement;
+      expect(input.getAttribute('role')).toBe('switch');
+      expect(input.type).toBe('checkbox');
+      // Cartão inteiro é o alvo de toque: o próprio <label> envolve e aponta para o input.
+      expect(card.htmlFor).toBe('rental-caucao-paid');
+      expect(card.contains(input)).toBe(true);
+    });
+
+    it('OFF é neutro; clicar no cartão (não só no switch) liga o controle caucaoPaid e mostra a confirmação', () => {
+      const { fixture, root, cmp } = render();
+      cmp.form.patchValue({ caucaoReais: '500,00' });
+      fixture.detectChanges();
+      const input = root.querySelector(SWITCH) as HTMLInputElement;
+      expect(input.checked).toBe(false);
+      expect(root.querySelector('[data-testid="caucao-paid-confirmation"]')).toBeNull();
+      expect(root.querySelector('[data-testid="caucao-paid-check"]')).toBeNull();
+
+      // Clique no texto do cartão, fora do input.
+      (root.querySelector(CARD) as HTMLElement).querySelector('span.font-semibold')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+      fixture.detectChanges();
+
+      expect(cmp.form.controls.caucaoPaid.value).toBe(true);
+      expect(input.checked).toBe(true);
+      const confirmation = root.querySelector('[data-testid="caucao-paid-confirmation"]');
+      expect(confirmation?.textContent).toContain('Caução marcada como recebida — não será cobrada');
+      expect(root.querySelector('[data-testid="caucao-paid-check"]')).not.toBeNull();
+
+      input.click();
+      fixture.detectChanges();
+      expect(cmp.form.controls.caucaoPaid.value).toBe(false);
+      expect(root.querySelector('[data-testid="caucao-paid-confirmation"]')).toBeNull();
+    });
+
+    it('a nota do Asaas só aparece ao editar um aluguel existente', () => {
+      const created = render();
+      created.cmp.form.patchValue({ caucaoReais: '500,00' });
+      created.fixture.detectChanges();
+      expect(created.root.querySelector('[data-testid="caucao-paid-edit-note"]')).toBeNull();
+      TestBed.resetTestingModule();
+
+      const { fixture, root, cmp } = render('rental-1');
+      cmp.form.patchValue({ caucaoReais: '500,00' });
+      fixture.detectChanges();
+      const note = root.querySelector('[data-testid="caucao-paid-edit-note"]');
+      expect(note?.textContent).toContain('cobrança de caução em aberto no Asaas');
+    });
+  });
 });
 
 /**
