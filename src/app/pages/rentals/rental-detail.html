@@ -260,11 +260,11 @@
                 <div class="flex items-center gap-2 shrink-0">
                   <span
                     class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                    [class]="chargeStatusInfo(cc).chip"
+                    [class]="caucaoChipInfo(cc).chip"
                   >
-                    {{ chargeStatusInfo(cc).label }}
+                    {{ caucaoChipInfo(cc).label }}
                   </span>
-                  @if (canMarkAsPaid(cc)) {
+                  @if (canMarkAsPaid(cc) && !caucaoReceivedOutside()) {
                     <button
                       type="button"
                       (click)="askMarkPaid(cc)"
@@ -327,13 +327,13 @@
                     </td>
                     <td class="py-2.5 pr-4">
                       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
-                        [class]="chargeStatusInfo(cc).chip">
-                        {{ chargeStatusInfo(cc).label }}
+                        [class]="caucaoChipInfo(cc).chip">
+                        {{ caucaoChipInfo(cc).label }}
                       </span>
                     </td>
                     <td class="py-2.5 pr-4 text-right">
                       <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canMarkAsPaid(cc)) {
+                        @if (canMarkAsPaid(cc) && !caucaoReceivedOutside()) {
                           <button
                             type="button"
                             (click)="askMarkPaid(cc)"
@@ -382,9 +382,10 @@
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    [class]="caucaoReceivedOutside() ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-600'"
                   >
-                    Não gerada
+                    {{ caucaoReceivedOutside() ? 'Recebida por fora' : 'Não gerada' }}
                   </span>
                   @if (canMarkCaucaoAsPaidPlaceholder()) {
                     <button
@@ -436,8 +437,9 @@
                     <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(r.caucaoAmount) }}</td>
                     <td class="py-2.5 pr-4 tabular-nums text-neutral-500"><span class="text-neutral-400">—</span></td>
                     <td class="py-2.5 pr-4">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-neutral-100 text-neutral-600">
-                        Não gerada
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                        [class]="caucaoReceivedOutside() ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-600'">
+                        {{ caucaoReceivedOutside() ? 'Recebida por fora' : 'Não gerada' }}
                       </span>
                     </td>
                     <td class="py-2.5 pr-4 text-right">
@@ -471,13 +473,34 @@
               </table>
             </div>
 
-            <p class="text-[11px] text-neutral-500 mt-1">
-              Marque como paga quando receber o valor da caução por fora (dinheiro, PIX, transferência).
-            </p>
+            @if (!caucaoReceivedOutside()) {
+              <p class="text-[11px] text-neutral-500 mt-1">
+                Marque como paga quando receber o valor da caução por fora (dinheiro, PIX, transferência).
+              </p>
+            }
           } @else {
             <p class="text-sm text-neutral-500 text-center py-6">
               Sem caução configurada para este aluguel.
             </p>
+          }
+
+          @if (caucaoReceivedOutside()) {
+            <p class="text-[11px] text-neutral-500" data-testid="caucao-received-note">
+              Caução marcada como recebida — nenhuma cobrança será feita no Asaas.
+            </p>
+          }
+          @if (caucaoStaleOpenCharge()) {
+            <div data-testid="caucao-open-charge-banner"
+              class="rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm p-3 flex items-start gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" class="shrink-0 mt-0.5 text-blue-600" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <div class="min-w-0 text-xs leading-relaxed">
+                Há uma cobrança de caução aberta no Asaas. Salve o aluguel em Editar para cancelá-la.
+              </div>
+            </div>
           }
         </div>
       </app-page-card>
