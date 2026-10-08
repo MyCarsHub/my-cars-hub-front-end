@@ -66,7 +66,21 @@ export interface InviteResponse {
   expiresAt: string;
   /** Yes, `createDate` — the backend field has no `d`. Do not "fix" this. */
   createDate: string;
+  /**
+   * Invitee name given at creation. OPTIONAL: the list endpoint in production does not
+   * return it yet, and the screen falls back to the e-mail when it is absent.
+   */
+  name?: string;
+  /**
+   * Delivery state of the invitation e-mail. OPTIONAL: not returned in production yet.
+   * Absent means "unknown", and the screen shows no delivery chip at all — it never
+   * guesses "sent".
+   */
+  emailDelivery?: InviteEmailDelivery;
 }
+
+/** Delivery state of the invitation e-mail, when the backend reports it. */
+export type InviteEmailDelivery = 'QUEUED' | 'SENT' | 'FAILED';
 
 /**
  * Body of `GET /v1/invites/validate/{rawToken}` — the only PUBLIC invite endpoint.
