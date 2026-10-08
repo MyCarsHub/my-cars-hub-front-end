@@ -2,380 +2,307 @@
   title="Membros"
   description="Quem tem acesso a esta empresa e quem foi convidado."
 >
-  <!--
-    MOBILE-FIRST: uma coluna de cartões em qualquer largura, nunca tabela. Em 375px uma
-    tabela de cinco colunas (nome, e-mail, papel, estado, data) só existe rolando na
-    horizontal, e as ações saem da tela — justamente o que mais precisa estar junto da
-    pessoa a que se aplica.
-
-    Cada linha empilha identificação + estado no topo, dados abaixo, ações por último,
-    com alvo de toque de 44px e botões de largura total no celular.
-  -->
-  <div class="space-y-4 sm:space-y-6 lg:space-y-8">
-    @if (!canManagePeople()) {
+  <div class="space-y-6 lg:space-y-8">
+    @if (!canManagePeople) {
       <app-alert-banner
         variant="info"
         message="Esta tela é do dono e dos gerenciadores da empresa."
       />
     } @else {
-      <!--
-        RESUMO PRIMEIRO, e e o que faltava: a tela nao respondia "como esta minha equipe?"
-        sem contar linhas. Quatro numeros, grandes, visiveis sem clicar.
-
-        MOBILE-FIRST: 2 colunas em 375px e 4 a partir de `sm`. Quatro cartoes em uma linha
-        no celular daria numero de 11px — ilegivel para quem a tela atende. O numero usa
-        `text-3xl` porque ele E o conteudo; o rotulo fica menor, acima.
-      -->
-      <section
-        class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4"
-        aria-label="Resumo da equipe"
-      >
-        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
-          <!--
-            "PENDENTES", nao "enviados": o numero conta so PENDING, e convite EXPIRADO
-            tambem foi enviado — esta mesma tela o LISTA, e a ordenacao o poe na frente.
-            Com expirados na empresa, "enviados" diria 3 enquanto a lista mostra 5.
-            O subtitulo ja descrevia o numero certo; era o TITULO que discordava dele.
-          -->
-          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-            Convites pendentes
-          </p>
-          <p class="mt-1 text-3xl font-bold text-primary-700 tabular-nums">
-            {{ pendingInvitesCount() }}
-          </p>
-          <p class="text-xs text-neutral-500">aguardando resposta</p>
-        </div>
-        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
-          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-            Convites aceitos
-          </p>
-          <p class="mt-1 text-3xl font-bold text-success-900 tabular-nums">
-            {{ acceptedInvitesCount() }}
-          </p>
-          <p class="text-xs text-neutral-500">entraram na empresa</p>
-        </div>
-        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
-          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-            Gerenciadores
-          </p>
-          <p class="mt-1 text-3xl font-bold text-neutral-900 tabular-nums">
-            {{ managersCount() }}
-          </p>
-          <p class="text-xs text-neutral-500">com acesso de gestão</p>
-        </div>
-        <div class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
-          <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-            Motoristas
-          </p>
-          <p class="mt-1 text-3xl font-bold text-neutral-900 tabular-nums">
-            {{ driversCount() }}
-          </p>
-          <p class="text-xs text-neutral-500">com acesso de motorista</p>
-        </div>
-      </section>
-
-      <app-page-card title="Pessoas da empresa">
-        <div cardIcon class="p-2 bg-primary-low rounded-lg">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-            class="text-primary-700"
-          >
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-        </div>
-
-        <div cardActions class="flex flex-wrap items-center gap-2 sm:gap-3">
-          <span class="text-xs font-semibold text-neutral-500">
-            {{ activeCount() }} com acesso · {{ invitedCount() }} convidadas
-          </span>
+      @if (loadError(); as message) {
+        <app-alert-banner variant="error">
+          <p>{{ message }}</p>
           <button
             type="button"
+            data-retry
             (click)="load()"
             [disabled]="loading()"
-            class="min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border
-                   border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
-                   focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {{ loading() ? 'Atualizando…' : 'Atualizar' }}
-          </button>
-          <!--
-            CONVIDAR SEM SAIR DA TELA. Antes isto navegava para `/configuracoes/convites`, e
-            sair da lista para convidar era metade da reclamacao: a pessoa perdia de vista
-            justamente o lugar onde o convite ia aparecer.
-            Alvo de 48px — o botao principal desta tela.
-          -->
-          <button
-            type="button"
-            (click)="openInvite()"
-            class="min-h-12 px-4 py-2 rounded-xl text-sm font-semibold inline-flex
-                   items-center bg-primary-500 text-white hover:bg-primary-600 shadow-sm
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+            class="mt-3 w-full sm:w-auto min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                   justify-center gap-2 border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50
+                   disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                    focus-visible:ring-offset-2"
           >
-            Convidar pessoa
+            <app-members-icon name="resend" [size]="16" />Tentar novamente
           </button>
-          <!--
-            O LINK "Abrir em pagina" SAIU: com o convite abrindo aqui, mandar a pessoa para
-            outra tela era oferecer o caminho pior. A ROTA `/configuracoes/convites` continua
-            existindo e continua sendo o formulario — link que ja circula nao quebra —, ela
-            so deixou de ter atalho nesta tela.
-          -->
-        </div>
+        </app-alert-banner>
+      }
 
-        <div class="p-4 sm:p-6 space-y-4">
-          @if (listError(); as message) {
-            <app-alert-banner variant="error" [message]="message" />
+      @if (actionError(); as message) {
+        <app-alert-banner variant="error" [message]="message" />
+      }
+
+      <!-- KPI strip: only the three numbers the guidelines name; hidden while the page is
+           the empty invitation to invite. -->
+      @if (initialLoading()) {
+        <section class="grid gap-3 grid-cols-3" aria-busy="true" aria-label="Resumo da equipe">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
+              <div class="h-3 w-14 rounded bg-neutral-100 animate-pulse"></div>
+              <div class="h-8 mt-2 w-10 rounded bg-neutral-100 animate-pulse"></div>
+            </div>
           }
-
-          @if (loading() && !loaded()) {
-            <p role="status" class="text-sm text-neutral-500">Carregando pessoas…</p>
-          }
-
-          @if (isEmpty()) {
-            <p class="text-sm text-neutral-500">
-              Ninguém mais tem acesso a esta empresa e não há convites em aberto. Use
-              “Convidar pessoa” para dar acesso a alguém.
+        </section>
+      } @else if (membersLoaded() && !isEmpty()) {
+        <section class="grid gap-3 grid-cols-3 lg:grid-cols-4" aria-label="Resumo da equipe">
+          <div data-kpi="management" class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">Gestão</p>
+            <p class="text-xl sm:text-2xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
+              {{ managementCount() }}
             </p>
-          }
+            <p class="text-xs text-neutral-500 mt-1 truncate">com gestão</p>
+          </div>
+          <div data-kpi="drivers" class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">Motoristas</p>
+            <p class="text-xl sm:text-2xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
+              {{ driversCount() }}
+            </p>
+            <p class="text-xs text-neutral-500 mt-1 truncate">com acesso</p>
+          </div>
+          <div data-kpi="pending" class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
+            <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">Convites</p>
+            <p
+              class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
+              [class]="pendingInvitesCount() > 0 ? 'text-amber-700' : 'text-neutral-900'"
+            >
+              {{ invitesLoaded() ? pendingInvitesCount() : '–' }}
+            </p>
+            <p class="text-xs text-neutral-500 mt-1 truncate">pendentes</p>
+          </div>
+        </section>
+      }
 
-          @if (rows().length > 0) {
-            <ul class="space-y-3">
-              @for (row of rows(); track row.kind + row.id) {
-                <li class="rounded-xl border border-neutral-200 p-3 sm:p-4">
-                  <div class="flex flex-wrap items-start justify-between gap-2">
-                    <p class="text-sm font-semibold text-neutral-900 break-all min-w-0">
-                      {{ row.title }}
-                    </p>
-                    <!--
-                      O ESTADO é da linha, não de uma tela separada: é isto que permite
-                      membro e convidado dividirem a mesma lista sem ambiguidade.
-                    -->
-                    <span
-                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border shrink-0"
-                      [class]="row.stateClass"
-                    >
-                      {{ row.stateLabel }}
-                    </span>
-                  </div>
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <app-segmented-toggle
+          class="w-full sm:w-auto"
+          ariaLabel="Mostrar"
+          containerClass="bg-neutral-100 border border-neutral-200 w-full sm:w-auto [&>button]:flex-1 [&>button]:justify-center sm:[&>button]:flex-none"
+          activeClass="text-neutral-900"
+          [options]="tabOptions()"
+          [value]="tab()"
+          (selectionChange)="selectTab($event)"
+        />
+        @if (!isMobile() && !isEmpty()) {
+          <div class="sm:ml-auto">
+            <button
+              type="button"
+              data-invite-open
+              (click)="openInvite()"
+              class="min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+                     bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              <app-members-icon name="userPlus" [size]="18" />Convidar pessoa
+            </button>
+          </div>
+        }
+      </div>
 
-                  <dl
-                    class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-3 text-xs text-neutral-500"
-                  >
-                    @if (row.subtitle) {
-                      <div class="flex gap-1 min-w-0">
-                        <dt>E-mail:</dt>
-                        <dd class="font-medium text-neutral-700 break-all min-w-0">
-                          {{ row.subtitle }}
-                        </dd>
-                      </div>
-                    }
-                    <div class="flex gap-1">
-                      <dt>Acesso:</dt>
-                      <dd class="font-medium text-neutral-700">{{ row.roleLabel }}</dd>
-                    </div>
-                    <div class="flex gap-1">
-                      <dt>{{ row.dateLabel }}:</dt>
-                      <dd class="font-medium text-neutral-700">
-                        {{ row.date | date: 'dd/MM/yyyy' }}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <!--
-                    DESABILITADO COM MOTIVO, nao ausente.
-
-                    A trava do backend nao pode aparecer como 403 depois do
-                    clique, e tambem nao pode aparecer como botao que nunca
-                    existiu: quem procura "remover" e nao encontra conclui que a
-                    tela esta quebrada. O botao fica, apagado, e o `aria-describedby`
-                    liga o foco ao texto que explica por que.
-                  -->
-                  @if (row.kind === 'member') {
-                    <div class="mt-3">
-                      <button
-                        type="button"
-                        data-remove-member
-                        (click)="askRemove(row)"
-                        [disabled]="!row.canRemove || busyId() !== null"
-                        [attr.aria-label]="row.removeLabel"
-                        [attr.aria-describedby]="row.lockedReason ? 'lock-' + row.id : null"
-                        class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl text-sm font-semibold
-                               border border-red-200 text-red-700 bg-white hover:bg-red-50
-                               focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600
-                               focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        @if (busyId() === row.id) {
-                          {{ row.isSelf ? 'Saindo…' : 'Removendo…' }}
-                        } @else {
-                          {{ row.isSelf ? 'Sair desta empresa' : 'Remover acesso' }}
-                        }
-                      </button>
-                    </div>
+      @if (initialLoading()) {
+        <app-page-card title="Membros">
+          <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
+            <app-members-icon name="users" />
+          </div>
+          <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3" role="status" aria-label="Carregando membros">
+            @for (i of [1, 2, 3]; track i) {
+              <div data-skeleton class="h-[150px] lg:h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+            }
+          </div>
+        </app-page-card>
+      } @else if (tab() === 'active') {
+        @if (membersLoaded()) {
+          <app-page-card title="Membros">
+            <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
+              <app-members-icon name="users" />
+            </div>
+            <div cardActions><ng-container [ngTemplateOutlet]="refresh" /></div>
+            <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+              @if (isMobile()) {
+                <ul class="space-y-3" aria-label="Membros com acesso">
+                  @for (row of memberRows(); track row.id) {
+                    <li>
+                      <app-member-card
+                        [row]="row"
+                        [busy]="busyId() === row.id"
+                        (actions)="openActions({ kind: 'member', row: $event })"
+                      />
+                    </li>
                   }
-
-                  @if (row.canResend || row.canCancel) {
-                    <div class="mt-3 flex flex-col sm:flex-row gap-2">
-                      @if (row.canResend) {
-                        <button
-                          type="button"
-                          (click)="resend(row)"
-                          [disabled]="busyId() !== null"
-                          [attr.aria-label]="'Reenviar convite para ' + row.title"
-                          class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl text-sm font-semibold
-                                 border border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50
-                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
-                                 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {{ busyId() === row.id ? 'Enviando…' : 'Reenviar convite' }}
-                        </button>
-                      }
-                      @if (row.canCancel) {
-                        <button
-                          type="button"
-                          (click)="askCancel(row)"
-                          [disabled]="busyId() !== null"
-                          [attr.aria-label]="'Cancelar convite de ' + row.title"
-                          class="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl text-sm font-semibold
-                                 border border-red-200 text-red-700 bg-white hover:bg-red-50
-                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600
-                                 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          Cancelar convite
-                        </button>
-                      }
-                    </div>
-                  }
-
-                  @if (row.lockedReason) {
-                    <!--
-                      A ausência da ação é EXPLICADA, não silenciosa: um botão que
-                      simplesmente não está ali faz a pessoa procurar o que não existe.
-                    -->
-                    <p [id]="'lock-' + row.id" class="mt-3 text-xs text-neutral-500">{{ row.lockedReason }}</p>
-                  }
-                </li>
+                </ul>
+              } @else {
+                <app-members-table
+                  [rows]="memberRows()"
+                  [busyId]="busyId()"
+                  (remove)="askRemove($event)"
+                />
               }
-            </ul>
-          }
-        </div>
-      </app-page-card>
+              @if (isEmpty()) {
+                <div
+                  data-empty
+                  class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+                >
+                  <span class="inline-flex text-neutral-500"><app-members-icon name="users" [size]="24" /></span>
+                  <p class="text-sm font-semibold text-neutral-900">Só você tem acesso por enquanto.</p>
+                  <p class="text-sm text-neutral-600">
+                    Convide um gerenciador para dividir a operação. Motoristas recebem o convite
+                    quando você os cadastra.
+                  </p>
+                  <ng-container [ngTemplateOutlet]="emptyAction" />
+                </div>
+              } @else {
+                <p class="text-xs text-neutral-500 pt-1">{{ roleChangeNote }}</p>
+              }
+            </div>
+          </app-page-card>
+        }
+      } @else {
+        @if (invitesLoaded()) {
+          <app-page-card title="Convites pendentes">
+            <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
+              <app-members-icon name="mail" />
+            </div>
+            <div cardActions><ng-container [ngTemplateOutlet]="refresh" /></div>
+            <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+              @if (inviteRows().length === 0) {
+                <div
+                  data-empty
+                  class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+                >
+                  <span class="inline-flex text-neutral-500"><app-members-icon name="mail" [size]="24" /></span>
+                  <p class="text-sm font-semibold text-neutral-900">Nenhum convite pendente.</p>
+                  <p class="text-sm text-neutral-600">
+                    Quem você convidar aparece aqui até aceitar o convite.
+                  </p>
+                  @if (isEmpty()) {
+                    <ng-container [ngTemplateOutlet]="emptyAction" />
+                  }
+                </div>
+              } @else if (isMobile()) {
+                <ul class="space-y-3" aria-label="Convites pendentes">
+                  @for (row of inviteRows(); track row.id) {
+                    <li>
+                      <app-invite-card
+                        [row]="row"
+                        [busy]="busyId() === row.id"
+                        (actions)="openActions({ kind: 'invite', row: $event })"
+                        (resend)="resend($event)"
+                      />
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <app-invites-table
+                  [rows]="inviteRows()"
+                  [busyId]="busyId()"
+                  (resend)="resend($event)"
+                  (cancel)="askCancel($event)"
+                />
+              }
+              <p class="text-xs text-neutral-500 pt-1">
+                Convites valem {{ ttlLabel }}. Motoristas recebem o convite ao serem cadastrados em
+                Motoristas.
+              </p>
+            </div>
+          </app-page-card>
+        }
+      }
+
+      @if (isMobile() && !isEmpty()) {
+        <!-- Room for the sticky bar, so it never covers the last row. -->
+        <div class="h-20" aria-hidden="true"></div>
+      }
     }
   </div>
 
-  @if (pendingRemoval(); as target) {
-    <!--
-      A confirmacao fala na SEGUNDA pessoa quando sou eu que estou saindo.
-      "Dona Ana perde o acesso" para a propria Ana le como se fosse outra
-      pessoa, e o aviso que mais importa muda: para si mesmo, o que assusta e
-      perder o acesso AGORA e depender de um convite de outra pessoa para
-      voltar — nao ha como se reconvidar.
-    -->
-    <app-confirm-dialog
-      [open]="true"
-      [title]="target.isSelf ? 'Sair desta empresa' : 'Remover acesso'"
-      [message]="
-        target.isSelf
-          ? 'Você perde o acesso a esta empresa imediatamente. Os dados que você cadastrou' +
-            ' continuam na empresa, e só quem ficou pode te convidar de novo.'
-          : target.title +
-            ' perde o acesso a esta empresa imediatamente. Os dados que essa pessoa cadastrou' +
-            ' continuam na empresa, e você pode dar acesso de novo por um novo convite.'
-      "
-      [confirmLabel]="target.isSelf ? 'Sair da empresa' : 'Remover acesso'"
-      [cancelLabel]="target.isSelf ? 'Continuar aqui' : 'Manter acesso'"
-      variant="danger"
-      (confirmed)="confirmRemove()"
-      (cancelled)="dismissRemove()"
-    />
-  }
-
-  @if (pendingCancel(); as target) {
-    <app-confirm-dialog
-      [open]="true"
-      title="Cancelar convite"
-      [message]="
-        'O convite de ' +
-        target.title +
-        ' deixa de funcionar imediatamente. Você pode enviar um novo depois.'
-      "
-      confirmLabel="Cancelar convite"
-      cancelLabel="Manter convite"
-      variant="danger"
-      (confirmed)="confirmCancel()"
-      (cancelled)="dismissCancel()"
-    />
+  @if (canManagePeople && isMobile() && !isEmpty()) {
+    <div class="fixed inset-x-0 bottom-0 z-20 bg-white border-t border-neutral-200 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <button
+        type="button"
+        data-invite-open
+        (click)="openInvite()"
+        class="min-h-12 w-full px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+               bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+               focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+      >
+        <app-members-icon name="userPlus" [size]="18" />Convidar pessoa
+      </button>
+    </div>
   }
 </app-default-page-layout>
 
-<!--
-  O CONVITE EM DIALOGO NATIVO.
+<ng-template #refresh>
+  <button
+    type="button"
+    data-refresh
+    (click)="load()"
+    [disabled]="loading()"
+    class="min-h-[44px] px-3 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+           border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-60
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+  >
+    {{ loading() ? 'Atualizando…' : 'Atualizar' }}
+  </button>
+</ng-template>
 
-  `<dialog>` com `showModal()` em vez de div: foco preso dentro, Esc que fecha e fundo que
-  nao rola saem DE GRACA do elemento, em vez de serem tres comportamentos reimplementados a
-  mao. E novidade neste repo — o `ConfirmDialog` e div com role="dialog" — mas o raio fica
-  neste arquivo e os dois convivem sem reescrever nada.
+<ng-template #emptyAction>
+  <button
+    type="button"
+    data-invite-open
+    (click)="openInvite()"
+    class="min-h-12 w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+           bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+  >
+    <app-members-icon name="userPlus" [size]="18" />Convidar pessoa
+  </button>
+</ng-template>
 
-  O FORMULARIO DENTRO E O MESMO COMPONENTE da rota, com `embedded`. Ele JA abre com dois
-  campos (e-mail e cargo, com DRIVER no padrao) e JA revela nome, CPF e telefone so quando
-  o cargo e Gerenciador — a revelacao progressiva nao foi escrita aqui, ela existe desde o
-  FEAT-0167 e e por isso que o dialogo cabe em qualquer tela.
+<app-row-actions-sheet
+  [target]="actionsTarget()"
+  (closed)="closeActions()"
+  (remove)="askRemove($event)"
+  (resend)="resend($event)"
+  (cancel)="askCancel($event)"
+/>
 
-  FORMATO POR LARGURA: folha deslizante colada embaixo no celular (o padrao que esse publico
-  conhece de aplicativo), caixa centrada e estreita no desktop — campo de e-mail com a
-  largura da tela e ilegivel.
+<app-invite-sheet
+  [open]="inviteOpen()"
+  [canInviteManager]="canInviteManager"
+  (closed)="closeInvite()"
+  (sent)="onInviteSent($event)"
+/>
 
-  FECHA AO ENVIAR, FICA ABERTO AO FALHAR: o fechamento E a confirmacao. Em erro o dialogo
-  permanece com o que a pessoa digitou, e a mensagem aparece dentro dele — fechar e perder o
-  preenchimento e o pior resultado possivel aqui.
--->
-<dialog #inviteDialog (close)="onDialogClose()" class="invite-dialog">
-  <div class="p-4 sm:p-5">
-    <div class="flex items-start justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-bold text-neutral-900">Convidar pessoa</h2>
-        <p class="mt-0.5 text-sm text-neutral-600">
-          Ela recebe um e-mail e entra com a conta Google dela.
-        </p>
-      </div>
-      <button
-        type="button"
-        (click)="closeInvite()"
-        aria-label="Fechar"
-        class="shrink-0 min-h-[44px] min-w-[44px] inline-flex items-center justify-center
-               rounded-xl text-neutral-500 hover:bg-neutral-50 focus:outline-none
-               focus-visible:ring-2 focus-visible:ring-primary-600"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </svg>
-      </button>
-    </div>
-  </div>
+@if (pendingRemoval(); as target) {
+  <!-- Second person when it is ME leaving: the risk is that nobody can re-invite me. -->
+  <app-confirm-dialog
+    [open]="true"
+    [title]="target.isSelf ? 'Sair desta empresa' : 'Remover acesso'"
+    [message]="
+      target.isSelf
+        ? 'Você perde o acesso a esta empresa imediatamente. Os dados que você cadastrou' +
+          ' continuam na empresa, e só quem ficou pode te convidar de novo.'
+        : target.name +
+          ' perde o acesso a esta empresa imediatamente. Os dados que essa pessoa cadastrou' +
+          ' continuam na empresa, e você pode dar acesso de novo por um novo convite.'
+    "
+    [confirmLabel]="target.isSelf ? 'Sair da empresa' : 'Remover acesso'"
+    [cancelLabel]="target.isSelf ? 'Continuar aqui' : 'Manter acesso'"
+    variant="danger"
+    (confirmed)="confirmRemove()"
+    (cancelled)="pendingRemoval.set(null)"
+  />
+}
 
-  <app-invites [embedded]="true" (sent)="onInviteSent()" />
-</dialog>
+@if (pendingCancel(); as target) {
+  <app-confirm-dialog
+    [open]="true"
+    title="Cancelar convite"
+    [message]="
+      'O convite de ' + target.title + ' deixa de funcionar imediatamente. Você pode enviar um novo depois.'
+    "
+    confirmLabel="Cancelar convite"
+    cancelLabel="Manter convite"
+    variant="danger"
+    (confirmed)="confirmCancel()"
+    (cancelled)="pendingCancel.set(null)"
+  />
+}
