@@ -173,7 +173,6 @@ describe('RentalForm picker filters', () => {
       const input = root.querySelector(SWITCH) as HTMLInputElement;
       expect(input.checked).toBe(false);
       expect(root.querySelector('[data-testid="caucao-paid-confirmation"]')).toBeNull();
-      expect(root.querySelector('[data-testid="caucao-paid-check"]')).toBeNull();
 
       // Clique no texto do cartão, fora do input.
       (root.querySelector(CARD) as HTMLElement).querySelector('span.font-semibold')!.dispatchEvent(
@@ -185,12 +184,30 @@ describe('RentalForm picker filters', () => {
       expect(input.checked).toBe(true);
       const confirmation = root.querySelector('[data-testid="caucao-paid-confirmation"]');
       expect(confirmation?.textContent).toContain('Caução marcada como recebida — não será cobrada');
-      expect(root.querySelector('[data-testid="caucao-paid-check"]')).not.toBeNull();
+      // Estado ligado vem dos tokens de seleção do app (tint primário via :has(:checked)); nunca verde.
+      const cardClasses = (root.querySelector(CARD) as HTMLElement).outerHTML;
+      expect(cardClasses).toContain('has-checked:bg-primary-500/10');
+      expect(cardClasses).toContain('peer-checked:bg-primary-600');
+      expect(confirmation?.className).toContain('text-primary-700');
 
       input.click();
       fixture.detectChanges();
       expect(cmp.form.controls.caucaoPaid.value).toBe(false);
       expect(root.querySelector('[data-testid="caucao-paid-confirmation"]')).toBeNull();
+    });
+
+    it('não usa a paleta verde (emerald/green) em nenhum estado', () => {
+      const { fixture, root, cmp } = render();
+      cmp.form.patchValue({ caucaoReais: '500,00' });
+      fixture.detectChanges();
+      const off = (root.querySelector(CARD) as HTMLElement).outerHTML;
+      (root.querySelector(SWITCH) as HTMLInputElement).click();
+      fixture.detectChanges();
+      const on = (root.querySelector(CARD) as HTMLElement).outerHTML;
+      for (const html of [off, on]) {
+        expect(html).not.toMatch(/emerald|green-/);
+        expect(html).not.toContain('<svg');
+      }
     });
 
     it('a nota do Asaas só aparece ao editar um aluguel existente', () => {

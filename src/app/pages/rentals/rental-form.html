@@ -198,31 +198,12 @@
           <label
             for="rental-caucao-paid"
             data-testid="caucao-paid-card"
-            class="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-xl border p-4
+            class="flex min-h-[44px] cursor-pointer items-center gap-4 rounded-xl border p-4
                    border-neutral-200 bg-neutral-50
-                   has-checked:border-emerald-600 has-checked:bg-emerald-50
+                   has-checked:border-primary-500 has-checked:bg-primary-500/10
                    has-focus-visible:ring-2 has-focus-visible:ring-primary-400 has-focus-visible:ring-offset-2
                    transition-colors motion-reduce:transition-none"
           >
-            <span aria-hidden="true"
-              class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full
-                     bg-neutral-200 text-neutral-700">
-              @if (caucaoPaidOn()) {
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-                  stroke-linejoin="round" data-testid="caucao-paid-check">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              } @else {
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <rect x="2" y="6" width="20" height="12" rx="2"/>
-                  <circle cx="12" cy="12" r="2"/>
-                  <path d="M6 12h.01M18 12h.01"/>
-                </svg>
-              }
-            </span>
             <span class="min-w-0 flex-1">
               <span class="block text-sm font-semibold text-neutral-900">Recebi o Caução por fora</span>
               <span class="mt-1 block text-xs leading-relaxed text-neutral-600">
@@ -230,7 +211,7 @@
               </span>
               @if (caucaoPaidOn()) {
                 <span data-testid="caucao-paid-confirmation"
-                  class="mt-1 block text-xs font-semibold leading-relaxed text-emerald-800">
+                  class="mt-1 block text-xs font-semibold leading-relaxed text-primary-700">
                   Caução marcada como recebida — não será cobrada.
                 </span>
               }
@@ -241,19 +222,20 @@
                 </span>
               }
             </span>
-            <span class="relative inline-flex shrink-0 items-center self-center">
+            <span class="relative inline-flex shrink-0 items-center">
               <input
                 id="rental-caucao-paid"
                 type="checkbox"
                 role="switch"
                 formControlName="caucaoPaid"
-                class="peer sr-only" />
+                class="sr-only peer" />
               <span aria-hidden="true"
-                class="relative h-7 w-12 rounded-full bg-neutral-500 transition-colors
-                       motion-reduce:transition-none peer-checked:bg-emerald-700
-                       after:absolute after:left-0.5 after:top-0.5 after:size-6 after:rounded-full
-                       after:bg-white after:shadow after:content-[''] after:transition-transform
-                       motion-reduce:after:transition-none peer-checked:after:translate-x-5"></span>
+                class="w-12 h-7 rounded-full bg-neutral-300 peer-checked:bg-primary-600
+                       transition-colors motion-reduce:transition-none relative
+                       after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                       after:w-6 after:h-6 after:bg-white after:rounded-full after:shadow
+                       after:transition-transform motion-reduce:after:transition-none
+                       peer-checked:after:translate-x-5"></span>
             </span>
           </label>
         }
