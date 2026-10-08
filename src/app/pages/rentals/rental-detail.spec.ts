@@ -867,3 +867,124 @@ describe('RentalDetail — cobrança contestada (DISPUTED)', () => {
     expect(disputed.className).not.toBe(pending.className);
   });
 });
+
+/**
+ * Caução "recebida por fora" (`caucaoPaid`) com cobrança perdida no Asaas.
+ *
+ * Uma cobrança de caução criada antes da correção no backend pode continuar
+ * aberta mesmo com o aluguel marcado como recebido. O card não pode oferecer
+ * ação de pagamento sobre ela e precisa dizer a verdade ao dono. Cada linha é
+ * renderizada DUAS vezes (mobile + desktop), daí as contagens pares.
+ */
+describe('RentalDetail — caução recebida por fora', () => {
+  const NOTE = 'Caução marcada como recebida — nenhuma cobrança será feita no Asaas.';
+  const BANNER =
+    'Há uma cobrança de caução aberta no Asaas. Salve o aluguel em Editar para cancelá-la.';
+
+  function caucaoCharge(overrides: Partial<RentalChargeDto> = {}): RentalChargeDto {
+    return {
+      id: 'c-caucao',
+      kind: 'CAUCAO',
+      amount: 50_000,
+      status: 'PENDING',
+      provider: 'ASAAS',
+      externalId: 'pay_caucao',
+      checkoutUrl: 'https://asaas.example/checkout/caucao',
+      paidAt: null,
+      dueDate: '2099-12-31',
+      periodIndex: null,
+      ...overrides,
+    };
+  }
+
+  const MANUAL = { ...RESERVED_BASE, status: 'ACTIVE' as const, automaticCharge: false, caucaoAmount: 50_000 };
+
+  function chips(fixture: ComponentFixture<RentalDetail>, label: string): HTMLElement[] {
+    const all = Array.from(fixture.nativeElement.querySelectorAll('span')) as HTMLElement[];
+    return all.filter((s) => (s.textContent ?? '').trim() === label);
+  }
+
+  function banner(fixture: ComponentFixture<RentalDetail>): HTMLElement | null {
+    return fixture.nativeElement.querySelector('[data-testid="caucao-open-charge-banner"]');
+  }
+
+  function note(fixture: ComponentFixture<RentalDetail>): HTMLElement | null {
+    return fixture.nativeElement.querySelector('[data-testid="caucao-received-note"]');
+  }
+
+  function links(fixture: ComponentFixture<RentalDetail>): HTMLAnchorElement[] {
+    return Array.from(fixture.nativeElement.querySelectorAll('a[href*="asaas"]'));
+  }
+
+  it('caucaoPaid sem cobrança: chip verde "Recebida por fora", nota, sem ação nem banner', async () => {
+    const { fixture } = await mount({ ...MANUAL, caucaoPaid: true, charges: [] });
+
+    const received = chips(fixture, 'Recebida por fora');
+    expect(received.length, 'mobile + desktop').toBe(2);
+    expect(received[0].className).toContain('bg-emerald-100');
+    expect(received[0].className).toContain('text-emerald-800');
+    expect(chips(fixture, 'Não gerada').length).toBe(0);
+    expect(note(fixture)?.textContent).toContain(NOTE);
+    expect(banner(fixture)).toBeNull();
+    expect(buttonsLabeled(fixture, 'Marcar como paga').length).toBe(0);
+    expect(links(fixture).length).toBe(0);
+  });
+
+  it.each(['PENDING', 'PAST_DUE', 'FAILED'] as const)(
+    'caucaoPaid com cobrança %s aberta: chip, sem ação de pagar, banner azul',
+    async (status) => {
+      const { fixture } = await mount({
+        ...MANUAL,
+        caucaoPaid: true,
+        charges: [caucaoCharge({ status })],
+      });
+
+      expect(chips(fixture, 'Recebida por fora').length, 'mobile + desktop').toBe(2);
+      expect(chips(fixture, 'Pendente').length + chips(fixture, 'Atrasada').length).toBe(0);
+      expect(buttonsLabeled(fixture, 'Marcar como paga').length, 'nenhuma ação de pagamento').toBe(0);
+      expect(links(fixture).length, 'nenhum link de pagamento').toBe(0);
+      expect(fixture.nativeElement.innerHTML).not.toContain('asaas.example');
+      expect(note(fixture)?.textContent).toContain(NOTE);
+      const b = banner(fixture);
+      expect(b, 'banner de cobrança aberta').toBeTruthy();
+      expect(b!.textContent).toContain(BANNER);
+      expect(b!.className).toContain('bg-blue-50');
+    },
+  );
+
+  it('caucaoPaid com cobrança PAID: exibida como hoje, sem banner nem "Recebida por fora"', async () => {
+    const { fixture } = await mount({
+      ...MANUAL,
+      caucaoPaid: true,
+      charges: [caucaoCharge({ status: 'PAID', paidAt: '2026-08-02T10:00:00Z' })],
+    });
+
+    expect(chips(fixture, 'Pago').length, 'mobile + desktop').toBe(2);
+    expect(chips(fixture, 'Recebida por fora').length).toBe(0);
+    expect(banner(fixture)).toBeNull();
+    expect(note(fixture)).toBeNull();
+  });
+
+  it('caucaoPaid=false (caracterização): cobrança aberta segue com seu chip e "Marcar como paga"', async () => {
+    const { fixture } = await mount({
+      ...MANUAL,
+      caucaoPaid: false,
+      charges: [caucaoCharge({ status: 'PENDING' })],
+    });
+
+    expect(chips(fixture, 'Pendente').length, 'mobile + desktop').toBe(2);
+    expect(chips(fixture, 'Recebida por fora').length).toBe(0);
+    expect(buttonsLabeled(fixture, 'Marcar como paga').length).toBe(2);
+    expect(banner(fixture)).toBeNull();
+    expect(note(fixture)).toBeNull();
+  });
+
+  it('caucaoPaid=false sem cobrança (caracterização): "Não gerada" e a dica de marcar como paga', async () => {
+    const { fixture } = await mount({ ...MANUAL, caucaoPaid: false, charges: [] });
+
+    expect(chips(fixture, 'Não gerada').length).toBe(2);
+    expect(chips(fixture, 'Recebida por fora').length).toBe(0);
+    expect(fixture.nativeElement.textContent).toContain('Marque como paga quando receber');
+    expect(banner(fixture)).toBeNull();
+  });
+});
