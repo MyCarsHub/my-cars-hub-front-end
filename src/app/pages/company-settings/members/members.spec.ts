@@ -237,14 +237,61 @@ describe('CompanyMembers — pessoas da empresa', () => {
     );
   }
 
-  function tab(f: ComponentFixture<CompanyMembers>, label: 'Ativos' | 'Pendentes'): void {
-    const radio = Array.from(host(f).querySelectorAll<HTMLButtonElement>('[role="radio"]')).find(
-      (b) => (b.textContent ?? '').includes(label),
-    );
-    if (!radio) throw new Error('aba ' + label + ' nao existe');
+  /** E-mails in the order the rows are on screen (card or table, members and invites). */
+  function order(f: ComponentFixture<CompanyMembers>): string[] {
+    return Array.from(
+      host(f).querySelectorAll('[data-member-row], [data-invite-row]'),
+    ).map((r) => (r.textContent ?? '').match(/[\w.]+@empresa\.com\.br/)?.[0] ?? '?');
+  }
+
+  function search(f: ComponentFixture<CompanyMembers>, value: string): void {
+    const input = host(f).querySelector<HTMLInputElement>('#members-search');
+    if (!input) throw new Error('a busca nao esta na tela');
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    f.detectChanges();
+  }
+
+  /** Desktop: the two inline selects. */
+  function choose(f: ComponentFixture<CompanyMembers>, which: 'access' | 'status', value: string): void {
+    const select = host(f).querySelector<HTMLSelectElement>(`[data-filter-${which}]`);
+    if (!select) throw new Error('o filtro ' + which + ' nao esta na tela');
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    f.detectChanges();
+  }
+
+  /** Phone: open the Filtrar sheet and pick a radio chip by its group and label. */
+  function openFilterSheet(f: ComponentFixture<CompanyMembers>): HTMLElement {
+    host(f).querySelector<HTMLButtonElement>('[data-filter-open]')?.click();
+    f.detectChanges();
+    const s = sheet(f);
+    if (!s) throw new Error('a folha de filtros nao abriu');
+    return s;
+  }
+
+  function pickChip(
+    f: ComponentFixture<CompanyMembers>,
+    group: 'access' | 'status',
+    label: string,
+  ): void {
+    const radio = Array.from(
+      sheet(f)?.querySelectorAll<HTMLButtonElement>(
+        `[role="radiogroup"][aria-labelledby="filter-${group}-label"] [role="radio"]`,
+      ) ?? [],
+    ).find((b) => (b.textContent ?? '').trim() === label);
+    if (!radio) throw new Error('chip ' + label + ' nao existe em ' + group);
     radio.click();
     f.detectChanges();
   }
+
+  function sheetButton(f: ComponentFixture<CompanyMembers>, attr: string): void {
+    sheet(f)?.querySelector<HTMLButtonElement>(`[${attr}]`)?.click();
+    f.detectChanges();
+  }
+
+  const count = (f: ComponentFixture<CompanyMembers>): string =>
+    host(f).querySelector('[data-results]')?.textContent?.trim() ?? '';
 
   /** The open sheet (the actions sheet or the invite sheet), if any. */
   function sheet(f: ComponentFixture<CompanyMembers>): HTMLElement | null {
@@ -330,17 +377,17 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
   it('no celular sao cartoes, sem tabela; no desktop e tabela, sem cartoes', () => {
     const phone = render('OWNER');
-    expect(host(phone).querySelectorAll('ul app-member-card')).toHaveLength(3);
+    expect(host(phone).querySelectorAll('ul app-person-card')).toHaveLength(3);
     expect(host(phone).querySelector('table')).toBeNull();
 
     const desk = render('OWNER', { mobile: false });
-    expect(host(desk).querySelector('app-member-card')).toBeNull();
+    expect(host(desk).querySelector('app-person-card')).toBeNull();
     const rows = host(desk).querySelectorAll('table tbody tr[data-member-row]');
     expect(rows).toHaveLength(3);
     // Same data on both: name, e-mail, role, "Desde"/"Membro desde" date.
     expect(rows[0].textContent).toContain('Dona Ana');
     expect(rows[0].textContent).toContain('10/01/2026');
-    expect(host(desk).querySelector('thead')?.textContent).toContain('Membro desde');
+    expect(host(desk).querySelector('thead')?.textContent).toContain('Enviado em / Desde');
   });
 
   it('nao mostra "ultimo acesso": o payload de membros nao traz esse campo', () => {
@@ -366,14 +413,14 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(host(f).querySelector('[aria-label="Resumo da equipe"]')?.getAttribute('aria-busy')).toBe(
       'true',
     );
-    expect(host(f).querySelector('app-member-card')).toBeNull();
+    expect(host(f).querySelector('app-person-card')).toBeNull();
     expect(text(f)).not.toContain('Carregando');
   });
   it('erro ao carregar: banner com Tentar novamente, que recarrega as duas fontes', () => {
     const f = render('MANAGER', { listImpl: () => throwError(() => error(500)) });
     const banner = host(f).querySelector('app-alert-banner [role="alert"]');
     expect(banner).not.toBeNull();
-    expect(host(f).querySelector('app-member-card')).toBeNull();
+    expect(host(f).querySelector('app-person-card')).toBeNull();
     const retry = host(f).querySelector<HTMLButtonElement>('[data-retry]');
     expect(retry?.textContent).toContain('Tentar novamente');
     retry?.click();
@@ -387,41 +434,79 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(text(f)).toContain('podem ver quem tem acesso');
   });
 
-  // ================================================================ TABS
-  it('abas Ativos | Pendentes com contagem, como radiogroup, e a troca mostra a outra lista', () => {
-    const f = render('OWNER', { invites: [pendingInvite, expiredInvite, acceptedInvite] });
-    const group = host(f).querySelector('[role="radiogroup"]');
-    expect(group?.getAttribute('aria-label')).toBe('Mostrar');
-    const radios = Array.from(host(f).querySelectorAll('[role="radio"]')).map((r) =>
-      (r.textContent ?? '').trim(),
-    );
-    // Accepted is NOT pending; expired IS listed in the pending tab.
-    expect(radios).toEqual(['Ativos (3)', 'Pendentes (2)']);
-    expect(host(f).querySelector('[role="radio"][aria-checked="true"]')?.textContent).toContain(
-      'Ativos',
-    );
-    expect(text(f)).not.toContain('convidada@empresa.com.br');
+  // ================================================================ ONE LIST
+  const self: CompanyMemberResponse = { ...owner, userId: ME };
+  const allInvites = [pendingInvite, driverInvite, expiredInvite];
 
-    tab(f, 'Pendentes');
-    expect(text(f)).toContain('convidada@empresa.com.br');
-    expect(host(f).querySelector('app-member-card')).toBeNull();
-    expect(host(f).querySelector('[role="radio"][aria-checked="true"]')?.textContent).toContain(
-      'Pendentes',
-    );
+  it('UMA lista so, sem abas: voce, membros por nome, convites expirados e depois pendentes', () => {
+    const roster = [driver, manager, self];
+    const expected = [
+      'ana@empresa.com.br',
+      'bruno@empresa.com.br',
+      'caio@empresa.com.br',
+      'expirada@empresa.com.br',
+      'convidada@empresa.com.br',
+      'motorista.novo@empresa.com.br',
+    ];
+    const phone = render('OWNER', { roster, invites: allInvites });
+    expect(host(phone).querySelector('[role="radiogroup"]')).toBeNull();
+    expect(order(phone)).toEqual(expected);
+    const desk = render('OWNER', { roster, invites: allInvites, mobile: false });
+    expect(order(desk)).toEqual(expected);
+    expect(host(desk).querySelector('h2')?.textContent).toContain('Lista');
   });
 
-  it('membro e convidado ficam cada um na sua aba, cada um com seu estado', () => {
+  it('cada linha traz o seu status: Ativo, Pendente ou Expirado, em cores diferentes', () => {
+    const f = render('OWNER', { roster: [owner, manager], invites: [pendingInvite, expiredInvite] });
+    const chip = (who: string): HTMLElement =>
+      rowOf(f, who).querySelector<HTMLElement>('[data-status-chip]') as HTMLElement;
+    expect(chip('Dona Ana').textContent?.trim()).toBe('Ativo');
+    expect(chip('convidada@').textContent?.trim()).toBe('Pendente');
+    expect(chip('expirada@').textContent?.trim()).toBe('Expirado');
+    expect(chip('Dona Ana').className).toContain('success');
+    expect(chip('convidada@').className).toContain('amber');
+    expect(chip('expirada@').className).toContain('rose');
+    expect(host(f).innerHTML).not.toMatch(/\b(bg|text|border)-red-/);
+  });
+
+  it('membro e convidado na mesma lista: o convite diz quando expira, o membro diz desde quando', () => {
     const f = render('OWNER', { roster: [owner, manager], invites: [pendingInvite] });
-    expect(rowOf(f, 'Dona Ana').textContent).toContain('Com acesso');
-    tab(f, 'Pendentes');
+    expect(rowOf(f, 'Dona Ana').textContent).toContain('10/01/2026');
     expect(rowOf(f, 'convidada@empresa.com.br').textContent).toContain('Expira em 6 dias');
+    expect(rowOf(f, 'convidada@empresa.com.br').textContent).toContain('01/10/2026');
+  });
+
+  it('desktop: colunas pedidas, e-mail sem truncar, aceite do convite e traco no membro', () => {
+    const f = render('OWNER', {
+      roster: [owner],
+      invites: [{ ...pendingInvite, email: 'um.endereco.bem.comprido@empresa.com.br' }, expiredInvite],
+      mobile: false,
+    });
+    const heads = Array.from(host(f).querySelectorAll('thead th')).map((h) =>
+      (h.textContent ?? '').trim(),
+    );
+    expect(heads).toEqual([
+      'Nome',
+      'E-mail',
+      'Nível de acesso',
+      'Status',
+      'Enviado em / Desde',
+      'Aceite',
+      'Ações',
+    ]);
+    const email = rowOf(f, 'um.endereco').querySelector<HTMLElement>('[data-email]') as HTMLElement;
+    expect(email.textContent?.trim()).toBe('um.endereco.bem.comprido@empresa.com.br');
+    expect(email.className).not.toContain('truncate');
+    const cells = (who: string): string[] =>
+      Array.from(rowOf(f, who).querySelectorAll('td')).map((c) => (c.textContent ?? '').trim());
+    expect(cells('Dona Ana')[5]).toBe('—');
+    expect(cells('um.endereco')[5]).toBe('Expira em 6 dias');
+    expect(cells('expirada@')[5]).toBe('Expirado');
   });
 
   it('convite ACEITO nao vira linha: a pessoa aparece UMA vez, como membro', () => {
     const f = render('OWNER', { roster: [owner, manager], invites: [acceptedInvite] });
-    tab(f, 'Pendentes');
     expect(host(f).querySelectorAll('[data-invite-row]')).toHaveLength(0);
-    tab(f, 'Ativos');
     const rows = Array.from(host(f).querySelectorAll('[data-member-row]')).filter((r) =>
       (r.textContent ?? '').includes('bruno@empresa.com.br'),
     );
@@ -431,32 +516,27 @@ describe('CompanyMembers — pessoas da empresa', () => {
   it('quem ja e membro e tem convite pendente aparece UMA vez, como membro (sem caixa nem espaco)', () => {
     const dup = { ...pendingInvite, email: '  BRUNO@Empresa.COM.BR ' };
     const f = render('OWNER', { roster: [owner, manager], invites: [dup] });
-    tab(f, 'Pendentes');
     expect(host(f).querySelectorAll('[data-invite-row]')).toHaveLength(0);
   });
 
-  it('pendentes: expirado vem antes de pendente', () => {
+  it('convites: expirado vem antes de pendente', () => {
     const f = render('OWNER', { invites: [pendingInvite, expiredInvite] });
-    tab(f, 'Pendentes');
-    const order = Array.from(host(f).querySelectorAll('[data-invite-row]')).map(
-      (r) => r.querySelector('[data-validity-chip]')?.textContent?.trim(),
+    const labels = Array.from(host(f).querySelectorAll('[data-invite-row]')).map((r) =>
+      r.querySelector('[data-validity]')?.textContent?.trim(),
     );
-    expect(order).toEqual(['Expirado', 'Expira em 6 dias']);
+    expect(labels).toEqual(['Expirado', 'Expira em 6 dias']);
   });
 
-  it('chip de validade: expirado e pendente nao tem a mesma cor, e nao ha red-* cru', () => {
+  it('validade: expirado e pendente nao tem a mesma cor de texto', () => {
     const f = render('OWNER', { invites: [pendingInvite, expiredInvite] });
-    tab(f, 'Pendentes');
-    const chip = (who: string): string =>
-      rowOf(f, who).querySelector('[data-validity-chip]')?.className ?? '';
-    expect(chip('expirada@')).not.toBe(chip('convidada@'));
-    expect(chip('expirada@')).toContain('rose');
-    expect(host(f).innerHTML).not.toMatch(/\b(bg|text|border)-red-/);
+    const tone = (who: string): string =>
+      rowOf(f, who).querySelector('[data-validity]')?.className ?? '';
+    expect(tone('expirada@')).not.toBe(tone('convidada@'));
+    expect(tone('expirada@')).toContain('rose');
   });
 
   it('nome do convidado aparece quando a API manda; senao o e-mail e o titulo', () => {
     const f = render('OWNER', { invites: [{ ...pendingInvite, name: 'Patrícia Souza' }] });
-    tab(f, 'Pendentes');
     const row = rowOf(f, 'Patrícia Souza');
     expect(row.textContent).toContain('convidada@empresa.com.br');
   });
@@ -464,20 +544,17 @@ describe('CompanyMembers — pessoas da empresa', () => {
   // ================================================================ DELIVERY (optional field)
   it('sem `emailDelivery` nao ha chip de entrega nenhum — a tela nao adivinha "Enviado"', () => {
     const phone = render('OWNER', { invites: [pendingInvite] });
-    tab(phone, 'Pendentes');
     expect(host(phone).querySelector('[data-delivery-chip]')).toBeNull();
     expect(text(phone)).not.toContain('Falha no envio');
 
     const desk = render('OWNER', { invites: [pendingInvite], mobile: false });
-    tab(desk, 'Pendentes');
-    expect(host(desk).querySelector('thead')?.textContent).not.toContain('Entrega');
+    expect(host(desk).querySelector('[data-delivery-chip]')).toBeNull();
   });
 
   it('com `emailDelivery`: Enviado / Falha no envio, e falha ganha Reenviar na linha', () => {
     const sent = { ...pendingInvite, emailDelivery: 'SENT' as const };
     const failed = { ...driverInvite, emailDelivery: 'FAILED' as const };
     const f = render('OWNER', { invites: [sent, failed] });
-    tab(f, 'Pendentes');
     expect(rowOf(f, 'convidada@').querySelector('[data-delivery-chip]')?.textContent).toContain(
       'Enviado',
     );
@@ -489,8 +566,9 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(resendInvite).toHaveBeenCalledWith('inv-4');
 
     const desk = render('OWNER', { invites: [sent], mobile: false });
-    tab(desk, 'Pendentes');
-    expect(host(desk).querySelector('thead')?.textContent).toContain('Entrega');
+    expect(rowOf(desk, 'convidada@').querySelector('[data-delivery-chip]')?.textContent).toContain(
+      'Enviado',
+    );
   });
 
   // ================================================================ REMOVE
@@ -648,7 +726,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
   // ================================================================ INVITE ROW ACTIONS
   it('convite oferece reenviar e cancelar (folha no celular), e nao remover acesso', () => {
     const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
-    tab(f, 'Pendentes');
     openRowActions(f, 'convidada@empresa.com.br');
     const s = sheet(f) as HTMLElement;
     expect(s.querySelector('[data-resend-invite]')?.textContent).toContain('Reenviar convite');
@@ -659,7 +736,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
   /** Measured on the backend: resend accepts PENDING and EXPIRED; cancel refuses ACCEPTED only. */
   it('convite EXPIRADO tambem tem as duas acoes, e Reenviar fica a vista na linha', () => {
     const f = render('OWNER', { roster: [owner], invites: [expiredInvite] });
-    tab(f, 'Pendentes');
     expect(rowOf(f, 'expirada@').querySelector('[data-inline-resend]')).not.toBeNull();
     openRowActions(f, 'expirada@');
     expect(sheet(f)?.querySelector('[data-resend-invite]')).not.toBeNull();
@@ -668,7 +744,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
   it('reenviar chama pelo id do CONVITE, avisa que o link anterior morreu e rele so os convites', () => {
     const f = render('OWNER', { roster: [owner], invites: [expiredInvite] });
-    tab(f, 'Pendentes');
     openRowActions(f, 'expirada@');
     sheet(f)?.querySelector<HTMLButtonElement>('[data-resend-invite]')?.click();
     f.detectChanges();
@@ -681,7 +756,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
   it('cancelar convite so chama o servidor depois da confirmacao', () => {
     const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
-    tab(f, 'Pendentes');
     openRowActions(f, 'convidada@');
     sheet(f)?.querySelector<HTMLButtonElement>('[data-cancel-invite]')?.click();
     f.detectChanges();
@@ -693,7 +767,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
   it('no desktop: Reenviar e Cancelar no menu da linha', () => {
     const f = render('OWNER', { roster: [owner], invites: [pendingInvite], mobile: false });
-    tab(f, 'Pendentes');
     const row = rowOf(f, 'convidada@');
     row.querySelector<HTMLButtonElement>('app-actions-menu button[aria-haspopup="menu"]')?.click();
     f.detectChanges();
@@ -705,7 +778,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
   it('410 fala em EXPIRADO e aponta o reenvio; 404 fala em inexistente e aponta a recarga', () => {
     const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
-    tab(f, 'Pendentes');
     const resend = (): void => {
       openRowActions(f, 'convidada@');
       sheet(f)?.querySelector<HTMLButtonElement>('[data-resend-invite]')?.click();
@@ -727,7 +799,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
   it('409 no cancelamento diz que o convite JA FOI USADO, e pede recarga', () => {
     const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
     cancelInvite.mockReturnValue(throwError(() => error(409)));
-    tab(f, 'Pendentes');
     openRowActions(f, 'convidada@');
     sheet(f)?.querySelector<HTMLButtonElement>('[data-cancel-invite]')?.click();
     f.detectChanges();
@@ -743,7 +814,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
       roster: [owner, { ...manager, userId: ME }],
       invites: [pendingInvite, driverInvite],
     });
-    tab(f, 'Pendentes');
     const mgrInvite = rowOf(f, 'convidada@');
     expect(mgrInvite.querySelector('[data-invite-actions]')).toBeNull();
     expect(mgrInvite.textContent).toContain('Só o dono gerencia convites de gerenciador.');
@@ -753,26 +823,277 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
   it('DONO age sobre qualquer convite', () => {
     const f = render('OWNER', { invites: [pendingInvite, driverInvite] });
-    tab(f, 'Pendentes');
     expect(rowOf(f, 'convidada@').querySelector('[data-invite-actions]')).not.toBeNull();
     expect(rowOf(f, 'motorista.novo@').querySelector('[data-invite-actions]')).not.toBeNull();
   });
 
   // ================================================================ KPIs
-  it('o resumo conta gestao (dono + gerenciadores), motoristas e convites PENDENTES', () => {
+  const kpi = (f: ComponentFixture<CompanyMembers>, k: string): string =>
+    host(f).querySelector(`[data-kpi="${k}"] p:nth-child(2)`)?.textContent?.trim() ?? '';
+
+  it('o resumo: total com acesso, gestao, motoristas e convites PENDENTES, com o detalhe dos expirados', () => {
     const f = render('OWNER', {
       roster: [owner, manager, driver],
       invites: [pendingInvite, expiredInvite, acceptedInvite],
     });
-    const kpi = (k: string): string =>
-      host(f).querySelector(`[data-kpi="${k}"] p:nth-child(2)`)?.textContent?.trim() ?? '';
-    expect(kpi('management')).toBe('2');
-    expect(kpi('drivers')).toBe('1');
-    // Expired was sent too but is not waiting; the tab lists it, the KPI does not count it.
-    expect(kpi('pending')).toBe('1');
-    expect(host(f).querySelector('[aria-label="Resumo da equipe"]')?.textContent).toContain(
-      'pendentes',
+    expect(kpi(f, 'total')).toBe('3');
+    expect(kpi(f, 'management')).toBe('2');
+    expect(kpi(f, 'drivers')).toBe('1');
+    // Expired was sent too but is not waiting; the list shows it, the number does not count it.
+    expect(kpi(f, 'pending')).toBe('1');
+    const strip = host(f).querySelector('[aria-label="Resumo da equipe"]')?.textContent ?? '';
+    expect(strip).toContain('com acesso à empresa');
+    expect(strip).toContain('dono e gerenciadores');
+    expect(strip).toContain('com acesso pelo celular');
+    expect(strip).toContain('Convites pendentes');
+    expect(host(f).querySelector('[data-kpi="pending"] [data-kpi-detail]')?.textContent).toContain(
+      '1 expirado para reenviar',
     );
+    // The Total is the one filled card, in the brand colour with white text.
+    expect(host(f).querySelector('[data-kpi="total"]')?.className).toContain('bg-primary-500');
+    expect(host(f).querySelector('[data-kpi="total"]')?.className).toContain('text-white');
+    expect(host(f).querySelector('[aria-label="Resumo da equipe"]')?.className).toContain(
+      'grid-cols-2',
+    );
+  });
+
+  it('sem convite expirado o detalhe nao inventa urgencia', () => {
+    const f = render('OWNER', { invites: [pendingInvite] });
+    expect(host(f).querySelector('[data-kpi-detail]')?.textContent).not.toContain('expirado');
+  });
+
+  // ================================================================ SEARCH AND FILTERS
+  const jose: CompanyMemberResponse = {
+    userId: 'user-jose',
+    name: 'José Álvares',
+    email: 'jose@empresa.com.br',
+    role: 'DRIVER',
+    memberSince: '2026-06-01T12:00:00Z',
+  };
+  const fullRoster = [self, manager, driver, jose];
+
+  it('busca por NOME, sem diferenca de caixa nem de acento', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    search(f, 'JOSE');
+    expect(order(f)).toEqual(['jose@empresa.com.br']);
+    search(f, 'alvares');
+    expect(order(f)).toEqual(['jose@empresa.com.br']);
+    search(f, 'José');
+    expect(order(f)).toEqual(['jose@empresa.com.br']);
+    search(f, '  bruno ');
+    expect(order(f)).toEqual(['bruno@empresa.com.br']);
+  });
+
+  it('busca por E-MAIL, inclusive de convite sem nome', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(f, 'CONVIDADA@');
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    search(f, 'motorista.novo');
+    expect(order(f)).toEqual(['motorista.novo@empresa.com.br']);
+  });
+
+  it('filtro de Acesso: cada papel separa membros E convites do papel', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    choose(f, 'access', 'DRIVER');
+    expect(order(f)).toEqual([
+      'jose@empresa.com.br',
+      'caio@empresa.com.br',
+      'motorista.novo@empresa.com.br',
+    ]);
+    choose(f, 'access', 'MANAGER');
+    expect(order(f)).toEqual([
+      'bruno@empresa.com.br',
+      'expirada@empresa.com.br',
+      'convidada@empresa.com.br',
+    ]);
+    choose(f, 'access', 'OWNER');
+    expect(order(f)).toEqual(['ana@empresa.com.br']);
+    choose(f, 'access', '');
+    expect(order(f)).toHaveLength(7);
+  });
+
+  it('filtro de Status: Ativo, Pendente e Expirado separam membros de convites', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    choose(f, 'status', 'ACTIVE');
+    expect(order(f)).toEqual([
+      'ana@empresa.com.br',
+      'bruno@empresa.com.br',
+      'jose@empresa.com.br',
+      'caio@empresa.com.br',
+    ]);
+    choose(f, 'status', 'PENDING');
+    expect(order(f)).toEqual(['convidada@empresa.com.br', 'motorista.novo@empresa.com.br']);
+    choose(f, 'status', 'EXPIRED');
+    expect(order(f)).toEqual(['expirada@empresa.com.br']);
+    choose(f, 'status', '');
+    expect(order(f)).toHaveLength(7);
+  });
+
+  it('o Status oferece so o que a tela deriva hoje (sem "Cadastro incompleto")', () => {
+    const f = render('OWNER', { mobile: false });
+    const labels = Array.from(
+      host(f).querySelectorAll('[data-filter-status] option'),
+    ).map((o) => (o.textContent ?? '').trim());
+    expect(labels).toEqual(['Status: Todos', 'Status: Ativo', 'Status: Pendente', 'Status: Expirado']);
+    const access = Array.from(host(f).querySelectorAll('[data-filter-access] option')).map((o) =>
+      (o.textContent ?? '').trim(),
+    );
+    expect(access).toEqual([
+      'Acesso: Todos',
+      'Acesso: Dono',
+      'Acesso: Gerenciador',
+      'Acesso: Motorista',
+    ]);
+  });
+
+  it('filtros combinados: busca + Acesso + Status, e o contador de resultados acompanha', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    expect(count(f)).toBe('7 resultados');
+    choose(f, 'status', 'PENDING');
+    choose(f, 'access', 'MANAGER');
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    expect(count(f)).toBe('1 resultado');
+    search(f, 'convidada');
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    search(f, 'caio');
+    expect(order(f)).toEqual([]);
+    expect(count(f)).toBe('0 resultados');
+  });
+
+  it('desktop: "Limpar filtros" so aparece com filtro ativo e devolve a lista inteira', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    expect(host(f).querySelector('[data-clear-filters]')).toBeNull();
+    choose(f, 'status', 'EXPIRED');
+    search(f, 'expirada');
+    const clear = host(f).querySelector<HTMLButtonElement>('[data-clear-filters]');
+    expect(clear?.textContent).toContain('Limpar filtros');
+    clear?.click();
+    f.detectChanges();
+    expect(order(f)).toHaveLength(7);
+    expect(host(f).querySelector<HTMLInputElement>('#members-search')?.value).toBe('');
+    expect(host(f).querySelector<HTMLSelectElement>('[data-filter-status]')?.value).toBe('');
+    expect(host(f).querySelector('[data-clear-filters]')).toBeNull();
+  });
+
+  it('busca sem resultado: estado proprio com "Limpar filtros", nunca a tela de convidar', () => {
+    const phone = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(phone, 'zzzz');
+    const empty = host(phone).querySelector('[data-empty-search]');
+    expect(empty?.textContent).toContain('Nenhum resultado');
+    expect(host(phone).querySelector('app-person-card')).toBeNull();
+    expect(host(phone).querySelector('[data-empty]')).toBeNull();
+    // The sticky invite bar is still there: no match is not "nobody here".
+    expect(host(phone).querySelector('[data-invite-open]')).not.toBeNull();
+    empty?.querySelector<HTMLButtonElement>('[data-clear-filters]')?.click();
+    phone.detectChanges();
+    expect(host(phone).querySelector('[data-empty-search]')).toBeNull();
+    expect(order(phone)).toHaveLength(7);
+
+    const desk = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    search(desk, 'zzzz');
+    expect(host(desk).querySelector('table')).toBeNull();
+    expect(host(desk).querySelector('[data-empty-search]')).not.toBeNull();
+  });
+
+  it('o resumo descreve a empresa inteira: busca e filtros nao mexem nos numeros', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    const before = ['total', 'management', 'drivers', 'pending'].map((k) => kpi(f, k));
+    expect(before).toEqual(['4', '2', '2', '2']);
+    choose(f, 'status', 'EXPIRED');
+    search(f, 'expirada');
+    expect(order(f)).toHaveLength(1);
+    expect(['total', 'management', 'drivers', 'pending'].map((k) => kpi(f, k))).toEqual(before);
+  });
+
+  // -------------------------------------------------- phones: the Filtrar sheet
+  it('celular: busca no topo, botao Filtrar e contagem de resultados; sem selects inline', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    expect(host(f).querySelector('#members-search')?.getAttribute('placeholder')).toBe(
+      'Buscar por nome ou e-mail…',
+    );
+    expect(host(f).querySelector('[data-filter-open]')?.textContent).toContain('Filtrar');
+    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
+    expect(host(f).querySelector('[data-filter-status]')).toBeNull();
+    expect(count(f)).toBe('7 resultados');
+    // 16px field: below that iOS zooms the page on focus.
+    expect(host(f).querySelector('#members-search')?.className).toContain('text-base');
+  });
+
+  it('a folha de filtros so aplica no Aplicar; o botao mostra quantos filtros, e chips os removem', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    openFilterSheet(f);
+    expect(sheet(f)?.querySelector('h2')?.textContent).toContain('Filtrar');
+    pickChip(f, 'access', 'Gerenciador');
+    pickChip(f, 'status', 'Pendente');
+    // Still a draft: the list behind the sheet did not move.
+    expect(order(f)).toHaveLength(7);
+    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
+
+    sheetButton(f, 'data-filter-apply');
+    expect(sheet(f)).toBeNull();
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    expect(host(f).querySelector('[data-filter-count]')?.textContent?.trim()).toBe('2');
+    expect(count(f)).toBe('1 resultado');
+    const chips = Array.from(host(f).querySelectorAll('[data-filter-chip]')).map((c) =>
+      (c.textContent ?? '').trim(),
+    );
+    expect(chips).toEqual(['Acesso: Gerenciador', 'Status: Pendente']);
+
+    // Removing one chip drops that filter only.
+    host(f).querySelector<HTMLButtonElement>('[data-filter-chip="status"]')?.click();
+    f.detectChanges();
+    expect(host(f).querySelector('[data-filter-count]')?.textContent?.trim()).toBe('1');
+    expect(order(f)).toEqual(['bruno@empresa.com.br', 'expirada@empresa.com.br', 'convidada@empresa.com.br']);
+  });
+
+  it('a folha reabre mostrando o que esta aplicado, e fechar sem aplicar descarta o rascunho', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    openFilterSheet(f);
+    pickChip(f, 'status', 'Expirado');
+    sheetButton(f, 'data-filter-apply');
+    expect(order(f)).toEqual(['expirada@empresa.com.br']);
+
+    openFilterSheet(f);
+    const checked = (group: string): string =>
+      sheet(f)
+        ?.querySelector(`[role="radiogroup"][aria-labelledby="filter-${group}-label"] [aria-checked="true"]`)
+        ?.textContent?.trim() ?? '';
+    expect(checked('status')).toBe('Expirado');
+    expect(checked('access')).toBe('Todos');
+    pickChip(f, 'status', 'Ativo');
+    sheet(f)?.querySelector<HTMLButtonElement>('button[aria-label="Fechar"]')?.click();
+    f.detectChanges();
+    expect(order(f)).toEqual(['expirada@empresa.com.br']);
+    openFilterSheet(f);
+    expect(checked('status')).toBe('Expirado');
+  });
+
+  it('"Limpar" na folha zera Acesso e Status e fecha, mantendo o texto da busca', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(f, 'empresa');
+    openFilterSheet(f);
+    pickChip(f, 'access', 'Motorista');
+    sheetButton(f, 'data-filter-apply');
+    expect(order(f)).toEqual([
+      'jose@empresa.com.br',
+      'caio@empresa.com.br',
+      'motorista.novo@empresa.com.br',
+    ]);
+    openFilterSheet(f);
+    sheetButton(f, 'data-filter-clear');
+    expect(sheet(f)).toBeNull();
+    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
+    expect(host(f).querySelector<HTMLInputElement>('#members-search')?.value).toBe('empresa');
+    expect(order(f)).toHaveLength(7);
+  });
+
+  it('a linha filtrada continua com as mesmas acoes: o menu abre a folha da pessoa certa', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(f, 'caio');
+    startRemoval(f, 'Motorista Caio');
+    confirmButton(f, 'Remover acesso').click();
+    f.detectChanges();
+    expect(remove).toHaveBeenCalledWith('user-motorista');
   });
 
   // ================================================================ INVITE ENTRY
@@ -785,7 +1106,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(link).toBeUndefined();
   });
 
-  it('no celular o botao principal fica numa barra fixa embaixo; no desktop, na linha das abas', () => {
+  it('no celular o botao principal fica numa barra fixa embaixo; no desktop, no topo do cartao Lista', () => {
     const phone = render('OWNER');
     const bar = host(phone).querySelector('[data-invite-open]')?.parentElement;
     expect(bar?.className).toContain('fixed');
@@ -882,7 +1203,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(sheet(f)?.textContent).toContain('CPF inválido.');
   });
 
-  it('envio do gerenciador manda EXATAMENTE o contrato de hoje e a linha nova aparece em Pendentes', () => {
+  it('envio do gerenciador manda EXATAMENTE o contrato de hoje e os filtros nao escondem a linha nova', () => {
     const f = render('OWNER');
     goToManagerForm(f);
     fill(f, 'invite-name', '  Patrícia Souza ');
@@ -904,9 +1225,21 @@ describe('CompanyMembers — pessoas da empresa', () => {
     // Re-reads the invites only — sending an invite does not touch the roster.
     expect(inviteList).toHaveBeenCalledTimes(2);
     expect(list).toHaveBeenCalledTimes(1);
-    expect(host(f).querySelector('[role="radio"][aria-checked="true"]')?.textContent).toContain(
-      'Pendentes',
-    );
+  });
+
+  it('depois de enviar um convite os filtros caem: a linha nova nao fica escondida atras deles', () => {
+    const f = render('OWNER', { mobile: false });
+    choose(f, 'status', 'ACTIVE');
+    search(f, 'caio');
+    goToManagerForm(f);
+    fill(f, 'invite-name', 'Patrícia Souza');
+    fill(f, 'invite-email', 'patricia@empresa.com.br');
+    fill(f, 'invite-cpf', '52998224725');
+    fill(f, 'invite-phone', '11987654321');
+    submitManagerForm(f);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(host(f).querySelector<HTMLInputElement>('#members-search')?.value).toBe('');
+    expect(host(f).querySelector<HTMLSelectElement>('[data-filter-status]')?.value).toBe('');
   });
 
   it('erro de convite com copy propria fica DENTRO da folha, com o que foi digitado', () => {

@@ -32,6 +32,8 @@ export interface MemberRow {
   name: string;
   email: string;
   initial: string;
+  /** Raw role (`OWNER` | `MANAGER` | `DRIVER`) — what the Acesso filter compares. */
+  role: string;
   roleLabel: string;
   memberSince: string;
   /** Is this row ME? Changes the verb: leaving the company, not removing someone. */
@@ -53,6 +55,7 @@ export interface InviteRow {
   /** Second line: the e-mail, only when the title is a name. */
   subtitle: string;
   initial: string;
+  role: string;
   roleLabel: string;
   sentAt: string;
   expired: boolean;
@@ -108,6 +111,7 @@ export function toMemberRow(
     name: member.name,
     email: member.email,
     initial: initialOf(member.name || member.email),
+    role: member.role,
     roleLabel: companyRoleLabel(member.role),
     memberSince: member.memberSince,
     isSelf,
@@ -183,6 +187,7 @@ export function toInviteRow(
     email: invite.email,
     subtitle: name ? invite.email : '',
     initial: initialOf(name || invite.email),
+    role: invite.role,
     roleLabel: companyRoleLabel(invite.role),
     sentAt: invite.createDate,
     expired: invite.status === 'EXPIRED',
@@ -195,7 +200,7 @@ export function toInviteRow(
 }
 
 /**
- * Pending tab rows. ACCEPTED is out (it is the same person the roster already returns —
+ * Pending and expired rows. ACCEPTED is out (it is the same person the roster already returns —
  * joining raw would paint them twice), and so are CANCELLED and REVOKED. Someone who is
  * already an active member AND has a pending invite shows once, as a member: the e-mail
  * dedupe ignores case and surrounding spaces. Expired first: it is the only one that will
@@ -265,3 +270,150 @@ export function inviteActionMessage(
   }
   return fallback();
 }
+
+// ------------------------------------------------------------------ the unified list
+
+export type PersonStatus = 'ACTIVE' | 'PENDING' | 'EXPIRED';
+export type AccessFilter = '' | 'OWNER' | 'MANAGER' | 'DRIVER';
+export type StatusFilter = '' | PersonStatus;
+
+export interface PeopleFilters {
+  query: string;
+  access: AccessFilter;
+  status: StatusFilter;
+}
+
+export const NO_FILTERS: PeopleFilters = { query: '', access: '', status: '' };
+
+/** Options of the Acesso filter. Only the roles the roster can really hold. */
+export const ACCESS_OPTIONS: readonly { value: AccessFilter; label: string }[] = [
+  { value: '', label: 'Todos' },
+  { value: 'OWNER', label: 'Dono' },
+  { value: 'MANAGER', label: 'Gerenciador' },
+  { value: 'DRIVER', label: 'Motorista' },
+];
+
+/**
+ * Options of the Status filter: only statuses the page DERIVES today (roster = Ativo;
+ * invites = Pendente or Expirado). "Cadastro incompleto" has no source in either payload.
+ */
+export const STATUS_OPTIONS: readonly { value: StatusFilter; label: string }[] = [
+  { value: '', label: 'Todos' },
+  { value: 'ACTIVE', label: 'Ativo' },
+  { value: 'PENDING', label: 'Pendente' },
+  { value: 'EXPIRED', label: 'Expirado' },
+];
+
+/**
+ * One line of the unified list: a member OR an invite, with the fields the filters, the
+ * card and the table share. The original row travels along because the actions are keyed
+ * by it (userId for a member, invite id for an invite).
+ */
+export interface PersonRow {
+  /** Unique across both sources: `member:<userId>` or `invite:<id>`. */
+  key: string;
+  id: string;
+  name: string;
+  email: string;
+  initial: string;
+  role: string;
+  roleLabel: string;
+  status: PersonStatus;
+  statusChip: Chip;
+  isSelf: boolean;
+  /** Joined date (member) or sent date (invite). */
+  date: string;
+  member: MemberRow | null;
+  invite: InviteRow | null;
+}
+
+export function memberPerson(row: MemberRow): PersonRow {
+  return {
+    key: 'member:' + row.id,
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    initial: row.initial,
+    role: row.role,
+    roleLabel: row.roleLabel,
+    status: 'ACTIVE',
+    statusChip: { label: 'Ativo', tone: 'ok' },
+    isSelf: row.isSelf,
+    date: row.memberSince,
+    member: row,
+    invite: null,
+  };
+}
+
+export function invitePerson(row: InviteRow): PersonRow {
+  return {
+    key: 'invite:' + row.id,
+    id: row.id,
+    name: row.title,
+    email: row.email,
+    initial: row.initial,
+    role: row.role,
+    roleLabel: row.roleLabel,
+    status: row.expired ? 'EXPIRED' : 'PENDING',
+    statusChip: row.expired ? { label: 'Expirado', tone: 'rose' } : { label: 'Pendente', tone: 'amber' },
+    isSelf: false,
+    date: row.sentAt,
+    member: null,
+    invite: row,
+  };
+}
+
+/**
+ * ONE list: you first, then the other members by name (both already ordered by
+ * `memberRows`), then expired invites, then pending ones (already ordered by `inviteRows`).
+ */
+export function peopleRows(members: readonly MemberRow[], invites: readonly InviteRow[]): PersonRow[] {
+  return [...members.map(memberPerson), ...invites.map(invitePerson)];
+}
+
+/** Lower-case, accent-free, trimmed: "JOSÉ" and "jose" are the same search. */
+export function normalizeSearch(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+export function activeFilterCount(filters: PeopleFilters): number {
+  return (filters.access ? 1 : 0) + (filters.status ? 1 : 0);
+}
+
+export function hasAnyFilter(filters: PeopleFilters): boolean {
+  return normalizeSearch(filters.query) !== '' || activeFilterCount(filters) > 0;
+}
+
+export function filterPeople(rows: readonly PersonRow[], filters: PeopleFilters): PersonRow[] {
+  const query = normalizeSearch(filters.query);
+  return rows.filter((r) => {
+    if (filters.access && r.role !== filters.access) return false;
+    if (filters.status && r.status !== filters.status) return false;
+    if (query && !normalizeSearch(r.name + ' ' + r.email).includes(query)) return false;
+    return true;
+  });
+}
+
+export function resultsLabel(count: number): string {
+  return count === 1 ? '1 resultado' : count + ' resultados';
+}
+
+export function accessLabel(value: AccessFilter): string {
+  return ACCESS_OPTIONS.find((o) => o.value === value)?.label ?? '';
+}
+
+export function statusLabel(value: StatusFilter): string {
+  return STATUS_OPTIONS.find((o) => o.value === value)?.label ?? '';
+}
+
+/** Text colours for the "Expira em N dias" / "Expirado" line (AA on white). */
+export const validityTextTone: Record<ChipTone, string> = {
+  ok: 'text-success-900',
+  amber: 'text-amber-800',
+  rose: 'text-rose-700',
+  neutral: 'text-neutral-700',
+};

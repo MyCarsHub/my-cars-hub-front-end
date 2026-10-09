@@ -13,44 +13,51 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { LayoutStore } from '../../../components/core/layouts/layout.store';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
-import {
-  SegmentedToggle,
-  SegmentedToggleOption,
-} from '../../../components/segmented-toggle/segmented-toggle';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanyMembersService } from '../../../services/company-members.service';
 import { InvitesService } from '../../../services/invites.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import { INVITE_TTL_LABEL, InviteResponse } from '../../../types/invite.types';
-import { InviteCard } from './invite-card';
 import { InviteSheet } from './invite-sheet';
-import { InvitesTable } from './invites-table';
-import { MemberCard } from './member-card';
 import {
+  ACCESS_OPTIONS,
+  AccessFilter,
   InviteRow,
   MemberRow,
+  PersonRow,
   ROLE_CHANGE_NOTE,
+  STATUS_OPTIONS,
+  StatusFilter,
+  accessLabel,
+  activeFilterCount,
+  filterPeople,
+  hasAnyFilter,
   inviteActionMessage,
   inviteRows,
   listMessage,
   memberRows,
+  peopleRows,
   removeMessage,
+  resultsLabel,
+  statusLabel,
 } from './members.model';
 import { MembersIcon } from './members-icon';
-import { MembersTable } from './members-table';
+import { MembersKpis } from './members-kpis';
+import { PeopleFilterChoice, PeopleFilterSheet } from './people-filter-sheet';
+import { PeopleTable } from './people-table';
+import { PersonCard } from './person-card';
 import { RowActionsSheet, RowActionsTarget } from './row-actions-sheet';
 
-export type MembersTab = 'active' | 'pending';
-
 /**
- * Pessoas da empresa (`/configuracoes/membros`): who has access (Ativos) and who was
- * invited (Pendentes), from the two existing sources — the roster (`GET /members`, ACTIVE
- * only) and `GET /invites`. No new endpoint.
+ * Pessoas da empresa (`/configuracoes/membros`): who has access and who was invited, in ONE
+ * list with search and filters, from the two existing sources — the roster (`GET /members`,
+ * ACTIVE only) and `GET /invites`. No new endpoint.
  *
- * This component only orchestrates: it loads, holds the screen state and runs the actions.
- * Every rule about who may do what is in `members.model.ts`; every piece of markup is in a
- * child (card on phones, table on desktop, sheets for actions and for the invite).
+ * This component only orchestrates: it loads, holds the screen state (including the list
+ * filters, client-side over the rows already loaded) and runs the actions. Every rule about
+ * who may do what, and the filter logic, is in `members.model.ts`; every piece of markup is
+ * in a child (card on phones, table on desktop, sheets for actions, filters and the invite).
  */
 @Component({
   selector: 'app-company-members',
@@ -61,12 +68,11 @@ export type MembersTab = 'active' | 'pending';
     PageCard,
     AlertBanner,
     ConfirmDialog,
-    SegmentedToggle,
     MembersIcon,
-    MemberCard,
-    InviteCard,
-    MembersTable,
-    InvitesTable,
+    MembersKpis,
+    PersonCard,
+    PeopleTable,
+    PeopleFilterSheet,
     RowActionsSheet,
     InviteSheet,
   ],
@@ -92,7 +98,13 @@ export class CompanyMembers implements OnInit {
     this.callerRole === 'OWNER' || this.callerRole === 'MANAGER';
   protected readonly canInviteManager = this.callerRole === 'OWNER';
 
-  protected readonly tab = signal<MembersTab>('active');
+  /** List filters: client-side, kept in signals (the URL is not touched). */
+  protected readonly query = signal('');
+  protected readonly access = signal<AccessFilter>('');
+  protected readonly status = signal<StatusFilter>('');
+  protected readonly filtersOpen = signal(false);
+  protected readonly accessOptions = ACCESS_OPTIONS;
+  protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly loadError = signal<string | null>(null);
   protected readonly actionError = signal<string | null>(null);
   /** Id of the row with an action in flight — locks every row action meanwhile. */
@@ -119,6 +131,8 @@ export class CompanyMembers implements OnInit {
     inviteRows(this.invites.invites(), this.members.members(), this.callerRole, Date.now()),
   );
 
+  /** Everyone with access: the whole company, whatever the filters say. */
+  protected readonly totalCount = computed(() => this.members.members().length);
   protected readonly managementCount = computed(
     () => this.members.members().filter((m) => m.role === 'OWNER' || m.role === 'MANAGER').length,
   );
@@ -130,6 +144,28 @@ export class CompanyMembers implements OnInit {
     () => this.invites.invites().filter((i) => i.status === 'PENDING').length,
   );
 
+  /** Expired invites still waiting to be resent (the list's own rows, so the numbers agree). */
+  protected readonly expiredInvitesCount = computed(
+    () => this.inviteRows().filter((r) => r.expired).length,
+  );
+
+  /** Everyone, in order: you, members by name, expired invites, pending invites. */
+  protected readonly people = computed(() => peopleRows(this.memberRows(), this.inviteRows()));
+  private readonly filters = computed(() => ({
+    query: this.query(),
+    access: this.access(),
+    status: this.status(),
+  }));
+  /** The alone-in-the-company page has no filters on screen, so nothing may hide its one row. */
+  protected readonly visiblePeople = computed(() =>
+    this.isEmpty() ? this.people() : filterPeople(this.people(), this.filters()),
+  );
+  protected readonly activeFilters = computed(() => activeFilterCount(this.filters()));
+  protected readonly anyFilter = computed(() => hasAnyFilter(this.filters()));
+  protected readonly resultsText = computed(() => resultsLabel(this.visiblePeople().length));
+  protected readonly accessChipLabel = computed(() => 'Acesso: ' + accessLabel(this.access()));
+  protected readonly statusChipLabel = computed(() => 'Status: ' + statusLabel(this.status()));
+
   /** Nobody else and nothing pending: the page is an invitation to invite. */
   protected readonly isEmpty = computed(
     () =>
@@ -138,15 +174,6 @@ export class CompanyMembers implements OnInit {
       this.memberRows().length <= 1 &&
       this.inviteRows().length === 0,
   );
-
-  protected readonly tabOptions = computed<SegmentedToggleOption<MembersTab>[]>(() => {
-    const active = this.membersLoaded() ? String(this.memberRows().length) : '–';
-    const pending = this.invitesLoaded() ? String(this.inviteRows().length) : '–';
-    return [
-      { value: 'active', label: `Ativos (${active})`, activeBackground: 'var(--color-white)', activeShadow: '0 1px 2px rgb(0 0 0 / 0.08)' },
-      { value: 'pending', label: `Pendentes (${pending})`, activeBackground: 'var(--color-white)', activeShadow: '0 1px 2px rgb(0 0 0 / 0.08)' },
-    ];
-  });
 
   ngOnInit(): void {
     if (!this.canManagePeople) return;
@@ -161,11 +188,55 @@ export class CompanyMembers implements OnInit {
     this.invites.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
   }
 
-  protected selectTab(tab: MembersTab): void {
-    this.tab.set(tab);
+  // ------------------------------------------------------------------ filters
+
+  protected onSearchInput(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+  }
+
+  protected onAccessChange(event: Event): void {
+    this.access.set((event.target as HTMLSelectElement).value as AccessFilter);
+  }
+
+  protected onStatusChange(event: Event): void {
+    this.status.set((event.target as HTMLSelectElement).value as StatusFilter);
+  }
+
+  protected clearFilters(): void {
+    this.query.set('');
+    this.access.set('');
+    this.status.set('');
+    this.filtersOpen.set(false);
+  }
+
+  protected openFilters(): void {
+    this.filtersOpen.set(true);
+  }
+
+  protected closeFilters(): void {
+    this.filtersOpen.set(false);
+  }
+
+  protected applyFilters(choice: PeopleFilterChoice): void {
+    this.access.set(choice.access);
+    this.status.set(choice.status);
+    this.filtersOpen.set(false);
+  }
+
+  /** The sheet's "Limpar": drops Acesso and Status, keeps what was typed in the search. */
+  protected clearSheetFilters(): void {
+    this.access.set('');
+    this.status.set('');
+    this.filtersOpen.set(false);
   }
 
   // ------------------------------------------------------------------ row actions
+
+  /** Phone kebab: the sheet is keyed by what the row IS (member or invite). */
+  protected openPerson(person: PersonRow): void {
+    if (person.member) this.openActions({ kind: 'member', row: person.member });
+    else if (person.invite) this.openActions({ kind: 'invite', row: person.invite });
+  }
 
   protected openActions(target: RowActionsTarget): void {
     if (this.busyId() !== null) return;
@@ -256,11 +327,14 @@ export class CompanyMembers implements OnInit {
     this.inviteOpen.set(false);
   }
 
-  /** Close, confirm, show the pending tab and re-read the invites only (roster unchanged). */
+  /**
+   * Close, confirm, drop the filters (the new invite must not hide behind a Status or
+   * search the person set earlier) and re-read the invites only (roster unchanged).
+   */
   protected onInviteSent(invite: InviteResponse): void {
     this.inviteOpen.set(false);
     this.notifications.success(`Convite enviado para «${invite.email}».`);
-    this.tab.set('pending');
+    this.clearFilters();
     this.invites.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
   }
 
