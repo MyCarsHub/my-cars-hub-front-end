@@ -11,3 +11,10 @@
  * AFTER clearing, and the accept screen re-stashes on every init from its own query param.
  */
 export const PENDING_INVITE_TOKEN_KEY = 'pendingInviteToken';
+
+/**
+ * `history.state` key `OauthSuccess` sets when the Google login that just ended belonged to
+ * the invite page, so `/convite` finishes with `accept-as-member` instead of asking again.
+ * Lives here (not in the lazy page) so the eager `OauthSuccess` does not pull the page in.
+ */
+export const INVITE_RESUME_STATE_KEY = 'inviteResume';

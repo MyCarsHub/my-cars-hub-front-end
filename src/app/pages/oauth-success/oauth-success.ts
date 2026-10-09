@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
 import { SessionService } from '../../services/session.service';
-import { PENDING_INVITE_TOKEN_KEY } from '../invites/invite-session';
+import { INVITE_RESUME_STATE_KEY, PENDING_INVITE_TOKEN_KEY } from '../invites/invite-session';
 import { PlanIntentService } from '../../services/plan-intent.service';
 
 interface OauthExchangeResponse {
@@ -90,9 +90,11 @@ export class OauthSuccess implements OnInit {
     // and the accept response is what supplies the company-scoped token.
     if (pendingInvite) {
       this.sessionService.setItem(PENDING_INVITE_TOKEN_KEY, pendingInvite);
-      this.router.navigate(['/invite/accept'], {
-        queryParams: { token: pendingInvite },
+      // The stashed token is all `/convite` needs; the resume flag tells it this Google
+      // login was its own, so it finishes with `accept-as-member` instead of asking again.
+      this.router.navigate(['/convite'], {
         replaceUrl: true,
+        state: { [INVITE_RESUME_STATE_KEY]: true },
       });
       return;
     }

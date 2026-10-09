@@ -7,7 +7,7 @@ import { blogPrerenderParams } from './prerender-blog';
  *
  * ONLY the public marketing/legal/editorial pages are prerendered (SSG, at build time).
  * Everything else — the whole authenticated tree, `/login`, `/oauth-success`,
- * `/invite/accept` — is `RenderMode.Client`.
+ * `/convite`, `/convite/cadastro` — is `RenderMode.Client`.
  *
  * That split is a security boundary, not a performance choice: there is no session on
  * the server, so rendering an authenticated route there would either crash or, worse,
