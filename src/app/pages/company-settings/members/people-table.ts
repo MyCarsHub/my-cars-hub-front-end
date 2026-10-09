@@ -63,7 +63,7 @@ const CHIP =
                 </p>
               </div>
             </td>
-            <td data-email class="px-3 py-3 text-neutral-700 break-all min-w-[14rem]">
+            <td data-email class="px-3 py-3 text-neutral-700 break-all min-w-[17rem]">
               {{ row.email }}
             </td>
             <td class="px-3 py-3">
