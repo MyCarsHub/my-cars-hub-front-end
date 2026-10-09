@@ -1,0 +1,370 @@
+<main class="min-h-dvh bg-neutral-50 px-4 py-8 sm:py-16 flex items-start sm:items-center justify-center">
+  <section
+    class="w-full max-w-md bg-white border border-neutral-200 rounded-2xl shadow-sm p-6 sm:p-8"
+    aria-labelledby="invite-title"
+  >
+    <a
+      routerLink="/"
+      class="inline-flex mb-6 rounded-lg focus:outline-none focus-visible:ring-2
+             focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+      aria-label="MyCarsHub, início"
+    >
+      <img ngSrc="svg/logo-my-cars-hub-complete.svg" width="160" height="38" priority alt="MyCarsHub" />
+    </a>
+
+    @switch (view()) {
+      @case ('loading') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Verificando seu convite…
+        </h1>
+        <p role="status" class="mt-2 text-sm text-neutral-600">
+          Só um instante enquanto confirmamos o link.
+        </p>
+      }
+
+      @case ('joining') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Entrando na empresa…
+        </h1>
+        <p role="status" class="mt-2 text-sm text-neutral-600">
+          Estamos adicionando você a {{ companyName() }}.
+        </p>
+      }
+
+      @case ('form') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Você foi convidado para
+          <span class="text-primary-600">{{ companyName() }}</span>
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600">
+          Confirme seu CPF para entrar. Não precisa de conta Google.
+        </p>
+
+        <dl
+          class="mt-6 rounded-xl border border-neutral-200 divide-y divide-neutral-100 text-sm"
+          data-testid="invite-summary"
+        >
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-600 shrink-0">Empresa</dt>
+            <dd class="font-medium text-neutral-900 text-right break-words min-w-0">
+              {{ companyName() }}
+            </dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-600 shrink-0">Seu acesso</dt>
+            <dd class="font-medium text-neutral-900 text-right">{{ roleLabel() }}</dd>
+          </div>
+          @if (inviterName(); as inviter) {
+            <div class="flex items-center justify-between gap-3 px-4 py-3">
+              <dt class="text-neutral-600 shrink-0">Convidado por</dt>
+              <dd class="font-medium text-neutral-900 text-right break-words min-w-0">{{ inviter }}</dd>
+            </div>
+          }
+        </dl>
+
+        @if (locked()) {
+          <div class="mt-6">
+            <app-alert-banner variant="warning">
+              <strong class="block font-semibold">
+                Muitas tentativas. Tente de novo em {{ lockMinutes }} minutos.
+              </strong>
+              Bloqueamos o convite por segurança. Se o CPF não confere, peça para quem te convidou
+              conferir o convite.
+            </app-alert-banner>
+          </div>
+        }
+
+        <form (submit)="onSubmit($event)" class="mt-6 space-y-4" novalidate>
+          <app-form-field
+            label="Confirme seu CPF"
+            controlId="invite-cpf"
+            [required]="true"
+            hint="Usamos o CPF para garantir que o convite é seu."
+            [control]="cpf"
+            [messages]="cpfMessages()"
+          >
+            <input
+              appFieldControl
+              [formControl]="cpf"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="000.000.000-00"
+              maxlength="14"
+              (input)="onCpfInput($event)"
+              class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
+                     text-neutral-800 tabular-nums focus:outline-none focus:ring-2
+                     focus:ring-primary-600 focus:border-primary-600 transition-colors
+                     disabled:opacity-60"
+            />
+          </app-form-field>
+
+          <button
+            type="submit"
+            [disabled]="submitting() || locked()"
+            [attr.aria-busy]="submitting() ? 'true' : null"
+            class="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl
+                   bg-primary-700 text-white text-base font-semibold px-5 py-3
+                   hover:bg-primary-800 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                   disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            @if (locked()) {
+              <span>Tente de novo em {{ lockMinutes }} minutos</span>
+            } @else {
+              <span>{{ submitting() ? 'Confirmando…' : 'Aceitar convite' }}</span>
+            }
+          </button>
+        </form>
+
+        <p class="mt-4 text-xs text-neutral-600 leading-relaxed">
+          Ao aceitar, você concorda com os
+          <a routerLink="/termos-de-uso" target="_blank" rel="noopener" class="underline text-primary-700"
+            >Termos de uso</a
+          >
+          e a
+          <a
+            routerLink="/politica-de-privacidade"
+            target="_blank"
+            rel="noopener"
+            class="underline text-primary-700"
+            >Política de privacidade</a
+          >. Seus dados ficam só com o MyCarsHub e {{ companyName() }}.
+        </p>
+      }
+
+      @case ('existing') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Você já tem conta. Entre para adicionar a
+          <span class="text-primary-600">{{ companyName() }}</span>
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600">
+          Encontramos uma conta MyCarsHub com este e-mail. Depois de entrar, {{ companyName() }}
+          aparece junto das suas outras empresas.
+        </p>
+
+        <dl class="mt-6 rounded-xl border border-neutral-200 divide-y divide-neutral-100 text-sm">
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-600 shrink-0">Empresa</dt>
+            <dd class="font-medium text-neutral-900 text-right break-words min-w-0">
+              {{ companyName() }}
+            </dd>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <dt class="text-neutral-600 shrink-0">Seu acesso</dt>
+            <dd class="font-medium text-neutral-900 text-right">{{ roleLabel() }}</dd>
+          </div>
+          @if (inviterName(); as inviter) {
+            <div class="flex items-center justify-between gap-3 px-4 py-3">
+              <dt class="text-neutral-600 shrink-0">Convidado por</dt>
+              <dd class="font-medium text-neutral-900 text-right break-words min-w-0">{{ inviter }}</dd>
+            </div>
+          }
+        </dl>
+
+        <button
+          type="button"
+          (click)="continueWithGoogle()"
+          [disabled]="redirecting()"
+          [attr.aria-busy]="redirecting() ? 'true' : null"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center gap-3 rounded-xl
+                 bg-neutral-900 text-white text-base font-semibold px-5 py-3
+                 hover:bg-primary-600 transition-colors focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                 disabled:opacity-60 disabled:cursor-wait"
+        >
+          <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
+          <span>{{ redirecting() ? 'Redirecionando…' : 'Entrar com Google' }}</span>
+        </button>
+
+        <p class="mt-4 text-xs text-neutral-600 leading-relaxed">
+          Use a mesma conta Google de sempre, a do e-mail que recebeu o convite.
+        </p>
+      }
+
+      @case ('expired') {
+        <div class="mb-4 inline-flex size-12 items-center justify-center rounded-xl bg-amber-100 text-amber-800" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+            <path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Este convite expirou
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Peça para {{ inviterName() || companyName() }} reenviar o convite. O link novo chega no
+          mesmo e-mail.
+        </p>
+        <a
+          routerLink="/"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                 border-neutral-200 text-base font-semibold text-neutral-800 px-5 py-3
+                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-primary-600"
+          >Voltar para o início</a
+        >
+        <p class="mt-4 text-xs text-neutral-600">
+          Por segurança, um convite vencido não pode ser reativado por aqui.
+        </p>
+      }
+
+      @case ('revoked') {
+        <div class="mb-4 inline-flex size-12 items-center justify-center rounded-xl bg-rose-50 text-rose-700" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+            <path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Este convite foi cancelado
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          {{ companyName() }} cancelou este convite, então o link não funciona mais. Se você acha
+          que foi engano, fale com {{ inviterName() || 'quem te convidou' }}.
+        </p>
+        <a
+          routerLink="/"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                 border-neutral-200 text-base font-semibold text-neutral-800 px-5 py-3
+                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-primary-600"
+          >Voltar para o início</a
+        >
+      }
+
+      @case ('used') {
+        <div class="mb-4 inline-flex size-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+            <path d="M8 12.5l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Este convite já foi usado
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Você já faz parte de <strong class="text-neutral-900">{{ companyName() }}</strong>. Entre
+          na sua conta para continuar.
+        </p>
+        <a
+          routerLink="/login"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                 bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                 focus-visible:ring-offset-2"
+          >Entrar no MyCarsHub</a
+        >
+        <p class="mt-4 text-xs text-neutral-600">Não foi você quem aceitou? Fale com quem te convidou.</p>
+      }
+
+      @case ('not-found') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Convite não encontrado
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Confira se você abriu o link mais recente que recebeu por e-mail. Se o problema continuar,
+          peça um novo convite a quem te convidou.
+        </p>
+        <a
+          routerLink="/"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                 border-neutral-200 text-base font-semibold text-neutral-800 px-5 py-3
+                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-primary-600"
+          >Voltar para o início</a
+        >
+      }
+
+      @case ('no-token') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Link de convite incompleto
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Abra o link exatamente como ele chegou no seu e-mail.
+        </p>
+        <a
+          routerLink="/"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                 border-neutral-200 text-base font-semibold text-neutral-800 px-5 py-3
+                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-primary-600"
+          >Voltar para o início</a
+        >
+      }
+
+      @case ('unreachable') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Não deu para verificar o convite
+        </h1>
+        <div class="mt-4">
+          <app-alert-banner
+            variant="error"
+            [message]="problemMessage() || 'Não conseguimos falar com o servidor. Confira sua conexão e tente de novo.'"
+          />
+        </div>
+        <button
+          type="button"
+          (click)="retry()"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                 bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                 focus-visible:ring-offset-2"
+        >
+          Tentar de novo
+        </button>
+      }
+
+      @case ('problem') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Não foi possível aceitar o convite
+        </h1>
+        <div class="mt-4">
+          <app-alert-banner variant="error" [message]="problemMessage()" />
+        </div>
+        @if (canSwitchAccount()) {
+          <button
+            type="button"
+            (click)="switchAccount()"
+            [disabled]="redirecting()"
+            class="mt-6 w-full min-h-12 inline-flex items-center justify-center gap-3 rounded-xl
+                   bg-neutral-900 text-white text-base font-semibold px-5 py-3
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                   disabled:opacity-60"
+          >
+            <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
+            <span>Entrar com outra conta Google</span>
+          </button>
+        } @else {
+          <a
+            routerLink="/login"
+            class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                   border-neutral-200 text-base font-semibold text-neutral-800 px-5 py-3
+                   hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                   focus-visible:ring-primary-600"
+            >Ir para o login</a
+          >
+        }
+      }
+
+      @case ('driver-soon') {
+        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
+          Cadastro do motorista em breve
+        </h1>
+        <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          Confirmamos seu convite para {{ companyName() }}. O cadastro de motorista ainda está sendo
+          liberado. Volte a este link em alguns dias ou fale com quem te convidou.
+        </p>
+        <a
+          routerLink="/"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+                 border-neutral-200 text-base font-semibold text-neutral-800 px-5 py-3
+                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-primary-600"
+          >Voltar para o início</a
+        >
+      }
+    }
+  </section>
+</main>

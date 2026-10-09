@@ -54,7 +54,7 @@ describe('public/private SEO boundary in app.routes', () => {
   });
 
   it('leaves the token-bearing and auth routes without seo, so they fail closed to noindex', () => {
-    for (const path of ['login', 'oauth-success', 'invite/accept']) {
+    for (const path of ['login', 'oauth-success', 'invite/accept', 'convite', 'convite/cadastro']) {
       const route = routes.find((r) => r.path === path);
       expect(route, `route ${path} disappeared`).toBeDefined();
       expect(hasSeo(route as Route)).toBe(false);
