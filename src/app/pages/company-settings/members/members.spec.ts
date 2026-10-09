@@ -241,7 +241,12 @@ describe('CompanyMembers — pessoas da empresa', () => {
   function order(f: ComponentFixture<CompanyMembers>): string[] {
     return Array.from(
       host(f).querySelectorAll('[data-member-row], [data-invite-row]'),
-    ).map((r) => (r.textContent ?? '').match(/[\w.]+@empresa\.com\.br/)?.[0] ?? '?');
+    ).map(
+      (r) =>
+        (r.querySelector('[data-email]')?.textContent ?? r.textContent ?? '').match(
+          /[\w.]+@empresa\.com\.br/,
+        )?.[0] ?? '?',
+    );
   }
 
   function search(f: ComponentFixture<CompanyMembers>, value: string): void {
@@ -258,35 +263,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
     if (!select) throw new Error('o filtro ' + which + ' nao esta na tela');
     select.value = value;
     select.dispatchEvent(new Event('change'));
-    f.detectChanges();
-  }
-
-  /** Phone: open the Filtrar sheet and pick a radio chip by its group and label. */
-  function openFilterSheet(f: ComponentFixture<CompanyMembers>): HTMLElement {
-    host(f).querySelector<HTMLButtonElement>('[data-filter-open]')?.click();
-    f.detectChanges();
-    const s = sheet(f);
-    if (!s) throw new Error('a folha de filtros nao abriu');
-    return s;
-  }
-
-  function pickChip(
-    f: ComponentFixture<CompanyMembers>,
-    group: 'access' | 'status',
-    label: string,
-  ): void {
-    const radio = Array.from(
-      sheet(f)?.querySelectorAll<HTMLButtonElement>(
-        `[role="radiogroup"][aria-labelledby="filter-${group}-label"] [role="radio"]`,
-      ) ?? [],
-    ).find((b) => (b.textContent ?? '').trim() === label);
-    if (!radio) throw new Error('chip ' + label + ' nao existe em ' + group);
-    radio.click();
-    f.detectChanges();
-  }
-
-  function sheetButton(f: ComponentFixture<CompanyMembers>, attr: string): void {
-    sheet(f)?.querySelector<HTMLButtonElement>(`[${attr}]`)?.click();
     f.detectChanges();
   }
 
@@ -387,7 +363,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
     // Same data on both: name, e-mail, role, "Desde"/"Membro desde" date.
     expect(rows[0].textContent).toContain('Dona Ana');
     expect(rows[0].textContent).toContain('10/01/2026');
-    expect(host(desk).querySelector('thead')?.textContent).toContain('Enviado em / Desde');
+    expect(host(desk).querySelector('thead')?.textContent).toContain('Enviado em');
   });
 
   it('nao mostra "ultimo acesso": o payload de membros nao traz esse campo', () => {
@@ -476,7 +452,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(rowOf(f, 'convidada@empresa.com.br').textContent).toContain('01/10/2026');
   });
 
-  it('desktop: colunas pedidas, e-mail sem truncar, aceite do convite e traco no membro', () => {
+  it('desktop: colunas pedidas, e-mail cortado com reticencias (endereco inteiro no title), aceite do convite e traco no membro', () => {
     const f = render('OWNER', {
       roster: [owner],
       invites: [{ ...pendingInvite, email: 'um.endereco.bem.comprido@empresa.com.br' }, expiredInvite],
@@ -490,13 +466,14 @@ describe('CompanyMembers — pessoas da empresa', () => {
       'E-mail',
       'Nível de acesso',
       'Status',
-      'Enviado em / Desde',
+      'Enviado em',
       'Aceite',
       'Ações',
     ]);
     const email = rowOf(f, 'um.endereco').querySelector<HTMLElement>('[data-email]') as HTMLElement;
     expect(email.textContent?.trim()).toBe('um.endereco.bem.comprido@empresa.com.br');
-    expect(email.className).not.toContain('truncate');
+    const clipped = email.querySelector<HTMLElement>('.truncate') as HTMLElement;
+    expect(clipped.getAttribute('title')).toBe('um.endereco.bem.comprido@empresa.com.br');
     const cells = (who: string): string[] =>
       Array.from(rowOf(f, who).querySelectorAll('td')).map((c) => (c.textContent ?? '').trim());
     expect(cells('Dona Ana')[5]).toBe('—');
@@ -712,11 +689,14 @@ describe('CompanyMembers — pessoas da empresa', () => {
     f.detectChanges();
     expect(text(f)).toContain('já não tem acesso');
     expect(text(f)).toContain('Atualize a lista');
-    expect(host(f).querySelector('[data-refresh]')?.textContent).toContain('Atualizar');
+    // Atualizar lives in the desktop header only; on phones the error banner carries "Tentar novamente".
+    const desk = render('OWNER', { mobile: false });
+    expect(host(desk).querySelector('[data-refresh]')?.textContent).toContain('Atualizar');
+    expect(host(f).querySelector('[data-refresh]')).toBeNull();
   });
 
   it('o botao Atualizar recarrega as DUAS fontes', () => {
-    const f = render('OWNER');
+    const f = render('OWNER', { mobile: false });
     host(f).querySelector<HTMLButtonElement>('[data-refresh]')?.click();
     f.detectChanges();
     expect(list).toHaveBeenCalledTimes(2);
@@ -1005,85 +985,33 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(['total', 'management', 'drivers', 'pending'].map((k) => kpi(f, k))).toEqual(before);
   });
 
-  // -------------------------------------------------- phones: the Filtrar sheet
-  it('celular: busca no topo, botao Filtrar e contagem de resultados; sem selects inline', () => {
+  // -------------------------------------------------- phones: inline filters
+  it('celular: busca e os dois selects ficam na tela, empilhados, com contagem de resultados', () => {
     const f = render('OWNER', { roster: fullRoster, invites: allInvites });
     expect(host(f).querySelector('#members-search')?.getAttribute('placeholder')).toBe(
       'Buscar por nome ou e-mail…',
     );
-    expect(host(f).querySelector('[data-filter-open]')?.textContent).toContain('Filtrar');
-    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
-    expect(host(f).querySelector('[data-filter-status]')).toBeNull();
+    expect(host(f).querySelector('[data-filter-open]')).toBeNull();
+    expect(host(f).querySelector('[data-filter-access]')).not.toBeNull();
+    expect(host(f).querySelector('[data-filter-status]')).not.toBeNull();
     expect(count(f)).toBe('7 resultados');
-    // 16px field: below that iOS zooms the page on focus.
+    // 16px fields: below that iOS zooms the page on focus.
     expect(host(f).querySelector('#members-search')?.className).toContain('text-base');
+    expect(host(f).querySelector('[data-filter-status]')?.className).toContain('text-base');
   });
 
-  it('a folha de filtros so aplica no Aplicar; o botao mostra quantos filtros, e chips os removem', () => {
-    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
-    openFilterSheet(f);
-    expect(sheet(f)?.querySelector('h2')?.textContent).toContain('Filtrar');
-    pickChip(f, 'access', 'Gerenciador');
-    pickChip(f, 'status', 'Pendente');
-    // Still a draft: the list behind the sheet did not move.
-    expect(order(f)).toHaveLength(7);
-    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
-
-    sheetButton(f, 'data-filter-apply');
-    expect(sheet(f)).toBeNull();
-    expect(order(f)).toEqual(['convidada@empresa.com.br']);
-    expect(host(f).querySelector('[data-filter-count]')?.textContent?.trim()).toBe('2');
-    expect(count(f)).toBe('1 resultado');
-    const chips = Array.from(host(f).querySelectorAll('[data-filter-chip]')).map((c) =>
-      (c.textContent ?? '').trim(),
-    );
-    expect(chips).toEqual(['Acesso: Gerenciador', 'Status: Pendente']);
-
-    // Removing one chip drops that filter only.
-    host(f).querySelector<HTMLButtonElement>('[data-filter-chip="status"]')?.click();
-    f.detectChanges();
-    expect(host(f).querySelector('[data-filter-count]')?.textContent?.trim()).toBe('1');
-    expect(order(f)).toEqual(['bruno@empresa.com.br', 'expirada@empresa.com.br', 'convidada@empresa.com.br']);
-  });
-
-  it('a folha reabre mostrando o que esta aplicado, e fechar sem aplicar descarta o rascunho', () => {
-    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
-    openFilterSheet(f);
-    pickChip(f, 'status', 'Expirado');
-    sheetButton(f, 'data-filter-apply');
-    expect(order(f)).toEqual(['expirada@empresa.com.br']);
-
-    openFilterSheet(f);
-    const checked = (group: string): string =>
-      sheet(f)
-        ?.querySelector(`[role="radiogroup"][aria-labelledby="filter-${group}-label"] [aria-checked="true"]`)
-        ?.textContent?.trim() ?? '';
-    expect(checked('status')).toBe('Expirado');
-    expect(checked('access')).toBe('Todos');
-    pickChip(f, 'status', 'Ativo');
-    sheet(f)?.querySelector<HTMLButtonElement>('button[aria-label="Fechar"]')?.click();
-    f.detectChanges();
-    expect(order(f)).toEqual(['expirada@empresa.com.br']);
-    openFilterSheet(f);
-    expect(checked('status')).toBe('Expirado');
-  });
-
-  it('"Limpar" na folha zera Acesso e Status e fecha, mantendo o texto da busca', () => {
+  it('celular: os selects filtram na hora e "Limpar filtros" volta tudo, mantendo a busca', () => {
     const f = render('OWNER', { roster: fullRoster, invites: allInvites });
     search(f, 'empresa');
-    openFilterSheet(f);
-    pickChip(f, 'access', 'Motorista');
-    sheetButton(f, 'data-filter-apply');
+    choose(f, 'access', 'DRIVER');
     expect(order(f)).toEqual([
       'jose@empresa.com.br',
       'caio@empresa.com.br',
       'motorista.novo@empresa.com.br',
     ]);
-    openFilterSheet(f);
-    sheetButton(f, 'data-filter-clear');
-    expect(sheet(f)).toBeNull();
-    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
-    expect(host(f).querySelector<HTMLInputElement>('#members-search')?.value).toBe('empresa');
+    host(f).querySelector<HTMLButtonElement>('[data-clear-filters]')?.click();
+    f.detectChanges();
+    expect(host(f).querySelector('[data-clear-filters]')).toBeNull();
     expect(order(f)).toHaveLength(7);
   });
 
@@ -1106,15 +1034,13 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(link).toBeUndefined();
   });
 
-  it('no celular o botao principal fica numa barra fixa embaixo; no desktop, no topo do cartao Lista', () => {
-    const phone = render('OWNER');
-    const bar = host(phone).querySelector('[data-invite-open]')?.parentElement;
-    expect(bar?.className).toContain('fixed');
-    expect(bar?.className).toContain('bottom-0');
-    const desk = render('OWNER', { mobile: false });
-    expect(host(desk).querySelector('[data-invite-open]')?.parentElement?.className).not.toContain(
-      'fixed',
-    );
+  it('o botao principal fica no topo do cartao Lista, no celular e no desktop, sem barra fixa', () => {
+    for (const mobile of [true, false]) {
+      const f = render('OWNER', { mobile });
+      const buttons = host(f).querySelectorAll('[data-invite-open]');
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0].closest('.fixed')).toBeNull();
+    }
   });
 
   it('a folha de convite abre no clique, foca o painel, fecha no Esc e devolve o foco', () => {

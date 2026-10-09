@@ -29,8 +29,6 @@ import {
   ROLE_CHANGE_NOTE,
   STATUS_OPTIONS,
   StatusFilter,
-  accessLabel,
-  activeFilterCount,
   filterPeople,
   hasAnyFilter,
   inviteActionMessage,
@@ -40,11 +38,9 @@ import {
   peopleRows,
   removeMessage,
   resultsLabel,
-  statusLabel,
 } from './members.model';
 import { MembersIcon } from './members-icon';
 import { MembersKpis } from './members-kpis';
-import { PeopleFilterChoice, PeopleFilterSheet } from './people-filter-sheet';
 import { PeopleTable } from './people-table';
 import { PersonCard } from './person-card';
 import { RowActionsSheet, RowActionsTarget } from './row-actions-sheet';
@@ -72,7 +68,6 @@ import { RowActionsSheet, RowActionsTarget } from './row-actions-sheet';
     MembersKpis,
     PersonCard,
     PeopleTable,
-    PeopleFilterSheet,
     RowActionsSheet,
     InviteSheet,
   ],
@@ -102,7 +97,6 @@ export class CompanyMembers implements OnInit {
   protected readonly query = signal('');
   protected readonly access = signal<AccessFilter>('');
   protected readonly status = signal<StatusFilter>('');
-  protected readonly filtersOpen = signal(false);
   protected readonly accessOptions = ACCESS_OPTIONS;
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly loadError = signal<string | null>(null);
@@ -160,11 +154,8 @@ export class CompanyMembers implements OnInit {
   protected readonly visiblePeople = computed(() =>
     this.isEmpty() ? this.people() : filterPeople(this.people(), this.filters()),
   );
-  protected readonly activeFilters = computed(() => activeFilterCount(this.filters()));
   protected readonly anyFilter = computed(() => hasAnyFilter(this.filters()));
   protected readonly resultsText = computed(() => resultsLabel(this.visiblePeople().length));
-  protected readonly accessChipLabel = computed(() => 'Acesso: ' + accessLabel(this.access()));
-  protected readonly statusChipLabel = computed(() => 'Status: ' + statusLabel(this.status()));
 
   /** Nobody else and nothing pending: the page is an invitation to invite. */
   protected readonly isEmpty = computed(
@@ -206,28 +197,6 @@ export class CompanyMembers implements OnInit {
     this.query.set('');
     this.access.set('');
     this.status.set('');
-    this.filtersOpen.set(false);
-  }
-
-  protected openFilters(): void {
-    this.filtersOpen.set(true);
-  }
-
-  protected closeFilters(): void {
-    this.filtersOpen.set(false);
-  }
-
-  protected applyFilters(choice: PeopleFilterChoice): void {
-    this.access.set(choice.access);
-    this.status.set(choice.status);
-    this.filtersOpen.set(false);
-  }
-
-  /** The sheet's "Limpar": drops Acesso and Status, keeps what was typed in the search. */
-  protected clearSheetFilters(): void {
-    this.access.set('');
-    this.status.set('');
-    this.filtersOpen.set(false);
   }
 
   // ------------------------------------------------------------------ row actions
