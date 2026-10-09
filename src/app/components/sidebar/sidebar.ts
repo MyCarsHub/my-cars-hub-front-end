@@ -9,6 +9,8 @@ import { signal } from '@angular/core';
 import { LayoutStore, Tenant } from '../core/layouts/layout.store';
 import { SessionService } from '../../services/session.service';
 import { TOUR_ANCHORS } from '../tour/tour.types';
+import { CompanySwitcher } from './company-switcher';
+import { MembersSheet } from '../../pages/company-settings/members/members-sheet';
 import { companyRoleLabel } from '../../utils/role-labels';
 
 export interface NavItem {
@@ -269,7 +271,7 @@ export const NAV_ITEMS: NavItem[] = [
 @Component({
   selector: 'app-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive],
+  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, CompanySwitcher, MembersSheet],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',
   animations: [
