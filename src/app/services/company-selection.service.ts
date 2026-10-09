@@ -4,12 +4,25 @@ import { Observable, map, tap } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 import { SessionService } from './session.service';
+import { InviteOnboardingTokenStore } from './invite-onboarding-token.store';
 import { MeResponse } from '../types/me-response.type';
 import { UserCompanies } from '../types/user-companies';
 
-interface SelectCompanyResponse {
+export interface SelectCompanyResponse {
   token?: string;
+  /** Absent on a backend that predates multi-profile: treated as ACCESS. */
+  kind?: 'ACCESS' | 'INVITE_ONBOARDING';
+  companyId?: string;
+  companyName?: string;
+  role?: string;
+  roleLabel?: string;
+  next?: 'MANAGER_ONBOARDING' | 'DRIVER_ONBOARDING' | null;
 }
+
+/** What `selectDetailed` did with the token it received. */
+export type SelectCompanyOutcome =
+  | { kind: 'ACCESS'; token: string }
+  | { kind: 'INVITE_ONBOARDING'; token: string; next: 'MANAGER_ONBOARDING' | 'DRIVER_ONBOARDING' };
 
 /**
  * Troca a empresa ativa da sessão em `POST /auth/select-company/{id}`.
@@ -29,6 +42,7 @@ interface SelectCompanyResponse {
 export class CompanySelectionService {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
+  private readonly onboardingToken = inject(InviteOnboardingTokenStore);
 
   /**
    * Emite o token já persistido; erra se o servidor recusar ou não devolver token.
@@ -40,6 +54,24 @@ export class CompanySelectionService {
    * comportamento é exatamente o de antes — é o que o switcher de empresa usa.
    */
   select(companyId: string, context?: HttpContext): Observable<string> {
+    return this.selectDetailed(companyId, context).pipe(
+      map((outcome) => {
+        // `select()` means "become this company": an onboarding token is not a session, and
+        // `selectDetailed` has already parked it in its own slot — report it as a failure.
+        if (outcome.kind !== 'ACCESS') {
+          throw new Error('A empresa selecionada ainda está em cadastro.');
+        }
+        return outcome.token;
+      }),
+    );
+  }
+
+  /**
+   * Same call, but aware of `kind`. ACCESS: the token becomes the session token (as always).
+   * INVITE_ONBOARDING: the token goes ONLY to `InviteOnboardingTokenStore` — never to the
+   * session slot every guard reads — and the caller is told where to send the person.
+   */
+  selectDetailed(companyId: string, context?: HttpContext): Observable<SelectCompanyOutcome> {
     const url = `${environment.apiUrl}/auth/select-company/${companyId}`;
     // Sem `context`, a chamada sai EXATAMENTE como antes — sem terceiro
     // argumento. Passar `{ context: undefined }` mudaria a forma da chamada para
@@ -48,17 +80,24 @@ export class CompanySelectionService {
       ? this.http.post<SelectCompanyResponse>(url, {}, { context })
       : this.http.post<SelectCompanyResponse>(url, {});
 
-    return request$
-      .pipe(
-        map((response) => {
-          const token = response?.token;
-          if (!token) {
-            throw new Error('Resposta de /auth/select-company sem token.');
-          }
-          this.session.setToken(token);
-          return token;
-        }),
-      );
+    return request$.pipe(
+      map((response): SelectCompanyOutcome => {
+        const token = response?.token;
+        if (!token) {
+          throw new Error('Resposta de /auth/select-company sem token.');
+        }
+        if (response.kind === 'INVITE_ONBOARDING') {
+          this.onboardingToken.set(token);
+          return {
+            kind: 'INVITE_ONBOARDING',
+            token,
+            next: response.next === 'DRIVER_ONBOARDING' ? 'DRIVER_ONBOARDING' : 'MANAGER_ONBOARDING',
+          };
+        }
+        this.session.setToken(token);
+        return { kind: 'ACCESS', token };
+      }),
+    );
   }
 
   /**

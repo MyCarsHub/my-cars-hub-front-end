@@ -1,4 +1,5 @@
 import { UserCompanies } from './user-companies';
+import { Membership, PendingInvite } from './membership.type';
 
 export type UserDocument = {
     type: 'CPF' | 'CNPJ';
@@ -33,4 +34,10 @@ export type MeResponse = {
      */
     hasSeenTour?: boolean | null;
     systemRole: SystemRole;
+    /** Multi-profile fields (backend slice not yet in every environment): all optional. */
+    memberships?: Membership[] | null;
+    pendingInvites?: PendingInvite[] | null;
+    /** Company to open first after login (last used); absent on an older backend. */
+    defaultCompanyId?: string | null;
+    needsOwnerOnboarding?: boolean | null;
 };
