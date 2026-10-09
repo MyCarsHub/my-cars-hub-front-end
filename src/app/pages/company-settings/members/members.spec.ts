@@ -1,13 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { Component, WritableSignal, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, throwError } from 'rxjs';
+import { NEVER, Observable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CompanyMembers } from './members';
-import { Invites } from '../../invites/invites';
+import { DRIVER_CREATE_ROUTE } from './invite-sheet';
+import { LayoutStore } from '../../../components/core/layouts/layout.store';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanyMembersService } from '../../../services/company-members.service';
 import { InvitesService } from '../../../services/invites.service';
@@ -17,40 +18,21 @@ import type { CompanyMemberResponse } from '../../../types/company-member.types'
 import type { InviteResponse } from '../../../types/invite.types';
 
 /**
- * FEAT-0266 — a tela do roster, e as quatro regras que ela nao pode perder.
+ * The Members page, rendered for real with its children (cards, tables, sheets, invite
+ * form). Only the HTTP-facing services and the session are doubled; every assertion reads
+ * the rendered DOM.
  *
- * As duas rotas do backend sao `GET` e `DELETE`; NAO existe endpoint de troca de papel, e e
- * por isso que nao ha caso de promover nem rebaixar aqui. Se alguem acrescentar um seletor
- * de cargo nesta tela, ele nao tem para onde postar.
- *
- * A remocao grava `status = 'REMOVED'` e MANTEM a linha — apagar deixaria um token assinado
- * continuar valendo. Nenhum caso aqui assume delecao, e a copy fala em perder acesso.
+ * Two contract facts the cases rely on: there is NO role-change endpoint (so no promote or
+ * demote case exists here), and removal writes `status = 'REMOVED'` — nothing assumes the
+ * person is deleted, and the copy speaks of losing access.
  */
-/*
- * O JSDOM DESTE PROJETO NAO IMPLEMENTA `<dialog>`: `showModal()` e `close()` nao existem
- * ("is not a function"), e o `open` nunca muda sozinho. Medido, nao suposto.
- *
- * Entao estes dois metodos sao emprestados aqui, e o que isso cobre e o CONTRATO DO
- * COMPONENTE: que ele chama `showModal()` ao abrir, que fecha pelo mesmo caminho
- * (X, Esc e codigo) e que baixa o proprio sinal quando o elemento dispara `close`.
- *
- * O QUE ESTES CASOS NAO PROVAM, e e deliberado dizer: foco preso dentro do dialogo, o Esc
- * do navegador e o fundo que nao rola. Essas tres sao garantias da PLATAFORMA — foram a
- * razao de escolher `<dialog>` em vez de uma div — e so um navegador real as demonstra.
- * Um stub que as simulasse estaria medindo o proprio stub.
- */
-const dialogProto = HTMLDialogElement?.prototype as HTMLDialogElement | undefined;
-if (dialogProto && typeof dialogProto.showModal !== 'function') {
-  dialogProto.showModal = function (this: HTMLDialogElement): void {
-    this.open = true;
-  };
-  dialogProto.close = function (this: HTMLDialogElement): void {
-    this.open = false;
-    this.dispatchEvent(new Event('close'));
-  };
-}
+@Component({ template: '' })
+class DriverCreateStub {}
 
-describe('CompanyMembers — roster da empresa', () => {
+const DAY = 24 * 60 * 60 * 1000;
+const inDays = (n: number): string => new Date(Date.now() + n * DAY).toISOString();
+
+describe('CompanyMembers — pessoas da empresa', () => {
   const ME = 'user-eu';
 
   const owner: CompanyMemberResponse = {
@@ -60,7 +42,6 @@ describe('CompanyMembers — roster da empresa', () => {
     role: 'OWNER',
     memberSince: '2026-01-10T12:00:00Z',
   };
-
   const manager: CompanyMemberResponse = {
     userId: 'user-gerente',
     name: 'Gerente Bruno',
@@ -68,7 +49,6 @@ describe('CompanyMembers — roster da empresa', () => {
     role: 'MANAGER',
     memberSince: '2026-03-02T12:00:00Z',
   };
-
   const driver: CompanyMemberResponse = {
     userId: 'user-motorista',
     name: 'Motorista Caio',
@@ -82,82 +62,129 @@ describe('CompanyMembers — roster da empresa', () => {
     email: 'convidada@empresa.com.br',
     role: 'MANAGER',
     status: 'PENDING',
-    expiresAt: '2026-10-08T12:00:00Z',
+    expiresAt: inDays(6),
     createDate: '2026-10-01T12:00:00Z',
   };
-
   const expiredInvite: InviteResponse = {
     ...pendingInvite,
     id: 'inv-2',
     email: 'expirada@empresa.com.br',
     status: 'EXPIRED',
+    expiresAt: inDays(-3),
   };
-
-  /** ACEITO: a MESMA pessoa que o roster ja devolve. Nunca pode virar linha. */
+  /** ACCEPTED: the SAME person the roster already returns. Never a row. */
   const acceptedInvite: InviteResponse = {
     ...pendingInvite,
     id: 'inv-3',
     email: 'bruno@empresa.com.br',
     status: 'ACCEPTED',
   };
+  const driverInvite: InviteResponse = {
+    ...pendingInvite,
+    id: 'inv-4',
+    email: 'motorista.novo@empresa.com.br',
+    role: 'DRIVER',
+  };
 
   let list: ReturnType<typeof vi.fn>;
   let inviteList: ReturnType<typeof vi.fn>;
+  let create: ReturnType<typeof vi.fn>;
   let resendInvite: ReturnType<typeof vi.fn>;
   let cancelInvite: ReturnType<typeof vi.fn>;
   let remove: ReturnType<typeof vi.fn>;
   let success: ReturnType<typeof vi.fn>;
-  let members: ReturnType<typeof signal<CompanyMemberResponse[]>>;
+  let isMobile: WritableSignal<boolean>;
 
-  function error(status: number, message = 'falhou'): HttpErrorResponse {
-    return new HttpErrorResponse({ status, error: { message } });
+  function error(status: number, message = 'falhou', code?: string): HttpErrorResponse {
+    return new HttpErrorResponse({ status, error: { message, code } });
   }
 
-  /**
-   * @param tokenRole papel do CHAMADOR, lido do token — a mesma fonte do `roleGuard`
-   * @param roster    o que `GET /members` devolve
-   */
+  interface RenderOptions {
+    roster?: CompanyMemberResponse[];
+    invites?: InviteResponse[];
+    listImpl?: () => Observable<CompanyMemberResponse[]>;
+    mobile?: boolean;
+    invitesNever?: boolean;
+  }
+
+  /** @param tokenRole the CALLER's role, read from the token — the `roleGuard` source. */
   function render(
     tokenRole: string | null,
-    roster: CompanyMemberResponse[] = [owner, manager, driver],
-    invites: InviteResponse[] = [],
-    listImpl?: () => ReturnType<typeof of>,
+    {
+      roster = [owner, manager, driver],
+      invites = [],
+      listImpl,
+      mobile = true,
+      invitesNever = false,
+    }: RenderOptions = {},
   ): ComponentFixture<CompanyMembers> {
     TestBed.resetTestingModule();
-    members = signal<CompanyMemberResponse[]>([]);
-    // O impl entra AQUI e nao por `mockReturnValue` depois: `list()` roda no `ngOnInit`,
-    // durante o `createComponent` — um mock ajustado depois chegaria tarde, e um ajustado
-    // antes seria descartado por esta reatribuicao.
-    list = vi.fn(
-      listImpl ??
-        (() => {
-          members.set(roster);
-          return of(roster);
-        }),
-    );
-    remove = vi.fn(() => of(undefined));
-    success = vi.fn();
+    const members = signal<CompanyMemberResponse[]>([]);
+    const mLoading = signal(false);
+    const mLoaded = signal(false);
     const inviteSignal = signal<InviteResponse[]>([]);
+    const iLoading = signal(false);
+    const iLoaded = signal(false);
+    isMobile = signal(mobile);
+
+    // The impl goes in HERE: `list()` runs in `ngOnInit`, during `createComponent`.
+    list = vi.fn(() => {
+      mLoading.set(true);
+      const source =
+        listImpl?.() ??
+        new Observable<CompanyMemberResponse[]>((sub) => {
+          sub.next(roster);
+          sub.complete();
+        });
+      return new Observable<CompanyMemberResponse[]>((sub) =>
+        source.subscribe({
+          next: (value) => {
+            members.set(value);
+            mLoaded.set(true);
+            mLoading.set(false);
+            sub.next(value);
+          },
+          error: (e) => {
+            mLoading.set(false);
+            sub.error(e);
+          },
+          complete: () => sub.complete(),
+        }),
+      );
+    });
+    remove = vi.fn((id: string) => {
+      members.update((l) => l.filter((m) => m.userId !== id));
+      return of(undefined);
+    });
+    success = vi.fn();
     inviteList = vi.fn(() => {
+      if (invitesNever) {
+        iLoading.set(true);
+        return NEVER;
+      }
       inviteSignal.set(invites);
+      iLoaded.set(true);
       return of(invites);
     });
+    create = vi.fn((payload: { email: string; role: 'MANAGER' | 'DRIVER' }) =>
+      of({ ...pendingInvite, id: 'inv-new', email: payload.email, role: payload.role }),
+    );
     resendInvite = vi.fn(() => of(undefined));
     cancelInvite = vi.fn(() => of(undefined));
 
     TestBed.configureTestingModule({
       imports: [CompanyMembers],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: DRIVER_CREATE_ROUTE.slice(1), component: DriverCreateStub }]),
         provideNoopAnimations(),
         ApiErrorService,
+        { provide: LayoutStore, useValue: { isMobile } },
         {
           provide: CompanyMembersService,
           useValue: {
             members: members.asReadonly(),
-            loading: signal(false).asReadonly(),
-            loaded: signal(true).asReadonly(),
-            memberCount: signal(roster.length).asReadonly(),
+            loading: mLoading.asReadonly(),
+            loaded: mLoaded.asReadonly(),
             list,
             remove,
           },
@@ -166,9 +193,10 @@ describe('CompanyMembers — roster da empresa', () => {
           provide: InvitesService,
           useValue: {
             invites: inviteSignal.asReadonly(),
-            loading: signal(false).asReadonly(),
-            loaded: signal(true).asReadonly(),
+            loading: iLoading.asReadonly(),
+            loaded: iLoaded.asReadonly(),
             list: inviteList,
+            create,
             resend: resendInvite,
             cancel: cancelInvite,
           },
@@ -176,15 +204,7 @@ describe('CompanyMembers — roster da empresa', () => {
         {
           provide: SessionService,
           useValue: {
-            // `id` e quem EU sou: e o que decide "a sua propria linha".
             getItem: vi.fn((key: string) => (key === 'id' ? ME : null)),
-            /*
-             * `getUserId()` e o acessor NOMEADO para o mesmo dado — hoje ele e
-             * literalmente `getItem('id')`, porque o JWT deste produto NAO
-             * carrega claim de id de usuario (tem `role`, `companyId`,
-             * `system_role`, `exp`, `impersonation`). O duble expoe os dois para
-             * nao decidir qual a tela usa.
-             */
             getUserId: vi.fn(() => ME),
             getCompanyRoleFromToken: vi.fn(() => tokenRole),
           },
@@ -200,749 +220,1065 @@ describe('CompanyMembers — roster da empresa', () => {
     return fixture;
   }
 
-  function rowOf(fixture: ComponentFixture<CompanyMembers>, name: string): HTMLElement {
+  const host = (f: ComponentFixture<CompanyMembers>): HTMLElement => f.nativeElement as HTMLElement;
+  const text = (f: ComponentFixture<CompanyMembers>): string => host(f).textContent ?? '';
+
+  function rowOf(f: ComponentFixture<CompanyMembers>, name: string): HTMLElement {
     const row = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('li'),
-    ).find((li) => (li.textContent ?? '').includes(name));
+      host(f).querySelectorAll<HTMLElement>('[data-member-row], [data-invite-row]'),
+    ).find((el) => (el.textContent ?? '').includes(name));
     if (!row) throw new Error(`a linha de ${name} nao esta na tela`);
-    return row as HTMLElement;
+    return row;
   }
 
-  function removeButtonOf(
-    fixture: ComponentFixture<CompanyMembers>,
-    name: string,
-  ): HTMLButtonElement | undefined {
-    /*
-     * Por `data-remove-member`, e nao pelo TEXTO.
-     *
-     * O rotulo depende de quem e a linha: "Remover acesso" para outra pessoa,
-     * "Sair desta empresa" para mim. Casar por texto fazia o helper devolver
-     * `undefined` nas linhas de auto-remocao e o teste acusava o template, que
-     * estava certo.
-     */
-    return (
-      rowOf(fixture, name).querySelector<HTMLButtonElement>('[data-remove-member]') ?? undefined
+  function buttonByText(scope: ParentNode, label: string): HTMLButtonElement | undefined {
+    return Array.from(scope.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+      (b.textContent ?? '').includes(label),
     );
   }
 
-  /**
-   * Escopado ao `role="dialog"` DE PROPOSITO: a linha da pessoa tem um botao com o MESMO
-   * rotulo ("Remover acesso") e vem ANTES no DOM, entao uma busca global acharia o da linha
-   * e o teste reabriria a confirmacao em vez de confirmar — passando pelo motivo errado.
-   */
-  function confirmDialogButton(
-    fixture: ComponentFixture<CompanyMembers>,
+  /** E-mails in the order the rows are on screen (card or table, members and invites). */
+  function order(f: ComponentFixture<CompanyMembers>): string[] {
+    return Array.from(
+      host(f).querySelectorAll('[data-member-row], [data-invite-row]'),
+    ).map((r) => (r.textContent ?? '').match(/[\w.]+@empresa\.com\.br/)?.[0] ?? '?');
+  }
+
+  function search(f: ComponentFixture<CompanyMembers>, value: string): void {
+    const input = host(f).querySelector<HTMLInputElement>('#members-search');
+    if (!input) throw new Error('a busca nao esta na tela');
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    f.detectChanges();
+  }
+
+  /** Desktop: the two inline selects. */
+  function choose(f: ComponentFixture<CompanyMembers>, which: 'access' | 'status', value: string): void {
+    const select = host(f).querySelector<HTMLSelectElement>(`[data-filter-${which}]`);
+    if (!select) throw new Error('o filtro ' + which + ' nao esta na tela');
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    f.detectChanges();
+  }
+
+  /** Phone: open the Filtrar sheet and pick a radio chip by its group and label. */
+  function openFilterSheet(f: ComponentFixture<CompanyMembers>): HTMLElement {
+    host(f).querySelector<HTMLButtonElement>('[data-filter-open]')?.click();
+    f.detectChanges();
+    const s = sheet(f);
+    if (!s) throw new Error('a folha de filtros nao abriu');
+    return s;
+  }
+
+  function pickChip(
+    f: ComponentFixture<CompanyMembers>,
+    group: 'access' | 'status',
     label: string,
-  ): HTMLButtonElement | undefined {
-    const dialog = (fixture.nativeElement as HTMLElement).querySelector('[role="dialog"]');
-    if (!dialog) throw new Error('a confirmacao nao esta na tela');
-    return Array.from(dialog.querySelectorAll('button')).find(
-      (b) => (b.textContent ?? '').trim() === label,
-    );
+  ): void {
+    const radio = Array.from(
+      sheet(f)?.querySelectorAll<HTMLButtonElement>(
+        `[role="radiogroup"][aria-labelledby="filter-${group}-label"] [role="radio"]`,
+      ) ?? [],
+    ).find((b) => (b.textContent ?? '').trim() === label);
+    if (!radio) throw new Error('chip ' + label + ' nao existe em ' + group);
+    radio.click();
+    f.detectChanges();
   }
 
-  beforeEach(() => {
-    TestBed.resetTestingModule();
-  });
+  function sheetButton(f: ComponentFixture<CompanyMembers>, attr: string): void {
+    sheet(f)?.querySelector<HTMLButtonElement>(`[${attr}]`)?.click();
+    f.detectChanges();
+  }
 
-  // ------------------------------------------------------------------ LISTAR
+  const count = (f: ComponentFixture<CompanyMembers>): string =>
+    host(f).querySelector('[data-results]')?.textContent?.trim() ?? '';
+
+  /** The open sheet (the actions sheet or the invite sheet), if any. */
+  function sheet(f: ComponentFixture<CompanyMembers>): HTMLElement | null {
+    return host(f).querySelector<HTMLElement>('app-members-sheet [role="dialog"]');
+  }
+
+  function confirmDialog(f: ComponentFixture<CompanyMembers>): HTMLElement {
+    const dialog = host(f).querySelector<HTMLElement>('app-confirm-dialog [role="dialog"]');
+    if (!dialog) throw new Error('a confirmacao nao esta na tela');
+    return dialog;
+  }
+
+  function confirmButton(f: ComponentFixture<CompanyMembers>, label: string): HTMLButtonElement {
+    const b = Array.from(confirmDialog(f).querySelectorAll('button')).find(
+      (x) => (x.textContent ?? '').trim() === label,
+    );
+    if (!b) throw new Error('botao ' + label + ' nao esta na confirmacao');
+    return b;
+  }
+
+  /** Phone path: kebab on the row -> actions sheet. `undefined` when the row has no kebab. */
+  function openRowActions(f: ComponentFixture<CompanyMembers>, name: string): boolean {
+    const kebab = rowOf(f, name).querySelector<HTMLButtonElement>(
+      '[data-member-actions], [data-invite-actions]',
+    );
+    if (!kebab) return false;
+    kebab.click();
+    f.detectChanges();
+    return true;
+  }
+
+  function startRemoval(f: ComponentFixture<CompanyMembers>, name: string): void {
+    expect(openRowActions(f, name), `${name} nao tem acoes`).toBe(true);
+    sheet(f)?.querySelector<HTMLButtonElement>('[data-remove-member]')?.click();
+    f.detectChanges();
+  }
+
+  function openInvite(f: ComponentFixture<CompanyMembers>): HTMLElement {
+    host(f).querySelector<HTMLButtonElement>('[data-invite-open]')?.click();
+    f.detectChanges();
+    const s = sheet(f);
+    if (!s) throw new Error('a folha de convite nao abriu');
+    return s;
+  }
+
+  function fill(f: ComponentFixture<CompanyMembers>, id: string, value: string): void {
+    const input = host(f).querySelector<HTMLInputElement>('#' + id);
+    if (!input) throw new Error('campo ' + id + ' nao existe');
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    f.detectChanges();
+  }
+
+  function goToManagerForm(f: ComponentFixture<CompanyMembers>): HTMLElement {
+    const s = openInvite(f);
+    s.querySelector<HTMLButtonElement>('[data-role-option="MANAGER"]')?.click();
+    f.detectChanges();
+    return sheet(f) as HTMLElement;
+  }
+
+  function submitManagerForm(f: ComponentFixture<CompanyMembers>): void {
+    host(f).querySelector<HTMLFormElement>('#invite-manager-form')?.dispatchEvent(
+      new Event('submit'),
+    );
+    f.detectChanges();
+  }
+
+  beforeEach(() => TestBed.resetTestingModule());
+
+  // ================================================================ LISTING
   it('lista quem tem acesso, com nome, e-mail e papel em portugues', () => {
-    const fixture = render('OWNER');
-    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
-
+    const f = render('OWNER');
     expect(list).toHaveBeenCalledTimes(1);
-    expect(text).toContain('Dona Ana');
-    expect(text).toContain('bruno@empresa.com.br');
-    // Rotulos pt-BR vindos de `companyRoleLabel`, nao os enums crus.
-    expect(text).toContain('Dono');
-    expect(text).toContain('Gerenciador');
-    expect(text).toContain('Motorista');
-    expect(text).not.toContain('OWNER');
+    expect(inviteList).toHaveBeenCalledTimes(1);
+    expect(text(f)).toContain('Dona Ana');
+    expect(text(f)).toContain('bruno@empresa.com.br');
+    // pt-BR labels from `companyRoleLabel`, never the raw enum.
+    expect(text(f)).toContain('Dono');
+    expect(text(f)).toContain('Gerenciador');
+    expect(text(f)).toContain('Motorista');
+    expect(text(f)).not.toContain('OWNER');
   });
 
-  it('empresa com um unico membro nao mostra lista vazia enganosa', () => {
-    const fixture = render('OWNER', [owner]);
+  it('no celular sao cartoes, sem tabela; no desktop e tabela, sem cartoes', () => {
+    const phone = render('OWNER');
+    expect(host(phone).querySelectorAll('ul app-person-card')).toHaveLength(3);
+    expect(host(phone).querySelector('table')).toBeNull();
 
-    expect(rowOf(fixture, 'Dona Ana')).toBeDefined();
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Ninguém mais tem');
+    const desk = render('OWNER', { mobile: false });
+    expect(host(desk).querySelector('app-person-card')).toBeNull();
+    const rows = host(desk).querySelectorAll('table tbody tr[data-member-row]');
+    expect(rows).toHaveLength(3);
+    // Same data on both: name, e-mail, role, "Desde"/"Membro desde" date.
+    expect(rows[0].textContent).toContain('Dona Ana');
+    expect(rows[0].textContent).toContain('10/01/2026');
+    expect(host(desk).querySelector('thead')?.textContent).toContain('Enviado em / Desde');
   });
 
-  // --------------------------------------------------- REMOVER COM CONFIRMACAO
-  /**
-   * A confirmacao nao e enfeite: remover e destrutivo PARA A PESSOA REMOVIDA, que perde o
-   * acesso no instante seguinte e nao e quem esta clicando.
-   */
-  it('clicar em remover NAO chama o servidor: abre a confirmacao primeiro', () => {
-    const fixture = render('OWNER');
+  it('nao mostra "ultimo acesso": o payload de membros nao traz esse campo', () => {
+    const f = render('OWNER');
+    expect(text(f).toLowerCase()).not.toContain('último acesso');
+  });
 
-    removeButtonOf(fixture, 'Motorista Caio')?.click();
-    fixture.detectChanges();
+  it('empresa com um unico membro mostra a pessoa e o convite a convidar, nao uma lista vazia', () => {
+    const f = render('OWNER', { roster: [{ ...owner, userId: ME }] });
+    expect(rowOf(f, 'Dona Ana')).toBeDefined();
+    const empty = host(f).querySelector('[data-empty]');
+    expect(empty?.textContent).toContain('Só você tem acesso por enquanto.');
+    // The empty state carries THE primary action, and the sticky bar steps aside.
+    expect(buttonByText(empty as HTMLElement, 'Convidar pessoa')).toBeDefined();
+    expect(host(f).querySelectorAll('[data-invite-open]')).toHaveLength(1);
+    expect(text(f)).not.toContain('Ninguém mais tem');
+  });
 
+  // ================================================================ STATES
+  it('carregando: esqueleto na altura real, nunca o texto "Carregando"', () => {
+    const f = render('OWNER', { listImpl: () => NEVER, invitesNever: true });
+    expect(host(f).querySelectorAll('[data-skeleton]')).toHaveLength(3);
+    expect(host(f).querySelector('[aria-label="Resumo da equipe"]')?.getAttribute('aria-busy')).toBe(
+      'true',
+    );
+    expect(host(f).querySelector('app-person-card')).toBeNull();
+    expect(text(f)).not.toContain('Carregando');
+  });
+  it('erro ao carregar: banner com Tentar novamente, que recarrega as duas fontes', () => {
+    const f = render('MANAGER', { listImpl: () => throwError(() => error(500)) });
+    const banner = host(f).querySelector('app-alert-banner [role="alert"]');
+    expect(banner).not.toBeNull();
+    expect(host(f).querySelector('app-person-card')).toBeNull();
+    const retry = host(f).querySelector<HTMLButtonElement>('[data-retry]');
+    expect(retry?.textContent).toContain('Tentar novamente');
+    retry?.click();
+    f.detectChanges();
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(inviteList).toHaveBeenCalledTimes(2);
+  });
+
+  it('403 na listagem explica de quem e a tela, sem erro cru', () => {
+    const f = render('MANAGER', { listImpl: () => throwError(() => error(403)) });
+    expect(text(f)).toContain('podem ver quem tem acesso');
+  });
+
+  // ================================================================ ONE LIST
+  const self: CompanyMemberResponse = { ...owner, userId: ME };
+  const allInvites = [pendingInvite, driverInvite, expiredInvite];
+
+  it('UMA lista so, sem abas: voce, membros por nome, convites expirados e depois pendentes', () => {
+    const roster = [driver, manager, self];
+    const expected = [
+      'ana@empresa.com.br',
+      'bruno@empresa.com.br',
+      'caio@empresa.com.br',
+      'expirada@empresa.com.br',
+      'convidada@empresa.com.br',
+      'motorista.novo@empresa.com.br',
+    ];
+    const phone = render('OWNER', { roster, invites: allInvites });
+    expect(host(phone).querySelector('[role="radiogroup"]')).toBeNull();
+    expect(order(phone)).toEqual(expected);
+    const desk = render('OWNER', { roster, invites: allInvites, mobile: false });
+    expect(order(desk)).toEqual(expected);
+    expect(host(desk).querySelector('h2')?.textContent).toContain('Lista');
+  });
+
+  it('cada linha traz o seu status: Ativo, Pendente ou Expirado, em cores diferentes', () => {
+    const f = render('OWNER', { roster: [owner, manager], invites: [pendingInvite, expiredInvite] });
+    const chip = (who: string): HTMLElement =>
+      rowOf(f, who).querySelector<HTMLElement>('[data-status-chip]') as HTMLElement;
+    expect(chip('Dona Ana').textContent?.trim()).toBe('Ativo');
+    expect(chip('convidada@').textContent?.trim()).toBe('Pendente');
+    expect(chip('expirada@').textContent?.trim()).toBe('Expirado');
+    expect(chip('Dona Ana').className).toContain('success');
+    expect(chip('convidada@').className).toContain('amber');
+    expect(chip('expirada@').className).toContain('rose');
+    expect(host(f).innerHTML).not.toMatch(/\b(bg|text|border)-red-/);
+  });
+
+  it('membro e convidado na mesma lista: o convite diz quando expira, o membro diz desde quando', () => {
+    const f = render('OWNER', { roster: [owner, manager], invites: [pendingInvite] });
+    expect(rowOf(f, 'Dona Ana').textContent).toContain('10/01/2026');
+    expect(rowOf(f, 'convidada@empresa.com.br').textContent).toContain('Expira em 6 dias');
+    expect(rowOf(f, 'convidada@empresa.com.br').textContent).toContain('01/10/2026');
+  });
+
+  it('desktop: colunas pedidas, e-mail sem truncar, aceite do convite e traco no membro', () => {
+    const f = render('OWNER', {
+      roster: [owner],
+      invites: [{ ...pendingInvite, email: 'um.endereco.bem.comprido@empresa.com.br' }, expiredInvite],
+      mobile: false,
+    });
+    const heads = Array.from(host(f).querySelectorAll('thead th')).map((h) =>
+      (h.textContent ?? '').trim(),
+    );
+    expect(heads).toEqual([
+      'Nome',
+      'E-mail',
+      'Nível de acesso',
+      'Status',
+      'Enviado em / Desde',
+      'Aceite',
+      'Ações',
+    ]);
+    const email = rowOf(f, 'um.endereco').querySelector<HTMLElement>('[data-email]') as HTMLElement;
+    expect(email.textContent?.trim()).toBe('um.endereco.bem.comprido@empresa.com.br');
+    expect(email.className).not.toContain('truncate');
+    const cells = (who: string): string[] =>
+      Array.from(rowOf(f, who).querySelectorAll('td')).map((c) => (c.textContent ?? '').trim());
+    expect(cells('Dona Ana')[5]).toBe('—');
+    expect(cells('um.endereco')[5]).toBe('Expira em 6 dias');
+    expect(cells('expirada@')[5]).toBe('Expirado');
+  });
+
+  it('convite ACEITO nao vira linha: a pessoa aparece UMA vez, como membro', () => {
+    const f = render('OWNER', { roster: [owner, manager], invites: [acceptedInvite] });
+    expect(host(f).querySelectorAll('[data-invite-row]')).toHaveLength(0);
+    const rows = Array.from(host(f).querySelectorAll('[data-member-row]')).filter((r) =>
+      (r.textContent ?? '').includes('bruno@empresa.com.br'),
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it('quem ja e membro e tem convite pendente aparece UMA vez, como membro (sem caixa nem espaco)', () => {
+    const dup = { ...pendingInvite, email: '  BRUNO@Empresa.COM.BR ' };
+    const f = render('OWNER', { roster: [owner, manager], invites: [dup] });
+    expect(host(f).querySelectorAll('[data-invite-row]')).toHaveLength(0);
+  });
+
+  it('convites: expirado vem antes de pendente', () => {
+    const f = render('OWNER', { invites: [pendingInvite, expiredInvite] });
+    const labels = Array.from(host(f).querySelectorAll('[data-invite-row]')).map((r) =>
+      r.querySelector('[data-validity]')?.textContent?.trim(),
+    );
+    expect(labels).toEqual(['Expirado', 'Expira em 6 dias']);
+  });
+
+  it('validade: expirado e pendente nao tem a mesma cor de texto', () => {
+    const f = render('OWNER', { invites: [pendingInvite, expiredInvite] });
+    const tone = (who: string): string =>
+      rowOf(f, who).querySelector('[data-validity]')?.className ?? '';
+    expect(tone('expirada@')).not.toBe(tone('convidada@'));
+    expect(tone('expirada@')).toContain('rose');
+  });
+
+  it('nome do convidado aparece quando a API manda; senao o e-mail e o titulo', () => {
+    const f = render('OWNER', { invites: [{ ...pendingInvite, name: 'Patrícia Souza' }] });
+    const row = rowOf(f, 'Patrícia Souza');
+    expect(row.textContent).toContain('convidada@empresa.com.br');
+  });
+
+  // ================================================================ DELIVERY (optional field)
+  it('sem `emailDelivery` nao ha chip de entrega nenhum — a tela nao adivinha "Enviado"', () => {
+    const phone = render('OWNER', { invites: [pendingInvite] });
+    expect(host(phone).querySelector('[data-delivery-chip]')).toBeNull();
+    expect(text(phone)).not.toContain('Falha no envio');
+
+    const desk = render('OWNER', { invites: [pendingInvite], mobile: false });
+    expect(host(desk).querySelector('[data-delivery-chip]')).toBeNull();
+  });
+
+  it('com `emailDelivery`: Enviado / Falha no envio, e falha ganha Reenviar na linha', () => {
+    const sent = { ...pendingInvite, emailDelivery: 'SENT' as const };
+    const failed = { ...driverInvite, emailDelivery: 'FAILED' as const };
+    const f = render('OWNER', { invites: [sent, failed] });
+    expect(rowOf(f, 'convidada@').querySelector('[data-delivery-chip]')?.textContent).toContain(
+      'Enviado',
+    );
+    expect(rowOf(f, 'convidada@').querySelector('[data-inline-resend]')).toBeNull();
+    const bad = rowOf(f, 'motorista.novo@');
+    expect(bad.querySelector('[data-delivery-chip]')?.textContent).toContain('Falha no envio');
+    bad.querySelector<HTMLButtonElement>('[data-inline-resend]')?.click();
+    f.detectChanges();
+    expect(resendInvite).toHaveBeenCalledWith('inv-4');
+
+    const desk = render('OWNER', { invites: [sent], mobile: false });
+    expect(rowOf(desk, 'convidada@').querySelector('[data-delivery-chip]')?.textContent).toContain(
+      'Enviado',
+    );
+  });
+
+  // ================================================================ REMOVE
+  /** The confirmation exists for the REMOVED person, who loses access and is not clicking. */
+  it('remover NAO chama o servidor: abre a confirmacao, que nomeia quem e fala em perder acesso', () => {
+    const f = render('OWNER');
+    startRemoval(f, 'Motorista Caio');
     expect(remove).not.toHaveBeenCalled();
-    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Remover acesso');
-    // A frase da confirmacao nomeia QUEM, e nao fala em apagar: o backend marca REMOVED.
-    expect(text).toContain('Motorista Caio');
-    expect(text).toContain('perde o acesso');
-    expect(text).not.toContain('apagad');
+    const dialog = confirmDialog(f).textContent ?? '';
+    expect(dialog).toContain('Motorista Caio');
+    expect(dialog).toContain('perde o acesso');
+    expect(dialog).not.toContain('apagad');
   });
 
-  it('confirmar remove de fato, pelo userId, e avisa quem ficou', () => {
-    const fixture = render('OWNER');
+  it('a folha de acoes diz quem e e traz a nota de troca de nivel', () => {
+    const f = render('OWNER');
+    openRowActions(f, 'Motorista Caio');
+    const s = sheet(f);
+    expect(s?.textContent).toContain('caio@empresa.com.br');
+    expect(s?.textContent).toContain('Para mudar o nível de acesso, remova e convide de novo.');
+    expect(s?.textContent).not.toContain('Alterar papel');
+  });
 
-    removeButtonOf(fixture, 'Motorista Caio')?.click();
-    fixture.detectChanges();
-    confirmDialogButton(fixture, 'Remover acesso')?.click();
-    fixture.detectChanges();
-
+  it('confirmar remove de fato, pelo userId, e avisa', () => {
+    const f = render('OWNER');
+    startRemoval(f, 'Motorista Caio');
+    confirmButton(f, 'Remover acesso').click();
+    f.detectChanges();
     expect(remove).toHaveBeenCalledWith('user-motorista');
     expect(success).toHaveBeenCalledWith('Motorista Caio perdeu o acesso a esta empresa.');
   });
 
   it('cancelar a confirmacao nao remove ninguem', () => {
-    const fixture = render('OWNER');
-
-    removeButtonOf(fixture, 'Motorista Caio')?.click();
-    fixture.detectChanges();
-    confirmDialogButton(fixture, 'Manter acesso')?.click();
-    fixture.detectChanges();
-
+    const f = render('OWNER');
+    startRemoval(f, 'Motorista Caio');
+    confirmButton(f, 'Manter acesso').click();
+    f.detectChanges();
     expect(remove).not.toHaveBeenCalled();
   });
 
-  // ------------------------------------------- O DONO NAO REMOVE A SI MESMO
-  /**
-   * TRAVA 3 — o ULTIMO dono nao sai, e agora isso e DECIDIDO AQUI.
-   *
-   * Antes a tela nem oferecia: `canRemove` era `!isSelf && !isOwner`, e o ramo
-   * do 409 em `removeMessage` era codigo morto, inalcancavel. A regra existia
-   * no servidor e a tela nao a afirmava — ela so repetiria o erro se algum dia
-   * um clique chegasse la.
-   *
-   * Agora o botao EXISTE e fica DESABILITADO com a razao ao lado, decidido por
-   * papel + contagem de donos ACTIVE da propria lista.
-   *
-   * Medido no backend, e e o que torna esta trava permanente para o dono:
-   * convite recusa `OWNER` como papel, o unico escritor de `role = OWNER` e o
-   * onboarding, e nao existe endpoint de troca de papel. Uma empresa tem UM
-   * dono, sempre. Por isso a frase NAO manda promover ninguem.
-   */
-  it('o ultimo dono ve o botao DESABILITADO, com o motivo, e nao um 403 depois do clique', () => {
-    const fixture = render('OWNER', [{ ...owner, userId: ME }, manager]);
-
-    const botao = removeButtonOf(fixture, 'Dona Ana');
-    expect(botao, 'o botao sumiu: a pessoa procura "sair" e nao acha').toBeDefined();
-    expect(botao?.disabled).toBe(true);
-    expect(rowOf(fixture, 'Dona Ana').textContent).toContain('único dono desta empresa');
-    // E a copy NAO manda fazer o que o produto nao permite.
-    expect(rowOf(fixture, 'Dona Ana').textContent).not.toContain('Promova');
+  it('no desktop o menu da linha leva a mesma confirmacao', () => {
+    const f = render('OWNER', { mobile: false });
+    const row = rowOf(f, 'Motorista Caio');
+    row.querySelector<HTMLButtonElement>('app-actions-menu button[aria-haspopup="menu"]')?.click();
+    f.detectChanges();
+    const item = row.querySelector<HTMLButtonElement>('[role="menuitem"][data-remove-member]');
+    expect(item?.textContent).toContain('Remover acesso');
+    item?.click();
+    f.detectChanges();
+    confirmButton(f, 'Remover acesso').click();
+    f.detectChanges();
+    expect(remove).toHaveBeenCalledWith('user-motorista');
   });
 
-  /**
-   * O CASO QUE O PRODUTO NAO ALCANCA HOJE, e esta aqui de proposito.
-   *
-   * Com DOIS donos ACTIVE o backend permite o dono sair. O produto nao sabe
-   * criar o segundo dono, entao este estado nao ocorre em producao — e o teste
-   * fixa a regra para o dia em que a transferencia de propriedade existir. Sem
-   * ele, quem construir a transferencia nao descobre que a trava depende da
-   * CONTAGEM e nao do papel.
-   */
+  // -------------------------------------------------- the three backend locks
+  it('o ULTIMO dono nao tem acao de sair, e a linha diz por que (sem mandar promover ninguem)', () => {
+    const f = render('OWNER', { roster: [{ ...owner, userId: ME }, manager] });
+    const row = rowOf(f, 'Dona Ana');
+    expect(openRowActions(f, 'Dona Ana')).toBe(false);
+    expect(row.textContent).toContain('único dono desta empresa');
+    expect(row.textContent).not.toContain('Promova');
+
+    const desk = render('OWNER', { roster: [{ ...owner, userId: ME }, manager], mobile: false });
+    expect(rowOf(desk, 'Dona Ana').querySelector('app-actions-menu')).toBeNull();
+  });
+
+  /** Two ACTIVE owners: the backend lets one leave. The lock is the COUNT, not the role. */
   it('com DOIS donos, o dono pode sair — a trava e a contagem, nao o papel', () => {
-    const outroDono = { ...owner, userId: 'owner-2', name: 'Dono Carlos' };
-    const fixture = render('OWNER', [{ ...owner, userId: ME }, outroDono]);
-
-    const botao = removeButtonOf(fixture, 'Dona Ana');
-    expect(botao).toBeDefined();
-    expect(botao?.disabled).toBe(false);
+    const other = { ...owner, userId: 'owner-2', name: 'Dono Carlos' };
+    const f = render('OWNER', { roster: [{ ...owner, userId: ME }, other] });
+    startRemoval(f, 'Dona Ana');
+    expect(confirmDialog(f).textContent).toContain('Sair desta empresa');
   });
 
-  /**
-   * O GERENTE SAI SOZINHO, e esta e a capacidade REAL que a tela ganhou: o
-   * backend sempre permitiu (nao ha regra contra alvo nao-OWNER), e a tela
-   * bloqueava com `!isSelf`.
-   */
-  it('o gerente pode remover o PROPRIO acesso', () => {
-    const fixture = render('MANAGER', [owner, { ...manager, userId: ME }]);
-
-    const botao = removeButtonOf(fixture, 'Gerente Bruno');
-    expect(botao).toBeDefined();
-    expect(botao?.disabled).toBe(false);
-    // O verbo muda: nao se "remove o acesso" de si mesmo, se SAI.
-    expect(botao?.textContent).toContain('Sair');
+  it('o gerente pode remover o PROPRIO acesso, e o verbo e Sair', () => {
+    const f = render('MANAGER', { roster: [owner, { ...manager, userId: ME }] });
+    expect(openRowActions(f, 'Gerente Bruno')).toBe(true);
+    expect(sheet(f)?.querySelector('[data-remove-member]')?.textContent).toContain(
+      'Sair desta empresa',
+    );
   });
 
-  /**
-   * TRAVAS 1 e 2 — o backend recusa remover OWNER por OUTRO membro, e nem por
-   * outro OWNER. As duas sao o MESMO ramo la (o papel do ALVO decide, nao o do
-   * ator), entao sao o mesmo ramo aqui.
-   */
-  it('a linha do DONO nao e removivel por outra pessoa: botao desabilitado com motivo', () => {
-    const fixture = render('OWNER', [owner, { ...manager, userId: ME }]);
-
-    const botao = removeButtonOf(fixture, 'Dona Ana');
-    expect(botao).toBeDefined();
-    expect(botao?.disabled).toBe(true);
-    expect(rowOf(fixture, 'Dona Ana').textContent).toContain('dono da empresa não pode ser');
+  /** Locks 1 and 2: OWNER cannot be removed by anyone else — the TARGET's role decides. */
+  it('a linha do DONO nao e removivel por outra pessoa: sem acao, com o motivo', () => {
+    const f = render('MANAGER', { roster: [owner, { ...manager, userId: ME }] });
+    expect(openRowActions(f, 'Dona Ana')).toBe(false);
+    expect(rowOf(f, 'Dona Ana').textContent).toContain('O dono não pode ser removido.');
   });
 
-  /** CONTRAPESO: sem ele, uma tela que esconde TODO botao passaria nos tres casos acima. */
-  it('quem PODE ser removido tem o botao — a trava nao apagou a acao de todo mundo', () => {
-    const fixture = render('OWNER');
-
-    expect(removeButtonOf(fixture, 'Motorista Caio')).toBeDefined();
-    expect(removeButtonOf(fixture, 'Gerente Bruno')).toBeDefined();
+  /** Counterweight: without it, a screen that hides EVERY action passes the three above. */
+  it('quem PODE ser removido tem a acao — a trava nao apagou a acao de todo mundo', () => {
+    const f = render('OWNER');
+    expect(rowOf(f, 'Motorista Caio').querySelector('[data-member-actions]')).not.toBeNull();
+    expect(rowOf(f, 'Gerente Bruno').querySelector('[data-member-actions]')).not.toBeNull();
   });
 
-  // ----------------------------------------------- O MOTORISTA NAO ENTRA
-  /**
-   * A rota e `roleGuard(['OWNER', 'MANAGER'])` e o backend responde 403 ao motorista
-   * (`FORBIDDEN_MEMBER_MANAGEMENT`). Esta e a terceira barreira, e ela existe para o
-   * motorista que chegue ao componente ler uma frase em vez de ver uma chamada falhar.
-   */
+  it('a saida propria fala na segunda pessoa e avisa que so quem fica pode reconvidar', () => {
+    const f = render('MANAGER', { roster: [owner, { ...manager, userId: ME }] });
+    startRemoval(f, 'Gerente Bruno');
+    expect(confirmDialog(f).textContent).toContain('Você perde o acesso');
+    expect(confirmDialog(f).textContent).toContain('só quem ficou pode te convidar');
+  });
+
+  it('remover OUTRA pessoa fala dela, na terceira pessoa', () => {
+    const f = render('OWNER', { roster: [{ ...owner, userId: ME }, manager] });
+    startRemoval(f, 'Gerente Bruno');
+    expect(confirmDialog(f).textContent).toContain('Gerente Bruno perde o acesso');
+  });
+
+  // -------------------------------------------------- the driver never gets in
   it('motorista nao ve o roster e NAO chama o servidor', () => {
-    const fixture = render('DRIVER');
-
+    const f = render('DRIVER');
     expect(list).not.toHaveBeenCalled();
-    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('do dono e dos gerenciadores');
-    expect(text).not.toContain('Dona Ana');
+    expect(inviteList).not.toHaveBeenCalled();
+    expect(text(f)).toContain('do dono e dos gerenciadores');
+    expect(text(f)).not.toContain('Dona Ana');
+    expect(host(f).querySelector('[data-invite-open]')).toBeNull();
   });
 
   it('papel nulo tambem nao entra — omissao nao vira permissao', () => {
-    const fixture = render(null);
-
+    render(null);
     expect(list).not.toHaveBeenCalled();
   });
 
-  // ------------------------------------------------------------- OS ERROS
+  // -------------------------------------------------- removal errors
   it('409 na remocao fala do ultimo dono, nao de permissao', () => {
-    const fixture = render('OWNER');
+    const f = render('OWNER');
     remove.mockReturnValue(throwError(() => error(409)));
-
-    removeButtonOf(fixture, 'Motorista Caio')?.click();
-    fixture.detectChanges();
-    confirmDialogButton(fixture, 'Remover acesso')?.click();
-    fixture.detectChanges();
-
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('ficaria sem dono');
+    startRemoval(f, 'Motorista Caio');
+    confirmButton(f, 'Remover acesso').click();
+    f.detectChanges();
+    expect(text(f)).toContain('ficaria sem dono');
   });
 
-  /**
-   * O 404 do backend e AMBIGUO de proposito: cobre usuario inexistente, membro de outra
-   * empresa e vinculo JA removido, indistinguiveis. Entao a copy nao pode afirmar qual foi —
-   * ela diz que o acesso nao esta mais la e pede para atualizar, verdade nos tres casos.
-   */
-  it('404 na remocao nao afirma qual das tres causas foi', () => {
-    const fixture = render('OWNER');
+  /** The backend 404 is ambiguous on purpose; the copy does not claim which cause. */
+  it('404 na remocao nao afirma a causa, pede para atualizar — e o botao Atualizar esta la', () => {
+    const f = render('OWNER');
     remove.mockReturnValue(throwError(() => error(404)));
-
-    removeButtonOf(fixture, 'Motorista Caio')?.click();
-    fixture.detectChanges();
-    confirmDialogButton(fixture, 'Remover acesso')?.click();
-    fixture.detectChanges();
-
-    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('já não tem acesso');
-    expect(text).toContain('Atualize a lista');
+    startRemoval(f, 'Motorista Caio');
+    confirmButton(f, 'Remover acesso').click();
+    f.detectChanges();
+    expect(text(f)).toContain('já não tem acesso');
+    expect(text(f)).toContain('Atualize a lista');
+    expect(host(f).querySelector('[data-refresh]')?.textContent).toContain('Atualizar');
   });
 
-  it('403 na listagem explica de quem e a tela, sem erro cru', () => {
-    const fixture = render('MANAGER', [], [], () => throwError(() => error(403)));
-
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'podem ver quem tem acesso',
-    );
-  });
-  // ------------------------------------------------------- ATUALIZAR (LOW-1)
-  /**
-   * A mensagem do 404 pede "Atualize a lista". Antes disto nao havia como: `load()` so rodava
-   * no `ngOnInit`, entao a unica forma era sair da tela e voltar — instrucao que a pessoa nao
-   * consegue seguir, que e pior que nenhuma.
-   */
-  it('o botao Atualizar recarrega o roster', () => {
-    const fixture = render('OWNER');
-    expect(list).toHaveBeenCalledTimes(1);
-
-    const refresh = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
-    ).find((b) => (b.textContent ?? '').includes('Atualizar'));
-    expect(refresh, 'a tela manda atualizar e nao oferece como').toBeDefined();
-
-    refresh?.click();
-    fixture.detectChanges();
-
-    // As DUAS fontes recarregam: a lista e uma juncao, e meia atualizacao mostraria
-    // membros novos com convites velhos na mesma tela.
+  it('o botao Atualizar recarrega as DUAS fontes', () => {
+    const f = render('OWNER');
+    host(f).querySelector<HTMLButtonElement>('[data-refresh]')?.click();
+    f.detectChanges();
     expect(list).toHaveBeenCalledTimes(2);
     expect(inviteList).toHaveBeenCalledTimes(2);
   });
 
-  it('a frase do 404 e o botao que a cumpre convivem na mesma tela', () => {
-    const fixture = render('OWNER');
-    remove.mockReturnValue(throwError(() => error(404)));
-
-    removeButtonOf(fixture, 'Motorista Caio')?.click();
-    fixture.detectChanges();
-    confirmDialogButton(fixture, 'Remover acesso')?.click();
-    fixture.detectChanges();
-
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).toContain('Atualize a lista');
-    // A instrucao tem de ter como ser seguida SEM sair da tela.
-    const refresh = Array.from(host.querySelectorAll('button')).find((b) =>
-      (b.textContent ?? '').includes('Atualizar'),
-    );
-    expect(refresh).toBeDefined();
-  });
-  // ============================ A LISTA UNIFICADA (FEAT-0267) ============================
-  /**
-   * A razao de produto: quem convidou alguem ha dois dias nao sabia em qual das duas telas
-   * procurar. O convidado nao e um objeto diferente de um membro — e o MESMO objeto num
-   * estado anterior.
-   */
-  it('membro e convidado aparecem na MESMA lista, cada um com seu estado', () => {
-    const fixture = render('OWNER', [owner, manager], [pendingInvite]);
-    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
-
-    expect(text).toContain('Dona Ana');
-    expect(text).toContain('convidada@empresa.com.br');
-    expect(text).toContain('Com acesso');
-    expect(text).toContain('Convite enviado');
+  // ================================================================ INVITE ROW ACTIONS
+  it('convite oferece reenviar e cancelar (folha no celular), e nao remover acesso', () => {
+    const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+    openRowActions(f, 'convidada@empresa.com.br');
+    const s = sheet(f) as HTMLElement;
+    expect(s.querySelector('[data-resend-invite]')?.textContent).toContain('Reenviar convite');
+    expect(s.querySelector('[data-cancel-invite]')?.textContent).toContain('Cancelar convite');
+    expect(s.querySelector('[data-remove-member]')).toBeNull();
   });
 
-  /**
-   * O DEFEITO QUE A JUNCAO CRUA CAUSARIA, e por isso ele tem caso proprio: convite ACEITO e
-   * a mesma pessoa que o roster ja devolve. Juntar sem filtrar pintaria quem entrou por
-   * convite DUAS vezes — uma como membro e outra como convite aceito. Pareceria defeito de
-   * dados e seria defeito de juncao.
-   */
-  it('convite ACEITO nao vira linha: a pessoa aparece UMA vez, como membro', () => {
-    const fixture = render('OWNER', [owner, manager], [acceptedInvite]);
-    const host = fixture.nativeElement as HTMLElement;
-
-    const linhas = Array.from(host.querySelectorAll('li')).filter((li) =>
-      (li.textContent ?? '').includes('bruno@empresa.com.br'),
-    );
-    expect(linhas).toHaveLength(1);
-    expect(linhas[0].textContent).toContain('Com acesso');
-    expect(linhas[0].textContent).not.toContain('Convite');
+  /** Measured on the backend: resend accepts PENDING and EXPIRED; cancel refuses ACCEPTED only. */
+  it('convite EXPIRADO tambem tem as duas acoes, e Reenviar fica a vista na linha', () => {
+    const f = render('OWNER', { roster: [owner], invites: [expiredInvite] });
+    expect(rowOf(f, 'expirada@').querySelector('[data-inline-resend]')).not.toBeNull();
+    openRowActions(f, 'expirada@');
+    expect(sheet(f)?.querySelector('[data-resend-invite]')).not.toBeNull();
+    expect(sheet(f)?.querySelector('[data-cancel-invite]')).not.toBeNull();
   });
 
-  it('a ordem poe convites na frente, e expirado antes de pendente', () => {
-    const fixture = render('OWNER', [owner, manager], [pendingInvite, expiredInvite]);
-    const estados = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('li'),
-    ).map((li) => {
-      const t = li.textContent ?? '';
-      if (t.includes('Convite expirado')) return 'expirado';
-      if (t.includes('Convite enviado')) return 'pendente';
-      return 'membro';
-    });
-
-    // Quem abre esta tela abre para AGIR: so a linha de convite tem prazo.
-    expect(estados.slice(0, 2)).toEqual(['expirado', 'pendente']);
-    expect(estados.slice(2).every((e) => e === 'membro')).toBe(true);
-  });
-
-  // ------------------------------------------------- ACOES DO CONVITE
-  it('linha de convite oferece reenviar e cancelar, e nao remover acesso', () => {
-    const fixture = render('OWNER', [owner], [pendingInvite]);
-    const row = rowOf(fixture, 'convidada@empresa.com.br');
-    const labels = Array.from(row.querySelectorAll('button')).map((b) =>
-      (b.textContent ?? '').trim(),
-    );
-
-    expect(labels).toContain('Reenviar convite');
-    expect(labels).toContain('Cancelar convite');
-    expect(labels.some((l) => l.includes('Remover acesso'))).toBe(false);
-  });
-
-  /**
-   * MEDIDO no backend, nao suposto: `RESENDABLE_STATUSES` e `[PENDING, EXPIRED]` e o
-   * cancelamento so recusa convite ACEITO. Entao o convite expirado tem as DUAS acoes — e
-   * por isso ele e LISTADO em vez de escondido: esconder faria quem administra acreditar que
-   * a pessoa ainda esta pendente, ou nao saber que ela nunca entrou.
-   */
-  it('convite EXPIRADO tambem oferece as duas acoes, porque as duas funcionam', () => {
-    const fixture = render('OWNER', [owner], [expiredInvite]);
-    const row = rowOf(fixture, 'expirada@empresa.com.br');
-    const labels = Array.from(row.querySelectorAll('button')).map((b) =>
-      (b.textContent ?? '').trim(),
-    );
-
-    expect(row.textContent).toContain('Convite expirado');
-    expect(labels).toContain('Reenviar convite');
-    expect(labels).toContain('Cancelar convite');
-  });
-
-  it('reenviar chama pelo id do CONVITE e avisa que o link anterior morreu', () => {
-    const fixture = render('OWNER', [owner], [pendingInvite]);
-
-    Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').includes('Reenviar'))
-      ?.click();
-    fixture.detectChanges();
-
-    expect(resendInvite).toHaveBeenCalledWith('inv-1');
-    // O reenvio ROTACIONA o token: o link que a pessoa talvez tenha no WhatsApp morreu.
-    expect(success).toHaveBeenCalledWith(
-      expect.stringContaining('link anterior deixou de valer'),
-    );
+  it('reenviar chama pelo id do CONVITE, avisa que o link anterior morreu e rele so os convites', () => {
+    const f = render('OWNER', { roster: [owner], invites: [expiredInvite] });
+    openRowActions(f, 'expirada@');
+    sheet(f)?.querySelector<HTMLButtonElement>('[data-resend-invite]')?.click();
+    f.detectChanges();
+    expect(resendInvite).toHaveBeenCalledWith('inv-2');
+    expect(success).toHaveBeenCalledWith(expect.stringContaining('link anterior deixou de valer'));
+    expect(inviteList).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(sheet(f)).toBeNull();
   });
 
   it('cancelar convite so chama o servidor depois da confirmacao', () => {
-    const fixture = render('OWNER', [owner], [pendingInvite]);
-
-    Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').includes('Cancelar'))
-      ?.click();
-    fixture.detectChanges();
+    const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+    openRowActions(f, 'convidada@');
+    sheet(f)?.querySelector<HTMLButtonElement>('[data-cancel-invite]')?.click();
+    f.detectChanges();
     expect(cancelInvite).not.toHaveBeenCalled();
-
-    confirmDialogButton(fixture, 'Cancelar convite')?.click();
-    fixture.detectChanges();
-
+    confirmButton(f, 'Cancelar convite').click();
+    f.detectChanges();
     expect(cancelInvite).toHaveBeenCalledWith('inv-1');
   });
 
-  // ------------------------------------- O PONTO DE ENTRADA DO CONVITE
-  /**
-   * FEAT-0267 — esta asserticao e a GARANTIA DO FIX-0553 mudando de lugar. Aquele nó existia
-   * porque a tela de convite tinha rota, guard e formulario e NENHUM caminho ate ela, e o
-   * caso do sidebar foi escrito para que o item nao pudesse sumir em silencio.
-   *
-   * O item do menu saiu de proposito; o caminho agora e este botao. Se ele sumir, o
-   * formulario de convite volta a ser inalcancavel — o mesmo defeito, no mesmo produto, duas
-   * voltas depois. Por isso a asserticao mora aqui agora.
-   */
-  /**
-   * FEAT-0553 vive aqui, e agora com UM caminho em vez de dois.
-   *
-   * O link "Abrir em pagina" SAIU de proposito: com o convite abrindo em dialogo nesta tela,
-   * mandar a pessoa para outra tela era oferecer o caminho pior. A rota continua existindo —
-   * link que ja circula nao quebra — mas deixou de ter atalho aqui.
-   *
-   * Entao o que nao pode sumir em silencio e o BOTAO. Se ele desaparecer, o formulario de
-   * convite fica inalcancavel desta tela, que e exatamente o defeito que o FIX-0553
-   * consertou uma vez.
-   */
-  it('o convite tem UM caminho: o botao, e o link para a rota saiu', () => {
-    const fixture = render('OWNER');
-    const host = fixture.nativeElement as HTMLElement;
-
-    const abrir = Array.from(host.querySelectorAll('button')).find((b) =>
-      (b.textContent ?? '').includes('Convidar pessoa'),
+  it('no desktop: Reenviar e Cancelar no menu da linha', () => {
+    const f = render('OWNER', { roster: [owner], invites: [pendingInvite], mobile: false });
+    const row = rowOf(f, 'convidada@');
+    row.querySelector<HTMLButtonElement>('app-actions-menu button[aria-haspopup="menu"]')?.click();
+    f.detectChanges();
+    const items = Array.from(row.querySelectorAll('[role="menuitem"]')).map((b) =>
+      (b.textContent ?? '').trim(),
     );
-    expect(abrir, 'sem este botao o convite fica inalcancavel desta tela').toBeDefined();
+    expect(items).toEqual(['Reenviar convite', 'Cancelar convite']);
+  });
 
-    // E o atalho para a rota nao volta por descuido: ele foi removido por decisao.
-    const link = Array.from(host.querySelectorAll('a')).find(
+  it('410 fala em EXPIRADO e aponta o reenvio; 404 fala em inexistente e aponta a recarga', () => {
+    const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+    const resend = (): void => {
+      openRowActions(f, 'convidada@');
+      sheet(f)?.querySelector<HTMLButtonElement>('[data-resend-invite]')?.click();
+      f.detectChanges();
+    };
+    resendInvite.mockReturnValue(throwError(() => error(410)));
+    resend();
+    expect(text(f)).toContain('expirou');
+    expect(text(f)).toContain('Reenviar convite para enviar um novo');
+    expect(text(f)).not.toContain('já não existe');
+
+    resendInvite.mockReturnValue(throwError(() => error(404)));
+    resend();
+    expect(text(f)).toContain('já não existe');
+    expect(text(f)).toContain('convide a pessoa de novo');
+    expect(text(f)).not.toContain('expirou');
+  });
+
+  it('409 no cancelamento diz que o convite JA FOI USADO, e pede recarga', () => {
+    const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+    cancelInvite.mockReturnValue(throwError(() => error(409)));
+    openRowActions(f, 'convidada@');
+    sheet(f)?.querySelector<HTMLButtonElement>('[data-cancel-invite]')?.click();
+    f.detectChanges();
+    confirmButton(f, 'Cancelar convite').click();
+    f.detectChanges();
+    expect(text(f)).toContain('já foi utilizado');
+    expect(text(f)).toContain('Atualize a lista');
+  });
+
+  // -------------------------------------------------- manager caller and invites
+  it('GERENTE so age sobre convites de MOTORISTA; convite de gerenciador fica sem acao, com motivo', () => {
+    const f = render('MANAGER', {
+      roster: [owner, { ...manager, userId: ME }],
+      invites: [pendingInvite, driverInvite],
+    });
+    const mgrInvite = rowOf(f, 'convidada@');
+    expect(mgrInvite.querySelector('[data-invite-actions]')).toBeNull();
+    expect(mgrInvite.textContent).toContain('Só o dono gerencia convites de gerenciador.');
+    // Counterweight: the driver invite keeps its actions.
+    expect(rowOf(f, 'motorista.novo@').querySelector('[data-invite-actions]')).not.toBeNull();
+  });
+
+  it('DONO age sobre qualquer convite', () => {
+    const f = render('OWNER', { invites: [pendingInvite, driverInvite] });
+    expect(rowOf(f, 'convidada@').querySelector('[data-invite-actions]')).not.toBeNull();
+    expect(rowOf(f, 'motorista.novo@').querySelector('[data-invite-actions]')).not.toBeNull();
+  });
+
+  // ================================================================ KPIs
+  const kpi = (f: ComponentFixture<CompanyMembers>, k: string): string =>
+    host(f).querySelector(`[data-kpi="${k}"] p:nth-child(2)`)?.textContent?.trim() ?? '';
+
+  it('o resumo: total com acesso, gestao, motoristas e convites PENDENTES, com o detalhe dos expirados', () => {
+    const f = render('OWNER', {
+      roster: [owner, manager, driver],
+      invites: [pendingInvite, expiredInvite, acceptedInvite],
+    });
+    expect(kpi(f, 'total')).toBe('3');
+    expect(kpi(f, 'management')).toBe('2');
+    expect(kpi(f, 'drivers')).toBe('1');
+    // Expired was sent too but is not waiting; the list shows it, the number does not count it.
+    expect(kpi(f, 'pending')).toBe('1');
+    const strip = host(f).querySelector('[aria-label="Resumo da equipe"]')?.textContent ?? '';
+    expect(strip).toContain('com acesso à empresa');
+    expect(strip).toContain('dono e gerenciadores');
+    expect(strip).toContain('com acesso pelo celular');
+    expect(strip).toContain('Convites pendentes');
+    expect(host(f).querySelector('[data-kpi="pending"] [data-kpi-detail]')?.textContent).toContain(
+      '1 expirado para reenviar',
+    );
+    // The Total is the one filled card, in the brand colour with white text.
+    expect(host(f).querySelector('[data-kpi="total"]')?.className).toContain('bg-primary-500');
+    expect(host(f).querySelector('[data-kpi="total"]')?.className).toContain('text-white');
+    expect(host(f).querySelector('[aria-label="Resumo da equipe"]')?.className).toContain(
+      'grid-cols-2',
+    );
+  });
+
+  it('sem convite expirado o detalhe nao inventa urgencia', () => {
+    const f = render('OWNER', { invites: [pendingInvite] });
+    expect(host(f).querySelector('[data-kpi-detail]')?.textContent).not.toContain('expirado');
+  });
+
+  // ================================================================ SEARCH AND FILTERS
+  const jose: CompanyMemberResponse = {
+    userId: 'user-jose',
+    name: 'José Álvares',
+    email: 'jose@empresa.com.br',
+    role: 'DRIVER',
+    memberSince: '2026-06-01T12:00:00Z',
+  };
+  const fullRoster = [self, manager, driver, jose];
+
+  it('busca por NOME, sem diferenca de caixa nem de acento', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    search(f, 'JOSE');
+    expect(order(f)).toEqual(['jose@empresa.com.br']);
+    search(f, 'alvares');
+    expect(order(f)).toEqual(['jose@empresa.com.br']);
+    search(f, 'José');
+    expect(order(f)).toEqual(['jose@empresa.com.br']);
+    search(f, '  bruno ');
+    expect(order(f)).toEqual(['bruno@empresa.com.br']);
+  });
+
+  it('busca por E-MAIL, inclusive de convite sem nome', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(f, 'CONVIDADA@');
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    search(f, 'motorista.novo');
+    expect(order(f)).toEqual(['motorista.novo@empresa.com.br']);
+  });
+
+  it('filtro de Acesso: cada papel separa membros E convites do papel', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    choose(f, 'access', 'DRIVER');
+    expect(order(f)).toEqual([
+      'jose@empresa.com.br',
+      'caio@empresa.com.br',
+      'motorista.novo@empresa.com.br',
+    ]);
+    choose(f, 'access', 'MANAGER');
+    expect(order(f)).toEqual([
+      'bruno@empresa.com.br',
+      'expirada@empresa.com.br',
+      'convidada@empresa.com.br',
+    ]);
+    choose(f, 'access', 'OWNER');
+    expect(order(f)).toEqual(['ana@empresa.com.br']);
+    choose(f, 'access', '');
+    expect(order(f)).toHaveLength(7);
+  });
+
+  it('filtro de Status: Ativo, Pendente e Expirado separam membros de convites', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    choose(f, 'status', 'ACTIVE');
+    expect(order(f)).toEqual([
+      'ana@empresa.com.br',
+      'bruno@empresa.com.br',
+      'jose@empresa.com.br',
+      'caio@empresa.com.br',
+    ]);
+    choose(f, 'status', 'PENDING');
+    expect(order(f)).toEqual(['convidada@empresa.com.br', 'motorista.novo@empresa.com.br']);
+    choose(f, 'status', 'EXPIRED');
+    expect(order(f)).toEqual(['expirada@empresa.com.br']);
+    choose(f, 'status', '');
+    expect(order(f)).toHaveLength(7);
+  });
+
+  it('o Status oferece so o que a tela deriva hoje (sem "Cadastro incompleto")', () => {
+    const f = render('OWNER', { mobile: false });
+    const labels = Array.from(
+      host(f).querySelectorAll('[data-filter-status] option'),
+    ).map((o) => (o.textContent ?? '').trim());
+    expect(labels).toEqual(['Status: Todos', 'Status: Ativo', 'Status: Pendente', 'Status: Expirado']);
+    const access = Array.from(host(f).querySelectorAll('[data-filter-access] option')).map((o) =>
+      (o.textContent ?? '').trim(),
+    );
+    expect(access).toEqual([
+      'Acesso: Todos',
+      'Acesso: Dono',
+      'Acesso: Gerenciador',
+      'Acesso: Motorista',
+    ]);
+  });
+
+  it('filtros combinados: busca + Acesso + Status, e o contador de resultados acompanha', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    expect(count(f)).toBe('7 resultados');
+    choose(f, 'status', 'PENDING');
+    choose(f, 'access', 'MANAGER');
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    expect(count(f)).toBe('1 resultado');
+    search(f, 'convidada');
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    search(f, 'caio');
+    expect(order(f)).toEqual([]);
+    expect(count(f)).toBe('0 resultados');
+  });
+
+  it('desktop: "Limpar filtros" so aparece com filtro ativo e devolve a lista inteira', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    expect(host(f).querySelector('[data-clear-filters]')).toBeNull();
+    choose(f, 'status', 'EXPIRED');
+    search(f, 'expirada');
+    const clear = host(f).querySelector<HTMLButtonElement>('[data-clear-filters]');
+    expect(clear?.textContent).toContain('Limpar filtros');
+    clear?.click();
+    f.detectChanges();
+    expect(order(f)).toHaveLength(7);
+    expect(host(f).querySelector<HTMLInputElement>('#members-search')?.value).toBe('');
+    expect(host(f).querySelector<HTMLSelectElement>('[data-filter-status]')?.value).toBe('');
+    expect(host(f).querySelector('[data-clear-filters]')).toBeNull();
+  });
+
+  it('busca sem resultado: estado proprio com "Limpar filtros", nunca a tela de convidar', () => {
+    const phone = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(phone, 'zzzz');
+    const empty = host(phone).querySelector('[data-empty-search]');
+    expect(empty?.textContent).toContain('Nenhum resultado');
+    expect(host(phone).querySelector('app-person-card')).toBeNull();
+    expect(host(phone).querySelector('[data-empty]')).toBeNull();
+    // The sticky invite bar is still there: no match is not "nobody here".
+    expect(host(phone).querySelector('[data-invite-open]')).not.toBeNull();
+    empty?.querySelector<HTMLButtonElement>('[data-clear-filters]')?.click();
+    phone.detectChanges();
+    expect(host(phone).querySelector('[data-empty-search]')).toBeNull();
+    expect(order(phone)).toHaveLength(7);
+
+    const desk = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    search(desk, 'zzzz');
+    expect(host(desk).querySelector('table')).toBeNull();
+    expect(host(desk).querySelector('[data-empty-search]')).not.toBeNull();
+  });
+
+  it('o resumo descreve a empresa inteira: busca e filtros nao mexem nos numeros', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites, mobile: false });
+    const before = ['total', 'management', 'drivers', 'pending'].map((k) => kpi(f, k));
+    expect(before).toEqual(['4', '2', '2', '2']);
+    choose(f, 'status', 'EXPIRED');
+    search(f, 'expirada');
+    expect(order(f)).toHaveLength(1);
+    expect(['total', 'management', 'drivers', 'pending'].map((k) => kpi(f, k))).toEqual(before);
+  });
+
+  // -------------------------------------------------- phones: the Filtrar sheet
+  it('celular: busca no topo, botao Filtrar e contagem de resultados; sem selects inline', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    expect(host(f).querySelector('#members-search')?.getAttribute('placeholder')).toBe(
+      'Buscar por nome ou e-mail…',
+    );
+    expect(host(f).querySelector('[data-filter-open]')?.textContent).toContain('Filtrar');
+    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
+    expect(host(f).querySelector('[data-filter-status]')).toBeNull();
+    expect(count(f)).toBe('7 resultados');
+    // 16px field: below that iOS zooms the page on focus.
+    expect(host(f).querySelector('#members-search')?.className).toContain('text-base');
+  });
+
+  it('a folha de filtros so aplica no Aplicar; o botao mostra quantos filtros, e chips os removem', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    openFilterSheet(f);
+    expect(sheet(f)?.querySelector('h2')?.textContent).toContain('Filtrar');
+    pickChip(f, 'access', 'Gerenciador');
+    pickChip(f, 'status', 'Pendente');
+    // Still a draft: the list behind the sheet did not move.
+    expect(order(f)).toHaveLength(7);
+    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
+
+    sheetButton(f, 'data-filter-apply');
+    expect(sheet(f)).toBeNull();
+    expect(order(f)).toEqual(['convidada@empresa.com.br']);
+    expect(host(f).querySelector('[data-filter-count]')?.textContent?.trim()).toBe('2');
+    expect(count(f)).toBe('1 resultado');
+    const chips = Array.from(host(f).querySelectorAll('[data-filter-chip]')).map((c) =>
+      (c.textContent ?? '').trim(),
+    );
+    expect(chips).toEqual(['Acesso: Gerenciador', 'Status: Pendente']);
+
+    // Removing one chip drops that filter only.
+    host(f).querySelector<HTMLButtonElement>('[data-filter-chip="status"]')?.click();
+    f.detectChanges();
+    expect(host(f).querySelector('[data-filter-count]')?.textContent?.trim()).toBe('1');
+    expect(order(f)).toEqual(['bruno@empresa.com.br', 'expirada@empresa.com.br', 'convidada@empresa.com.br']);
+  });
+
+  it('a folha reabre mostrando o que esta aplicado, e fechar sem aplicar descarta o rascunho', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    openFilterSheet(f);
+    pickChip(f, 'status', 'Expirado');
+    sheetButton(f, 'data-filter-apply');
+    expect(order(f)).toEqual(['expirada@empresa.com.br']);
+
+    openFilterSheet(f);
+    const checked = (group: string): string =>
+      sheet(f)
+        ?.querySelector(`[role="radiogroup"][aria-labelledby="filter-${group}-label"] [aria-checked="true"]`)
+        ?.textContent?.trim() ?? '';
+    expect(checked('status')).toBe('Expirado');
+    expect(checked('access')).toBe('Todos');
+    pickChip(f, 'status', 'Ativo');
+    sheet(f)?.querySelector<HTMLButtonElement>('button[aria-label="Fechar"]')?.click();
+    f.detectChanges();
+    expect(order(f)).toEqual(['expirada@empresa.com.br']);
+    openFilterSheet(f);
+    expect(checked('status')).toBe('Expirado');
+  });
+
+  it('"Limpar" na folha zera Acesso e Status e fecha, mantendo o texto da busca', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(f, 'empresa');
+    openFilterSheet(f);
+    pickChip(f, 'access', 'Motorista');
+    sheetButton(f, 'data-filter-apply');
+    expect(order(f)).toEqual([
+      'jose@empresa.com.br',
+      'caio@empresa.com.br',
+      'motorista.novo@empresa.com.br',
+    ]);
+    openFilterSheet(f);
+    sheetButton(f, 'data-filter-clear');
+    expect(sheet(f)).toBeNull();
+    expect(host(f).querySelector('[data-filter-count]')).toBeNull();
+    expect(host(f).querySelector<HTMLInputElement>('#members-search')?.value).toBe('empresa');
+    expect(order(f)).toHaveLength(7);
+  });
+
+  it('a linha filtrada continua com as mesmas acoes: o menu abre a folha da pessoa certa', () => {
+    const f = render('OWNER', { roster: fullRoster, invites: allInvites });
+    search(f, 'caio');
+    startRemoval(f, 'Motorista Caio');
+    confirmButton(f, 'Remover acesso').click();
+    f.detectChanges();
+    expect(remove).toHaveBeenCalledWith('user-motorista');
+  });
+
+  // ================================================================ INVITE ENTRY
+  it('o convite tem UM caminho: o botao, e nenhum link para a rota /configuracoes/convites', () => {
+    const f = render('OWNER');
+    expect(buttonByText(host(f), 'Convidar pessoa')).toBeDefined();
+    const link = Array.from(host(f).querySelectorAll('a')).find(
       (a) => a.getAttribute('href') === '/configuracoes/convites',
     );
     expect(link).toBeUndefined();
   });
 
-  /**
-   * A critica do dono, literal: clicar em Convidar LEVAVA PARA OUTRA PAGINA. Sair da lista
-   * para convidar e perder de vista justamente o lugar onde o convite vai aparecer.
-   */
-  /**
-   * O dialogo nativo esta SEMPRE no DOM — o que muda e a propriedade `open`. Afirmar
-   * ausencia do elemento aqui seria afirmar a coisa errada: ele existe fechado.
-   */
-  it('o dialogo nasce FECHADO e abre no clique, com o formulario real dentro', () => {
-    const fixture = render('OWNER');
-    const host = fixture.nativeElement as HTMLElement;
-    const dialog = host.querySelector('dialog') as HTMLDialogElement;
-
-    expect(dialog, 'o dialogo nao esta no template').not.toBeNull();
-    expect(dialog.open).toBe(false);
-    // O formulario e o MESMO componente da rota, nao uma segunda copia da regra de cargo.
-    expect(dialog.querySelector('app-invites')).not.toBeNull();
-
-    Array.from(host.querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').includes('Convidar pessoa'))
-      ?.click();
-    fixture.detectChanges();
-
-    expect(dialog.open).toBe(true);
-  });
-
-  /** Esc fecha pelo elemento, e o sinal da tela tem de acompanhar — senao ela acredita
-   * que ha um dialogo aberto que nao existe mais. */
-  it('fechar pelo elemento (Esc) baixa o estado da tela', () => {
-    const fixture = render('OWNER');
-    const host = fixture.nativeElement as HTMLElement;
-    const dialog = host.querySelector('dialog') as HTMLDialogElement;
-
-    Array.from(host.querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').includes('Convidar pessoa'))
-      ?.click();
-    fixture.detectChanges();
-    expect(dialog.open).toBe(true);
-
-    // E o que o Esc faz: fecha o elemento e dispara `close`.
-    dialog.close();
-    fixture.detectChanges();
-
-    expect(dialog.open).toBe(false);
-  });
-
-  // ------------------------------------------ OS QUATRO NUMEROS DO TOPO
-  /**
-   * O que o dono pediu nominalmente: a tela nao respondia "como esta minha equipe?" sem
-   * contar linhas. Os quatro saem do que a tela JA carregou — duas listas, zero chamada
-   * nova.
-   */
-  it('o resumo conta convites pendentes, aceitos, gerenciadores e motoristas', () => {
-    const fixture = render(
-      'OWNER',
-      [owner, manager, driver],
-      [pendingInvite, expiredInvite, acceptedInvite],
+  it('no celular o botao principal fica numa barra fixa embaixo; no desktop, no topo do cartao Lista', () => {
+    const phone = render('OWNER');
+    const bar = host(phone).querySelector('[data-invite-open]')?.parentElement;
+    expect(bar?.className).toContain('fixed');
+    expect(bar?.className).toContain('bottom-0');
+    const desk = render('OWNER', { mobile: false });
+    expect(host(desk).querySelector('[data-invite-open]')?.parentElement?.className).not.toContain(
+      'fixed',
     );
-    const resumo = (fixture.nativeElement as HTMLElement).querySelector(
-      '[aria-label="Resumo da equipe"]',
+  });
+
+  it('a folha de convite abre no clique, foca o painel, fecha no Esc e devolve o foco', () => {
+    const f = render('OWNER');
+    const opener = host(f).querySelector<HTMLButtonElement>('[data-invite-open]') as HTMLButtonElement;
+    opener.focus();
+    const s = openInvite(f);
+    expect(s.getAttribute('aria-modal')).toBe('true');
+    expect(s.querySelector('h2')?.textContent).toContain('Quem você quer convidar?');
+    expect(s.contains(document.activeElement)).toBe(true);
+
+    s.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    f.detectChanges();
+    expect(sheet(f)).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('DONO ve Gerenciador e Motorista; GERENTE ve so Motorista, ja escolhido', () => {
+    const asOwner = render('OWNER');
+    const s1 = openInvite(asOwner);
+    expect(s1.querySelector('[data-role-option="MANAGER"]')?.textContent).toContain('Gerenciador');
+    expect(s1.querySelector('[data-role-option="DRIVER"]')?.textContent).toContain('Motorista');
+    expect(s1.querySelector('[data-driver-banner]')).toBeNull();
+
+    const asManager = render('MANAGER', { roster: [owner, { ...manager, userId: ME }] });
+    const s2 = openInvite(asManager);
+    expect(s2.querySelector('[data-role-option="MANAGER"]')).toBeNull();
+    expect(s2.querySelector('[data-role-option="DRIVER"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
     );
-    if (!resumo) throw new Error('o resumo nao esta na tela');
+    expect(s2.querySelector('[data-driver-banner]')).not.toBeNull();
+  });
 
-    const numeros = Array.from(resumo.querySelectorAll('p.text-3xl')).map((p) =>
-      (p.textContent ?? '').trim(),
+  it('Motorista nao envia convite: explica e leva ao cadastro do motorista', async () => {
+    const f = render('OWNER');
+    const s = openInvite(f);
+    s.querySelector<HTMLButtonElement>('[data-role-option="DRIVER"]')?.click();
+    f.detectChanges();
+    expect(sheet(f)?.querySelector('[data-driver-banner]')?.textContent).toContain(
+      'Motoristas são convidados ao cadastrar o motorista',
     );
-    // pendentes=1 (o expirado NAO conta como pendente), aceitos=1, gerentes=1, motoristas=1
-    expect(numeros).toEqual(['1', '1', '1', '1']);
+    const cta = sheet(f)?.querySelector<HTMLAnchorElement>('[data-driver-create]');
+    expect(cta?.getAttribute('href')).toBe('/motoristas/novo');
+    expect(sheet(f)?.querySelector('form')).toBeNull();
+
+    cta?.click();
+    await f.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/motoristas/novo');
+    expect(create).not.toHaveBeenCalled();
   });
 
-  /**
-   * O cartao conta so PENDING, e convite EXPIRADO tambem foi ENVIADO — esta tela o lista, e
-   * a ordenacao o poe na frente. O titulo "Convites enviados" discordava do proprio numero:
-   * com expirados na empresa diria 3 enquanto a lista mostra 5. O subtitulo ja estava certo.
-   */
-  it('o cartao se chama PENDENTES, porque expirado tambem foi enviado', () => {
-    const fixture = render('OWNER', [owner], [pendingInvite, expiredInvite]);
-    const resumo = (fixture.nativeElement as HTMLElement).querySelector(
-      '[aria-label="Resumo da equipe"]',
-    );
-    const text: string = resumo?.textContent ?? '';
-
-    expect(text).toContain('Convites pendentes');
-    // O titulo antigo prometia incluir o expirado, e o numero nao o inclui.
-    expect(text).not.toContain('Convites enviados');
-    // A lista mostra DOIS; o cartao conta UM, e agora o titulo diz qual dos dois.
-    const numeros = Array.from(resumo?.querySelectorAll('p.text-3xl') ?? []).map((p) =>
-      (p.textContent ?? '').trim(),
-    );
-    expect(numeros[0]).toBe('1');
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('li')).toHaveLength(3);
+  it('formulario do gerenciador: obrigatorios bloqueiam o envio, com mensagens nos campos', () => {
+    const f = render('OWNER');
+    goToManagerForm(f);
+    const inputs = Array.from(sheet(f)?.querySelectorAll('input') ?? []);
+    expect(inputs.map((i) => i.id)).toEqual([
+      'invite-name',
+      'invite-email',
+      'invite-cpf',
+      'invite-phone',
+    ]);
+    // 16px controls: below that iOS zooms the page on focus.
+    inputs.forEach((i) => expect(i.className).toContain('text-base'));
+    submitManagerForm(f);
+    expect(create).not.toHaveBeenCalled();
+    const s = sheet(f)?.textContent ?? '';
+    expect(s).toContain('Informe o nome de quem vai gerenciar.');
+    expect(s).toContain('Informe o e-mail de quem você quer convidar.');
+    expect(s).toContain('Informe o CPF do gerenciador.');
+    expect(s).toContain('Informe o telefone do gerenciador.');
+    // Neutral helper copy: it must NOT promise an accept without Google.
+    expect(s).toContain('Enviaremos um link por e-mail.');
+    expect(s).not.toMatch(/Google/);
   });
 
-  it('o resumo conta ACEITOS, que nao aparecem como linha da lista', () => {
-    // `acceptedInvite` e filtrado da lista (a pessoa ja e membro) mas e contavel: e o
-    // numero que responde "quantos convites viraram gente".
-    const fixture = render('OWNER', [owner], [acceptedInvite]);
-    const resumo = (fixture.nativeElement as HTMLElement).querySelector(
-      '[aria-label="Resumo da equipe"]',
-    );
-    const numeros = Array.from(resumo?.querySelectorAll('p.text-3xl') ?? []).map((p) =>
-      (p.textContent ?? '').trim(),
-    );
-
-    expect(numeros[1]).toBe('1');
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Convite enviado');
-  });
-  // ====================== OS PINOS QUE A REVISAO MANDOU REPOR ======================
-  /**
-   * HIGH-1, E A FORMA IMPORTA MAIS QUE O DEFEITO.
-   *
-   * O spec que pegava isto existia — `410 no reenvio fala em expirado, nao em inexistente` —
-   * e saiu no MESMO diff que inverteu a frase. Nao foi coincidencia: quem move specs de
-   * arquivo decide o que reaponta, e o que parece redundante e justamente o que estava
-   * segurando. Este caso e aquele pino, reposto no arquivo onde a acao passou a morar.
-   *
-   * 410 e EXPIRADO e se recupera por REENVIO. 404 NUNCA EXISTIU e pede recarga. Juntar os
-   * dois faz a tela mandar atualizar a lista quando o que resolve e reenviar.
-   */
-  it('410 fala em EXPIRADO e aponta o reenvio; 404 fala em inexistente e aponta a recarga', () => {
-    const fixture = render('OWNER', [owner], [pendingInvite]);
-    const resendBtn = () =>
-      Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button')).find(
-        (b) => (b.textContent ?? '').includes('Reenviar'),
-      );
-
-    resendInvite.mockReturnValue(throwError(() => error(410)));
-    resendBtn()?.click();
-    fixture.detectChanges();
-
-    let text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('expirou');
-    expect(text).toContain('Reenviar convite para enviar um novo');
-    // A frase do 404 NAO pode aparecer aqui: ela manda fazer o que nao resolve.
-    expect(text).not.toContain('já não existe');
-
-    resendInvite.mockReturnValue(throwError(() => error(404)));
-    resendBtn()?.click();
-    fixture.detectChanges();
-
-    text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('já não existe');
-    expect(text).toContain('convide a pessoa de novo');
-    expect(text).not.toContain('expirou');
+  it('CPF com digito verificador errado e recusado; a mascara e aplicada', () => {
+    const f = render('OWNER');
+    goToManagerForm(f);
+    fill(f, 'invite-name', 'Patrícia Souza');
+    fill(f, 'invite-email', 'patricia@empresa.com.br');
+    fill(f, 'invite-cpf', '52998224724');
+    fill(f, 'invite-phone', '11987654321');
+    expect((host(f).querySelector('#invite-cpf') as HTMLInputElement).value).toBe('529.982.247-24');
+    submitManagerForm(f);
+    expect(create).not.toHaveBeenCalled();
+    expect(sheet(f)?.textContent).toContain('CPF inválido.');
   });
 
-  /**
-   * HIGH-2 — o servidor rotaciona o token E move o `expiresAt`. Sem reler, a linha fica com
-   * data e rotulo antigos e "Convite expirado" PERMANECE depois de um reenvio que deu certo.
-   * Quem administra reenvia de novo, e cada tentativa queima 1 dos 3 reenvios e mata o link
-   * anterior: a pessoa do outro lado recebe tres e-mails e so o ultimo funciona.
-   */
-  it('reenvio bem-sucedido RELE os convites, e nao adivinha o novo prazo', () => {
-    const fixture = render('OWNER', [owner], [expiredInvite]);
-    expect(inviteList).toHaveBeenCalledTimes(1);
+  it('envio do gerenciador manda EXATAMENTE o contrato de hoje e os filtros nao escondem a linha nova', () => {
+    const f = render('OWNER');
+    goToManagerForm(f);
+    fill(f, 'invite-name', '  Patrícia Souza ');
+    fill(f, 'invite-email', 'patricia@empresa.com.br ');
+    fill(f, 'invite-cpf', '52998224725');
+    fill(f, 'invite-phone', '11987654321');
+    submitManagerForm(f);
 
-    Array.from(rowOf(fixture, 'expirada@empresa.com.br').querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').includes('Reenviar'))
-      ?.click();
-    fixture.detectChanges();
-
-    expect(resendInvite).toHaveBeenCalledWith('inv-2');
-    expect(inviteList).toHaveBeenCalledTimes(2);
-    // O roster NAO muda com um reenvio: relê-lo seria uma ida a mais sem resposta nova.
-    expect(list).toHaveBeenCalledTimes(1);
-  });
-
-  /** A frase do 409 do cancelamento existia sem nenhum teste. */
-  it('409 no cancelamento diz que o convite JA FOI USADO, e pede recarga', () => {
-    const fixture = render('OWNER', [owner], [pendingInvite]);
-    cancelInvite.mockReturnValue(throwError(() => error(409)));
-
-    Array.from(rowOf(fixture, 'convidada@empresa.com.br').querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').includes('Cancelar'))
-      ?.click();
-    fixture.detectChanges();
-    confirmDialogButton(fixture, 'Cancelar convite')?.click();
-    fixture.detectChanges();
-
-    const text: string = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('já foi utilizado');
-    expect(text).toContain('Atualize a lista');
-  });
-
-  /**
-   * A juncao e por STATUS; so ela deixava quem JA e membro e tem convite pendente aparecer
-   * DUAS vezes. A linha do membro ganha: o acesso ja existe e o convite redundante nao
-   * concede nada.
-   */
-  it('quem ja e membro e tem convite pendente aparece UMA vez, como membro', () => {
-    const duplicado = { ...pendingInvite, email: 'bruno@empresa.com.br' };
-    const fixture = render('OWNER', [owner, manager], [duplicado]);
-    const host = fixture.nativeElement as HTMLElement;
-
-    const linhas = Array.from(host.querySelectorAll('li')).filter((li) =>
-      (li.textContent ?? '').includes('bruno@empresa.com.br'),
-    );
-    expect(linhas).toHaveLength(1);
-    expect(linhas[0].textContent).toContain('Com acesso');
-  });
-
-  it('o dedupe compara e-mail sem caixa nem espaco', () => {
-    const duplicado = { ...pendingInvite, email: '  BRUNO@Empresa.COM.BR ' };
-    const fixture = render('OWNER', [owner, manager], [duplicado]);
-
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).not.toContain('Convite enviado');
-  });
-  /**
-   * O CAMINHO DA DEMONSTRACAO, ponta a ponta: envia do painel, o painel fecha e a lista
-   * RELE — a linha nova tem de aparecer como "Convite enviado" sem a pessoa atualizar nada.
-   *
-   * Dispara o `output` do formulario real em vez de preencher os campos: o que esta sob
-   * teste aqui e a LIGACAO entre os dois componentes. O formulario em si ja tem os proprios
-   * casos em `invites.spec.ts`, e duplica-los aqui testaria o form duas vezes e a ligacao
-   * nenhuma.
-   */
-  it('enviar do painel fecha o painel e rele a lista', () => {
-    const fixture = render('OWNER');
-    const host = fixture.nativeElement as HTMLElement;
-
-    Array.from(host.querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').includes('Convidar pessoa'))
-      ?.click();
-    fixture.detectChanges();
-    expect(inviteList).toHaveBeenCalledTimes(1);
-
-    const invitesCmp = fixture.debugElement
-      .queryAll((node) => node.componentInstance instanceof Invites)
-      .map((node) => node.componentInstance as Invites)[0];
-    expect(invitesCmp, 'o formulario embutido nao esta na tela').toBeDefined();
-
-    invitesCmp.sent.emit();
-    fixture.detectChanges();
-
-    // Dialogo FECHADO — o elemento continua no DOM, o que muda e `open`.
-    expect(
-      ((fixture.nativeElement as HTMLElement).querySelector('dialog') as HTMLDialogElement).open,
-    ).toBe(false);
-    // … e os convites relidos. So eles: enviar convite nao mexe no roster.
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({
+      email: 'patricia@empresa.com.br',
+      role: 'MANAGER',
+      name: 'Patrícia Souza',
+      cpf: '52998224725',
+      phone: '11987654321',
+    });
+    expect(success).toHaveBeenCalledWith('Convite enviado para «patricia@empresa.com.br».');
+    expect(sheet(f)).toBeNull();
+    // Re-reads the invites only — sending an invite does not touch the roster.
     expect(inviteList).toHaveBeenCalledTimes(2);
     expect(list).toHaveBeenCalledTimes(1);
   });
-  // ------------------------------------------- ESTADO POR COR DO SISTEMA
-  /**
-   * Os estados usavam `amber-*` e `emerald-*` do Tailwind cru — paleta que nao existe no
-   * guia deste produto. Agora saem das rampas do sistema, e este caso trava as duas coisas
-   * que importam: que nao volte cor crua, e que PENDENTE e EXPIRADO nao fiquem IDENTICOS.
-   *
-   * Se os dois tivessem a mesma aparencia, so o texto os separaria — e estado tem de ser
-   * cor E forma, aprendivel antes da leitura. Expirado e o tom mais pesado da MESMA matiz:
-   * mesma familia, urgencias diferentes. Neutro para expirado estaria errado: neutro diz
-   * "isto nao importa" sobre a linha que a ordenacao poe em primeiro lugar.
-   */
-  it('os estados usam as rampas do sistema, e expirado NAO e igual a pendente', () => {
-    const fixture = render('OWNER', [owner, manager], [pendingInvite, expiredInvite]);
-    const chipOf = (title: string): string => {
-      const span = rowOf(fixture, title).querySelector('span[class*="rounded-full"]');
-      return span?.className ?? '';
-    };
 
-    const pendente = chipOf('convidada@empresa.com.br');
-    const expirado = chipOf('expirada@empresa.com.br');
-    const ativo = chipOf('Gerente Bruno');
-
-    // Nenhuma cor crua de Tailwind.
-    for (const cls of [pendente, expirado, ativo]) {
-      expect(cls).not.toMatch(/amber-|emerald-/);
-    }
-    // Mesma matiz nos dois de convite, intensidades diferentes.
-    expect(pendente).toContain('primary');
-    expect(expirado).toContain('primary');
-    expect(expirado).not.toBe(pendente);
-    // Com acesso sai da rampa verde do sistema.
-    expect(ativo).toContain('success');
-  });
-  /**
-   * A CONFIRMACAO DE SAIDA fala na segunda pessoa, e o aviso MUDA.
-   *
-   * Para si mesmo o risco nao e "essa pessoa perde o acesso": e que nao ha como
-   * se reconvidar. Quem sai depende de alguem que ficou — e se essa pessoa era
-   * a unica gerente, nao sobra ninguem que possa convidar.
-   */
-  it('a saida propria avisa que so quem fica pode convidar de volta', () => {
-    const fixture = render('MANAGER', [owner, { ...manager, userId: ME }]);
-
-    removeButtonOf(fixture, 'Gerente Bruno')?.click();
-    fixture.detectChanges();
-    const dialogo = (fixture.nativeElement as HTMLElement).querySelector('[role="dialog"]');
-
-    expect(dialogo?.textContent).toContain('Você perde o acesso');
-    expect(dialogo?.textContent).toContain('só quem ficou pode te convidar');
+  it('depois de enviar um convite os filtros caem: a linha nova nao fica escondida atras deles', () => {
+    const f = render('OWNER', { mobile: false });
+    choose(f, 'status', 'ACTIVE');
+    search(f, 'caio');
+    goToManagerForm(f);
+    fill(f, 'invite-name', 'Patrícia Souza');
+    fill(f, 'invite-email', 'patricia@empresa.com.br');
+    fill(f, 'invite-cpf', '52998224725');
+    fill(f, 'invite-phone', '11987654321');
+    submitManagerForm(f);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(host(f).querySelector<HTMLInputElement>('#members-search')?.value).toBe('');
+    expect(host(f).querySelector<HTMLSelectElement>('[data-filter-status]')?.value).toBe('');
   });
 
-  it('remover OUTRA pessoa continua falando dela, na terceira pessoa', () => {
-    const fixture = render('OWNER', [{ ...owner, userId: ME }, manager]);
+  it('erro de convite com copy propria fica DENTRO da folha, com o que foi digitado', () => {
+    const f = render('OWNER');
+    create.mockReturnValue(throwError(() => error(409)));
+    goToManagerForm(f);
+    fill(f, 'invite-name', 'Patrícia Souza');
+    fill(f, 'invite-email', 'patricia@empresa.com.br');
+    fill(f, 'invite-cpf', '52998224725');
+    fill(f, 'invite-phone', '11987654321');
+    submitManagerForm(f);
+    const s = sheet(f);
+    expect(s).not.toBeNull();
+    expect(s?.querySelector('[role="alert"]')?.textContent).toContain('Atualize a lista');
+    expect((host(f).querySelector('#invite-email') as HTMLInputElement).value).toBe(
+      'patricia@empresa.com.br',
+    );
+    expect(success).not.toHaveBeenCalled();
+  });
 
-    removeButtonOf(fixture, 'Gerente Bruno')?.click();
-    fixture.detectChanges();
-    const dialogo = (fixture.nativeElement as HTMLElement).querySelector('[role="dialog"]');
+  it('codigo desconhecido cai na mensagem do servidor ou na generica, nunca em erro cru', () => {
+    const f = render('OWNER');
+    create.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500, error: null })));
+    goToManagerForm(f);
+    fill(f, 'invite-name', 'Patrícia Souza');
+    fill(f, 'invite-email', 'patricia@empresa.com.br');
+    fill(f, 'invite-cpf', '52998224725');
+    fill(f, 'invite-phone', '11987654321');
+    submitManagerForm(f);
+    const alert = sheet(f)?.querySelector('[role="alert"]')?.textContent ?? '';
+    expect(alert.trim().length).toBeGreaterThan(0);
+    expect(alert).not.toContain('500');
+  });
 
-    expect(dialogo?.textContent).toContain('Gerente Bruno perde o acesso');
+  it('voltar do formulario retorna a escolha do nivel', () => {
+    const f = render('OWNER');
+    goToManagerForm(f);
+    sheet(f)?.querySelector<HTMLButtonElement>('button[aria-label="Voltar"]')?.click();
+    f.detectChanges();
+    expect(sheet(f)?.querySelector('[data-role-option="MANAGER"]')).not.toBeNull();
   });
 });
