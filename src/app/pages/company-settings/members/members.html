@@ -33,7 +33,7 @@
 
       <!-- KPI strip (Dashboard pattern). Whole-company numbers: the list filters never
            change them. Hidden while the page is the empty invitation to invite. -->
-      @if (initialLoading() || (membersLoaded() && !isEmpty())) {
+      @if (initialLoading() || membersLoaded()) {
         <app-members-kpis
           [loading]="initialLoading()"
           [total]="totalCount()"
@@ -61,8 +61,10 @@
             <app-members-icon name="users" />
           </div>
           <div cardActions class="flex items-center gap-2">
-            <ng-container [ngTemplateOutlet]="refresh" />
-            @if (!isMobile() && !isEmpty()) {
+            @if (!isMobile()) {
+              <ng-container [ngTemplateOutlet]="refresh" />
+            }
+            @if (!isEmpty()) {
               <div>
                 <button
                   type="button"
@@ -79,10 +81,10 @@
           </div>
           <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
             @if (!isEmpty()) {
-              <!-- Search + filters. Phones: search on top, a Filtrar trigger that opens the
-                   sheet, the applied filters as removable chips. Desktop: both selects inline. -->
+              <!-- Search + filters, the same controls on every width: stacked on phones,
+                   in one row from lg. -->
               <div class="space-y-3">
-                <div class="flex items-center gap-2 lg:gap-3">
+                <div class="flex flex-col lg:flex-row lg:items-center gap-3">
                   <div class="relative flex-1 min-w-0">
                     <label for="members-search" class="sr-only">Buscar por nome ou e-mail</label>
                     <span
@@ -106,106 +108,46 @@
                              bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
                   </div>
-
-                  @if (isMobile()) {
+                  <label class="sr-only" for="members-access">Acesso</label>
+                  <select
+                    id="members-access"
+                    data-filter-access
+                    (change)="onAccessChange($event)"
+                    class="min-h-[44px] px-3 text-base lg:text-sm border border-neutral-200 rounded-xl bg-white
+                           text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  >
+                    @for (opt of accessOptions; track opt.value) {
+                      <option [value]="opt.value" [selected]="opt.value === access()">
+                        Acesso: {{ opt.label }}
+                      </option>
+                    }
+                  </select>
+                  <label class="sr-only" for="members-status">Status</label>
+                  <select
+                    id="members-status"
+                    data-filter-status
+                    (change)="onStatusChange($event)"
+                    class="min-h-[44px] px-3 text-base lg:text-sm border border-neutral-200 rounded-xl bg-white
+                           text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  >
+                    @for (opt of statusOptions; track opt.value) {
+                      <option [value]="opt.value" [selected]="opt.value === status()">
+                        Status: {{ opt.label }}
+                      </option>
+                    }
+                  </select>
+                </div>
+                @if (anyFilter()) {
+                  <div class="flex justify-center lg:justify-end">
                     <button
                       type="button"
-                      data-filter-open
-                      (click)="openFilters()"
-                      aria-haspopup="dialog"
-                      class="relative shrink-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold inline-flex items-center
-                             gap-2 border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50
-                             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                             focus-visible:ring-offset-2"
+                      data-clear-filters
+                      (click)="clearFilters()"
+                      class="min-h-[44px] px-3 text-sm font-semibold text-neutral-600 hover:text-primary-700
+                             rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                      </svg>
-                      Filtrar
-                      @if (activeFilters() > 0) {
-                        <span
-                          data-filter-count
-                          class="min-w-[20px] h-5 px-1 rounded-full bg-primary-500 text-white text-[11px]
-                                 font-semibold flex items-center justify-center"
-                          [attr.aria-label]="activeFilters() + ' filtros ativos'"
-                          >{{ activeFilters() }}</span
-                        >
-                      }
+                      Limpar filtros
                     </button>
-                  } @else {
-                    <label class="sr-only" for="members-access">Acesso</label>
-                    <select
-                      id="members-access"
-                      data-filter-access
-                      (change)="onAccessChange($event)"
-                      class="min-h-[44px] px-3 text-sm border border-neutral-200 rounded-xl bg-white text-neutral-900
-                             focus:outline-none focus:ring-2 focus:ring-primary-400"
-                    >
-                      @for (opt of accessOptions; track opt.value) {
-                        <option [value]="opt.value" [selected]="opt.value === access()">
-                          Acesso: {{ opt.label }}
-                        </option>
-                      }
-                    </select>
-                    <label class="sr-only" for="members-status">Status</label>
-                    <select
-                      id="members-status"
-                      data-filter-status
-                      (change)="onStatusChange($event)"
-                      class="min-h-[44px] px-3 text-sm border border-neutral-200 rounded-xl bg-white text-neutral-900
-                             focus:outline-none focus:ring-2 focus:ring-primary-400"
-                    >
-                      @for (opt of statusOptions; track opt.value) {
-                        <option [value]="opt.value" [selected]="opt.value === status()">
-                          Status: {{ opt.label }}
-                        </option>
-                      }
-                    </select>
-                    @if (anyFilter()) {
-                      <button
-                        type="button"
-                        data-clear-filters
-                        (click)="clearFilters()"
-                        class="shrink-0 min-h-[44px] px-2 text-sm font-semibold text-primary-700 underline
-                               hover:no-underline rounded-lg focus:outline-none focus-visible:ring-2
-                               focus-visible:ring-primary-400"
-                      >
-                        Limpar filtros
-                      </button>
-                    }
-                  }
-                </div>
-
-                @if (isMobile() && activeFilters() > 0) {
-                  <div class="flex flex-wrap gap-2" aria-label="Filtros ativos">
-                    @if (access()) {
-                      <button
-                        type="button"
-                        data-filter-chip="access"
-                        (click)="access.set('')"
-                        [attr.aria-label]="'Remover filtro ' + accessChipLabel()"
-                        class="min-h-[44px] pl-4 pr-3 rounded-full text-sm font-medium inline-flex items-center gap-2
-                               bg-primary-500 text-white focus:outline-none focus-visible:ring-2
-                               focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-                      >
-                        {{ accessChipLabel() }}<app-members-icon name="x" [size]="14" />
-                      </button>
-                    }
-                    @if (status()) {
-                      <button
-                        type="button"
-                        data-filter-chip="status"
-                        (click)="status.set('')"
-                        [attr.aria-label]="'Remover filtro ' + statusChipLabel()"
-                        class="min-h-[44px] pl-4 pr-3 rounded-full text-sm font-medium inline-flex items-center gap-2
-                               bg-primary-500 text-white focus:outline-none focus-visible:ring-2
-                               focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-                      >
-                        {{ statusChipLabel() }}<app-members-icon name="x" [size]="14" />
-                      </button>
-                    }
                   </div>
                 }
 
@@ -285,27 +227,9 @@
         </app-page-card>
       }
 
-      @if (isMobile() && !isEmpty()) {
-        <!-- Room for the sticky bar, so it never covers the last row. -->
-        <div class="h-20" aria-hidden="true"></div>
-      }
     }
   </div>
 
-  @if (canManagePeople && isMobile() && !isEmpty()) {
-    <div class="fixed inset-x-0 bottom-0 z-20 bg-white border-t border-neutral-200 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-      <button
-        type="button"
-        data-invite-open
-        (click)="openInvite()"
-        class="min-h-12 w-full px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
-               bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
-               focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-      >
-        <app-members-icon name="userPlus" [size]="18" />Convidar pessoa
-      </button>
-    </div>
-  }
 </app-default-page-layout>
 
 <ng-template #refresh>
@@ -341,15 +265,6 @@
   (remove)="askRemove($event)"
   (resend)="resend($event)"
   (cancel)="askCancel($event)"
-/>
-
-<app-people-filter-sheet
-  [open]="filtersOpen()"
-  [access]="access()"
-  [status]="status()"
-  (closed)="closeFilters()"
-  (applied)="applyFilters($event)"
-  (cleared)="clearSheetFilters()"
 />
 
 <app-invite-sheet
