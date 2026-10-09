@@ -169,6 +169,7 @@ export class AppShell implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.checkBreakpoint();
+    this.layout.ensureMembershipsLoaded();
     this.resizeListener = () => this.checkBreakpoint();
     window.addEventListener('resize', this.resizeListener);
     // Trava scroll do body — só o main scrolla; sem isso ficam dois scrollbars.

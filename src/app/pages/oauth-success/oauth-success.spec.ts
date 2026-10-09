@@ -107,9 +107,9 @@ describe('OauthSuccess routing (systemRole aware)', () => {
 
     expect(authService.getMe).not.toHaveBeenCalled();
     expect(sessionService.setItem).toHaveBeenCalledWith('pendingInviteToken', 'raw-token');
-    expect(navigate).toHaveBeenCalledWith(['/invite/accept'], {
-      queryParams: { token: 'raw-token' },
+    expect(navigate).toHaveBeenCalledWith(['/convite'], {
       replaceUrl: true,
+      state: { inviteResume: true },
     });
   });
 

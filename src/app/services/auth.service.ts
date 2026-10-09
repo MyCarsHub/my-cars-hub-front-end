@@ -8,9 +8,11 @@ import { SessionService } from './session.service';
 import { LoggerService } from './logger.service';
 import { ImpersonationService } from './impersonation.service';
 import { TenantCachesService } from './tenant-caches.service';
+import { MembershipsService } from './memberships.service';
 
 interface TokenResponse {
     token: string;
+    kind?: 'ACCESS' | 'INVITE_ONBOARDING';
 }
 
 /**
@@ -33,6 +35,7 @@ export class AuthService {
     private tenantCaches = inject(TenantCachesService);
     private logger = inject(LoggerService);
     private impersonation = inject(ImpersonationService);
+    private memberships = inject(MembershipsService);
 
     constructor(private httpClient: HttpClient) { }
 
@@ -51,7 +54,10 @@ export class AuthService {
                         )
                         .pipe(
                             tap((res) => {
-                                if (res?.token) this.sessionService.setToken(res.token);
+                                // An INVITE_ONBOARDING token is not a session: never in this slot.
+                                if (res?.token && res.kind !== 'INVITE_ONBOARDING') {
+                                    this.sessionService.setToken(res.token);
+                                }
                             }),
                             switchMap(() => of(user)),
                         );
@@ -165,10 +171,16 @@ export class AuthService {
         }
 
         this.sessionService.setItem('userCompanies', JSON.stringify(companies));
+        this.memberships.seedFromMe(user);
         // Do NOT persist `user.document` — CPF/CNPJ is PII. Any consumer that
         // needs it must fetch /auth/me on demand and hold it in component memory.
 
+        // The backend's `defaultCompanyId` (the company used last) wins when it names one of the
+        // ACTIVE companies in this very response; otherwise today's rule: OWNER first.
         const defaultCompany =
+            (user.defaultCompanyId
+                ? companies.find((company) => company.companyId === user.defaultCompanyId)
+                : undefined) ??
             companies.find((company) => company.role === 'OWNER') ??
             companies[0];
 

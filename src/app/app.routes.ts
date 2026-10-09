@@ -11,6 +11,7 @@ import {
     onboardingGuard,
     onboardingCompleteGuard,
 } from './pages/onboarding/onboarding.guard';
+import { inviteOnboardingGuard } from './pages/invite-onboarding/invite-onboarding.guard';
 import { CompanySettings } from './pages/company-settings/company-settings';
 import { TenantSwitchPivot } from './components/core/tenant-switch-pivot/tenant-switch-pivot';
 
@@ -54,15 +55,30 @@ export const routes: Routes = [
         component: OauthSuccess,
     },
     {
-        // PUBLIC on purpose: this is the link the invitation e-mail carries,
-        // `{frontendUrl}/invite/accept?token={rawToken}`. The path and the query-param
-        // name are the backend's contract — changing either 404s every invite already
-        // sent. It must also stay OUTSIDE the AppShell/authGuard tree: the invitee opens
-        // it logged out and only authenticates halfway through the flow.
+        // PUBLIC on purpose: the invitation link. The e-mail still carries
+        // `{frontendUrl}/invite/accept?token={rawToken}` (query mode), so that path keeps
+        // working by redirecting to the new page; `redirectTo` keeps the query string and the
+        // fragment, and the page itself removes the token from the address bar. Both stay
+        // OUTSIDE the AppShell/authGuard tree: the invitee opens them logged out.
         path: 'invite/accept',
+        redirectTo: 'convite',
+        pathMatch: 'full',
+    },
+    {
+        path: 'convite',
         loadComponent: () =>
-            import('./pages/invites/invite-accept').then((m) => m.InviteAccept),
+            import('./pages/invite-landing/invite-landing').then((m) => m.InviteLanding),
         data: { pageTitle: 'Convite' },
+    },
+    {
+        // Not behind `authGuard`: the onboarding token is not a session. Only "has token".
+        path: 'convite/cadastro',
+        canActivate: [inviteOnboardingGuard],
+        loadComponent: () =>
+            import('./pages/invite-onboarding/manager-onboarding').then(
+                (m) => m.ManagerOnboarding
+            ),
+        data: { pageTitle: 'Seu cadastro' },
     },
     {
         path: 'blog',

@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { SessionService } from './session.service';
 import { IMPERSONATION_ADMIN_TOKEN_KEY, USE_ADMIN_TOKEN } from './impersonation.context';
+import { InviteOnboardingTokenStore } from './invite-onboarding-token.store';
 
 /**
  * Marks a request so the Angular service worker passes it straight to the
@@ -62,6 +63,30 @@ export function isAdminApiRequest(url: string): boolean {
   return apiPath(url)?.startsWith('/admin/') ?? false;
 }
 
+/**
+ * ALLOW-LIST of the only routes that may receive the invite ONBOARDING token:
+ * `/invite-onboarding` and `/invite-onboarding/<segment>...`.
+ *
+ * Segments are restricted to `[A-Za-z0-9_-]`. A prefix test alone would let
+ * `/invite-onboarding/../vehicles` through, because the browser normalises the dot segments
+ * AFTER this check and the credential would reach `/vehicles`.
+ */
+const INVITE_ONBOARDING_PATH = /^\/invite-onboarding(\/[A-Za-z0-9_-]+)*$/;
+
+export function isInviteOnboardingRequest(url: string): boolean {
+  const path = apiPath(url);
+  return path !== null && INVITE_ONBOARDING_PATH.test(path);
+}
+
+/**
+ * Public invite routes that never take a credential: `validate` and `accept` are anonymous
+ * (accept explicitly ignores `Authorization`), so a stale session token has no business there.
+ */
+export function isPublicInviteRequest(url: string): boolean {
+  const path = apiPath(url);
+  return path === '/invites/validate' || path === '/invites/accept';
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const sessionService = inject(SessionService);
   // Durante uma sessão de impersonação a chave `token` guarda o token
@@ -74,10 +99,22 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   // só produziria um 403 confuso — depois de ter oferecido a rota admin a uma
   // credencial que nunca deveria alcançá-la. Falhar rápido, sem header, leva ao
   // 401 que já derruba a sessão pelo caminho certo.
-  const authToken =
-    req.context.get(USE_ADMIN_TOKEN) && isAdminApiRequest(req.url)
-      ? sessionService.getItem(IMPERSONATION_ADMIN_TOKEN_KEY)
-      : sessionService.getToken();
+  //
+  // O token de ONBOARDING de convite é uma terceira credencial, e a regra dela é a mais
+  // estrita: vai SOMENTE para `/invite-onboarding/**` (allow-list acima) e nessas rotas o
+  // token de sessão normal NUNCA é enviado — nem como fallback. Em qualquer outra rota ele
+  // nem é lido.
+  let authToken: string | null;
+  if (isInviteOnboardingRequest(req.url)) {
+    authToken = inject(InviteOnboardingTokenStore).get();
+  } else if (isPublicInviteRequest(req.url)) {
+    authToken = null;
+  } else {
+    authToken =
+      req.context.get(USE_ADMIN_TOKEN) && isAdminApiRequest(req.url)
+        ? sessionService.getItem(IMPERSONATION_ADMIN_TOKEN_KEY)
+        : sessionService.getToken();
+  }
 
   // Requests to third parties (e.g. Supabase signed URLs) are forwarded untouched.
   if (!isApiRequest(req.url)) {

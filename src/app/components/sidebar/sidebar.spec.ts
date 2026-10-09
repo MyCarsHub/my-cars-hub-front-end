@@ -199,13 +199,14 @@ describe('Sidebar', () => {
       });
 
       it(`traduz ${role} também na lista do dropdown`, () => {
-        layout.tenants.set([tenant(role, 'Outra Frota')]);
+        // O switcher so existe com mais de uma empresa: a atual + a que o teste inspeciona.
+        layout.tenants.set([tenant('OWNER', 'Frota Atual'), tenant(role, 'Outra Frota')]);
         layout.selectedTenant.set(tenant('OWNER'));
         layout.isTenantOpen.set(true);
         fixture.detectChanges();
 
-        const option = (fixture.nativeElement as HTMLElement).querySelector('[role="option"]');
-        expect(option?.textContent ?? '').toContain(label);
+        const options = (fixture.nativeElement as HTMLElement).querySelectorAll('[role="option"]');
+        expect(options[1]?.textContent ?? '').toContain(label);
       });
     }
 
@@ -250,17 +251,17 @@ describe('Sidebar', () => {
      */
     it('a coluna de texto do item trunca em vez de espremer a linha', () => {
       const longo = 'Transportadora Silva, Filhos e Associados do Vale do Paraiba LTDA ME';
-      layout.tenants.set([tenant('MANAGER', longo)]);
+      layout.tenants.set([tenant('OWNER', 'Frota Atual'), tenant('MANAGER', longo)]);
       layout.selectedTenant.set(tenant('OWNER'));
       layout.isTenantOpen.set(true);
       fixture.detectChanges();
 
-      const option = (fixture.nativeElement as HTMLElement).querySelector('[role="option"]');
-      const column = option?.querySelector('div.min-w-0');
+      const option = (fixture.nativeElement as HTMLElement).querySelectorAll('[role="option"]')[1];
+      const column = option?.querySelector('span.min-w-0');
       expect(column).not.toBeNull();
       expect(column?.className).toContain('flex-1');
 
-      const nome = column?.querySelector('p');
+      const nome = column?.querySelector('span');
       expect(nome?.textContent).toContain(longo);
       expect(nome?.className).toContain('truncate');
     });

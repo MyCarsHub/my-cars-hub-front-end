@@ -4,7 +4,7 @@ import { CHIP_TONE, PersonRow, validityTextTone } from './members.model';
 import { MembersIcon } from './members-icon';
 
 const CHIP =
-  'whitespace-nowrap inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide';
+  'whitespace-nowrap inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium';
 
 /** One line of the unified list on phones and tablets (< lg): a member or an invite. */
 @Component({
@@ -32,15 +32,31 @@ const CHIP =
           {{ row().initial }}
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-neutral-900 break-words">
-            {{ row().name }}
+          <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-neutral-900">
+            <span class="break-words min-w-0">{{ row().name }}</span>
+            <span data-status-chip [class]="chip + ' ' + tone[row().statusChip.tone]">{{
+              row().statusChip.label
+            }}</span>
             @if (row().isSelf) {
-              <span class="font-normal text-neutral-500">(você)</span>
+              <span data-self-chip [class]="chip + ' ' + tone.neutral">Você</span>
+            }
+            @if (row().invite?.delivery; as delivery) {
+              <span data-delivery-chip [class]="chip + ' ' + tone[delivery.tone]">
+                <app-members-icon
+                  [name]="delivery.icon === 'x' ? 'xCircle' : delivery.icon"
+                  [size]="12"
+                />{{ delivery.label }}
+              </span>
             }
           </p>
           @if (row().invite?.subtitle || row().member) {
-            <p class="text-xs text-neutral-500 break-all">{{ row().email }}</p>
+            <p data-email class="text-xs text-neutral-500 break-all mt-1">{{ row().email }}</p>
           }
+          <p data-role-line class="text-sm text-neutral-600 mt-1">
+            {{ row().roleLabel }} ·
+            {{ row().invite ? 'enviado' : 'desde' }}
+            <span class="tabular-nums">{{ row().date | date: 'dd/MM/yyyy' }}</span>
+          </p>
         </div>
         @if (row().member?.canRemove) {
           <button
@@ -73,29 +89,11 @@ const CHIP =
           </button>
         }
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <span data-role-chip [class]="chip + ' ' + tone.neutral">{{ row().roleLabel }}</span>
-        <span data-status-chip [class]="chip + ' ' + tone[row().statusChip.tone]">{{
-          row().statusChip.label
-        }}</span>
-        @if (row().invite?.delivery; as delivery) {
-          <span data-delivery-chip [class]="chip + ' ' + tone[delivery.tone]">
-            <app-members-icon [name]="delivery.icon === 'x' ? 'xCircle' : delivery.icon" [size]="12" />
-            {{ delivery.label }}
-          </span>
-        }
-      </div>
       @if (row().invite; as invite) {
-        <p class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-          <span data-validity [class]="validityTone[invite.validity.tone]">{{
+        <p class="text-sm">
+          <span data-validity class="font-mono" [class]="validityTone[invite.validity.tone]">{{
             invite.validity.label
           }}</span>
-          <span>
-            Enviado em
-            <span class="text-neutral-700 font-medium tabular-nums">{{
-              row().date | date: 'dd/MM/yyyy'
-            }}</span>
-          </span>
         </p>
         @if (invite.deliveryFailed) {
           <p class="text-xs text-rose-700 break-words">
@@ -119,14 +117,6 @@ const CHIP =
           <p class="text-xs text-neutral-500">{{ invite.lockedReason }}</p>
         }
       } @else if (row().member; as member) {
-        <p class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-          <span>
-            Desde
-            <span class="text-neutral-700 font-medium tabular-nums">{{
-              member.memberSince | date: 'dd/MM/yyyy'
-            }}</span>
-          </span>
-        </p>
         @if (busy()) {
           <p role="status" class="text-xs text-neutral-500">
             {{ member.isSelf ? 'Saindo…' : 'Removendo…' }}

@@ -6,11 +6,49 @@
     <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
       Carregando…
     </div>
+  } @else if (inviteResult(); as result) {
+    <!-- The driver IS saved; only the invite was refused. Stay here: this screen has the action. -->
+    <section class="space-y-4" data-testid="invite-result">
+      <app-alert-banner variant="warning" [message]="result.message" />
+      @if (resendError(); as resendFailure) {
+        <app-alert-banner variant="error" [message]="resendFailure" />
+      }
+      @if (!result.inviteId) {
+        <p class="text-sm text-neutral-600" data-testid="invite-from-members">{{ membersHint }}</p>
+      }
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+        <button
+          type="button"
+          (click)="openSavedDriver()"
+          class="w-full sm:w-auto min-h-12 px-5 py-3 rounded-xl text-base font-medium text-neutral-700
+                 bg-white border border-neutral-200 hover:bg-neutral-50">
+          Ver motorista
+        </button>
+        @if (result.inviteId) {
+          <button
+            type="button"
+            data-testid="resend-invite"
+            (click)="resendInvite()"
+            [disabled]="resending()"
+            class="w-full sm:w-auto min-h-12 px-5 py-3 rounded-xl text-base font-semibold bg-primary-500
+                   text-white hover:bg-primary-600 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
+            {{ resending() ? 'Reenviando…' : 'Reenviar convite' }}
+          </button>
+        }
+      </div>
+    </section>
   } @else {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 sm:space-y-6">
 
       @if (error(); as formError) {
         <app-alert-banner variant="error" [message]="formError" />
+      }
+
+      @if (creating) {
+        <app-alert-banner variant="info" data-testid="invite-info">
+          O motorista receberá um convite por e-mail e completa a CNH e o endereço no primeiro
+          acesso. Você também pode preencher agora.
+        </app-alert-banner>
       }
 
       <!-- ====== Informações Pessoais ====== -->
@@ -28,7 +66,7 @@
             class="md:col-span-2"
             label="RG"
             controlId="motorista-rg"
-            [required]="true"
+            [required]="!creating"
             [control]="form.controls.rg"
             [messages]="rgMessages"
           >
@@ -52,6 +90,7 @@
           <app-form-field
             [control]="form.controls.contact.controls.email"
             [messages]="emailMessages"
+            [hint]="creating ? 'O convite de acesso será enviado para este e-mail' : ''"
           >
             <app-primary-input label="E-mail" [required]="true" type="email" placeholder="motorista@empresa.com" formControlName="email" />
           </app-form-field>
@@ -182,7 +221,7 @@
             class="md:col-span-2"
             label="CEP"
             controlId="motorista-cep"
-            [required]="true"
+            [required]="!creating"
             [hint]="cepLoading() ? 'Buscando endereço…' : ''"
             [control]="form.controls.address.controls.cep"
             [messages]="cepMessages"
@@ -203,7 +242,7 @@
             [control]="form.controls.address.controls.street"
             [messages]="streetMessages"
           >
-            <app-primary-input label="Rua" [required]="true" placeholder="Rua das Flores" formControlName="street" />
+            <app-primary-input label="Rua" [required]="!creating" placeholder="Rua das Flores" formControlName="street" />
           </app-form-field>
 
           <div class="md:col-span-2">
@@ -219,7 +258,7 @@
             [control]="form.controls.address.controls.district"
             [messages]="districtMessages"
           >
-            <app-primary-input label="Bairro" [required]="true" placeholder="Centro" formControlName="district" />
+            <app-primary-input label="Bairro" [required]="!creating" placeholder="Centro" formControlName="district" />
           </app-form-field>
 
           <app-form-field
@@ -227,13 +266,13 @@
             [control]="form.controls.address.controls.city"
             [messages]="cityMessages"
           >
-            <app-primary-input label="Cidade" [required]="true" placeholder="São Paulo" formControlName="city" />
+            <app-primary-input label="Cidade" [required]="!creating" placeholder="São Paulo" formControlName="city" />
           </app-form-field>
 
           <app-form-field
             label="UF"
             controlId="motorista-uf"
-            [required]="true"
+            [required]="!creating"
             [control]="form.controls.address.controls.uf"
             [messages]="ufMessages"
           >
@@ -257,7 +296,7 @@
           <app-form-field
             label="Número da CNH"
             controlId="motorista-cnh"
-            [required]="true"
+            [required]="!creating"
             [control]="form.controls.licenseNumber"
             [messages]="licenseNumberMessages"
           >
@@ -276,14 +315,16 @@
           <app-form-field
             label="Categoria"
             controlId="motorista-categoria"
-            [required]="true"
+            [required]="!creating"
             [control]="form.controls.licenseCategory"
+            [messages]="licenseCategoryMessages"
           >
             <select
               appFieldControl
               formControlName="licenseCategory"
               class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
+              <option value="">—</option>
               @for (cat of categories; track cat) {
                 <option [value]="cat">{{ cat }}</option>
               }
@@ -293,7 +334,7 @@
           <app-form-field
             label="Vencimento"
             controlId="motorista-vencimento"
-            [required]="true"
+            [required]="!creating"
             [control]="form.controls.licenseExpiry"
             [messages]="licenseExpiryMessages"
           >
@@ -349,20 +390,6 @@
             </app-form-field>
           </div>
 
-          <app-form-field
-            label="ID do usuário vinculado (opcional)"
-            controlId="motorista-user-id"
-            hint="Vincule apenas se o motorista já tiver conta na plataforma."
-            [control]="form.controls.userId"
-          >
-            <input
-              appFieldControl
-              type="text"
-              formControlName="userId"
-              placeholder="UUID do usuário — deixe em branco se o motorista não tem login"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
-                     focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
-          </app-form-field>
         </div>
       </app-page-card>
 

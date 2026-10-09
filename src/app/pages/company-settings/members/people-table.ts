@@ -25,13 +25,13 @@ const CHIP =
       <thead class="text-xs text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
         <tr>
           <th scope="col" class="px-3 py-3 font-medium text-left">Nome</th>
-          <th scope="col" class="px-3 py-3 font-medium text-left w-full">E-mail</th>
-          <th scope="col" class="px-3 py-3 font-medium text-left">Nível de acesso</th>
+          <th scope="col" class="px-3 py-3 font-medium text-left">E-mail</th>
+          <th scope="col" class="px-3 py-3 font-medium text-left whitespace-nowrap">Nível de acesso</th>
           <th scope="col" class="px-3 py-3 font-medium text-left">Status</th>
-          <th scope="col" class="px-3 py-3 font-medium text-left">Enviado em / Desde</th>
+          <th scope="col" class="px-3 py-3 font-medium text-left whitespace-nowrap">Enviado em</th>
           <th scope="col" class="px-3 py-3 font-medium text-left">Aceite</th>
           <th scope="col" class="px-3 py-3 font-medium text-right">
-            <span class="sr-only">Ações</span>
+            Ações
           </th>
         </tr>
       </thead>
@@ -63,8 +63,8 @@ const CHIP =
                 </p>
               </div>
             </td>
-            <td data-email class="px-3 py-3 text-neutral-700 break-all min-w-[17rem]">
-              {{ row.email }}
+            <td data-email class="px-3 py-3 text-neutral-700 max-w-[16rem] min-w-[10rem]">
+              <span class="block truncate" [attr.title]="row.email">{{ row.email }}</span>
             </td>
             <td class="px-3 py-3">
               <span [class]="chip + ' ' + tone.neutral">{{ row.roleLabel }}</span>
@@ -96,7 +96,7 @@ const CHIP =
                 <span class="text-neutral-500">—</span>
               }
             </td>
-            <td class="px-3 py-2 text-right">
+            <td class="px-3 py-2 text-right min-w-[14rem]">
               @if (busyId() === row.id) {
                 <span role="status" class="text-xs text-neutral-500">
                   {{ busyLabel(row) }}
