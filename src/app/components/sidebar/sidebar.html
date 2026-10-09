@@ -62,23 +62,14 @@
 
   <!-- ===== MULTI-TENANT SWITCHER ===== -->
   <div class="p-3 border-b border-gray-100 shrink-0">
-    <button class="w-full flex items-center gap-3 bg-gray-50 hover:bg-gray-100
+    @if (layout.showSwitcher()) {
+    <button class="w-full min-h-11 flex items-center gap-3 bg-gray-50 hover:bg-gray-100
              px-3 py-2.5 rounded-xl transition-colors"
       [class.justify-center]="layout.isCollapsed() && !layout.isMobile()" (click)="layout.toggleTenant()"
-      [attr.aria-expanded]="layout.isTenantOpen()" aria-haspopup="listbox" type="button"
+      [attr.aria-expanded]="layout.isTenantOpen()" aria-haspopup="dialog" type="button"
       [title]="layout.isCollapsed() && !layout.isMobile() ? tenantTitle(layout.selectedTenant()) : ''">
-      <div class="w-8 h-8 bg-primary-500 text-white rounded-full shrink-0
-               flex items-center justify-center font-semibold text-sm">
-        {{ layout.selectedTenant().initial }}
-      </div>
-
+      <ng-container *ngTemplateOutlet="tenantHeader" />
       @if (!layout.isCollapsed() || layout.isMobile()) {
-      <div class="flex-1 text-left min-w-0" @fadeLabel>
-        <p class="text-sm font-semibold text-gray-900 truncate">{{ layout.selectedTenant().name }}</p>
-        @if (roleLabel(layout.selectedTenant().role); as role) {
-        <p class="text-xs text-primary-700 font-medium truncate">{{ role }}</p>
-        }
-      </div>
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
         class="text-gray-400 shrink-0" [@rotateTenantChevron]="layout.isTenantOpen() ? 'open' : 'closed'">
@@ -87,38 +78,36 @@
       }
     </button>
 
-    <!-- Tenant dropdown list -->
-    @if (layout.isTenantOpen() && (!layout.isCollapsed() || layout.isMobile())) {
-    <div class="mt-2 space-y-1" @dropdownSlide role="listbox" aria-label="Selecionar empresa">
-      @for (tenant of layout.tenants(); track tenant.id) {
-      <button class="w-full min-h-12 flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100
-                   transition-colors text-left disabled:opacity-60 disabled:cursor-wait"
-        [class.bg-primary-500/10]="tenant.id === layout.selectedTenant().id"
-        (click)="onSelectTenant(tenant)" role="option" [attr.aria-selected]="tenant.id === layout.selectedTenant().id"
-        [disabled]="layout.switchingTenantId() !== null"
-        [attr.aria-busy]="layout.switchingTenantId() === tenant.id ? 'true' : null" type="button">
-        <div class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-sm font-medium"
-          [class.bg-primary-500]="tenant.id === layout.selectedTenant().id"
-          [class.text-white]="tenant.id === layout.selectedTenant().id"
-          [class.bg-gray-200]="tenant.id !== layout.selectedTenant().id"
-          [class.text-gray-700]="tenant.id !== layout.selectedTenant().id">
-          {{ tenant.initial }}
-        </div>
-        <div class="flex-1 min-w-0 text-left">
-          <p class="text-sm font-medium text-gray-900 truncate">{{ tenant.name }}</p>
-          @if (layout.switchingTenantId() === tenant.id) {
-          <p class="text-xs text-primary-700 font-medium">Trocando…</p>
-          } @else {
-          @if (roleLabel(tenant.role); as role) {
-          <p class="text-xs text-gray-500 truncate">{{ role }}</p>
-          }
-          }
-        </div>
-      </button>
-      }
+    <!-- Desktop: the list opens in the sidebar. Phones use the bottom sheet at the end of this file. -->
+    @if (layout.isTenantOpen() && !layout.isMobile() && !layout.isCollapsed()) {
+    <div class="mt-2" @dropdownSlide>
+      <p class="px-3 pt-1 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Suas empresas</p>
+      <app-company-switcher />
+    </div>
+    }
+    } @else {
+    <div class="w-full flex items-center gap-3 bg-gray-50 px-3 py-2.5 rounded-xl"
+      [class.justify-center]="layout.isCollapsed() && !layout.isMobile()"
+      [title]="layout.isCollapsed() && !layout.isMobile() ? tenantTitle(layout.selectedTenant()) : ''">
+      <ng-container *ngTemplateOutlet="tenantHeader" />
     </div>
     }
   </div>
+
+  <ng-template #tenantHeader>
+    <div class="w-8 h-8 bg-primary-500 text-white rounded-full shrink-0
+             flex items-center justify-center font-semibold text-sm">
+      {{ layout.selectedTenant().initial }}
+    </div>
+    @if (!layout.isCollapsed() || layout.isMobile()) {
+    <div class="flex-1 text-left min-w-0" @fadeLabel>
+      <p class="text-sm font-semibold text-gray-900 truncate">{{ layout.selectedTenant().name }}</p>
+      @if (roleLabel(layout.selectedTenant().role); as role) {
+      <p class="text-xs text-primary-700 font-medium truncate">{{ role }}</p>
+      }
+    </div>
+    }
+  </ng-template>
 
   <!-- ===== NAVIGATION ===== -->
   <nav class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1" aria-label="Navegação principal">
@@ -213,3 +202,13 @@
   </div>
   }
 </ng-template>
+
+<!-- ==================== SWITCHER BOTTOM SHEET (PHONES) ====================
+  Outside the drawer on purpose: the drawer animates with a transform, which would turn this
+  `fixed` sheet into a child of the 260px drawer instead of the viewport. -->
+@if (layout.isMobile()) {
+<app-members-sheet [open]="layout.isTenantOpen() && layout.showSwitcher()" title="Suas empresas"
+  subtitle="Escolha em qual empresa você quer trabalhar agora." (closed)="layout.closeTenant()">
+  <app-company-switcher />
+</app-members-sheet>
+}

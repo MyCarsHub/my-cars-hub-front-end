@@ -5,6 +5,8 @@ import { TenantCachesService } from '../../../services/tenant-caches.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanySelectionService } from '../../../services/company-selection.service';
 import { NotificationService } from '../../../services/notification.service';
+import { MembershipsService } from '../../../services/memberships.service';
+import { companyRoleLabel } from '../../../utils/role-labels';
 import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 
 export interface Tenant {
@@ -12,6 +14,21 @@ export interface Tenant {
   name: string;
   role: string;
   initial: string;
+}
+
+/** One row of the 'Suas empresas' list, whatever its source (memberships endpoint or /auth/me). */
+export interface SwitcherEntry {
+  id: string;
+  name: string;
+  initial: string;
+  role: string;
+  roleLabel: string;
+  status: 'ACTIVE' | 'ONBOARDING';
+}
+
+/** Where each role lands after a company switch. DRIVER cannot open the dashboard (403). */
+export function homeRouteFor(role: string | null | undefined): string {
+  return role === 'DRIVER' ? '/alugueis' : '/dashboard';
 }
 
 const FALLBACK_TENANT: Tenant = { id: '', name: 'Sem Empresa', role: '', initial: '-' };
@@ -24,6 +41,7 @@ export class LayoutStore {
   private readonly companySelection = inject(CompanySelectionService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly membershipsService = inject(MembershipsService);
 
   /** Whether the sidebar is collapsed (desktop only) */
   readonly isCollapsed = signal(false);
@@ -46,6 +64,51 @@ export class LayoutStore {
   /** Id da empresa cuja troca está em voo, ou `null` quando nada está pendente. */
   private readonly _switchingTenantId = signal<string | null>(null);
   readonly switchingTenantId = this._switchingTenantId.asReadonly();
+
+  /**
+   * Company the SESSION is in (`selectedCompanyId`, written together with the token). The
+   * switcher's 'current' marker reads this — never the position in a list, which the
+   * backend orders by last use and which changes under the person's feet.
+   */
+  readonly currentCompanyId = signal<string | null>(this.sessionService.getItem('selectedCompanyId'));
+
+  /**
+   * Rows of the switcher: memberships when the endpoint answered, else the `userCompanies`
+   * snapshot from /auth/me (today's behaviour).
+   */
+  readonly switcherEntries = computed<SwitcherEntry[]>(() => {
+    // `tenants` is read first on purpose: `refreshTenants()` runs on entering/leaving an
+    // impersonation, and re-evaluating here is what drops the admin's own memberships then.
+    const tenants = this.tenants();
+    if (this.membershipsService.status() === 'ready' && !this.isImpersonating()) {
+      return this.membershipsService.memberships().map((m) => ({
+        id: m.companyId,
+        name: m.companyName,
+        initial: m.companyName ? m.companyName.charAt(0).toUpperCase() : 'C',
+        role: m.role,
+        roleLabel: m.roleLabel || companyRoleLabel(m.role),
+        status: m.status,
+      }));
+    }
+    return tenants.map((t) => ({
+      id: t.id,
+      name: t.name,
+      initial: t.initial,
+      role: t.role,
+      roleLabel: companyRoleLabel(t.role),
+      status: 'ACTIVE' as const,
+    }));
+  });
+
+  readonly pendingInvites = this.membershipsService.pendingInvites;
+
+  /** The switcher entry exists only when there is something to switch to or to finish. */
+  readonly showSwitcher = computed(
+    () =>
+      this.switcherEntries().length > 1 ||
+      this.switcherEntries().some((e) => e.status === 'ONBOARDING') ||
+      this.pendingInvites().length > 0,
+  );
 
   /** Current sidebar width token for animations */
   readonly sidebarWidth = computed(() => (this.isCollapsed() ? '72px' : '260px'));
@@ -94,7 +157,16 @@ export class LayoutStore {
   }
 
   toggleTenant(): void {
-    this.isTenantOpen.update((v) => !v);
+    const opening = !this.isTenantOpen();
+    this.isTenantOpen.set(opening);
+    // Lazy: the list is asked for when the person opens the switcher.
+    if (opening && !this.isImpersonating()) this.membershipsService.load(true);
+  }
+
+  /** Lists the memberships once per session; the shell calls this on start. */
+  ensureMembershipsLoaded(): void {
+    if (this.isImpersonating()) return;
+    this.membershipsService.load();
   }
 
   closeTenant(): void {
@@ -153,6 +225,8 @@ export class LayoutStore {
   /** Estado local + armazenamento, já com o token da empresa nova persistido. */
   private commitTenant(tenant: Tenant): void {
     this.selectedTenant.set(tenant);
+    this.currentCompanyId.set(tenant.id);
+    this.isMobileOpen.set(false);
     this.isTenantOpen.set(false);
 
     // A troca de tenant só navega — o AppShell (e todo serviço `providedIn:
@@ -203,11 +277,41 @@ export class LayoutStore {
     if (companyChanged) {
       this.router
         .navigateByUrl('/trocando-empresa', { skipLocationChange: true })
-        .then(() => this.router.navigate(['/dashboard']));
+        .then(() => this.router.navigate([homeRouteFor(tenant.role)]));
       return;
     }
 
-    this.router.navigate(['/dashboard']);
+    this.router.navigate([homeRouteFor(tenant.role)]);
+  }
+
+  /**
+   * 'Concluir cadastro': asks the backend to select a company whose membership is still in
+   * onboarding. The onboarding token lands in its own slot (never the session token) and the
+   * person goes to the onboarding screen; the DRIVER variant shows that screen's 'em breve'
+   * placeholder because the driver registration ships later.
+   */
+  resumeOnboarding(entry: SwitcherEntry): void {
+    if (this.isImpersonating() || this._switchingTenantId() !== null) return;
+    this._switchingTenantId.set(entry.id);
+    this.companySelection.selectDetailed(entry.id).subscribe({
+      next: (outcome) => {
+        this._switchingTenantId.set(null);
+        this.isTenantOpen.set(false);
+        if (outcome.kind === 'INVITE_ONBOARDING') {
+          void this.router.navigate(['/convite/cadastro']);
+          return;
+        }
+        // The membership turned ACTIVE meanwhile: it behaves as a plain switch.
+        this.commitTenant({ id: entry.id, name: entry.name, role: entry.role, initial: entry.initial });
+      },
+      error: (err: unknown) => {
+        this._switchingTenantId.set(null);
+        this.apiErrors.claim(err);
+        this.notifications.error(
+          `Não foi possível abrir o cadastro de ${entry.name}. Tente novamente.`,
+        );
+      },
+    });
   }
 
   /**
@@ -247,6 +351,7 @@ export class LayoutStore {
     const newTenants = this.loadTenantsFromStorage();
     this.tenants.set(newTenants);
     this.selectedTenant.set(this.loadSelectedTenantFromStorage(newTenants));
+    this.currentCompanyId.set(this.sessionService.getItem('selectedCompanyId'));
   }
 
   setMobile(isMobile: boolean): void {
