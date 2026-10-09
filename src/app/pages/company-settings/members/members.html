@@ -31,74 +31,21 @@
         <app-alert-banner variant="error" [message]="message" />
       }
 
-      <!-- KPI strip: only the three numbers the guidelines name; hidden while the page is
-           the empty invitation to invite. -->
-      @if (initialLoading()) {
-        <section class="grid gap-3 grid-cols-3" aria-busy="true" aria-label="Resumo da equipe">
-          @for (i of [1, 2, 3]; track i) {
-            <div class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
-              <div class="h-3 w-14 rounded bg-neutral-100 animate-pulse"></div>
-              <div class="h-8 mt-2 w-10 rounded bg-neutral-100 animate-pulse"></div>
-            </div>
-          }
-        </section>
-      } @else if (membersLoaded() && !isEmpty()) {
-        <section class="grid gap-3 grid-cols-3 lg:grid-cols-4" aria-label="Resumo da equipe">
-          <div data-kpi="management" class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">Gestão</p>
-            <p class="text-xl sm:text-2xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
-              {{ managementCount() }}
-            </p>
-            <p class="text-xs text-neutral-500 mt-1 truncate">com gestão</p>
-          </div>
-          <div data-kpi="drivers" class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">Motoristas</p>
-            <p class="text-xl sm:text-2xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
-              {{ driversCount() }}
-            </p>
-            <p class="text-xs text-neutral-500 mt-1 truncate">com acesso</p>
-          </div>
-          <div data-kpi="pending" class="rounded-2xl bg-white border border-neutral-200 p-3 sm:p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">Convites</p>
-            <p
-              class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-              [class]="pendingInvitesCount() > 0 ? 'text-amber-700' : 'text-neutral-900'"
-            >
-              {{ invitesLoaded() ? pendingInvitesCount() : '–' }}
-            </p>
-            <p class="text-xs text-neutral-500 mt-1 truncate">pendentes</p>
-          </div>
-        </section>
+      <!-- KPI strip (Dashboard pattern). Whole-company numbers: the list filters never
+           change them. Hidden while the page is the empty invitation to invite. -->
+      @if (initialLoading() || (membersLoaded() && !isEmpty())) {
+        <app-members-kpis
+          [loading]="initialLoading()"
+          [total]="totalCount()"
+          [management]="managementCount()"
+          [drivers]="driversCount()"
+          [pending]="invitesLoaded() ? pendingInvitesCount() : null"
+          [expired]="expiredInvitesCount()"
+        />
       }
 
-      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-        <app-segmented-toggle
-          class="w-full sm:w-auto"
-          ariaLabel="Mostrar"
-          containerClass="bg-neutral-100 border border-neutral-200 w-full sm:w-auto [&>button]:flex-1 [&>button]:justify-center sm:[&>button]:flex-none"
-          activeClass="text-neutral-900"
-          [options]="tabOptions()"
-          [value]="tab()"
-          (selectionChange)="selectTab($event)"
-        />
-        @if (!isMobile() && !isEmpty()) {
-          <div class="sm:ml-auto">
-            <button
-              type="button"
-              data-invite-open
-              (click)="openInvite()"
-              class="min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
-                     bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
-                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-            >
-              <app-members-icon name="userPlus" [size]="18" />Convidar pessoa
-            </button>
-          </div>
-        }
-      </div>
-
       @if (initialLoading()) {
-        <app-page-card title="Membros">
+        <app-page-card title="Lista">
           <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
             <app-members-icon name="users" />
           </div>
@@ -108,102 +55,234 @@
             }
           </div>
         </app-page-card>
-      } @else if (tab() === 'active') {
-        @if (membersLoaded()) {
-          <app-page-card title="Membros">
-            <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
-              <app-members-icon name="users" />
-            </div>
-            <div cardActions><ng-container [ngTemplateOutlet]="refresh" /></div>
-            <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
-              @if (isMobile()) {
-                <ul class="space-y-3" aria-label="Membros com acesso">
-                  @for (row of memberRows(); track row.id) {
-                    <li>
-                      <app-member-card
-                        [row]="row"
-                        [busy]="busyId() === row.id"
-                        (actions)="openActions({ kind: 'member', row: $event })"
-                      />
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <app-members-table
-                  [rows]="memberRows()"
-                  [busyId]="busyId()"
-                  (remove)="askRemove($event)"
-                />
-              }
-              @if (isEmpty()) {
-                <div
-                  data-empty
-                  class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+      } @else if (membersLoaded()) {
+        <app-page-card title="Lista">
+          <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
+            <app-members-icon name="users" />
+          </div>
+          <div cardActions class="flex items-center gap-2">
+            <ng-container [ngTemplateOutlet]="refresh" />
+            @if (!isMobile() && !isEmpty()) {
+              <div>
+                <button
+                  type="button"
+                  data-invite-open
+                  (click)="openInvite()"
+                  class="min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
+                         bg-primary-500 text-white hover:bg-primary-600 shadow-sm focus:outline-none
+                         focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
                 >
-                  <span class="inline-flex text-neutral-500"><app-members-icon name="users" [size]="24" /></span>
-                  <p class="text-sm font-semibold text-neutral-900">Só você tem acesso por enquanto.</p>
-                  <p class="text-sm text-neutral-600">
-                    Convide um gerenciador para dividir a operação. Motoristas recebem o convite
-                    quando você os cadastra.
-                  </p>
-                  <ng-container [ngTemplateOutlet]="emptyAction" />
+                  <app-members-icon name="userPlus" [size]="18" />Convidar pessoa
+                </button>
+              </div>
+            }
+          </div>
+          <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+            @if (!isEmpty()) {
+              <!-- Search + filters. Phones: search on top, a Filtrar trigger that opens the
+                   sheet, the applied filters as removable chips. Desktop: both selects inline. -->
+              <div class="space-y-3">
+                <div class="flex items-center gap-2 lg:gap-3">
+                  <div class="relative flex-1 min-w-0">
+                    <label for="members-search" class="sr-only">Buscar por nome ou e-mail</label>
+                    <span
+                      class="absolute inset-y-0 left-3 flex items-center text-neutral-400"
+                      aria-hidden="true"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                    </span>
+                    <input
+                      id="members-search"
+                      type="search"
+                      autocomplete="off"
+                      placeholder="Buscar por nome ou e-mail…"
+                      [value]="query()"
+                      (input)="onSearchInput($event)"
+                      class="w-full min-h-[44px] pl-9 pr-3 text-base lg:text-sm border border-neutral-200 rounded-xl
+                             bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    />
+                  </div>
+
+                  @if (isMobile()) {
+                    <button
+                      type="button"
+                      data-filter-open
+                      (click)="openFilters()"
+                      aria-haspopup="dialog"
+                      class="relative shrink-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold inline-flex items-center
+                             gap-2 border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50
+                             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                             focus-visible:ring-offset-2"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                      </svg>
+                      Filtrar
+                      @if (activeFilters() > 0) {
+                        <span
+                          data-filter-count
+                          class="min-w-[20px] h-5 px-1 rounded-full bg-primary-500 text-white text-[11px]
+                                 font-semibold flex items-center justify-center"
+                          [attr.aria-label]="activeFilters() + ' filtros ativos'"
+                          >{{ activeFilters() }}</span
+                        >
+                      }
+                    </button>
+                  } @else {
+                    <label class="sr-only" for="members-access">Acesso</label>
+                    <select
+                      id="members-access"
+                      data-filter-access
+                      (change)="onAccessChange($event)"
+                      class="min-h-[44px] px-3 text-sm border border-neutral-200 rounded-xl bg-white text-neutral-900
+                             focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    >
+                      @for (opt of accessOptions; track opt.value) {
+                        <option [value]="opt.value" [selected]="opt.value === access()">
+                          Acesso: {{ opt.label }}
+                        </option>
+                      }
+                    </select>
+                    <label class="sr-only" for="members-status">Status</label>
+                    <select
+                      id="members-status"
+                      data-filter-status
+                      (change)="onStatusChange($event)"
+                      class="min-h-[44px] px-3 text-sm border border-neutral-200 rounded-xl bg-white text-neutral-900
+                             focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    >
+                      @for (opt of statusOptions; track opt.value) {
+                        <option [value]="opt.value" [selected]="opt.value === status()">
+                          Status: {{ opt.label }}
+                        </option>
+                      }
+                    </select>
+                    @if (anyFilter()) {
+                      <button
+                        type="button"
+                        data-clear-filters
+                        (click)="clearFilters()"
+                        class="shrink-0 min-h-[44px] px-2 text-sm font-semibold text-primary-700 underline
+                               hover:no-underline rounded-lg focus:outline-none focus-visible:ring-2
+                               focus-visible:ring-primary-400"
+                      >
+                        Limpar filtros
+                      </button>
+                    }
+                  }
                 </div>
-              } @else {
-                <p class="text-xs text-neutral-500 pt-1">{{ roleChangeNote }}</p>
-              }
-            </div>
-          </app-page-card>
-        }
-      } @else {
-        @if (invitesLoaded()) {
-          <app-page-card title="Convites pendentes">
-            <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
-              <app-members-icon name="mail" />
-            </div>
-            <div cardActions><ng-container [ngTemplateOutlet]="refresh" /></div>
-            <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
-              @if (inviteRows().length === 0) {
-                <div
-                  data-empty
-                  class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+
+                @if (isMobile() && activeFilters() > 0) {
+                  <div class="flex flex-wrap gap-2" aria-label="Filtros ativos">
+                    @if (access()) {
+                      <button
+                        type="button"
+                        data-filter-chip="access"
+                        (click)="access.set('')"
+                        [attr.aria-label]="'Remover filtro ' + accessChipLabel()"
+                        class="min-h-[44px] pl-4 pr-3 rounded-full text-sm font-medium inline-flex items-center gap-2
+                               bg-primary-500 text-white focus:outline-none focus-visible:ring-2
+                               focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                      >
+                        {{ accessChipLabel() }}<app-members-icon name="x" [size]="14" />
+                      </button>
+                    }
+                    @if (status()) {
+                      <button
+                        type="button"
+                        data-filter-chip="status"
+                        (click)="status.set('')"
+                        [attr.aria-label]="'Remover filtro ' + statusChipLabel()"
+                        class="min-h-[44px] pl-4 pr-3 rounded-full text-sm font-medium inline-flex items-center gap-2
+                               bg-primary-500 text-white focus:outline-none focus-visible:ring-2
+                               focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                      >
+                        {{ statusChipLabel() }}<app-members-icon name="x" [size]="14" />
+                      </button>
+                    }
+                  </div>
+                }
+
+                <p data-results role="status" aria-live="polite" class="text-xs text-neutral-500">
+                  {{ resultsText() }}
+                </p>
+              </div>
+            }
+
+            @if (visiblePeople().length === 0) {
+              <div
+                data-empty-search
+                class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+              >
+                <p class="text-sm font-semibold text-neutral-900">Nenhum resultado.</p>
+                <p class="text-sm text-neutral-600">
+                  Ninguém corresponde à busca e aos filtros escolhidos.
+                </p>
+                <button
+                  type="button"
+                  data-clear-filters
+                  (click)="clearFilters()"
+                  class="min-h-[44px] w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
+                         justify-center border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                         focus-visible:ring-offset-2"
                 >
-                  <span class="inline-flex text-neutral-500"><app-members-icon name="mail" [size]="24" /></span>
-                  <p class="text-sm font-semibold text-neutral-900">Nenhum convite pendente.</p>
-                  <p class="text-sm text-neutral-600">
-                    Quem você convidar aparece aqui até aceitar o convite.
-                  </p>
-                  @if (isEmpty()) {
-                    <ng-container [ngTemplateOutlet]="emptyAction" />
-                  }
-                </div>
-              } @else if (isMobile()) {
-                <ul class="space-y-3" aria-label="Convites pendentes">
-                  @for (row of inviteRows(); track row.id) {
-                    <li>
-                      <app-invite-card
-                        [row]="row"
-                        [busy]="busyId() === row.id"
-                        (actions)="openActions({ kind: 'invite', row: $event })"
-                        (resend)="resend($event)"
-                      />
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <app-invites-table
-                  [rows]="inviteRows()"
-                  [busyId]="busyId()"
-                  (resend)="resend($event)"
-                  (cancel)="askCancel($event)"
-                />
+                  Limpar filtros
+                </button>
+              </div>
+            } @else if (isMobile()) {
+              <ul class="space-y-3" aria-label="Pessoas da empresa">
+                @for (person of visiblePeople(); track person.key) {
+                  <li>
+                    <app-person-card
+                      [row]="person"
+                      [busy]="busyId() === person.id"
+                      (actions)="openPerson($event)"
+                      (resend)="resend($event)"
+                    />
+                  </li>
+                }
+              </ul>
+            } @else {
+              <app-people-table
+                [rows]="visiblePeople()"
+                [busyId]="busyId()"
+                (remove)="askRemove($event)"
+                (resend)="resend($event)"
+                (cancel)="askCancel($event)"
+              />
+            }
+
+            @if (isEmpty()) {
+              <div
+                data-empty
+                class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+              >
+                <span class="inline-flex text-neutral-500"><app-members-icon name="users" [size]="24" /></span>
+                <p class="text-sm font-semibold text-neutral-900">Só você tem acesso por enquanto.</p>
+                <p class="text-sm text-neutral-600">
+                  Convide um gerenciador para dividir a operação. Motoristas recebem o convite
+                  quando você os cadastra.
+                </p>
+                <ng-container [ngTemplateOutlet]="emptyAction" />
+              </div>
+            } @else {
+              <p class="text-xs text-neutral-500 pt-1">{{ roleChangeNote }}</p>
+              @if (inviteRows().length > 0) {
+                <p class="text-xs text-neutral-500">
+                  Convites valem {{ ttlLabel }}. Motoristas recebem o convite ao serem cadastrados em
+                  Motoristas.
+                </p>
               }
-              <p class="text-xs text-neutral-500 pt-1">
-                Convites valem {{ ttlLabel }}. Motoristas recebem o convite ao serem cadastrados em
-                Motoristas.
-              </p>
-            </div>
-          </app-page-card>
-        }
+            }
+          </div>
+        </app-page-card>
       }
 
       @if (isMobile() && !isEmpty()) {
@@ -262,6 +341,15 @@
   (remove)="askRemove($event)"
   (resend)="resend($event)"
   (cancel)="askCancel($event)"
+/>
+
+<app-people-filter-sheet
+  [open]="filtersOpen()"
+  [access]="access()"
+  [status]="status()"
+  (closed)="closeFilters()"
+  (applied)="applyFilters($event)"
+  (cleared)="clearSheetFilters()"
 />
 
 <app-invite-sheet
