@@ -1,0 +1,358 @@
+<div class="flex-1 flex flex-col bg-neutral-50" data-testid="driver-onboarding">
+  <header class="bg-white border-b border-neutral-200 px-4 pt-4 pb-3">
+    <div class="mx-auto w-full max-w-lg">
+      <div class="flex items-center justify-between gap-3">
+        <img ngSrc="svg/logo-my-cars-hub.svg" width="34" height="26" priority alt="MyCarsHub" />
+        <span
+          class="min-w-0 truncate rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-800"
+          data-testid="company-chip"
+          >{{ companyName() }} · {{ roleLabel() }}</span
+        >
+      </div>
+      <div
+        class="mt-4 flex items-center gap-1.5"
+        role="progressbar"
+        [attr.aria-valuenow]="stepIndex() + 1"
+        aria-valuemin="1"
+        [attr.aria-valuemax]="totalSteps()"
+        [attr.aria-label]="'Passo ' + (stepIndex() + 1) + ' de ' + totalSteps()"
+      >
+        @for (n of stepNumbers(); track n) {
+          <div
+            class="h-1.5 flex-1 rounded-full transition-colors"
+            [class.bg-primary-500]="n <= stepIndex() + 1"
+            [class.bg-neutral-200]="n > stepIndex() + 1"
+          ></div>
+        }
+      </div>
+      <div class="mt-2 flex items-center justify-between text-sm text-neutral-600">
+        <span>Passo {{ stepIndex() + 1 }} de {{ totalSteps() }}</span>
+        <span>{{ title() }}</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 px-4 py-6">
+    <div class="mx-auto w-full max-w-lg">
+      @if (errorMessage(); as message) {
+        <div class="mb-4"><app-alert-banner variant="error" [message]="message" /></div>
+      }
+
+      <!-- Steps 1-3 stay in the DOM (hidden): server errors survive going back to a step. -->
+      @if (!confirmOnly()) {
+        <div [hidden]="step() !== 'personal'">
+          <h1 class="text-2xl font-bold text-neutral-900">Seus dados</h1>
+          <p class="mt-2 text-sm text-neutral-600">
+            Confira como {{ companyName() }} cadastrou você.
+          </p>
+          <div class="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 space-y-4 shadow-sm">
+            <app-form-field label="Nome completo" controlId="drv-name">
+              <input
+                appFieldControl
+                readonly
+                [value]="fullName()"
+                type="text"
+                autocomplete="name"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-600"
+              />
+            </app-form-field>
+            <app-form-field
+              label="RG (opcional)"
+              controlId="drv-rg"
+              [control]="form.controls.rg"
+              [messages]="rgMessages"
+            >
+              <input
+                appFieldControl
+                [formControl]="form.controls.rg"
+                type="text"
+                maxlength="15"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+          </div>
+          <dl class="mt-4 rounded-2xl border border-neutral-200 bg-white text-sm divide-y divide-neutral-100">
+            <div class="flex items-center justify-between gap-3 px-4 py-3">
+              <dt class="text-neutral-600">CPF</dt>
+              <dd class="font-medium text-emerald-800">Confirmado</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div [hidden]="step() !== 'license'">
+          <h1 class="text-2xl font-bold text-neutral-900">Sua CNH</h1>
+          <p class="mt-2 text-sm text-neutral-600">Os dados da frente do documento.</p>
+          <div class="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 space-y-4 shadow-sm">
+            <app-form-field
+              label="Número da CNH"
+              controlId="drv-cnh"
+              [required]="true"
+              hint="Os 11 números da frente da CNH."
+              [control]="form.controls.licenseNumber"
+              [messages]="licenseMessages"
+            >
+              <input
+                appFieldControl
+                [formControl]="form.controls.licenseNumber"
+                type="text"
+                maxlength="11"
+                autocapitalize="characters"
+                autocomplete="off"
+                (input)="onLicenseInput($event)"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
+                       text-neutral-800 tracking-wider focus:outline-none focus:ring-2
+                       focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+            <app-form-field
+              label="Categoria"
+              controlId="drv-category"
+              [required]="true"
+              [control]="form.controls.licenseCategory"
+              [messages]="categoryMessages"
+            >
+              <select
+                appFieldControl
+                [formControl]="form.controls.licenseCategory"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors"
+              >
+                <option value="">Selecione</option>
+                @for (category of categories; track category) {
+                  <option [value]="category">{{ category }}</option>
+                }
+              </select>
+            </app-form-field>
+            <app-form-field
+              label="Validade"
+              controlId="drv-expiry"
+              [required]="true"
+              [control]="form.controls.licenseExpiry"
+              [messages]="expiryMessages"
+            >
+              <input
+                appFieldControl
+                [formControl]="form.controls.licenseExpiry"
+                type="date"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+          </div>
+        </div>
+
+        <div [hidden]="step() !== 'address'" [formGroup]="form.controls.address">
+          <h1 class="text-2xl font-bold text-neutral-900">Seu endereço</h1>
+          <p class="mt-2 text-sm text-neutral-600">Digite o CEP e preenchemos o resto.</p>
+          <div class="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 space-y-4 shadow-sm">
+            <app-form-field
+              label="CEP"
+              controlId="drv-cep"
+              [required]="true"
+              [hint]="cepLoading() ? 'Buscando endereço…' : ''"
+              [control]="form.controls.address.controls.cep"
+              [messages]="cepMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="cep"
+                type="text"
+                inputmode="numeric"
+                placeholder="00000-000"
+                maxlength="9"
+                autocomplete="postal-code"
+                (blur)="onCepBlur()"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
+                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                       focus:border-primary-600 transition-colors"
+              />
+            </app-form-field>
+            <app-form-field
+              label="Rua"
+              controlId="drv-street"
+              [required]="true"
+              [control]="form.controls.address.controls.street"
+              [messages]="streetMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="street"
+                type="text"
+                autocomplete="address-line1"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                       focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+              />
+            </app-form-field>
+            <div class="grid grid-cols-2 gap-3">
+              <app-form-field label="Número" controlId="drv-number" [control]="form.controls.address.controls.number">
+                <input
+                  appFieldControl
+                  formControlName="number"
+                  type="text"
+                  class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                         focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+                />
+              </app-form-field>
+              <app-form-field label="Complemento" controlId="drv-complement" [control]="form.controls.address.controls.complement">
+                <input
+                  appFieldControl
+                  formControlName="complement"
+                  type="text"
+                  class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                         focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+                />
+              </app-form-field>
+            </div>
+            <app-form-field
+              label="Bairro"
+              controlId="drv-district"
+              [required]="true"
+              [control]="form.controls.address.controls.district"
+              [messages]="districtMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="district"
+                type="text"
+                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                       focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+              />
+            </app-form-field>
+            <div class="grid grid-cols-[1fr_6rem] gap-3">
+              <app-form-field
+                label="Cidade"
+                controlId="drv-city"
+                [required]="true"
+                [control]="form.controls.address.controls.city"
+                [messages]="cityMessages"
+              >
+                <input
+                  appFieldControl
+                  formControlName="city"
+                  type="text"
+                  class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                         focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+                />
+              </app-form-field>
+              <app-form-field
+                label="UF"
+                controlId="drv-uf"
+                [required]="true"
+                [control]="form.controls.address.controls.uf"
+                [messages]="ufMessages"
+              >
+                <select
+                  appFieldControl
+                  formControlName="uf"
+                  class="w-full min-h-12 px-3 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                         focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+                >
+                  <option value="">—</option>
+                  @for (uf of ufs; track uf) {
+                    <option [value]="uf">{{ uf }}</option>
+                  }
+                </select>
+              </app-form-field>
+            </div>
+          </div>
+        </div>
+      }
+
+      @if (confirmOnly() && step() === 'confirm') {
+        <div>
+          <h1 class="text-2xl font-bold text-neutral-900">Confirme seu cadastro</h1>
+          <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+            {{ companyName() }} já preencheu sua CNH e seu endereço. É só confirmar para entrar.
+          </p>
+        </div>
+      }
+
+      @if (step() === 'done') {
+        <div class="text-center">
+          <div
+            class="mx-auto inline-flex size-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800"
+            aria-hidden="true"
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+              <path d="M8 12.5l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+          <h1 class="mt-4 text-2xl font-bold text-neutral-900">
+            Tudo pronto{{ firstName() ? ', ' + firstName() : '' }}!
+          </h1>
+          <p class="mt-2 text-sm text-neutral-600">
+            Você já faz parte de {{ companyName() }} como {{ roleLabel() }}.
+          </p>
+        </div>
+      }
+    </div>
+  </main>
+
+  <footer class="sticky bottom-0 bg-white border-t border-neutral-200 px-4 py-3">
+    <div class="mx-auto w-full max-w-lg">
+      @if (step() !== 'done') {
+        <p class="mb-2 text-xs text-neutral-600" data-testid="finish-later-note">
+          Você pode terminar depois. Seus dados são salvos ao concluir.
+        </p>
+      }
+      <div class="flex items-center gap-3">
+        @if (step() !== 'done' && stepIndex() > 0) {
+          <button
+            type="button"
+            (click)="back()"
+            [disabled]="submitting()"
+            class="min-h-12 min-w-11 inline-flex items-center justify-center rounded-xl px-4 py-3
+                   text-base font-semibold text-neutral-800 hover:bg-neutral-100 focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-60"
+          >
+            Voltar
+          </button>
+        }
+        @switch (step()) {
+          @case ('personal') {
+            <button type="button" (click)="next()" class="flex-1 min-h-12 rounded-xl bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 focus-visible:ring-offset-2">
+              Continuar
+            </button>
+          }
+          @case ('license') {
+            <button type="button" (click)="next()" class="flex-1 min-h-12 rounded-xl bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 focus-visible:ring-offset-2">
+              Continuar
+            </button>
+          }
+          @case ('address') {
+            <button
+              type="button"
+              (click)="submit()"
+              [disabled]="submitting()"
+              [attr.aria-busy]="submitting() ? 'true' : null"
+              class="flex-1 min-h-12 rounded-xl bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
+            >
+              {{ submitting() ? 'Salvando…' : 'Concluir cadastro' }}
+            </button>
+          }
+          @case ('confirm') {
+            <button
+              type="button"
+              (click)="submit()"
+              [disabled]="submitting()"
+              [attr.aria-busy]="submitting() ? 'true' : null"
+              class="flex-1 min-h-12 rounded-xl bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
+            >
+              {{ submitting() ? 'Entrando…' : 'Confirmar e entrar' }}
+            </button>
+          }
+          @case ('done') {
+            <button type="button" (click)="goHome()" class="flex-1 min-h-12 rounded-xl bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 focus-visible:ring-offset-2">
+              Ver meus aluguéis
+            </button>
+          }
+        }
+      </div>
+    </div>
+  </footer>
+</div>

@@ -5,6 +5,7 @@ import {
   attemptsLeftCopy,
   inviteAcceptProblemCopy,
   inviteAttemptsLeft,
+  driverOnboardingFailure,
   inviteFlowErrorCode,
   onboardingFailure,
 } from './invite-flow-errors';
@@ -59,5 +60,30 @@ describe('invite-flow-errors', () => {
     ['WHATEVER', 'generic'],
   ])('classifies onboarding %s as %s', (code, kind) => {
     expect(onboardingFailure(err(400, { code, message: 'raw' })).kind).toBe(kind);
+  });
+});
+
+describe('driverOnboardingFailure', () => {
+  it.each([
+    ['ONBOARDING_LICENSE_INVALID', 'licenseNumber'],
+    ['ONBOARDING_LICENSE_CATEGORY_INVALID', 'licenseCategory'],
+    ['ONBOARDING_LICENSE_EXPIRY_INVALID', 'licenseExpiry'],
+    ['ONBOARDING_ADDRESS_INVALID', 'address'],
+    ['ONBOARDING_RG_INVALID', 'rg'],
+    ['DRIVER_LICENSE_TAKEN', 'licenseNumber'],
+  ])('%s points at %s with friendly copy', (code, field) => {
+    const failure = driverOnboardingFailure(err(400, { code, message: 'raw' }));
+    expect(failure).toMatchObject({ kind: 'field', field });
+    expect(failure.message).not.toContain('raw');
+  });
+
+  it.each([
+    ['ONBOARDING_ROLE_MISMATCH', 'wrong-role'],
+    ['ONBOARDING_ALREADY_DONE', 'done'],
+    ['ONBOARDING_TOKEN_REVOKED', 'revoked'],
+    ['ONBOARDING_NAME_INVALID', 'generic'],
+    ['WHATEVER', 'generic'],
+  ])('%s is %s', (code, kind) => {
+    expect(driverOnboardingFailure(err(400, { code, message: 'raw' })).kind).toBe(kind);
   });
 });

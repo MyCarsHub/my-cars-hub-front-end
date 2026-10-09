@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { DriverOnboarding } from './driver-onboarding';
 import { InviteFlowService } from '../../services/invite-flow.service';
 import { onboardingFailure } from '../../services/invite-flow-errors';
 import { InviteOnboardingTokenStore } from '../../services/invite-onboarding-token.store';
@@ -17,7 +18,7 @@ import { applyMaskedPhoneInput, maskPhone, normalizePhone } from '../../utils/ph
 const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
 
 type Step = 1 | 2 | 3;
-type Mode = 'loading' | 'wizard' | 'driver-soon' | 'blocked';
+type Mode = 'loading' | 'wizard' | 'driver' | 'blocked';
 
 const STEP_TITLES: Readonly<Record<Step, string>> = {
   1: 'Seus dados',
@@ -38,7 +39,15 @@ const TOTAL_STEPS = 3;
 @Component({
   selector: 'app-manager-onboarding',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgOptimizedImage, RouterLink, AlertBanner, ReactiveFormsModule, FormField, FieldControl],
+  imports: [
+    NgOptimizedImage,
+    RouterLink,
+    AlertBanner,
+    ReactiveFormsModule,
+    FormField,
+    FieldControl,
+    DriverOnboarding,
+  ],
   templateUrl: './manager-onboarding.html',
 })
 export class ManagerOnboarding implements OnInit {
@@ -161,8 +170,8 @@ export class ManagerOnboarding implements OnInit {
   private start(context: InviteOnboardingContext): void {
     this.context.set(context);
     if (context.role !== 'MANAGER') {
-      // Driver onboarding ships with a later backend slice.
-      this.mode.set('driver-soon');
+      // The DRIVER wizard is its own component (CNH + address; no terms step).
+      this.mode.set('driver');
       return;
     }
     const phoneIsConcrete = /^[\d\s()+-]+$/.test(context.prefill.phoneMasked ?? '');
@@ -176,6 +185,12 @@ export class ManagerOnboarding implements OnInit {
       this.form.controls.phone.disable();
     }
     this.mode.set('wizard');
+  }
+
+  /** The driver wizard says it cannot go on (revoked token, already done, other role). */
+  protected onDriverBlocked(message: string): void {
+    this.blockedMessage.set(message);
+    this.mode.set('blocked');
   }
 
   private block(err: unknown): void {
@@ -199,8 +214,6 @@ export class ManagerOnboarding implements OnInit {
         this.errorMessage.set(failure.message);
         return;
       case 'wrong-role':
-        this.mode.set('driver-soon');
-        return;
       case 'revoked':
       case 'done':
         if (failure.kind === 'revoked') this.onboardingToken.clear();

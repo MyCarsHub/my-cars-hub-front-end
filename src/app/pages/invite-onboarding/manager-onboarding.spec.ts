@@ -326,9 +326,9 @@ describe('ManagerOnboarding (/convite/cadastro)', () => {
       expect(text()).toContain('Seu cadastro já foi concluído');
     });
 
-    it('ONBOARDING_ROLE_MISMATCH shows the driver placeholder', async () => {
+    it('ONBOARDING_ROLE_MISMATCH blocks with the other-access copy', async () => {
       await failWith('ONBOARDING_ROLE_MISMATCH', 403);
-      expect(heading()).toContain('Cadastro do motorista em breve');
+      expect(text()).toContain('Este convite é para outro tipo de acesso');
     });
 
     it('never shows the raw backend message', async () => {
@@ -339,10 +339,11 @@ describe('ManagerOnboarding (/convite/cadastro)', () => {
   });
 
   describe('other roles and load failures', () => {
-    it('a DRIVER context shows the "em breve" placeholder, not the manager wizard', async () => {
-      await open(context({ role: 'DRIVER', roleLabel: 'Motorista' }));
-      expect(heading()).toContain('Cadastro do motorista em breve');
-      expect(dom().querySelector('[role="progressbar"]')).toBeNull();
+    it('a DRIVER context shows the driver wizard, not the manager one', async () => {
+      await open(context({ role: 'DRIVER', roleLabel: 'Motorista', needsLicense: true }));
+      expect(dom().querySelector('[data-testid="driver-onboarding"]')).not.toBeNull();
+      expect(text()).not.toContain('Termos e privacidade');
+      expect(dom().querySelectorAll('[role="progressbar"]').length).toBe(1);
     });
 
     it('a revoked token on load shows the blocked screen', async () => {

@@ -52,6 +52,12 @@ export interface InviteOnboardingContext {
   companyName: string;
   prefill: { name: string; phoneMasked: string };
   identityEditable: boolean;
+  /**
+   * DRIVER only: the registration is still PENDING_ONBOARDING, so the screen asks for CNH and
+   * address. `false` (company completed it meanwhile) or absent on an older backend for a
+   * MANAGER. Treated as "does not need" only when the backend says `false` for a DRIVER.
+   */
+  needsLicense?: boolean;
 }
 
 export interface ManagerOnboardingRequest {
@@ -61,5 +67,31 @@ export interface ManagerOnboardingRequest {
 }
 
 export interface ManagerOnboardingResponse {
+  accessToken: string;
+}
+
+export type DriverLicenseCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'AB' | 'AC' | 'AD' | 'AE';
+
+/** Same shape as the driver form's address (the backend reuses `AddressDto`). */
+export interface DriverOnboardingAddress {
+  street: string;
+  number: string | null;
+  complement: string | null;
+  district: string;
+  cep: string;
+  city: string;
+  uf: string;
+}
+
+/** `POST /v1/invite-onboarding/driver`. Every field is optional only for a registration the company already completed. */
+export interface DriverOnboardingRequest {
+  licenseNumber?: string;
+  licenseCategory?: DriverLicenseCategory;
+  licenseExpiry?: string;
+  address?: DriverOnboardingAddress;
+  rg?: string;
+}
+
+export interface DriverOnboardingResponse {
   accessToken: string;
 }
