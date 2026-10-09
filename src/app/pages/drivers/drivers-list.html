@@ -163,17 +163,26 @@
                   <h3 class="text-sm font-semibold text-neutral-900 break-words">{{ driver.name }}</h3>
                   <p class="text-xs text-neutral-500 mt-0.5 break-all">{{ driver.email ?? '—' }}</p>
                 </div>
+                <div class="flex flex-col items-end gap-1 shrink-0">
                 <span
-                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide shrink-0"
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
                   [class]="statusChip(driver.status)">
                   {{ statusLabel(driver.status) }}
                 </span>
+                @if (driver.registrationStatus === 'PENDING_ONBOARDING') {
+                  <span
+                    data-testid="registration-pending-chip"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800">
+                    Cadastro pendente
+                  </span>
+                }
+                </div>
               </div>
 
               <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
                 <div>
                   <span class="text-neutral-400 uppercase tracking-wide text-[10px]">CNH</span>
-                  <p class="font-medium">{{ driver.licenseNumber }} · {{ driver.licenseCategory }}</p>
+                  <p class="font-medium">{{ driver.licenseNumber ?? '—' }}{{ driver.licenseCategory ? ' · ' + driver.licenseCategory : '' }}</p>
                 </div>
                 <div>
                   <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Vencimento</span>
@@ -248,13 +257,20 @@
                   tabindex="0"
                   [attr.aria-label]="'Ver detalhes de ' + driver.name">
                   <td class="py-3 pr-4 font-medium text-neutral-900">{{ driver.name }}</td>
-                  <td class="py-3 pr-4 text-neutral-700 tabular-nums">{{ driver.licenseNumber }}</td>
-                  <td class="py-3 pr-4 text-neutral-700">{{ driver.licenseCategory }}</td>
+                  <td class="py-3 pr-4 text-neutral-700 tabular-nums">{{ driver.licenseNumber ?? '—' }}</td>
+                  <td class="py-3 pr-4 text-neutral-700">{{ driver.licenseCategory ?? '—' }}</td>
                   <td class="py-3 pr-4">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
                       [class]="statusChip(driver.status)">
                       {{ statusLabel(driver.status) }}
                     </span>
+                @if (driver.registrationStatus === 'PENDING_ONBOARDING') {
+                  <span
+                    data-testid="registration-pending-chip"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ml-1 bg-amber-100 text-amber-800">
+                    Cadastro pendente
+                  </span>
+                }
                   </td>
                   <td class="py-3 pr-4 text-neutral-700">{{ driver.email ?? '—' }}</td>
                   <td class="py-3 pr-4 text-neutral-700 tabular-nums">{{ formatPhone(driver.phone) }}</td>

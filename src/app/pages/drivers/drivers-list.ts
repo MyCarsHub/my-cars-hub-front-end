@@ -157,11 +157,13 @@ export class DriversList implements OnInit {
     return phone ?? '—';
   }
 
-  protected formatDate(iso: string): string {
+  protected formatDate(iso: string | null): string {
+    if (!iso) return '—';
     return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR');
   }
 
-  protected isExpiringSoon(iso: string): boolean {
+  protected isExpiringSoon(iso: string | null): boolean {
+    if (!iso) return false;
     const expiry = new Date(iso + 'T00:00:00').getTime();
     const now = Date.now();
     const days = (expiry - now) / (1000 * 60 * 60 * 24);

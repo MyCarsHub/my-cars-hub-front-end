@@ -147,6 +147,11 @@ export class DriverDetail implements OnInit {
     () => this.driver()?.thirdPartyContacts ?? [],
   );
 
+  /** PENDING_ONBOARDING: out of rentals until the driver completes the CNH and address. */
+  protected readonly registrationPending = computed(
+    () => this.driver()?.registrationStatus === 'PENDING_ONBOARDING',
+  );
+
   protected readonly expiringSoon = computed(() => {
     const iso = this.driver()?.licenseExpiry;
     if (!iso) return false;

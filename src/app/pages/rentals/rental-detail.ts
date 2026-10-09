@@ -1,4 +1,8 @@
 import {
+  DRIVER_REGISTRATION_INCOMPLETE_COPY,
+  isDriverRegistrationIncomplete,
+} from '../../services/driver-invite-outcome';
+import {
   ChangeDetectionStrategy,
   Component,
   DOCUMENT,
@@ -590,7 +594,11 @@ export class RentalDetail implements OnInit {
         this.activateBusy.set(false);
         // Único ponto que arma o scroll+foco — ver `activationErrorPendingReveal`.
         this.activationErrorPendingReveal = true;
-        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível ativar o aluguel.'));
+        // messageFor also claims the error (no safety-net toast), so it runs in both cases.
+        const message = this.apiErrors.messageFor(err, 'Não foi possível ativar o aluguel.');
+        this.actionError.set(
+          isDriverRegistrationIncomplete(err) ? DRIVER_REGISTRATION_INCOMPLETE_COPY : message,
+        );
       },
     });
   }

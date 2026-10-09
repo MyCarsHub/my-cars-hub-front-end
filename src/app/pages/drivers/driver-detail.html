@@ -23,6 +23,13 @@
               [class]="statusInfo().chip">
               {{ statusInfo().label }}
             </span>
+            @if (registrationPending()) {
+              <span
+                data-testid="registration-pending-chip"
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800">
+                Cadastro pendente
+              </span>
+            }
           </div>
         </div>
       </div>
@@ -181,40 +188,52 @@
       <!-- Endereço -->
       <app-page-card title="Endereço">
         <div class="p-4 sm:p-6 space-y-2">
-          <p class="text-neutral-900 break-words">
-            {{ d.address.street }}@if (d.address.number) {, {{ d.address.number }}}
-            @if (d.address.complement) { <span class="text-neutral-500">— {{ d.address.complement }}</span> }
-          </p>
-          <p class="text-sm text-neutral-600">
-            {{ d.address.district }} · {{ d.address.city }}/{{ d.address.uf }}
-          </p>
-          <p class="text-xs text-neutral-500 tabular-nums">CEP {{ formatCep(d.address.cep) }}</p>
+          @if (d.address; as address) {
+            <p class="text-neutral-900 break-words">
+              {{ address.street }}@if (address.number) {, {{ address.number }}}
+              @if (address.complement) { <span class="text-neutral-500">— {{ address.complement }}</span> }
+            </p>
+            <p class="text-sm text-neutral-600">
+              {{ address.district }} · {{ address.city }}/{{ address.uf }}
+            </p>
+            <p class="text-xs text-neutral-500 tabular-nums">CEP {{ formatCep(address.cep) }}</p>
+          } @else {
+            <p class="text-sm text-neutral-600" data-testid="address-pending">
+              Aguardando o motorista completar o cadastro.
+            </p>
+          }
         </div>
       </app-page-card>
 
       <!-- CNH -->
       <app-page-card title="Carteira de habilitação">
-        <div class="p-4 sm:p-6 grid grid-cols-2 gap-3">
-          <div>
-            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Número</p>
-            <p class="text-neutral-900 font-medium tabular-nums">{{ d.licenseNumber }}</p>
+        @if (d.licenseNumber) {
+          <div class="p-4 sm:p-6 grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Número</p>
+              <p class="text-neutral-900 font-medium tabular-nums">{{ d.licenseNumber }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Categoria</p>
+              <p class="text-neutral-900 font-medium">{{ d.licenseCategory }}</p>
+            </div>
+            <div class="col-span-2">
+              <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Vencimento</p>
+              <p class="font-medium tabular-nums"
+                [class.text-rose-600]="expiringSoon()"
+                [class.text-neutral-900]="!expiringSoon()">
+                {{ formatDate(d.licenseExpiry) }}
+                @if (expiringSoon()) {
+                  <span class="text-xs text-rose-600 ml-2">(vence em breve)</span>
+                }
+              </p>
+            </div>
           </div>
-          <div>
-            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Categoria</p>
-            <p class="text-neutral-900 font-medium">{{ d.licenseCategory }}</p>
-          </div>
-          <div class="col-span-2">
-            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Vencimento</p>
-            <p class="font-medium tabular-nums"
-              [class.text-rose-600]="expiringSoon()"
-              [class.text-neutral-900]="!expiringSoon()">
-              {{ formatDate(d.licenseExpiry) }}
-              @if (expiringSoon()) {
-                <span class="text-xs text-rose-600 ml-2">(vence em breve)</span>
-              }
-            </p>
-          </div>
-        </div>
+        } @else {
+          <p class="p-4 sm:p-6 text-sm text-neutral-600" data-testid="license-pending">
+            Aguardando o motorista completar o cadastro.
+          </p>
+        }
       </app-page-card>
 
       <!-- Empresa / vínculo -->

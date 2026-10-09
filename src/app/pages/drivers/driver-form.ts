@@ -11,6 +11,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   AbstractControl,
   FormBuilder,
+  ValidatorFn,
   FormControl,
   FormGroup,
   ReactiveFormsModule,
@@ -37,11 +38,17 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
+import { InvitesService } from '../../services/invites.service';
+import {
+  DRIVER_INVITE_FROM_MEMBERS_HINT,
+  driverInviteOutcome,
+} from '../../services/driver-invite-outcome';
 import { CepService } from '../../services/cep.service';
 import {
   CreateDriverRequest,
   DRIVER_DOCUMENT_KIND_META,
   DriverDocumentKind,
+  DriverInviteSummary,
   DriverResponse,
   DriverStatus,
   LicenseCategory,
@@ -49,6 +56,7 @@ import {
   UpdateDriverRequest,
 } from '../../types/driver.types';
 import { DRIVER_STATUS_META } from '../../utils/status-maps';
+import { BR_UFS } from '../../utils/br-ufs';
 import { isValidCpf } from '../../utils/validators/cpf.validator';
 import { formatDocumentSize } from '../../components/documents/document-file-rules';
 import {
@@ -56,11 +64,15 @@ import {
   PendingSlotView,
 } from '../../components/documents/pending-documents-block';
 
+/** Blocks that are optional at registration but must be empty or complete (see `requiredUnlessOptional`). */
+const ADDRESS_KEYS = ['cep', 'street', 'district', 'city', 'uf'] as const;
+const LICENSE_KEYS = ['licenseNumber', 'licenseCategory', 'licenseExpiry'] as const;
+
 const CATEGORIES: LicenseCategory[] = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
 const STATUSES: Array<{ value: DriverStatus; label: string }> = (
   ['AVAILABLE', 'WORKING', 'SUSPENDED'] as DriverStatus[]
 ).map((v) => ({ value: v, label: DRIVER_STATUS_META[v].label }));
-const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+const UFS = BR_UFS;
 
 /**
  * Complemento do banner quando o envio de um anexo falha sem mensagem do
@@ -119,6 +131,7 @@ type ThirdPartyContactGroup = FormGroup<{
 export class DriverForm implements OnInit {
   private readonly driverService = inject(DriverService);
   private readonly cepService = inject(CepService);
+  private readonly invites = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
@@ -144,6 +157,25 @@ export class DriverForm implements OnInit {
    * faltam subir.
    */
   protected readonly canAttachDocuments = this.route.snapshot.paramMap.get('id') === null;
+
+  /**
+   * Registering (route has no id). "Cadastrar motorista" registers the driver AND sends the
+   * invite, so only name, CPF and a contact (e-mail required) are mandatory: RG, address and CNH
+   * are optional here and the driver completes them at the first access. Editing keeps them
+   * required because `PUT /drivers/{id}` still requires them.
+   */
+  protected readonly creating = this.canAttachDocuments;
+
+  /** Result panel after a saved driver whose invite was refused (stays on screen: it has an action). */
+  protected readonly inviteResult = signal<{
+    driverId: string;
+    message: string;
+    inviteId: string | null;
+  } | null>(null);
+  protected readonly resending = signal(false);
+  protected readonly resendError = signal<string | null>(null);
+  protected readonly membersHint = DRIVER_INVITE_FROM_MEMBERS_HINT;
+  private savedInvite: DriverInviteSummary | undefined;
 
   /** Arquivos escolhidos no cadastro, enviados como elo filho do submit. */
   protected readonly pendingFiles = signal<PendingDriverFile[]>([]);
@@ -211,6 +243,9 @@ export class DriverForm implements OnInit {
     required: 'Informe o número da CNH.',
     pattern: 'A CNH deve ter 11 caracteres.',
   };
+  protected readonly licenseCategoryMessages: Readonly<Record<string, string>> = {
+    required: 'Selecione a categoria.',
+  };
   protected readonly licenseExpiryMessages: Readonly<Record<string, string>> = {
     required: 'Informe a data de vencimento.',
   };
@@ -231,8 +266,7 @@ export class DriverForm implements OnInit {
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(180)]],
-    rg: ['', [Validators.required, Validators.maxLength(10)]],
-    userId: [''],
+    rg: ['', this.creating ? [Validators.maxLength(10)] : [Validators.required, Validators.maxLength(10)]],
     document: this.fb.nonNullable.group({
       type: ['CPF' as 'CPF' | 'CNPJ', [Validators.required]],
       value: ['', [
@@ -250,22 +284,48 @@ export class DriverForm implements OnInit {
       phone: ['', [Validators.required, Validators.pattern(/^\d{10,11}$/)]],
     }),
     address: this.fb.nonNullable.group({
-      cep: ['', [Validators.required, Validators.pattern(/^\d{5}-?\d{3}$/)]],
-      street: ['', [Validators.required, Validators.maxLength(180)]],
+      cep: ['', [this.requiredUnlessOptional(ADDRESS_KEYS), Validators.pattern(/^\d{5}-?\d{3}$/)]],
+      street: ['', [this.requiredUnlessOptional(ADDRESS_KEYS), Validators.maxLength(180)]],
       number: [''],
       complement: [''],
-      district: ['', [Validators.required, Validators.maxLength(120)]],
-      city: ['', [Validators.required, Validators.maxLength(120)]],
-      uf: ['', [Validators.required, Validators.pattern(/^[A-Z]{2}$/)]],
+      district: ['', [this.requiredUnlessOptional(ADDRESS_KEYS), Validators.maxLength(120)]],
+      city: ['', [this.requiredUnlessOptional(ADDRESS_KEYS), Validators.maxLength(120)]],
+      uf: ['', [this.requiredUnlessOptional(ADDRESS_KEYS), Validators.pattern(/^[A-Z]{2}$/)]],
     }),
-    licenseNumber: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{11}$/)]],
-    licenseCategory: ['B' as LicenseCategory, [Validators.required]],
-    licenseExpiry: ['', [Validators.required]],
+    licenseNumber: ['', [this.requiredUnlessOptional(LICENSE_KEYS), Validators.pattern(/^[A-Z0-9]{11}$/)]],
+    licenseCategory: ['' as LicenseCategory | '', [this.requiredUnlessOptional(LICENSE_KEYS)]],
+    licenseExpiry: ['', [this.requiredUnlessOptional(LICENSE_KEYS)]],
     status: ['AVAILABLE' as DriverStatus, [Validators.required]],
     // FEAT-0067 — até 3 blocos {nome, telefone}. Dentro do form de propósito:
     // um contato meio-preenchido invalida o submit como qualquer outro campo.
     thirdPartyContacts: this.fb.array<ThirdPartyContactGroup>([]),
   });
+
+  /**
+   * Required when editing; when registering, required only once any sibling of the same block
+   * (address or CNH) is filled, so a block is either empty or complete. `ctrl.parent` is read
+   * lazily: the validator also runs during construction, before the parent exists.
+   */
+  private requiredUnlessOptional(keys: readonly string[]): ValidatorFn {
+    return (ctrl: AbstractControl) => {
+      if (!this.creating) return Validators.required(ctrl);
+      if (String(ctrl.value ?? '').trim() !== '') return null;
+      const parent = ctrl.parent;
+      if (!parent) return null;
+      const started = keys.some((key) => String(parent.get(key)?.value ?? '').trim() !== '');
+      return started ? { required: true } : null;
+    };
+  }
+
+  /** Re-run the "empty or complete" validators of a block when any sibling changes. */
+  private linkBlock(parent: AbstractControl, keys: readonly string[]): void {
+    parent.valueChanges.subscribe(() => {
+      // `onlySelf` keeps each child's event from bubbling back into this subscription; the child
+      // DOES emit, which is what refreshes the error line of the field that just became valid.
+      keys.forEach((key) => parent.get(key)?.updateValueAndValidity({ onlySelf: true }));
+      parent.updateValueAndValidity({ onlySelf: true, emitEvent: false });
+    });
+  }
 
   protected get contactsArray() {
     return this.form.controls.thirdPartyContacts;
@@ -320,6 +380,11 @@ export class DriverForm implements OnInit {
     this.form.controls.document.controls.type.valueChanges.subscribe(() => {
       this.form.controls.document.controls.value.updateValueAndValidity();
     });
+
+    if (this.creating) {
+      this.linkBlock(this.form.controls.address, ADDRESS_KEYS);
+      this.linkBlock(this.form, LICENSE_KEYS);
+    }
 
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
@@ -405,7 +470,6 @@ export class DriverForm implements OnInit {
         this.form.patchValue({
           name: driver.name,
           rg: rgDigits,
-          userId: driver.userId ?? '',
           document: {
             type: driver.document.type ?? 'CPF',
             value: driver.document.value ?? '',
@@ -414,18 +478,19 @@ export class DriverForm implements OnInit {
             email: driver.contact.email,
             phone: phoneDigits,
           },
+          // A PENDING_ONBOARDING driver has no address and no CNH yet (null from the API).
           address: {
-            cep: driver.address.cep,
-            street: driver.address.street,
-            number: driver.address.number ?? '',
-            complement: driver.address.complement ?? '',
-            district: driver.address.district,
-            city: driver.address.city,
-            uf: driver.address.uf,
+            cep: driver.address?.cep ?? '',
+            street: driver.address?.street ?? '',
+            number: driver.address?.number ?? '',
+            complement: driver.address?.complement ?? '',
+            district: driver.address?.district ?? '',
+            city: driver.address?.city ?? '',
+            uf: driver.address?.uf ?? '',
           },
           licenseNumber: licenseRaw,
-          licenseCategory: driver.licenseCategory,
-          licenseExpiry: driver.licenseExpiry,
+          licenseCategory: driver.licenseCategory ?? '',
+          licenseExpiry: driver.licenseExpiry ?? '',
           status: driver.status,
         });
         this.loading.set(false);
@@ -531,24 +596,39 @@ export class DriverForm implements OnInit {
       email: raw.contact.email.trim(),
       phone: raw.contact.phone.trim(),
     };
-    const commonPayload = {
-      name: raw.name.trim(),
-      rg: raw.rg ? raw.rg.replace(/\D/g, '') || null : null,
-      userId: raw.userId?.trim() ? raw.userId.trim() : null,
-      address: addressPayload,
-      contact: contactPayload,
-      licenseNumber: raw.licenseNumber.trim(),
-      licenseCategory: raw.licenseCategory,
-      licenseExpiry: raw.licenseExpiry,
-      status: raw.status,
-    };
+    const rgDigits = raw.rg ? raw.rg.replace(/\D/g, '') : '';
 
     if (this.isEdit()) {
-      const payload: UpdateDriverRequest = commonPayload;
+      // The PUT still requires RG, address and CNH; the validators of the edit mode guarantee them.
+      const payload: UpdateDriverRequest = {
+        name: raw.name.trim(),
+        rg: rgDigits || null,
+        address: addressPayload,
+        contact: contactPayload,
+        licenseNumber: raw.licenseNumber.trim(),
+        licenseCategory: raw.licenseCategory as LicenseCategory,
+        licenseExpiry: raw.licenseExpiry,
+        status: raw.status,
+      };
       this.saveChildren(this.driverService.update(this.editingId()!, payload));
     } else {
+      // Exactly what the backend DTO takes: address and CNH travel only when their block is
+      // complete (the validators make a block empty-or-complete); there is no `userId`.
+      const hasAddress = ADDRESS_KEYS.some((key) => raw.address[key].trim() !== '');
+      const hasLicense = raw.licenseNumber.trim() !== '';
       const payload: CreateDriverRequest = {
-        ...commonPayload,
+        name: raw.name.trim(),
+        ...(rgDigits ? { rg: rgDigits } : {}),
+        ...(hasAddress ? { address: addressPayload } : {}),
+        contact: contactPayload,
+        ...(hasLicense
+          ? {
+              licenseNumber: raw.licenseNumber.trim(),
+              licenseCategory: raw.licenseCategory as LicenseCategory,
+              licenseExpiry: raw.licenseExpiry,
+            }
+          : {}),
+        status: raw.status,
         document: {
           type: raw.document.type,
           value: raw.document.value.trim(),
@@ -582,6 +662,8 @@ export class DriverForm implements OnInit {
     save$
       .pipe(
         tap((driver) => {
+          // Only the POST carries the invite part; the retry's PUT does not, so keep the first.
+          if (driver.invite) this.savedInvite = driver.invite;
           this.editingId.set(driver.id);
           // A promoção também trava o CPF/CNPJ, como na rota de edição: o
           // retry faz PUT, e `UpdateDriverRequest` NÃO carrega `document` —
@@ -603,13 +685,60 @@ export class DriverForm implements OnInit {
       .subscribe({
         next: (driver) => {
           this.saving.set(false);
-          this.notifications.success(
-            hadPendingUploads ? 'Motorista salvo e documentos enviados.' : 'Motorista salvo.',
-          );
-          this.router.navigate(['/motoristas', driver.id]);
+          this.finishSave(driver, hadPendingUploads);
         },
         error: (err: HttpErrorResponse) => this.handleError(err),
       });
+  }
+
+  private finishSave(driver: DriverResponse, hadPendingUploads: boolean): void {
+    const email = driver.contact?.email ?? this.form.controls.contact.controls.email.value.trim();
+    const outcome = this.creating ? driverInviteOutcome(this.savedInvite, email) : null;
+    const docs = hadPendingUploads ? ' Documentos enviados.' : '';
+
+    if (!outcome || outcome.kind === 'none') {
+      this.notifications.success(
+        hadPendingUploads ? 'Motorista salvo e documentos enviados.' : 'Motorista salvo.',
+      );
+      this.router.navigate(['/motoristas', driver.id]);
+      return;
+    }
+    if (outcome.kind === 'sent') {
+      this.notifications.success(outcome.message + docs);
+      this.router.navigate(['/motoristas', driver.id]);
+      return;
+    }
+    if (outcome.kind === 'not-sent') {
+      this.notifications.info(outcome.message + docs);
+      this.router.navigate(['/motoristas', driver.id]);
+      return;
+    }
+    // Refused invite: the driver IS saved, so say it and offer the next step right here.
+    this.inviteResult.set({ driverId: driver.id, message: outcome.message + docs, inviteId: outcome.inviteId });
+  }
+
+  /** "Reenviar convite": the existing resend endpoint, only when the invite row exists. */
+  protected resendInvite(): void {
+    const result = this.inviteResult();
+    if (!result?.inviteId || this.resending()) return;
+    this.resending.set(true);
+    this.resendError.set(null);
+    this.invites.resend(result.inviteId).subscribe({
+      next: () => {
+        this.resending.set(false);
+        this.notifications.success('Convite reenviado.');
+        this.router.navigate(['/motoristas', result.driverId]);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.resending.set(false);
+        this.resendError.set(this.apiErrors.messageFor(err, 'Não foi possível reenviar o convite.'));
+      },
+    });
+  }
+
+  protected openSavedDriver(): void {
+    const result = this.inviteResult();
+    if (result) this.router.navigate(['/motoristas', result.driverId]);
   }
 
   /**
