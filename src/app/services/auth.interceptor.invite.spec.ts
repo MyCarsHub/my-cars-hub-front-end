@@ -55,6 +55,7 @@ describe('authInterceptor - invite onboarding token allow-list', () => {
     `${API}/invite-onboarding`,
     `${API}/invite-onboarding/manager`,
     `${API}/invite-onboarding/manager?retry=1`,
+    `${API}/invite-onboarding/driver`,
     `${API}/invite-onboarding/driver/step-1`,
   ];
 
@@ -114,6 +115,7 @@ describe('authInterceptor - invite onboarding token allow-list', () => {
 
   it('exposes the allow-list as a pure predicate', () => {
     expect(isInviteOnboardingRequest(`${API}/invite-onboarding/manager`)).toBe(true);
+    expect(isInviteOnboardingRequest(`${API}/invite-onboarding/driver`)).toBe(true);
     expect(isInviteOnboardingRequest(`${API}/vehicles`)).toBe(false);
     expect(isInviteOnboardingRequest('https://evil.example.com/invite-onboarding')).toBe(false);
   });

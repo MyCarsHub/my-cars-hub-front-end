@@ -789,7 +789,7 @@ describe('DriverForm — erros de campo vindos do backend', () => {
     expect(input.getAttribute('aria-describedby')).toBe('motorista-cnh-error');
 
     // não duplicado no banner do formulário
-    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-alert-banner[variant="error"]')).toBeNull();
 
     // e nunca toast — a rede de segurança do interceptor fica quieta
     TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
@@ -841,7 +841,7 @@ describe('DriverForm — erros de campo vindos do backend', () => {
     expect(input.getAttribute('aria-describedby')).toBe('motorista-doc-valor-error');
 
     // shape 2 do contrato: já mostrado inline, não repete no banner
-    expect(fixture.nativeElement.querySelector('app-alert-banner')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-alert-banner[variant="error"]')).toBeNull();
 
     // e nunca toast — a rede de segurança do interceptor fica quieta
     TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
@@ -881,7 +881,7 @@ describe('DriverForm — erros de campo vindos do backend', () => {
     expect(input.getAttribute('aria-invalid')).toBeNull();
 
     // …mas a mensagem NÃO some mais: `unmatched` a leva para o banner.
-    expect(fixture.nativeElement.querySelector('app-alert-banner')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-alert-banner[variant="error"]')).not.toBeNull();
     expect(fixture.nativeElement.innerHTML).toContain('CPF já cadastrado para esta empresa.');
 
     // E nada foi escrito no FormGroup, que ninguém renderiza.

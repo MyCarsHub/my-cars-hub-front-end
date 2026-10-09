@@ -111,3 +111,62 @@ export function onboardingFailure(error: unknown): OnboardingFailure {
       };
   }
 }
+
+/** Where a failed driver-onboarding call sends the screen (the step that owns the field). */
+export type DriverOnboardingFailure =
+  | {
+      kind: 'field';
+      field: 'licenseNumber' | 'licenseCategory' | 'licenseExpiry' | 'address' | 'rg';
+      message: string;
+    }
+  | Exclude<OnboardingFailure, { kind: 'field' | 'terms' }>;
+
+/**
+ * Every code of `POST /v1/invite-onboarding/driver`. Each 400 names ONE field, so the screen can
+ * send the driver to the step that owns it instead of showing a generic banner.
+ */
+export function driverOnboardingFailure(error: unknown): DriverOnboardingFailure {
+  switch (inviteFlowErrorCode(error)) {
+    case 'ONBOARDING_LICENSE_INVALID':
+      return {
+        kind: 'field',
+        field: 'licenseNumber',
+        message: 'A CNH deve ter 11 letras ou números.',
+      };
+    case 'ONBOARDING_LICENSE_CATEGORY_INVALID':
+      return { kind: 'field', field: 'licenseCategory', message: 'Escolha a categoria da CNH.' };
+    case 'ONBOARDING_LICENSE_EXPIRY_INVALID':
+      return {
+        kind: 'field',
+        field: 'licenseExpiry',
+        message: 'Informe uma validade que não esteja vencida.',
+      };
+    case 'ONBOARDING_ADDRESS_INVALID':
+      return {
+        kind: 'field',
+        field: 'address',
+        message: 'Confira o endereço: CEP, rua, bairro, cidade e UF.',
+      };
+    case 'ONBOARDING_RG_INVALID':
+      return { kind: 'field', field: 'rg', message: 'Confira o RG (até 15 caracteres).' };
+    case 'DRIVER_LICENSE_TAKEN':
+      return {
+        kind: 'field',
+        field: 'licenseNumber',
+        message:
+          'Esta CNH já está cadastrada em outro motorista desta empresa. Confira o número ou fale com quem te convidou.',
+      };
+    case 'INVITE_DRIVER_NOT_REGISTERED':
+      return {
+        kind: 'generic',
+        message:
+          'A empresa ainda não concluiu o seu cadastro de motorista. Fale com quem enviou o convite.',
+      };
+    default: {
+      const failure = onboardingFailure(error);
+      return failure.kind === 'field' || failure.kind === 'terms'
+        ? { kind: 'generic', message: failure.message }
+        : failure;
+    }
+  }
+}

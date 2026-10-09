@@ -41,15 +41,32 @@ export interface ThirdPartyContact {
 /** Teto do servidor para `thirdPartyContacts` — o 4º é 400. */
 export const MAX_THIRD_PARTY_CONTACTS = 3;
 
+/**
+ * `PENDING_ONBOARDING`: registered with name, CPF and contact only; the driver completes the CNH
+ * and the address through the invite. Out of rentals until then. Absent on an older backend, which
+ * means COMPLETE (fail open on the badge, the backend still guards the rental).
+ */
+export type DriverRegistrationStatus = 'PENDING_ONBOARDING' | 'COMPLETE';
+
+/** Outcome of the invite sent together with `POST /drivers` (only on that response). */
+export interface DriverInviteSummary {
+  status: 'PENDING' | 'FAILED' | 'NOT_SENT';
+  inviteId?: string;
+  emailDelivery?: string;
+  /** Domain code of a refused invite (INVITE_DUPLICATE, INVITE_ALREADY_MEMBER, ...). */
+  code?: string;
+}
+
 export interface DriverListItem {
   id: string;
   name: string;
   email: string | null;
   phone: string | null;
-  licenseNumber: string;
-  licenseCategory: LicenseCategory;
-  licenseExpiry: string;
+  licenseNumber: string | null;
+  licenseCategory: LicenseCategory | null;
+  licenseExpiry: string | null;
   status: DriverStatus;
+  registrationStatus?: DriverRegistrationStatus;
 }
 
 export interface DriverResponse {
@@ -61,12 +78,17 @@ export interface DriverResponse {
   name: string;
   rg: string | null;
   document: { type: DocumentType | null; value: string | null };
-  address: AddressPayload;
+  /** `null` while the registration is PENDING_ONBOARDING. */
+  address: AddressPayload | null;
   contact: ContactPayload;
-  licenseNumber: string;
-  licenseCategory: LicenseCategory;
-  licenseExpiry: string;
+  /** `null` while the registration is PENDING_ONBOARDING. */
+  licenseNumber: string | null;
+  licenseCategory: LicenseCategory | null;
+  licenseExpiry: string | null;
   status: DriverStatus;
+  registrationStatus?: DriverRegistrationStatus;
+  /** Only on the `POST /drivers` response. */
+  invite?: DriverInviteSummary;
   /**
    * Motorista de aplicativo (FEAT-0034, migration V69).
    *
@@ -89,16 +111,21 @@ export interface DriverResponse {
   thirdPartyContacts: ThirdPartyContact[];
 }
 
+/**
+ * `POST /drivers` registers the driver AND sends the invite. The contact e-mail is required;
+ * RG, address and CNH (number + category + expiry) are optional: complete -> COMPLETE,
+ * otherwise PENDING_ONBOARDING. There is no `userId`: the account link only comes from a path
+ * that proves identity (the invite), never from the client.
+ */
 export interface CreateDriverRequest {
   name: string;
-  userId: string | null;
   rg?: string | null;
   document: DocumentInputPayload;
-  address: AddressPayload;
+  address?: AddressPayload;
   contact: ContactPayload;
-  licenseNumber: string;
-  licenseCategory: LicenseCategory;
-  licenseExpiry: string;
+  licenseNumber?: string;
+  licenseCategory?: LicenseCategory;
+  licenseExpiry?: string;
   status: DriverStatus;
   /** Máx. 3, na ordem de exibição. Ver `ThirdPartyContact`. Só no CREATE. */
   thirdPartyContacts: ThirdPartyContact[];
@@ -106,7 +133,6 @@ export interface CreateDriverRequest {
 
 export interface UpdateDriverRequest {
   name: string;
-  userId: string | null;
   rg?: string | null;
   address: AddressPayload;
   contact: ContactPayload;

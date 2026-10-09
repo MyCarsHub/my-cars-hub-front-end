@@ -1,4 +1,8 @@
 import {
+  DRIVER_REGISTRATION_INCOMPLETE_COPY,
+  isDriverRegistrationIncomplete,
+} from '../../services/driver-invite-outcome';
+import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
@@ -907,7 +911,8 @@ export class RentalForm implements OnInit {
           this.form,
           'Não foi possível criar o aluguel.',
         );
-        this.error.set(formMessage);
+        // The driver was registered without CNH/address and has not completed it yet.
+        this.error.set(isDriverRegistrationIncomplete(err) ? DRIVER_REGISTRATION_INCOMPLETE_COPY : formMessage);
       },
     });
   }

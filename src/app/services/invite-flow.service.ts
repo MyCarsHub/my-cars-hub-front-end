@@ -7,6 +7,8 @@ import {
   InviteAcceptResponse,
   InviteOnboardingContext,
   InviteValidateResponse,
+  DriverOnboardingRequest,
+  DriverOnboardingResponse,
   ManagerOnboardingRequest,
   ManagerOnboardingResponse,
 } from '../types/invite-flow.types';
@@ -66,6 +68,13 @@ export class InviteFlowService {
   /** `POST /v1/invite-onboarding/manager`. */
   submitManager(payload: ManagerOnboardingRequest): Observable<ManagerOnboardingResponse> {
     return this.http.post<ManagerOnboardingResponse>(`${ONBOARDING}/manager`, payload, {
+      context: owned(),
+    });
+  }
+
+  /** `POST /v1/invite-onboarding/driver` - the interceptor attaches the onboarding token. */
+  submitDriver(payload: DriverOnboardingRequest): Observable<DriverOnboardingResponse> {
+    return this.http.post<DriverOnboardingResponse>(`${ONBOARDING}/driver`, payload, {
       context: owned(),
     });
   }

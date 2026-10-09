@@ -1,4 +1,5 @@
 <div class="min-h-dvh flex flex-col bg-neutral-50">
+  @if (mode() !== 'driver') {
   <header class="bg-white border-b border-neutral-200 px-4 pt-4 pb-3">
     <div class="mx-auto w-full max-w-lg">
       <div class="flex items-center justify-between gap-3">
@@ -36,6 +37,7 @@
       }
     </div>
   </header>
+  }
 
   @switch (mode()) {
     @case ('loading') {
@@ -66,24 +68,8 @@
       </main>
     }
 
-    @case ('driver-soon') {
-      <main class="flex-1 px-4 py-6">
-        <div class="mx-auto w-full max-w-lg">
-          <h1 class="text-xl font-bold text-neutral-900">Cadastro do motorista em breve</h1>
-          <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
-            O cadastro de motorista ainda está sendo liberado. Volte a este link em alguns dias ou
-            fale com quem te convidou.
-          </p>
-          <a
-            routerLink="/"
-            class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
-                   border-neutral-200 bg-white text-base font-semibold text-neutral-800 px-5 py-3
-                   hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
-                   focus-visible:ring-primary-600"
-            >Voltar para o início</a
-          >
-        </div>
-      </main>
+    @case ('driver') {
+      <app-driver-onboarding [context]="context()!" (blocked)="onDriverBlocked($event)" />
     }
 
     @case ('wizard') {
