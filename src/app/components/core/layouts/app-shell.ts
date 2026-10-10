@@ -39,11 +39,11 @@ import { TourService } from '../../tour/tour.service';
   template: `
     <!--
       pt-14 reserva os 56px da barra de impersonação (fixed no topo, montada na
-      raiz da aplicação). Com box-sizing border-box, o h-screen continua valendo
-      100vh e é o CONTEÚDO que encolhe — sem isso a barra cobriria o topo da
+      raiz da aplicação). Com box-sizing border-box, o h-dvh continua valendo
+      100dvh e é o CONTEÚDO que encolhe — sem isso a barra cobriria o topo da
       sidebar e o botão do menu no mobile.
     -->
-    <div class="flex h-screen overflow-hidden bg-gray-50" [class.pt-14]="impersonating()">
+    <div class="flex h-dvh overflow-hidden bg-gray-50" [class.pt-14]="impersonating()">
       <app-sidebar />
       <main
         class="relative flex-1 overflow-y-auto transition-none"

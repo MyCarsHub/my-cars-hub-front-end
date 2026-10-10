@@ -18,7 +18,7 @@ export interface DateRange {
     to: string;
 }
 
-type PresetKey =
+export type DateRangePresetKey =
     | 'today'
     | '7d'
     | '30d'
@@ -33,7 +33,7 @@ type PresetKey =
 // "Mês atual" is the default: it covers what has already happened this month
 // AND the remaining projected days — matches how the tenant thinks about
 // operational revenue.
-const PRESETS: readonly FilterChipOption<PresetKey>[] = [
+const PRESETS: readonly FilterChipOption<DateRangePresetKey>[] = [
     { value: 'monthCurrent', label: 'Mês atual' },
     { value: 'today', label: 'Hoje' },
     { value: '7d', label: '7 dias' },
@@ -53,7 +53,7 @@ function iso(date: Date): string {
     return `${y}-${m}-${d}`;
 }
 
-function rangeForPreset(preset: PresetKey): DateRange | null {
+function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const shift = (days: number) => {
@@ -101,7 +101,7 @@ function rangeForPreset(preset: PresetKey): DateRange | null {
     template: `
         <div class="flex flex-col gap-3">
             <app-filter-chip-group
-                [options]="presets"
+                [options]="presets()"
                 [value]="selected()"
                 [scrollable]="true"
                 ariaLabel="Período"
@@ -114,7 +114,7 @@ function rangeForPreset(preset: PresetKey): DateRange | null {
                         De
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-sm
+                            class="min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-base sm:text-sm
                                    text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customFrom()"
                             (change)="onCustomFrom($any($event.target).value)"
@@ -124,7 +124,7 @@ function rangeForPreset(preset: PresetKey): DateRange | null {
                         Até
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-sm
+                            class="min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-base sm:text-sm
                                    text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customTo()"
                             (change)="onCustomTo($any($event.target).value)"
@@ -165,9 +165,23 @@ export class DateRangePicker implements OnInit {
      * passa a dizer "nada encontrado com estes filtros" para quem não filtrou
      * nada.
      */
-    readonly initialPreset = input<PresetKey | null>('monthCurrent');
+    readonly initialPreset = input<DateRangePresetKey | null>('monthCurrent');
 
-    protected readonly presets = PRESETS;
+    /**
+     * Quais chips existem, na ordem de `PRESETS`. `null` (padrão) mostra todos — o dashboard
+     * da frota continua exatamente como era. Uma tela que só faz sentido com um subconjunto
+     * (a do motorista: sem "Próximos 30 dias", que é projeção de cobrança) passa a lista
+     * em vez de ganhar um segundo seletor de período.
+     *
+     * A lista filtra os chips; não valida `initialPreset`. Quem passa os dois é quem
+     * garante que o inicial está na lista.
+     */
+    readonly presetKeys = input<readonly DateRangePresetKey[] | null>(null);
+
+    protected readonly presets = computed<readonly FilterChipOption<DateRangePresetKey>[]>(() => {
+        const keys = this.presetKeys();
+        return keys === null ? PRESETS : PRESETS.filter((p) => keys.includes(p.value));
+    });
 
     constructor() {
         effect(() => {
@@ -190,7 +204,7 @@ export class DateRangePicker implements OnInit {
     // rest of the month's projected revenue on first paint — critical because
     // rentals with future start dates (e.g. contract of R$ 42.400 starting
     // next week) were invisible under the old rolling-30d default.
-    protected readonly selected = signal<PresetKey | null>('monthCurrent');
+    protected readonly selected = signal<DateRangePresetKey | null>('monthCurrent');
     protected readonly customFrom = signal<string>('');
     protected readonly customTo = signal<string>('');
 
@@ -230,7 +244,7 @@ export class DateRangePicker implements OnInit {
      * agora aceita "nenhum período". Não é escolha do usuário — ele não tem
      * como clicar em "nada" —, então ignora.
      */
-    protected selectPreset(key: PresetKey | null): void {
+    protected selectPreset(key: DateRangePresetKey | null): void {
         if (key === null) return;
         this.selected.set(key);
         const r = rangeForPreset(key);

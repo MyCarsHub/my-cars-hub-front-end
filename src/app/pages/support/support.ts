@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Location } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -11,7 +11,18 @@ import { SupportTicketService } from '../../services/support-ticket.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { clearServerErrors } from '../../services/api-error';
-import { SupportTicketChannel } from '../../types/support.types';
+import { formatDate } from '../../types/dashboard.types';
+import {
+  MySupportTicket,
+  SupportTicketChannel,
+  SupportTicketStatus,
+} from '../../types/support.types';
+
+const STATUS_LABELS: Readonly<Record<SupportTicketStatus, string>> = {
+  OPEN: 'Aberto',
+  IN_PROGRESS: 'Em andamento',
+  RESOLVED: 'Resolvido',
+};
 
 /**
  * Popup de Suporte — renderizado como overlay full-screen (via rota `/suporte`).
@@ -29,7 +40,7 @@ import { SupportTicketChannel } from '../../types/support.types';
     '(document:keydown.escape)': 'close()',
   },
 })
-export class SupportPage {
+export class SupportPage implements OnInit {
   private readonly location = inject(Location);
   private readonly service = inject(SupportTicketService);
   private readonly fb = inject(FormBuilder);
@@ -42,6 +53,12 @@ export class SupportPage {
 
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /**
+   * Os tickets abertos por quem está na tela (o servidor recorta por autor). Falhar aqui só
+   * omite a seção — o formulário é o motivo de a tela existir e segue funcionando.
+   */
+  protected readonly tickets = signal<MySupportTicket[]>([]);
 
   /** Copy overrides per validator key for the `app-form-field` message resolver. */
   protected readonly messageMessages: Readonly<Record<string, string>> = {
@@ -59,6 +76,25 @@ export class SupportPage {
   });
 
   protected readonly messageLength = computed(() => (this.formValue()?.message ?? '').length);
+
+  ngOnInit(): void {
+    this.loadTickets();
+  }
+
+  protected statusLabel(ticket: MySupportTicket): string {
+    return STATUS_LABELS[ticket.status] ?? ticket.status;
+  }
+
+  protected ticketDate(ticket: MySupportTicket): string {
+    return formatDate((ticket.createdDate ?? '').slice(0, 10));
+  }
+
+  private loadTickets(): void {
+    this.service.listMine(0, 5).subscribe({
+      next: (res) => this.tickets.set(res?.content ?? []),
+      error: () => this.tickets.set([]),
+    });
+  }
 
   protected sendViaEmail(): void {
     if (!this.validate()) return;
@@ -105,6 +141,7 @@ export class SupportPage {
         this.saving.set(false);
         this.form.reset({ message: '' });
         onSuccess();
+        this.loadTickets();
       },
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);

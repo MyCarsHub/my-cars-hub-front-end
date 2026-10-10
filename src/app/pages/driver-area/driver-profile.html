@@ -1,0 +1,307 @@
+@if (loading() && profile() === null) {
+  <app-page-loader title="Carregando o seu perfil…" [fullScreen]="false" />
+} @else {
+  <app-default-page-layout title="Meu perfil" description="Seus dados e a sua conta.">
+    @if (loadError(); as message) {
+      <div class="mb-4" data-load-error>
+        <app-alert-banner variant="error">
+          {{ message }}
+          <button
+            type="button"
+            (click)="load()"
+            class="ml-1 min-h-11 inline-flex items-center underline font-medium
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm"
+          >
+            Tentar novamente
+          </button>
+        </app-alert-banner>
+      </div>
+    }
+
+    <div class="space-y-4 sm:space-y-6 max-w-3xl">
+      <!-- Quem é: somente leitura. Nome, e-mail, CPF e CNH são da locadora que cadastrou. -->
+      <app-page-card title="Seus dados">
+        <div class="px-4 pb-5 sm:px-6">
+          <div class="flex items-center gap-3 sm:gap-4">
+            <div
+              class="w-12 h-12 shrink-0 rounded-full bg-primary-700 flex items-center justify-center
+                     text-white font-bold text-lg"
+              aria-hidden="true"
+            >
+              {{ initials() }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-neutral-900 break-words" data-name>{{ name() }}</p>
+              <p class="text-sm text-neutral-600 break-all">{{ email() }}</p>
+            </div>
+            <span
+              class="shrink-0 px-2 py-0.5 bg-primary-low text-primary-700 text-[10px] font-bold
+                     uppercase rounded-md tracking-wider border border-primary-low"
+            >
+              {{ roleLabel }}
+            </span>
+          </div>
+
+          <dl class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div class="min-w-0">
+              <dt class="text-xs font-medium text-neutral-600">
+                {{ profile()?.documentType ?? 'CPF' }}
+              </dt>
+              <dd class="mt-0.5 font-medium text-neutral-900 tabular-nums" data-document>
+                {{ profile()?.documentMasked ?? '—' }}
+              </dd>
+            </div>
+            @if (license(); as cnh) {
+              <div class="min-w-0">
+                <dt class="text-xs font-medium text-neutral-600">CNH</dt>
+                <dd class="mt-0.5 font-medium text-neutral-900">{{ cnh }}</dd>
+              </div>
+            }
+          </dl>
+          <p class="mt-4 text-xs text-neutral-600">
+            Nome, e-mail, CPF e CNH são cadastrados pela locadora. Para corrigir, fale com ela.
+          </p>
+        </div>
+      </app-page-card>
+
+      <!-- A empresa e o carro. -->
+      <app-page-card title="Locadora e aluguel">
+        <div class="px-4 pb-5 sm:px-6 space-y-4">
+          <div class="min-w-0">
+            <p class="text-xs font-medium text-neutral-600">Locadora</p>
+            <p class="mt-0.5 text-sm font-semibold text-neutral-900 break-words" data-company>
+              {{ profile()?.companyName ?? '—' }}
+            </p>
+          </div>
+
+          @if (profile()?.activeRental; as rental) {
+            <div
+              class="rounded-xl bg-neutral-50 border border-neutral-200 p-3 flex items-center
+                     justify-between gap-3"
+              data-active-rental
+            >
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-neutral-600">Aluguel ativo</p>
+                <p class="text-sm font-semibold text-neutral-900 truncate">
+                  {{ rental.plate ?? 'Veículo' }}@if (rentalVehicle()) { · {{ rentalVehicle() }} }
+                </p>
+                @if (rentalSince(); as since) {
+                  <p class="text-xs text-neutral-600">desde {{ since }}</p>
+                }
+              </div>
+              <a
+                [routerLink]="['/alugueis', rental.rentalId]"
+                class="shrink-0 min-h-11 inline-flex items-center px-4 rounded-xl text-sm font-medium
+                       text-neutral-700 bg-white border border-neutral-200 hover:bg-neutral-100
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                       focus-visible:ring-offset-1"
+              >
+                Ver
+              </a>
+            </div>
+          } @else {
+            <p class="text-sm text-neutral-600" data-no-rental>Você não tem um aluguel ativo agora.</p>
+          }
+        </div>
+      </app-page-card>
+
+      <!-- O que ele edita: telefone e endereço. -->
+      <app-page-card title="Contato e endereço">
+        <form
+          [formGroup]="form"
+          (ngSubmit)="save()"
+          novalidate
+          class="px-4 pb-5 sm:px-6 space-y-4"
+          data-edit-form
+        >
+          @if (formError(); as message) {
+            <app-alert-banner variant="error" [message]="message" />
+          }
+
+          <app-form-field
+            label="Telefone"
+            controlId="driver-phone"
+            [required]="true"
+            [control]="form.controls.phone"
+            [messages]="phoneMessages"
+          >
+            <input
+              appFieldControl
+              formControlName="phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              maxlength="15"
+              placeholder="(00) 00000-0000"
+              (input)="onPhoneInput($event)"
+              [class]="inputClass + ' tabular-nums'"
+            />
+          </app-form-field>
+
+          <div
+            formGroupName="address"
+            class="space-y-4"
+            (input)="onAddressInput()"
+            (change)="onAddressInput()"
+          >
+            <app-form-field
+              label="CEP"
+              controlId="driver-cep"
+              [required]="addressStarted()"
+              [hint]="cepLoading() ? 'Buscando endereço…' : 'Digite o CEP e preenchemos o resto.'"
+              [control]="form.controls.address.controls.cep"
+              [messages]="cepMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="cep"
+                type="text"
+                inputmode="numeric"
+                autocomplete="postal-code"
+                maxlength="9"
+                placeholder="00000-000"
+                (input)="onCepInput($event)"
+                (blur)="onCepBlur()"
+                [class]="inputClass + ' tabular-nums'"
+              />
+            </app-form-field>
+
+            <app-form-field
+              label="Rua"
+              controlId="driver-street"
+              [required]="addressStarted()"
+              [control]="form.controls.address.controls.street"
+              [messages]="streetMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="street"
+                type="text"
+                autocomplete="address-line1"
+                maxlength="180"
+                [class]="inputClass"
+              />
+            </app-form-field>
+
+            <div class="grid grid-cols-2 gap-3">
+              <app-form-field
+                label="Número"
+                controlId="driver-number"
+                [control]="form.controls.address.controls.number"
+              >
+                <input
+                  appFieldControl
+                  formControlName="number"
+                  type="text"
+                  autocomplete="off"
+                  maxlength="20"
+                  [class]="inputClass"
+                />
+              </app-form-field>
+              <app-form-field
+                label="Complemento"
+                controlId="driver-complement"
+                [control]="form.controls.address.controls.complement"
+              >
+                <input
+                  appFieldControl
+                  formControlName="complement"
+                  type="text"
+                  autocomplete="off"
+                  maxlength="120"
+                  [class]="inputClass"
+                />
+              </app-form-field>
+            </div>
+
+            <app-form-field
+              label="Bairro"
+              controlId="driver-district"
+              [required]="addressStarted()"
+              [control]="form.controls.address.controls.district"
+              [messages]="districtMessages"
+            >
+              <input
+                appFieldControl
+                formControlName="district"
+                type="text"
+                maxlength="120"
+                [class]="inputClass"
+              />
+            </app-form-field>
+
+            <div class="grid grid-cols-[1fr_6rem] gap-3">
+              <app-form-field
+                label="Cidade"
+                controlId="driver-city"
+                [required]="addressStarted()"
+                [control]="form.controls.address.controls.city"
+                [messages]="cityMessages"
+              >
+                <input
+                  appFieldControl
+                  formControlName="city"
+                  type="text"
+                  autocomplete="address-level2"
+                  maxlength="120"
+                  [class]="inputClass"
+                />
+              </app-form-field>
+              <app-form-field
+                label="UF"
+                controlId="driver-uf"
+                [required]="addressStarted()"
+                [control]="form.controls.address.controls.uf"
+                [messages]="ufMessages"
+              >
+                <select appFieldControl formControlName="uf" [class]="inputClass">
+                  <option value="">—</option>
+                  @for (uf of ufs; track uf) {
+                    <option [value]="uf">{{ uf }}</option>
+                  }
+                </select>
+              </app-form-field>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            [disabled]="saving()"
+            [attr.aria-busy]="saving() ? 'true' : null"
+            class="min-h-12 w-full sm:w-auto sm:px-8 rounded-xl text-base font-semibold text-white
+                   bg-primary-700 hover:bg-primary-800 shadow-sm disabled:opacity-60
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                   focus-visible:ring-offset-2"
+          >
+            {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
+          </button>
+        </form>
+      </app-page-card>
+
+      <!-- Ajuda e saída, no fim da página, ao alcance do polegar. -->
+      <section aria-label="Ajuda e sessão" class="space-y-3">
+        <a
+          routerLink="/suporte"
+          data-support-link
+          class="min-h-12 w-full inline-flex items-center justify-center rounded-xl border
+                 border-neutral-300 bg-white text-base font-medium text-neutral-800
+                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        >
+          Falar com o suporte
+        </a>
+        <button
+          type="button"
+          data-logout
+          (click)="logout()"
+          class="min-h-12 w-full rounded-xl border border-rose-200 bg-white text-base font-semibold
+                 text-rose-700 hover:bg-rose-50 focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-rose-500 focus-visible:ring-offset-2
+                 mb-[env(safe-area-inset-bottom)]"
+        >
+          Sair da conta
+        </button>
+      </section>
+    </div>
+  </app-default-page-layout>
+}

@@ -22,6 +22,7 @@ import {
   InviteOnboardingContext,
 } from '../../types/invite-flow.types';
 import { BR_UFS } from '../../utils/br-ufs';
+import { homeRouteForRole } from '../../utils/home-route';
 
 type StepId = 'personal' | 'license' | 'address' | 'confirm' | 'done';
 
@@ -248,7 +249,7 @@ export class DriverOnboarding {
   }
 
   protected goHome(): void {
-    void this.router.navigate(['/alugueis'], { replaceUrl: true });
+    void this.router.navigate([homeRouteForRole('DRIVER')], { replaceUrl: true });
   }
 
   private fail(err: unknown): void {

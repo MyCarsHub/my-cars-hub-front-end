@@ -2,6 +2,10 @@ import { Routes } from '@angular/router';
 import { authGuard } from './services/auth-guard';
 import { roleGuard } from './services/role.guard';
 import { adminGuard } from './services/admin.guard';
+import { driverRoleMatch } from './services/driver-role.match';
+import { homeRouteForRole } from './utils/home-route';
+import { SessionService } from './services/session.service';
+import { inject } from '@angular/core';
 import { billingAccessGuard } from './services/billing-access.guard';
 import { firstVehicleGuard } from './services/first-vehicle.guard';
 import { ConstructorPage } from './pages/constructor-page/constructor-page';
@@ -196,6 +200,38 @@ export const routes: Routes = [
                                 (m) => m.DashboardHome
                             ),
                         data: { pageTitle: 'Dashboard' },
+                    },
+                    {
+                        /*
+                         * A CASA DO MOTORISTA. O `/dashboard` e da frota (403 para ele); este
+                         * e o painel PROPRIO dele: ganhos e custos que ele mesmo registra.
+                         *
+                         * So DRIVER: o caderno e do motorista, e o backend recusa qualquer
+                         * outro papel (`DRIVER_AREA_ONLY`). Dono e gerente que digitarem a
+                         * URL voltam ao painel da frota, com a explicacao do `roleGuard`.
+                         * Os filhos herdam o guard do pai — nao repetem.
+                         */
+                        path: 'meu-painel',
+                        canActivate: [roleGuard(['DRIVER'])],
+                        children: [
+                            {
+                                path: '',
+                                pathMatch: 'full',
+                                loadComponent: () =>
+                                    import('./pages/driver-area/driver-home').then(
+                                        (m) => m.DriverHome
+                                    ),
+                                data: { pageTitle: 'Meu painel' },
+                            },
+                            {
+                                path: 'lancamentos',
+                                loadComponent: () =>
+                                    import('./pages/driver-area/driver-entries').then(
+                                        (m) => m.DriverEntries
+                                    ),
+                                data: { pageTitle: 'Meus lançamentos' },
+                            },
+                        ],
                     },
                     {
                         // FEAT-0108 — deixou de ser "todo membro autenticado": os
@@ -746,6 +782,19 @@ export const routes: Routes = [
                         ],
                     },
                     {
+                        // O MOTORISTA tem o proprio perfil (cadastro, telefone, endereco,
+                        // aluguel, Sair) e NAO o da empresa — que le `/v1/billing/**`, 403
+                        // para ele. Mesma URL, dois componentes: `canMatch` escolhe pelo papel
+                        // do TOKEN, e a ordem importa (o do motorista vem primeiro).
+                        path: 'perfil',
+                        canMatch: [driverRoleMatch],
+                        loadComponent: () =>
+                            import('./pages/driver-area/driver-profile').then(
+                                (m) => m.DriverProfile
+                            ),
+                        data: { pageTitle: 'Meu perfil' },
+                    },
+                    {
                         path: 'perfil',
                         loadComponent: () =>
                             import('./pages/profile/profile').then(
@@ -754,11 +803,12 @@ export const routes: Routes = [
                         data: { pageTitle: 'Perfil' },
                     },
                     {
-                        // `/v1/support/**` (tickets) e 403 para o MOTORISTA: a tela
-                        // abria e so mostrava erro. O guard casa com o item do menu
-                        // (`roles` em `sidebar.ts`), que e o que a paridade mede.
+                        // O MOTORISTA voltou: `/v1/support/tickets` (abrir e ler os PROPRIOS
+                        // tickets) entrou na lista de permitidos dele no backend. A tela so
+                        // faz essas duas chamadas. O guard casa com o item do menu (`roles`
+                        // em `sidebar.ts`), que e o que a paridade mede.
                         path: 'suporte',
-                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
                         loadComponent: () =>
                             import('./pages/support/support').then(
                                 (m) => m.SupportPage,
@@ -878,8 +928,12 @@ export const routes: Routes = [
                         ],
                     },
                     {
+                        // A casa de cada papel, nao `dashboard` fixo: para o motorista aquele
+                        // e um 403 e o `roleGuard` ainda o desviaria — com um aviso de "area
+                        // exclusiva" para quem so abriu o app.
                         path: '',
-                        redirectTo: 'dashboard',
+                        redirectTo: () =>
+                            homeRouteForRole(inject(SessionService).getCompanyRoleFromToken()),
                         pathMatch: 'full',
                     },
                 ],

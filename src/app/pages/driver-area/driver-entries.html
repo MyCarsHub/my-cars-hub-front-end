@@ -1,0 +1,155 @@
+<app-default-page-layout
+  title="Meus lançamentos"
+  description="Tudo o que você registrou, com filtros."
+>
+  <app-back-link link="/meu-painel" label="Voltar ao meu painel" placement="top" />
+
+  @if (error(); as message) {
+    <div class="mb-4" data-load-error>
+      <app-alert-banner variant="error">
+        {{ message }}
+        <button
+          type="button"
+          (click)="reload()"
+          class="ml-1 min-h-11 inline-flex items-center underline font-medium
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm"
+        >
+          Tentar novamente
+        </button>
+      </app-alert-banner>
+    </div>
+  }
+
+  <div class="grid grid-cols-2 gap-3 mb-4" data-actions>
+    <button
+      type="button"
+      data-add="INCOME"
+      (click)="add('INCOME')"
+      class="min-h-12 w-full px-3 py-2 rounded-xl text-base font-semibold text-white shadow-sm
+             bg-success-800 hover:bg-success-900 leading-tight text-center
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-success-500 focus-visible:ring-offset-2"
+    >
+      Registrar ganho
+    </button>
+    <button
+      type="button"
+      data-add="EXPENSE"
+      (click)="add('EXPENSE')"
+      class="min-h-12 w-full px-3 py-2 rounded-xl text-base font-semibold text-white shadow-sm
+             bg-primary-700 hover:bg-primary-800 leading-tight text-center
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+    >
+      Registrar custo
+    </button>
+  </div>
+
+  <div class="mb-4">
+    <app-date-range-picker [presetKeys]="presetKeys" (rangeChange)="onRangeChange($event)" />
+  </div>
+
+  <app-driver-kpi-strip class="block mb-4" [dashboard]="summary()" [loading]="loading()" [today]="today" />
+  @if (summaryTooLong()) {
+    <p class="mb-4 text-sm text-neutral-600" data-too-long>{{ tooLongMessage }}</p>
+  }
+
+  <section aria-label="Filtros da lista" class="mb-4 space-y-3" data-filters>
+    <div>
+      <p id="driver-filter-kind" class="text-xs font-medium text-neutral-600 mb-1.5">Tipo</p>
+      <app-filter-chip-group
+        [options]="kindOptions"
+        [value]="kind()"
+        ariaLabelledby="driver-filter-kind"
+        (selectionChange)="chooseKind($event)"
+      />
+    </div>
+    <div>
+      <p id="driver-filter-category" class="text-xs font-medium text-neutral-600 mb-1.5">
+        Categoria
+      </p>
+      <app-filter-chip-group
+        [options]="categoryOptions()"
+        [value]="category()"
+        [scrollable]="true"
+        ariaLabelledby="driver-filter-category"
+        (selectionChange)="chooseCategory($event)"
+      />
+    </div>
+  </section>
+
+  <section aria-live="polite" aria-label="Lançamentos" data-list>
+    @if (!loaded() && loading()) {
+      <p class="text-sm text-neutral-600 py-6 text-center" role="status">Carregando lançamentos…</p>
+    } @else if (loaded() && entries().length === 0) {
+      <div
+        class="rounded-2xl bg-white border border-gray-200 p-5 text-center"
+        data-empty-state
+      >
+        @if (hasFilters()) {
+          <p class="text-sm font-semibold text-neutral-900">Nenhum lançamento com estes filtros.</p>
+          <p class="mt-1 text-sm text-neutral-600">Tire um filtro ou troque o período.</p>
+          <button
+            type="button"
+            data-clear-filters
+            (click)="clearFilters()"
+            class="mt-4 min-h-12 px-5 rounded-xl text-base font-medium text-neutral-700
+                   bg-neutral-100 hover:bg-neutral-200 focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+          >
+            Limpar filtros
+          </button>
+        } @else {
+          <p class="text-sm font-semibold text-neutral-900">Nada registrado neste período.</p>
+          <p class="mt-1 text-sm text-neutral-600">
+            Use os botões de cima para anotar um ganho ou um custo.
+          </p>
+        }
+      </div>
+    } @else {
+      <ul class="space-y-3">
+        @for (entry of entries(); track entry.id) {
+          <li>
+            <app-driver-entry-card [entry]="entry" (edit)="onEdit($event)" (remove)="onRemove($event)" />
+          </li>
+        }
+      </ul>
+
+      @if (totalPages() > 1) {
+        <nav aria-label="Paginação" class="mt-4" data-pager>
+          <p class="text-sm text-neutral-600 text-center tabular-nums mb-3">
+            Página {{ page() + 1 }} de {{ totalPages() }} · {{ total() }} lançamentos
+          </p>
+          <div class="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              data-prev
+              [disabled]="!hasPrevious() || loading()"
+              (click)="previous()"
+              class="min-h-12 rounded-xl border border-neutral-300 bg-white text-base font-medium
+                     text-neutral-800 hover:bg-neutral-50 disabled:opacity-50
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              data-next
+              [disabled]="!hasNext() || loading()"
+              (click)="next()"
+              class="min-h-12 rounded-xl border border-neutral-300 bg-white text-base font-medium
+                     text-neutral-800 hover:bg-neutral-50 disabled:opacity-50
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Próxima
+            </button>
+          </div>
+        </nav>
+      }
+    }
+  </section>
+
+  <app-driver-entry-editor
+    [activeRental]="activeRental()"
+    (saved)="onSaved($event)"
+    (removed)="onRemoved($event)"
+  />
+</app-default-page-layout>

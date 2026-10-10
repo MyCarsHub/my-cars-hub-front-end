@@ -1,0 +1,129 @@
+<app-default-page-layout
+  title="Meu painel"
+  description="Seus ganhos e custos, num só lugar. Só você vê estes lançamentos: a locadora não tem acesso."
+>
+  @if (error(); as message) {
+    <div class="mb-4" data-load-error>
+      <app-alert-banner variant="error">
+        {{ message }}
+        @if (!tooLong()) {
+          <button
+            type="button"
+            (click)="reload()"
+            class="ml-1 min-h-11 inline-flex items-center underline font-medium
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm"
+          >
+            Tentar novamente
+          </button>
+        }
+      </app-alert-banner>
+    </div>
+  }
+
+  <!--
+    As duas ações do dia a dia, no topo e com 48px: o motorista as usa com o polegar, no
+    carro. Quando ainda não há nenhum lançamento elas MORAM no cartão de convite mais
+    abaixo — um lugar só para apertar, nunca dois.
+  -->
+  @if (!isEmpty()) {
+    <div class="grid grid-cols-2 gap-3 mb-4" data-actions>
+      <button type="button" data-add="INCOME" (click)="add('INCOME')" [class]="incomeActionClass">
+        Registrar ganho
+      </button>
+      <button type="button" data-add="EXPENSE" (click)="add('EXPENSE')" [class]="expenseActionClass">
+        Registrar custo
+      </button>
+    </div>
+  }
+
+  <div class="mb-4">
+    <app-date-range-picker [presetKeys]="presetKeys" (rangeChange)="onRangeChange($event)" />
+  </div>
+
+  <app-driver-kpi-strip class="block mb-4" [dashboard]="summary()" [loading]="loading()" [today]="today" />
+
+  @if (activeRental(); as rental) {
+    <section
+      class="rounded-2xl bg-white border border-gray-200 p-4 mb-4 flex items-center justify-between gap-3"
+      aria-label="Aluguel ativo"
+      data-active-rental
+    >
+      <div class="min-w-0">
+        <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide">Aluguel ativo</p>
+        <p class="text-sm font-semibold text-neutral-900 truncate">
+          {{ rental.plate ?? 'Veículo' }}@if (rentalVehicle()) { · {{ rentalVehicle() }} }
+        </p>
+        @if (rentalSince(); as since) {
+          <p class="text-xs text-neutral-600">desde {{ since }}</p>
+        }
+      </div>
+      <a
+        [routerLink]="['/alugueis', rental.rentalId]"
+        class="shrink-0 min-h-11 inline-flex items-center px-4 rounded-xl text-sm font-medium
+               text-neutral-700 bg-neutral-100 hover:bg-neutral-200 focus:outline-none
+               focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1"
+      >
+        Ver aluguel
+      </a>
+    </section>
+  }
+
+  @if (isEmpty()) {
+    <section
+      class="rounded-2xl bg-white border border-gray-200 p-5 text-center"
+      aria-labelledby="driver-empty-title"
+      data-empty-state
+    >
+      <h2 id="driver-empty-title" class="text-lg font-semibold text-neutral-900">
+        Comece pelo primeiro lançamento
+      </h2>
+      <p class="mt-1 text-sm text-neutral-600">
+        Anote o que entrou e o que saiu e veja, no fim do dia, quanto sobrou de verdade.
+        Leva poucos segundos.
+      </p>
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button type="button" data-add="INCOME" (click)="add('INCOME')" [class]="incomeActionClass">
+          Registrar ganho
+        </button>
+        <button type="button" data-add="EXPENSE" (click)="add('EXPENSE')" [class]="expenseActionClass">
+          Registrar custo
+        </button>
+      </div>
+    </section>
+  } @else if (loaded()) {
+    @if (hasBreakdown()) {
+      <div class="mb-4">
+        <app-driver-breakdown [rows]="summary()!.byCategory" />
+      </div>
+    }
+
+    <section aria-labelledby="driver-recent-title" class="mb-4" data-recent>
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h2 id="driver-recent-title" class="text-base font-semibold text-neutral-800">
+          Lançamentos recentes
+        </h2>
+        <a
+          routerLink="/meu-painel/lancamentos"
+          class="min-h-11 inline-flex items-center px-2 text-sm font-medium text-primary-700
+                 hover:underline underline-offset-2 focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+        >
+          Ver todos ({{ entryCount() }})
+        </a>
+      </div>
+      <ul class="space-y-3">
+        @for (entry of recent(); track entry.id) {
+          <li>
+            <app-driver-entry-card [entry]="entry" (edit)="onEdit($event)" (remove)="onRemove($event)" />
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <app-driver-entry-editor
+    [activeRental]="activeRental()"
+    (saved)="onSaved($event)"
+    (removed)="onRemoved($event)"
+  />
+</app-default-page-layout>

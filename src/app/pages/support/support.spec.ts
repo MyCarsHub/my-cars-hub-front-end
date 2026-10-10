@@ -12,6 +12,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 
 describe('SupportPage — feedback standard', () => {
   let create: ReturnType<typeof vi.fn>;
+  let listMine: ReturnType<typeof vi.fn>;
   let notifyError: ReturnType<typeof vi.fn>;
   let notifySuccess: ReturnType<typeof vi.fn>;
   let fixture: ReturnType<typeof TestBed.createComponent<SupportPage>>;
@@ -29,6 +30,8 @@ describe('SupportPage — feedback standard', () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     create = vi.fn();
+    // A lista dos PROPRIOS tickets: vazia por padrao, para os casos do formulario.
+    listMine = vi.fn(() => of({ content: [], page: 0, size: 5, total: 0 }));
     notifyError = vi.fn();
     notifySuccess = vi.fn();
 
@@ -36,7 +39,7 @@ describe('SupportPage — feedback standard', () => {
       imports: [SupportPage],
       providers: [
         ApiErrorService,
-        { provide: SupportTicketService, useValue: { create } },
+        { provide: SupportTicketService, useValue: { create, listMine } },
         { provide: ExternalNavigationService, useValue: { openExternal: vi.fn() } },
         { provide: Location, useValue: { back: vi.fn() } },
         {
@@ -92,5 +95,73 @@ describe('SupportPage — feedback standard', () => {
     TestBed.inject(ApiErrorService).scheduleSafetyNet(error);
     vi.runAllTimers();
     expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  describe('seus chamados', () => {
+    const ticket = (over: Record<string, unknown> = {}) => ({
+      id: 't-1',
+      createdDate: '2026-10-08T14:30:00',
+      message: 'Não consigo ver o meu aluguel ativo.',
+      channel: 'EMAIL',
+      status: 'OPEN',
+      resolvedAt: null,
+      ...over,
+    });
+
+    function render(): void {
+      // O beforeEach ja montou uma tela e pediu a lista uma vez: o que se mede aqui comeca zerado.
+      listMine.mockClear();
+      fixture = TestBed.createComponent(SupportPage);
+      fixture.detectChanges();
+    }
+
+    it('pede os PROPRIOS tickets ao abrir e lista com data e situação', () => {
+      listMine.mockReturnValue(
+        of({
+          content: [ticket(), ticket({ id: 't-2', status: 'RESOLVED', message: 'Obrigado!' })],
+          page: 0,
+          size: 5,
+          total: 2,
+        }),
+      );
+      render();
+
+      expect(listMine).toHaveBeenCalled();
+      const section = fixture.nativeElement.querySelector('[data-my-tickets]') as HTMLElement;
+      expect(section.textContent).toContain('Seus chamados');
+      expect(section.textContent).toContain('08/10/2026');
+      expect(section.textContent).toContain('Aberto');
+      expect(section.textContent).toContain('Resolvido');
+      expect(section.textContent).toContain('Não consigo ver o meu aluguel ativo.');
+    });
+
+    it('sem tickets a seção não aparece', () => {
+      render();
+      expect(fixture.nativeElement.querySelector('[data-my-tickets]')).toBeNull();
+    });
+
+    it('se a lista falhar, só a seção some: o formulário continua inteiro', () => {
+      listMine.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+      render();
+
+      expect(fixture.nativeElement.querySelector('[data-my-tickets]')).toBeNull();
+      expect(fixture.nativeElement.querySelector('#support-message')).not.toBeNull();
+      expect(notifyError).not.toHaveBeenCalled();
+    });
+
+    it('depois de enviar, a lista é pedida de novo e o ticket novo aparece', () => {
+      render();
+      expect(listMine).toHaveBeenCalledTimes(1);
+
+      create.mockReturnValue(of({}));
+      listMine.mockReturnValue(
+        of({ content: [ticket({ id: 't-9', message: 'Recém enviado.' })], page: 0, size: 5, total: 1 }),
+      );
+      form().patchValue({ message: 'Não consigo emitir o contrato de aluguel.' });
+      sendViaEmail();
+
+      expect(listMine).toHaveBeenCalledTimes(2);
+      expect(fixture.nativeElement.textContent).toContain('Recém enviado.');
+    });
   });
 });
