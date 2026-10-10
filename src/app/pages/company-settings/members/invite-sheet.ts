@@ -43,7 +43,9 @@ type Step = 'role' | 'manager';
  *
  * Drivers are NOT invited from here: the driver registration creates the invite when it is
  * saved, so the Motorista option explains that and links to it instead of submitting.
- * Managers (the caller) only see Motorista — the Gerenciador option is the owner's.
+ * The caller sees Gerenciador whenever `canInviteManager` is true — owner AND manager, who
+ * hold the same invite power. Without it only Motorista is offered (defensive: the page
+ * never passes `false` to a role that can open it).
  *
  * The submit calls the EXISTING `POST /invites` with exactly the payload the /convites form
  * sends for a manager: trimmed e-mail and name, CPF and phone as digits.
@@ -237,7 +239,7 @@ export class InviteSheet {
   private readonly apiErrors = inject(ApiErrorService);
 
   readonly open = input.required<boolean>();
-  /** OWNER only. A MANAGER caller sees the Motorista option alone. */
+  /** OWNER and MANAGER. Without it the caller sees the Motorista option alone. */
   readonly canInviteManager = input(false);
   readonly closed = output<void>();
   readonly sent = output<InviteResponse>();
@@ -285,7 +287,7 @@ export class InviteSheet {
   };
 
   constructor() {
-    // Every opening starts at step 1. A manager caller has one option, so it is pre-chosen.
+    // Every opening starts at step 1. A caller with a single option has it pre-chosen.
     effect(() => {
       if (!this.open()) return;
       this.step.set('role');

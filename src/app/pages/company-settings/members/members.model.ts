@@ -75,7 +75,8 @@ export const OWNER_LOCKED = 'O dono não pode ser removido.';
  */
 export const LAST_OWNER_LOCKED =
   'Você é o único dono desta empresa, e o acesso do dono não pode ser removido.';
-export const MANAGER_INVITE_LOCKED = 'Só o dono gerencia convites de gerenciador.';
+/** Not reachable from the page (a driver never loads the list); kept so absence is explained. */
+export const INVITE_LOCKED = 'Só o dono e os gerenciadores gerenciam convites.';
 export const ROLE_CHANGE_NOTE = 'Para mudar o nível de acesso, remova e convide de novo.';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -163,14 +164,13 @@ export function deliveryChip(invite: InviteResponse): InviteRow['delivery'] {
 }
 
 /**
- * Who may resend/cancel an invite. OWNER: all. MANAGER: DRIVER invites only — a manager
- * cannot create a manager invite on this screen, so it does not manage one either.
- * (The API carries no creator field, so "invites I created" cannot be enforced here.)
+ * Who may resend/cancel an invite. OWNER and MANAGER alike, on EVERY invite of the company
+ * (whoever created it, whatever role it grants): the backend lets a manager invite a
+ * manager and list/cancel/resend all of them. Invites are the one place the manager is
+ * the owner's equal; removing a MEMBER is a different rule and stays in `toMemberRow`.
  */
-export function canActOnInvite(callerRole: string | null, invite: InviteResponse): boolean {
-  if (callerRole === 'OWNER') return true;
-  if (callerRole === 'MANAGER') return invite.role === 'DRIVER';
-  return false;
+export function canManageInvites(callerRole: string | null): boolean {
+  return callerRole === 'OWNER' || callerRole === 'MANAGER';
 }
 
 export function toInviteRow(
@@ -179,7 +179,7 @@ export function toInviteRow(
   now: number,
 ): InviteRow {
   const name = (invite.name ?? '').trim();
-  const canAct = canActOnInvite(callerRole, invite);
+  const canAct = canManageInvites(callerRole);
   const delivery = deliveryChip(invite);
   return {
     id: invite.id,
@@ -195,7 +195,7 @@ export function toInviteRow(
     delivery,
     deliveryFailed: invite.emailDelivery === 'FAILED',
     canAct,
-    lockedReason: canAct ? '' : MANAGER_INVITE_LOCKED,
+    lockedReason: canAct ? '' : INVITE_LOCKED,
   };
 }
 

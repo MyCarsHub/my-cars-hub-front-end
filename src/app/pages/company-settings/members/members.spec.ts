@@ -943,16 +943,51 @@ describe('CompanyMembers — pessoas da empresa', () => {
   });
 
   // -------------------------------------------------- manager caller and invites
-  it('GERENTE so age sobre convites de MOTORISTA; convite de gerenciador fica sem acao, com motivo', () => {
+  it('GERENTE age sobre QUALQUER convite: o de gerenciador e o de motorista tem acoes, sem motivo de trava', () => {
     const f = render('MANAGER', {
       roster: [owner, { ...manager, userId: ME }],
-      invites: [pendingInvite, driverInvite],
+      invites: [pendingInvite, driverInvite, expiredInvite],
     });
-    const mgrInvite = rowOf(f, 'convidada@');
-    expect(mgrInvite.querySelector('[data-invite-actions]')).toBeNull();
-    expect(mgrInvite.textContent).toContain('Só o dono gerencia convites de gerenciador.');
-    // Counterweight: the driver invite keeps its actions.
-    expect(rowOf(f, 'motorista.novo@').querySelector('[data-invite-actions]')).not.toBeNull();
+    for (const email of ['convidada@', 'motorista.novo@', 'expirada@']) {
+      const row = rowOf(f, email);
+      expect(row.querySelector('[data-invite-actions]'), email).not.toBeNull();
+      expect(row.textContent, email).not.toContain('Só o dono');
+    }
+  });
+
+  it('GERENTE reenvia e cancela convite de GERENCIADOR de outra pessoa, pelo id do convite', () => {
+    const f = render('MANAGER', {
+      roster: [owner, { ...manager, userId: ME }],
+      invites: [pendingInvite, expiredInvite],
+    });
+    expect(openRowActions(f, 'expirada@')).toBe(true);
+    sheet(f)?.querySelector<HTMLButtonElement>('[data-resend-invite]')?.click();
+    f.detectChanges();
+    expect(resendInvite).toHaveBeenCalledWith('inv-2');
+
+    expect(openRowActions(f, 'convidada@')).toBe(true);
+    sheet(f)?.querySelector<HTMLButtonElement>('[data-cancel-invite]')?.click();
+    f.detectChanges();
+    expect(cancelInvite).not.toHaveBeenCalled();
+    confirmButton(f, 'Cancelar convite').click();
+    f.detectChanges();
+    expect(cancelInvite).toHaveBeenCalledWith('inv-1');
+  });
+
+  /**
+   * The invite rule moved; the member rule did not. Same render, both rows: if the invite
+   * change had leaked into `toMemberRow`, the owner row would grow an action here.
+   */
+  it('GERENTE com convite de gerenciador agindo: o DONO continua sem acao de remover', () => {
+    const f = render('MANAGER', {
+      roster: [owner, { ...manager, userId: ME }, driver],
+      invites: [pendingInvite],
+    });
+    expect(rowOf(f, 'convidada@').querySelector('[data-invite-actions]')).not.toBeNull();
+    expect(openRowActions(f, 'Dona Ana')).toBe(false);
+    expect(rowOf(f, 'Dona Ana').textContent).toContain('O dono não pode ser removido.');
+    // The other members keep exactly the removal the backend allows a manager.
+    expect(rowOf(f, 'Motorista Caio').querySelector('[data-member-actions]')).not.toBeNull();
   });
 
   it('DONO age sobre qualquer convite', () => {
@@ -1245,7 +1280,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(document.activeElement).toBe(opener);
   });
 
-  it('DONO ve Gerenciador e Motorista; GERENTE ve so Motorista, ja escolhido', () => {
+  it('DONO e GERENTE veem Gerenciador e Motorista, e nenhum chega com Motorista pre-escolhido', () => {
     const asOwner = render('OWNER');
     const s1 = openInvite(asOwner);
     expect(s1.querySelector('[data-role-option="MANAGER"]')?.textContent).toContain('Gerenciador');
@@ -1254,11 +1289,32 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
     const asManager = render('MANAGER', { roster: [owner, { ...manager, userId: ME }] });
     const s2 = openInvite(asManager);
-    expect(s2.querySelector('[data-role-option="MANAGER"]')).toBeNull();
+    expect(s2.querySelector('[data-role-option="MANAGER"]')?.textContent).toContain('Gerenciador');
+    expect(s2.querySelector('[data-role-option="DRIVER"]')?.textContent).toContain('Motorista');
     expect(s2.querySelector('[data-role-option="DRIVER"]')?.getAttribute('aria-pressed')).toBe(
-      'true',
+      'false',
     );
-    expect(s2.querySelector('[data-driver-banner]')).not.toBeNull();
+    expect(s2.querySelector('[data-driver-banner]')).toBeNull();
+  });
+
+  it('GERENTE convida um gerenciador: manda role MANAGER, com o mesmo contrato do dono', () => {
+    const f = render('MANAGER', { roster: [owner, { ...manager, userId: ME }] });
+    goToManagerForm(f);
+    fill(f, 'invite-name', 'Patrícia Souza');
+    fill(f, 'invite-email', 'patricia@empresa.com.br');
+    fill(f, 'invite-cpf', '52998224725');
+    fill(f, 'invite-phone', '11987654321');
+    submitManagerForm(f);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({
+      email: 'patricia@empresa.com.br',
+      role: 'MANAGER',
+      name: 'Patrícia Souza',
+      cpf: '52998224725',
+      phone: '11987654321',
+    });
+    expect(success).toHaveBeenCalledWith('Convite enviado para «patricia@empresa.com.br».');
   });
 
   it('Motorista nao envia convite: explica e leva ao cadastro do motorista', async () => {
