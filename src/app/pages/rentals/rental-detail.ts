@@ -37,6 +37,7 @@ import { RentalProgressChecklist } from './documents/rental-progress-checklist';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
+import { SessionService } from '../../services/session.service';
 import {
   OverdueFeeSummary,
   formatLocalDateTime,
@@ -83,6 +84,7 @@ export class RentalDetail implements OnInit {
   private readonly rentalService = inject(RentalService);
   private readonly vehiclesService = inject(VehiclesService);
   private readonly driverService = inject(DriverService);
+  private readonly session = inject(SessionService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
 
@@ -464,8 +466,15 @@ export class RentalDetail implements OnInit {
       next: (r) => {
         this.rental.set(r);
         this.loading.set(false);
-        this.loadVehicle(r.vehicleId);
-        this.loadDriver(r.driverId);
+        if (this.isDriver) {
+          // `/v1/vehicles/{id}` e `/v1/drivers/{id}` sao 403 para o motorista: chamar
+          // so produzia dois erros e "—" nos campos. Placa, modelo e nome vem da linha
+          // da lista (que agora os carrega), quando ele chegou por ela.
+          this.applyIdentityFromList(r.id);
+        } else {
+          this.loadVehicle(r.vehicleId);
+          this.loadDriver(r.driverId);
+        }
         this.loadHistory(r.id);
       },
       error: (err: HttpErrorResponse) => {
@@ -473,6 +482,27 @@ export class RentalDetail implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  /**
+   * O MOTORISTA, lido do TOKEN — a mesma fonte do `roleGuard`. Decide quais chamadas de
+   * cadastro a tela NAO faz.
+   */
+  private readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
+
+  /**
+   * Placa, modelo e motorista a partir da linha da LISTA, que o servico ainda guarda.
+   * Aberto por link direto ou recarga a lista nao esta carregada e os campos ficam em "—":
+   * o detalhe do aluguel nao os carrega, e inventar uma chamada ao cadastro que o
+   * servidor nega seria trocar um "—" por um erro.
+   */
+  private applyIdentityFromList(rentalId: string): void {
+    const row = this.rentalService.items().find((item) => item.id === rentalId);
+    if (!row) return;
+    if (row.vehiclePlate) this.vehiclePlate.set(this.formatPlate(row.vehiclePlate));
+    const car = [row.vehicleBrand, row.vehicleModel].filter(Boolean).join(' ');
+    if (car) this.vehicleLabel.set(car);
+    if (row.driverName) this.driverNameSig.set(row.driverName);
   }
 
   private loadVehicle(id: string): void {

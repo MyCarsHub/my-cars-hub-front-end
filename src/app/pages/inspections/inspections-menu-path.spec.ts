@@ -16,6 +16,7 @@ import { Sidebar } from '../../components/sidebar/sidebar';
 import { LayoutStore } from '../../components/core/layouts/layout.store';
 import { InspectionsService } from '../../services/inspections.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { RentalService } from '../rentals/rental.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { routes as APP_ROUTES } from '../../app.routes';
 import type { InspectionListItem } from '../../types/inspection.types';
@@ -109,6 +110,28 @@ describe('Vistorias — menu -> rota -> lista', () => {
     return (frota?.children ?? []).find((c) => c.label === 'Vistorias')?.route;
   }
 
+  /**
+   * O item de primeiro nivel, sem grupo — onde o MOTORISTA o encontra: "Frota" com um
+   * filho so diria que ele tem uma frota, entao `allowedItems` sobe o filho.
+   */
+  function topLevelRoutes(role: string): { route?: string; label: string }[] {
+    TestBed.resetTestingModule();
+    sessionStorage.clear();
+    signInAs(role);
+    TestBed.configureTestingModule({
+      imports: [Sidebar],
+      providers: [provideRouter([{ path: '**', component: StubPage }]), provideNoopAnimations()],
+    });
+    TestBed.inject(LayoutStore).selectedTenant.set({ id: 't', name: 'X', role, initial: 'X' });
+    const fixture = TestBed.createComponent(Sidebar);
+    fixture.detectChanges();
+    return (
+      fixture.componentInstance as unknown as {
+        navItems: () => { route?: string; label: string }[];
+      }
+    ).navItems();
+  }
+
   beforeEach(() => {
     TestBed.resetTestingModule();
     sessionStorage.clear();
@@ -175,9 +198,10 @@ describe('Vistorias — menu -> rota -> lista', () => {
           useValue: {
             list: vi
               .fn()
-              .mockReturnValue(of({ content: [], page: 0, size: 500, total: 0 })),
+              .mockReturnValue(of({ content: [], page: 0, size: 100, total: 0 })),
           },
         },
+        { provide: RentalService, useValue: { list: vi.fn() } },
       ],
     });
     const fixture = TestBed.createComponent(loaded);
@@ -205,8 +229,11 @@ describe('Vistorias — menu -> rota -> lista', () => {
     expect(routeFromMenu('MANAGER')).toBe('/vistorias');
   });
 
-  it('o DRIVER não recebe o item, e o guard da rota também o recusa', () => {
+  it('o DRIVER recebe o item no primeiro nivel, e o guard da rota o admite', () => {
+    // Fora do grupo Frota: ele nao tem frota.
     expect(routeFromMenu('DRIVER')).toBeUndefined();
+    const item = topLevelRoutes('DRIVER').find((i) => i.label === 'Vistorias');
+    expect(item?.route).toBe('/vistorias');
 
     signInAs('DRIVER');
     TestBed.resetTestingModule();
@@ -223,7 +250,7 @@ describe('Vistorias — menu -> rota -> lista', () => {
           ) === true,
       ),
     );
-    // As duas pontas concordam: nem menu, nem rota.
-    expect(admitted).toBe(false);
+    // As duas pontas concordam: menu e rota abertos.
+    expect(admitted).toBe(true);
   });
 });

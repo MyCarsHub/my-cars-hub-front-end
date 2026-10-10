@@ -15,6 +15,7 @@ import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dial
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
+import { SessionService } from '../../services/session.service';
 import { RentalService } from './rental.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { DriverService } from '../../services/driver.service';
@@ -65,6 +66,15 @@ export class RentalsList implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly session = inject(SessionService);
+
+  /**
+   * O MOTORISTA enxerga os proprios alugueis e nada da frota: `/v1/vehicles` e
+   * `/v1/drivers` sao 403 para ele, entao a tela nao os chama (a linha ja traz placa,
+   * modelo e nome) e nao oferece o que e do dono — filtros de frota, novo aluguel e o
+   * menu de acoes. O papel vem do token, a mesma fonte do `roleGuard`.
+   */
+  protected readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
 
   /** Debounce handle for desktop auto-search. */
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -215,14 +225,16 @@ export class RentalsList implements OnInit {
   });
 
   ngOnInit(): void {
-    this.vehiclesService.list({ size: 500, sort: 'plate_asc' }).subscribe({
-      next: (res) => this.vehicles.set(res.content ?? []),
-      error: () => this.vehicles.set([]),
-    });
-    this.driverService.list({ size: 500, sort: 'name_asc' }).subscribe({
-      next: (res) => this.drivers.set(res.content ?? []),
-      error: () => this.drivers.set([]),
-    });
+    if (!this.isDriver) {
+      this.vehiclesService.list({ size: 500, sort: 'plate_asc' }).subscribe({
+        next: (res) => this.vehicles.set(res.content ?? []),
+        error: () => this.vehicles.set([]),
+      });
+      this.driverService.list({ size: 500, sort: 'name_asc' }).subscribe({
+        next: (res) => this.drivers.set(res.content ?? []),
+        error: () => this.drivers.set([]),
+      });
+    }
     // Hydrate filters from URL so shared links restore state.
     const qp = this.route.snapshot.queryParamMap;
     const status = (qp.get('status') as RentalStatus | null) ?? '';
@@ -344,20 +356,24 @@ export class RentalsList implements OnInit {
     return f ? billingFrequencyLabel(f) : '—';
   }
 
-  protected vehiclePlate(vehicleId: string): string {
-    const v = this.vehiclesById().get(vehicleId);
+  /** A linha manda; o cadastro carregado e o plano B para uma resposta sem os campos. */
+  protected vehiclePlate(r: RentalListItemDto): string {
+    if (r.vehiclePlate) return this.formatPlate(r.vehiclePlate);
+    const v = this.vehiclesById().get(r.vehicleId);
     if (!v) return '—';
     return this.formatPlate(v.plate);
   }
 
-  protected vehicleModel(vehicleId: string): string {
-    const v = this.vehiclesById().get(vehicleId);
+  protected vehicleModel(r: RentalListItemDto): string {
+    const fromRow = [r.vehicleBrand, r.vehicleModel].filter(Boolean).join(' ');
+    if (fromRow) return fromRow;
+    const v = this.vehiclesById().get(r.vehicleId);
     return v ? `${v.brand} ${v.model}` : '';
   }
 
-  protected driverName(driverId: string): string {
-    const d = this.driversById().get(driverId);
-    return d?.name ?? '—';
+  protected driverName(r: RentalListItemDto): string {
+    if (r.driverName) return r.driverName;
+    return this.driversById().get(r.driverId)?.name ?? '—';
   }
 
   protected formatPlate(plate: string): string {
@@ -397,17 +413,17 @@ export class RentalsList implements OnInit {
   // ---------------------------------------------------------------- actions
 
   protected canEdit(r: RentalListItemDto): boolean {
-    return r.status === 'RESERVED' || r.status === 'ACTIVE';
+    return !this.isDriver && (r.status === 'RESERVED' || r.status === 'ACTIVE');
   }
 
   protected canDelete(_r: RentalListItemDto): boolean {
     // Backend agora libera delete em qualquer status (RentalService.delete()).
-    // Manter o param pra permitir gating futuro por role/tenant sem refactor de callers.
-    return true;
+    // O motorista nao gerencia aluguel: o servidor nega, entao o menu nem oferece.
+    return !this.isDriver;
   }
 
   protected canCancel(r: RentalListItemDto): boolean {
-    return r.status === 'RESERVED';
+    return !this.isDriver && r.status === 'RESERVED';
   }
 
   /**
@@ -415,7 +431,7 @@ export class RentalsList implements OnInit {
    * Aligns with backend `RentalService.activate` guard (isAutomaticCharge ⇒ 409).
    */
   protected canActivate(r: RentalListItemDto): boolean {
-    return r.status === 'RESERVED' && r.automaticCharge === false;
+    return !this.isDriver && r.status === 'RESERVED' && r.automaticCharge === false;
   }
 
   /**

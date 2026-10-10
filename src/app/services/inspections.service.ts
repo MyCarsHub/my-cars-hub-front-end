@@ -18,9 +18,9 @@ const BASE = `${environment.apiUrl}/inspections`;
 /**
  * Listagem de vistorias, com filtros combináveis.
  *
- * `GET /v1/inspections` aceita `vehicleId`, `rentalId`, `kind`, `from` e `to`,
- * todos opcionais e combináveis — o contrato que este serviço sempre mandou.
- * `toParams` nunca precisou mudar; o que faltava era a API.
+ * `GET /v1/inspections` aceita `vehicleId`, `rentalId`, `kind`, `status`, `from` e
+ * `to`, todos opcionais e combináveis. Para OWNER/MANAGER devolve as da empresa;
+ * para o MOTORISTA o servidor escopa para as dele — a tela nao filtra por papel.
  *
  * O resto segue as convenções de toda lista da casa (envelope
  * `content/page/size/total`, cache por empresa zerado no `TenantResetRegistry`,
@@ -85,12 +85,20 @@ export class InspectionsService {
     return params;
   }
 
-  /** `POST /v1/inspections` — abre a vistoria e devolve o RETRATO do roteiro. */
+  /**
+   * `POST /v1/inspections` — abre a vistoria `PENDING` e devolve o RETRATO do roteiro.
+   *
+   * OWNER/MANAGER abrem para qualquer veiculo da empresa; o MOTORISTA, so para o
+   * veiculo de um aluguel ATIVO dele (o servidor decide, e um 403 aqui e essa regra).
+   */
   create(payload: CreateInspectionRequest): Observable<Inspection> {
     return this.http.post<Inspection>(BASE, payload);
   }
 
-  /** `GET /v1/inspections/{id}` — `requiredAngles` + `capturedAngles`, base da retomada. */
+  /**
+   * `GET /v1/inspections/{id}` — `requiredAngles` + `capturedAngles` (base da retomada),
+   * `status` e, quando recusada, `rejectionReason` e `reviewedAt`.
+   */
   getOne(id: string): Observable<Inspection> {
     return this.http.get<Inspection>(`${BASE}/${id}`);
   }
@@ -131,6 +139,20 @@ export class InspectionsService {
    */
   submit(id: string): Observable<InspectionReviewResult> {
     return this.http.post<InspectionReviewResult>(`${BASE}/${id}/submit`, {});
+  }
+
+  /**
+   * `POST /v1/inspections/{id}/recapture` — refaz uma vistoria RECUSADA.
+   *
+   * Devolve a NOVA vistoria, `PENDING`, com o roteiro de volta a zero: e outra linha
+   * (a recusada fica como historico), nao a mesma reaberta. Por isso o retorno e uma
+   * `Inspection` completa e a tela passa a operar sobre o `id` novo.
+   *
+   * OWNER/MANAGER e o MOTORISTA do veiculo. Em qualquer outro estado que nao
+   * `REJECTED` o servidor recusa — a tela so oferece o botao na recusada.
+   */
+  recapture(id: string): Observable<Inspection> {
+    return this.http.post<Inspection>(`${BASE}/${id}/recapture`, {});
   }
 
   /**
@@ -183,10 +205,9 @@ export class InspectionsService {
           this._total.set(res?.total ?? 0);
         }),
         catchError((err: HttpErrorResponse) => {
-          // RECUSA e FALHA nao sao a mesma coisa para quem le. Hoje este 403 e
-          // inalcancavel pela UI (a rota ja exige OWNER/MANAGER), mas no dia em
-          // que a tela abrir para MOTORISTA a frase generica culparia a rede por
-          // uma decisao de permissao — e o usuario ficaria recarregando.
+          // RECUSA e FALHA nao sao a mesma coisa para quem le. O 403 aqui e uma
+          // decisao de permissao (o servidor escopa a listagem por papel), e a
+          // frase generica culparia a rede — e o usuario ficaria recarregando.
           this._error.set(
             err.status === 403
               ? 'Você não tem permissão para ver as vistorias desta empresa.'

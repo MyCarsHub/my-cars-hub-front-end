@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, Routes, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { LayoutStore, Tenant } from '../core/layouts/layout.store';
-import { Sidebar } from './sidebar';
+import { NavItem, Sidebar } from './sidebar';
 
 const tenant = (role: string, name = 'MyCarsHub'): Tenant => ({
   id: `t-${role || 'none'}`,
@@ -158,10 +158,44 @@ describe('Sidebar', () => {
     });
 
     /** Utilitários sem tenant continuam de pé: perfil lê `/v1/auth/me`. */
-    it('mantém Perfil e Suporte para o motorista', () => {
+    it('mantém Perfil para o motorista', () => {
+      expect(labelsFor('DRIVER').join(' | ')).toContain('Perfil');
+    });
+
+    /**
+     * Suporte SAIU do menu do motorista: `/v1/support/**` (tickets) é 403 para ele, e o
+     * item abria uma tela que só mostrava erro. A rota tem o mesmo guard — a paridade
+     * em `sidebar-guard-parity.spec.ts` mede a igualdade.
+     */
+    it('não oferece Suporte ao motorista, e o dono e o gerente continuam com ele', () => {
+      expect(labelsFor('DRIVER').join(' | ')).not.toContain('Suporte');
+      expect(labelsFor('OWNER').join(' | ')).toContain('Suporte');
+      expect(labelsFor('MANAGER').join(' | ')).toContain('Suporte');
+    });
+
+    /**
+     * O motorista FAZ vistoria (o dono pediu) e o menu é a porta: Vistorias e Roadmap
+     * (só leitura) entram ao lado de Aluguéis.
+     */
+    it('oferece Vistorias e Roadmap ao motorista', () => {
       const labels = labelsFor('DRIVER').join(' | ');
-      expect(labels).toContain('Perfil');
-      expect(labels).toContain('Suporte');
+      expect(labels).toContain('Vistorias');
+      expect(labels).toContain('Roadmap');
+    });
+
+    /**
+     * "Frota" com um filho só dizia ao motorista que ele tem uma frota. O filho sobe
+     * para o primeiro nível — e o menu do dono continua com o grupo.
+     */
+    it('Vistorias aparece no primeiro nível do motorista, sem grupo Frota', () => {
+      signInAs('DRIVER');
+      layout.tenants.set([tenant('DRIVER')]);
+      layout.selectedTenant.set(tenant('DRIVER'));
+      fixture.detectChanges();
+
+      const top = (component as unknown as { navItems: () => NavItem[] }).navItems();
+      expect(top.map((item) => item.label)).not.toContain('Frota');
+      expect(top.find((item) => item.route === '/vistorias')).toBeDefined();
     });
 
     /** O OWNER não perde nada — a mudança é só sobre quem o menu exclui. */

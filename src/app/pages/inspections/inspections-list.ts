@@ -7,9 +7,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
-import { of } from 'rxjs';
+import { EMPTY, expand } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
@@ -20,7 +19,10 @@ import {
 import { DateRange, DateRangePicker } from '../../components/date-range-picker/date-range-picker';
 import { InspectionsService } from '../../services/inspections.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { VehicleListItem } from '../../types/vehicle.types';
 import { ApiErrorService } from '../../services/api-error.service';
+import { SessionService } from '../../services/session.service';
+import { RentalService } from '../rentals/rental.service';
 import {
   InspectionKind,
   InspectionListItem,
@@ -71,16 +73,36 @@ const KIND_LABEL: Record<InspectionKind, string> = {
 };
 
 /**
- * `/vistorias` — todas as vistorias da frota, filtráveis.
+ * Tamanho de cada pagina ao carregar os veiculos do filtro. 100 e o teto do
+ * backend: pedir mais NAO devolve mais, devolve 100 em silencio — foi o que
+ * deixou carro fora do seletor sem aviso nenhum. Por isso a tela PAGINA ate o
+ * total em vez de pedir uma pagina enorme.
+ */
+const VEHICLE_PAGE_SIZE = 100;
+/** Trava de seguranca do laco de paginas (20 x 100 = 2000 veiculos). */
+const VEHICLE_MAX_PAGES = 20;
+
+/** Um carro de um aluguel ATIVO do motorista — a porta dele para "Fazer vistoria". */
+interface DriverVehicle {
+  readonly vehicleId: string;
+  readonly label: string;
+}
+
+/**
+ * `/vistorias` — as vistorias, filtráveis.
  *
  * Existe porque a vistoria só era alcançável DENTRO do aluguel: para achar a
  * vistoria de um carro específico era preciso lembrar em qual locação ela
  * estava. Aqui ela é pesquisável por veículo, por locação e por período, e os
  * três filtros se combinam.
  *
- * O endpoint ainda não existe (ver `inspections.service.ts`): a tela consome o
- * contrato proposto. Enquanto ele não sobe, a lista mostra o erro inline em vez
- * de tela branca.
+ * ## Dois papeis, duas telas
+ *
+ * OWNER/MANAGER veem as da empresa, com filtro de veiculo/locacao, agendamento
+ * e aprovacao. O MOTORISTA ve as DELAS (o servidor escopa a listagem), sem nada
+ * que seja da empresa — filtros de frota, agendamento, aprovacao — e com uma
+ * porta propria: "Fazer vistoria" para o carro do aluguel ATIVO dele. O papel
+ * vem do token, a mesma fonte do `roleGuard`.
  */
 @Component({
   selector: 'app-inspections-list',
@@ -102,6 +124,19 @@ export class InspectionsList implements OnInit {
   private readonly vehicles = inject(VehiclesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly router = inject(Router);
+  private readonly session = inject(SessionService);
+  private readonly rentals = inject(RentalService);
+
+  /**
+   * O MOTORISTA. Lido do TOKEN uma vez: o papel nao muda sem trocar de empresa, e
+   * trocar de empresa remonta a tela. Decide o que NAO e carregado — `/v1/vehicles`
+   * e 403 para ele — alem do que e escondido.
+   */
+  protected readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
+
+  protected readonly pageDescription = this.isDriver
+    ? 'Suas vistorias e o carro do seu aluguel ativo.'
+    : 'Todas as vistorias da frota, por veiculo e periodo.';
 
   protected readonly kindChips = KIND_CHIPS;
   protected readonly statusChips = STATUS_CHIPS;
@@ -113,8 +148,12 @@ export class InspectionsList implements OnInit {
   protected readonly size = this.service.size;
   protected readonly total = this.service.total;
 
-  /** Opções do seletor de veículo, carregadas uma vez. */
+  /** Opções do seletor de veículo, carregadas por paginas ate o total. */
   protected readonly vehicleOptions = signal<Array<{ id: string; label: string }>>([]);
+
+  /** Os carros dos alugueis ATIVOS do motorista, e em que ponto a busca esta. */
+  protected readonly driverVehicles = signal<DriverVehicle[]>([]);
+  protected readonly driverVehiclesState = signal<'loading' | 'ready' | 'error'>('loading');
 
   protected readonly vehicleId = signal<string>('');
   protected readonly rentalId = signal<string>('');
@@ -188,7 +227,15 @@ export class InspectionsList implements OnInit {
    * que existe e nao abre, que foi o defeito do dia.
    */
   protected startInspection(): void {
-    const vehicleId = this.startVehicleId();
+    this.openCapture(this.startVehicleId());
+  }
+
+  /** O MOTORISTA nao escolhe carro: o botao dele ja nomeia o do aluguel ativo. */
+  protected startDriverInspection(vehicleId: string): void {
+    this.openCapture(vehicleId);
+  }
+
+  private openCapture(vehicleId: string): void {
     if (!vehicleId) {
       this.startError.set('Escolha o carro que voce vai vistoriar.');
       return;
@@ -264,21 +311,71 @@ export class InspectionsList implements OnInit {
 
   ngOnInit(): void {
     this.reload(0);
-    this.vehicles
-      .list({ size: 500, sort: 'plate_asc' })
-      .pipe()
+    if (this.isDriver) {
+      // `/v1/vehicles` e 403 para o motorista: nada de carregar a frota. O carro dele
+      // vem dos alugueis dele, que ja trazem placa e modelo.
+      this.loadDriverVehicles();
+    } else {
+      this.loadVehicleOptions();
+    }
+  }
+
+  /**
+   * Carrega TODOS os veiculos do seletor, uma pagina por vez.
+   *
+   * Cada pagina entra no seletor assim que chega; uma falha no meio mantem o que ja
+   * veio. O seletor e conveniencia: sem ele a tela ainda filtra por locacao e data.
+   */
+  private loadVehicleOptions(): void {
+    const toOptions = (items: VehicleListItem[]) =>
+      items.map((v) => ({
+        id: v.id,
+        label: [v.plate, v.model].filter(Boolean).join(' · '),
+      }));
+    const fetchPage = (page: number) =>
+      this.vehicles.list({ page, size: VEHICLE_PAGE_SIZE, sort: 'plate_asc' });
+
+    fetchPage(0)
+      .pipe(
+        expand((res) => {
+          const size = res.size || VEHICLE_PAGE_SIZE;
+          const next = (res.page ?? 0) + 1;
+          const hasMore = (res.content ?? []).length > 0 && next * size < (res.total ?? 0);
+          return hasMore && next < VEHICLE_MAX_PAGES ? fetchPage(next) : EMPTY;
+        }),
+      )
       .subscribe({
         next: (res) =>
-          this.vehicleOptions.set(
-            (res.content ?? []).map((v) => ({
-              id: v.id,
-              label: [v.plate, v.model].filter(Boolean).join(' · '),
-            })),
-          ),
-        // O seletor de veículo é conveniência: sem ele a tela ainda filtra por
-        // locação e por data. Falhar aqui não pode derrubar a lista.
-        error: () => this.vehicleOptions.set([]),
+          this.vehicleOptions.update((current) => [...current, ...toOptions(res.content ?? [])]),
+        error: () => undefined,
       });
+  }
+
+  /** Os carros dos alugueis ATIVOS do motorista — de onde ele pode fazer vistoria. */
+  protected loadDriverVehicles(): void {
+    this.driverVehiclesState.set('loading');
+    this.rentals.list({ status: 'ACTIVE', page: 0, size: 20 }).subscribe({
+      next: (res) => {
+        const seen = new Set<string>();
+        const found: DriverVehicle[] = [];
+        for (const rental of res.content ?? []) {
+          if (seen.has(rental.vehicleId)) continue;
+          seen.add(rental.vehicleId);
+          const car = [rental.vehicleBrand, rental.vehicleModel].filter(Boolean).join(' ');
+          found.push({
+            vehicleId: rental.vehicleId,
+            label: [rental.vehiclePlate, car].filter(Boolean).join(' · ') || 'Veículo do aluguel',
+          });
+        }
+        this.driverVehicles.set(found);
+        this.driverVehiclesState.set('ready');
+      },
+      error: (err: unknown) => {
+        this.apiErrors.claim(err);
+        this.driverVehicles.set([]);
+        this.driverVehiclesState.set('error');
+      },
+    });
   }
 
   protected onVehicleChange(value: string): void {
@@ -306,9 +403,27 @@ export class InspectionsList implements OnInit {
     return STATUS_LABELS[value] ?? value;
   }
 
-  /** So faz sentido revisar o que foi ENVIADO e ainda nao foi decidido. */
+  /**
+   * So faz sentido revisar o que foi ENVIADO e ainda nao foi decidido — e so para quem
+   * decide. O motorista nao aprova nem recusa: o servidor nega, e a tela nem oferece.
+   */
   protected awaitingReview(item: InspectionListItem): boolean {
-    return item.status === 'SUBMITTED';
+    return !this.isDriver && item.status === 'SUBMITTED';
+  }
+
+  /**
+   * O que a linha oferece para ABRIR a vistoria na tela de captura — a unica porta para
+   * continuar uma em andamento e para ver o motivo de uma recusa.
+   */
+  protected openLabel(item: InspectionListItem): string {
+    switch (item.status) {
+      case 'PENDING':
+        return 'Continuar vistoria';
+      case 'REJECTED':
+        return 'Ver recusa e refazer';
+      default:
+        return 'Ver fotos';
+    }
   }
 
   protected toggleReview(id: string): void {
@@ -334,7 +449,11 @@ export class InspectionsList implements OnInit {
     this.vehicleId.set('');
     this.rentalId.set('');
     this.kind.set('ALL');
+    // A situacao tambem e filtro: o contador e o vazio filtrado a contam. Limpar tudo
+    // menos ela deixava "Limpar filtros" recarregando com o mesmo filtro escondido.
+    this.status.set('ALL');
     this.range.set(null);
+    this.reviewingId.set(null);
     this.reload(0);
   }
 
@@ -355,8 +474,19 @@ export class InspectionsList implements OnInit {
     return new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('pt-BR');
   }
 
+  /**
+   * Placa · marca modelo. Cada parte e opcional (uma resposta antiga nao as manda), e a
+   * linha nunca fica em branco: sem nenhuma, diz que o carro nao foi identificado em vez
+   * de desenhar um titulo vazio.
+   */
   protected vehicleLabel(item: InspectionListItem): string {
-    return [item.vehiclePlate, item.vehicleModel].filter(Boolean).join(' · ');
+    const car = [item.vehicleBrand, item.vehicleModel].filter(Boolean).join(' ');
+    return [item.vehiclePlate, car].filter(Boolean).join(' · ') || 'Veículo não identificado';
+  }
+
+  /** "14 foto(s)", ou `null` quando o servidor nao mandou a contagem — nunca "undefined". */
+  protected photoCountLabel(item: InspectionListItem): string | null {
+    return typeof item.photoCount === 'number' ? `${item.photoCount} foto(s)` : null;
   }
 
   private reload(page: number): void {

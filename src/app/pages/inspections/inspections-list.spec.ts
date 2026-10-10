@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -11,7 +11,9 @@ import { DateRangePicker } from '../../components/date-range-picker/date-range-p
 import { InspectionsService } from '../../services/inspections.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { ApiErrorService } from '../../services/api-error.service';
+import { RentalService } from '../rentals/rental.service';
 import type { InspectionListItem } from '../../types/inspection.types';
+import type { RentalListItemDto } from '../../types/rental.types';
 
 /**
  * `/vistorias` — a pagina que tira a vistoria de dentro do aluguel.
@@ -40,6 +42,18 @@ describe('InspectionsList', () => {
   let total: ReturnType<typeof signal<number>>;
   let error: ReturnType<typeof signal<string | null>>;
   let listSpy: ReturnType<typeof vi.fn>;
+  let vehiclesList: ReturnType<typeof vi.fn>;
+  let rentalsList: ReturnType<typeof vi.fn>;
+
+  /** O token com o papel — a mesma fonte que o `roleGuard` e a tela leem. */
+  function signInAs(role: string): void {
+    const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+    const b64 = btoa(JSON.stringify(payload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    sessionStorage.setItem('token', `header.${b64}.signature`);
+  }
 
   interface Internals {
     onVehicleChange: (v: string) => void;
@@ -56,6 +70,10 @@ describe('InspectionsList', () => {
     total = signal(0);
     error = signal<string | null>(null);
     listSpy = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+    vehiclesList = vi.fn().mockReturnValue(
+      of({ content: [{ id: 'veh-1', plate: 'ABC1D23', model: 'Argo' }], page: 0, size: 100, total: 1 }),
+    );
+    rentalsList = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
 
     TestBed.configureTestingModule({
       imports: [InspectionsList],
@@ -79,14 +97,8 @@ describe('InspectionsList', () => {
             reject: vi.fn(),
           },
         },
-        {
-          provide: VehiclesService,
-          useValue: {
-            list: vi.fn().mockReturnValue(
-              of({ content: [{ id: 'veh-1', plate: 'ABC1D23', model: 'Argo' }], page: 0, size: 500, total: 1 }),
-            ),
-          },
-        },
+        { provide: VehiclesService, useValue: { list: vehiclesList } },
+        { provide: RentalService, useValue: { list: rentalsList } },
       ],
     });
   }
@@ -663,5 +675,308 @@ describe('InspectionsList', () => {
     );
     expect(cta, 'o estado vazio descreve o problema e nao oferece saida').toBeDefined();
     expect(cta?.getAttribute('href')).toBe('/vistorias/nova');
+  });
+
+  // ====================== A LINHA NAO FICA EM BRANCO ======================
+  /**
+   * O DEFEITO: o tipo exigia placa, modelo, motorista e contagem de fotos que o backend
+   * ainda nao mandava, e a linha nascia em branco — sem erro, sem aviso. O tipo agora e
+   * tolerante e a linha degrada para algo que se le.
+   */
+  describe('linha com campos ausentes', () => {
+    const bare: InspectionListItem = {
+      id: 'insp-9',
+      rentalId: null,
+      vehicleId: 'veh-9',
+      kind: 'FLEET',
+      performedAt: '2026-09-10T12:00:00Z',
+      status: 'PENDING',
+    };
+
+    it('sem placa/marca/modelo diz que o carro nao foi identificado', () => {
+      items.set([bare]);
+      total.set(1);
+      const body = text(render());
+
+      expect(body).toContain('Veículo não identificado');
+      expect(body).not.toContain('undefined');
+      expect(body).not.toContain('null');
+    });
+
+    it('sem a contagem de fotos nao escreve "undefined foto(s)" nem zero', () => {
+      items.set([bare]);
+      total.set(1);
+      const body = text(render());
+
+      expect(body).not.toContain('foto(s)');
+    });
+
+    it('com os campos, mostra placa, marca e modelo juntos, e a contagem', () => {
+      items.set([item]);
+      total.set(1);
+      const body = text(render());
+
+      expect(body).toContain('ABC1D23 · Fiat Argo');
+      expect(body).toContain('14 foto(s)');
+      expect(body).toContain('Fulano de Tal');
+    });
+
+    it('uma vistoria com zero fotos mostra "0 foto(s)": zero medido nao e ausencia', () => {
+      items.set([{ ...item, status: 'PENDING', photoCount: 0 }]);
+      total.set(1);
+
+      expect(text(render())).toContain('0 foto(s)');
+    });
+  });
+
+  // ====================== ABRIR A VISTORIA DA LINHA ======================
+  describe('abrir a vistoria', () => {
+    const open = (fixture: ReturnType<typeof render>) =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>(
+          '[data-open-inspection]',
+        ),
+      );
+
+    it('em andamento: continua na captura', () => {
+      items.set([{ ...item, status: 'PENDING' }]);
+      total.set(1);
+      const [link] = open(render());
+
+      expect(link.textContent).toContain('Continuar vistoria');
+      expect(link.getAttribute('href')).toBe('/vistorias/insp-1/captura');
+    });
+
+    it('recusada: leva ao motivo e a refazer', () => {
+      items.set([{ ...item, status: 'REJECTED' }]);
+      total.set(1);
+
+      expect(open(render())[0].textContent).toContain('Ver recusa e refazer');
+    });
+
+    it('aprovada: so ver as fotos', () => {
+      items.set([item]);
+      total.set(1);
+
+      expect(open(render())[0].textContent).toContain('Ver fotos');
+    });
+  });
+
+  // ====================== LIMPAR FILTROS LIMPA A SITUACAO ======================
+  /**
+   * O DEFEITO: `clearFilters()` zerava veiculo, locacao, tipo e periodo — e NAO a
+   * situacao. "Limpar filtros" recarregava com o filtro de situacao ainda aplicado, o
+   * contador seguia acusando um filtro ativo e o vazio dizia "com estes filtros" sobre
+   * um filtro que a pessoa acabara de mandar limpar.
+   */
+  describe('limpar filtros', () => {
+    it('zera tambem a situacao: a consulta sai sem status', () => {
+      const fixture = render();
+      internals(fixture).onStatusChange('REJECTED');
+      expect(lastQuery()).toMatchObject({ status: 'REJECTED' });
+
+      internals(fixture).clearFilters();
+
+      expect(lastQuery()).toMatchObject({ status: null, vehicleId: null, kind: null });
+    });
+
+    it('o chip "Todas" volta marcado e o contador de filtros ativos zera', () => {
+      const fixture = render();
+      internals(fixture).onStatusChange('SUBMITTED');
+      fixture.detectChanges();
+      expect(text(fixture)).toContain('Filtros · 1');
+
+      internals(fixture).clearFilters();
+      fixture.detectChanges();
+
+      expect(text(fixture)).not.toContain('Filtros · ');
+      const checked = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll(
+          '[aria-labelledby="insp-status-label"] [role="radio"][aria-checked="true"]',
+        ),
+      ).map((c) => c.textContent?.trim());
+      expect(checked).toEqual(['Todas']);
+    });
+  });
+
+  // ====================== VEICULOS ALEM DOS 100 ======================
+  /**
+   * O DEFEITO: o seletor pedia `size: 500`, o backend limita a 100 em silencio, e todo
+   * carro do 101o em diante simplesmente nao existia no filtro. A tela agora PAGINA ate
+   * o total.
+   */
+  describe('veiculos do seletor', () => {
+    const page = (n: number, count: number, total: number) => ({
+      content: Array.from({ length: count }, (_, i) => ({
+        id: `veh-${n}-${i}`,
+        plate: `AAA${n}${String(i).padStart(3, '0')}`,
+        model: 'Argo',
+      })),
+      page: n,
+      size: 100,
+      total,
+    });
+
+    it('carrega TODAS as paginas ate o total, sem pedir 500', () => {
+      vehiclesList.mockImplementation((filters: { page: number }) =>
+        of(filters.page === 0 ? page(0, 100, 230) : filters.page === 1 ? page(1, 100, 230) : page(2, 30, 230)),
+      );
+      const fixture = render();
+      const options = (fixture.nativeElement as HTMLElement).querySelectorAll('#insp-vehicle option');
+
+      // 230 veiculos + a opcao "Todos os veiculos".
+      expect(options.length).toBe(231);
+      expect(vehiclesList).toHaveBeenCalledTimes(3);
+      for (const [filters] of vehiclesList.mock.calls) {
+        expect(filters.size).toBe(100);
+      }
+      expect(vehiclesList.mock.calls.map(([f]) => f.page)).toEqual([0, 1, 2]);
+    });
+
+    it('uma pagina so basta quando o total cabe nela', () => {
+      render();
+
+      expect(vehiclesList).toHaveBeenCalledTimes(1);
+    });
+
+    it('falha numa pagina do meio mantem as que ja chegaram', () => {
+      vehiclesList.mockImplementation((filters: { page: number }) =>
+        filters.page === 0
+          ? of(page(0, 100, 230))
+          : throwError(() => new HttpErrorResponse({ status: 500 })),
+      );
+      const fixture = render();
+      const options = (fixture.nativeElement as HTMLElement).querySelectorAll('#insp-vehicle option');
+
+      expect(options.length).toBe(101);
+    });
+  });
+
+  // ====================== O MOTORISTA ======================
+  /**
+   * A listagem abriu para o motorista, e o que muda nela e o recorte: so as DELE (o
+   * servidor escopa), sem nada da empresa — filtros de frota, agendamento, aprovacao — e
+   * com uma porta propria, o carro do aluguel ATIVO. Cada metade tem teste, porque o
+   * defeito aqui seria a tela oferecer o que o servidor nega.
+   */
+  describe('motorista', () => {
+    const rental = {
+      id: 'r-1',
+      vehicleId: 'veh-9',
+      driverId: 'd-1',
+      vehiclePlate: 'XYZ9K88',
+      vehicleBrand: 'VW',
+      vehicleModel: 'Gol',
+      driverName: 'Eu Mesmo',
+      status: 'ACTIVE',
+    } as unknown as RentalListItemDto;
+
+    const host = (fixture: ReturnType<typeof render>) => fixture.nativeElement as HTMLElement;
+
+    beforeEach(() => {
+      signInAs('DRIVER');
+      rentalsList.mockReturnValue(of({ content: [rental], page: 0, size: 20, total: 1 }));
+    });
+
+    it('NAO chama a lista de veiculos da empresa: e 403 para ele', () => {
+      render();
+
+      expect(vehiclesList).not.toHaveBeenCalled();
+    });
+
+    it('lista as vistorias dele pelo mesmo endpoint, sem filtro de frota', () => {
+      render();
+
+      expect(listSpy).toHaveBeenCalledTimes(1);
+      expect(lastQuery()).toMatchObject({ vehicleId: null, rentalId: null });
+    });
+
+    it('esconde o que e da empresa: agendar, fazer-por-carro, filtros de frota, agendamentos', () => {
+      const fixture = render();
+
+      expect(host(fixture).querySelector('[data-schedule-inspection]')).toBeNull();
+      expect(host(fixture).querySelector('[data-start-inspection]')).toBeNull();
+      expect(host(fixture).querySelector('#insp-vehicle')).toBeNull();
+      expect(host(fixture).querySelector('#insp-rental')).toBeNull();
+      expect(host(fixture).querySelector('app-inspection-schedules-block')).toBeNull();
+      // CONTROLE POSITIVO: a tela existe — os filtros que servem a ele continuam.
+      expect(host(fixture).querySelector('[aria-labelledby="insp-status-label"]')).not.toBeNull();
+    });
+
+    it('nao oferece aprovar ou recusar nem na vistoria enviada', () => {
+      items.set([{ ...item, status: 'SUBMITTED' }]);
+      total.set(1);
+      const fixture = render();
+
+      expect(host(fixture).querySelector('[data-review-toggle]')).toBeNull();
+      // CONTROLE POSITIVO: a linha esta la, so nao e dele decidir.
+      expect(text(fixture)).toContain('ABC1D23');
+    });
+
+    it('o dono, na mesma linha, continua vendo a revisao', () => {
+      sessionStorage.clear();
+      signInAs('OWNER');
+      items.set([{ ...item, status: 'SUBMITTED' }]);
+      total.set(1);
+      const fixture = render();
+
+      expect(host(fixture).querySelector('[data-review-toggle]')).not.toBeNull();
+    });
+
+    it('oferece FAZER vistoria no carro do aluguel ativo, nomeando o carro', () => {
+      const fixture = render();
+      const button = host(fixture).querySelector<HTMLButtonElement>(
+        '[data-driver-start-inspection]',
+      );
+
+      expect(rentalsList).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACTIVE' }));
+      expect(button).not.toBeNull();
+      expect(button?.textContent).toContain('XYZ9K88 · VW Gol');
+    });
+
+    it('o botao abre a captura com o veiculo do aluguel', () => {
+      const fixture = render();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      host(fixture).querySelector<HTMLButtonElement>('[data-driver-start-inspection]')?.click();
+
+      expect(navigate).toHaveBeenCalledWith(['/vistorias', 'nova'], {
+        queryParams: { vehicleId: 'veh-9' },
+      });
+    });
+
+    it('sem aluguel ativo explica por que nao ha o que fotografar', () => {
+      rentalsList.mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+      const fixture = render();
+
+      expect(host(fixture).querySelector('[data-driver-start-inspection]')).toBeNull();
+      expect(host(fixture).querySelector('[data-driver-no-rental]')?.textContent).toContain(
+        'aluguel ativo',
+      );
+    });
+
+    it('falha ao achar o aluguel oferece tentar de novo, e o retry chama de novo', () => {
+      rentalsList.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      const fixture = render();
+
+      expect(text(fixture)).toContain('Não conseguimos achar o seu aluguel ativo');
+      rentalsList.mockReturnValue(of({ content: [rental], page: 0, size: 20, total: 1 }));
+      host(fixture).querySelector<HTMLButtonElement>('[data-driver-retry]')?.click();
+      fixture.detectChanges();
+
+      expect(rentalsList).toHaveBeenCalledTimes(2);
+      expect(host(fixture).querySelector('[data-driver-start-inspection]')).not.toBeNull();
+    });
+
+    it('o estado vazio dele nao manda para uma captura sem carro', () => {
+      const fixture = render();
+
+      expect(text(fixture)).toContain('Você ainda não fez nenhuma vistoria');
+      expect(
+        Array.from(host(fixture).querySelectorAll('a')).some(
+          (a) => a.getAttribute('href') === '/vistorias/nova',
+        ),
+      ).toBe(false);
+    });
   });
 });

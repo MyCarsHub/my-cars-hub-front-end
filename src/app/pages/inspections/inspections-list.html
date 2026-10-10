@@ -1,7 +1,4 @@
-<app-default-page-layout
-  title="Vistorias"
-  description="Todas as vistorias da frota, por veiculo e periodo."
->
+<app-default-page-layout title="Vistorias" [description]="pageDescription">
   <!--
     A ESTRUTURA E A DE `vehicles-list`, e de proposito: mesma casa, mesma
     moldura. `DefaultPageLayout` + `PageCard title`, acao primaria em
@@ -16,6 +13,8 @@
       Veiculo, que saiu — sem ela aqui, a captura ficaria sem nenhuma porta.
     -->
     <div cardActions class="flex flex-wrap items-center gap-2">
+      <!-- O motorista nao agenda e nao escolhe carro: a porta dele e o bloco abaixo. -->
+      @if (!isDriver) {
       <button
         type="button"
         data-schedule-inspection
@@ -42,15 +41,88 @@
       >
         {{ startOpen() ? 'Cancelar' : 'Fazer vistoria' }}
       </button>
+      }
     </div>
 
     <div class="p-3 sm:p-4 space-y-4">
+      <!--
+        A PORTA DO MOTORISTA. Ele nao escolhe carro: faz a vistoria do carro do aluguel
+        ATIVO dele, que o servidor tambem exige. O carro vem dos alugueis dele — a lista de
+        veiculos da empresa e 403 para ele — e o botao ja nomeia o carro.
+      -->
+      @if (isDriver) {
+        <section
+          data-driver-start
+          aria-labelledby="driver-start-title"
+          class="rounded-xl border border-primary-200 bg-primary-50 p-4 space-y-3"
+        >
+          <h2 id="driver-start-title" class="text-base font-semibold text-neutral-900">
+            Fazer vistoria
+          </h2>
+
+          @switch (driverVehiclesState()) {
+            @case ('loading') {
+              <p class="text-sm text-neutral-700" role="status">
+                Procurando o carro do seu aluguel ativo…
+              </p>
+            }
+            @case ('error') {
+              <app-alert-banner
+                variant="error"
+                message="Não conseguimos achar o seu aluguel ativo agora."
+              />
+              <button
+                type="button"
+                data-driver-retry
+                (click)="loadDriverVehicles()"
+                class="w-full min-h-[44px] inline-flex items-center justify-center rounded-xl
+                       border border-neutral-300 bg-white text-sm font-semibold text-neutral-800
+                       hover:bg-neutral-50 transition-colors focus:outline-none
+                       focus-visible:ring-2 focus-visible:ring-primary-600"
+              >
+                Tentar de novo
+              </button>
+            }
+            @default {
+              @if (driverVehicles().length === 0) {
+                <p data-driver-no-rental class="text-sm text-neutral-700">
+                  Você não tem um aluguel ativo no momento. A vistoria é feita no carro de um
+                  aluguel ativo — fale com o dono ou o gerente da empresa.
+                </p>
+              } @else {
+                <p class="text-sm text-neutral-700">
+                  Fotografe o carro do seu aluguel ativo. Cada foto é enviada na hora.
+                </p>
+                @for (car of driverVehicles(); track car.vehicleId) {
+                  <button
+                    type="button"
+                    data-driver-start-inspection
+                    (click)="startDriverInspection(car.vehicleId)"
+                    class="w-full min-h-14 inline-flex items-center justify-center rounded-xl
+                           bg-primary-500 px-5 text-base font-semibold text-white
+                           hover:bg-primary-600 transition-colors focus:outline-none
+                           focus-visible:ring-2 focus-visible:ring-primary-600
+                           focus-visible:ring-offset-2"
+                  >
+                    Fazer vistoria · {{ car.label }}
+                  </button>
+                }
+              }
+            }
+          }
+
+          @if (startError(); as message) {
+            <app-alert-banner variant="error" [message]="message" />
+          }
+        </section>
+      }
+
       <!--
         A PORTA ATE A CAPTURA. A captura exige `?vehicleId=`: sem ele ela so sabe
         dizer que falta um carro. Perguntar aqui e o que evita mandar a pessoa
         para uma tela que ja nasce em erro.
       -->
-      @if (startOpen()) {
+      @if (!isDriver && startOpen()) {
         <div class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
           <label for="start-vehicle" class="block text-sm font-semibold text-neutral-900">
             Qual carro voce vai vistoriar agora?
@@ -144,6 +216,7 @@
         período. Cada um recarrega a lista e volta para a página 0 — manter a
         página ao trocar o filtro mostraria "página 3 de 1".
       -->
+      @if (!isDriver) {
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <!--
           `min-w-0` NÃO é decoração: item de grade nasce com `min-width:auto` e
@@ -184,6 +257,8 @@
           />
         </div>
       </div>
+
+      }
 
       <div class="space-y-2">
         <p id="insp-kind-label" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
@@ -259,6 +334,13 @@
               Limpar filtros
             </button>
           </div>
+        } @else if (isDriver) {
+          <!-- A acao do motorista e o bloco "Fazer vistoria" no topo, nao um link solto. -->
+          <div class="py-10 text-center">
+            <p class="text-sm text-neutral-600 leading-relaxed">
+              Você ainda não fez nenhuma vistoria.
+            </p>
+          </div>
         } @else {
           <!--
             O ESTADO VAZIO OFERECE A ACAO.
@@ -320,7 +402,9 @@
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
             <span class="tabular-nums">{{ formatDate(item.performedAt) }}</span>
-            <span>{{ item.photoCount }} foto(s)</span>
+            @if (photoCountLabel(item); as photos) {
+              <span>{{ photos }}</span>
+            }
           </div>
 
           <!--
@@ -333,6 +417,21 @@
             Resta o caminho para o aluguel, que é onde a vistoria vive hoje.
           -->
           <div class="flex flex-wrap items-center gap-2">
+            <!--
+              ABRIR a vistoria na tela dela: e por aqui que se CONTINUA uma em andamento e
+              que se le o motivo de uma recusa para refazer. Sem esta porta a linha so
+              levava ao aluguel (ou a nada, na vistoria de frota).
+            -->
+            <a
+              [routerLink]="['/vistorias', item.id, 'captura']"
+              data-open-inspection
+              class="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-neutral-200
+                     text-sm font-medium text-neutral-700 hover:bg-gray-50 transition-colors
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+            >
+              {{ openLabel(item) }}
+            </a>
+
             @if (item.rentalId) {
               <a
                 [routerLink]="['/alugueis', item.rentalId]"
@@ -413,8 +512,10 @@
     `vehicleOptions` ja e carregado por esta tela para o filtro: a lista de agendamentos
     devolve so o `vehicleId`, e e daqui que a linha de carro tira placa e modelo.
   -->
-  <app-inspection-schedules-block
-    [vehicleOptions]="vehicleOptions()"
-    class="block mt-4 sm:mt-6"
-  />
+  @if (!isDriver) {
+    <app-inspection-schedules-block
+      [vehicleOptions]="vehicleOptions()"
+      class="block mt-4 sm:mt-6"
+    />
+  }
 </app-default-page-layout>
