@@ -45,6 +45,7 @@ import {
   ROLE_CHANGE_NOTE,
   STATUS_OPTIONS,
   StatusFilter,
+  canManageInvites,
   filterPeople,
   hasAnyFilter,
   inviteActionMessage,
@@ -117,7 +118,8 @@ export class CompanyMembers implements OnInit {
    */
   protected readonly canManagePeople =
     this.callerRole === 'OWNER' || this.callerRole === 'MANAGER';
-  protected readonly canInviteManager = this.callerRole === 'OWNER';
+  /** A manager invites a manager exactly like the owner: invites are the same power. */
+  protected readonly canInviteManager = canManageInvites(this.callerRole);
 
   /** List filters: client-side, kept in signals (the URL is not touched). */
   protected readonly query = signal('');

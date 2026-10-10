@@ -74,7 +74,9 @@ import { TourService } from '../../tour/tour.service';
       [open]="paywallOpen()"
       [reason]="access.reason()"
       [hardBlock]="true"
+      [canRegularize]="paywallCanRegularize()"
       (confirmed)="goToBilling()"
+      (acknowledged)="paywallOpen.set(false)"
     />
     <!--
       Fora do main de propósito: o holofote usa coordenadas de viewport
@@ -102,6 +104,12 @@ export class AppShell implements OnInit, OnDestroy {
   protected readonly impersonating = inject(ImpersonationService).active;
 
   protected readonly paywallOpen = signal(false);
+  /**
+   * Only the OWNER can regularize the plan. Read from the TOKEN when the dialog opens — the
+   * same source `roleGuard` and `billingAccessGuard` use — so the copy never offers
+   * `/billing` to someone those guards will bounce away from it.
+   */
+  protected readonly paywallCanRegularize = signal(true);
 
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
@@ -140,6 +148,7 @@ export class AppShell implements OnInit, OnDestroy {
       }
       if (this.wasShownThisSession()) return;
       this.markShown();
+      this.paywallCanRegularize.set(this.session.getCompanyRoleFromToken() === 'OWNER');
       this.paywallOpen.set(true);
     });
 
