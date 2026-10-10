@@ -15,7 +15,9 @@ export type MembersIconName =
   | 'car'
   | 'chevR'
   | 'arrowR'
-  | 'info';
+  | 'info'
+  | 'link'
+  | 'message';
 
 /** Stroke icons of the Members page (stroke 2, currentColor, always decorative). */
 @Component({
@@ -68,6 +70,12 @@ export type MembersIconName =
         }
         @case ('arrowR') {
           <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+        }
+        @case ('link') {
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        }
+        @case ('message') {
+          <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z" />
         }
         @case ('info') {
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />

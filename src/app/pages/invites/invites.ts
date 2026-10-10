@@ -14,11 +14,13 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { InviteShare } from '../../components/invite-share/invite-share';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { InvitesService } from '../../services/invites.service';
 import { NotificationService } from '../../services/notification.service';
+import { SessionService } from '../../services/session.service';
 import { inviteErrorCopy } from '../../services/invite-errors';
 import {
   INVITE_TTL_LABEL,
@@ -73,6 +75,7 @@ const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
     AlertBanner,
     FormField,
     FieldControl,
+    InviteShare,
   ],
   templateUrl: './invites.html',
 })
@@ -95,8 +98,20 @@ export class Invites implements OnInit {
   private readonly invites = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
+  private readonly session = inject(SessionService);
   protected readonly createError = signal<string | null>(null);
   protected readonly sending = signal(false);
+
+  /**
+   * The invite just sent, with the accept link the creation answer carried. Component state
+   * only: it is replaced by the next send, dropped by "Concluir" and gone with the page.
+   * Never stored, never logged.
+   */
+  protected readonly sentInvite = signal<{
+    email: string;
+    link: string;
+    companyName: string | null;
+  } | null>(null);
 
   /** Validity promised in the form copy — mirror of the backend TTL, never a typed number. */
   protected readonly ttlLabel = INVITE_TTL_LABEL;
@@ -203,6 +218,7 @@ export class Invites implements OnInit {
 
     clearServerErrors(this.inviteForm);
     this.createError.set(null);
+    this.sentInvite.set(null);
 
     // Normalise BEFORE validating. `Validators.email` matches the raw value, so the
     // trailing space that mobile keyboards append after an address would fail the field
@@ -250,6 +266,11 @@ export class Invites implements OnInit {
           this.roleValue.set('DRIVER');
           this.syncManagerValidators('DRIVER');
           this.notifications.success(`Convite enviado para ${invite.email}.`);
+          const link = invite.acceptUrl?.trim();
+          if (link) {
+            const company = this.session.getItem('selectedCompanyName')?.trim();
+            this.sentInvite.set({ email: invite.email, link, companyName: company || null });
+          }
           // Quem hospeda recarrega: a linha nova tem de aparecer como 'Convite enviado'.
           this.sent.emit();
         },
@@ -258,6 +279,10 @@ export class Invites implements OnInit {
           this.handleCreateError(err);
         },
       });
+  }
+
+  protected dismissSent(): void {
+    this.sentInvite.set(null);
   }
 
   /**

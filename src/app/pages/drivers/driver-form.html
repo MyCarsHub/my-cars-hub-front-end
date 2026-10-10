@@ -6,6 +6,32 @@
     <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
       Carregando…
     </div>
+  } @else if (sentInvite(); as sent) {
+    <!-- Driver saved AND invite sent: stay here so the link can be copied / sent before leaving. -->
+    <section class="space-y-4" data-testid="invite-sent">
+      <app-alert-banner variant="success">
+        <p class="font-semibold">Motorista cadastrado e convite enviado</p>
+        <p class="text-xs mt-0.5 leading-relaxed break-words">
+          {{ sent.detail }} Se preferir, mande o link você mesmo.
+        </p>
+      </app-alert-banner>
+      <app-page-card title="Link do convite">
+        <div class="p-4 sm:p-6">
+          <app-invite-share [link]="sent.link" [companyName]="sent.companyName" />
+        </div>
+      </app-page-card>
+      <div class="flex sm:justify-end">
+        <button
+          type="button"
+          data-testid="invite-sent-done"
+          (click)="finishSent()"
+          class="w-full sm:w-auto min-h-12 px-5 py-3 rounded-xl text-base font-semibold bg-primary-500
+                 text-white hover:bg-primary-600 shadow-sm focus:outline-none focus-visible:ring-2
+                 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
+          Concluir
+        </button>
+      </div>
+    </section>
   } @else if (inviteResult(); as result) {
     <!-- The driver IS saved; only the invite was refused. Stay here: this screen has the action. -->
     <section class="space-y-4" data-testid="invite-result">

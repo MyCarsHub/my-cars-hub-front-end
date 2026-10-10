@@ -188,6 +188,8 @@
                 [busyId]="busyId()"
                 (remove)="askRemove($event)"
                 (resend)="resend($event)"
+                (copyLink)="askShare($event, 'copy')"
+                (sendWhatsApp)="askShare($event, 'whatsapp')"
                 (cancel)="askCancel($event)"
               />
             }
@@ -241,6 +243,8 @@
   (closed)="closeActions()"
   (remove)="askRemove($event)"
   (resend)="resend($event)"
+  (copyLink)="askShare($event, 'copy')"
+  (sendWhatsApp)="askShare($event, 'whatsapp')"
   (cancel)="askCancel($event)"
 />
 
@@ -269,6 +273,28 @@
     variant="danger"
     (confirmed)="confirmRemove()"
     (cancelled)="pendingRemoval.set(null)"
+  />
+}
+
+@if (pendingShare(); as target) {
+  <app-confirm-dialog
+    [open]="true"
+    title="Gerar um novo link"
+    [message]="shareConfirmMessage"
+    [confirmLabel]="target.mode === 'copy' ? 'Gerar e copiar' : 'Gerar e enviar'"
+    cancelLabel="Cancelar"
+    variant="warning"
+    (confirmed)="confirmShare()"
+    (cancelled)="pendingShare.set(null)"
+  />
+}
+
+@if (sharedLink(); as shared) {
+  <app-invite-link-sheet
+    [link]="shared.link"
+    [recipient]="shared.recipient"
+    [companyName]="shared.companyName"
+    (closed)="closeSharedLink()"
   />
 }
 

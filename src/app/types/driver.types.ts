@@ -55,6 +55,13 @@ export interface DriverInviteSummary {
   emailDelivery?: string;
   /** Domain code of a refused invite (INVITE_DUPLICATE, INVITE_ALREADY_MEMBER, ...). */
   code?: string;
+  /**
+   * Absolute accept link of the invite that just left with the registration. Present ONLY on
+   * `POST /drivers` and only while `status` is PENDING; absent or null on an older backend and
+   * on FAILED / NOT_SENT. It is a credential-like value: component state only, never stored,
+   * never logged.
+   */
+  acceptUrl?: string | null;
 }
 
 export interface DriverListItem {

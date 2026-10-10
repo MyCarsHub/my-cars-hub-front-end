@@ -195,6 +195,69 @@ describe('DriverForm - register and invite', () => {
       expect(router.url).toBe('/motoristas/drv-1');
     });
 
+    describe('with the accept link (acceptUrl)', () => {
+      const LINK = 'https://mycarshub.app.br/convite/tok_drv42';
+      const sentArea = () => dom().querySelector<HTMLElement>('[data-testid="invite-sent"]');
+
+      it('PENDING + acceptUrl: stays on a share panel instead of leaving, and keeps the toast', async () => {
+        await register({ status: 'PENDING', inviteId: 'inv-1', emailDelivery: 'QUEUED', acceptUrl: LINK });
+
+        expect(router.url).toBe('/motoristas/novo');
+        expect(toasts().map((t) => t.message)).toContain(
+          'Motorista cadastrado. Convite enviado para joao@example.com.',
+        );
+        const area = sentArea();
+        expect(area?.textContent).toContain('Motorista cadastrado e convite enviado');
+        expect(area?.textContent).toContain('Convite enviado para joao@example.com.');
+        expect(area?.querySelector<HTMLInputElement>('[data-share-link]')?.value).toBe(LINK);
+        expect(area?.querySelector('[data-copy-link]')?.textContent).toContain('Copiar link');
+        const wa = area?.querySelector<HTMLAnchorElement>('a[data-whatsapp-link]');
+        expect(wa?.getAttribute('href')?.startsWith('https://wa.me/?text=')).toBe(true);
+        expect(new URL(wa?.getAttribute('href') ?? '').searchParams.get('text')).toContain(LINK);
+        expect(wa?.getAttribute('rel')).toContain('noopener');
+        expect(dom().querySelector('form')).toBeNull();
+      });
+
+      it('Concluir goes where a registration without a link goes, and drops the link', async () => {
+        await register({ status: 'PENDING', inviteId: 'inv-1', acceptUrl: LINK });
+        expect(dom().innerHTML).toContain('tok_drv42');
+
+        (dom().querySelector('[data-testid="invite-sent-done"]') as HTMLButtonElement).click();
+        await settle();
+
+        expect(router.url).toBe('/motoristas/drv-1');
+        expect(dom().innerHTML).not.toContain('tok_drv42');
+      });
+
+      it('the link is never written to storage', async () => {
+        await register({ status: 'PENDING', inviteId: 'inv-1', acceptUrl: LINK });
+
+        const stored = JSON.stringify({ ...sessionStorage }) + JSON.stringify({ ...localStorage });
+        expect(stored).not.toContain('tok_drv42');
+      });
+
+      it.each([
+        ['absent (older backend)', { status: 'PENDING', inviteId: 'inv-1' }],
+        ['null', { status: 'PENDING', inviteId: 'inv-1', acceptUrl: null }],
+        ['blank', { status: 'PENDING', inviteId: 'inv-1', acceptUrl: '   ' }],
+      ])('PENDING with acceptUrl %s keeps today: toast and straight to the driver', async (_name, invite) => {
+        await register(invite);
+
+        expect(sentArea()).toBeNull();
+        expect(router.url).toBe('/motoristas/drv-1');
+        expect(toasts().map((t) => t.message)).toContain(
+          'Motorista cadastrado. Convite enviado para joao@example.com.',
+        );
+      });
+
+      it('FAILED never shows a link, even if one came along', async () => {
+        await register({ status: 'FAILED', inviteId: 'inv-9', code: 'INVITE_NOT_CREATED', acceptUrl: LINK });
+        expect(sentArea()).toBeNull();
+        expect(dom().innerHTML).not.toContain('tok_drv42');
+        expect(dom().querySelector('[data-testid="resend-invite"]')).not.toBeNull();
+      });
+    });
+
     it('FAILED without an invite id: warning with the reason, stays here, points to Membros (no resend)', async () => {
       await register({ status: 'FAILED', code: 'INVITE_DUPLICATE' });
       expect(router.url).toBe('/motoristas/novo');

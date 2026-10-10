@@ -94,6 +94,34 @@ const ITEM =
             </button>
             <button
               type="button"
+              data-copy-invite-link
+              [class]="item + ' text-neutral-800 hover:bg-neutral-50'"
+              (click)="copyLink.emit(t.row)"
+            >
+              <span class="text-neutral-500"><app-members-icon name="link" /></span>
+              <span class="flex-1 min-w-0">
+                <span class="block text-sm font-semibold">Copiar link</span>
+                <span class="block text-xs text-neutral-500">
+                  Gera um link novo e copia. O anterior deixa de valer.
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              data-whatsapp-invite-link
+              [class]="item + ' text-neutral-800 hover:bg-neutral-50'"
+              (click)="sendWhatsApp.emit(t.row)"
+            >
+              <span class="text-neutral-500"><app-members-icon name="message" /></span>
+              <span class="flex-1 min-w-0">
+                <span class="block text-sm font-semibold">Enviar pelo WhatsApp</span>
+                <span class="block text-xs text-neutral-500">
+                  Gera um link novo e abre o WhatsApp. O anterior deixa de valer.
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
               data-cancel-invite
               [class]="item + ' text-rose-700 hover:bg-rose-50'"
               (click)="cancel.emit(t.row)"
@@ -115,6 +143,10 @@ export class RowActionsSheet {
   readonly closed = output<void>();
   readonly remove = output<MemberRow>();
   readonly resend = output<InviteRow>();
+  /** Resend + copy the new link. The page confirms first: the old link dies. */
+  readonly copyLink = output<InviteRow>();
+  /** Resend + open WhatsApp with the new link. Same confirmation. */
+  readonly sendWhatsApp = output<InviteRow>();
   readonly cancel = output<InviteRow>();
 
   protected readonly item = ITEM;

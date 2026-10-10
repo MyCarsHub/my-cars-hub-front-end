@@ -162,6 +162,26 @@ const CHIP =
                       <button
                         type="button"
                         role="menuitem"
+                        data-copy-invite-link
+                        [disabled]="busyId() !== null"
+                        (click)="copyLink.emit(invite)"
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-800 hover:bg-neutral-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-neutral-50"
+                      >
+                        <app-members-icon name="link" [size]="16" />Copiar link
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-whatsapp-invite-link
+                        [disabled]="busyId() !== null"
+                        (click)="sendWhatsApp.emit(invite)"
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-800 hover:bg-neutral-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-neutral-50"
+                      >
+                        <app-members-icon name="message" [size]="16" />Enviar pelo WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
                         [disabled]="busyId() !== null"
                         (click)="cancel.emit(invite)"
                         class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-700 hover:bg-rose-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-rose-50"
@@ -188,6 +208,8 @@ export class PeopleTable {
   readonly busyId = input<string | null>(null);
   readonly remove = output<MemberRow>();
   readonly resend = output<InviteRow>();
+  readonly copyLink = output<InviteRow>();
+  readonly sendWhatsApp = output<InviteRow>();
   readonly cancel = output<InviteRow>();
 
   protected readonly chip = CHIP;

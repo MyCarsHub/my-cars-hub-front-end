@@ -150,6 +150,53 @@ describe('Invites — envio e gestão de convites', () => {
     expect(component.inviteForm.getRawValue().email).toBe('');
   });
 
+  it('com acceptUrl na resposta, mostra o link para copiar e enviar pelo WhatsApp; Concluir descarta', () => {
+    const { fixture, component } = render();
+    const el = fixture.nativeElement as HTMLElement;
+    create.mockReturnValue(
+      of({ ...pending, email: 'novo@empresa.com.br', acceptUrl: 'https://mycarshub.app.br/convite/tok_pg7' }),
+    );
+
+    component.inviteForm.patchValue({ email: 'novo@empresa.com.br', role: 'DRIVER' });
+    component.send();
+    fixture.detectChanges();
+
+    const area = el.querySelector<HTMLElement>('[data-invite-sent]');
+    expect(area?.textContent).toContain('Convite enviado para novo@empresa.com.br');
+    expect(area?.querySelector<HTMLInputElement>('[data-share-link]')?.value).toBe(
+      'https://mycarshub.app.br/convite/tok_pg7',
+    );
+    expect(area?.querySelector('[data-copy-link]')).not.toBeNull();
+    expect(area?.querySelector('a[data-whatsapp-link][href^="https://wa.me/?text="]')).not.toBeNull();
+    expect(notifySuccess).toHaveBeenCalledWith('Convite enviado para novo@empresa.com.br.');
+
+    area?.querySelector<HTMLButtonElement>('[data-invite-done]')?.click();
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-invite-sent]')).toBeNull();
+    expect(el.innerHTML).not.toContain('tok_pg7');
+  });
+
+  it('um novo envio descarta o link do anterior, e sem acceptUrl nao ha area de link', () => {
+    const { fixture, component } = render();
+    const el = fixture.nativeElement as HTMLElement;
+    create.mockReturnValueOnce(
+      of({ ...pending, acceptUrl: 'https://mycarshub.app.br/convite/tok_old' }),
+    );
+    component.inviteForm.patchValue({ email: 'novo@empresa.com.br', role: 'DRIVER' });
+    component.send();
+    fixture.detectChanges();
+    expect(el.innerHTML).toContain('tok_old');
+
+    create.mockReturnValue(of(pending));
+    component.inviteForm.patchValue({ email: 'outro@empresa.com.br', role: 'DRIVER' });
+    component.send();
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-invite-sent]')).toBeNull();
+    expect(el.innerHTML).not.toContain('tok_old');
+  });
+
   it('não chama a API com e-mail inválido', () => {
     const { component } = render();
 
