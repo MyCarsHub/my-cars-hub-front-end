@@ -317,3 +317,126 @@ describe('RentalsList — badge de integração Asaas', () => {
     expect(asaasBadges(fixture.nativeElement as HTMLElement)).toHaveLength(0);
   });
 });
+
+/**
+ * O MOTORISTA enxerga os proprios alugueis e nada da frota. `/v1/vehicles` e
+ * `/v1/drivers` sao 403 para ele, entao a tela nao os chama — placa, modelo e nome
+ * vem na propria linha — e nao oferece o que e do dono.
+ */
+describe('RentalsList — motorista', () => {
+  const row: RentalListItemDto = {
+    id: 'r-1',
+    vehicleId: 'v-1',
+    driverId: 'd-1',
+    startDate: '2026-01-01',
+    endDate: '2026-01-10',
+    totalAmount: 1000,
+    caucaoAmount: 0,
+    status: 'RESERVED',
+    billingFrequency: 'DAILY',
+    automaticCharge: false,
+    vehiclePlate: 'ABC1D23',
+    vehicleBrand: 'Fiat',
+    vehicleModel: 'Argo',
+    driverName: 'Fulano de Tal',
+  };
+
+  let vehiclesList: ReturnType<typeof vi.fn>;
+  let driversList: ReturnType<typeof vi.fn>;
+
+  function signInAs(role: string): void {
+    const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+    const b64 = btoa(JSON.stringify(payload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    sessionStorage.setItem('token', `header.${b64}.signature`);
+  }
+
+  function render(role: string, item: RentalListItemDto = row) {
+    TestBed.resetTestingModule();
+    sessionStorage.clear();
+    signInAs(role);
+    vehiclesList = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+    driversList = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+
+    TestBed.configureTestingModule({
+      imports: [RentalsList],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: RentalService,
+          useValue: {
+            items: signal<RentalListItemDto[]>([item]),
+            loading: signal(false),
+            error: signal<string | null>(null),
+            page: signal(0),
+            size: signal(20),
+            total: signal(1),
+            list: vi.fn().mockReturnValue(of({ content: [item], page: 0, size: 20, total: 1 })),
+          },
+        },
+        { provide: VehiclesService, useValue: { list: vehiclesList } },
+        { provide: DriverService, useValue: { list: driversList } },
+        { provide: NotificationService, useValue: { push: vi.fn(), success: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalsList);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const body = (fixture: ReturnType<typeof render>) =>
+    ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+
+  it('NAO chama /v1/vehicles nem /v1/drivers', () => {
+    render('DRIVER');
+
+    expect(vehiclesList).not.toHaveBeenCalled();
+    expect(driversList).not.toHaveBeenCalled();
+  });
+
+  it('mostra placa, modelo e motorista da PROPRIA linha, sem cadastro carregado', () => {
+    const text = body(render('DRIVER'));
+
+    expect(text).toContain('ABC-1D23');
+    expect(text).toContain('Fiat Argo');
+    expect(text).toContain('Fulano de Tal');
+  });
+
+  it('nao oferece o que e do dono: novo aluguel, menu de acoes, filtro de frota', () => {
+    const fixture = render('DRIVER');
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('a[href="/alugueis/novo"]')).toBeNull();
+    expect(host.querySelector('app-actions-menu')).toBeNull();
+    // Os filtros de veiculo e motorista sao `<select>`; sem cadastro nao ha o que escolher.
+    expect(host.querySelectorAll('select').length).toBe(0);
+    // CONTROLE POSITIVO: as linhas existem — sao as acoes que sumiram.
+    expect(body(fixture)).toContain('ABC-1D23');
+  });
+
+  it('o dono continua chamando os cadastros e vendo as acoes', () => {
+    const fixture = render('OWNER');
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(vehiclesList).toHaveBeenCalledTimes(1);
+    expect(driversList).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('a[href="/alugueis/novo"]')).not.toBeNull();
+    expect(host.querySelector('app-actions-menu')).not.toBeNull();
+    expect(host.querySelectorAll('select').length).toBe(2);
+  });
+
+  it('resposta sem os campos novos degrada para "—", nunca "undefined"', () => {
+    const bare: RentalListItemDto = { ...row };
+    delete bare.vehiclePlate;
+    delete bare.vehicleBrand;
+    delete bare.vehicleModel;
+    delete bare.driverName;
+    const text = body(render('DRIVER', bare));
+
+    expect(text).not.toContain('undefined');
+    expect(text).toContain('—');
+  });
+});

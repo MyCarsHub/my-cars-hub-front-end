@@ -5,6 +5,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { InspectionCapture } from './inspection-capture';
+import { ImageCompressionService } from '../../services/image-compression.service';
 import { InspectionsService } from '../../services/inspections.service';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -58,6 +59,8 @@ describe('InspectionCapture', () => {
   let uploadPhoto: ReturnType<typeof vi.fn>;
   let photos: ReturnType<typeof vi.fn>;
   let submit: ReturnType<typeof vi.fn>;
+  let recapture: ReturnType<typeof vi.fn>;
+  let compress: ReturnType<typeof vi.fn>;
   let role: string;
 
   function configure(params: Record<string, string>, query: Record<string, string>): void {
@@ -74,13 +77,21 @@ describe('InspectionCapture', () => {
     // Ver `SUBMITTED_RESULT`: a versao anterior devolvia `inspection` aqui e foi
     // isso — nao o tipo — que deixou o defeito passar verde.
     submit = vi.fn().mockReturnValue(of(SUBMITTED_RESULT));
+    recapture = vi.fn().mockReturnValue(of({ ...inspection, id: 'insp-2', capturedAngles: [] }));
+    // A compressao e ASSINCRONA e nunca lanca; o duble devolve o proprio arquivo, que e o
+    // que o servico real faz quando nao decodifica a imagem.
+    compress = vi.fn((file: File) => Promise.resolve(file));
 
     TestBed.configureTestingModule({
       imports: [InspectionCapture],
       providers: [
         provideRouter([]),
         ApiErrorService,
-        { provide: InspectionsService, useValue: { create, getOne, uploadPhoto, submit, photos } },
+        {
+          provide: InspectionsService,
+          useValue: { create, getOne, uploadPhoto, submit, photos, recapture },
+        },
+        { provide: ImageCompressionService, useValue: { compress } },
         { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
         {
           provide: ActivatedRoute,
@@ -89,6 +100,9 @@ describe('InspectionCapture', () => {
               paramMap: convertToParamMap(params),
               queryParamMap: convertToParamMap(query),
             },
+            // A tela ouve o OBSERVAVEL: depois de refazer, o id da URL troca e a mesma
+            // instancia e reaproveitada pelo roteador.
+            paramMap: of(convertToParamMap(params)),
           },
         },
       ],
@@ -103,6 +117,15 @@ describe('InspectionCapture', () => {
 
   function text(fixture: ComponentFixture<InspectionCapture>): string {
     return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Deixa a compressao (uma promessa) terminar e repinta. O envio agora passa por um
+   * `await` antes de chegar a rede, entao quem afirma sobre o upload espera aqui.
+   */
+  async function flush(fixture: ComponentFixture<InspectionCapture>): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
   }
 
   function galleryInputs(fixture: ComponentFixture<InspectionCapture>): number {
@@ -235,7 +258,7 @@ describe('InspectionCapture', () => {
    * Uma foto por vez: uma falha custa UMA foto, e as anteriores ja estao no servidor.
    * Este teste fixa que a tela nao acumula para enviar no fim.
    */
-  it('falha de UMA foto nao derruba a tela nem perde o progresso', () => {
+  it('falha de UMA foto nao derruba a tela nem perde o progresso', async () => {
     configure({ id: 'insp-1' }, {});
     getOne.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
     const fixture = render();
@@ -248,14 +271,14 @@ describe('InspectionCapture', () => {
     const input = document.createElement('input');
     Object.defineProperty(input, 'files', { value: [file] });
     cmp.onFilePicked({ target: input } as unknown as Event, 'BACK');
-    fixture.detectChanges();
+    await flush(fixture);
 
     // O progresso conquistado continua na tela.
     expect(text(fixture)).toContain('1 de 3 fotos');
     expect(text(fixture)).toContain('Não foi possível enviar esta foto');
   });
 
-  it('a foto sobe no angulo escolhido e a tela adota o que o servidor devolve', () => {
+  it('a foto sobe no angulo escolhido e a tela adota o que o servidor devolve', async () => {
     configure({ id: 'insp-1' }, {});
     const fixture = render();
 
@@ -267,7 +290,7 @@ describe('InspectionCapture', () => {
     const input = document.createElement('input');
     Object.defineProperty(input, 'files', { value: [file] });
     cmp.onFilePicked({ target: input } as unknown as Event, 'BACK');
-    fixture.detectChanges();
+    await flush(fixture);
 
     expect(uploadPhoto).toHaveBeenCalledWith('insp-1', 'BACK', file);
     expect(text(fixture)).toContain('1 de 3 fotos');
@@ -437,7 +460,7 @@ describe('InspectionCapture', () => {
     const retryBtn = (f: ComponentFixture<InspectionCapture>) =>
       (f.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-retry-upload]');
 
-    function failUpload(): ComponentFixture<InspectionCapture> {
+    async function failUpload(): Promise<ComponentFixture<InspectionCapture>> {
       configure({ id: 'insp-1' }, {});
       const fixture = render();
       uploadPhoto.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
@@ -449,19 +472,19 @@ describe('InspectionCapture', () => {
       // A camera precisa estar aberta: `onCaptured` le o angulo de `activeAngle`.
       cmp.openCamera('FRONT');
       cmp.onCaptured(file);
-      fixture.detectChanges();
+      await flush(fixture);
       return fixture;
     }
 
-    it('apos a falha, oferece REENVIAR — nao refotografar', () => {
-      const fixture = failUpload();
+    it('apos a falha, oferece REENVIAR — nao refotografar', async () => {
+      const fixture = await failUpload();
 
       expect(retryBtn(fixture)).not.toBeNull();
       expect(retryBtn(fixture)?.textContent ?? '').toContain('Reenviar');
     });
 
-    it('o reenvio manda O MESMO arquivo, sem abrir a camera', () => {
-      const fixture = failUpload();
+    it('o reenvio manda O MESMO arquivo, sem abrir a camera', async () => {
+      const fixture = await failUpload();
       const sentFirst = uploadPhoto.mock.calls[0][2] as File;
 
       uploadPhoto.mockReturnValue(of(inspection));
@@ -478,8 +501,8 @@ describe('InspectionCapture', () => {
       ).toBeNull();
     });
 
-    it('reenvio bem-sucedido limpa o erro e o pendente', () => {
-      const fixture = failUpload();
+    it('reenvio bem-sucedido limpa o erro e o pendente', async () => {
+      const fixture = await failUpload();
 
       uploadPhoto.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
       retryBtn(fixture)?.click();
@@ -489,8 +512,8 @@ describe('InspectionCapture', () => {
       expect(text(fixture)).toContain('1 de 3 fotos');
     });
 
-    it('fotografar de novo continua possivel — so nao e a unica saida', () => {
-      const fixture = failUpload();
+    it('fotografar de novo continua possivel — so nao e a unica saida', async () => {
+      const fixture = await failUpload();
       const cmp = fixture.componentInstance as unknown as { openCamera(a: string): void };
 
       cmp.openCamera('FRONT');
@@ -611,5 +634,319 @@ describe('InspectionCapture', () => {
     expect(host.querySelectorAll('.aspect-square').length).toBe(3);
     // A lista de uma coluna saiu.
     expect(host.querySelector('ul')).toBeNull();
+  });
+
+  // ====================== O ESTADO DA VISTORIA MANDA NA TELA ======================
+  /**
+   * O DEFEITO: a tela de captura nao sabia o `status`. Uma vistoria ja enviada, aprovada
+   * ou recusada reabria com as camera/galeria de uma PENDING — o servidor recusava a foto
+   * (so `PENDING` aceita) e a recusa era um beco sem saida: nem o motivo nem como refazer.
+   */
+  describe('estado da vistoria', () => {
+    const all = ['FRONT', 'BACK', 'LEFT'];
+
+    function renderWith(
+      extra: Partial<Inspection>,
+      signedPhotos: unknown[] = [],
+    ): ComponentFixture<InspectionCapture> {
+      // `configure` recria os dobles: o que a tela le tem de ser definido DEPOIS dele.
+      configure({ id: 'insp-1' }, {});
+      getOne.mockReturnValue(of({ ...inspection, capturedAngles: all, ...extra }));
+      photos.mockReturnValue(of(signedPhotos));
+      return render();
+    }
+
+    const targets = (fixture: ComponentFixture<InspectionCapture>): string[] =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('button[aria-label]'),
+      ).map((b) => b.getAttribute('aria-label') ?? '');
+
+    const submitBtn = (fixture: ComponentFixture<InspectionCapture>) =>
+      (fixture.nativeElement as HTMLElement).querySelector('[data-submit-inspection]');
+
+    it('PENDING fotografa: tem camera e galeria', () => {
+      const fixture = renderWith({ status: 'PENDING', capturedAngles: ['FRONT'] });
+
+      expect(targets(fixture)).toContain('Fotografar: Traseira');
+      expect(galleryInputs(fixture)).toBe(3);
+    });
+
+    it('SUBMITTED so mostra: nenhuma camera, nenhuma galeria, nenhum finalizar', () => {
+      const fixture = renderWith({ status: 'SUBMITTED' });
+
+      expect(targets(fixture).filter((l) => /^(Fotografar|Refazer foto)/.test(l))).toEqual([]);
+      expect(galleryInputs(fixture)).toBe(0);
+      expect(submitBtn(fixture)).toBeNull();
+      expect(text(fixture)).toContain('aguardam a decisão');
+      expect(text(fixture)).toContain('3 de 3 fotos');
+    });
+
+    it('APPROVED diz que foi aprovada e mantem as fotos a vista', () => {
+      const fixture = renderWith({ status: 'APPROVED', reviewedAt: '2026-09-26T12:00:00Z' }, [
+        { id: 'p1', angle: 'FRONT', signedUrl: 'https://x/frente.jpg' },
+      ]);
+
+      expect(text(fixture)).toContain('Vistoria aprovada');
+      expect(galleryInputs(fixture)).toBe(0);
+      const imgs = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('img'),
+      ).map((i) => i.getAttribute('src'));
+      expect(imgs).toContain('https://x/frente.jpg');
+    });
+
+    it('REJECTED mostra o MOTIVO e oferece refazer — sem camera', () => {
+      const fixture = renderWith({
+        status: 'REJECTED',
+        rejectionReason: 'Foto do painel desfocada.',
+        reviewedAt: '2026-09-26T12:00:00Z',
+      });
+
+      expect(text(fixture)).toContain('Esta vistoria foi recusada');
+      expect(text(fixture)).toContain('Foto do painel desfocada.');
+      const btn = (fixture.nativeElement as HTMLElement).querySelector('[data-recapture]');
+      expect(btn?.textContent ?? '').toContain('Refazer vistoria');
+      expect(targets(fixture).filter((l) => /^(Fotografar|Refazer foto)/.test(l))).toEqual([]);
+    });
+
+    it('REJECTED sem motivo no payload nao inventa um', () => {
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: null });
+
+      expect(text(fixture)).toContain('não foi informado');
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-rejection-reason]'),
+      ).toBeNull();
+    });
+
+    it('Refazer chama recapture e passa a operar na vistoria NOVA, em branco', () => {
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Fora de foco.' });
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('[data-recapture]')
+        ?.click();
+      fixture.detectChanges();
+
+      expect(recapture).toHaveBeenCalledWith('insp-1');
+      expect(navigate).toHaveBeenCalledWith(['/vistorias', 'insp-2', 'captura'], {
+        replaceUrl: true,
+      });
+      // Nova, PENDING e zerada: volta a fotografar e a recusa some.
+      expect(text(fixture)).toContain('0 de 3 fotos');
+      expect(text(fixture)).not.toContain('Esta vistoria foi recusada');
+      expect(targets(fixture)).toContain('Fotografar: Frente');
+    });
+
+    it('Refazer nao dispara duas vezes no toque repetido', () => {
+      const pending = new Subject<Inspection>();
+      const fixture = renderWith({ status: 'REJECTED' });
+      recapture.mockReturnValue(pending);
+      const btn = () =>
+        (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-recapture]');
+
+      btn()?.click();
+      fixture.detectChanges();
+      btn()?.click();
+      fixture.detectChanges();
+
+      expect(recapture).toHaveBeenCalledTimes(1);
+      expect(btn()?.textContent ?? '').toContain('Abrindo nova vistoria');
+    });
+
+    it('falha ao refazer explica e deixa a recusa na tela, retentavel', () => {
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Fora de foco.' });
+      recapture.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('[data-recapture]')
+        ?.click();
+      fixture.detectChanges();
+
+      expect(text(fixture)).toContain('Não foi possível refazer');
+      expect(text(fixture)).toContain('Fora de foco.');
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-recapture]'),
+      ).not.toBeNull();
+    });
+
+    /**
+     * Um servidor anterior a esta mudanca nao manda `status`. "Ausente" nao pode virar
+     * tela quebrada nem somente leitura: cai no comportamento de antes, que e fotografar.
+     */
+    it('sem status no payload, degrada para captura', () => {
+      const fixture = renderWith({ capturedAngles: ['FRONT'] });
+
+      expect(targets(fixture)).toContain('Fotografar: Traseira');
+      expect(galleryInputs(fixture)).toBe(3);
+    });
+
+    it('o titulo acompanha o estado', () => {
+      expect(text(renderWith({ status: 'PENDING' }))).toContain('Fazer vistoria');
+      expect(text(renderWith({ status: 'REJECTED' }))).toContain('Vistoria recusada');
+    });
+  });
+
+  // ============ O PASSO DE FINALIZAR DIZ O QUE FALTA ============
+  describe('finalizar com angulos faltando', () => {
+    function renderMissing(captured: string[]): ComponentFixture<InspectionCapture> {
+      configure({ id: 'insp-1' }, {});
+      getOne.mockReturnValue(of({ ...inspection, capturedAngles: captured, status: 'PENDING' }));
+      return render();
+    }
+
+    it('nomeia QUAIS angulos faltam, em vez de sumir', () => {
+      const fixture = renderMissing(['FRONT']);
+
+      const body = text(fixture);
+      expect(body).toContain('Finalizar a vistoria');
+      expect(body).toContain('Faltam 2 fotos');
+      const missing = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('[data-missing-angle]'),
+      ).map((b) => (b.textContent ?? '').trim());
+      expect(missing).toEqual(['Traseira', 'Lateral esquerda']);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-submit-inspection]'),
+      ).toBeNull();
+    });
+
+    it('singular quando falta uma so', () => {
+      expect(text(renderMissing(['FRONT', 'BACK']))).toContain('Falta 1 foto');
+    });
+
+    it('tocar no angulo que falta abre a camera dele', () => {
+      const fixture = renderMissing(['FRONT']);
+
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('[data-missing-angle]')
+        ?.click();
+      fixture.detectChanges();
+
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('app-live-camera-sheet'),
+      ).not.toBeNull();
+    });
+  });
+
+  // ============ COMPRESSAO ANTES DO UPLOAD, E ERRO POR FOTO ============
+  /**
+   * O celular produz fotos de 10-20 MB e o backend recusa acima de 8 MB. Subir o original
+   * era perder a foto na rede para ouvir um 413 — a compressao tem de acontecer ANTES, e o
+   * que sobe e o arquivo comprimido.
+   */
+  describe('envio da foto', () => {
+    function pick(fixture: ComponentFixture<InspectionCapture>, file: File, angle: string): void {
+      const cmp = fixture.componentInstance as unknown as {
+        onFilePicked: (e: Event, angle: string) => void;
+      };
+      const input = document.createElement('input');
+      Object.defineProperty(input, 'files', { value: [file] });
+      cmp.onFilePicked({ target: input } as unknown as Event, angle);
+    }
+
+    it('comprime ANTES de subir e sobe o arquivo comprimido', async () => {
+      configure({ id: 'insp-1' }, {});
+      const fixture = render();
+      const original = new File([new Uint8Array(12 * 1024 * 1024)], 'frente.jpg', {
+        type: 'image/jpeg',
+      });
+      const small = new File([new Uint8Array(400 * 1024)], 'frente.jpg', { type: 'image/jpeg' });
+      compress.mockResolvedValue(small);
+
+      pick(fixture, original, 'FRONT');
+      await flush(fixture);
+
+      expect(compress).toHaveBeenCalledWith(original);
+      expect(uploadPhoto).toHaveBeenCalledTimes(1);
+      expect(uploadPhoto.mock.calls[0][2]).toBe(small);
+      expect(uploadPhoto.mock.calls[0][2]).not.toBe(original);
+    });
+
+    it('mostra o passo da foto enquanto prepara, antes da rede', async () => {
+      configure({ id: 'insp-1' }, {});
+      const fixture = render();
+      let release: (f: File) => void = () => undefined;
+      compress.mockReturnValue(new Promise<File>((resolve) => (release = resolve)));
+      const file = new File(['x'], 'f.jpg', { type: 'image/jpeg' });
+
+      pick(fixture, file, 'FRONT');
+      fixture.detectChanges();
+
+      expect(text(fixture)).toContain('Preparando');
+      expect(uploadPhoto).not.toHaveBeenCalled();
+
+      release(file);
+      await flush(fixture);
+      expect(uploadPhoto).toHaveBeenCalledTimes(1);
+    });
+
+    it('foto ainda acima de 8 MB apos comprimir NAO sobe e manda fotografar de novo', async () => {
+      configure({ id: 'insp-1' }, {});
+      const fixture = render();
+      const huge = new File([new Uint8Array(9 * 1024 * 1024)], 'frente.heic', {
+        type: 'image/heic',
+      });
+      compress.mockResolvedValue(huge);
+
+      pick(fixture, huge, 'FRONT');
+      await flush(fixture);
+
+      expect(uploadPhoto).not.toHaveBeenCalled();
+      expect(text(fixture)).toContain('grande demais');
+      // Reenviar o MESMO arquivo falharia de novo: nao ha botao de reenviar.
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-retry-upload]'),
+      ).toBeNull();
+    });
+
+    it('cada foto que falhou tem o PROPRIO reenviar', async () => {
+      configure({ id: 'insp-1' }, {});
+      const fixture = render();
+      uploadPhoto.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+
+      pick(fixture, new File(['a'], 'a.jpg', { type: 'image/jpeg' }), 'FRONT');
+      await flush(fixture);
+      pick(fixture, new File(['b'], 'b.jpg', { type: 'image/jpeg' }), 'BACK');
+      await flush(fixture);
+
+      const retries = (fixture.nativeElement as HTMLElement).querySelectorAll(
+        '[data-retry-upload]',
+      );
+      expect(retries.length).toBe(2);
+
+      // Reenviar a primeira manda a PRIMEIRA, nao a ultima.
+      uploadPhoto.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
+      (retries[0] as HTMLButtonElement).click();
+      fixture.detectChanges();
+      const last = uploadPhoto.mock.calls.at(-1) as [string, string, File];
+      expect(last[1]).toBe('FRONT');
+    });
+
+    /**
+     * Alguem enviou ou decidiu a vistoria enquanto esta tela estava aberta: o servidor
+     * recusa a foto (so `PENDING` aceita). Reenviar nao adianta — a tela le o estado real.
+     */
+    it('409: explica, nao oferece reenviar e le o estado real da vistoria', async () => {
+      configure({ id: 'insp-1' }, {});
+      const fixture = render();
+      uploadPhoto.mockReturnValue(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { message: 'Vistoria não aceita fotos neste estado.', code: 'INSPECTION_NOT_PENDING' },
+            }),
+        ),
+      );
+      getOne.mockReturnValue(of({ ...inspection, capturedAngles: [], status: 'SUBMITTED' }));
+
+      pick(fixture, new File(['a'], 'a.jpg', { type: 'image/jpeg' }), 'FRONT');
+      await flush(fixture);
+
+      expect(getOne).toHaveBeenCalledWith('insp-1');
+      expect(text(fixture)).toContain('aguardam a decisão');
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-retry-upload]'),
+      ).toBeNull();
+    });
   });
 });

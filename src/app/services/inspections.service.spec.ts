@@ -140,3 +140,53 @@ describe('InspectionsService.toParams', () => {
     });
   });
 });
+
+/**
+ * `recapture`: uma vistoria RECUSADA vira OUTRA, nova e PENDING. O servico real e o
+ * `HttpClient` dublado — a pergunta e o que viaja, nao o que a tela faz com a resposta.
+ */
+describe('InspectionsService.recapture', () => {
+  let post: ReturnType<typeof vi.fn>;
+  let service: InspectionsService;
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    post = vi.fn(() => of({ id: 'insp-2', status: 'PENDING', requiredAngles: [], capturedAngles: [] }));
+    TestBed.configureTestingModule({
+      providers: [InspectionsService, { provide: HttpClient, useValue: { post } }],
+    });
+    service = TestBed.inject(InspectionsService);
+  });
+
+  it('chama POST /v1/inspections/{id}/recapture, sem corpo', () => {
+    service.recapture('insp-1').subscribe();
+
+    expect(post).toHaveBeenCalledWith(`${environment.apiUrl}/inspections/insp-1/recapture`, {});
+  });
+
+  it('devolve a vistoria NOVA, nao a recusada', () => {
+    let received: { id: string; status?: string } | undefined;
+    service.recapture('insp-1').subscribe((created) => (received = created));
+
+    expect(received?.id).toBe('insp-2');
+    expect(received?.status).toBe('PENDING');
+  });
+});
+
+describe('InspectionsService.list — status', () => {
+  it('leva o filtro de situacao e o omite quando ausente', () => {
+    TestBed.resetTestingModule();
+    const get = vi.fn((..._args: unknown[]) => of(EMPTY));
+    TestBed.configureTestingModule({
+      providers: [InspectionsService, { provide: HttpClient, useValue: { get } }],
+    });
+    const service = TestBed.inject(InspectionsService);
+    const sent = (): HttpParams => (get.mock.calls.at(-1)?.[1] as { params: HttpParams }).params;
+
+    service.list({ status: 'REJECTED' }).subscribe();
+    expect(sent().get('status')).toBe('REJECTED');
+
+    service.list({ status: null }).subscribe();
+    expect(sent().has('status')).toBe(false);
+  });
+});

@@ -175,6 +175,21 @@ export class Roadmap implements OnInit {
     () => this.systemRole() === 'PLATFORM_ADMIN',
   );
 
+  /**
+   * O MOTORISTA so LE o roadmap. `GET /v1/feedback/tasks` e dele; criar, editar,
+   * excluir e votar nao sao — o servidor nega, entao a tela nem oferece o controle.
+   * O papel vem do token, a mesma fonte do `roleGuard`.
+   */
+  protected readonly readOnly = computed(
+    () => this.sessionService.getCompanyRoleFromToken() === 'DRIVER',
+  );
+
+  protected readonly pageDescription = computed(() =>
+    this.readOnly()
+      ? 'Acompanhe o que a equipe está planejando e desenvolvendo no MyCarsHub.'
+      : 'Sugira melhorias e dê combustível às ideias que mais te interessam.',
+  );
+
   protected readonly backlogTasks = computed(() =>
     this.filterByStatus('BACKLOG'),
   );
@@ -273,11 +288,12 @@ export class Roadmap implements OnInit {
   }
 
   protected canEdit(task: FeedbackTaskResponse): boolean {
-    return this.isAuthor(task) && task.status === 'BACKLOG';
+    return !this.readOnly() && this.isAuthor(task) && task.status === 'BACKLOG';
   }
 
   protected canDelete(task: FeedbackTaskResponse): boolean {
     return (
+      !this.readOnly() &&
       this.isAuthor(task) &&
       task.status === 'BACKLOG' &&
       task.fuelCount <= 1
@@ -298,7 +314,7 @@ export class Roadmap implements OnInit {
   }
 
   protected toggleFuel(task: FeedbackTaskResponse): void {
-    if (this.isFuelPending(task.id)) return;
+    if (this.readOnly() || this.isFuelPending(task.id)) return;
     this.setFuelPending(task.id, true);
     this.actionError.set(null);
     const done = () => this.setFuelPending(task.id, false);
@@ -328,6 +344,7 @@ export class Roadmap implements OnInit {
   }
 
   protected openCreate(): void {
+    if (this.readOnly()) return;
     this.editingTaskId.set(null);
     this.taskForm.reset({ title: '', description: '' });
     this.formError.set(null);
