@@ -417,8 +417,14 @@ export const routes: Routes = [
                         // Vistorias como area PROPRIA: antes so eram alcancaveis
                         // dentro do aluguel, o que obrigava a lembrar em qual
                         // locacao a vistoria do carro estava.
+                        //
+                        // O MOTORISTA entra: o servidor escopa `GET /v1/inspections`
+                        // para as vistorias dele, e sem a listagem ele nao tinha como
+                        // continuar uma em andamento nem ler o motivo de uma recusa.
+                        // O que e da EMPRESA (aprovar, agendar, filtrar frota) a tela
+                        // esconde por papel — e o servidor nega do mesmo jeito.
                         path: 'vistorias',
-                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
+                        canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
                         loadComponent: () =>
                             import('./pages/inspections/inspections-list').then(
                                 (m) => m.InspectionsList
@@ -426,12 +432,10 @@ export const routes: Routes = [
                         data: { pageTitle: 'Vistorias' },
                     },
                     {
-                        // A CAPTURA aceita MOTORISTA, a listagem nao. O dono pediu que
-                        // "dono, motorista e gerenciador" facam vistoria; quem vistoria
-                        // qual veiculo quem decide e o backend (motorista so o carro de
-                        // um aluguel ATIVO dele), e a tela trata o 403 explicando a regra.
-                        // Guardar esta rota so para OWNER/MANAGER tiraria do motorista
-                        // exatamente o que foi pedido.
+                        // A CAPTURA aceita MOTORISTA. O dono pediu que "dono, motorista
+                        // e gerenciador" facam vistoria; quem vistoria qual veiculo quem
+                        // decide e o backend (motorista so o carro de um aluguel ATIVO
+                        // dele), e a tela trata o 403 explicando a regra.
                         path: 'vistorias/nova',
                         canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
                         loadComponent: () =>
@@ -750,7 +754,11 @@ export const routes: Routes = [
                         data: { pageTitle: 'Perfil' },
                     },
                     {
+                        // `/v1/support/**` (tickets) e 403 para o MOTORISTA: a tela
+                        // abria e so mostrava erro. O guard casa com o item do menu
+                        // (`roles` em `sidebar.ts`), que e o que a paridade mede.
                         path: 'suporte',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         loadComponent: () =>
                             import('./pages/support/support').then(
                                 (m) => m.SupportPage,

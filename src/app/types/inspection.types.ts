@@ -47,6 +47,25 @@ export interface Inspection {
    * reenviar não duplica.
    */
   readonly capturedAngles: readonly string[];
+  /**
+   * Em que ponto do ciclo a vistoria esta. E por ele que a tela de captura decide
+   * o que mostrar: `PENDING` fotografa, `SUBMITTED`/`APPROVED` so mostram, e
+   * `REJECTED` explica a recusa e oferece refazer.
+   *
+   * O detalhe SEMPRE traz este campo no backend atual. Segue opcional no tipo de
+   * proposito: um servidor anterior a esta mudanca nao o manda, e a tela precisa
+   * degradar para o comportamento antigo (captura) em vez de quebrar. Ausente
+   * significa "nao sei", nunca "pendente" — por isso quem le usa `?? 'PENDING'`
+   * num unico lugar (`InspectionCapture.status`).
+   */
+  readonly status?: InspectionStatus;
+  /**
+   * Por que o dono recusou. So vem quando `status === 'REJECTED'`; quem refotografa
+   * precisa saber o que estava errado, entao a tela o mostra ANTES do botao de refazer.
+   */
+  readonly rejectionReason?: string | null;
+  /** Quando o dono decidiu (ISO). So vem em vistoria decidida (`APPROVED`/`REJECTED`). */
+  readonly reviewedAt?: string | null;
 }
 
 /**
@@ -141,39 +160,40 @@ export interface CreateInspectionRequest {
 }
 
 /**
- * O item da LISTAGEM.
+ * O item da LISTAGEM — `GET /v1/inspections`.
  *
- * ATENÇÃO — a listagem AINDA NÃO EXISTE no backend. O PR #190 expõe só
- * `POST /v1/inspections`, `GET /v1/inspections/{id}` e
- * `GET /v1/inspections/checklist/{companyId}`. Não há `GET /v1/inspections`
- * com filtros.
+ * Os campos que NAO estao em `InspectionDto` (placa, marca, modelo, motorista,
+ * contagem de fotos) vem DENORMALIZADOS na linha para a tela nao fazer N+1
+ * buscando veiculo por linha — mesma escolha que `FineListItem` e
+ * `InsuranceListItem` ja fazem.
  *
- * Os campos abaixo que NÃO estão no `InspectionDto` (placa, modelo, motorista,
- * contagem de fotos, PDF) são o que a listagem precisa trazer DENORMALIZADO
- * para a tela não fazer N+1 buscando veículo por linha — mesma escolha que
- * `FineListItem` e `InsuranceListItem` já fazem. É o pedido pendente ao
- * backend; os nomes que já existem estão idênticos ao DTO real.
+ * ## Por que sao opcionais
+ *
+ * A primeira versao da listagem no backend NAO mandava esses campos, e a tela
+ * renderizou linhas em branco sem erro nenhum — o tipo prometia o que o servidor
+ * nao entregava. Agora eles chegam, mas seguem opcionais no tipo: uma resposta
+ * antiga ou parcial tem de degradar para "Veiculo nao identificado" e para uma
+ * linha sem contagem de fotos, nunca para "undefined foto(s)". Quem desenha a
+ * linha trata a ausencia (`InspectionsList.vehicleLabel`, `photoCountLabel`).
  */
 export interface InspectionListItem {
   readonly id: string;
   readonly rentalId: string | null;
   readonly vehicleId: string;
-  readonly vehiclePlate: string;
-  readonly vehicleBrand: string | null;
-  readonly vehicleModel: string | null;
+  readonly vehiclePlate?: string | null;
+  readonly vehicleBrand?: string | null;
+  readonly vehicleModel?: string | null;
   /** Quem dirigia no período da vistoria; `null` em aluguel sem motorista. */
-  readonly driverName: string | null;
+  readonly driverName?: string | null;
   readonly kind: InspectionKind;
   /** Quando a vistoria foi feita (ISO). É por este campo que o filtro de datas recorta. */
   readonly performedAt: string;
   /**
-   * Quantas fotos a vistoria tem. FICA — tem origem: o DTO devolve
-   * `capturedAngles`, e a contagem é o tamanho dessa lista. Se o backend não
-   * mandar `photoCount` pronto, derive daqui em vez de apagar a coluna; a
-   * conferência dos NOMES das chaves contra este tipo é obrigatória quando o PR
-   * do backend entrar, porque genérico de TypeScript não valida nada em runtime.
+   * Quantas fotos a vistoria tem — o tamanho de `capturedAngles` no detalhe.
+   * Ausente = o servidor nao mandou a contagem; a linha omite a contagem em vez de
+   * escrever zero, porque zero afirmaria que nao ha foto.
    */
-  readonly photoCount: number;
+  readonly photoCount?: number;
   /**
    * Em que ponto do ciclo a vistoria esta. E por este campo que o dono acha o
    * que lhe cabe decidir: `SUBMITTED` e a fila de aprovacao.

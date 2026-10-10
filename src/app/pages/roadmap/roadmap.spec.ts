@@ -62,7 +62,8 @@ describe('Roadmap', () => {
     return host().querySelector<HTMLElement>('app-detail-dialog [role="dialog"]');
   }
 
-  beforeEach(() => {
+  /** Monta a tela com o papel de EMPRESA dado (do token); `null` = sem papel, como antes. */
+  function setup(companyRole: string | null): void {
     TestBed.resetTestingModule();
     fuel = vi.fn().mockReturnValue(of(TASK));
     TestBed.configureTestingModule({
@@ -92,6 +93,7 @@ describe('Roadmap', () => {
           useValue: {
             getUserId: () => null,
             getSystemRole: () => 'USER' as const,
+            getCompanyRoleFromToken: () => companyRole,
           },
         },
         {
@@ -102,7 +104,9 @@ describe('Roadmap', () => {
     });
     fixture = TestBed.createComponent(Roadmap);
     fixture.detectChanges();
-  });
+  }
+
+  beforeEach(() => setup(null));
 
   it('clicar no card abre o diálogo com a descrição completa', () => {
     expect(dialog()).toBeNull();
@@ -173,5 +177,54 @@ describe('Roadmap', () => {
     settle();
 
     expect(counterText()).toBe('5 / 2000');
+  });
+
+  /**
+   * O MOTORISTA so LE o roadmap: `GET /v1/feedback/tasks` e dele, criar/editar/votar nao.
+   * Cada controle tem de sumir — um botao que o servidor vai negar e uma promessa falsa.
+   */
+  describe('motorista (somente leitura)', () => {
+    beforeEach(() => setup('DRIVER'));
+
+    it('mostra as sugestoes e o numero de combustivel', () => {
+      expect(firstCard().textContent).toContain(TASK.title);
+      expect(firstCard().textContent).toContain(String(TASK.fuelCount));
+    });
+
+    it('nao oferece criar sugestao', () => {
+      const create = Array.from(host().querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+        b.textContent?.includes('Nova Sugestão'),
+      );
+
+      expect(create).toBeUndefined();
+    });
+
+    it('nao oferece votar: sem botao de combustivel, e o clique nao chama o servico', () => {
+      expect(firstCard().querySelector('button[aria-pressed]')).toBeNull();
+      expect(host().textContent).not.toContain('Dar combustível');
+      expect(fuel).not.toHaveBeenCalled();
+    });
+
+    it('o card continua abrindo o detalhe', () => {
+      firstCard().click();
+      settle();
+
+      expect(dialog()).not.toBeNull();
+    });
+
+    it('a descricao nao convida a sugerir nem a votar', () => {
+      expect(host().textContent).not.toContain('Sugira melhorias');
+    });
+  });
+
+  it('quem nao e motorista continua com criar e votar', () => {
+    setup('OWNER');
+
+    expect(
+      Array.from(host().querySelectorAll<HTMLButtonElement>('button')).some((b) =>
+        b.textContent?.includes('Nova Sugestão'),
+      ),
+    ).toBe(true);
+    expect(firstCard().querySelector('button[aria-pressed]')).not.toBeNull();
   });
 });

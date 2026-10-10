@@ -213,6 +213,30 @@ describe('paridade nav x guard de rota', () => {
   }
 
   /**
+   * O que o MOTORISTA enxerga, por NOME. A paridade acima prova que menu e guard
+   * concordam; esta prova que concordam no valor certo — Aluguéis, Vistorias e
+   * Roadmap (leitura) e Perfil, e nada que seja da empresa. Suporte saiu: os
+   * tickets sao 403 para ele.
+   */
+  describe('o motorista', () => {
+    it('ve exatamente Alugueis, Vistorias, Roadmap e Perfil', () => {
+      const seen = navRoutes
+        .filter((item) => navShows(item, 'DRIVER'))
+        .map((item) => item.route as string);
+
+      expect(seen).toEqual(['/alugueis', '/vistorias', '/roadmap', '/perfil']);
+    });
+
+    it('os guards liberam exatamente essas quatro rotas', () => {
+      const allowed = navRoutes
+        .map((item) => item.route as string)
+        .filter((route) => guardAllows(route, 'DRIVER'));
+
+      expect(allowed).toEqual(['/alugueis', '/vistorias', '/roadmap', '/perfil']);
+    });
+  });
+
+  /**
    * FEAT-0228 — a decisao do dono, prendida como teste: gerente e dono MENOS
    * billing. Redundante com a paridade acima de proposito: a paridade prova que
    * nav e guard concordam, esta prova que eles concordam no VALOR CERTO. Alinhar

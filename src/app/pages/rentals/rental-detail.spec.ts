@@ -7,6 +7,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RentalDetail } from './rental-detail';
+import { RentalService } from './rental.service';
 import { environment } from '../../../environments/environment';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import type { RentalChargeDto, RentalResponseDto } from '../../types/rental.types';
@@ -986,5 +987,107 @@ describe('RentalDetail — caução recebida por fora', () => {
     expect(chips(fixture, 'Recebida por fora').length).toBe(0);
     expect(fixture.nativeElement.textContent).toContain('Marque como paga quando receber');
     expect(banner(fixture)).toBeNull();
+  });
+});
+
+/**
+ * O MOTORISTA no detalhe do aluguel. `GET /v1/vehicles/{id}` e `GET /v1/drivers/{id}` sao
+ * 403 para ele: a tela os chamava mesmo assim, ganhava dois erros e mostrava "—" nos dois
+ * campos. Agora nao os chama, e placa/modelo/nome vem da linha da LISTA, que o servico
+ * ainda guarda quando ele chegou por ela.
+ */
+describe('RentalDetail — motorista', () => {
+  const ROW = {
+    id: RENTAL_ID,
+    vehicleId: 'v-1',
+    driverId: 'd-1',
+    vehiclePlate: 'ABC1D23',
+    vehicleBrand: 'Fiat',
+    vehicleModel: 'Argo',
+    driverName: 'Fulano de Tal',
+  };
+
+  function signInAs(role: string): void {
+    const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+    const b64 = btoa(JSON.stringify(payload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    sessionStorage.setItem('token', `header.${b64}.signature`);
+  }
+
+  async function mountAs(
+    role: string,
+    seed: typeof ROW | null,
+  ): Promise<{ fixture: ComponentFixture<RentalDetail>; cadastroCalls: string[] }> {
+    TestBed.resetTestingModule();
+    sessionStorage.clear();
+    signInAs(role);
+    TestBed.configureTestingModule({
+      imports: [RentalDetail],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: activatedRouteStub },
+      ],
+    });
+    if (seed) {
+      const service = TestBed.inject(RentalService) as unknown as {
+        _items: { set(value: unknown[]): void };
+      };
+      service._items.set([seed]);
+    }
+
+    const fixture = TestBed.createComponent(RentalDetail);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    http.expectOne(`${BASE}/${RENTAL_ID}`).flush({ ...RESERVED_BASE, status: 'ACTIVE' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const cadastroCalls = http
+      .match((req) => /\/(vehicles|drivers)\//.test(req.url))
+      .map((req) => req.request.url);
+    flushAncillary(http);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    return { fixture, cadastroCalls };
+  }
+
+  afterEach(() => sessionStorage.clear());
+
+  it('NAO consulta o cadastro de veiculo nem o de motorista', async () => {
+    const { cadastroCalls } = await mountAs('DRIVER', ROW);
+
+    expect(cadastroCalls).toEqual([]);
+  });
+
+  it('mostra placa, modelo e motorista da linha da lista', async () => {
+    const { fixture } = await mountAs('DRIVER', ROW);
+    const text = ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text).toContain('ABC-1D23');
+    expect(text).toContain('Fiat Argo');
+    expect(text).toContain('Fulano de Tal');
+  });
+
+  it('aberto por link direto, sem a lista carregada, degrada para "—" sem chamar o cadastro', async () => {
+    const { fixture, cadastroCalls } = await mountAs('DRIVER', null);
+
+    expect(cadastroCalls).toEqual([]);
+    expect(((fixture.nativeElement as HTMLElement).textContent ?? '')).toContain('—');
+  });
+
+  it('o dono continua consultando os dois cadastros', async () => {
+    const { cadastroCalls } = await mountAs('OWNER', null);
+
+    expect(cadastroCalls.some((url) => url.includes('/vehicles/'))).toBe(true);
+    expect(cadastroCalls.some((url) => url.includes('/drivers/'))).toBe(true);
   });
 });

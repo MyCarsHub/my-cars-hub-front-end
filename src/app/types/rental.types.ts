@@ -199,6 +199,18 @@ export interface RentalListItemDto {
    * activate endpoint no longer requires a confirmed payment.
    */
   automaticCharge?: boolean;
+  /*
+   * DENORMALIZADOS na linha, para a lista nao precisar de `/v1/vehicles` nem de
+   * `/v1/drivers`. O MOTORISTA nao alcanca esses dois (403), entao antes ele via
+   * "—" em placa e motorista; agora a propria linha diz.
+   *
+   * Opcionais de proposito: uma resposta anterior nao os manda, e a lista cai no
+   * cadastro carregado (OWNER/MANAGER) em vez de mostrar "undefined".
+   */
+  vehiclePlate?: string | null;
+  vehicleBrand?: string | null;
+  vehicleModel?: string | null;
+  driverName?: string | null;
 }
 
 export interface RentalUpdateRequest {

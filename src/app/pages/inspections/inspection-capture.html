@@ -1,12 +1,13 @@
-<app-default-page-layout
-  title="Fazer vistoria"
-  description="Fotografe cada ângulo do roteiro. Cada foto é enviada na hora."
->
-  @if (loading()) {
-    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
-      Abrindo vistoria…
-    </div>
-  } @else if (error(); as message) {
+@if (loading()) {
+  <!-- Esperar a vistoria abrir e uma espera de PAGINA INTEIRA: o mesmo loader das outras. -->
+  <app-page-loader
+    title="Abrindo vistoria…"
+    description="Estamos buscando o roteiro e as fotos desta vistoria."
+    [fullScreen]="false"
+  />
+} @else {
+<app-default-page-layout [title]="pageTitle()" [description]="pageDescription()">
+  @if (error(); as message) {
     <app-alert-banner variant="error" [message]="message" />
     <a
       routerLink="/vistorias"
@@ -19,16 +20,89 @@
     </a>
   } @else {
     <!--
-      O MESMO INVOLUCRO DO CARD DE ALUGUEL: `app-page-card`, e nao `rounded-2xl bg-white
-      border` escrito a mao — o chrome a mao duplicava o que o PageCard ja faz, e era uma
-      das divergencias apontadas.
+      O ESTADO MANDA. A tela e a mesma nos quatro estados, mas o que ela OFERECE e o que
+      o servidor aceita naquele estado:
 
-      A BARRA DE PROGRESSO DE PAGINA SAIU. O card de aluguel nao tem nenhuma: o progresso
-      dele vive DENTRO do quadro que esta subindo. Aqui a contagem fica no cabecalho, como
-      informacao, e o progresso por foto voltou para o quadro.
+        PENDING             fotografa, e no fim finaliza
+        SUBMITTED/APPROVED  so mostra as fotos — ja saiu das maos de quem fotografou
+        REJECTED            mostra o MOTIVO e oferece refazer (uma vistoria nova)
+
+      Oferecer camera fora de PENDING seria prometer o que o servidor recusa.
+    -->
+
+    @if (rejected()) {
+      <div
+        data-rejected
+        class="rounded-2xl bg-white border border-rose-200 p-4 sm:p-6 space-y-3"
+      >
+        <p class="text-base font-semibold text-rose-800">Esta vistoria foi recusada</p>
+        @if (reviewedAtLabel(); as when) {
+          <p class="text-xs text-neutral-600">Decidida em {{ when }}</p>
+        }
+
+        @if (rejectionReason(); as reason) {
+          <div class="rounded-xl bg-rose-50 border border-rose-100 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-rose-800">Motivo</p>
+            <p
+              data-rejection-reason
+              class="mt-1 text-sm text-neutral-900 whitespace-pre-line break-words"
+            >{{ reason }}</p>
+          </div>
+        } @else {
+          <p class="text-sm text-neutral-700">
+            O motivo da recusa não foi informado. Fale com o dono ou o gerente da empresa
+            se precisar entender o que ajustar.
+          </p>
+        }
+
+        <p class="text-sm text-neutral-600">
+          Ao refazer, abrimos uma vistoria nova com todos os ângulos em branco. Esta fica
+          guardada como recusada.
+        </p>
+
+        @if (recaptureError(); as message) {
+          <app-alert-banner variant="error" [message]="message" />
+        }
+
+        <button
+          type="button"
+          data-recapture
+          (click)="recapture()"
+          [disabled]="recapturing()"
+          class="w-full min-h-14 inline-flex items-center justify-center rounded-xl
+                 bg-primary-500 text-white text-base font-semibold px-5 py-4
+                 hover:bg-primary-600 transition-colors focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                 disabled:opacity-60 disabled:cursor-wait"
+        >
+          {{ recapturing() ? 'Abrindo nova vistoria…' : 'Refazer vistoria' }}
+        </button>
+      </div>
+    }
+
+    @if (submitted()) {
+      <div class="mb-4">
+        <app-alert-banner [variant]="approved() ? 'success' : 'info'">
+          @if (approved()) {
+            Vistoria aprovada@if (reviewedAtLabel(); as when) { em {{ when }}}. Estas fotos são o
+            registro dela.
+          } @else {
+            Vistoria enviada para aprovação. O dono da empresa vai aprovar ou recusar;
+            se for recusada, você poderá fotografar de novo.
+          }
+        </app-alert-banner>
+      </div>
+    }
+
+    <!--
+      O MESMO INVOLUCRO DO CARD DE ALUGUEL: `app-page-card`, e nao `rounded-2xl bg-white
+      border` escrito a mao.
+
+      A barra de progresso de pagina saiu: o card de aluguel nao tem nenhuma. A contagem
+      fica no cabecalho, como informacao, e o progresso por foto vive DENTRO do quadro.
     -->
     <app-page-card title="Fotos da vistoria">
-      <div cardActions class="text-xs font-semibold text-neutral-500">
+      <div cardActions class="text-xs font-semibold text-neutral-600">
         {{ doneCount() }} de {{ totalCount() }} fotos
         @if (isComplete()) {
           <span class="ml-2 text-success-900">· completa</span>
@@ -37,7 +111,7 @@
 
       <div class="p-4 sm:p-6 space-y-4">
 
-      @if (isComplete() && !submitted()) {
+      @if (isComplete() && canCapture()) {
         <div class="mt-4">
           <app-alert-banner variant="success">
             Todos os ângulos do roteiro têm foto. Você pode refazer qualquer uma abaixo
@@ -46,151 +120,200 @@
         </div>
       }
 
-      @if (submitted()) {
-        <div class="mt-4">
-          <app-alert-banner variant="success">
-            Vistoria enviada para aprovação. O dono da empresa vai aprovar ou recusar;
-            se for recusada, você poderá fotografar de novo.
-          </app-alert-banner>
-        </div>
-      }
-
-        <p class="text-sm text-neutral-600">
-          Toque em qualquer ângulo para fotografar. A ordem é sua.
-        </p>
+        @if (canCapture()) {
+          <p class="text-sm text-neutral-600">
+            Toque em qualquer ângulo para fotografar. A ordem é sua.
+          </p>
+        }
 
         <!--
           A GRADE DO CARD DE ALUGUEL, ponto a ponto: `grid-cols-2 sm:grid-cols-3
           lg:grid-cols-4 gap-3`, quadro `aspect-square` de borda tracejada, e a MINIATURA
-          REAL da foto dentro dele.
+          REAL da foto dentro dele. O preview local entra no instante da captura e a URL
+          assinada do servidor assume depois — `slot.previewUrl || slot.signedUrl`.
 
-          Era uma lista de uma coluna com um círculo de check, e a foto nunca voltava para a
-          tela. Agora o preview local entra no instante da captura e a URL assinada do
-          servidor assume depois — `slot.previewUrl || slot.signedUrl`, a mesma precedência
-          do aluguel.
-
-          QUALQUER ORDEM: o `nextPending` deixou de ser porteiro. `openCamera(angle)` sempre
-          aceitou um ângulo qualquer; era o template que forçava a fila.
+          QUALQUER ORDEM: `openCamera(angle)` aceita um angulo qualquer.
         -->
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           @for (slot of slots(); track slot.angle) {
             <div class="relative">
-              <button
-                type="button"
-                (click)="openCamera(slot.angle)"
-                [disabled]="uploading() || !canCapture()"
-                class="group relative w-full aspect-square rounded-xl border-2 border-dashed
-                       border-neutral-300 hover:border-primary-400 bg-neutral-50
-                       overflow-hidden text-left transition-colors disabled:opacity-60
-                       disabled:cursor-not-allowed"
-                [attr.aria-label]="(slot.done ? 'Refazer foto: ' : 'Fotografar: ') + slot.label"
-              >
-                @if (slot.previewUrl || slot.signedUrl; as url) {
-                  <img
-                    [src]="url"
-                    [alt]="slot.label"
-                    class="absolute inset-0 w-full h-full object-cover"
-                  />
-                  <span
-                    class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-medium px-2 py-1 truncate"
-                  >
-                    {{ slot.label }}
-                  </span>
-                } @else if (slot.done) {
-                  <!--
-                    A FOTO EXISTE e a assinatura dela não veio. Dizer "sem foto" mandaria a
-                    pessoa refotografar o que já está no servidor — punir quem fez certo por
-                    uma falha nossa. Mesma leitura que o review já aplica.
-                  -->
-                  <div
-                    class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-2
-                           text-center bg-success-50"
-                  >
-                    <span class="text-[11px] font-semibold text-success-900">{{ slot.label }}</span>
-                    <span class="text-[10px] text-neutral-600 leading-tight">
-                      Foto enviada; não foi possível exibir agora
+              @if (canCapture()) {
+                <button
+                  type="button"
+                  (click)="openCamera(slot.angle)"
+                  [disabled]="uploading()"
+                  class="group relative w-full aspect-square rounded-xl border-2 border-dashed
+                         border-neutral-300 hover:border-primary-400 bg-neutral-50
+                         overflow-hidden text-left transition-colors disabled:opacity-60
+                         disabled:cursor-not-allowed"
+                  [attr.aria-label]="(slot.done ? 'Refazer foto: ' : 'Fotografar: ') + slot.label"
+                >
+                  @if (slot.previewUrl || slot.signedUrl; as url) {
+                    <img
+                      [src]="url"
+                      [alt]="slot.label"
+                      class="absolute inset-0 w-full h-full object-cover"
+                    />
+                    <span
+                      class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-medium px-2 py-1 truncate"
+                    >
+                      {{ slot.label }}
                     </span>
-                  </div>
-                } @else {
-                  <div
-                    class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-2 text-center"
+                  } @else if (slot.done) {
+                    <!--
+                      A FOTO EXISTE e a assinatura dela não veio. Dizer "sem foto" mandaria a
+                      pessoa refotografar o que já está no servidor — punir quem fez certo por
+                      uma falha nossa. Mesma leitura que o review já aplica.
+                    -->
+                    <div
+                      class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-2
+                             text-center bg-success-50"
+                    >
+                      <span class="text-[11px] font-semibold text-success-900">{{ slot.label }}</span>
+                      <span class="text-[10px] text-neutral-600 leading-tight">
+                        Foto enviada; não foi possível exibir agora
+                      </span>
+                    </div>
+                  } @else {
+                    <div
+                      class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-2 text-center"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="text-neutral-400 group-hover:text-primary-700 transition-colors"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                        />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      <span
+                        class="text-[11px] font-medium text-neutral-600 group-hover:text-primary-700 transition-colors"
+                      >
+                        {{ slot.label }}
+                      </span>
+                    </div>
+                  }
+
+                  @if (slot.uploading) {
+                    <!-- O progresso fica DENTRO do quadro, com o passo em que a foto esta. -->
+                    <div
+                      class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 p-2"
+                    >
+                      <p class="text-xs font-medium text-neutral-800">
+                        {{ slot.phase === 'compressing' ? 'Preparando…' : 'Enviando…' }}
+                      </p>
+                      <div class="w-3/4 h-1 rounded-full bg-neutral-200 overflow-hidden">
+                        <div class="h-full w-1/2 bg-primary-500 animate-pulse"></div>
+                      </div>
+                    </div>
+                  }
+                </button>
+
+                <!--
+                  GALERIA, e ela some para o MOTORISTA: a foto dele tem de ser do momento. A
+                  razão está em `canPickFromGallery`, no componente — é um controle, não uma
+                  inconsistência de UI.
+                -->
+                @if (canPickFromGallery()) {
+                  <label
+                    class="absolute top-1.5 right-1.5 min-h-[44px] min-w-[44px] inline-flex
+                           items-center justify-center rounded-lg bg-white/90 border
+                           border-neutral-200 text-neutral-700 cursor-pointer hover:bg-white
+                           focus-within:ring-2 focus-within:ring-primary-600"
+                    [attr.title]="'Escolher da galeria: ' + slot.label"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
+                      width="16"
+                      height="16"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      class="text-neutral-400 group-hover:text-primary-700 transition-colors"
                       aria-hidden="true"
                     >
-                      <path
-                        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
-                      />
-                      <circle cx="12" cy="13" r="4" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="9" cy="9" r="2" />
+                      <path d="m21 15-4.35-4.35a2 2 0 0 0-2.83 0L3 21" />
                     </svg>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      class="sr-only"
+                      [attr.aria-label]="'Escolher da galeria: ' + slot.label"
+                      (change)="onFilePicked($event, slot.angle)"
+                    />
+                  </label>
+                }
+
+                <!--
+                  A FALHA DESTA FOTO, no quadro dela. Cada foto que nao subiu guarda o seu
+                  arquivo, entao duas falhas seguidas tem dois botoes — e reenviar nao pede
+                  para fotografar de novo.
+                -->
+                @if (slot.failure) {
+                  <div class="mt-2 space-y-1.5">
+                    <p class="text-xs text-rose-800">Esta foto não foi enviada.</p>
+                    @if (slot.canRetry) {
+                      <button
+                        type="button"
+                        data-retry-upload
+                        (click)="retryUpload(slot.angle)"
+                        [disabled]="uploading()"
+                        class="w-full min-h-[44px] inline-flex items-center justify-center
+                               rounded-xl bg-neutral-900 text-white text-sm font-semibold px-3
+                               hover:bg-primary-600 transition-colors focus:outline-none
+                               focus-visible:ring-2 focus-visible:ring-primary-600
+                               focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
+                      >
+                        {{ uploading() ? 'Enviando…' : 'Reenviar esta foto' }}
+                      </button>
+                    }
+                  </div>
+                }
+              } @else {
+                <!--
+                  SOMENTE LEITURA (enviada, aprovada ou recusada): o mesmo quadrado, sem
+                  alvo de toque — um botao desabilitado prometeria uma camera que nao existe.
+                -->
+                <div
+                  class="relative w-full aspect-square rounded-xl border border-neutral-200
+                         bg-neutral-50 overflow-hidden"
+                >
+                  @if (slot.previewUrl || slot.signedUrl; as url) {
+                    <img
+                      [src]="url"
+                      [alt]="slot.label"
+                      class="absolute inset-0 w-full h-full object-cover"
+                    />
                     <span
-                      class="text-[11px] font-medium text-neutral-500 group-hover:text-primary-700 transition-colors"
+                      class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-medium px-2 py-1 truncate"
                     >
                       {{ slot.label }}
                     </span>
-                  </div>
-                }
-
-                @if (slot.uploading) {
-                  <!-- O progresso voltou para DENTRO do quadro, como no aluguel. -->
-                  <div
-                    class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 p-2"
-                  >
-                    <p class="text-xs font-medium text-neutral-800">Enviando…</p>
-                    <div class="w-3/4 h-1 rounded-full bg-neutral-200 overflow-hidden">
-                      <div class="h-full w-1/2 bg-primary-500 animate-pulse"></div>
+                  } @else {
+                    <div
+                      class="absolute inset-0 flex flex-col items-center justify-center gap-1 p-2 text-center"
+                    >
+                      <span class="text-[11px] font-semibold text-neutral-800">{{ slot.label }}</span>
+                      <span class="text-[10px] text-neutral-600 leading-tight">
+                        {{ slot.done ? 'Foto enviada; não foi possível exibir agora' : 'Sem foto' }}
+                      </span>
                     </div>
-                  </div>
-                }
-              </button>
-
-              <!--
-                GALERIA, e ela some para o MOTORISTA: a foto dele tem de ser do momento. A
-                razão está em `canPickFromGallery`, no componente — é um controle, não uma
-                inconsistência de UI.
-              -->
-              @if (canPickFromGallery()) {
-                <label
-                  class="absolute top-1.5 right-1.5 min-h-[44px] min-w-[44px] inline-flex
-                         items-center justify-center rounded-lg bg-white/90 border
-                         border-neutral-200 text-neutral-700 cursor-pointer hover:bg-white
-                         focus-within:ring-2 focus-within:ring-primary-600"
-                  [attr.title]="'Escolher da galeria: ' + slot.label"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="9" cy="9" r="2" />
-                    <path d="m21 15-4.35-4.35a2 2 0 0 0-2.83 0L3 21" />
-                  </svg>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    class="sr-only"
-                    [attr.aria-label]="'Escolher da galeria: ' + slot.label"
-                    (change)="onFilePicked($event, slot.angle)"
-                  />
-                </label>
+                  }
+                </div>
               }
             </div>
           }
@@ -201,69 +324,83 @@
     <!--
       O FECHAMENTO. Fica FORA do cartão de progresso, como última ação da tela.
 
-      Só aparece com o roteiro completo, e NUNCA dispara sozinho: completar o
-      roteiro não é entregar a vistoria. Depois do envio a pessoa não troca mais
-      foto nenhuma até o dono decidir, então ela precisa ver que está finalizando
-      — a frase de aviso vem ANTES do botão, não escondida atrás dele.
+      O botao so existe com o roteiro completo e NUNCA dispara sozinho: completar o roteiro
+      nao e entregar a vistoria. Faltando foto, o passo NAO some: ele diz QUAIS angulos
+      faltam, e cada um e um atalho para fotografa-lo — quem esta de pe na rua nao deve ter
+      de caçar o quadrado que sobrou numa grade de 14.
     -->
-    @if (isComplete() && !submitted()) {
+    @if (canCapture()) {
       <div class="mt-4 rounded-2xl bg-white border border-neutral-200 p-4 sm:p-6">
         <p class="text-sm font-semibold text-neutral-900">Finalizar a vistoria</p>
-        <p class="mt-1 text-sm text-neutral-600">
-          Ao enviar, esta vistoria vai para aprovação do dono e você não poderá trocar
-          as fotos — a menos que ela seja recusada.
-        </p>
 
-        @if (submitError(); as message) {
-          <div class="mt-3">
-            <app-alert-banner variant="error" [message]="message" />
+        @if (isComplete()) {
+          <p class="mt-1 text-sm text-neutral-600">
+            Ao enviar, esta vistoria vai para aprovação do dono e você não poderá trocar
+            as fotos — a menos que ela seja recusada.
+          </p>
+
+          @if (submitError(); as message) {
+            <div class="mt-3">
+              <app-alert-banner variant="error" [message]="message" />
+            </div>
+          }
+
+          <button
+            type="button"
+            data-submit-inspection
+            (click)="submitInspection()"
+            [disabled]="submitting()"
+            class="mt-4 w-full min-h-14 inline-flex items-center justify-center rounded-xl
+                   bg-primary-500 text-white text-base font-semibold px-5 py-4
+                   hover:bg-primary-600 transition-colors focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
+                   disabled:opacity-60 disabled:cursor-wait"
+          >
+            {{ submitting() ? 'Enviando…' : 'Finalizar e enviar vistoria' }}
+          </button>
+        } @else if (missingSlots().length > 0) {
+          <p data-missing-summary class="mt-1 text-sm text-neutral-600">
+            {{ missingSummary() }} Toque em um ângulo para fotografar:
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            @for (missing of missingSlots(); track missing.angle) {
+              <button
+                type="button"
+                data-missing-angle
+                (click)="openCamera(missing.angle)"
+                [disabled]="uploading()"
+                class="min-h-[44px] inline-flex items-center rounded-xl border border-neutral-300
+                       bg-white px-3 text-sm font-medium text-neutral-800 hover:bg-neutral-50
+                       transition-colors focus:outline-none focus-visible:ring-2
+                       focus-visible:ring-primary-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {{ missing.label }}
+              </button>
+            }
           </div>
+        } @else {
+          <p class="mt-1 text-sm text-neutral-600">
+            Esta vistoria não tem ângulos no roteiro, então não há o que fotografar.
+          </p>
         }
-
-        <button
-          type="button"
-          data-submit-inspection
-          (click)="submitInspection()"
-          [disabled]="submitting()"
-          class="mt-4 w-full min-h-14 inline-flex items-center justify-center rounded-xl
-                 bg-primary-500 text-white text-base font-semibold px-5 py-4
-                 hover:bg-primary-600 transition-colors focus:outline-none
-                 focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
-                 disabled:opacity-60 disabled:cursor-wait"
-        >
-          {{ submitting() ? 'Enviando…' : 'Finalizar e enviar vistoria' }}
-        </button>
       </div>
+    } @else {
+      <a
+        routerLink="/vistorias"
+        class="mt-4 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
+               border-neutral-200 text-sm font-semibold text-neutral-700 px-5 py-3
+               hover:bg-neutral-50 transition-colors focus:outline-none
+               focus-visible:ring-2 focus-visible:ring-primary-600"
+      >
+        Voltar para vistorias
+      </a>
     }
 
     @if (uploadError(); as message) {
       <div class="mt-4">
         <app-alert-banner variant="error" [message]="message" />
-
-        <!--
-          REENVIAR, não refotografar. A foto já está na memória; na rua, em 3G,
-          falha de upload é o caso comum, e refazer a foto a cada falha ensina
-          a pessoa que o aplicativo não funciona. Fotografar de novo continua
-          possível pelo botão do ângulo — só deixou de ser a única saída.
-        -->
-        @if (canRetryUpload()) {
-          <button
-            type="button"
-            data-retry-upload
-            (click)="retryUpload()"
-            [disabled]="uploading()"
-            class="mt-3 w-full min-h-14 inline-flex items-center justify-center rounded-xl
-                   bg-neutral-900 text-white text-base font-semibold px-5 py-4
-                   hover:bg-primary-600 transition-colors focus:outline-none
-                   focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
-                   disabled:opacity-60 disabled:cursor-wait"
-          >
-            {{ uploading() ? 'Enviando…' : 'Reenviar esta foto' }}
-          </button>
-        }
       </div>
     }
-
 
     @if (activeAngle()) {
       <app-live-camera-sheet
@@ -274,3 +411,4 @@
     }
   }
 </app-default-page-layout>
+}

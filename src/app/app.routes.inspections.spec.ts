@@ -14,13 +14,16 @@ import { SessionService } from './services/session.service';
 import { isRoleGuard } from './services/role.guard';
 
 /**
- * A FRONTEIRA DE PAPEL DAS VISTORIAS, e ela nao e uniforme de proposito.
+ * A FRONTEIRA DE PAPEL DAS VISTORIAS.
  *
- * O dono pediu que dono, gerente E MOTORISTA facam vistoria. Mas a LISTAGEM
- * nao serve ao motorista: a vistoria periodica tem `rental_id` NULO, nao casa
- * com o escopo dele, e a lista voltaria vazia ou errada. Entao:
+ * O dono pediu que dono, gerente E MOTORISTA facam vistoria. A listagem estava
+ * fechada ao motorista porque a lista voltava vazia ou errada para ele; o
+ * backend agora escopa `GET /v1/inspections` as vistorias DELE, e sem a lista
+ * ele nao tinha como continuar uma em andamento nem ler o motivo de uma
+ * recusa. Entao os tres entram, e o que e da empresa (aprovar, agendar, filtrar
+ * frota) a tela esconde por papel:
  *
- * - `vistorias`             → OWNER, MANAGER        (listagem, SEM motorista)
+ * - `vistorias`             → OWNER, MANAGER, DRIVER (listagem)
  * - `vistorias/nova`        → OWNER, MANAGER, DRIVER (captura)
  * - `vistorias/:id/captura` → OWNER, MANAGER, DRIVER (retomada)
  *
@@ -188,14 +191,37 @@ describe('fronteira de papel das vistorias', () => {
   });
 
   /**
-   * O NEGATIVO, e ele vale tanto quanto o positivo: a listagem continua fechada
-   * ao motorista. Abri-la mostraria a ele uma lista vazia ou errada, porque a
-   * vistoria periodica tem `rental_id` nulo.
+   * A LISTAGEM abriu para o motorista: e por ela que ele continua uma vistoria
+   * em andamento e le o motivo de uma recusa. O NEGATIVO que vale aqui e o que
+   * continua fechado a ele — a area da empresa vizinha.
    */
-  it('a LISTAGEM /vistorias continua fora do motorista', () => {
-    expect(chainAllows('/vistorias', 'DRIVER')).toBe(false);
-    expect(chainAllows('/vistorias', 'OWNER')).toBe(true);
-    expect(chainAllows('/vistorias', 'MANAGER')).toBe(true);
+  it('a LISTAGEM /vistorias admite dono, gerente E motorista', () => {
+    for (const role of ['OWNER', 'MANAGER', 'DRIVER']) {
+      expect(chainAllows('/vistorias', role), `${role} barrado em /vistorias`).toBe(true);
+    }
+  });
+
+  it('o negativo continua: sem token a listagem nega', () => {
+    const chain = chainFor('/vistorias');
+    sessionStorage.clear();
+    const allowed = chain.every(({ guard }) => {
+      const result = TestBed.runInInjectionContext(() =>
+        guard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+      ) as boolean | UrlTree;
+      return result === true;
+    });
+
+    expect(allowed).toBe(false);
+  });
+
+  /**
+   * Suporte e a outra metade da mudanca: `/v1/support/**` e 403 para o motorista,
+   * entao a rota o recusa em vez de abrir uma tela que so mostra erro.
+   */
+  it('/suporte e do dono e do gerente, nao do motorista', () => {
+    expect(chainAllows('/suporte', 'OWNER')).toBe(true);
+    expect(chainAllows('/suporte', 'MANAGER')).toBe(true);
+    expect(chainAllows('/suporte', 'DRIVER')).toBe(false);
   });
 
   /**

@@ -125,14 +125,19 @@ export const NAV_ITEMS: NavItem[] = [
       },
       // FEAT-0142 — "Frota → Vistorias", pedido do dono, e FILHA de Frota:
       // entre Manutenções e Multas, nunca item de primeiro nível. `roles` casa
-      // com o `roleGuard(['OWNER', 'MANAGER'])` da rota `/vistorias` em
-      // `app.routes.ts` — os dois conjuntos são iguais, então o item nunca
-      // oferece porta que o guard bata na cara.
+      // com o `roleGuard` da rota `/vistorias` em `app.routes.ts` — os dois
+      // conjuntos são iguais, então o item nunca oferece porta que o guard bata
+      // na cara.
+      //
+      // O MOTORISTA também vê este item: é a única entrada dele para continuar
+      // uma vistoria e ler uma recusa. Como Veículos, Manutenções e o resto do
+      // grupo não são dele, `allowedItems` não desenha um grupo "Frota" com um
+      // filho só — o item sobe para o primeiro nível (ver lá).
       {
         route: '/vistorias',
         label: 'Vistorias',
         icon: ICON_INSPECTION,
-        roles: ['OWNER', 'MANAGER'],
+        roles: ['OWNER', 'MANAGER', 'DRIVER'],
       },
       { route: '/multas', label: 'Multas', icon: ICON_FINES, roles: ['OWNER', 'MANAGER'] },
       {
@@ -186,6 +191,8 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['OWNER', 'MANAGER'],
     tourKey: TOUR_ANCHORS.alerts,
   },
+  // O MOTORISTA lê o Roadmap, e só lê: `GET /v1/feedback/tasks` é dele, criar,
+  // editar e votar não — a tela esconde esses controles por papel.
   { route: '/roadmap', label: 'Roadmap', icon: ICON_ROADMAP, tourKey: TOUR_ANCHORS.roadmap },
   { route: '/billing', label: 'Assinatura', icon: ICON_BILLING, roles: ['OWNER'] },
   {
@@ -264,7 +271,16 @@ export const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { route: '/suporte', label: 'Suporte', icon: ICON_SUPPORT, pinBottom: true },
+  // Suporte é OWNER/MANAGER: os tickets (`/v1/support/**`) são 403 para o
+  // MOTORISTA, então o item era uma tela que só mostrava erro. A rota tem o
+  // mesmo `roleGuard` — `sidebar-guard-parity.spec.ts` mede a igualdade.
+  {
+    route: '/suporte',
+    label: 'Suporte',
+    icon: ICON_SUPPORT,
+    roles: ['OWNER', 'MANAGER'],
+    pinBottom: true,
+  },
   { route: '/perfil', label: 'Perfil', icon: ICON_PROFILE, pinBottom: true },
 ];
 
@@ -385,6 +401,14 @@ export class Sidebar {
       if (item.children) {
         const visibleChildren = item.children.filter(passes);
         if (visibleChildren.length === 0) return acc;
+        // Grupo com UM filho visível não é grupo: "Frota" com só "Vistorias" diria ao
+        // motorista que ele tem uma frota. O filho sobe para o primeiro nível. Nenhum
+        // grupo de OWNER/MANAGER cai aqui (todos têm vários filhos), então o menu
+        // deles não muda.
+        if (visibleChildren.length === 1) {
+          acc.push(visibleChildren[0]);
+          return acc;
+        }
         acc.push({ ...item, children: visibleChildren });
       } else {
         acc.push(item);
