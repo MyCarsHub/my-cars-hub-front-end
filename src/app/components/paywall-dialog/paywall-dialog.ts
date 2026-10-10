@@ -15,6 +15,19 @@ interface PaywallCopy {
 }
 
 const CTA_SEE_PLANS = 'Ver planos';
+const CTA_UNDERSTOOD = 'Entendi';
+
+/**
+ * Quem NÃO é o dono não pode regularizar o plano (a rota `/billing` é `roleGuard(['OWNER'])`
+ * e o backend recusa as escritas), então a tela não manda assinar: diz quem resolve. Uma
+ * cópia só para todos os motivos, porque a pessoa não tem o que fazer com a diferença entre
+ * "teste terminou" e "pagamento pendente" — o próximo passo é o mesmo.
+ */
+const NON_OWNER_COPY: PaywallCopy = {
+  title: 'Esta empresa está sem plano ativo',
+  body: 'Só o dono da empresa pode regularizar o plano. Fale com ele para voltar a usar o MyCarsHub.',
+  cta: CTA_UNDERSTOOD,
+};
 
 @Component({
   selector: 'app-paywall-dialog',
@@ -50,11 +63,20 @@ export class PaywallDialog {
   reason = input<BlockReason | null>(null);
   /** When true, no backdrop-close, no dismiss button. */
   hardBlock = input<boolean>(true);
+  /**
+   * `true` only for the OWNER — the one role that can open `/billing`. Defaults to `true`
+   * so a caller that never passes it keeps the subscribe copy and CTA.
+   */
+  canRegularize = input<boolean>(true);
 
+  /** OWNER pressed the plans CTA: the host navigates to `/billing`. */
   confirmed = output<void>();
+  /** Non-owner pressed "Entendi": the host only closes the dialog, it navigates nowhere. */
+  acknowledged = output<void>();
   dismissed = output<void>();
 
   protected readonly copy = computed<PaywallCopy>(() => {
+    if (!this.canRegularize()) return NON_OWNER_COPY;
     switch (this.reason()) {
       case 'TRIAL_EXPIRED':
         return {
@@ -86,7 +108,8 @@ export class PaywallDialog {
   });
 
   protected onConfirm(): void {
-    this.confirmed.emit();
+    if (this.canRegularize()) this.confirmed.emit();
+    else this.acknowledged.emit();
   }
 
   protected onDismiss(): void {
