@@ -1,13 +1,29 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet, isPlatformBrowser } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
+  PLATFORM_ID,
   computed,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  EMPTY,
+  catchError,
+  filter,
+  forkJoin,
+  fromEvent,
+  map,
+  merge,
+  of,
+  startWith,
+  switchMap,
+  timer,
+} from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { LayoutStore } from '../../../components/core/layouts/layout.store';
@@ -46,6 +62,13 @@ import { PersonCard } from './person-card';
 import { RowActionsSheet, RowActionsTarget } from './row-actions-sheet';
 
 /**
+ * How often the list re-reads itself while the tab is visible and an invite is still
+ * waiting to be accepted. Acceptance happens on another device, so nothing on this screen
+ * tells it that a person arrived: the poll is what moves a pending invite into the roster.
+ */
+export const MEMBERS_AUTO_REFRESH_MS = 15_000;
+
+/**
  * Pessoas da empresa (`/configuracoes/membros`): who has access and who was invited, in ONE
  * list with search and filters, from the two existing sources — the roster (`GET /members`,
  * ACTIVE only) and `GET /invites`. No new endpoint.
@@ -79,6 +102,9 @@ export class CompanyMembers implements OnInit {
   private readonly session = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
+  private readonly document = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   /** The app's single breakpoint source (< 1024px): cards + sheets vs table + menus. */
   protected readonly isMobile = inject(LayoutStore).isMobile;
 
@@ -169,6 +195,7 @@ export class CompanyMembers implements OnInit {
   ngOnInit(): void {
     if (!this.canManagePeople) return;
     this.load();
+    this.watchForChanges();
   }
 
   /** Reloads BOTH sources: the screen is a join, half a refresh would mix old and new. */
@@ -177,6 +204,67 @@ export class CompanyMembers implements OnInit {
     this.actionError.set(null);
     this.members.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
     this.invites.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
+  }
+
+  // ------------------------------------------------------------------ auto refresh
+
+  /**
+   * The list keeps itself current, so the screen has no refresh button:
+   *  - every `MEMBERS_AUTO_REFRESH_MS` while the tab is visible AND at least one invite is
+   *    PENDING (nothing can be accepted otherwise, so a quiet screen makes no requests);
+   *  - once whenever the tab comes back to the foreground (visibility or window focus).
+   * Both stop with the component (`takeUntilDestroyed`). The timer lives inside a
+   * `switchMap` on visibility, so a hidden tab holds no timer at all.
+   */
+  private watchForChanges(): void {
+    if (!this.isBrowser) return;
+    const doc = this.document;
+    const win = doc.defaultView;
+
+    const visibility$ = fromEvent(doc, 'visibilitychange').pipe(
+      map(() => !doc.hidden),
+      startWith(!doc.hidden),
+    );
+
+    visibility$
+      .pipe(
+        switchMap((visible) =>
+          visible ? timer(MEMBERS_AUTO_REFRESH_MS, MEMBERS_AUTO_REFRESH_MS) : EMPTY,
+        ),
+        filter(() => this.pendingInvitesCount() > 0),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.refreshQuietly());
+
+    merge(
+      fromEvent(doc, 'visibilitychange').pipe(filter(() => !doc.hidden)),
+      win ? fromEvent(win, 'focus') : EMPTY,
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshQuietly());
+  }
+
+  /**
+   * Background re-read of BOTH sources: no skeleton (the lists are already loaded, so
+   * `initialLoading` stays false), no toast, and a failure is dropped — the rows on screen
+   * are still the last good ones and the next tick tries again. It yields to a row action in
+   * flight and to a read already under way, so it never races the person's own request.
+   * The load error banner is cleared only when BOTH reads came back.
+   */
+  private refreshQuietly(): void {
+    if (this.busyId() !== null || this.loading()) return;
+    try {
+      forkJoin([
+        this.members.list().pipe(catchError(() => of(null))),
+        this.invites.list().pipe(catchError(() => of(null))),
+      ])
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(([roster, invites]) => {
+          if (roster !== null && invites !== null) this.loadError.set(null);
+        });
+    } catch {
+      // No active company in the token: `list()` throws before it can return an Observable.
+    }
   }
 
   // ------------------------------------------------------------------ filters

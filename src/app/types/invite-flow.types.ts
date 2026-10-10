@@ -26,6 +26,13 @@ export interface InviteValidateResponse {
   inviteeFirstName?: string;
   /** Only present when `state` is PENDING. */
   accountKind?: InviteAccountKind;
+  /**
+   * The e-mail the invite was sent to, shown in the summary so the invitee sees WHICH account
+   * the invite is for. Not in the backend contract today (the anonymous route is a closed key
+   * list without PII); the row renders only when it shows up, and the "this tab is already
+   * signed in as the invitee" shortcut needs it.
+   */
+  email?: string;
   /** Not in the contract today; the "Convidado por" row renders only when it shows up. */
   inviterName?: string;
 }
@@ -38,12 +45,19 @@ export interface InviteAcceptResponse {
   next: InviteNext;
 }
 
+/**
+ * `POST /v1/invites/accept-as-member` answers one of two shapes, told apart by `next`:
+ * - `COMPANY_HOME`: the membership is ACTIVE and `accessToken` is the company-scoped session;
+ * - `DRIVER_ONBOARDING`: a DRIVER whose registration is still pending got an ONBOARDING
+ *   membership and `onboardingToken` (never an access token) to finish CNH and address.
+ */
 export interface InviteAcceptAsMemberResponse {
-  accessToken: string;
+  accessToken?: string;
+  onboardingToken?: string;
   role: string;
   roleLabel: string;
   companyName: string;
-  next: 'COMPANY_HOME';
+  next: Extract<InviteNext, 'COMPANY_HOME' | 'DRIVER_ONBOARDING'>;
 }
 
 export interface InviteOnboardingContext {

@@ -46,9 +46,6 @@
 
       @if (initialLoading()) {
         <app-page-card title="Lista">
-          <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
-            <app-members-icon name="users" />
-          </div>
           <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3" role="status" aria-label="Carregando membros">
             @for (i of [1, 2, 3]; track i) {
               <div data-skeleton class="h-[150px] lg:h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
@@ -57,13 +54,7 @@
         </app-page-card>
       } @else if (membersLoaded()) {
         <app-page-card title="Lista">
-          <div cardIcon class="p-2 bg-primary-low rounded-lg text-primary-700">
-            <app-members-icon name="users" />
-          </div>
           <div cardActions class="flex items-center gap-2">
-            @if (!isMobile()) {
-              <ng-container [ngTemplateOutlet]="refresh" />
-            }
             @if (!isEmpty()) {
               <div>
                 <button
@@ -231,20 +222,6 @@
   </div>
 
 </app-default-page-layout>
-
-<ng-template #refresh>
-  <button
-    type="button"
-    data-refresh
-    (click)="load()"
-    [disabled]="loading()"
-    class="min-h-[44px] px-3 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
-           border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-60
-           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-  >
-    {{ loading() ? 'Atualizando…' : 'Atualizar' }}
-  </button>
-</ng-template>
 
 <ng-template #emptyAction>
   <button

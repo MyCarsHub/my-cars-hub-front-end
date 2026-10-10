@@ -9,6 +9,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
+import { PageLoader } from '../../../components/page-loader/page-loader';
 import {
   BillingService,
   CHECKOUT_PENDING_KEY,
@@ -63,7 +64,7 @@ const PLAN_QUERY_PARAM = 'plan';
 
 @Component({
   selector: 'app-billing-success',
-  imports: [CommonModule, RouterLink, DefaultPageLayout],
+  imports: [CommonModule, RouterLink, DefaultPageLayout, PageLoader],
   templateUrl: './billing-success.html',
   styleUrl: './billing-success.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
