@@ -6,12 +6,27 @@ import {
   AcceptInviteRequest,
   AcceptInviteResponse,
   CreateInviteRequest,
+  CreateInviteResponse,
   InviteResponse,
+  ResendInviteResponse,
   ValidateInviteResponse,
+  withoutAcceptUrl,
 } from '../types/invite.types';
 import { TenantResetRegistry } from './tenant-reset.registry';
 
 const BASE = `${environment.apiUrl}/invites`;
+
+/** Reads the resend body without ever throwing: empty, non-JSON or a wrong shape is `{}`. */
+function parseResendBody(body: unknown): ResendInviteResponse {
+  if (typeof body !== 'string' || body.trim() === '') return {};
+  try {
+    const parsed: unknown = JSON.parse(body);
+    const url = (parsed as { acceptUrl?: unknown } | null)?.acceptUrl;
+    return typeof url === 'string' && url.trim() !== '' ? { acceptUrl: url.trim() } : {};
+  } catch {
+    return {};
+  }
+}
 
 /**
  * `/v1/invites` client + the signal cache the settings screen reads for its pending count.
@@ -61,22 +76,33 @@ export class InvitesService {
     );
   }
 
-  /** `POST /v1/invites` — OWNER / MANAGER only. `role` OWNER is a 400. */
-  create(payload: CreateInviteRequest): Observable<InviteResponse> {
+  /**
+   * `POST /v1/invites` — OWNER / MANAGER only. `role` OWNER is a 400.
+   *
+   * The response carries `acceptUrl`, which exists only here. The caller gets it; the list
+   * cache does NOT — it holds the row without the link, so the one-time link cannot be read
+   * back from a signal that outlives the screen.
+   */
+  create(payload: CreateInviteRequest): Observable<CreateInviteResponse> {
     return this.http
-      .post<InviteResponse>(BASE, payload)
-      .pipe(tap((invite) => this._invites.update((list) => [invite, ...list])));
+      .post<CreateInviteResponse>(BASE, payload)
+      .pipe(tap((invite) => this._invites.update((list) => [withoutAcceptUrl(invite), ...list])));
   }
 
   /**
    * `POST /v1/invites/resend/{id}` — by invite id. 400 unless the invite is PENDING or
-   * EXPIRED, 409 if the status changes mid-flight. The body is ignored: the caller
-   * re-lists so the new `expiresAt` comes from the server, not from a guess.
+   * EXPIRED, 409 if the status changes mid-flight. It ROTATES the token: the previous link
+   * stops working and the e-mail is sent again, counting towards the resend ceiling.
+   *
+   * The answer is `{ acceptUrl }` — the only way to get a link for an existing row. The body
+   * is read as TEXT and parsed here, so an older backend that answers an empty body (or a
+   * 204) is not an error: it resolves `{}`, which means "sent, but no link to show". The
+   * caller still re-lists, so the new `expiresAt` comes from the server, not from a guess.
    */
-  resend(id: string): Observable<void> {
-    return this.http.post(`${BASE}/resend/${id}`, {}, { responseType: 'text' }).pipe(
-      map(() => void 0),
-    );
+  resend(id: string): Observable<ResendInviteResponse> {
+    return this.http
+      .post(`${BASE}/resend/${id}`, {}, { responseType: 'text' })
+      .pipe(map((body) => parseResendBody(body)));
   }
 
   /** `DELETE /v1/invites/{id}` — 204, so `responseType: 'text'` per repo convention. */

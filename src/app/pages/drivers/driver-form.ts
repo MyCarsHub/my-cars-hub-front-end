@@ -33,12 +33,14 @@ import { DefaultPageLayout } from '../../components/layout/default-page-layout/d
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PrimaryInput } from '../../components/primary-input/primary-input';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { InviteShare } from '../../components/invite-share/invite-share';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
 import { InvitesService } from '../../services/invites.service';
+import { SessionService } from '../../services/session.service';
 import {
   DRIVER_INVITE_FROM_MEMBERS_HINT,
   driverInviteOutcome,
@@ -124,6 +126,7 @@ type ThirdPartyContactGroup = FormGroup<{
     AlertBanner,
     FormField,
     FieldControl,
+    InviteShare,
     PendingDocumentsBlock,
   ],
   templateUrl: './driver-form.html',
@@ -134,6 +137,7 @@ export class DriverForm implements OnInit {
   private readonly invites = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
+  private readonly session = inject(SessionService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -171,6 +175,19 @@ export class DriverForm implements OnInit {
     driverId: string;
     message: string;
     inviteId: string | null;
+  } | null>(null);
+  /**
+   * The registration that sent its invite AND returned the accept link: the screen stays on
+   * the share panel until "Concluir", so the link can be copied or sent before leaving.
+   * Component state only — dropped by `finishSent()` and gone with the component; never
+   * stored, never logged.
+   */
+  protected readonly sentInvite = signal<{
+    driverId: string;
+    email: string;
+    detail: string;
+    link: string;
+    companyName: string | null;
   } | null>(null);
   protected readonly resending = signal(false);
   protected readonly resendError = signal<string | null>(null);
@@ -705,6 +722,20 @@ export class DriverForm implements OnInit {
     }
     if (outcome.kind === 'sent') {
       this.notifications.success(outcome.message + docs);
+      const link = this.savedInvite?.acceptUrl?.trim();
+      if (link) {
+        // Keep the link out of the field that outlives this call: only the panel holds it.
+        this.savedInvite = { ...this.savedInvite, status: 'PENDING', acceptUrl: null };
+        const company = this.session.getItem('selectedCompanyName')?.trim();
+        this.sentInvite.set({
+          driverId: driver.id,
+          email,
+          detail: `Convite enviado para ${email}.${docs}`,
+          link,
+          companyName: company || null,
+        });
+        return;
+      }
       this.router.navigate(['/motoristas', driver.id]);
       return;
     }
@@ -734,6 +765,13 @@ export class DriverForm implements OnInit {
         this.resendError.set(this.apiErrors.messageFor(err, 'Não foi possível reenviar o convite.'));
       },
     });
+  }
+
+  /** "Concluir": drops the link and goes where a registration without a link goes. */
+  protected finishSent(): void {
+    const sent = this.sentInvite();
+    this.sentInvite.set(null);
+    if (sent) this.router.navigate(['/motoristas', sent.driverId]);
   }
 
   protected openSavedDriver(): void {

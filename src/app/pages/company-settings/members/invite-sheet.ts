@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   input,
@@ -12,11 +13,18 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
+import { InviteShare } from '../../../components/invite-share/invite-share';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { clearServerErrors } from '../../../services/api-error';
 import { inviteErrorCopy } from '../../../services/invite-errors';
 import { InvitesService } from '../../../services/invites.service';
-import { CreateInviteRequest, InviteResponse } from '../../../types/invite.types';
+import { SessionService } from '../../../services/session.service';
+import {
+  CreateInviteRequest,
+  INVITE_TTL_LABEL,
+  InviteResponse,
+  withoutAcceptUrl,
+} from '../../../types/invite.types';
 import {
   applyMaskedDocumentInput,
   cpfShapeValidator,
@@ -36,10 +44,23 @@ const CREATE_FALLBACK = 'Não foi possível enviar o convite.';
 /** Where a driver is invited today: the driver registration sends the invite on save. */
 export const DRIVER_CREATE_ROUTE = '/motoristas/novo';
 
-type Step = 'role' | 'manager';
+type Step = 'role' | 'manager' | 'sent';
 
 /**
- * "Convidar pessoa": step 1 picks the access level, step 2 is the manager form.
+ * What the "sent" step shows. Lives in this component only, and only until the sheet
+ * closes: the link is a credential-like value, so it is never written to storage, never
+ * logged and never left in a service cache.
+ */
+interface SentInvite {
+  email: string;
+  link: string;
+  companyName: string | null;
+}
+
+/**
+ * "Convidar pessoa": step 1 picks the access level, step 2 is the manager form, step 3 (only
+ * when the backend returned the accept link) confirms the e-mail and offers the link to copy
+ * or send by WhatsApp.
  *
  * Drivers are NOT invited from here: the driver registration creates the invite when it is
  * saved, so the Motorista option explains that and links to it instead of submitting.
@@ -49,20 +70,29 @@ type Step = 'role' | 'manager';
  *
  * The submit calls the EXISTING `POST /invites` with exactly the payload the /convites form
  * sends for a manager: trimmed e-mail and name, CPF and phone as digits.
+ *
+ * Without `acceptUrl` in the answer (an older backend) the sheet behaves as it always did:
+ * it reports `sent` and asks to be closed. With it, the sheet STAYS OPEN on the "sent" step
+ * and the link is dropped the moment `open` turns false.
  */
 @Component({
   selector: 'app-invite-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, AlertBanner, FormField, FieldControl, MembersIcon, MembersSheet],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    AlertBanner,
+    FormField,
+    FieldControl,
+    InviteShare,
+    MembersIcon,
+    MembersSheet,
+  ],
   template: `
     <app-members-sheet
       [open]="open()"
-      [title]="step() === 'manager' ? 'Convidar ' + managerLabel.toLowerCase() : 'Quem você quer convidar?'"
-      [subtitle]="
-        step() === 'manager'
-          ? 'Os dados são conferidos quando a pessoa aceitar.'
-          : 'Escolha o nível de acesso da pessoa.'
-      "
+      [title]="sheetTitle()"
+      [subtitle]="sheetSubtitle()"
       [showBack]="step() === 'manager'"
       (back)="step.set('role')"
       (closed)="closed.emit()"
@@ -141,6 +171,19 @@ type Step = 'role' | 'manager';
             </div>
           }
         </div>
+      } @else if (step() === 'sent') {
+        @if (sentInvite(); as invite) {
+          <div class="px-4 pb-4 space-y-4" data-invite-sent>
+            <app-alert-banner variant="success">
+              <p class="font-semibold break-all">Convite enviado para {{ invite.email }}.</p>
+              <p class="text-xs mt-0.5 leading-relaxed">
+                O e-mail já saiu e o convite vale por {{ ttlLabel }}. Se preferir, mande o link você
+                mesmo.
+              </p>
+            </app-alert-banner>
+            <app-invite-share [link]="invite.link" [companyName]="invite.companyName" />
+          </div>
+        }
       } @else {
         <form
           id="invite-manager-form"
@@ -214,6 +257,19 @@ type Step = 'role' | 'manager';
             </button>
             <p class="text-xs text-neutral-500 leading-relaxed">Enviaremos um link por e-mail.</p>
           </div>
+        } @else if (step() === 'sent') {
+          <div class="border-t border-neutral-100 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <button
+              type="button"
+              data-invite-done
+              (click)="closed.emit()"
+              class="min-h-12 w-full px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center
+                     bg-primary-500 text-white hover:bg-primary-600 shadow-sm
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Concluir
+            </button>
+          </div>
         } @else if (driverChosen()) {
           <div class="border-t border-neutral-100 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <a
@@ -237,19 +293,43 @@ export class InviteSheet {
   private readonly fb = inject(FormBuilder);
   private readonly invites = inject(InvitesService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly session = inject(SessionService);
 
   readonly open = input.required<boolean>();
   /** OWNER and MANAGER. Without it the caller sees the Motorista option alone. */
   readonly canInviteManager = input(false);
   readonly closed = output<void>();
+  /** The invite as the list stores it: the one-time link is NOT in this payload. */
   readonly sent = output<InviteResponse>();
 
   protected readonly step = signal<Step>('role');
   protected readonly driverChosen = signal(false);
   protected readonly sending = signal(false);
   protected readonly createError = signal<string | null>(null);
+  protected readonly sentInvite = signal<SentInvite | null>(null);
+  protected readonly ttlLabel = INVITE_TTL_LABEL;
 
   protected readonly managerLabel = companyRoleLabel('MANAGER');
+  protected readonly sheetTitle = computed(() => {
+    switch (this.step()) {
+      case 'sent':
+        return 'Convite enviado';
+      case 'manager':
+        return 'Convidar ' + this.managerLabel.toLowerCase();
+      default:
+        return 'Quem você quer convidar?';
+    }
+  });
+  protected readonly sheetSubtitle = computed(() => {
+    switch (this.step()) {
+      case 'sent':
+        return 'Copie o link ou envie pelo WhatsApp.';
+      case 'manager':
+        return 'Os dados são conferidos quando a pessoa aceitar.';
+      default:
+        return 'Escolha o nível de acesso da pessoa.';
+    }
+  });
   protected readonly driverLabel = companyRoleLabel('DRIVER');
   protected readonly driverRoute = DRIVER_CREATE_ROUTE;
 
@@ -289,7 +369,11 @@ export class InviteSheet {
   constructor() {
     // Every opening starts at step 1. A caller with a single option has it pre-chosen.
     effect(() => {
-      if (!this.open()) return;
+      if (!this.open()) {
+        // Closing is what drops the link: nothing on this component outlives the sheet.
+        this.sentInvite.set(null);
+        return;
+      }
       this.step.set('role');
       this.driverChosen.set(!this.canInviteManager());
       this.createError.set(null);
@@ -338,8 +422,19 @@ export class InviteSheet {
       next: (invite) => {
         this.sending.set(false);
         this.form.reset();
+        const link = invite.acceptUrl?.trim();
+        const stored = withoutAcceptUrl(invite);
+        if (link) {
+          const company = this.session.getItem('selectedCompanyName')?.trim();
+          this.sentInvite.set({ email: invite.email, link, companyName: company || null });
+          this.step.set('sent');
+          this.sent.emit(stored);
+          return;
+        }
+        // No link in the answer: the e-mail was the only channel, so there is nothing to show.
         this.step.set('role');
-        this.sent.emit(invite);
+        this.sent.emit(stored);
+        this.closed.emit();
       },
       error: (err: HttpErrorResponse) => {
         this.sending.set(false);

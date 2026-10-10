@@ -31,10 +31,12 @@ import { PageCard } from '../../../components/core/page-card/page-card';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { CompanyMembersService } from '../../../services/company-members.service';
+import { InviteShareService } from '../../../services/invite-share.service';
 import { InvitesService } from '../../../services/invites.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SessionService } from '../../../services/session.service';
 import { INVITE_TTL_LABEL, InviteResponse } from '../../../types/invite.types';
+import { InviteLinkSheet } from './invite-link-sheet';
 import { InviteSheet } from './invite-sheet';
 import {
   ACCESS_OPTIONS,
@@ -61,6 +63,16 @@ import { MembersKpis } from './members-kpis';
 import { PeopleTable } from './people-table';
 import { PersonCard } from './person-card';
 import { RowActionsSheet, RowActionsTarget } from './row-actions-sheet';
+
+/** What the person asked to do with the NEW link once the invite is resent. */
+type ShareMode = 'copy' | 'whatsapp';
+
+/** The link of a resent invite while its sheet is open. Dropped the moment it closes. */
+interface SharedLink {
+  link: string;
+  recipient: string;
+  companyName: string | null;
+}
 
 /**
  * How often the list re-reads itself while the tab is visible and an invite is still
@@ -94,6 +106,7 @@ export const MEMBERS_AUTO_REFRESH_MS = 15_000;
     PeopleTable,
     RowActionsSheet,
     InviteSheet,
+    InviteLinkSheet,
   ],
   templateUrl: './members.html',
 })
@@ -103,6 +116,7 @@ export class CompanyMembers implements OnInit {
   private readonly session = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
+  private readonly share = inject(InviteShareService);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
@@ -134,10 +148,16 @@ export class CompanyMembers implements OnInit {
   protected readonly actionsTarget = signal<RowActionsTarget | null>(null);
   protected readonly pendingRemoval = signal<MemberRow | null>(null);
   protected readonly pendingCancel = signal<InviteRow | null>(null);
+  /** "Copiar link" / "Enviar pelo WhatsApp" waiting for the OK: the old link dies. */
+  protected readonly pendingShare = signal<{ row: InviteRow; mode: ShareMode } | null>(null);
+  /** Set only when the copy / WhatsApp could not be done by the page itself. */
+  protected readonly sharedLink = signal<SharedLink | null>(null);
   protected readonly inviteOpen = signal(false);
 
   protected readonly roleChangeNote = ROLE_CHANGE_NOTE;
   protected readonly ttlLabel = INVITE_TTL_LABEL;
+  protected readonly shareConfirmMessage =
+    'Vamos gerar um novo link. O link anterior deixa de valer e o convidado recebe o e-mail de novo.';
 
   protected readonly membersLoaded = this.members.loaded;
   protected readonly invitesLoaded = this.invites.loaded;
@@ -312,6 +332,12 @@ export class CompanyMembers implements OnInit {
     this.pendingRemoval.set(row);
   }
 
+  protected askShare(row: InviteRow, mode: ShareMode): void {
+    this.actionsTarget.set(null);
+    if (!row.canAct || this.busyId() !== null) return;
+    this.pendingShare.set({ row, mode });
+  }
+
   protected askCancel(row: InviteRow): void {
     this.actionsTarget.set(null);
     if (!row.canAct || this.busyId() !== null) return;
@@ -365,15 +391,70 @@ export class CompanyMembers implements OnInit {
     this.busyId.set(row.id);
     this.actionError.set(null);
     this.invites.resend(row.id).subscribe({
-      next: () => {
+      next: () => this.afterResend(row),
+      error: (error: HttpErrorResponse) => this.failInviteAction(error, row),
+    });
+  }
+
+  /**
+   * "Copiar link" / "Enviar pelo WhatsApp" on an existing row, after the OK.
+   *
+   * The list never has a link (the token is not stored), so the ONLY way to get one is to
+   * resend — which rotates the token and mails the person again. That is why this goes
+   * through a confirmation and then through the SAME resend path: same busy lock, same
+   * ceiling / 410 / 404 / 409 copy, same re-read of the list.
+   *
+   * With the new link in hand the page tries the action itself. Browsers only honour a
+   * clipboard write or a new tab inside a user gesture, and a request in between may have
+   * used it up — so when the attempt is refused the link goes to a sheet whose buttons are
+   * a fresh tap. If the answer has no link at all (an older backend) it degrades to the
+   * plain resend toast.
+   */
+  protected confirmShare(): void {
+    const pending = this.pendingShare();
+    if (!pending) return;
+    this.pendingShare.set(null);
+    const { row, mode } = pending;
+    this.busyId.set(row.id);
+    this.actionError.set(null);
+    this.invites.resend(row.id).subscribe({
+      next: (response) => {
+        const link = response?.acceptUrl?.trim();
+        if (!link) {
+          this.afterResend(row);
+          return;
+        }
         this.busyId.set(null);
-        this.notifications.success(
-          'Novo convite enviado para ' + row.title + '. O link anterior deixou de valer.',
-        );
         this.invites.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
+        void this.deliver(row, link, mode);
       },
       error: (error: HttpErrorResponse) => this.failInviteAction(error, row),
     });
+  }
+
+  protected closeSharedLink(): void {
+    this.sharedLink.set(null);
+  }
+
+  private afterResend(row: InviteRow): void {
+    this.busyId.set(null);
+    this.notifications.success(
+      'Novo convite enviado para ' + row.title + '. O link anterior deixou de valer.',
+    );
+    this.invites.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
+  }
+
+  private async deliver(row: InviteRow, link: string, mode: ShareMode): Promise<void> {
+    const company = this.session.getItem('selectedCompanyName')?.trim() || null;
+    const done =
+      mode === 'copy' ? await this.share.copy(link) : this.share.openWhatsApp(link, company);
+    if (!done) {
+      this.sharedLink.set({ link, recipient: row.title, companyName: company });
+      return;
+    }
+    this.notifications.success(
+      mode === 'copy' ? 'Link copiado' : 'WhatsApp aberto com o novo link de ' + row.title + '.',
+    );
   }
 
   // ------------------------------------------------------------------ invite
@@ -387,11 +468,12 @@ export class CompanyMembers implements OnInit {
   }
 
   /**
-   * Close, confirm, drop the filters (the new invite must not hide behind a Status or
+   * Confirm, drop the filters (the new invite must not hide behind a Status or
    * search the person set earlier) and re-read the invites only (roster unchanged).
+   * The sheet is NOT closed here: it closes itself when there is no link to show, and stays
+   * on its "sent" step when there is one.
    */
   protected onInviteSent(invite: InviteResponse): void {
-    this.inviteOpen.set(false);
     this.notifications.success(`Convite enviado para «${invite.email}».`);
     this.clearFilters();
     this.invites.list().subscribe({ error: (e: HttpErrorResponse) => this.failLoad(e) });
