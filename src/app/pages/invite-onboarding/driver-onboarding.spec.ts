@@ -45,6 +45,7 @@ describe('DriverOnboarding (/convite/cadastro, role DRIVER)', () => {
         provideRouter([
           { path: 'convite/cadastro', canActivate: [inviteOnboardingGuard], component: ManagerOnboarding },
           { path: 'alugueis', children: [] },
+          { path: 'meu-painel', children: [] },
           { path: 'login', children: [] },
         ]),
         provideHttpClient(withInterceptors([authInterceptor])),
@@ -202,7 +203,7 @@ describe('DriverOnboarding (/convite/cadastro, role DRIVER)', () => {
       await click('Concluir cadastro');
     }
 
-    it('posts exactly the contract with the ONBOARDING token, stores the ACCESS token, clears the onboarding token and lands on /alugueis', async () => {
+    it('posts exactly the contract with the ONBOARDING token, stores the ACCESS token, clears the onboarding token and lands on his own panel', async () => {
       sessionStorage.setItem('token', 'old-session');
       await submitAll('MG1234567');
       const req = backend.expectOne(byUrl(DRIVER_URL));
@@ -232,8 +233,8 @@ describe('DriverOnboarding (/convite/cadastro, role DRIVER)', () => {
       expect(heading()).toContain('Tudo pronto, João!');
       expect(text()).toContain('Passo 4 de 4');
 
-      await click('Ver meus aluguéis');
-      expect(router.url).toBe('/alugueis');
+      await click('Ir para o meu painel');
+      expect(router.url).toBe('/meu-painel');
     });
 
     it('omits the RG when it was left empty', async () => {

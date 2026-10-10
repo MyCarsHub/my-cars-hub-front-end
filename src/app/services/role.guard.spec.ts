@@ -337,7 +337,8 @@ describe('roleGuard - FEAT-0108: casca do motorista', () => {
   it('desvia o motorista recusado para a casa DELE, nao para o painel que o recusa', () => {
     sessionStorage.setItem('token', buildToken({ role: 'DRIVER' }));
 
-    expect(target(run(['OWNER', 'MANAGER'], '/veiculos'))).toBe('/alugueis');
+    // A casa do motorista e o painel PROPRIO dele (`/meu-painel`), nao mais `/alugueis`.
+    expect(target(run(['OWNER', 'MANAGER'], '/veiculos'))).toBe('/meu-painel');
   });
 
   it('a mensagem do motorista nomeia o destino REAL, nao o painel', () => {
@@ -346,8 +347,10 @@ describe('roleGuard - FEAT-0108: casca do motorista', () => {
     run(['OWNER', 'MANAGER'], '/veiculos');
 
     const [message] = messages();
-    expect(message).toContain('os aluguéis');
-    expect(message).not.toContain('painel');
+    // Nomeia o painel DELE, e nao repete o "voce voltou ao painel" do FIX-0387 — que e o
+    // da frota, de onde ele acabou de ser recusado.
+    expect(message).toContain('Você foi levado para o seu painel.');
+    expect(message).not.toContain('você voltou ao painel');
   });
 
   /** O evento e um so: duas notificacoes seria o defeito, nao o dobro da ajuda. */

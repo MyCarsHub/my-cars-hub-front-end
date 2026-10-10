@@ -26,6 +26,7 @@ import {
 import { InviteOnboardingTokenStore } from '../../services/invite-onboarding-token.store';
 import { LoginService } from '../../services/loginService';
 import { SessionService } from '../../services/session.service';
+import { homeRouteForRole } from '../../utils/home-route';
 import {
   InviteAcceptAsMemberResponse,
   InviteValidateResponse,
@@ -360,7 +361,9 @@ export class InviteLanding implements OnInit {
 
       this.flow.signIn(response.accessToken, { name: response.companyName, role: response.role });
       this.memberReady = true;
-      this.goTo(APP_PATH);
+      // The role the invite granted decides where the app opens: a driver lands on his own
+      // panel instead of being bounced off /dashboard with an "exclusive area" notice.
+      this.goTo(response.role === 'DRIVER' ? homeRouteForRole(response.role) : APP_PATH);
     } catch {
       // An exception inside an rx `next` is reported out of band and would leave the spinner.
       this.clearJoinWatchdog();

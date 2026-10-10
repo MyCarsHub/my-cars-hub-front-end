@@ -25,6 +25,7 @@ class StubPage {}
 const ROUTES: Routes = [
   { path: 'dashboard', component: StubPage },
   { path: 'alugueis', component: StubPage },
+  { path: 'meu-painel', component: StubPage },
   { path: 'trocando-empresa', component: StubPage },
   { path: 'convite/cadastro', component: StubPage },
 ];
@@ -291,7 +292,7 @@ describe('Company switcher', () => {
     expect(router.url).toBe('/dashboard');
   });
 
-  it('switching into a DRIVER company lands on /alugueis, not on the dashboard', async () => {
+  it('switching into a DRIVER company lands on his own panel, not on the dashboard', async () => {
     startAs('co-alfa', 'OWNER', [alfa, delta]);
     await mount();
     openSwitcher();
@@ -304,7 +305,7 @@ describe('Company switcher', () => {
     await fixture.whenStable();
     settleBackground();
 
-    expect(router.url).toBe('/alugueis');
+    expect(router.url).toBe('/meu-painel');
   });
 
   it('a refused switch keeps the session where it was and the sheet open', async () => {

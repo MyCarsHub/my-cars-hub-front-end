@@ -8,6 +8,7 @@ import { SessionService } from '../../services/session.service';
 import { INVITE_RESUME_STATE_KEY, PENDING_INVITE_TOKEN_KEY } from '../invites/invite-session';
 import { PlanIntentService } from '../../services/plan-intent.service';
 import { PageLoader } from '../../components/page-loader/page-loader';
+import { homeRouteForRole } from '../../utils/home-route';
 
 /** The exchange is one small POST; past this the screen leaves for /login instead of spinning. */
 const EXCHANGE_TIMEOUT_MS = 20_000;
@@ -127,7 +128,10 @@ export class OauthSuccess implements OnInit {
         const explicitFlag = user.hasCompletedOnboarding;
         const derivedFlag = (user.companies?.length ?? 0) > 0;
         const isCompleted = explicitFlag ?? derivedFlag;
-        this.router.navigate([isCompleted ? '/dashboard' : '/onboarding']);
+        // A casa do papel: o motorista abre o app no painel dele, nao num /dashboard que o
+        // roleGuard desviaria com um aviso de "area exclusiva".
+        const home = homeRouteForRole(this.sessionService.getCompanyRoleFromToken());
+        this.router.navigate([isCompleted ? home : '/onboarding']);
       },
       error: () => {
         this.sessionService.clear();

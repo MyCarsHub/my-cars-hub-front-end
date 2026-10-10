@@ -562,7 +562,11 @@ a[role="button"][aria-disabled="true"] {
    só o <main class="flex-1 overflow-y-auto"> rola. Sem isso o body ganhava
    um segundo scrollbar do navegador junto com o da área de conteúdo. */
 body.app-shell-active {
+  /* 100vh e a altura com a barra do navegador RECOLHIDA: no Chrome do celular o
+     fim da pagina ficava sob a barra e nao rolava (o botao Sair do Perfil era
+     "engolido"). 100dvh acompanha a barra; o 100vh fica de fallback. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.005em;

@@ -6,7 +6,8 @@
   (click)="close()"
 >
   <div
-    class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden"
+    class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-y-auto
+           max-h-[calc(100dvh-2rem)]"
     (click)="$event.stopPropagation()"
   >
     <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
@@ -17,7 +18,8 @@
         type="button"
         (click)="close()"
         aria-label="Fechar"
-        class="text-neutral-400 hover:text-neutral-700 transition-colors rounded-lg p-1
+        class="min-h-11 min-w-11 -mr-2 inline-flex items-center justify-center text-neutral-400
+               hover:text-neutral-700 transition-colors rounded-lg
                focus:outline-none focus:ring-2 focus:ring-primary-600"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -52,7 +54,7 @@
           formControlName="message"
           placeholder="Descreva seu problema, CPF/CNPJ e o email cadastrado..."
           maxlength="2000"
-          class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800
+          class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-base sm:text-sm text-neutral-800
                  focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                  resize-y min-h-[120px]"
         ></textarea>
@@ -82,6 +84,41 @@
         {{ saving() ? 'Enviando…' : 'Enviar email' }}
       </button>
     </form>
+
+    @if (tickets().length > 0) {
+      <section
+        class="px-5 py-4 border-t border-neutral-100"
+        aria-labelledby="support-my-tickets"
+        data-my-tickets
+      >
+        <h3 id="support-my-tickets" class="text-sm font-semibold text-neutral-800">
+          Seus chamados
+        </h3>
+        <ul class="mt-3 space-y-2">
+          @for (ticket of tickets(); track ticket.id) {
+            <li class="rounded-xl border border-neutral-200 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs text-neutral-600 tabular-nums">{{ ticketDate(ticket) }}</span>
+                <span
+                  class="px-2 py-0.5 rounded-md text-[11px] font-semibold border"
+                  [class.bg-emerald-50]="ticket.status === 'RESOLVED'"
+                  [class.text-emerald-800]="ticket.status === 'RESOLVED'"
+                  [class.border-emerald-200]="ticket.status === 'RESOLVED'"
+                  [class.bg-neutral-50]="ticket.status !== 'RESOLVED'"
+                  [class.text-neutral-800]="ticket.status !== 'RESOLVED'"
+                  [class.border-neutral-200]="ticket.status !== 'RESOLVED'"
+                >
+                  {{ statusLabel(ticket) }}
+                </span>
+              </div>
+              <p class="mt-1.5 text-sm text-neutral-800 break-words line-clamp-3">
+                {{ ticket.message }}
+              </p>
+            </li>
+          }
+        </ul>
+      </section>
+    }
 
     <div class="px-5 py-4 border-t border-neutral-100 flex flex-col sm:flex-row gap-2">
       <button

@@ -33,6 +33,7 @@ import { CepLookupResult, CepService } from '../../services/cep.service';
 import { applyMaskedCepInput, normalizeCep } from '../../utils/cep-mask';
 import { PENDING_INVITE_TOKEN_KEY } from './invite-session';
 import { companyRoleLabel } from '../../utils/role-labels';
+import { homeRouteForRole } from '../../utils/home-route';
 
 /** Só o corpo do motorista traz CNH — é o que separa os dois formulários no erro. */
 function isDriverPayload(
@@ -287,7 +288,8 @@ export class InviteAccept implements OnInit {
 
     const timer = setTimeout(() => land(false), NAVIGATION_GRACE_MS);
 
-    this.router.navigate(['/dashboard'], { replaceUrl: true }).then(
+    const home = homeRouteForRole(this.session.getCompanyRoleFromToken());
+    this.router.navigate([home], { replaceUrl: true }).then(
       (ok) => {
         clearTimeout(timer);
         land(ok === true);

@@ -215,13 +215,15 @@ describe('fronteira de papel das vistorias', () => {
   });
 
   /**
-   * Suporte e a outra metade da mudanca: `/v1/support/**` e 403 para o motorista,
-   * entao a rota o recusa em vez de abrir uma tela que so mostra erro.
+   * Suporte teve as duas metades: a rota recusava o motorista porque `/v1/support/**`
+   * era 403 para ele; o backend liberou abrir e ler os PROPRIOS tickets, e a rota o
+   * admite de novo. O nome deste caso era "... nao do motorista" e dizia o contrario.
    */
-  it('/suporte e do dono e do gerente, nao do motorista', () => {
+  it('/suporte e do dono, do gerente e do motorista', () => {
     expect(chainAllows('/suporte', 'OWNER')).toBe(true);
     expect(chainAllows('/suporte', 'MANAGER')).toBe(true);
-    expect(chainAllows('/suporte', 'DRIVER')).toBe(false);
+    // O motorista voltou: abrir e ler os PROPRIOS tickets e dele.
+    expect(chainAllows('/suporte', 'DRIVER')).toBe(true);
   });
 
   /**

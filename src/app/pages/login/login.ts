@@ -10,6 +10,7 @@ import { LoginService } from '../../services/loginService';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
+import { homeRouteForRole } from '../../utils/home-route';
 
 @Component({
   selector: 'app-login',
@@ -72,7 +73,8 @@ export class Login {
         this.submitting.set(false);
         this.clearForm();
         const onboardingCompleted = this.sessionService.isOnboardingCompleted();
-        this.router.navigate([onboardingCompleted ? '/dashboard' : '/onboarding']);
+        const home = homeRouteForRole(this.sessionService.getCompanyRoleFromToken());
+        this.router.navigate([onboardingCompleted ? home : '/onboarding']);
       },
       error: (err: HttpErrorResponse) => this.handleError(err),
     });

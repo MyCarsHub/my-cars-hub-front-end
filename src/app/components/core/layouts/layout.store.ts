@@ -7,6 +7,7 @@ import { CompanySelectionService } from '../../../services/company-selection.ser
 import { NotificationService } from '../../../services/notification.service';
 import { MembershipsService } from '../../../services/memberships.service';
 import { companyRoleLabel } from '../../../utils/role-labels';
+import { homeRouteForRole } from '../../../utils/home-route';
 import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 
 export interface Tenant {
@@ -26,9 +27,12 @@ export interface SwitcherEntry {
   status: 'ACTIVE' | 'ONBOARDING';
 }
 
-/** Where each role lands after a company switch. DRIVER cannot open the dashboard (403). */
+/**
+ * Where each role lands after a company switch. DRIVER cannot open the dashboard (403), so
+ * he lands on his own panel. One answer for the whole app: `utils/home-route.ts`.
+ */
 export function homeRouteFor(role: string | null | undefined): string {
-  return role === 'DRIVER' ? '/alugueis' : '/dashboard';
+  return homeRouteForRole(role);
 }
 
 const FALLBACK_TENANT: Tenant = { id: '', name: 'Sem Empresa', role: '', initial: '-' };
