@@ -4,9 +4,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { NEVER, Observable, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CompanyMembers } from './members';
+import { CompanyMembers, MEMBERS_AUTO_REFRESH_MS } from './members';
 import { DRIVER_CREATE_ROUTE } from './invite-sheet';
 import { LayoutStore } from '../../../components/core/layouts/layout.store';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -102,6 +102,8 @@ describe('CompanyMembers — pessoas da empresa', () => {
   interface RenderOptions {
     roster?: CompanyMemberResponse[];
     invites?: InviteResponse[];
+    /** Invites per read, for cases where the server changes between two loads. */
+    invitesImpl?: () => InviteResponse[];
     listImpl?: () => Observable<CompanyMemberResponse[]>;
     mobile?: boolean;
     invitesNever?: boolean;
@@ -113,6 +115,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
     {
       roster = [owner, manager, driver],
       invites = [],
+      invitesImpl,
       listImpl,
       mobile = true,
       invitesNever = false,
@@ -162,9 +165,10 @@ describe('CompanyMembers — pessoas da empresa', () => {
         iLoading.set(true);
         return NEVER;
       }
-      inviteSignal.set(invites);
+      const next = invitesImpl ? invitesImpl() : invites;
+      inviteSignal.set(next);
       iLoaded.set(true);
-      return of(invites);
+      return of(next);
     });
     create = vi.fn((payload: { email: string; role: 'MANAGER' | 'DRIVER' }) =>
       of({ ...pendingInvite, id: 'inv-new', email: payload.email, role: payload.role }),
@@ -334,6 +338,10 @@ describe('CompanyMembers — pessoas da empresa', () => {
     );
     f.detectChanges();
   }
+
+  /** The big number of a KPI card (second paragraph: label, value, detail). */
+  const kpi = (f: ComponentFixture<CompanyMembers>, k: string): string =>
+    host(f).querySelector(`[data-kpi="${k}"] p:nth-child(2)`)?.textContent?.trim() ?? '';
 
   beforeEach(() => TestBed.resetTestingModule());
 
@@ -681,7 +689,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
   });
 
   /** The backend 404 is ambiguous on purpose; the copy does not claim which cause. */
-  it('404 na remocao nao afirma a causa, pede para atualizar — e o botao Atualizar esta la', () => {
+  it('404 na remocao nao afirma a causa e pede para atualizar a lista', () => {
     const f = render('OWNER');
     remove.mockReturnValue(throwError(() => error(404)));
     startRemoval(f, 'Motorista Caio');
@@ -689,18 +697,164 @@ describe('CompanyMembers — pessoas da empresa', () => {
     f.detectChanges();
     expect(text(f)).toContain('já não tem acesso');
     expect(text(f)).toContain('Atualize a lista');
-    // Atualizar lives in the desktop header only; on phones the error banner carries "Tentar novamente".
-    const desk = render('OWNER', { mobile: false });
-    expect(host(desk).querySelector('[data-refresh]')?.textContent).toContain('Atualizar');
-    expect(host(f).querySelector('[data-refresh]')).toBeNull();
   });
 
-  it('o botao Atualizar recarrega as DUAS fontes', () => {
-    const f = render('OWNER', { mobile: false });
-    host(f).querySelector<HTMLButtonElement>('[data-refresh]')?.click();
-    f.detectChanges();
-    expect(list).toHaveBeenCalledTimes(2);
-    expect(inviteList).toHaveBeenCalledTimes(2);
+  it('nao ha botao Atualizar, nem no celular nem no desktop: a lista se atualiza sozinha', () => {
+    for (const mobile of [true, false]) {
+      const f = render('OWNER', { mobile });
+      expect(host(f).querySelector('[data-refresh]')).toBeNull();
+      expect(buttonByText(host(f), 'Atualizar')).toBeUndefined();
+    }
+  });
+
+  // ================================================================ AUTO REFRESH
+  describe('atualizacao automatica', () => {
+    let hidden = false;
+
+    /** Tab visibility is read from `document.hidden`; jsdom has no real tab to hide. */
+    function setHidden(value: boolean): void {
+      hidden = value;
+      document.dispatchEvent(new Event('visibilitychange'));
+    }
+
+    const tick = (f: ComponentFixture<CompanyMembers>, ms: number): void => {
+      vi.advanceTimersByTime(ms);
+      f.detectChanges();
+    };
+
+    beforeEach(() => {
+      hidden = false;
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      delete (document as unknown as { hidden?: boolean }).hidden;
+    });
+
+    it('com convite PENDENTE e a aba visivel, rele as DUAS fontes a cada ciclo', () => {
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(inviteList).toHaveBeenCalledTimes(1);
+
+      tick(f, MEMBERS_AUTO_REFRESH_MS - 1);
+      expect(list).toHaveBeenCalledTimes(1);
+
+      tick(f, 1);
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(inviteList).toHaveBeenCalledTimes(2);
+
+      tick(f, MEMBERS_AUTO_REFRESH_MS);
+      expect(list).toHaveBeenCalledTimes(3);
+      expect(inviteList).toHaveBeenCalledTimes(3);
+    });
+
+    it('sem convite pendente a tela fica quieta: nenhuma chamada a cada ciclo', () => {
+      // An expired invite is not waiting to be accepted, so it does not keep the poll alive.
+      const f = render('OWNER', { roster: [owner, manager], invites: [expiredInvite] });
+      tick(f, MEMBERS_AUTO_REFRESH_MS * 4);
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(inviteList).toHaveBeenCalledTimes(1);
+    });
+
+    it('aba oculta nao rele; ao voltar, rele uma vez e retoma o ciclo', () => {
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      setHidden(true);
+      tick(f, MEMBERS_AUTO_REFRESH_MS * 4);
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(inviteList).toHaveBeenCalledTimes(1);
+
+      setHidden(false);
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(inviteList).toHaveBeenCalledTimes(2);
+
+      tick(f, MEMBERS_AUTO_REFRESH_MS);
+      expect(list).toHaveBeenCalledTimes(3);
+    });
+
+    it('ao recuperar o foco da janela rele, mesmo sem convite pendente', () => {
+      const f = render('OWNER', { roster: [owner, manager] });
+      window.dispatchEvent(new Event('focus'));
+      f.detectChanges();
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(inviteList).toHaveBeenCalledTimes(2);
+    });
+
+    it('convite aceito vira membro e o KPI de pendentes cai, sem nenhuma acao da pessoa', () => {
+      let reads = 0;
+      const f = render('OWNER', {
+        listImpl: () => {
+          reads += 1;
+          return of(reads === 1 ? [owner] : [owner, manager]);
+        },
+        invitesImpl: () =>
+          reads <= 1 ? [pendingInvite] : [{ ...pendingInvite, status: 'ACCEPTED' }],
+      });
+      expect(kpi(f, 'total')).toBe('1');
+      expect(kpi(f, 'pending')).toBe('1');
+      expect(text(f)).not.toContain('Gerente Bruno');
+
+      tick(f, MEMBERS_AUTO_REFRESH_MS);
+      expect(kpi(f, 'total')).toBe('2');
+      expect(kpi(f, 'pending')).toBe('0');
+      expect(text(f)).toContain('Gerente Bruno');
+
+      // Nothing is waiting any more, so the poll stops by itself.
+      tick(f, MEMBERS_AUTO_REFRESH_MS * 4);
+      expect(list).toHaveBeenCalledTimes(2);
+    });
+
+    it('a releitura e silenciosa: sem esqueleto, sem aviso e sem toast, mesmo se falhar', () => {
+      let reads = 0;
+      const f = render('OWNER', {
+        invites: [pendingInvite],
+        listImpl: () => {
+          reads += 1;
+          return reads === 1 ? of([owner, manager]) : throwError(() => error(500));
+        },
+      });
+      expect(text(f)).toContain('Gerente Bruno');
+
+      tick(f, MEMBERS_AUTO_REFRESH_MS);
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(host(f).querySelector('app-alert-banner [role="alert"]')).toBeNull();
+      expect(host(f).querySelector('[data-skeleton]')).toBeNull();
+      // The last good rows are still the ones on screen.
+      expect(text(f)).toContain('Gerente Bruno');
+      expect(success).not.toHaveBeenCalled();
+    });
+
+    it('nao compete com uma acao em andamento sobre uma linha', () => {
+      const f = render('OWNER', { invites: [pendingInvite] });
+      resendInvite.mockReturnValue(NEVER);
+      openRowActions(f, 'convidada@empresa.com.br');
+      sheet(f)?.querySelector<HTMLButtonElement>('[data-resend-invite]')?.click();
+      f.detectChanges();
+      expect(resendInvite).toHaveBeenCalledTimes(1);
+      const before = list.mock.calls.length;
+
+      tick(f, MEMBERS_AUTO_REFRESH_MS * 2);
+      expect(list).toHaveBeenCalledTimes(before);
+    });
+
+    it('ao destruir a tela o ciclo e os ouvintes morrem: nada mais e chamado', () => {
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      f.destroy();
+      vi.advanceTimersByTime(MEMBERS_AUTO_REFRESH_MS * 3);
+      window.dispatchEvent(new Event('focus'));
+      setHidden(false);
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(inviteList).toHaveBeenCalledTimes(1);
+    });
+
+    it('motorista nao ve o roster: nem a carga nem o ciclo chamam o servidor', () => {
+      const f = render('DRIVER', { roster: [owner], invites: [pendingInvite] });
+      tick(f, MEMBERS_AUTO_REFRESH_MS * 2);
+      window.dispatchEvent(new Event('focus'));
+      expect(list).not.toHaveBeenCalled();
+      expect(inviteList).not.toHaveBeenCalled();
+    });
   });
 
   // ================================================================ INVITE ROW ACTIONS
@@ -808,9 +962,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
   });
 
   // ================================================================ KPIs
-  const kpi = (f: ComponentFixture<CompanyMembers>, k: string): string =>
-    host(f).querySelector(`[data-kpi="${k}"] p:nth-child(2)`)?.textContent?.trim() ?? '';
-
   it('o resumo: total com acesso, gestao, motoristas e convites PENDENTES, com o detalhe dos expirados', () => {
     const f = render('OWNER', {
       roster: [owner, manager, driver],
@@ -829,9 +980,6 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(host(f).querySelector('[data-kpi="pending"] [data-kpi-detail]')?.textContent).toContain(
       '1 expirado para reenviar',
     );
-    // The Total is the one filled card, in the brand colour with white text.
-    expect(host(f).querySelector('[data-kpi="total"]')?.className).toContain('bg-primary-500');
-    expect(host(f).querySelector('[data-kpi="total"]')?.className).toContain('text-white');
     expect(host(f).querySelector('[aria-label="Resumo da equipe"]')?.className).toContain(
       'grid-cols-2',
     );
@@ -839,7 +987,46 @@ describe('CompanyMembers — pessoas da empresa', () => {
 
   it('sem convite expirado o detalhe nao inventa urgencia', () => {
     const f = render('OWNER', { invites: [pendingInvite] });
-    expect(host(f).querySelector('[data-kpi-detail]')?.textContent).not.toContain('expirado');
+    const detail = host(f).querySelector('[data-kpi="pending"] [data-kpi-detail]');
+    expect(detail?.textContent).toContain('aguardando aceite');
+    expect(detail?.textContent).not.toContain('expirado');
+  });
+
+  it('os quatro KPIs sao o KpiCard do Dashboard, nas variantes que ele ja tem', () => {
+    const f = render('OWNER', { invites: [pendingInvite] });
+    const card = (k: string): HTMLElement => {
+      const el = host(f).querySelector<HTMLElement>(`[data-kpi="${k}"]`);
+      if (!el) throw new Error('KPI ' + k + ' nao esta na tela');
+      return el;
+    };
+    for (const k of ['total', 'management', 'drivers', 'pending']) {
+      expect(card(k).hasAttribute('app-kpi-card'), k).toBe(true);
+      expect(card(k).className, k).toContain('rounded-2xl');
+    }
+    // Orange fill, dark-green fill, green fill, white card: the Dashboard strip's palette.
+    expect(card('total').className).toContain('bg-primary-500');
+    expect(card('management').className).toContain('bg-emerald-700');
+    expect(card('drivers').className).toContain('bg-emerald-600');
+    expect(card('pending').className).toContain('bg-white');
+    expect(card('pending').className).toContain('border-gray-200');
+    // The mint card of the first version is gone.
+    expect(
+      host(f).querySelector('[aria-label="Resumo da equipe"] [class*="bg-success-100"]'),
+    ).toBeNull();
+    // Filled cards carry white text; the white card does not.
+    expect(card('total').className).toContain('text-white');
+    expect(card('pending').className).not.toContain('text-white');
+  });
+
+  it('o cartao Lista nao tem icone ao lado do titulo, carregando ou carregado', () => {
+    for (const loading of [true, false]) {
+      const f = loading
+        ? render('OWNER', { listImpl: () => NEVER, invitesNever: true })
+        : render('OWNER');
+      const title = host(f).querySelector('app-page-card h2');
+      expect(title?.textContent).toContain('Lista');
+      expect(title?.parentElement?.querySelector('[cardIcon], app-members-icon, svg')).toBeNull();
+    }
   });
 
   // ================================================================ SEARCH AND FILTERS

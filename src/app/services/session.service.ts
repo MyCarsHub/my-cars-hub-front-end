@@ -256,6 +256,57 @@ export class SessionService {
     }
   }
 
+  /**
+   * Identidade (`sub`, `name`, `email`) lida dos claims do JWT da sessão — a mesma que o
+   * backend confere (`accept-as-member` compara o e-mail do convite com o da conta do token).
+   *
+   * Existe porque `sessionStorage.id/name/email` só são gravados por `/auth/me`, e o caminho do
+   * convite pula esse passo (a conta ainda não tem empresa; o `/me` desviaria para o onboarding
+   * ou para outro tenant). Quem decide "esta aba já está logada como o convidado?" lê daqui,
+   * não do espelho editável.
+   *
+   * Fail-closed: token ausente, malformado, expirado ou de impersonação devolve `null`. Um
+   * token de suporte nunca é "a conta do convidado".
+   */
+  getIdentityFromToken(): { id: string | null; name: string | null; email: string | null } | null {
+    if (!this.isBrowser) {
+      return null;
+    }
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        return null;
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return null;
+      }
+      const payload = JSON.parse(this.base64UrlDecode(parts[1])) as {
+        sub?: unknown;
+        name?: unknown;
+        email?: unknown;
+        exp?: unknown;
+        [key: string]: unknown;
+      };
+      if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) {
+        return null;
+      }
+      if (payload[IMPERSONATION_CLAIM] === true) {
+        return null;
+      }
+      const text = (value: unknown): string | null =>
+        typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+      return { id: text(payload.sub), name: text(payload.name), email: text(payload.email) };
+    } catch {
+      return null;
+    }
+  }
+
+  /** E-mail da conta do token da sessão, ou `null`. Ver {@link getIdentityFromToken}. */
+  getEmailFromToken(): string | null {
+    return this.getIdentityFromToken()?.email ?? null;
+  }
+
   private base64UrlDecode(input: string): string {
     const padded = input.replace(/-/g, '+').replace(/_/g, '/');
     const padLength = (4 - (padded.length % 4)) % 4;

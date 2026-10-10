@@ -1,11 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { timeout } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
 import { SessionService } from '../../services/session.service';
 import { INVITE_RESUME_STATE_KEY, PENDING_INVITE_TOKEN_KEY } from '../invites/invite-session';
 import { PlanIntentService } from '../../services/plan-intent.service';
+import { PageLoader } from '../../components/page-loader/page-loader';
+
+/** The exchange is one small POST; past this the screen leaves for /login instead of spinning. */
+const EXCHANGE_TIMEOUT_MS = 20_000;
 
 interface OauthExchangeResponse {
   token: string;
@@ -21,9 +26,8 @@ interface OauthExchangeResponse {
 @Component({
   selector: 'app-oauth-success',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [PageLoader],
   templateUrl: './oauth-success.html',
-  styleUrls: ['./oauth-success.css'],
 })
 export class OauthSuccess implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -53,19 +57,24 @@ export class OauthSuccess implements OnInit {
   }
 
   private exchangeCodeForToken(code: string): void {
-    this.http.post<OauthExchangeResponse>(`${environment.apiUrl}/auth/oauth-exchange`, { code }).subscribe({
-      next: (res) => {
-        if (!res?.token) {
+    this.http
+      .post<OauthExchangeResponse>(`${environment.apiUrl}/auth/oauth-exchange`, { code })
+      // The code is single-use, so there is no retry to offer here: a call that never answers
+      // must end on the login screen, not on this spinner.
+      .pipe(timeout(EXCHANGE_TIMEOUT_MS))
+      .subscribe({
+        next: (res) => {
+          if (!res?.token) {
+            this.router.navigate(['/login']);
+            return;
+          }
+          this.completeLogin(res.token);
+        },
+        error: () => {
+          this.sessionService.clear();
           this.router.navigate(['/login']);
-          return;
-        }
-        this.completeLogin(res.token);
-      },
-      error: () => {
-        this.sessionService.clear();
-        this.router.navigate(['/login']);
-      },
-    });
+        },
+      });
   }
 
   private completeLogin(token: string): void {

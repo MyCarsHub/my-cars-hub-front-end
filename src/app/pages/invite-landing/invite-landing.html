@@ -1,3 +1,14 @@
+@if (view() === 'loading') {
+  <app-page-loader
+    title="Verificando seu convite…"
+    description="Só um instante enquanto confirmamos o link."
+  />
+} @else if (view() === 'joining') {
+  <app-page-loader
+    title="Aceitando convite…"
+    description="Estamos adicionando você a {{ companyName() }}."
+  />
+} @else {
 <main class="min-h-dvh bg-neutral-50 px-4 py-8 sm:py-16 flex items-start sm:items-center justify-center">
   <section
     class="w-full max-w-md bg-white border border-neutral-200 rounded-2xl shadow-sm p-6 sm:p-8"
@@ -13,24 +24,6 @@
     </a>
 
     @switch (view()) {
-      @case ('loading') {
-        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
-          Verificando seu convite…
-        </h1>
-        <p role="status" class="mt-2 text-sm text-neutral-600">
-          Só um instante enquanto confirmamos o link.
-        </p>
-      }
-
-      @case ('joining') {
-        <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
-          Entrando na empresa…
-        </h1>
-        <p role="status" class="mt-2 text-sm text-neutral-600">
-          Estamos adicionando você a {{ companyName() }}.
-        </p>
-      }
-
       @case ('form') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
           Você foi convidado para
@@ -40,27 +33,7 @@
           Confirme seu CPF para entrar. Não precisa de conta Google.
         </p>
 
-        <dl
-          class="mt-6 rounded-xl border border-neutral-200 divide-y divide-neutral-100 text-sm"
-          data-testid="invite-summary"
-        >
-          <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <dt class="text-neutral-600 shrink-0">Empresa</dt>
-            <dd class="font-medium text-neutral-900 text-right break-words min-w-0">
-              {{ companyName() }}
-            </dd>
-          </div>
-          <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <dt class="text-neutral-600 shrink-0">Seu acesso</dt>
-            <dd class="font-medium text-neutral-900 text-right">{{ roleLabel() }}</dd>
-          </div>
-          @if (inviterName(); as inviter) {
-            <div class="flex items-center justify-between gap-3 px-4 py-3">
-              <dt class="text-neutral-600 shrink-0">Convidado por</dt>
-              <dd class="font-medium text-neutral-900 text-right break-words min-w-0">{{ inviter }}</dd>
-            </div>
-          }
-        </dl>
+        <ng-container *ngTemplateOutlet="summary" />
 
         @if (locked()) {
           <div class="mt-6">
@@ -135,50 +108,42 @@
 
       @case ('existing') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
-          Você já tem conta. Entre para adicionar a
+          Você foi convidado para
           <span class="text-primary-600">{{ companyName() }}</span>
         </h1>
         <p class="mt-2 text-sm text-neutral-600">
-          Encontramos uma conta MyCarsHub com este e-mail. Depois de entrar, {{ companyName() }}
-          aparece junto das suas outras empresas.
+          Depois de aceitar, você entra com sua conta Google para confirmar que o convite é seu.
         </p>
 
-        <dl class="mt-6 rounded-xl border border-neutral-200 divide-y divide-neutral-100 text-sm">
-          <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <dt class="text-neutral-600 shrink-0">Empresa</dt>
-            <dd class="font-medium text-neutral-900 text-right break-words min-w-0">
-              {{ companyName() }}
-            </dd>
-          </div>
-          <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <dt class="text-neutral-600 shrink-0">Seu acesso</dt>
-            <dd class="font-medium text-neutral-900 text-right">{{ roleLabel() }}</dd>
-          </div>
-          @if (inviterName(); as inviter) {
-            <div class="flex items-center justify-between gap-3 px-4 py-3">
-              <dt class="text-neutral-600 shrink-0">Convidado por</dt>
-              <dd class="font-medium text-neutral-900 text-right break-words min-w-0">{{ inviter }}</dd>
-            </div>
-          }
-        </dl>
+        <ng-container *ngTemplateOutlet="summary" />
 
         <button
           type="button"
-          (click)="continueWithGoogle()"
+          (click)="acceptExisting()"
           [disabled]="redirecting()"
           [attr.aria-busy]="redirecting() ? 'true' : null"
-          class="mt-6 w-full min-h-12 inline-flex items-center justify-center gap-3 rounded-xl
-                 bg-neutral-900 text-white text-base font-semibold px-5 py-3
-                 hover:bg-primary-600 transition-colors focus:outline-none
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-xl
+                 bg-primary-700 text-white text-base font-semibold px-5 py-3
+                 hover:bg-primary-800 transition-colors focus:outline-none
                  focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2
                  disabled:opacity-60 disabled:cursor-wait"
         >
-          <img ngSrc="png/google-logo.png" width="20" height="20" alt="" />
-          <span>{{ redirecting() ? 'Redirecionando…' : 'Entrar com Google' }}</span>
+          <span>{{ redirecting() ? 'Redirecionando…' : 'Aceitar convite' }}</span>
         </button>
 
         <p class="mt-4 text-xs text-neutral-600 leading-relaxed">
-          Use a mesma conta Google de sempre, a do e-mail que recebeu o convite.
+          Ao aceitar, você concorda com os
+          <a routerLink="/termos-de-uso" target="_blank" rel="noopener" class="underline text-primary-700"
+            >Termos de uso</a
+          >
+          e a
+          <a
+            routerLink="/politica-de-privacidade"
+            target="_blank"
+            rel="noopener"
+            class="underline text-primary-700"
+            >Política de privacidade</a
+          >.
         </p>
       }
 
@@ -322,6 +287,18 @@
         <div class="mt-4">
           <app-alert-banner variant="error" [message]="problemMessage()" />
         </div>
+        @if (retryable()) {
+          <button
+            type="button"
+            (click)="retry()"
+            class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                   bg-primary-700 text-white text-base font-semibold px-5 py-3
+                   hover:bg-primary-800 focus:outline-none focus-visible:ring-2
+                   focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+          >
+            Tentar de novo
+          </button>
+        }
         @if (canSwitchAccount()) {
           <button
             type="button"
@@ -348,23 +325,59 @@
         }
       }
 
-      @case ('driver-soon') {
+      @case ('linked') {
         <h1 id="invite-title" class="text-xl sm:text-2xl font-bold text-neutral-900">
-          Cadastro do motorista em breve
+          Você já faz parte de
+          <span class="text-primary-600">{{ companyName() }}</span>
         </h1>
         <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
-          Confirmamos seu convite para {{ companyName() }}. O cadastro de motorista ainda está sendo
-          liberado. Volte a este link em alguns dias ou fale com quem te convidou.
+          Seu convite foi aceito, mas não conseguimos abrir o painel agora. Toque em continuar para
+          entrar.
         </p>
-        <a
-          routerLink="/"
-          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
-                 border-neutral-200 text-base font-semibold text-neutral-800 px-5 py-3
-                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
-                 focus-visible:ring-primary-600"
-          >Voltar para o início</a
+        <button
+          type="button"
+          (click)="continueIntoApp()"
+          class="mt-6 w-full min-h-12 inline-flex items-center justify-center rounded-xl
+                 bg-primary-700 text-white text-base font-semibold px-5 py-3 hover:bg-primary-800
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
+                 focus-visible:ring-offset-2"
         >
+          Continuar
+        </button>
       }
     }
   </section>
 </main>
+}
+
+<ng-template #summary>
+  <dl
+    class="mt-6 rounded-xl border border-neutral-200 divide-y divide-neutral-100 text-sm"
+    data-testid="invite-summary"
+  >
+    <div class="flex items-center justify-between gap-3 px-4 py-3">
+      <dt class="text-neutral-600 shrink-0">Empresa</dt>
+      <dd class="font-medium text-neutral-900 text-right break-words min-w-0">
+        {{ companyName() }}
+      </dd>
+    </div>
+    <div class="flex items-center justify-between gap-3 px-4 py-3">
+      <dt class="text-neutral-600 shrink-0">Seu acesso</dt>
+      <dd class="font-medium text-neutral-900 text-right">{{ roleLabel() }}</dd>
+    </div>
+    @if (inviteeEmail(); as email) {
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
+        <dt class="text-neutral-600 shrink-0">E-mail</dt>
+        <dd class="font-medium text-neutral-900 text-right break-all min-w-0" data-testid="invite-email">
+          {{ email }}
+        </dd>
+      </div>
+    }
+    @if (inviterName(); as inviter) {
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
+        <dt class="text-neutral-600 shrink-0">Convidado por</dt>
+        <dd class="font-medium text-neutral-900 text-right break-words min-w-0">{{ inviter }}</dd>
+      </div>
+    }
+  </dl>
+</ng-template>

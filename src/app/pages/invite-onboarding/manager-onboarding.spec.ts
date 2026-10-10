@@ -111,6 +111,25 @@ describe('ManagerOnboarding (/convite/cadastro)', () => {
     harness.detectChanges();
   }
 
+  describe('loading', () => {
+    it('shows the shared full-page loader while the context is being fetched', async () => {
+      sessionStorage.setItem(INVITE_ONBOARDING_TOKEN_KEY, 'onb-token');
+      harness = await RouterTestingHarness.create();
+      await router.navigateByUrl('/convite/cadastro');
+      harness.detectChanges();
+
+      const loader = dom().querySelector('app-page-loader');
+      expect(loader).not.toBeNull();
+      expect(loader?.querySelector('h1')?.textContent).toContain('Carregando seu cadastro');
+      expect(loader?.querySelector('main')?.getAttribute('role')).toBe('status');
+      expect(dom().querySelector('header')).toBeNull();
+
+      contextRequest().flush(context());
+      await settle();
+      expect(dom().querySelector('app-page-loader')).toBeNull();
+    });
+  });
+
   describe('guard', () => {
     it('sends a visitor without an onboarding token to the login', async () => {
       harness = await RouterTestingHarness.create();

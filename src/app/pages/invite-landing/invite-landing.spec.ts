@@ -6,7 +6,7 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InviteLanding } from './invite-landing';
+import { INVITE_JOIN_TIMEOUT_MS, InviteLanding } from './invite-landing';
 import { inviteOnboardingGuard } from '../invite-onboarding/invite-onboarding.guard';
 import { INVITE_RESUME_STATE_KEY, PENDING_INVITE_TOKEN_KEY } from '../invites/invite-session';
 import { authInterceptor } from '../../services/auth.interceptor';
@@ -337,8 +337,9 @@ describe('InviteLanding (/convite)', () => {
       );
       await settle();
 
-      expect(dom().querySelector('h1')?.textContent).toContain('Você já tem conta. Entre para adicionar a Locadora Alfa');
-      expect(text()).toContain('Entrar com Google');
+      expect(dom().querySelector('h1')?.textContent).toContain('Você foi convidado para Locadora Alfa');
+      expect(text()).toContain('Aceitar convite');
+      expect(text()).toContain('você entra com sua conta Google');
       expect(dom().querySelector('input#invite-cpf')).toBeNull();
     });
 
@@ -406,31 +407,147 @@ describe('InviteLanding (/convite)', () => {
       expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBeNull();
     });
 
-    it('DRIVER_ONBOARDING shows the "em breve" placeholder instead of navigating', async () => {
+    it('DRIVER_ONBOARDING goes to the same onboarding route (it renders the driver wizard)', async () => {
       await acceptWith('DRIVER_ONBOARDING');
 
-      expect(router.url).toBe('/convite');
-      expect(dom().querySelector('h1')?.textContent).toContain('Cadastro do motorista em breve');
+      expect(router.url).toBe('/convite/cadastro');
+      expect(sessionStorage.getItem(INVITE_ONBOARDING_TOKEN_KEY)).toBe('onb-token');
+      expect(text()).not.toContain('em breve');
+    });
+
+    it('shows the invitee e-mail next to company and role', async () => {
+      await openWithValidate(pending({ email: 'patricia@exemplo.com.br' }));
+      expect(text()).toMatch(/Empresa\s*Locadora Alfa/);
+      expect(text()).toMatch(/Seu acesso\s*Gerenciador/);
+      expect(text()).toMatch(/E-mail\s*patricia@exemplo\.com\.br/);
+    });
+
+    it('does not render an empty e-mail row when the backend sends none', async () => {
+      await openWithValidate(pending());
+      expect(dom().querySelector('[data-testid="invite-email"]')).toBeNull();
     });
   });
 
   describe('existing account', () => {
-    it('PENDING + EXISTING renders the Google screen, and the button hands the tab to Google with the token stashed', async () => {
-      await openWithValidate(pending({ accountKind: 'EXISTING' }));
+    const acceptButton = () =>
+      Array.from(dom().querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Aceitar convite'),
+      ) as HTMLButtonElement;
 
-      expect(dom().querySelector('h1')?.textContent).toContain('Você já tem conta. Entre para adicionar a Locadora Alfa');
-      const google = Array.from(dom().querySelectorAll('button')).find((b) => b.textContent?.includes('Entrar com Google')) as HTMLButtonElement;
-      expect(google.querySelector('img')).not.toBeNull();
-
-      sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
-      google.click();
-      expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBe('tok-123');
-      expect(loginWithGoogle).toHaveBeenCalledTimes(1);
+    const memberResponse = (companyToken: string) => ({
+      accessToken: companyToken,
+      role: 'MANAGER',
+      roleLabel: 'Gerenciador',
+      companyName: 'Locadora Alfa',
+      next: 'COMPANY_HOME',
     });
 
-    it('after the Google login the page calls accept-as-member with the stored token and the Google session, then switches into the company', async () => {
+    const companyJwt = () => jwt({ companyId: 'co-9', role: 'MANAGER', exp: 4_000_000_000 });
+
+    async function resumeFromGoogle(
+      response: InviteValidateResponse = pending({ accountKind: 'EXISTING' }),
+    ): Promise<void> {
+      sessionStorage.setItem('token', jwt({ sub: 'u1', exp: 4_000_000_000 }));
+      sessionStorage.setItem(PENDING_INVITE_TOKEN_KEY, 'tok-123');
+      await open('/convite', { [INVITE_RESUME_STATE_KEY]: true });
+      validateRequest().flush(response);
+      await settle();
+    }
+
+    const memberRequest = () => backend.expectOne(byUrl(`${API}/invites/accept-as-member`));
+
+    it('the FIRST action is "Aceitar convite"; Google is the step after it, and the copy says so', async () => {
+      await openWithValidate(pending({ accountKind: 'EXISTING' }));
+
+      expect(dom().querySelector('h1')?.textContent).toContain('Você foi convidado para Locadora Alfa');
+      expect(text()).toContain('Depois de aceitar, você entra com sua conta Google');
+      expect(text()).not.toContain('Você já tem conta');
+      expect(text()).not.toContain('Entrar com Google');
+
+      const buttons = Array.from(dom().querySelectorAll('button'));
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0].textContent).toContain('Aceitar convite');
+      expect(buttons[0].className).toContain('bg-primary-700');
+      expect(buttons[0].className).toContain('min-h-12');
+    });
+
+    it('shows the invitee e-mail in the summary with company and role', async () => {
+      await openWithValidate(pending({ accountKind: 'EXISTING', email: 'patricia@exemplo.com.br' }));
+      expect(text()).toMatch(/Empresa\s*Locadora Alfa/);
+      expect(text()).toMatch(/Seu acesso\s*Gerenciador/);
+      expect(text()).toMatch(/E-mail\s*patricia@exemplo\.com\.br/);
+    });
+
+    it('a logged-out tab: the click stashes the token and hands the tab to Google', async () => {
+      await openWithValidate(pending({ accountKind: 'EXISTING' }));
+
+      sessionStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+      acceptButton().click();
+
+      expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBe('tok-123');
+      expect(loginWithGoogle).toHaveBeenCalledTimes(1);
+      backend.expectNone(byUrl(`${API}/invites/accept-as-member`));
+    });
+
+    it('a tab already signed in as ANOTHER account still goes through Google', async () => {
+      sessionStorage.setItem(
+        'token',
+        jwt({ sub: 'u2', email: 'outra@pessoa.com', exp: 4_000_000_000 }),
+      );
+      await openWithValidate(pending({ accountKind: 'EXISTING', email: 'patricia@exemplo.com.br' }));
+
+      acceptButton().click();
+
+      expect(loginWithGoogle).toHaveBeenCalledTimes(1);
+      backend.expectNone(byUrl(`${API}/invites/accept-as-member`));
+    });
+
+    it('a tab signed in as the invitee accepts directly, without Google, and enters the company', async () => {
+      const mine = jwt({ sub: 'u1', email: 'Patricia@Exemplo.com.br', exp: 4_000_000_000 });
+      const companyToken = companyJwt();
+      sessionStorage.setItem('token', mine);
+      await openWithValidate(pending({ accountKind: 'EXISTING', email: 'patricia@exemplo.com.br' }));
+
+      acceptButton().click();
+      harness.detectChanges();
+
+      const req = memberRequest();
+      expect(req.request.body).toEqual({ token: 'tok-123' });
+      expect(req.request.headers.get('Authorization')).toBe(`Bearer ${mine}`);
+      expect(loginWithGoogle).not.toHaveBeenCalled();
+      expect(dom().querySelector('h1')?.textContent).toContain('Aceitando convite');
+
+      req.flush(memberResponse(companyToken));
+      await settle();
+
+      expect(sessionStorage.getItem('token')).toBe(companyToken);
+      expect(sessionStorage.getItem('selectedCompanyId')).toBe('co-9');
+      expect(router.url).toBe('/dashboard');
+    });
+
+    it('without an invite e-mail the shortcut is not taken (nothing to compare)', async () => {
+      sessionStorage.setItem(
+        'token',
+        jwt({ sub: 'u1', email: 'patricia@exemplo.com.br', exp: 4_000_000_000 }),
+      );
+      await openWithValidate(pending({ accountKind: 'EXISTING' }));
+
+      acceptButton().click();
+
+      expect(loginWithGoogle).toHaveBeenCalledTimes(1);
+      backend.expectNone(byUrl(`${API}/invites/accept-as-member`));
+    });
+
+    it('after the Google login the page finishes on its own: stored token, Google session, then into the company', async () => {
       const googleSession = jwt({ sub: 'u1', exp: 4_000_000_000 });
-      const companyToken = jwt({ companyId: 'co-9', role: 'MANAGER', exp: 4_000_000_000 });
+      const companyToken = jwt({
+        sub: 'u1',
+        email: 'patricia@exemplo.com.br',
+        name: 'Patricia Lima',
+        companyId: 'co-9',
+        role: 'MANAGER',
+        exp: 4_000_000_000,
+      });
       sessionStorage.setItem('token', googleSession);
       sessionStorage.setItem(PENDING_INVITE_TOKEN_KEY, 'tok-123');
 
@@ -438,16 +555,10 @@ describe('InviteLanding (/convite)', () => {
       validateRequest().flush(pending({ accountKind: 'EXISTING' }));
       await settle();
 
-      const req = backend.expectOne(byUrl(`${API}/invites/accept-as-member`));
+      const req = memberRequest();
       expect(req.request.body).toEqual({ token: 'tok-123' });
       expect(req.request.headers.get('Authorization')).toBe(`Bearer ${googleSession}`);
-      req.flush({
-        accessToken: companyToken,
-        role: 'MANAGER',
-        roleLabel: 'Gerenciador',
-        companyName: 'Locadora Alfa',
-        next: 'COMPANY_HOME',
-      });
+      req.flush(memberResponse(companyToken));
       await settle();
 
       expect(sessionStorage.getItem('token')).toBe(companyToken);
@@ -456,7 +567,32 @@ describe('InviteLanding (/convite)', () => {
       expect(sessionStorage.getItem('selectedRole')).toBe('MANAGER');
       expect(sessionStorage.getItem('onboardingCompleted')).toBe('true');
       expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBeNull();
+      // `/auth/me` is skipped on this path: the identity comes from the token's own claims.
+      expect(sessionStorage.getItem('id')).toBe('u1');
+      expect(sessionStorage.getItem('email')).toBe('patricia@exemplo.com.br');
+      expect(sessionStorage.getItem('name')).toBe('Patricia Lima');
       expect(router.url).toBe('/dashboard');
+    });
+
+    it('the resume flag in history.state alone is enough (the router may have dropped currentNavigation)', async () => {
+      const nav = vi.spyOn(router, 'currentNavigation').mockReturnValue(null);
+      const state = vi
+        .spyOn(history, 'state', 'get')
+        .mockReturnValue({ [INVITE_RESUME_STATE_KEY]: true });
+      try {
+        sessionStorage.setItem('token', jwt({ sub: 'u1', exp: 4_000_000_000 }));
+        sessionStorage.setItem(PENDING_INVITE_TOKEN_KEY, 'tok-123');
+        await open('/convite');
+        validateRequest().flush(pending({ accountKind: 'EXISTING' }));
+        await settle();
+
+        memberRequest().flush(memberResponse(companyJwt()));
+        await settle();
+        expect(router.url).toBe('/dashboard');
+      } finally {
+        nav.mockRestore();
+        state.mockRestore();
+      }
     });
 
     it('without the resume flag a logged-in tab does NOT auto-accept (someone may just be browsing)', async () => {
@@ -464,17 +600,13 @@ describe('InviteLanding (/convite)', () => {
       await openWithValidate(pending({ accountKind: 'EXISTING' }));
 
       backend.expectNone(byUrl(`${API}/invites/accept-as-member`));
-      expect(text()).toContain('Entrar com Google');
+      expect(text()).toContain('Aceitar convite');
     });
 
     it('INVITE_EMAIL_MISMATCH offers to switch the Google account', async () => {
-      sessionStorage.setItem('token', jwt({ sub: 'u1', exp: 4_000_000_000 }));
-      sessionStorage.setItem(PENDING_INVITE_TOKEN_KEY, 'tok-123');
-      await open('/convite', { [INVITE_RESUME_STATE_KEY]: true });
-      validateRequest().flush(pending({ accountKind: 'EXISTING' }));
-      await settle();
+      await resumeFromGoogle();
 
-      backend.expectOne(byUrl(`${API}/invites/accept-as-member`)).flush(
+      memberRequest().flush(
         { code: 'INVITE_EMAIL_MISMATCH', message: 'x' },
         { status: 403, statusText: 'Forbidden' },
       );
@@ -484,6 +616,126 @@ describe('InviteLanding (/convite)', () => {
       expect(text()).toContain('Entrar com outra conta Google');
       // The Google session was NOT replaced by a failed attempt.
       expect(sessionStorage.getItem('token')).not.toBeNull();
+    });
+
+    describe('never an endless spinner', () => {
+      it('a DRIVER with a pending registration gets an onboarding token and no access token: it goes to the onboarding and keeps the Google session', async () => {
+        await resumeFromGoogle();
+        const googleSession = sessionStorage.getItem('token');
+
+        memberRequest().flush({
+          onboardingToken: 'onb-token',
+          role: 'DRIVER',
+          roleLabel: 'Motorista',
+          companyName: 'Locadora Alfa',
+          next: 'DRIVER_ONBOARDING',
+        });
+        await settle();
+
+        expect(router.url).toBe('/convite/cadastro');
+        expect(sessionStorage.getItem(INVITE_ONBOARDING_TOKEN_KEY)).toBe('onb-token');
+        expect(sessionStorage.getItem('token')).toBe(googleSession);
+        expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBeNull();
+      });
+
+      it('a response with no credential at all shows a problem with a retry, and never stores "undefined"', async () => {
+        await resumeFromGoogle();
+        const googleSession = sessionStorage.getItem('token');
+
+        memberRequest().flush({
+          role: 'MANAGER',
+          roleLabel: 'G',
+          companyName: 'Locadora Alfa',
+          next: 'COMPANY_HOME',
+        });
+        await settle();
+
+        expect(text()).toContain('Não foi possível aceitar o convite');
+        expect(text()).toContain('Tentar de novo');
+        expect(sessionStorage.getItem('token')).toBe(googleSession);
+      });
+
+      it('a 500 on accept-as-member ends on the problem screen with a retry that tries again', async () => {
+        await resumeFromGoogle();
+
+        memberRequest().flush({}, { status: 500, statusText: 'Server Error' });
+        await settle();
+
+        expect(text()).toContain('Não foi possível aceitar o convite');
+        const retry = Array.from(dom().querySelectorAll('button')).find((b) =>
+          b.textContent?.includes('Tentar de novo'),
+        ) as HTMLButtonElement;
+        retry.click();
+        // The resume flag survives the retry: it finishes the join instead of asking Google again.
+        validateRequest().flush(pending({ accountKind: 'EXISTING' }));
+        await settle();
+        memberRequest().flush(memberResponse(companyJwt()));
+        await settle();
+
+        expect(router.url).toBe('/dashboard');
+        expect(loginWithGoogle).not.toHaveBeenCalled();
+      });
+
+      it('a call that never answers stops spinning after the hard timeout and offers a retry', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+          await resumeFromGoogle();
+          memberRequest();
+          expect(dom().querySelector('h1')?.textContent).toContain('Aceitando convite');
+
+          vi.advanceTimersByTime(INVITE_JOIN_TIMEOUT_MS + 1);
+          await settle();
+
+          expect(text()).toContain('Não foi possível aceitar o convite');
+          expect(text()).toContain('demorou mais do que o esperado');
+          expect(text()).toContain('Tentar de novo');
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it('a navigation the guards refuse lands on a screen of its own: the invite WAS accepted', async () => {
+        router.resetConfig([
+          { path: 'convite', component: InviteLanding },
+          { path: 'dashboard', canActivate: [() => false], children: [] },
+        ]);
+        await resumeFromGoogle();
+
+        memberRequest().flush(memberResponse(companyJwt()));
+        await settle();
+
+        expect(dom().querySelector('h1')?.textContent).toContain(
+          'Você já faz parte de Locadora Alfa',
+        );
+        const go = Array.from(dom().querySelectorAll('button')).find((b) =>
+          b.textContent?.includes('Continuar'),
+        );
+        expect(go).toBeDefined();
+        expect(text()).not.toContain('Aceitando convite');
+      });
+
+      it('a navigation that throws (redirect storm, broken guard) ends on the same screen, not on the spinner', async () => {
+        router.resetConfig([
+          { path: 'convite', component: InviteLanding },
+          {
+            path: 'dashboard',
+            canActivate: [
+              () => {
+                throw new Error('guard exploded');
+              },
+            ],
+            children: [],
+          },
+        ]);
+        await resumeFromGoogle();
+
+        memberRequest().flush(memberResponse(companyJwt()));
+        await settle();
+
+        expect(dom().querySelector('h1')?.textContent).toContain(
+          'Você já faz parte de Locadora Alfa',
+        );
+      });
     });
   });
 });
