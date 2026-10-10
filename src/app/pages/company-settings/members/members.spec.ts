@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { NEVER, Observable, of, throwError } from 'rxjs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 import { CompanyMembers, MEMBERS_AUTO_REFRESH_MS } from './members';
 import { DRIVER_CREATE_ROUTE } from './invite-sheet';
@@ -107,6 +107,8 @@ describe('CompanyMembers — pessoas da empresa', () => {
     listImpl?: () => Observable<CompanyMemberResponse[]>;
     mobile?: boolean;
     invitesNever?: boolean;
+    /** `selectedCompanyName` of the session — named in the WhatsApp text. */
+    companyName?: string | null;
   }
 
   /** @param tokenRole the CALLER's role, read from the token — the `roleGuard` source. */
@@ -119,6 +121,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
       listImpl,
       mobile = true,
       invitesNever = false,
+      companyName = null,
     }: RenderOptions = {},
   ): ComponentFixture<CompanyMembers> {
     TestBed.resetTestingModule();
@@ -208,7 +211,9 @@ describe('CompanyMembers — pessoas da empresa', () => {
         {
           provide: SessionService,
           useValue: {
-            getItem: vi.fn((key: string) => (key === 'id' ? ME : null)),
+            getItem: vi.fn((key: string) =>
+              key === 'id' ? ME : key === 'selectedCompanyName' ? companyName : null,
+            ),
             getUserId: vi.fn(() => ME),
             getCompanyRoleFromToken: vi.fn(() => tokenRole),
           },
@@ -907,7 +912,12 @@ describe('CompanyMembers — pessoas da empresa', () => {
     const items = Array.from(row.querySelectorAll('[role="menuitem"]')).map((b) =>
       (b.textContent ?? '').trim(),
     );
-    expect(items).toEqual(['Reenviar convite', 'Cancelar convite']);
+    expect(items).toEqual([
+      'Reenviar convite',
+      'Copiar link',
+      'Enviar pelo WhatsApp',
+      'Cancelar convite',
+    ]);
   });
 
   it('410 fala em EXPIRADO e aponta o reenvio; 404 fala em inexistente e aponta a recarga', () => {
@@ -1441,6 +1451,423 @@ describe('CompanyMembers — pessoas da empresa', () => {
     const alert = sheet(f)?.querySelector('[role="alert"]')?.textContent ?? '';
     expect(alert.trim().length).toBeGreaterThan(0);
     expect(alert).not.toContain('500');
+  });
+
+  // ================================================================ INVITE LINK (copy / WhatsApp)
+  /**
+   * The creation answer is the ONLY place a link exists. A list row never has one: the token
+   * is not stored, so "Copiar link" on a row has to resend first (new token, e-mail again,
+   * old link dead) and use the link that comes back.
+   */
+  describe('link do convite: copiar e enviar pelo WhatsApp', () => {
+    const LINK = 'https://mycarshub.app.br/convite/tok_abc123';
+    const CONFIRM_COPY =
+      'Vamos gerar um novo link. O link anterior deixa de valer e o convidado recebe o e-mail de novo.';
+
+    let writeText: ReturnType<typeof vi.fn>;
+    let openTab: MockInstance<typeof window.open>;
+
+    /** A macrotask: every promise the click started has resolved by the time it returns. */
+    const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+    function setBrowser(key: 'clipboard' | 'execCommand', value: unknown): void {
+      const target = key === 'clipboard' ? navigator : document;
+      Object.defineProperty(target, key, { value, configurable: true, writable: true });
+    }
+
+    beforeEach(() => {
+      writeText = vi.fn().mockResolvedValue(undefined);
+      setBrowser('clipboard', { writeText });
+      openTab = vi.spyOn(window, 'open').mockReturnValue({ opener: {} } as unknown as Window);
+    });
+
+    afterEach(() => {
+      delete (navigator as unknown as Record<string, unknown>)['clipboard'];
+      delete (document as unknown as Record<string, unknown>)['execCommand'];
+      vi.restoreAllMocks();
+    });
+
+    function sendManagerInvite(f: ComponentFixture<CompanyMembers>, acceptUrl?: string | null): void {
+      create.mockReturnValue(
+        of({
+          ...pendingInvite,
+          id: 'inv-new',
+          email: 'patricia@empresa.com.br',
+          role: 'MANAGER',
+          ...(acceptUrl === undefined ? {} : { acceptUrl }),
+        }),
+      );
+      goToManagerForm(f);
+      fill(f, 'invite-name', 'Patrícia Souza');
+      fill(f, 'invite-email', 'patricia@empresa.com.br');
+      fill(f, 'invite-cpf', '52998224725');
+      fill(f, 'invite-phone', '11987654321');
+      submitManagerForm(f);
+    }
+
+    const sentArea = (f: ComponentFixture<CompanyMembers>): HTMLElement | null =>
+      host(f).querySelector<HTMLElement>('[data-invite-sent]');
+    const linkField = (f: ComponentFixture<CompanyMembers>): HTMLInputElement | null =>
+      host(f).querySelector<HTMLInputElement>('[data-share-link]');
+
+    function chooseRowAction(
+      f: ComponentFixture<CompanyMembers>,
+      email: string,
+      attr: 'data-copy-invite-link' | 'data-whatsapp-invite-link',
+    ): void {
+      expect(openRowActions(f, email), `${email} nao tem acoes`).toBe(true);
+      sheet(f)?.querySelector<HTMLButtonElement>(`[${attr}]`)?.click();
+      f.detectChanges();
+    }
+
+    // ------------------------------------------------ right after inviting
+    it('com acceptUrl na resposta a folha NAO fecha: confirma o e-mail e oferece o link', () => {
+      const f = render('OWNER', { companyName: 'Locadora Sol' });
+      sendManagerInvite(f, LINK);
+
+      const area = sentArea(f);
+      expect(area).not.toBeNull();
+      expect(sheet(f)?.querySelector('h2')?.textContent).toContain('Convite enviado');
+      expect(area?.textContent).toContain('Convite enviado para patricia@empresa.com.br.');
+      expect(linkField(f)?.value).toBe(LINK);
+      // The e-mail confirmation of today is still there, and the list was re-read.
+      expect(success).toHaveBeenCalledWith('Convite enviado para «patricia@empresa.com.br».');
+      expect(inviteList).toHaveBeenCalledTimes(2);
+      expect(area?.querySelector('[data-copy-link]')?.textContent).toContain('Copiar link');
+    });
+
+    it('WhatsApp: ancora para wa.me, texto codificado com a empresa e o link, nova aba, noopener', () => {
+      const f = render('OWNER', { companyName: 'Locadora Sol' });
+      sendManagerInvite(f, LINK);
+
+      const a = sentArea(f)?.querySelector<HTMLAnchorElement>('[data-whatsapp-link]');
+      expect(a?.textContent).toContain('Enviar pelo WhatsApp');
+      expect(a?.getAttribute('target')).toBe('_blank');
+      expect(a?.getAttribute('rel')).toContain('noopener');
+      const href = a?.getAttribute('href') ?? '';
+      expect(href.startsWith('https://wa.me/?text=')).toBe(true);
+      // Encoded, not concatenated: the link has no bare `:`, `/`, `?` after `text=`.
+      expect(href.slice('https://wa.me/?text='.length)).not.toContain('://');
+      const text = new URL(href).searchParams.get('text') ?? '';
+      expect(text).toContain('Locadora Sol');
+      expect(text).toContain(LINK);
+    });
+
+    it('copiar: grava na area de transferencia, avisa no toast e mostra o estado na folha', async () => {
+      const f = render('OWNER');
+      sendManagerInvite(f, LINK);
+
+      sentArea(f)?.querySelector<HTMLButtonElement>('[data-copy-link]')?.click();
+      await flush();
+      f.detectChanges();
+
+      expect(writeText).toHaveBeenCalledWith(LINK);
+      expect(success).toHaveBeenCalledWith('Link copiado');
+      const area = sentArea(f);
+      expect(area?.querySelector('[data-copy-link]')?.textContent).toContain('Link copiado');
+      const live = area?.querySelector('[data-share-status]');
+      expect(live?.textContent).toContain('Link copiado');
+      expect(live?.getAttribute('aria-live')).toBe('polite');
+    });
+
+    it('copiar sem Clipboard API (http, navegador antigo): usa o textarea escondido', async () => {
+      delete (navigator as unknown as Record<string, unknown>)['clipboard'];
+      const execCommand = vi.fn(() => true);
+      setBrowser('execCommand', execCommand);
+      const f = render('OWNER');
+      sendManagerInvite(f, LINK);
+
+      sentArea(f)?.querySelector<HTMLButtonElement>('[data-copy-link]')?.click();
+      await flush();
+      f.detectChanges();
+
+      expect(execCommand).toHaveBeenCalledWith('copy');
+      expect(success).toHaveBeenCalledWith('Link copiado');
+      expect(sentArea(f)?.querySelector('[data-copy-link]')?.textContent).toContain('Link copiado');
+      expect(document.querySelector('textarea')).toBeNull();
+    });
+
+    it('fechar a folha DESCARTA o link: nem no DOM, nem ao reabrir', () => {
+      const f = render('OWNER', { companyName: 'Locadora Sol' });
+      sendManagerInvite(f, LINK);
+      expect(host(f).innerHTML).toContain('tok_abc123');
+
+      sheet(f)?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      f.detectChanges();
+      expect(sheet(f)).toBeNull();
+      expect(host(f).innerHTML).not.toContain('tok_abc123');
+
+      const reopened = openInvite(f);
+      expect(sentArea(f)).toBeNull();
+      expect(linkField(f)).toBeNull();
+      expect(reopened.querySelector('[data-role-option="MANAGER"]')).not.toBeNull();
+      expect(host(f).innerHTML).not.toContain('tok_abc123');
+    });
+
+    it('Concluir fecha a folha e tambem descarta o link', () => {
+      const f = render('OWNER');
+      sendManagerInvite(f, LINK);
+
+      sheet(f)?.querySelector<HTMLButtonElement>('[data-invite-done]')?.click();
+      f.detectChanges();
+
+      expect(sheet(f)).toBeNull();
+      expect(host(f).innerHTML).not.toContain('tok_abc123');
+    });
+
+    it('o link nunca vai para o storage', () => {
+      const f = render('OWNER');
+      sendManagerInvite(f, LINK);
+
+      const stored = JSON.stringify({ ...sessionStorage }) + JSON.stringify({ ...localStorage });
+      expect(stored).not.toContain('tok_abc123');
+    });
+
+    it('backend antigo (sem acceptUrl, ou nulo): a folha fecha como sempre e nao ha area de link', () => {
+      for (const acceptUrl of [undefined, null, '   ']) {
+        const f = render('OWNER');
+        sendManagerInvite(f, acceptUrl);
+
+        expect(sheet(f), String(acceptUrl)).toBeNull();
+        expect(sentArea(f)).toBeNull();
+        expect(success).toHaveBeenCalledWith('Convite enviado para «patricia@empresa.com.br».');
+      }
+    });
+
+    // ------------------------------------------------ rows already in the list
+    it('linha da lista NAO mostra link nenhum antes de reenviar — nem na folha de acoes', () => {
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite, expiredInvite] });
+
+      expect(host(f).querySelector('[data-share-link]')).toBeNull();
+      expect(host(f).querySelector('a[href*="wa.me"]')).toBeNull();
+      expect(host(f).textContent).not.toMatch(/\/convite\/|https?:\/\//);
+
+      openRowActions(f, 'convidada@');
+      expect(linkField(f)).toBeNull();
+      expect(sheet(f)?.querySelector('a[href*="wa.me"]')).toBeNull();
+      expect(sheet(f)?.querySelector('[data-copy-invite-link]')?.textContent).toContain(
+        'Copiar link',
+      );
+      expect(sheet(f)?.querySelector('[data-whatsapp-invite-link]')?.textContent).toContain(
+        'Enviar pelo WhatsApp',
+      );
+      expect(resendInvite).not.toHaveBeenCalled();
+    });
+
+    it('Copiar link: pede confirmacao com a copy honesta e SO reenvia depois do OK', async () => {
+      const f = render('OWNER', { roster: [owner], invites: [expiredInvite] });
+      resendInvite.mockReturnValue(of({ acceptUrl: LINK }));
+
+      chooseRowAction(f, 'expirada@', 'data-copy-invite-link');
+
+      expect(resendInvite).not.toHaveBeenCalled();
+      expect(writeText).not.toHaveBeenCalled();
+      expect(confirmDialog(f).textContent).toContain(CONFIRM_COPY);
+      // The actions sheet is gone: only the confirmation is on screen.
+      expect(sheet(f)).toBeNull();
+
+      confirmButton(f, 'Gerar e copiar').click();
+      f.detectChanges();
+      await flush();
+      f.detectChanges();
+
+      expect(resendInvite).toHaveBeenCalledTimes(1);
+      expect(resendInvite).toHaveBeenCalledWith('inv-2');
+      expect(writeText).toHaveBeenCalledWith(LINK);
+      expect(success).toHaveBeenCalledWith('Link copiado');
+      // The new expiry comes from the server: the list is re-read.
+      expect(inviteList).toHaveBeenCalledTimes(2);
+      expect(host(f).innerHTML).not.toContain('tok_abc123');
+      expect(host(f).querySelector('app-confirm-dialog [role="dialog"]')).toBeNull();
+    });
+
+    it('cancelar a confirmacao nao reenvia, nao copia e nao mexe no link antigo', async () => {
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      resendInvite.mockReturnValue(of({ acceptUrl: LINK }));
+
+      chooseRowAction(f, 'convidada@', 'data-copy-invite-link');
+      confirmButton(f, 'Cancelar').click();
+      f.detectChanges();
+      await flush();
+
+      expect(resendInvite).not.toHaveBeenCalled();
+      expect(writeText).not.toHaveBeenCalled();
+      expect(host(f).querySelector('app-confirm-dialog [role="dialog"]')).toBeNull();
+    });
+
+    it('Enviar pelo WhatsApp: confirma, reenvia e abre o wa.me com o link NOVO e a empresa', async () => {
+      const f = render('OWNER', {
+        roster: [owner],
+        invites: [pendingInvite],
+        companyName: 'Locadora Sol',
+      });
+      resendInvite.mockReturnValue(of({ acceptUrl: LINK }));
+
+      chooseRowAction(f, 'convidada@', 'data-whatsapp-invite-link');
+      expect(confirmDialog(f).textContent).toContain(CONFIRM_COPY);
+      expect(openTab).not.toHaveBeenCalled();
+
+      confirmButton(f, 'Gerar e enviar').click();
+      f.detectChanges();
+      await flush();
+      f.detectChanges();
+
+      expect(resendInvite).toHaveBeenCalledWith('inv-1');
+      expect(openTab).toHaveBeenCalledTimes(1);
+      const url = openTab.mock.calls[0][0] as string;
+      expect(url.startsWith('https://wa.me/?text=')).toBe(true);
+      const text = new URL(url).searchParams.get('text') ?? '';
+      expect(text).toContain(LINK);
+      expect(text).toContain('Locadora Sol');
+      expect(openTab.mock.calls[0][1]).toBe('_blank');
+      expect(host(f).querySelector('[data-share-link]')).toBeNull();
+    });
+
+    it('aba do WhatsApp bloqueada: o link NOVO vai para uma folha, com os botoes a um toque', async () => {
+      openTab.mockReturnValue(null);
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      resendInvite.mockReturnValue(of({ acceptUrl: LINK }));
+
+      chooseRowAction(f, 'convidada@', 'data-whatsapp-invite-link');
+      confirmButton(f, 'Gerar e enviar').click();
+      f.detectChanges();
+      await flush();
+      f.detectChanges();
+
+      expect(linkField(f)?.value).toBe(LINK);
+      expect(sheet(f)?.querySelector('[data-whatsapp-link]')).not.toBeNull();
+      expect(sheet(f)?.querySelector('h2')?.textContent).toContain('Link do convite');
+      expect(sheet(f)?.textContent).toContain('O anterior deixou de valer');
+
+      // Closing it drops the link from the page.
+      sheet(f)?.querySelector<HTMLButtonElement>('[data-link-done]')?.click();
+      f.detectChanges();
+      expect(sheet(f)).toBeNull();
+      expect(host(f).innerHTML).not.toContain('tok_abc123');
+    });
+
+    it('copia recusada pelo navegador: tambem cai na folha em vez de dizer "copiado"', async () => {
+      writeText.mockRejectedValue(new DOMException('negado', 'NotAllowedError'));
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      resendInvite.mockReturnValue(of({ acceptUrl: LINK }));
+
+      chooseRowAction(f, 'convidada@', 'data-copy-invite-link');
+      confirmButton(f, 'Gerar e copiar').click();
+      f.detectChanges();
+      await flush();
+      f.detectChanges();
+
+      expect(success).not.toHaveBeenCalledWith('Link copiado');
+      expect(linkField(f)?.value).toBe(LINK);
+    });
+
+    it('reenvio recusado (limite de reenvios): mostra a frase do servidor e nao copia nada', async () => {
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      resendInvite.mockReturnValue(
+        throwError(() => error(400, 'Limite de 3 reenvios atingido para este convite.')),
+      );
+
+      chooseRowAction(f, 'convidada@', 'data-copy-invite-link');
+      confirmButton(f, 'Gerar e copiar').click();
+      f.detectChanges();
+      await flush();
+      f.detectChanges();
+
+      expect(text(f)).toContain('Limite de 3 reenvios atingido');
+      expect(writeText).not.toHaveBeenCalled();
+      expect(openTab).not.toHaveBeenCalled();
+      expect(linkField(f)).toBeNull();
+      expect(success).not.toHaveBeenCalled();
+      // The lock is released: the row is actionable again.
+      expect(rowOf(f, 'convidada@').querySelector('[data-invite-actions]')).not.toBeNull();
+      expect(rowOf(f, 'convidada@').getAttribute('aria-busy')).toBeNull();
+    });
+
+    it('410 no reenvio por Copiar link usa a mesma frase de sempre', async () => {
+      const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+      resendInvite.mockReturnValue(throwError(() => error(410)));
+
+      chooseRowAction(f, 'convidada@', 'data-copy-invite-link');
+      confirmButton(f, 'Gerar e copiar').click();
+      f.detectChanges();
+      await flush();
+      f.detectChanges();
+
+      expect(text(f)).toContain('expirou');
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('backend antigo (reenvio sem link): cai no aviso de reenvio, sem copiar nem abrir nada', async () => {
+      for (const body of [undefined, {}, { acceptUrl: null }]) {
+        const f = render('OWNER', { roster: [owner], invites: [pendingInvite] });
+        resendInvite.mockReturnValue(of(body));
+
+        chooseRowAction(f, 'convidada@', 'data-copy-invite-link');
+        confirmButton(f, 'Gerar e copiar').click();
+        f.detectChanges();
+        await flush();
+        f.detectChanges();
+
+        expect(success).toHaveBeenCalledWith(
+          expect.stringContaining('link anterior deixou de valer'),
+        );
+        expect(writeText).not.toHaveBeenCalled();
+        expect(openTab).not.toHaveBeenCalled();
+        expect(linkField(f)).toBeNull();
+      }
+    });
+
+    it('desktop: com outra acao em andamento, Copiar link e WhatsApp ficam desabilitados', () => {
+      const f = render('OWNER', {
+        roster: [owner],
+        invites: [pendingInvite, driverInvite],
+        mobile: false,
+      });
+      resendInvite.mockReturnValue(NEVER);
+      const open = (email: string): HTMLElement => {
+        const row = rowOf(f, email);
+        row
+          .querySelector<HTMLButtonElement>('app-actions-menu button[aria-haspopup="menu"]')
+          ?.click();
+        f.detectChanges();
+        return row;
+      };
+
+      const first = open('convidada@');
+      first.querySelector<HTMLButtonElement>('[role="menuitem"]')?.click();
+      f.detectChanges();
+      expect(resendInvite).toHaveBeenCalledTimes(1);
+
+      const second = open('motorista.novo@');
+      expect(second.querySelector<HTMLButtonElement>('[data-copy-invite-link]')?.disabled).toBe(true);
+      expect(second.querySelector<HTMLButtonElement>('[data-whatsapp-invite-link]')?.disabled).toBe(
+        true,
+      );
+    });
+
+    it('desktop: Copiar link e WhatsApp no menu da linha seguem o mesmo caminho confirmado', async () => {
+      const f = render('OWNER', {
+        roster: [owner],
+        invites: [pendingInvite],
+        mobile: false,
+        companyName: 'Locadora Sol',
+      });
+      resendInvite.mockReturnValue(of({ acceptUrl: LINK }));
+      const row = rowOf(f, 'convidada@');
+      row.querySelector<HTMLButtonElement>('app-actions-menu button[aria-haspopup="menu"]')?.click();
+      f.detectChanges();
+      row.querySelector<HTMLButtonElement>('[data-copy-invite-link]')?.click();
+      f.detectChanges();
+
+      expect(resendInvite).not.toHaveBeenCalled();
+      expect(confirmDialog(f).textContent).toContain(CONFIRM_COPY);
+      confirmButton(f, 'Gerar e copiar').click();
+      f.detectChanges();
+      await flush();
+
+      expect(resendInvite).toHaveBeenCalledWith('inv-1');
+      expect(writeText).toHaveBeenCalledWith(LINK);
+    });
   });
 
   it('voltar do formulario retorna a escolha do nivel', () => {

@@ -14,10 +14,12 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { InviteShare } from '../../components/invite-share/invite-share';
 import { ApiErrorService } from '../../services/api-error.service';
 import { NotificationService } from '../../services/notification.service';
 import { DriverService } from '../../services/driver.service';
 import { InvitesService } from '../../services/invites.service';
+import { SessionService } from '../../services/session.service';
 import { DriverDocumentsCard } from './driver-documents-card';
 import { DriverResponse, DriverStatus } from '../../types/driver.types';
 import { driverStatusMeta, rentalStatusMeta } from '../../utils/status-maps';
@@ -35,6 +37,7 @@ import { RentalListItemDto } from '../../types/rental.types';
     ConfirmDialog,
     DetailActions,
     AlertBanner,
+    InviteShare,
     DriverDocumentsCard,
   ],
   templateUrl: './driver-detail.html',
@@ -45,6 +48,7 @@ export class DriverDetail implements OnInit {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
   private readonly invites = inject(InvitesService);
+  private readonly session = inject(SessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -57,6 +61,17 @@ export class DriverDetail implements OnInit {
   protected readonly togglingStatus = signal(false);
   protected readonly actionError = signal<string | null>(null);
   protected readonly inviting = signal(false);
+
+  /**
+   * The invite just sent from this page and the accept link the creation answer carried.
+   * Component state only: dropped by "Concluir", replaced by a new send, gone with the
+   * page. Never stored, never logged.
+   */
+  protected readonly sentInvite = signal<{
+    email: string;
+    link: string;
+    companyName: string | null;
+  } | null>(null);
 
   /**
    * FEAT — o convite de motorista NASCE DO CADASTRO.
@@ -174,13 +189,19 @@ export class DriverDetail implements OnInit {
 
     this.inviting.set(true);
     this.actionError.set(null);
+    this.sentInvite.set(null);
 
     // Reusa o MESMO service da tela de convites: duplicar a criação aqui faria
     // as duas telas divergirem no contrato sem ninguém perceber.
     this.invites.create({ email, role: 'DRIVER', name: d?.name ?? undefined }).subscribe({
-      next: () => {
+      next: (invite) => {
         this.inviting.set(false);
         this.notifications.success(`Convite enviado para ${email}.`);
+        const link = invite?.acceptUrl?.trim();
+        if (link) {
+          const company = this.session.getItem('selectedCompanyName')?.trim();
+          this.sentInvite.set({ email, link, companyName: company || null });
+        }
       },
       error: (err: HttpErrorResponse) => {
         this.inviting.set(false);
@@ -197,6 +218,10 @@ export class DriverDetail implements OnInit {
         );
       },
     });
+  }
+
+  protected dismissSentInvite(): void {
+    this.sentInvite.set(null);
   }
 
   private load(id: string): void {

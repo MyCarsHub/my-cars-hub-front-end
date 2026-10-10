@@ -71,6 +71,31 @@
       <app-alert-banner class="mb-4" variant="error" [message]="actionMessage" />
     }
 
+    <!-- O link so existe na resposta da criacao: aparece aqui, some ao concluir. -->
+    @if (sentInvite(); as sent) {
+      <app-page-card class="mb-4" title="Convite enviado">
+        <div class="p-4 sm:p-6 space-y-4" data-invite-sent>
+          <app-alert-banner variant="success">
+            <p class="font-semibold break-all">Convite enviado para {{ sent.email }}.</p>
+            <p class="text-xs mt-0.5 leading-relaxed">
+              O e-mail já saiu. Se preferir, mande o link você mesmo.
+            </p>
+          </app-alert-banner>
+          <app-invite-share [link]="sent.link" [companyName]="sent.companyName" />
+          <button
+            type="button"
+            data-invite-done
+            (click)="dismissSentInvite()"
+            class="w-full sm:w-auto min-h-[44px] px-5 py-3 rounded-xl text-sm font-semibold border
+                   border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+          >
+            Concluir
+          </button>
+        </div>
+      </app-page-card>
+    }
+
     <!--
       Por que uma frase e não um botão escondido: um botão que some é
       indistinguível de uma tela quebrada. Fica FORA dos blocos `lg:hidden` /

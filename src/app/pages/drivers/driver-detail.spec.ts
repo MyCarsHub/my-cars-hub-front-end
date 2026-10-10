@@ -267,6 +267,42 @@ describe('DriverDetail — convidar a partir do cadastro', () => {
     expect(success).toHaveBeenCalledWith('Convite enviado para joao@empresa.com.');
   });
 
+  it('com acceptUrl na resposta, oferece copiar o link e enviar pelo WhatsApp — e Concluir o descarta', async () => {
+    await setup(baseDriver);
+    create.mockReturnValue(
+      of({ id: 'inv-1', acceptUrl: 'https://mycarshub.app.br/convite/tok_drv9' }),
+    );
+
+    buttons('Convidar')[0].click();
+    fixture.detectChanges();
+
+    const area = host().querySelector<HTMLElement>('[data-invite-sent]');
+    expect(area?.textContent).toContain('Convite enviado para joao@empresa.com');
+    expect(area?.querySelector<HTMLInputElement>('[data-share-link]')?.value).toBe(
+      'https://mycarshub.app.br/convite/tok_drv9',
+    );
+    const wa = area?.querySelector<HTMLAnchorElement>('[data-whatsapp-link]');
+    expect(wa?.getAttribute('href')?.startsWith('https://wa.me/?text=')).toBe(true);
+    expect(wa?.getAttribute('rel')).toContain('noopener');
+    expect(area?.querySelector('[data-copy-link]')).not.toBeNull();
+
+    area?.querySelector<HTMLButtonElement>('[data-invite-done]')?.click();
+    fixture.detectChanges();
+
+    expect(host().querySelector('[data-invite-sent]')).toBeNull();
+    expect(host().innerHTML).not.toContain('tok_drv9');
+  });
+
+  it('sem acceptUrl (backend antigo) nao ha area de link, so o aviso de sempre', async () => {
+    await setup(baseDriver);
+
+    buttons('Convidar')[0].click();
+    fixture.detectChanges();
+
+    expect(host().querySelector('[data-invite-sent]')).toBeNull();
+    expect(success).toHaveBeenCalledWith('Convite enviado para joao@empresa.com.');
+  });
+
   it('sem e-mail no contato NÃO oferece o botão, e diz por quê', async () => {
     await setup({ ...baseDriver, contact: { email: '', phone: '11987654321' } });
 

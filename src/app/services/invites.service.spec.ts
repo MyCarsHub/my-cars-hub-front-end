@@ -78,6 +78,78 @@ describe('InvitesService', () => {
     expect(httpPost).toHaveBeenCalledWith(`${BASE}/resend/inv-1`, {}, { responseType: 'text' });
   });
 
+  describe('o link do convite (acceptUrl)', () => {
+    const LINK = 'https://mycarshub.app.br/convite/tok_abc123';
+
+    it('create devolve o acceptUrl a quem chamou, mas o cache fica SEM ele', () => {
+      httpPost.mockReturnValue(of({ ...pending, id: 'inv-9', acceptUrl: LINK }));
+      let received: string | null | undefined;
+
+      service.create({ email: 'novo@empresa.com.br', role: 'MANAGER' }).subscribe((invite) => {
+        received = invite.acceptUrl;
+      });
+
+      expect(received).toBe(LINK);
+      const cached = service.invites().find((i) => i.id === 'inv-9');
+      expect(cached).toBeDefined();
+      expect(JSON.stringify(service.invites())).not.toContain(LINK);
+      expect('acceptUrl' in (cached ?? {})).toBe(false);
+    });
+
+    it('create sem acceptUrl (backend antigo) segue igual', () => {
+      httpPost.mockReturnValue(of({ ...pending, id: 'inv-8' }));
+      let received: string | null | undefined = 'x';
+
+      service.create({ email: 'novo@empresa.com.br', role: 'DRIVER' }).subscribe((invite) => {
+        received = invite.acceptUrl;
+      });
+
+      expect(received).toBeUndefined();
+      expect(service.invites()[0].id).toBe('inv-8');
+    });
+
+    it('resend le o acceptUrl do corpo (texto JSON)', () => {
+      httpPost.mockReturnValue(of(JSON.stringify({ acceptUrl: LINK })));
+      let result: { acceptUrl?: string | null } | undefined;
+
+      service.resend('inv-1').subscribe((r) => (result = r));
+
+      expect(result).toEqual({ acceptUrl: LINK });
+    });
+
+    it('resend com corpo VAZIO (backend antigo) nao quebra e nao traz link', () => {
+      for (const body of ['', '   ', null, undefined]) {
+        httpPost.mockReturnValue(of(body));
+        let result: { acceptUrl?: string | null } | undefined;
+        let failed = false;
+
+        service.resend('inv-1').subscribe({ next: (r) => (result = r), error: () => (failed = true) });
+
+        expect(failed).toBe(false);
+        expect(result).toEqual({});
+      }
+    });
+
+    it('resend com corpo que nao e JSON, ou sem a chave, tambem e "sem link"', () => {
+      for (const body of ['<html>', '{"ok":true}', '{"acceptUrl":42}', '{"acceptUrl":""}', 'null']) {
+        httpPost.mockReturnValue(of(body));
+        let result: { acceptUrl?: string | null } | undefined;
+
+        service.resend('inv-1').subscribe((r) => (result = r));
+
+        expect(result, body).toEqual({});
+      }
+    });
+
+    it('nao ha rota para ler o link de uma linha existente: a listagem so faz GET /invites', () => {
+      service.list().subscribe();
+
+      expect(httpGet).toHaveBeenCalledTimes(1);
+      expect(httpGet).toHaveBeenCalledWith(BASE);
+      expect(JSON.stringify(service.invites())).not.toContain('acceptUrl');
+    });
+  });
+
   it('cancela pelo UUID e remove a linha do cache', () => {
     service.list().subscribe();
 

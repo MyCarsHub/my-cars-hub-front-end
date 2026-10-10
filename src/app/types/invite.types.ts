@@ -57,7 +57,7 @@ export interface CreateInviteRequest {
   phone?: string;
 }
 
-/** Item of `GET /v1/invites` and body of `POST /v1/invites` (201). */
+/** Item of `GET /v1/invites`. The creation response is `CreateInviteResponse`. */
 export interface InviteResponse {
   id: string;
   email: string;
@@ -77,6 +77,35 @@ export interface InviteResponse {
    * guesses "sent".
    */
   emailDelivery?: InviteEmailDelivery;
+}
+
+/**
+ * Body of `POST /v1/invites` (201): the invite plus the link, which exists ONLY here.
+ *
+ * `acceptUrl` is the absolute accept link, returned at creation and nowhere else: the
+ * token is not stored, so `GET /v1/invites` can never rebuild it. OPTIONAL and nullable on
+ * purpose — a backend that has not shipped it simply omits it, and the screen then falls
+ * back to the e-mail-only confirmation. Keep it in component state only: never in storage,
+ * never in a log, and never in the service cache (`InvitesService.create` strips it).
+ */
+export interface CreateInviteResponse extends InviteResponse {
+  acceptUrl?: string | null;
+}
+
+/**
+ * Body of `POST /v1/invites/resend/{id}` (200). Resending ROTATES the token: the link the
+ * person may already hold stops working and the e-mail goes out again. An older backend
+ * answers an empty body, which reads as `{}` — no link, no error.
+ */
+export interface ResendInviteResponse {
+  acceptUrl?: string | null;
+}
+
+/** The invite as the list cache stores it: the same row, without the one-time link. */
+export function withoutAcceptUrl(invite: CreateInviteResponse): InviteResponse {
+  const copy: CreateInviteResponse = { ...invite };
+  delete copy.acceptUrl;
+  return copy;
 }
 
 /** Delivery state of the invitation e-mail, when the backend reports it. */
