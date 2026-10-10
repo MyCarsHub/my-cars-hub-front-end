@@ -1,14 +1,16 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
+import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { AdminCompanyListItem } from '../types/admin-company.types';
 import { AdminUserListItem } from '../types/admin-user.types';
 import {
   AssignSupportTicketRequest,
   CreateSupportTicketReplyRequest,
   CreateSupportTicketRequest,
+  MySupportTicket,
   SupportAssigneeOption,
   SupportCompanyOption,
   SupportTicketAdminDetail,
@@ -47,6 +49,22 @@ export class SupportTicketService {
 
   create(payload: CreateSupportTicketRequest): Observable<SupportTicketDto> {
     return this.http.post<SupportTicketDto>(BASE, payload);
+  }
+
+  /**
+   * Os tickets que o PRÓPRIO usuário abriu, mais recentes primeiro. O recorte é por autor
+   * (no servidor), nunca por empresa: dono, gerente e motorista leem só os seus.
+   *
+   * `OWNED_HTTP_ERRORS`: a tela é dona do fracasso desta lista — ela é um complemento do
+   * formulário, e um erro aqui vira a seção omitida, não um toast por cima de quem veio
+   * abrir um ticket. A sessão vencida (401) segue com o interceptor.
+   */
+  listMine(page = 0, size = 5): Observable<PagedResponse<MySupportTicket>> {
+    const params = new HttpParams().set('page', String(page)).set('size', String(size));
+    return this.http.get<PagedResponse<MySupportTicket>>(BASE, {
+      params,
+      context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+    });
   }
 
   adminList(query: AdminSupportListQuery = {}): Observable<PagedResponse<SupportTicketAdminItem>> {

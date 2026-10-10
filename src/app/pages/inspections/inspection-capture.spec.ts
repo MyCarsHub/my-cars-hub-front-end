@@ -859,7 +859,8 @@ describe('InspectionCapture', () => {
       expect(uploadPhoto).toHaveBeenCalledTimes(1);
       expect(uploadPhoto.mock.calls[0][2]).toBe(small);
       expect(uploadPhoto.mock.calls[0][2]).not.toBe(original);
-    });
+      // 20s: com a suite inteira rodando em paralelo o render deste caso passava dos 5s padrao.
+    }, 20000);
 
     it('mostra o passo da foto enquanto prepara, antes da rede', async () => {
       configure({ id: 'insp-1' }, {});

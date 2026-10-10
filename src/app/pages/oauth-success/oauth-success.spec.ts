@@ -65,7 +65,11 @@ describe('OauthSuccess routing (systemRole aware)', () => {
     };
   }
 
-  async function setup(me: MeResponse, stored: Record<string, string> = {}) {
+  async function setup(
+    me: MeResponse,
+    stored: Record<string, string> = {},
+    companyRole: string | null = null,
+  ) {
     const navigate = vi.fn();
     const authService = { getMe: vi.fn().mockReturnValue(of(me)) };
     const store = { ...stored };
@@ -78,6 +82,8 @@ describe('OauthSuccess routing (systemRole aware)', () => {
       setItem: vi.fn((key: string, value: string) => {
         store[key] = value;
       }),
+      // O papel da empresa vem do TOKEN; o teste decide qual token a sessao tem.
+      getCompanyRoleFromToken: vi.fn(() => companyRole),
     };
 
     await TestBed.configureTestingModule({
@@ -141,6 +147,19 @@ describe('OauthSuccess routing (systemRole aware)', () => {
       }),
     );
     expect(navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
+
+  it('sends a DRIVER to his own panel, not to a /dashboard that would bounce him with a notice', async () => {
+    const { navigate } = await setup(
+      buildMe({
+        systemRole: 'USER',
+        companies: [{ companyId: 'c-1', companyName: 'A', role: 'DRIVER' }],
+        hasCompletedOnboarding: true,
+      }),
+      {},
+      'DRIVER',
+    );
+    expect(navigate).toHaveBeenCalledWith(['/meu-painel']);
   });
 
   it('routes to /dashboard when hasCompletedOnboarding=true even if companies=[]', async () => {

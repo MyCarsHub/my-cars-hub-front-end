@@ -152,6 +152,7 @@ describe('paridade nav x guard de rota', () => {
    */
   const EXPECTED_NAV_ROUTES: readonly string[] = [
     '/dashboard',
+    '/meu-painel',
     '/alugueis',
     '/veiculos',
     '/manutencoes',
@@ -180,12 +181,13 @@ describe('paridade nav x guard de rota', () => {
   /**
    * A forma da arvore, pela mesma razao: a lista acima achata pais e filhos, e
    * sozinha nao veria um filho PROMOVIDO a item de topo (mesmas rotas, outro
-   * menu). Os numeros sao os da base medida por AST: 12 de topo, 11 filhos.
+   * menu). Os numeros sao os da base medida por AST: 13 de topo, 11 filhos — o
+   * item de topo a mais e o Painel do motorista (`/meu-painel`).
    */
-  it('a arvore do menu mantem a forma: 12 itens de topo, 11 filhos', () => {
+  it('a arvore do menu mantem a forma: 13 itens de topo, 11 filhos', () => {
     const children = NAV_ITEMS.reduce((total, item) => total + (item.children?.length ?? 0), 0);
 
-    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 12, filhos: 11 });
+    expect({ topo: NAV_ITEMS.length, filhos: children }).toEqual({ topo: 13, filhos: 11 });
   });
 
   /**
@@ -214,25 +216,62 @@ describe('paridade nav x guard de rota', () => {
 
   /**
    * O que o MOTORISTA enxerga, por NOME. A paridade acima prova que menu e guard
-   * concordam; esta prova que concordam no valor certo — Aluguéis, Vistorias e
-   * Roadmap (leitura) e Perfil, e nada que seja da empresa. Suporte saiu: os
-   * tickets sao 403 para ele.
+   * concordam; esta prova que concordam no valor certo — o Painel dele, Aluguéis,
+   * Vistorias, Roadmap (leitura), Suporte e Perfil, e nada que seja da empresa.
+   * Suporte VOLTOU: abrir e ler os proprios tickets foi liberado a ele no backend.
    */
+  const DRIVER_MENU = [
+    '/meu-painel',
+    '/alugueis',
+    '/vistorias',
+    '/roadmap',
+    '/suporte',
+    '/perfil',
+  ] as const;
+
   describe('o motorista', () => {
-    it('ve exatamente Alugueis, Vistorias, Roadmap e Perfil', () => {
+    it('ve exatamente Painel, Alugueis, Vistorias, Roadmap, Suporte e Perfil', () => {
       const seen = navRoutes
         .filter((item) => navShows(item, 'DRIVER'))
         .map((item) => item.route as string);
 
-      expect(seen).toEqual(['/alugueis', '/vistorias', '/roadmap', '/perfil']);
+      expect(seen).toEqual([...DRIVER_MENU]);
     });
 
-    it('os guards liberam exatamente essas quatro rotas', () => {
+    it('os guards liberam exatamente essas seis rotas', () => {
       const allowed = navRoutes
         .map((item) => item.route as string)
         .filter((route) => guardAllows(route, 'DRIVER'));
 
-      expect(allowed).toEqual(['/alugueis', '/vistorias', '/roadmap', '/perfil']);
+      expect(allowed).toEqual([...DRIVER_MENU]);
+    });
+
+    it('o painel e o suporte sao dele E o suporte tambem do dono e do gerente', () => {
+      expect(guardAllows('/meu-painel', 'DRIVER')).toBe(true);
+      expect(guardAllows('/suporte', 'DRIVER')).toBe(true);
+      expect(guardAllows('/suporte', 'OWNER')).toBe(true);
+      expect(guardAllows('/suporte', 'MANAGER')).toBe(true);
+    });
+  });
+
+  /**
+   * `/meu-painel` e o caderno do MOTORISTA: dono e gerente nao o veem no menu e o guard
+   * os manda de volta. A paridade acima so prova que menu e guard concordam; aqui se
+   * prova que concordam em "so DRIVER".
+   */
+  describe('o painel do motorista e so do motorista', () => {
+    it('nem o dono nem o gerente o veem, e os guards os recusam', () => {
+      const item = navRoutes.find((i) => i.route === '/meu-painel') as NavItem;
+
+      for (const role of ['OWNER', 'MANAGER'] as const) {
+        expect(navShows(item, role), `o menu ofereceu o painel do motorista ao ${role}`).toBe(false);
+        expect(guardAllows('/meu-painel', role), `o guard deixou o ${role} entrar`).toBe(false);
+        expect(guardAllows('/meu-painel/lancamentos', role)).toBe(false);
+      }
+    });
+
+    it('a lista de lancamentos herda o guard do pai', () => {
+      expect(guardAllows('/meu-painel/lancamentos', 'DRIVER')).toBe(true);
     });
   });
 
@@ -243,9 +282,11 @@ describe('paridade nav x guard de rota', () => {
    * os dois em `['OWNER']` passaria na paridade e mataria a feature.
    */
   describe('FEAT-0228 — o MANAGER ve tudo menos billing', () => {
-    const MANAGER_DENIED = ['/billing'];
+    // `/meu-painel` e o caderno do motorista e nao entra na regra "gerente e dono menos
+    // billing": nem o dono o ve. Ver o bloco "o painel do motorista e so do motorista".
+    const MANAGER_DENIED = ['/meu-painel', '/billing'];
 
-    it('nenhuma rota do nav fica fora do MANAGER, exceto billing', () => {
+    it('nenhuma rota do nav fica fora do MANAGER, exceto billing e o painel do motorista', () => {
       const hidden = navRoutes
         .filter((item) => !navShows(item, 'MANAGER'))
         .map((item) => item.route as string);
@@ -253,7 +294,7 @@ describe('paridade nav x guard de rota', () => {
       expect(hidden).toEqual(MANAGER_DENIED);
     });
 
-    it('os guards negam billing ao MANAGER e liberam o resto do nav', () => {
+    it('os guards negam billing e o painel do motorista ao MANAGER e liberam o resto do nav', () => {
       const denied = navRoutes
         .map((item) => item.route as string)
         .filter((route) => !guardAllows(route, 'MANAGER'));

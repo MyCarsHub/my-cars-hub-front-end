@@ -94,6 +94,8 @@ describe('InviteAccept — página pública de aceite', () => {
               delete store[key];
             },
             getToken: () => store['token'] ?? null,
+            // Papel do TOKEN: a casa do papel decide para onde o aceite navega.
+            getCompanyRoleFromToken: () => (store['companyRole'] as string | undefined) ?? null,
           },
         },
         {
@@ -209,6 +211,16 @@ describe('InviteAccept — página pública de aceite', () => {
 
     expect(accept).toHaveBeenCalledWith('raw-token');
     expect(navigate).toHaveBeenCalledWith(['/dashboard'], { replaceUrl: true });
+  });
+
+  it('um MOTORISTA que aceita entra no painel DELE, não num /dashboard que o desviaria com aviso', () => {
+    store['token'] = 'token-do-convidado';
+    store['companyRole'] = 'DRIVER';
+
+    const { navigate } = render('raw-token');
+
+    expect(accept).toHaveBeenCalledWith('raw-token');
+    expect(navigate).toHaveBeenCalledWith(['/meu-painel'], { replaceUrl: true });
   });
 
   it('410 na validação fala em convite expirado', () => {

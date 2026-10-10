@@ -79,7 +79,7 @@ const EXPLANATION_DURATION_MS = 10_000;
  * criar (ver o cabeçalho de `driverDeniedMessage`).
  */
 const HOME_LABELS: Readonly<Record<string, string>> = {
-    '/alugueis': 'os aluguéis',
+    '/meu-painel': 'o seu painel',
     '/dashboard': 'o painel',
 };
 

@@ -20,7 +20,7 @@
 
 <!-- ==================== SIDEBAR (DESKTOP) ==================== -->
 @if (!layout.isMobile()) {
-<aside class="fixed top-0 left-0 z-30 h-screen bg-white border-r border-gray-200
+<aside class="fixed top-0 left-0 z-30 h-dvh bg-white border-r border-gray-200
            flex flex-col overflow-hidden" [@sidebarWidth]="layout.isCollapsed() ? 'collapsed' : 'expanded'"
   role="navigation" aria-label="Menu principal">
   <ng-container *ngTemplateOutlet="sidebarContent" />

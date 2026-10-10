@@ -3,6 +3,7 @@ import { CanActivateFn, Router } from '@angular/router';
 import { map, catchError, of } from 'rxjs';
 import { OnboardingService } from './onboarding.service';
 import { SessionService } from '../../services/session.service';
+import { homeRouteForRole } from '../../utils/home-route';
 
 export const onboardingGuard: CanActivateFn = () => {
   const onboardingService = inject(OnboardingService);
@@ -60,18 +61,22 @@ export const onboardingCompleteGuard: CanActivateFn = () => {
     return router.createUrlTree(['/admin']);
   }
 
+  // Onde o papel mora: o motorista que cai em /onboarding por um link velho vai para o
+  // painel dele, nao para um /dashboard que o roleGuard desviaria com um aviso.
+  const home = homeRouteForRole(sessionService.getCompanyRoleFromToken());
+
   if (sessionService.isOnboardingCompleted()) {
-    return router.createUrlTree(['/dashboard']);
+    return router.createUrlTree([home]);
   }
 
   if (onboardingService.isCompleted()) {
-    return router.createUrlTree(['/dashboard']);
+    return router.createUrlTree([home]);
   }
 
   return onboardingService.loadState().pipe(
     map((state) => {
       if (state.isCompleted) {
-        return router.createUrlTree(['/dashboard']);
+        return router.createUrlTree([home]);
       }
       return true;
     }),

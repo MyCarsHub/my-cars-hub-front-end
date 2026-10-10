@@ -51,6 +51,20 @@ export interface SupportTicketDto {
 }
 
 /**
+ * Um ticket visto por QUEM O ABRIU (`GET /support/tickets`, `MySupportTicketResponseDto`).
+ * Sem `userId` e sem `resolvedBy`: o primeiro é o próprio leitor, o segundo é um
+ * administrador da plataforma e não é assunto dele.
+ */
+export interface MySupportTicket {
+  id: string;
+  createdDate: string;
+  message: string;
+  channel: SupportTicketChannel;
+  status: SupportTicketStatus;
+  resolvedAt: string | null;
+}
+
+/**
  * Linha do backoffice (`SupportTicketAdminItemDto`), com os nomes já resolvidos
  * pelo backend. Os IDs vêm ao lado dos nomes de propósito — a UI mostra o nome,
  * o admin ainda precisa do ID para correlacionar com log.

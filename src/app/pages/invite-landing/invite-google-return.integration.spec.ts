@@ -130,6 +130,21 @@ describe('Google return trip of an invite, through the real guards', () => {
       '/billing/access-status': { body: { status: 'TRIAL_ACTIVE', blocked: false, reason: null } },
       '/vehicles': { body: { total: 1, items: [] } },
       '/auth/memberships': { body: { memberships: [], pendingInvites: [], defaultCompanyId: null } },
+      // A casa do motorista e o painel proprio dele: responde o que ele pede ao abrir.
+      '/driver/dashboard': {
+        body: {
+          from: '2026-10-01',
+          to: '2026-10-31',
+          totals: { incomeCents: 0, expenseCents: 0, netCents: 0, entryCount: 0 },
+          previousPeriod: { incomeCents: 0, expenseCents: 0, netCents: 0, entryCount: 0 },
+          incomeByCategory: [],
+          expenseByCategory: [],
+          granularity: 'DAY',
+          series: [],
+          activeRental: null,
+        },
+      },
+      '/driver/ledger': { body: { content: [], page: 0, size: 5, total: 0 } },
       ...overrides,
     });
   }
@@ -156,7 +171,8 @@ describe('Google return trip of an invite, through the real guards', () => {
     const result = await returnTrip('DRIVER', { '/billing/access-status': BLOCKED });
 
     expect(redirects).toBeLessThan(3);
-    expect(result.url).toBe('/alugueis');
+    // A casa do motorista e o painel PROPRIO dele (era `/alugueis`).
+    expect(result.url).toBe('/meu-painel');
     expect(sessionStorage.getItem('token')).not.toBeNull();
   });
 

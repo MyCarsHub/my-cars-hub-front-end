@@ -163,14 +163,56 @@ describe('Sidebar', () => {
     });
 
     /**
-     * Suporte SAIU do menu do motorista: `/v1/support/**` (tickets) é 403 para ele, e o
-     * item abria uma tela que só mostrava erro. A rota tem o mesmo guard — a paridade
-     * em `sidebar-guard-parity.spec.ts` mede a igualdade.
+     * Suporte VOLTOU ao menu do motorista: o backend liberou a ele abrir e ler os
+     * PROPRIOS tickets (`/v1/support/tickets`). A rota tem o mesmo guard — a paridade
+     * em `sidebar-guard-parity.spec.ts` mede a igualdade. O nome deste caso era "nao
+     * oferece Suporte ao motorista" e afirmava o contrario do que vale agora.
      */
-    it('não oferece Suporte ao motorista, e o dono e o gerente continuam com ele', () => {
-      expect(labelsFor('DRIVER').join(' | ')).not.toContain('Suporte');
+    it('oferece Suporte ao motorista, como ao dono e ao gerente', () => {
+      expect(labelsFor('DRIVER').join(' | ')).toContain('Suporte');
       expect(labelsFor('OWNER').join(' | ')).toContain('Suporte');
       expect(labelsFor('MANAGER').join(' | ')).toContain('Suporte');
+    });
+
+    /**
+     * O menu do motorista, inteiro e na ordem: o painel dele no topo, a area do aluguel
+     * e das vistorias, o roadmap em leitura, e Suporte e Perfil fixados embaixo.
+     */
+    it('o menu do motorista e Painel, Aluguéis, Vistorias, Roadmap, Suporte e Perfil', () => {
+      expect(labelsFor('DRIVER')).toEqual([
+        'Painel',
+        'Aluguéis',
+        'Vistorias',
+        'Roadmap',
+        'Suporte',
+        'Perfil',
+      ]);
+    });
+
+    it('o Painel do motorista aponta para /meu-painel e nao existe no menu do dono nem do gerente', () => {
+      expect(labelsFor('OWNER')).not.toContain('Painel');
+      expect(labelsFor('MANAGER')).not.toContain('Painel');
+
+      signInAs('DRIVER');
+      layout.tenants.set([tenant('DRIVER')]);
+      layout.selectedTenant.set(tenant('DRIVER'));
+      fixture.detectChanges();
+      const painel = (fixture.nativeElement as HTMLElement).querySelector(
+        'a.nav-link[aria-label="Painel"]',
+      );
+      expect(painel?.getAttribute('href')).toBe('/meu-painel');
+    });
+
+    /** Item de menu NAO e promessa de tour: o tour da frota nao comeca no painel dele. */
+    it('o Painel nao carrega ancora de tour', () => {
+      signInAs('DRIVER');
+      layout.tenants.set([tenant('DRIVER')]);
+      layout.selectedTenant.set(tenant('DRIVER'));
+      fixture.detectChanges();
+      const painel = (fixture.nativeElement as HTMLElement).querySelector(
+        'a.nav-link[aria-label="Painel"]',
+      );
+      expect(painel?.hasAttribute('data-tour')).toBe(false);
     });
 
     /**

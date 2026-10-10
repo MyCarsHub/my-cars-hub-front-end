@@ -95,6 +95,17 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['OWNER', 'MANAGER'],
     tourKey: TOUR_ANCHORS.dashboard,
   },
+  // A CASA DO MOTORISTA. `/dashboard` (acima) é da frota e 403 para ele; este é o painel
+  // PRÓPRIO dele, onde registra e acompanha ganhos e custos. Só DRIVER: o caderno é do
+  // motorista e o backend recusa os outros papéis. `roles` casa com o `roleGuard` da rota
+  // `meu-painel` — a paridade em `sidebar-guard-parity.spec.ts` mede a igualdade. Sem
+  // `tourKey`: o tour é o da frota e não começa aqui.
+  {
+    route: '/meu-painel',
+    label: 'Painel',
+    icon: ICON_DASHBOARD,
+    roles: ['DRIVER'],
+  },
   {
     // FEAT-0108 — DRIVER entra aqui: `/v1/rentals` e os sub-recursos do próprio
     // aluguel são EXATAMENTE o que o FIX-0360 libera para ele. Era o único item
@@ -271,14 +282,15 @@ export const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  // Suporte é OWNER/MANAGER: os tickets (`/v1/support/**`) são 403 para o
-  // MOTORISTA, então o item era uma tela que só mostrava erro. A rota tem o
+  // Suporte é de todos os papéis: o MOTORISTA voltou. Ele tinha saído porque
+  // `/v1/support/tickets` era 403 e a tela só mostrava erro; o backend agora libera a ele
+  // abrir e ler os PRÓPRIOS tickets, e a tela só faz essas duas chamadas. A rota tem o
   // mesmo `roleGuard` — `sidebar-guard-parity.spec.ts` mede a igualdade.
   {
     route: '/suporte',
     label: 'Suporte',
     icon: ICON_SUPPORT,
-    roles: ['OWNER', 'MANAGER'],
+    roles: ['OWNER', 'MANAGER', 'DRIVER'],
     pinBottom: true,
   },
   { route: '/perfil', label: 'Perfil', icon: ICON_PROFILE, pinBottom: true },
