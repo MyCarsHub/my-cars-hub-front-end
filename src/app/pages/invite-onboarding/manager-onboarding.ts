@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { PageLoader } from '../../components/page-loader/page-loader';
 import { DriverOnboarding } from './driver-onboarding';
 import { InviteFlowService } from '../../services/invite-flow.service';
 import { onboardingFailure } from '../../services/invite-flow-errors';
@@ -47,6 +48,7 @@ const TOTAL_STEPS = 3;
     FormField,
     FieldControl,
     DriverOnboarding,
+    PageLoader,
   ],
   templateUrl: './manager-onboarding.html',
 })

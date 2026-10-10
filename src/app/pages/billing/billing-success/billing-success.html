@@ -1,18 +1,16 @@
+@if (state() === 'polling') {
+  <!-- The wait for the gateway is a whole-page wait: same loader as the other full-page waits. -->
+  <app-page-loader
+    title="Confirmando pagamento…"
+    description="Aguardando confirmação do provedor de pagamento. Isso pode levar alguns segundos."
+    [fullScreen]="false"
+  />
+} @else {
 <app-default-page-layout
   title="Confirmando pagamento"
   description="Estamos verificando o status da sua assinatura.">
 
   <div class="max-w-xl mx-auto bg-white rounded-2xl border border-neutral-200 shadow-sm p-6 sm:p-10 text-center">
-
-    @if (state() === 'polling') {
-      <div class="flex flex-col items-center gap-4" role="status" aria-live="polite">
-        <div class="w-14 h-14 rounded-full border-4 border-primary-100 border-t-primary-500 animate-spin" aria-hidden="true"></div>
-        <h2 class="text-xl font-bold text-neutral-900">Confirmando pagamento…</h2>
-        <p class="text-sm text-neutral-600">
-          Aguardando confirmação do provedor de pagamento. Isso pode levar alguns segundos.
-        </p>
-      </div>
-    }
 
     @if (state() === 'active') {
       <div class="flex flex-col items-center gap-4" role="status" aria-live="polite">
@@ -161,3 +159,4 @@
   </div>
 
 </app-default-page-layout>
+}

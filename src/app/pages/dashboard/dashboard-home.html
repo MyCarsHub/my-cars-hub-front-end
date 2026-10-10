@@ -231,61 +231,46 @@
             </div>
         }
 
-        <div class="rounded-2xl bg-emerald-700 text-white p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-white/70 uppercase tracking-wide truncate">Utilização</p>
-            @if (loading() && !summary()) {
-                <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
-            } @else if (summary(); as s) {
-                <p class="text-xl sm:text-2xl font-semibold mt-1 tabular-nums truncate">
-                    {{ s.fleet.utilizationPct }}%
-                </p>
-                <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">frota rodando</p>
-            }
-        </div>
-        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Veículos</p>
-            @if (loading() && !summary()) {
-                <div class="h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse"></div>
-            } @else if (summary(); as s) {
-                <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
-                    {{ s.fleet.vehiclesTotal }}
-                </p>
-                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
-                    {{ vehiclePlanLabel() }}
-                </p>
-            }
-        </div>
+        <!--
+            Os quatro cartoes simples da fileira sao o mesmo `KpiCard` da tela de
+            Membros: cor, raio e tipografia moram num lugar so. O cartao so mostra
+            numero e legenda quando o resumo chegou; sem ele, fica o rotulo.
+        -->
+        <div
+            app-kpi-card
+            variant="emerald-dark"
+            label="Utilização"
+            [loading]="loading() && !summary()"
+            [value]="summary() ? summary()!.fleet.utilizationPct + '%' : null"
+            [detail]="summary() ? 'frota rodando' : null"
+        ></div>
+        <div
+            app-kpi-card
+            variant="white"
+            label="Veículos"
+            [loading]="loading() && !summary()"
+            [value]="summary() ? summary()!.fleet.vehiclesTotal : null"
+            [detail]="summary() ? vehiclePlanLabel() : null"
+        ></div>
 
-        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Motoristas</p>
-            @if (loading() && !summary()) {
-                <div class="h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse"></div>
-            } @else if (summary(); as s) {
-                <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
-                    {{ s.fleet.driversTotal }}
-                </p>
-                <!-- Sem legenda de capacidade (FEAT-0070): o card mostra total
-                     e ativos. O parágrafo do plano saiu inteiro, para não
-                     deixar linha em branco empurrando o card no mobile. -->
-                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
-                    {{ s.fleet.driversActive }} ativos agora
-                </p>
-            }
-        </div>
+        <!-- Sem legenda de capacidade (FEAT-0070): o card mostra total e ativos. -->
+        <div
+            app-kpi-card
+            variant="white"
+            label="Motoristas"
+            [loading]="loading() && !summary()"
+            [value]="summary() ? summary()!.fleet.driversTotal : null"
+            [detail]="summary() ? summary()!.fleet.driversActive + ' ativos agora' : null"
+        ></div>
 
-        <div class="rounded-2xl bg-white border border-gray-200 p-4 min-w-0">
-            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">Alugados agora</p>
-            @if (loading() && !summary()) {
-                <div class="h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse"></div>
-            } @else if (summary(); as s) {
-                <p class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate">
-                    {{ s.fleet.rentedNow }}
-                </p>
-                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
-                    {{ s.fleet.reservedNow }} reservados
-                </p>
-            }
-        </div>
+        <div
+            app-kpi-card
+            variant="white"
+            label="Alugados agora"
+            [loading]="loading() && !summary()"
+            [value]="summary() ? summary()!.fleet.rentedNow : null"
+            [detail]="summary() ? summary()!.fleet.reservedNow + ' reservados' : null"
+        ></div>
     </section>
 
     <!-- Period picker -->

@@ -97,6 +97,12 @@ export class InviteFlowService {
       companyName: company.name,
       role: company.role,
     });
-    if (userName) this.session.setItem('name', userName);
+    // `/auth/me` is skipped on this path, so the identity keys it would have written come from
+    // the token's own claims; without them the shell and the profile render an empty person.
+    const identity = this.session.getIdentityFromToken();
+    if (identity?.id) this.session.setItem('id', identity.id);
+    if (identity?.email) this.session.setItem('email', identity.email);
+    const name = userName ?? identity?.name;
+    if (name) this.session.setItem('name', name);
   }
 }

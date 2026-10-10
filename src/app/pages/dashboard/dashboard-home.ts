@@ -9,6 +9,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { KpiCard } from '../../components/kpi-card/kpi-card';
 import { FleetActivationService } from '../../services/fleet-activation.service';
 import { SessionService } from '../../services/session.service';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
@@ -89,6 +90,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         AlertBanner,
         RouterLink,
         CashAccumulationCard,
+        KpiCard,
     ],
     templateUrl: './dashboard-home.html',
 })

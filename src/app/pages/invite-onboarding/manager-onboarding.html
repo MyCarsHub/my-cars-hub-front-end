@@ -1,3 +1,6 @@
+@if (mode() === 'loading') {
+  <app-page-loader title="Carregando seu cadastro…" description="Só um instante." />
+} @else {
 <div class="min-h-dvh flex flex-col bg-neutral-50">
   @if (mode() !== 'driver') {
   <header class="bg-white border-b border-neutral-200 px-4 pt-4 pb-3">
@@ -40,15 +43,6 @@
   }
 
   @switch (mode()) {
-    @case ('loading') {
-      <main class="flex-1 px-4 py-6">
-        <div class="mx-auto w-full max-w-lg">
-          <h1 class="text-xl font-bold text-neutral-900">Carregando seu cadastro…</h1>
-          <p role="status" class="mt-2 text-sm text-neutral-600">Só um instante.</p>
-        </div>
-      </main>
-    }
-
     @case ('blocked') {
       <main class="flex-1 px-4 py-6">
         <div class="mx-auto w-full max-w-lg">
@@ -307,3 +301,4 @@
     }
   }
 </div>
+}

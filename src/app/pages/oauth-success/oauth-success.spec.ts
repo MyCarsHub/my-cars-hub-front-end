@@ -41,6 +41,14 @@ describe('OauthSuccess', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('renders the shared full-page loader with its own wording', () => {
+    fixture.detectChanges();
+    const loader = (fixture.nativeElement as HTMLElement).querySelector('app-page-loader');
+    expect(loader?.querySelector('h1')?.textContent).toContain('Processando autenticação');
+    expect(loader?.querySelector('p')?.textContent).toContain('Aguarde enquanto finalizamos o login.');
+    expect(loader?.querySelector('.animate-spin')).not.toBeNull();
+  });
 });
 
 describe('OauthSuccess routing (systemRole aware)', () => {
