@@ -5,11 +5,14 @@ import {
   DRIVER_STATUS_META,
   FINE_SEVERITY_FILTER_OPTIONS,
   FINE_SEVERITY_META,
+  INSPECTION_KIND_LABELS,
+  INSPECTION_STATUS_META,
   RENTAL_STATUS_FILTER_OPTIONS,
   RENTAL_STATUS_META,
   VEHICLE_STATUS_FILTER_OPTIONS,
   VEHICLE_STATUS_META,
   defaultPointsForSeverity,
+  inspectionStatusMeta,
 } from './status-maps';
 import type { FineSeverity } from '../types/fine.types';
 
@@ -148,5 +151,43 @@ describe('opcoes de filtro x mapa de status', () => {
         expect(o.chip).toBe(meta.chip);
       }
     });
+  });
+});
+
+/**
+ * SITUACAO E TIPO DA VISTORIA — as duas fontes que a lista, o detalhe e os filtros leem.
+ *
+ * Os rotulos e as cores vem do handoff de vistorias v2. "Em andamento" e neutro de proposito:
+ * `PENDING` e o motorista ainda tirando as fotos, nao algo a decidir pelo dono — pintar de
+ * ambar o confundiria com "Aguardando aprovacao", que e a fila de quem decide.
+ */
+describe('vistoria — situacao e tipo', () => {
+  it('cada situacao tem o rotulo e a cor do desenho', () => {
+    expect(INSPECTION_STATUS_META.PENDING.label).toBe('Em andamento');
+    expect(INSPECTION_STATUS_META.PENDING.chip).toContain('bg-neutral-100');
+    expect(INSPECTION_STATUS_META.SUBMITTED.label).toBe('Aguardando aprovação');
+    expect(INSPECTION_STATUS_META.SUBMITTED.chip).toContain('bg-amber-100');
+    expect(INSPECTION_STATUS_META.APPROVED.label).toBe('Aprovada');
+    expect(INSPECTION_STATUS_META.APPROVED.chip).toContain('bg-emerald-100');
+    expect(INSPECTION_STATUS_META.REJECTED.label).toBe('Recusada');
+    expect(INSPECTION_STATUS_META.REJECTED.chip).toContain('bg-rose-100');
+  });
+
+  it('nenhuma cor usa red-* nem gray-* (lint do guia de telas)', () => {
+    for (const meta of Object.values(INSPECTION_STATUS_META)) {
+      expect(meta.chip).not.toMatch(/(red|gray)-/);
+    }
+  });
+
+  it('CHECKOUT e a retirada e CHECKIN a devolucao', () => {
+    expect(INSPECTION_KIND_LABELS.CHECKOUT).toBe('Retirada');
+    expect(INSPECTION_KIND_LABELS.CHECKIN).toBe('Devolução');
+    expect(INSPECTION_KIND_LABELS.FLEET).toBe('Frota');
+  });
+
+  it('um valor que o mapa nao conhece vira "—" e nao quebra a tela', () => {
+    expect(inspectionStatusMeta('COMPLETED').label).toBe('—');
+    expect(inspectionStatusMeta(null).label).toBe('—');
+    expect(inspectionStatusMeta('APPROVED').label).toBe('Aprovada');
   });
 });

@@ -190,3 +190,162 @@ describe('InspectionsService.list — status', () => {
     expect(sent().has('status')).toBe(false);
   });
 });
+
+/**
+ * Vistorias v2 — busca, ordenacao, resumo, hodometro no envio e laudo.
+ *
+ * O servico e o REAL e so o `HttpClient` e dublado: a pergunta e o que viaja na URL e no
+ * corpo, nao o que a tela faz com a resposta.
+ */
+describe('InspectionsService — vistorias v2', () => {
+  let get: ReturnType<typeof vi.fn>;
+  let post: ReturnType<typeof vi.fn>;
+  let service: InspectionsService;
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    get = vi.fn((..._args: unknown[]) => of(EMPTY));
+    post = vi.fn((..._args: unknown[]) => of({}));
+    TestBed.configureTestingModule({
+      providers: [InspectionsService, { provide: HttpClient, useValue: { get, post } }],
+    });
+    service = TestBed.inject(InspectionsService);
+  });
+
+  const sentParams = (): HttpParams =>
+    (get.mock.calls.at(-1)?.[1] as { params: HttpParams }).params;
+
+  describe('list — q e sort', () => {
+    it('leva a busca aparada como q', () => {
+      service.list({ q: '  abc1d23  ' }).subscribe();
+
+      expect(sentParams().get('q')).toBe('abc1d23');
+    });
+
+    it('corta a busca em 60 caracteres, o que o servidor aceita', () => {
+      service.list({ q: 'x'.repeat(80) }).subscribe();
+
+      expect(sentParams().get('q')).toBe('x'.repeat(60));
+    });
+
+    it('omite q em branco ou ausente', () => {
+      for (const q of ['', '   ', null, undefined]) {
+        service.list({ q }).subscribe();
+        expect(sentParams().has('q'), JSON.stringify(q)).toBe(false);
+      }
+    });
+
+    it('leva a ordenacao nos dois sentidos e a omite quando ausente', () => {
+      service.list({ sort: 'date,asc' }).subscribe();
+      expect(sentParams().get('sort')).toBe('date,asc');
+
+      service.list({ sort: 'date,desc' }).subscribe();
+      expect(sentParams().get('sort')).toBe('date,desc');
+
+      service.list({ sort: null }).subscribe();
+      expect(sentParams().has('sort')).toBe(false);
+    });
+
+    it('busca, ordenacao, situacao e tipo viajam juntos', () => {
+      service
+        .list({ q: 'gol', sort: 'date,asc', status: 'SUBMITTED', kind: 'CHECKOUT', page: 1 })
+        .subscribe();
+
+      expect(sentParams().get('q')).toBe('gol');
+      expect(sentParams().get('sort')).toBe('date,asc');
+      expect(sentParams().get('status')).toBe('SUBMITTED');
+      expect(sentParams().get('kind')).toBe('CHECKOUT');
+      expect(sentParams().get('page')).toBe('1');
+    });
+  });
+
+  describe('summary', () => {
+    it('chama GET /v1/inspections/summary', () => {
+      service.summary().subscribe();
+
+      expect(get.mock.calls.at(-1)?.[0]).toBe(`${environment.apiUrl}/inspections/summary`);
+    });
+
+    it('aceita os filtros de recorte e NAO manda status, busca, ordem nem pagina', () => {
+      service
+        .summary({
+          vehicleId: 'veh-1',
+          rentalId: 'rent-1',
+          kind: 'CHECKIN',
+          from: '2026-09-01',
+          to: '2026-09-30',
+          status: 'APPROVED',
+          q: 'gol',
+          sort: 'date,asc',
+          page: 3,
+          size: 50,
+        })
+        .subscribe();
+
+      expect(sentParams().get('vehicleId')).toBe('veh-1');
+      expect(sentParams().get('rentalId')).toBe('rent-1');
+      expect(sentParams().get('kind')).toBe('CHECKIN');
+      expect(sentParams().get('from')).toBe('2026-09-01');
+      expect(sentParams().get('to')).toBe('2026-09-30');
+      for (const key of ['status', 'q', 'sort', 'page', 'size']) {
+        expect(sentParams().has(key), key).toBe(false);
+      }
+    });
+
+    it('sem filtro nao manda parametro nenhum', () => {
+      service.summary().subscribe();
+
+      expect(sentParams().keys()).toEqual([]);
+    });
+
+    it('devolve as quatro contagens como o servidor mandou', () => {
+      get.mockReturnValue(of({ pending: 1, submitted: 2, approved: 3, rejected: 4 }));
+      let received: unknown;
+      service.summary().subscribe((s) => (received = s));
+
+      expect(received).toEqual({ pending: 1, submitted: 2, approved: 3, rejected: 4 });
+    });
+
+    it('a falha sobe para quem chama — nao vira zero aqui', () => {
+      get.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      let failed = false;
+      service.summary().subscribe({ error: () => (failed = true) });
+
+      expect(failed).toBe(true);
+    });
+
+    it('nao mexe no estado da lista (nao usa o signal de loading)', () => {
+      service.summary().subscribe();
+
+      expect(service.loading()).toBe(false);
+      expect(service.items()).toEqual([]);
+    });
+  });
+
+  describe('submit — hodometro', () => {
+    it('manda { odometerKm } no corpo', () => {
+      service.submit('insp-1', { odometerKm: 82109 }).subscribe();
+
+      expect(post).toHaveBeenCalledWith(`${environment.apiUrl}/inspections/insp-1/submit`, {
+        odometerKm: 82109,
+      });
+    });
+
+    it('sem hodometro o corpo continua `{}`, que e o que o servidor anterior espera', () => {
+      service.submit('insp-1').subscribe();
+
+      expect(post).toHaveBeenCalledWith(`${environment.apiUrl}/inspections/insp-1/submit`, {});
+    });
+  });
+
+  describe('reportUrl', () => {
+    it('chama GET /v1/inspections/{id}/pdf e devolve a URL assinada', () => {
+      get.mockReturnValue(of({ url: 'https://storage.example/laudo.pdf' }));
+      let received: { url: string } | undefined;
+      service.reportUrl('insp-1').subscribe((r) => (received = r));
+
+      expect(get.mock.calls.at(-1)?.[0]).toBe(`${environment.apiUrl}/inspections/insp-1/pdf`);
+      expect(received?.url).toBe('https://storage.example/laudo.pdf');
+    });
+  });
+});

@@ -1,22 +1,19 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   computed,
   inject,
   signal,
-  viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { EMPTY, expand } from 'rxjs';
+import { EMPTY, Subject, debounceTime, expand } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
-import {
-  FilterChipGroup,
-  FilterChipOption,
-} from '../../components/filter-chip-group/filter-chip-group';
-import { DateRange, DateRangePicker } from '../../components/date-range-picker/date-range-picker';
+import { KpiCard } from '../../components/kpi-card/kpi-card';
 import { InspectionsService } from '../../services/inspections.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { VehicleListItem } from '../../types/vehicle.types';
@@ -24,59 +21,46 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { SessionService } from '../../services/session.service';
 import { RentalService } from '../rentals/rental.service';
 import {
+  INSPECTION_SEARCH_MAX_LENGTH,
   InspectionKind,
-  InspectionListItem,
-  InspectionReviewResult,
+  InspectionSort,
   InspectionStatus,
+  InspectionSummary,
 } from '../../types/inspection.types';
-import { InspectionReview } from './inspection-review';
+import { INSPECTION_STATUS_META } from '../../utils/status-maps';
 import { InspectionSchedulesBlock } from './inspection-schedules-block/inspection-schedules-block';
+import { InspectionCardView, pluralize, toCardView } from './inspection-view';
 
-/** Chip de tipo. `'ALL'` é "todas" — não vai para a query. */
-type KindChip = FilterChipOption<InspectionKind | 'ALL'>;
-type StatusChip = FilterChipOption<InspectionStatus | 'ALL'>;
-
-/**
- * A FILA DO DONO. `SUBMITTED` vem primeiro depois de "Todas" porque e o unico
- * estado que PEDE acao de alguem: e a vistoria que ja foi fotografada e esta
- * parada esperando aprovacao. Sem este filtro a aprovacao existiria mas
- * ninguem a encontraria.
- */
-const STATUS_CHIPS: readonly StatusChip[] = [
-  { value: 'ALL', label: 'Todas' },
-  { value: 'SUBMITTED', label: 'Aguardando aprovação' },
-  { value: 'PENDING', label: 'Em andamento' },
-  { value: 'APPROVED', label: 'Aprovadas' },
-  { value: 'REJECTED', label: 'Recusadas' },
+/** O que cada filtro oferece. `ALL` nao vai para a query. */
+const STATUS_OPTIONS: ReadonlyArray<{ value: InspectionStatus | 'ALL'; label: string }> = [
+  { value: 'ALL', label: 'Situação: Todas' },
+  { value: 'SUBMITTED', label: 'Situação: Aguardando aprovação' },
+  { value: 'PENDING', label: 'Situação: Em andamento' },
+  { value: 'APPROVED', label: 'Situação: Aprovada' },
+  { value: 'REJECTED', label: 'Situação: Recusada' },
 ];
 
-const STATUS_LABELS: Readonly<Record<InspectionStatus, string>> = {
-  PENDING: 'Em andamento',
-  SUBMITTED: 'Aguardando aprovação',
-  APPROVED: 'Aprovada',
-  REJECTED: 'Recusada',
-};
-
-const KIND_CHIPS: readonly KindChip[] = [
-  { value: 'ALL', label: 'Todas' },
-  { value: 'CHECKIN', label: 'Entrada' },
-  { value: 'CHECKOUT', label: 'Saída' },
-  // FLEET é vistoria de FROTA, sem aluguel — o backend a criou no PR #190 e ela
-  // não tem equivalente no fluxo antigo, preso à locação.
-  { value: 'FLEET', label: 'Frota' },
+const KIND_OPTIONS: ReadonlyArray<{ value: InspectionKind | 'ALL'; label: string }> = [
+  { value: 'ALL', label: 'Tipo: Todos' },
+  { value: 'CHECKOUT', label: 'Tipo: Retirada' },
+  { value: 'CHECKIN', label: 'Tipo: Devolução' },
+  // Vistoria de FROTA (sem aluguel): nasce na porta "Fazer vistoria" do dono e nao tem par
+  // em retirada/devolucao. Sem esta opcao ela nao teria como ser filtrada.
+  { value: 'FLEET', label: 'Tipo: Frota' },
 ];
 
-const KIND_LABEL: Record<InspectionKind, string> = {
-  CHECKIN: 'Entrada',
-  CHECKOUT: 'Saída',
-  FLEET: 'Frota',
-};
+const SORT_OPTIONS: ReadonlyArray<{ value: InspectionSort; label: string }> = [
+  { value: 'date,desc', label: 'Ordenar: Mais recentes' },
+  { value: 'date,asc', label: 'Ordenar: Mais antigas' },
+];
+
+/** Espera depois da ultima tecla antes de buscar — uma consulta por palavra, nao por letra. */
+export const SEARCH_DEBOUNCE_MS = 300;
 
 /**
- * Tamanho de cada pagina ao carregar os veiculos do filtro. 100 e o teto do
- * backend: pedir mais NAO devolve mais, devolve 100 em silencio — foi o que
- * deixou carro fora do seletor sem aviso nenhum. Por isso a tela PAGINA ate o
- * total em vez de pedir uma pagina enorme.
+ * Tamanho de cada pagina ao carregar os veiculos do dialogo de agendamento. 100 e o teto do
+ * backend: pedir mais NAO devolve mais, devolve 100 em silencio. Por isso a tela PAGINA ate
+ * o total em vez de pedir uma pagina enorme.
  */
 const VEHICLE_PAGE_SIZE = 100;
 /** Trava de seguranca do laco de paginas (20 x 100 = 2000 veiculos). */
@@ -88,21 +72,33 @@ interface DriverVehicle {
   readonly label: string;
 }
 
+/** Os quatro tiles, na ordem do desenho. */
+interface KpiTile {
+  readonly key: keyof InspectionSummary;
+  readonly variant: 'primary' | 'emerald-dark' | 'emerald' | 'white';
+  readonly label: string;
+  readonly detail: string;
+}
+
+const KPI_TILES: readonly KpiTile[] = [
+  { key: 'submitted', variant: 'primary', label: 'Aguardando aprovação', detail: 'precisam da sua decisão' },
+  { key: 'pending', variant: 'emerald-dark', label: 'Em andamento', detail: 'fotos sendo tiradas' },
+  { key: 'approved', variant: 'emerald', label: 'Aprovadas', detail: 'laudo em PDF disponível' },
+  { key: 'rejected', variant: 'white', label: 'Recusadas', detail: 'aguardam nova vistoria' },
+];
+
 /**
- * `/vistorias` — as vistorias, filtráveis.
- *
- * Existe porque a vistoria só era alcançável DENTRO do aluguel: para achar a
- * vistoria de um carro específico era preciso lembrar em qual locação ela
- * estava. Aqui ela é pesquisável por veículo, por locação e por período, e os
- * três filtros se combinam.
+ * `/vistorias` — as vistorias da empresa em cards, com os numeros no topo.
  *
  * ## Dois papeis, duas telas
  *
- * OWNER/MANAGER veem as da empresa, com filtro de veiculo/locacao, agendamento
- * e aprovacao. O MOTORISTA ve as DELAS (o servidor escopa a listagem), sem nada
- * que seja da empresa — filtros de frota, agendamento, aprovacao — e com uma
- * porta propria: "Fazer vistoria" para o carro do aluguel ATIVO dele. O papel
- * vem do token, a mesma fonte do `roleGuard`.
+ * OWNER/MANAGER veem as da empresa: tiles (`GET /inspections/summary`), o cartao de
+ * vistorias automaticas, filtros e "Revisar vistoria". O MOTORISTA ve as DELAS (o servidor
+ * escopa a listagem), com o MESMO cartao de vistoria, mas sem tiles, sem agendamento e sem
+ * nenhum controle de revisao — e com uma porta propria: "Fazer vistoria" para o carro do
+ * aluguel ATIVO dele. O papel vem do token, a mesma fonte do `roleGuard`.
+ *
+ * A DECISAO (aprovar/recusar) saiu daqui: vive em `/vistorias/:id`, onde as 14 fotos cabem.
  */
 @Component({
   selector: 'app-inspections-list',
@@ -112,9 +108,7 @@ interface DriverVehicle {
     DefaultPageLayout,
     PageCard,
     AlertBanner,
-    FilterChipGroup,
-    DateRangePicker,
-    InspectionReview,
+    KpiCard,
     InspectionSchedulesBlock,
   ],
   templateUrl: './inspections-list.html',
@@ -126,151 +120,90 @@ export class InspectionsList implements OnInit {
   private readonly router = inject(Router);
   private readonly session = inject(SessionService);
   private readonly rentals = inject(RentalService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /**
-   * O MOTORISTA. Lido do TOKEN uma vez: o papel nao muda sem trocar de empresa, e
-   * trocar de empresa remonta a tela. Decide o que NAO e carregado — `/v1/vehicles`
-   * e 403 para ele — alem do que e escondido.
+   * O MOTORISTA. Lido do TOKEN uma vez: o papel nao muda sem trocar de empresa, e trocar
+   * de empresa remonta a tela. Decide o que NAO e carregado — `/v1/vehicles` e 403 para ele
+   * e o resumo e da empresa — alem do que e escondido.
    */
   protected readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
 
   protected readonly pageDescription = this.isDriver
     ? 'Suas vistorias e o carro do seu aluguel ativo.'
-    : 'Todas as vistorias da frota, por veiculo e periodo.';
+    : 'Fotos e hodômetro enviados pelos motoristas. Você aprova ou pede para refazer.';
 
-  protected readonly kindChips = KIND_CHIPS;
-  protected readonly statusChips = STATUS_CHIPS;
+  protected readonly searchPlaceholder = this.isDriver
+    ? 'Buscar por placa ou modelo…'
+    : 'Buscar por placa, modelo ou motorista…';
+  protected readonly searchMaxLength = INSPECTION_SEARCH_MAX_LENGTH;
 
-  protected readonly items = this.service.items;
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly kindOptions = KIND_OPTIONS;
+  protected readonly sortOptions = SORT_OPTIONS;
+  protected readonly kpiTiles = KPI_TILES;
+
   protected readonly loading = this.service.loading;
   protected readonly error = this.service.error;
   protected readonly page = this.service.page;
   protected readonly size = this.service.size;
   protected readonly total = this.service.total;
 
-  /** Opções do seletor de veículo, carregadas por paginas ate o total. */
+  /** As linhas ja traduzidas para o cartao — a unica leitura do contrato da lista. */
+  protected readonly cards = computed<InspectionCardView[]>(() =>
+    this.service.items().map((item) => toCardView(item)),
+  );
+
+  // ---------------------------------------------------------------- filtros
+
+  protected readonly query = signal('');
+  protected readonly status = signal<InspectionStatus | 'ALL'>('ALL');
+  protected readonly kind = signal<InspectionKind | 'ALL'>('ALL');
+  protected readonly sort = signal<InspectionSort>('date,desc');
+
+  /** A busca como foi enviada por ultimo: evita a consulta dupla de Enter + debounce. */
+  private appliedQuery = '';
+  private readonly searchTyped = new Subject<void>();
+
+  /**
+   * Ha filtro ativo? E o que separa "nenhuma vistoria com esses filtros" de "nenhuma
+   * vistoria ainda" — duas situacoes que nao podem mostrar a mesma frase. A ordenacao NAO
+   * e filtro: nao esconde nada.
+   */
+  protected readonly hasActiveFilters = computed(
+    () => this.normalizedQuery() !== '' || this.status() !== 'ALL' || this.kind() !== 'ALL',
+  );
+
+  // ----------------------------------------------------------------- tiles
+
+  protected readonly summary = signal<InspectionSummary | null>(null);
+  protected readonly summaryState = signal<'loading' | 'ready' | 'error'>('loading');
+
+  /** O texto de um tile. Falha mostra "—": zero inventado afirmaria "nada a decidir". */
+  protected kpiValue(key: keyof InspectionSummary): string | number {
+    const summary = this.summary();
+    if (this.summaryState() !== 'ready' || summary === null) return '—';
+    return summary[key];
+  }
+
+  // -------------------------------------------------- vistoria avulsa / motorista
+
+  /** Opcoes do seletor de veiculo — alimentam o dialogo de agendamento e a porta do dono. */
   protected readonly vehicleOptions = signal<Array<{ id: string; label: string }>>([]);
 
   /** Os carros dos alugueis ATIVOS do motorista, e em que ponto a busca esta. */
   protected readonly driverVehicles = signal<DriverVehicle[]>([]);
   protected readonly driverVehiclesState = signal<'loading' | 'ready' | 'error'>('loading');
 
-  protected readonly vehicleId = signal<string>('');
-  protected readonly rentalId = signal<string>('');
-  protected readonly kind = signal<InspectionKind | 'ALL'>('ALL');
-  protected readonly status = signal<InspectionStatus | 'ALL'>('ALL');
-
-  /**
-   * Qual linha esta ABERTA para revisao. Uma por vez: duas galerias de 14 fotos
-   * abertas no celular e rolagem infinita, e a decisao erra de vistoria.
-   */
-  protected readonly reviewingId = signal<string | null>(null);
-  /**
-   * O bloco de agendamento vive ABAIXO da lista, mas a acao primaria da tela
-   * fica no topo, em `cardActions` — como em `vehicles-list`. O botao de lá
-   * abre o formulario de cá: uma acao, um formulario, nenhuma copia nova.
-   */
-  private readonly scheduleBlock = viewChild(InspectionSchedulesBlock);
-
-  protected openSchedule(): void {
-    this.scheduleBlock()?.openForm('FLEET');
-  }
-
-  /**
-   * FILTROS recolhidos no CELULAR apenas (`sm:hidden` no gatilho). No desktop a
-   * grade cabe e esconder seria esconder sem motivo.
-   */
-  protected readonly filtersOpen = signal(false);
-
-  protected toggleFilters(): void {
-    this.filtersOpen.update((open) => !open);
-  }
-
-  /**
-   * O CONTADOR e obrigatorio, nao enfeite: recolhido sem ele, um filtro
-   * esquecido explicaria uma lista curta sem nenhuma pista na tela.
-   */
-  protected readonly activeFiltersCount = computed(() => {
-    let count = 0;
-    if (this.vehicleId() !== '') count++;
-    if (this.status() !== 'ALL') count++;
-    if (this.kind() !== 'ALL') count++;
-    if (this.range() !== null) count++;
-    return count;
-  });
-
-  protected readonly filtersButtonLabel = computed(() => {
-    const n = this.activeFiltersCount();
-    return n > 0 ? `Filtros, ${n} ativo${n > 1 ? 's' : ''}` : 'Filtros';
-  });
-
-  /** A PORTA ate a captura: ela exige `?vehicleId=`, entao o carro vem daqui. */
+  /** A PORTA do dono ate a captura: ela exige `?vehicleId=`, entao o carro vem daqui. */
   protected readonly startOpen = signal(false);
   protected readonly startVehicleId = signal('');
   protected readonly startError = signal<string | null>(null);
 
-  protected toggleStart(): void {
-    this.startError.set(null);
-    this.startOpen.update((open) => !open);
-  }
-
-  protected onStartVehicleChange(value: string): void {
-    this.startVehicleId.set(value);
-    this.startError.set(null);
-  }
-
-  /**
-   * Abre a captura COM o carro escolhido.
-   *
-   * O card de Detalhes do Veiculo era o unico lugar que passava `vehicleId`, e
-   * ele saiu. Sem este passo, o botao levaria a captura a nascer em erro — porta
-   * que existe e nao abre, que foi o defeito do dia.
-   */
-  protected startInspection(): void {
-    this.openCapture(this.startVehicleId());
-  }
-
-  /** O MOTORISTA nao escolhe carro: o botao dele ja nomeia o do aluguel ativo. */
-  protected startDriverInspection(vehicleId: string): void {
-    this.openCapture(vehicleId);
-  }
-
-  private openCapture(vehicleId: string): void {
-    if (!vehicleId) {
-      this.startError.set('Escolha o carro que voce vai vistoriar.');
-      return;
-    }
-
-    // A promessa NAO e descartada: guard que recusa deixaria a pessoa olhando
-    // uma tela que nao mudou, sem nada a fazer.
-    this.router
-      .navigate(['/vistorias', 'nova'], { queryParams: { vehicleId } })
-      .then((ok) => {
-        if (!ok) this.startError.set('Nao foi possivel abrir a tela de vistoria.');
-      })
-      .catch(() => this.startError.set('Nao foi possivel abrir a tela de vistoria.'));
-  }
-
-  protected readonly range = signal<DateRange | null>(null);
-
-  /**
-   * Há algum filtro ativo?
-   *
-   * É o que separa "nenhuma vistoria com esses filtros" de "nenhuma vistoria
-   * ainda" — duas situações diferentes que não podem mostrar a mesma frase. A
-   * primeira se resolve limpando o filtro; a segunda, fazendo uma vistoria.
-   */
-  protected readonly hasActiveFilters = computed(
-    () =>
-      this.vehicleId() !== '' ||
-      this.rentalId().trim() !== '' ||
-      this.kind() !== 'ALL' ||
-      this.status() !== 'ALL' ||
-      this.range() !== null,
-  );
+  // -------------------------------------------------------------- derivados
 
   protected readonly isEmpty = computed(
-    () => !this.loading() && !this.error() && this.items().length === 0,
+    () => !this.loading() && !this.error() && this.cards().length === 0,
   );
 
   protected readonly totalPages = computed(() => {
@@ -283,18 +216,15 @@ export class InspectionsList implements OnInit {
   protected readonly hasPrev = computed(() => this.page() > 0);
   protected readonly hasNext = computed(() => this.page() + 1 < this.totalPages());
 
+  /** "12 vistorias" — plural resolvido. Vazio enquanto carrega ou em erro. */
+  protected readonly countLabel = computed(() =>
+    this.loading() || this.error() ? '' : pluralize(this.total(), 'vistoria', 'vistorias'),
+  );
+
   /**
-   * Região viva: trocar filtro troca a lista sem mover foco nem rota.
-   *
-   * FIX-0565 — o erro sai de `error()`, a MESMA fonte que o banner renderiza, e não de uma
-   * cópia da frase. A cópia era o defeito: o serviço já separa recusa de falha, mas aqui
-   * estava escrito "não foi possível carregar" fixo, então num 403 quem enxerga lia
-   * "você não tem permissão" e quem usa leitor de tela ouvia uma falha de carregamento.
-   * Duas frases para o mesmo evento é uma que está errada — e a errada mandava o usuário
-   * recarregar uma tela que nunca ia abrir.
-   *
-   * Ler a fonte em vez de repeti-la é o que impede as duas de divergirem de novo quando
-   * alguém acrescentar a próxima causa no serviço.
+   * Regiao viva: trocar filtro troca a lista sem mover foco nem rota. O erro sai de
+   * `error()`, a MESMA fonte que o banner renderiza — duas frases para o mesmo evento e uma
+   * que esta errada.
    */
   protected readonly liveStatus = computed(() => {
     if (this.loading()) return 'Carregando vistorias…';
@@ -309,6 +239,12 @@ export class InspectionsList implements OnInit {
     return count === 1 ? '1 vistoria encontrada.' : `${count} vistorias encontradas.`;
   });
 
+  constructor() {
+    this.searchTyped
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.applySearch());
+  }
+
   ngOnInit(): void {
     this.reload(0);
     if (this.isDriver) {
@@ -317,14 +253,33 @@ export class InspectionsList implements OnInit {
       this.loadDriverVehicles();
     } else {
       this.loadVehicleOptions();
+      this.loadSummary();
     }
+  }
+
+  // ------------------------------------------------------------------ dados
+
+  /** Carrega os numeros do topo. Falha vira "—" nos tiles, nunca um zero. */
+  protected loadSummary(): void {
+    this.summaryState.set('loading');
+    this.service.summary().subscribe({
+      next: (summary) => {
+        this.summary.set(summary);
+        this.summaryState.set('ready');
+      },
+      error: (err: unknown) => {
+        this.apiErrors.claim(err);
+        this.summary.set(null);
+        this.summaryState.set('error');
+      },
+    });
   }
 
   /**
    * Carrega TODOS os veiculos do seletor, uma pagina por vez.
    *
-   * Cada pagina entra no seletor assim que chega; uma falha no meio mantem o que ja
-   * veio. O seletor e conveniencia: sem ele a tela ainda filtra por locacao e data.
+   * Cada pagina entra no seletor assim que chega; uma falha no meio mantem o que ja veio.
+   * O seletor e conveniencia: sem ele o dialogo de agendamento ainda agenda a frota inteira.
    */
   private loadVehicleOptions(): void {
     const toOptions = (items: VehicleListItem[]) =>
@@ -378,82 +333,72 @@ export class InspectionsList implements OnInit {
     });
   }
 
-  protected onVehicleChange(value: string): void {
-    this.vehicleId.set(value);
-    this.reload(0);
-  }
-
-  protected onRentalChange(value: string): void {
-    this.rentalId.set(value);
-    this.reload(0);
-  }
-
-  protected onKindChange(value: InspectionKind | 'ALL'): void {
-    this.kind.set(value);
-    this.reload(0);
-  }
-
-  protected onStatusChange(value: InspectionStatus | 'ALL'): void {
-    this.status.set(value);
-    this.reviewingId.set(null);
-    this.reload(0);
-  }
-
-  protected statusLabel(value: InspectionStatus): string {
-    return STATUS_LABELS[value] ?? value;
-  }
-
-  /**
-   * So faz sentido revisar o que foi ENVIADO e ainda nao foi decidido — e so para quem
-   * decide. O motorista nao aprova nem recusa: o servidor nega, e a tela nem oferece.
-   */
-  protected awaitingReview(item: InspectionListItem): boolean {
-    return !this.isDriver && item.status === 'SUBMITTED';
-  }
-
-  /**
-   * O que a linha oferece para ABRIR a vistoria na tela de captura — a unica porta para
-   * continuar uma em andamento e para ver o motivo de uma recusa.
-   */
-  protected openLabel(item: InspectionListItem): string {
-    switch (item.status) {
-      case 'PENDING':
-        return 'Continuar vistoria';
-      case 'REJECTED':
-        return 'Ver recusa e refazer';
-      default:
-        return 'Ver fotos';
-    }
-  }
-
-  protected toggleReview(id: string): void {
-    this.reviewingId.update((current) => (current === id ? null : id));
-  }
-
-  /**
-   * Decidida: a linha mudou de estado no servidor, entao a lista recarrega em
-   * vez de a tela remendar o item em memoria — o status novo vem de quem manda.
-   */
-  protected onDecided(_result: InspectionReviewResult): void {
-    this.reviewingId.set(null);
+  /** Recarrega lista e tiles — o "Tentar novamente" do erro de carregamento. */
+  protected retry(): void {
     this.reload(this.page());
+    if (!this.isDriver) this.loadSummary();
   }
 
-  protected onRangeChange(range: DateRange | null): void {
-    this.range.set(range);
+  private reload(page: number): void {
+    this.appliedQuery = this.normalizedQuery();
+    const kind = this.kind();
+    const status = this.status();
+    this.service
+      .list({
+        page,
+        kind: kind === 'ALL' ? null : kind,
+        status: status === 'ALL' ? null : status,
+        q: this.appliedQuery || null,
+        sort: this.sort(),
+      })
+      // O servico ja grava a falha no signal `error` (banner inline) — reivindica o erro
+      // para a rede de seguranca nao disparar toast duplo.
+      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+  }
+
+  // ---------------------------------------------------------------- eventos
+
+  /** A busca como vai para o servidor: aparada e no limite que ele aceita. */
+  private normalizedQuery(): string {
+    return this.query().trim().slice(0, INSPECTION_SEARCH_MAX_LENGTH);
+  }
+
+  protected onSearchInput(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+    this.searchTyped.next();
+  }
+
+  /** Enter (ou o "x" do campo de busca): busca ja, sem esperar o debounce. */
+  protected submitSearch(): void {
+    this.applySearch();
+  }
+
+  private applySearch(): void {
+    if (this.normalizedQuery() === this.appliedQuery) return;
     this.reload(0);
   }
 
-  /** Limpa TODOS os filtros de uma vez — a saída do estado vazio filtrado. */
+  protected onStatusChange(event: Event): void {
+    this.status.set((event.target as HTMLSelectElement).value as InspectionStatus | 'ALL');
+    this.reload(0);
+  }
+
+  protected onKindChange(event: Event): void {
+    this.kind.set((event.target as HTMLSelectElement).value as InspectionKind | 'ALL');
+    this.reload(0);
+  }
+
+  protected onSortChange(event: Event): void {
+    this.sort.set((event.target as HTMLSelectElement).value as InspectionSort);
+    this.reload(0);
+  }
+
+  /** Zera TUDO — busca, situacao, tipo e ordenacao — e volta a primeira pagina. */
   protected clearFilters(): void {
-    this.vehicleId.set('');
-    this.rentalId.set('');
-    this.kind.set('ALL');
-    // A situacao tambem e filtro: o contador e o vazio filtrado a contam. Limpar tudo
-    // menos ela deixava "Limpar filtros" recarregando com o mesmo filtro escondido.
+    this.query.set('');
     this.status.set('ALL');
-    this.range.set(null);
-    this.reviewingId.set(null);
+    this.kind.set('ALL');
+    this.sort.set('date,desc');
     this.reload(0);
   }
 
@@ -465,46 +410,87 @@ export class InspectionsList implements OnInit {
     if (this.hasNext()) this.reload(this.page() + 1);
   }
 
-  protected kindLabel(kind: InspectionKind): string {
-    return KIND_LABEL[kind] ?? kind;
+  // ---------------------------------------------------------- cartao / porta
+
+  /**
+   * O que o botao do cartao diz e para onde leva.
+   *
+   * O dono ve "Revisar vistoria" so no que espera decisao; o resto e "Ver detalhes". O
+   * MOTORISTA nao decide: para ele o que importa e CONTINUAR a que esta em andamento e LER o
+   * motivo de uma recusa para refazer — as duas moram na tela de captura, nao no detalhe.
+   */
+  protected action(card: InspectionCardView): { label: string; link: string[] } {
+    const detail = ['/vistorias', card.id];
+    if (this.isDriver) {
+      if (card.status === 'PENDING') {
+        return { label: 'Continuar vistoria', link: [...detail, 'captura'] };
+      }
+      if (card.status === 'REJECTED') {
+        return { label: 'Ver recusa e refazer', link: [...detail, 'captura'] };
+      }
+      return { label: 'Ver detalhes', link: detail };
+    }
+    return {
+      label: card.status === 'SUBMITTED' ? 'Revisar vistoria' : 'Ver detalhes',
+      link: detail,
+    };
   }
 
-  protected formatDate(iso: string | null): string {
-    if (!iso) return '—';
-    return new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('pt-BR');
+  protected chipClass(status: InspectionStatus): string {
+    return INSPECTION_STATUS_META[status]?.chip ?? 'bg-neutral-100 text-neutral-700';
+  }
+
+  protected statusLabel(status: InspectionStatus): string {
+    return INSPECTION_STATUS_META[status]?.label ?? status;
+  }
+
+  /** A foto da frente que NAO carregou (URL assinada vencida): cai no placeholder. */
+  protected readonly brokenPhotos = signal<ReadonlySet<string>>(new Set());
+
+  protected photoFor(card: InspectionCardView): string | null {
+    return this.brokenPhotos().has(card.id) ? null : card.frontPhotoUrl;
+  }
+
+  protected onPhotoError(id: string): void {
+    this.brokenPhotos.update((current) => new Set(current).add(id));
+  }
+
+  protected toggleStart(): void {
+    this.startError.set(null);
+    this.startOpen.update((open) => !open);
+  }
+
+  protected onStartVehicleChange(event: Event): void {
+    this.startVehicleId.set((event.target as HTMLSelectElement).value);
+    this.startError.set(null);
   }
 
   /**
-   * Placa · marca modelo. Cada parte e opcional (uma resposta antiga nao as manda), e a
-   * linha nunca fica em branco: sem nenhuma, diz que o carro nao foi identificado em vez
-   * de desenhar um titulo vazio.
+   * Abre a captura COM o carro escolhido. A captura exige `?vehicleId=`: sem ele ela so
+   * sabe dizer que falta um carro — porta que existe e nao abre.
    */
-  protected vehicleLabel(item: InspectionListItem): string {
-    const car = [item.vehicleBrand, item.vehicleModel].filter(Boolean).join(' ');
-    return [item.vehiclePlate, car].filter(Boolean).join(' · ') || 'Veículo não identificado';
+  protected startInspection(): void {
+    this.openCapture(this.startVehicleId());
   }
 
-  /** "14 foto(s)", ou `null` quando o servidor nao mandou a contagem — nunca "undefined". */
-  protected photoCountLabel(item: InspectionListItem): string | null {
-    return typeof item.photoCount === 'number' ? `${item.photoCount} foto(s)` : null;
+  /** O MOTORISTA nao escolhe carro: o botao dele ja nomeia o do aluguel ativo. */
+  protected startDriverInspection(vehicleId: string): void {
+    this.openCapture(vehicleId);
   }
 
-  private reload(page: number): void {
-    const range = this.range();
-    const kind = this.kind();
-    const status = this.status();
-    this.service
-      .list({
-        page,
-        vehicleId: this.vehicleId() || null,
-        rentalId: this.rentalId().trim() || null,
-        kind: kind === 'ALL' ? null : kind,
-        status: status === 'ALL' ? null : status,
-        from: range?.from ?? null,
-        to: range?.to ?? null,
+  private openCapture(vehicleId: string): void {
+    if (!vehicleId) {
+      this.startError.set('Escolha o carro que você vai vistoriar.');
+      return;
+    }
+
+    // A promessa NAO e descartada: guard que recusa deixaria a pessoa olhando uma tela que
+    // nao mudou, sem nada a fazer.
+    this.router
+      .navigate(['/vistorias', 'nova'], { queryParams: { vehicleId } })
+      .then((ok) => {
+        if (!ok) this.startError.set('Não foi possível abrir a tela de vistoria.');
       })
-      // O serviço já grava a falha no signal `error` (banner inline) —
-      // reivindica o erro para a rede de segurança não disparar toast duplo.
-      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+      .catch(() => this.startError.set('Não foi possível abrir a tela de vistoria.'));
   }
 }

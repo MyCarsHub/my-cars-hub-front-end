@@ -5,6 +5,7 @@ import {
   DestroyRef,
   ElementRef,
   PLATFORM_ID,
+  computed,
   effect,
   inject,
   input,
@@ -38,7 +39,8 @@ let nextSheetId = 0;
   template: `
     @if (open()) {
       <div
-        class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+        class="fixed inset-0 z-40 backdrop-blur-sm"
+        [class]="scrimClass()"
         (click)="closed.emit()"
         aria-hidden="true"
       ></div>
@@ -53,8 +55,9 @@ let nextSheetId = 0;
           #panel
           tabindex="-1"
           class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full
-                 sm:max-w-md max-h-[calc(100dvh-1.5rem)] flex flex-col pointer-events-auto
+                 max-h-[calc(100dvh-1.5rem)] flex flex-col pointer-events-auto
                  overflow-hidden focus:outline-none"
+          [class]="widthClass()"
         >
           <div class="flex items-start gap-2 p-4 pb-3">
             @if (showBack()) {
@@ -114,6 +117,29 @@ export class MembersSheet {
   readonly title = input.required<string>();
   readonly subtitle = input('');
   readonly showBack = input(false);
+  /**
+   * Largura da folha a partir de `sm`: `md` (448px, a das folhas de membros), `lg` (520px,
+   * o dialogo de agendamento de vistorias) e `xl` (560px, o visualizador de fotos). Abaixo
+   * de `sm` a folha e sempre a largura toda.
+   */
+  readonly size = input<'md' | 'lg' | 'xl'>('md');
+  /** `strong` escurece mais o fundo — o visualizador de foto, que quer a imagem em foco. */
+  readonly scrim = input<'default' | 'strong'>('default');
+
+  /* Whole class strings: Tailwind finds a utility by scanning the source for it. */
+  protected readonly widthClass = computed(() => {
+    switch (this.size()) {
+      case 'xl':
+        return 'sm:max-w-[560px]';
+      case 'lg':
+        return 'sm:max-w-[520px]';
+      default:
+        return 'sm:max-w-md';
+    }
+  });
+  protected readonly scrimClass = computed(() =>
+    this.scrim() === 'strong' ? 'bg-black/70' : 'bg-black/40',
+  );
 
   /** Backdrop, close button and Escape. */
   readonly closed = output<void>();

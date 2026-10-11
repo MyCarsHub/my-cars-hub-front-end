@@ -1,27 +1,29 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { By } from '@angular/platform-browser';
-import { of, throwError } from 'rxjs';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InspectionsList } from './inspections-list';
-import { DateRangePicker } from '../../components/date-range-picker/date-range-picker';
+import { InspectionsList, SEARCH_DEBOUNCE_MS } from './inspections-list';
 import { InspectionsService } from '../../services/inspections.service';
+import { InspectionScheduleService } from '../../services/inspection-schedule.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { RentalService } from '../rentals/rental.service';
-import type { InspectionListItem } from '../../types/inspection.types';
+import type { InspectionListItem, InspectionSummary } from '../../types/inspection.types';
 import type { RentalListItemDto } from '../../types/rental.types';
 
 /**
- * `/vistorias` — a pagina que tira a vistoria de dentro do aluguel.
+ * `/vistorias` — a lista em cards, no desenho do handoff de vistorias v2.
  *
- * `GET /v1/inspections` ja existe (V82), mas com contrato mais estreito que o
- * que esta tela manda — ver o javadoc de `services/inspections.service.ts`. Os
- * testes aqui afirmam o comportamento da TELA (filtros combinados, estados
- * vazios, caminho para o aluguel), nao o formato do backend.
+ * Os testes afirmam o comportamento da TELA — os numeros do topo, os filtros que viajam na
+ * consulta, o cartao, os quatro estados e o recorte do motorista —, nao o formato do backend:
+ * esse tem o proprio spec em `services/inspections.service.spec.ts`.
+ *
+ * A acao parte do ELEMENTO renderizado (select, campo, botao), nao de um metodo do componente:
+ * apagar um controle do template tem de derrubar o teste.
  */
 describe('InspectionsList', () => {
   const item: InspectionListItem = {
@@ -33,17 +35,23 @@ describe('InspectionsList', () => {
     vehicleModel: 'Argo',
     driverName: 'Fulano de Tal',
     kind: 'CHECKIN',
-    performedAt: '2026-09-10T12:00:00Z',
+    performedAt: '2026-09-10T12:00:00',
     status: 'APPROVED',
     photoCount: 14,
   };
 
+  const SUMMARY: InspectionSummary = { submitted: 2, pending: 1, approved: 5, rejected: 3 };
+
   let items: ReturnType<typeof signal<InspectionListItem[]>>;
   let total: ReturnType<typeof signal<number>>;
   let error: ReturnType<typeof signal<string | null>>;
+  let loading: ReturnType<typeof signal<boolean>>;
+  let page: ReturnType<typeof signal<number>>;
   let listSpy: ReturnType<typeof vi.fn>;
+  let summarySpy: ReturnType<typeof vi.fn>;
   let vehiclesList: ReturnType<typeof vi.fn>;
   let rentalsList: ReturnType<typeof vi.fn>;
+  let scheduleList: ReturnType<typeof vi.fn>;
 
   /** O token com o papel — a mesma fonte que o `roleGuard` e a tela leem. */
   function signInAs(role: string): void {
@@ -55,30 +63,31 @@ describe('InspectionsList', () => {
     sessionStorage.setItem('token', `header.${b64}.signature`);
   }
 
-  interface Internals {
-    onVehicleChange: (v: string) => void;
-    onRentalChange: (v: string) => void;
-    onKindChange: (v: 'CHECKIN' | 'CHECKOUT' | 'FLEET' | 'ALL') => void;
-    onStatusChange: (v: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'ALL') => void;
-    onRangeChange: (r: { from: string; to: string } | null) => void;
-    clearFilters: () => void;
-  }
-
   function configure(): void {
     TestBed.resetTestingModule();
     items = signal<InspectionListItem[]>([]);
     total = signal(0);
     error = signal<string | null>(null);
+    loading = signal(false);
+    page = signal(0);
     listSpy = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+    summarySpy = vi.fn().mockReturnValue(of(SUMMARY));
     vehiclesList = vi.fn().mockReturnValue(
-      of({ content: [{ id: 'veh-1', plate: 'ABC1D23', model: 'Argo' }], page: 0, size: 100, total: 1 }),
+      of({
+        content: [{ id: 'veh-1', plate: 'ABC1D23', model: 'Argo' }],
+        page: 0,
+        size: 100,
+        total: 1,
+      }),
     );
     rentalsList = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+    scheduleList = vi.fn().mockReturnValue(of([]));
 
     TestBed.configureTestingModule({
       imports: [InspectionsList],
       providers: [
         provideRouter([]),
+        provideNoopAnimations(),
         ApiErrorService,
         {
           provide: InspectionsService,
@@ -86,387 +95,707 @@ describe('InspectionsList', () => {
             items,
             total,
             error,
-            page: signal(0),
+            page,
             size: signal(20),
-            loading: signal(false),
+            loading,
             list: listSpy,
-            // O filho `app-inspection-review` e renderizado DE VERDADE quando a
-            // linha abre, entao o duble precisa do contrato dele tambem.
-            photos: vi.fn().mockReturnValue(of([])),
-            approve: vi.fn(),
-            reject: vi.fn(),
+            summary: summarySpy,
           },
         },
+        { provide: InspectionScheduleService, useValue: { listForCompany: scheduleList } },
         { provide: VehiclesService, useValue: { list: vehiclesList } },
         { provide: RentalService, useValue: { list: rentalsList } },
       ],
     });
   }
 
-  /** O botao de abrir/fechar DO CARTAO DE FILTROS, achado pelo titulo do cartao. */
-  /**
-   * O GATILHO EXATO, por `data-testid`.
-   *
-   * Procurar `button[aria-expanded]` dentro do cartao que contem a palavra
-   * "Filtros" parou de funcionar quando a tela virou UM cartao so: o primeiro
-   * botao com `aria-expanded` passou a ser "Fazer vistoria", entao o helper
-   * abria o seletor de carro e o painel de filtros continuava fechado — e o
-   * teste acusava o template em vez do proprio seletor. Mesmo hook que
-   * `vehicles-list` usa.
-   */
-  function filtersToggle(fixture: ReturnType<typeof render>): HTMLButtonElement | null {
-    return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
-      '[data-testid="filters-toggle"]',
-    );
-  }
-
-  /**
-   * Os filtros passaram a nascer FECHADOS (lista antes, filtro depois), entao os controles
-   * nao estao no DOM na primeira pintura. `render()` abre o painel por padrao, porque e isso
-   * que a maioria dos casos abaixo precisa; quem quer medir o estado INICIAL passa
-   * `{ openFilters: false }`.
-   */
-  function render({ openFilters = true }: { openFilters?: boolean } = {}) {
+  function render() {
     const fixture = TestBed.createComponent(InspectionsList);
     fixture.detectChanges();
-    if (openFilters) {
-      // ESCOPADO ao cartao de Filtros. Um seletor global de `button[aria-expanded]` pega o
-      // botao "Revisar e decidir" DA LINHA, que tambem usa `aria-expanded` — e abria uma
-      // revisao em vez do painel de filtros, derrubando um caso que nada tinha com isso.
-      filtersToggle(fixture)?.click();
-      fixture.detectChanges();
-    }
     return fixture;
   }
 
+  const host = (fixture: ReturnType<typeof render>) => fixture.nativeElement as HTMLElement;
+
   function text(fixture: ReturnType<typeof render>): string {
-    return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+    return (host(fixture).textContent ?? '').replace(/\s+/g, ' ');
   }
 
-  function internals(fixture: ReturnType<typeof render>): Internals {
-    return fixture.componentInstance as unknown as Internals;
-  }
-
-  /** Os parametros da ULTIMA chamada ao service. */
+  /** Os parametros da ULTIMA chamada a lista. */
   function lastQuery(): Record<string, unknown> {
     return listSpy.mock.calls[listSpy.mock.calls.length - 1][0] as Record<string, unknown>;
   }
 
+  function pick(fixture: ReturnType<typeof render>, selector: string, value: string): void {
+    const select = host(fixture).querySelector<HTMLSelectElement>(selector)!;
+    expect(select, `controle ${selector} nao esta na tela`).not.toBeNull();
+    // CONTROLE POSITIVO: sem a opcao no DOM, atribuir o value nao pega e o teste passaria a vazio.
+    expect(Array.from(select.options).map((o) => o.value)).toContain(value);
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  }
+
+  function type(fixture: ReturnType<typeof render>, value: string): HTMLInputElement {
+    const input = host(fixture).querySelector<HTMLInputElement>('[data-search]')!;
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    return input;
+  }
+
+  const cards = (fixture: ReturnType<typeof render>) =>
+    Array.from(host(fixture).querySelectorAll<HTMLElement>('[data-inspection-card]'));
+
   beforeEach(() => {
-    // `storageKey` do cartao de Filtros persiste aberto/fechado na sessao. O setup global
-    // limpa no inicio do ARQUIVO, nao a cada caso, entao sem esta linha o primeiro caso que
-    // abre o painel deixa os seguintes abertos: suite dependente de ORDEM.
     sessionStorage.clear();
+    signInAs('OWNER');
     configure();
   });
 
-  it('carrega as vistorias ao abrir, sem filtro nenhum', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // ============================================================ carga e estrutura
+
+  it('carrega a primeira pagina ao abrir, sem filtro e do mais recente para o mais antigo', () => {
     render();
 
     expect(listSpy).toHaveBeenCalledTimes(1);
-    expect(lastQuery()).toMatchObject({ page: 0, vehicleId: null, rentalId: null, kind: null });
-  });
-
-  /**
-   * O PEDIDO DO DONO: os tres filtros valem AO MESMO TEMPO. Este teste aplica
-   * os tres e afirma que a consulta leva os tres juntos — um filtro que zera o
-   * anterior seria pior que nao ter filtro.
-   */
-  it('combina veiculo, locacao, tipo e periodo na mesma consulta', () => {
-    const fixture = render();
-    const api = internals(fixture);
-
-    api.onVehicleChange('veh-1');
-    api.onRentalChange('LOC-0001');
-    api.onKindChange('CHECKOUT');
-    api.onRangeChange({ from: '2026-09-01', to: '2026-09-30' });
-    fixture.detectChanges();
-
-    expect(lastQuery()).toMatchObject({
-      vehicleId: 'veh-1',
-      rentalId: 'LOC-0001',
-      kind: 'CHECKOUT',
-      from: '2026-09-01',
-      to: '2026-09-30',
+    expect(lastQuery()).toEqual({
+      page: 0,
+      kind: null,
+      status: null,
+      q: null,
+      sort: 'date,desc',
     });
   });
 
-  it('volta para a primeira pagina a cada troca de filtro', () => {
+  it('a ordem da pagina e: tiles, vistorias automaticas, lista', () => {
     const fixture = render();
-    internals(fixture).onKindChange('CHECKIN');
+    const html = host(fixture).innerHTML;
 
-    expect(lastQuery()).toMatchObject({ page: 0 });
+    const tiles = html.indexOf('data-kpi="submitted"');
+    const schedule = html.indexOf('data-schedule-card');
+    const list = html.indexOf('data-search');
+
+    expect(tiles).toBeGreaterThan(-1);
+    expect(schedule).toBeGreaterThan(tiles);
+    expect(list).toBeGreaterThan(schedule);
   });
 
-  /**
-   * OS DOIS ESTADOS VAZIOS, que e o ponto do card: "nenhuma com estes filtros"
-   * e "nenhuma ainda" sao coisas diferentes. A primeira se resolve limpando o
-   * filtro; a segunda, fazendo uma vistoria. Mesma frase para as duas manda o
-   * usuario procurar o problema no lugar errado.
-   */
-  /**
-   * O ESTADO INICIAL MUDOU DE NATUREZA. Enquanto `rentalId` era obrigatorio no
-   * servidor, abrir a pagina sem filtro so podia dar 400 — o caso de sucesso
-   * sem filtro nao existia para ser testado. Com os cinco parametros opcionais
-   * (backend PR #207), o ramo sem filtro passa a listar para dono e gerente, e
-   * este e o caminho por onde TODO usuario entra na tela.
-   *
-   * Os dois testes de vazio abaixo continuam valendo e continuam distintos —
-   * eles dependem de haver filtro, nao do contrato — mas nenhum deles prova que
-   * a lista aparece. Sem este caso, uma tela que nunca renderizasse resultado
-   * algum passaria em todos: os dois vazios e o de query afirmam ausencia.
-   */
-  it('sem filtro nenhum e com resultado, mostra a lista', () => {
-    // Semeado ANTES do render: e assim que a tela abre em producao com o
-    // contrato novo — a resposta chega e a lista ja nasce preenchida.
-    items.set([item]);
-    total.set(1);
-    const fixture = render();
+  // ================================================================== OS TILES
 
-    expect(text(fixture)).toContain(item.vehiclePlate);
-    expect(text(fixture)).not.toContain('Nenhuma vistoria registrada ainda');
-    expect(text(fixture)).not.toContain('com estes filtros');
-    expect(lastQuery()).toMatchObject({ vehicleId: null, rentalId: null, kind: null });
-  });
+  describe('tiles do topo', () => {
+    const tile = (fixture: ReturnType<typeof render>, key: string) =>
+      host(fixture).querySelector<HTMLElement>(`[data-kpi="${key}"]`)!;
 
-  it('sem vistoria nenhuma e sem filtro, diz que ainda nao ha vistorias', () => {
-    const fixture = render();
-
-    expect(text(fixture)).toContain('Nenhuma vistoria registrada ainda');
-    expect(text(fixture)).not.toContain('com estes filtros');
-  });
-
-  it('sem resultado MAS com filtro, diz que o filtro nao achou nada', () => {
-    const fixture = render();
-    internals(fixture).onVehicleChange('veh-1');
-    fixture.detectChanges();
-
-    expect(text(fixture)).toContain('Nenhuma vistoria encontrada com estes filtros');
-    expect(text(fixture)).not.toContain('registrada ainda');
-  });
-
-  it('oferece limpar os filtros no vazio filtrado, e limpar recarrega sem eles', () => {
-    const fixture = render();
-    internals(fixture).onVehicleChange('veh-1');
-    fixture.detectChanges();
-
-    // Busca pelo TEXTO: o primeiro <button> da pagina e um chip de filtro, nao
-    // o botao de limpar.
-    const button = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
-    ).find((b) => b.textContent?.trim() === 'Limpar filtros');
-    expect(button, 'botao de limpar filtros nao encontrado').toBeDefined();
-
-    internals(fixture).clearFilters();
-    expect(lastQuery()).toMatchObject({ vehicleId: null, rentalId: null, kind: null, from: null });
-  });
-
-  /**
-   * NAO HA COLUNA DE DOCUMENTO nesta tela, e a ausencia e o contrato: nao existe
-   * tabela de documento de vistoria e o laudo e funcionalidade por construir
-   * (ver `types/inspection.types.ts`). O que a linha oferece e o caminho para o
-   * aluguel, que e onde a vistoria vive hoje.
-   */
-  it('a vistoria de um aluguel leva ao aluguel', () => {
-    items.set([item]);
-    total.set(1);
-    const fixture = render();
-
-    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
-      `a[href="/alugueis/${item.rentalId}"]`,
-    );
-    expect(link, 'link para o aluguel nao encontrado').not.toBeNull();
-    expect(text(fixture)).toContain('Ver no aluguel');
-  });
-
-  /**
-   * Nem link de PDF nem a legenda "PDF ainda nao gerado". A legenda era a metade
-   * pior: prometia um pipeline que ninguem escreveu, e um estado de espera
-   * permanente ensina o usuario a ignorar a coluna.
-   */
-  it('nao oferece PDF nem promete PDF futuro', () => {
-    items.set([item]);
-    total.set(1);
-    const fixture = render();
-
-    expect((fixture.nativeElement as HTMLElement).querySelector('a[target="_blank"]')).toBeNull();
-    expect(text(fixture)).not.toContain('PDF');
-    // CONTROLE POSITIVO: as duas afirmacoes acima sao de AUSENCIA e passariam a
-    // vazio numa tela que nao renderizasse linha nenhuma.
-    expect(text(fixture)).toContain(item.vehiclePlate);
-  });
-
-  /**
-   * FLEET e vistoria de FROTA, sem aluguel — tipo que so existe depois do
-   * PR #190 e nao tem equivalente no fluxo antigo, preso a locacao.
-   */
-  it('oferece o tipo Frota no filtro, alem de entrada e saida', () => {
-    const fixture = render();
-    // Escopado ao grupo de TIPO: a pagina tem outro grupo de chips (o seletor
-    // de periodo), e um seletor solto por [role=radio] pegaria os dois.
-    const chips = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll(
-        '[aria-labelledby="insp-kind-label"] [role="radio"]',
-      ),
-    ).map((c) => c.textContent?.trim());
-
-    expect(chips).toEqual(['Todas', 'Entrada', 'Saída', 'Frota']);
-  });
-
-  it('filtra por Frota', () => {
-    const fixture = render();
-    internals(fixture).onKindChange('FLEET');
-
-    expect(lastQuery()).toMatchObject({ kind: 'FLEET' });
-  });
-
-  /**
-   * `rentalId` nulo E o significado de FLEET, nao dado faltando: nao ha aluguel
-   * para onde mandar o usuario, entao a linha nao pode oferecer "ver no
-   * aluguel" — seria link para lugar nenhum.
-   */
-  it('vistoria de frota nao oferece link para aluguel', () => {
-    items.set([{ ...item, kind: 'FLEET', rentalId: null }]);
-    total.set(1);
-    const fixture = render();
-
-    const body = text(fixture);
-    expect(body).not.toContain('Ver no aluguel');
-    // CONTROLE POSITIVO: a linha precisa existir, senao uma grade vazia passaria.
-    expect(body).toContain(item.vehiclePlate);
-  });
-
-  it('mostra o erro inline quando a listagem falha', () => {
-    listSpy.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
-    error.set('Não foi possível carregar as vistorias.');
-    const fixture = render();
-
-    expect(fixture.nativeElement.querySelector('app-alert-banner')).not.toBeNull();
-  });
-
-  /**
-   * Item de grade nasce com `min-width:auto` e NAO encolhe abaixo do conteudo:
-   * sem `min-w-0` uma placa longa empurra a grade e a pagina rola para o lado
-   * no celular. Foi assim que o dashboard quebrou hoje.
-   */
-  it('todo item de grade dos filtros tem min-w-0', () => {
-    const fixture = render();
-    const grid = (fixture.nativeElement as HTMLElement).querySelector('.grid');
-    const children = Array.from(grid?.children ?? []);
-
-    expect(children.length).toBeGreaterThan(0);
-    for (const child of children) {
-      expect(child.className, `item de grade sem min-w-0: ${child.className}`).toContain('min-w-0');
-    }
-  });
-
-  /**
-   * OS CONTROLES, PELO DOM.
-   *
-   * Os casos acima chamam `internals().onVehicleChange(...)` e companhia, que e
-   * a API do COMPONENTE. Isso prova que o componente filtra; nao prova que o
-   * usuario consegue filtrar — apagar os tres controles do template deixaria
-   * todos eles verdes. Aqui a acao parte do elemento renderizado, entao sumir
-   * com o controle derruba o teste.
-   *
-   * Os chips de tipo ja estavam presos assim; faltavam veiculo, locacao e
-   * periodo.
-   */
-  describe('os controles renderizados alimentam a consulta', () => {
-    it('o select de veiculo filtra', () => {
+    it('mostram a contagem de GET /inspections/summary, na ordem e com as legendas do desenho', () => {
       const fixture = render();
-      const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
-        '#insp-vehicle',
-      )!;
 
-      // CONTROLE POSITIVO: sem a opcao no DOM, atribuir o value nao pega e o
-      // teste passaria a vazio. Exigir a opcao antes fecha essa porta.
-      expect(Array.from(select.options).map((o) => o.value)).toContain('veh-1');
+      expect(summarySpy).toHaveBeenCalledTimes(1);
+      const keys = Array.from(host(fixture).querySelectorAll('[data-kpi]')).map((el) =>
+        el.getAttribute('data-kpi'),
+      );
+      expect(keys).toEqual(['submitted', 'pending', 'approved', 'rejected']);
 
-      select.value = 'veh-1';
-      select.dispatchEvent(new Event('change'));
-      fixture.detectChanges();
-
-      expect(lastQuery()).toMatchObject({ vehicleId: 'veh-1' });
+      // Um `<p>` por linha do tile (rotulo, numero, legenda): junta com espaco para ler como frase.
+      const read = (key: string) =>
+        Array.from(tile(fixture, key).querySelectorAll('p'))
+          .map((p) => (p.textContent ?? '').trim())
+          .join(' ');
+      expect(read('submitted')).toBe('Aguardando aprovação 2 precisam da sua decisão');
+      expect(read('pending')).toBe('Em andamento 1 fotos sendo tiradas');
+      expect(read('approved')).toBe('Aprovadas 5 laudo em PDF disponível');
+      expect(read('rejected')).toBe('Recusadas 3 aguardam nova vistoria');
     });
 
-    it('o campo de locacao filtra', () => {
+    it('usam as quatro aparencias do desenho: laranja, verde escuro, verde e branco', () => {
       const fixture = render();
-      const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
-        '#insp-rental',
-      )!;
 
-      input.value = 'LOC-0001';
-      input.dispatchEvent(new Event('change'));
-      fixture.detectChanges();
-
-      expect(lastQuery()).toMatchObject({ rentalId: 'LOC-0001' });
+      expect(tile(fixture, 'submitted').className).toContain('bg-primary-500');
+      expect(tile(fixture, 'pending').className).toContain('bg-emerald-700');
+      expect(tile(fixture, 'approved').className).toContain('bg-emerald-600');
+      expect(tile(fixture, 'rejected').className).toContain('bg-white');
+      expect(tile(fixture, 'rejected').className).toContain('border');
     });
 
     /**
-     * O periodo vem de `app-date-range-picker`, reaproveitado do dashboard.
-     * Dirigir a data pelos inputs DELE amarraria esta tela ao desenho interno
-     * de outro componente; o que esta tela precisa provar e que o seletor esta
-     * MONTADO e que a saida dele esta ligada. Tirar o elemento do template faz
-     * a consulta abaixo devolver null e o teste cai.
+     * As colunas seguem a LARGURA DA AREA DE CONTEUDO (container query), nao a da janela: com a
+     * barra lateral aberta, uma janela de 1100px deixa ~840px para a pagina — e `lg:` a
+     * trataria como larga. 820px de container = os 900px de `main` do desenho.
      */
-    it('o seletor de periodo filtra', () => {
+    it('sao 2 colunas no celular e 4 quando a area de conteudo e larga', () => {
       const fixture = render();
-      const picker = fixture.debugElement.query(By.directive(DateRangePicker));
+      const grid = tile(fixture, 'submitted').parentElement!;
 
-      expect(picker).not.toBeNull();
-      picker.componentInstance.rangeChange.emit({ from: '2026-09-01', to: '2026-09-30' });
-      fixture.detectChanges();
-
-      expect(lastQuery()).toMatchObject({ from: '2026-09-01', to: '2026-09-30' });
+      expect(grid.className).toContain('grid-cols-2');
+      expect(grid.className).toContain('@min-[820px]:grid-cols-4');
+      expect(grid.closest('[class*="@container"]')).not.toBeNull();
     });
 
-    it('os tres, pelo DOM, valem ao mesmo tempo', () => {
+    it('os numeros sao da EMPRESA: filtrar a lista nao os relê nem os muda', () => {
       const fixture = render();
-      const host = fixture.nativeElement as HTMLElement;
+      pick(fixture, '[data-filter-status]', 'REJECTED');
+      pick(fixture, '[data-filter-kind]', 'CHECKOUT');
 
-      const select = host.querySelector<HTMLSelectElement>('#insp-vehicle')!;
-      select.value = 'veh-1';
-      select.dispatchEvent(new Event('change'));
+      expect(summarySpy).toHaveBeenCalledTimes(1);
+      expect(summarySpy).toHaveBeenCalledWith();
+    });
 
-      const input = host.querySelector<HTMLInputElement>('#insp-rental')!;
-      input.value = 'LOC-0001';
-      input.dispatchEvent(new Event('change'));
+    it('enquanto carregam mostram a barra, nao um numero', () => {
+      summarySpy.mockReturnValue(new Subject<InspectionSummary>());
+      const fixture = render();
 
-      fixture.debugElement
-        .query(By.directive(DateRangePicker))
-        .componentInstance.rangeChange.emit({ from: '2026-09-01', to: '2026-09-30' });
+      expect(tile(fixture, 'submitted').querySelector('.animate-pulse')).not.toBeNull();
+      expect(tile(fixture, 'submitted').textContent).not.toMatch(/\d/);
+    });
+
+    /**
+     * Zero inventado diria "nada a decidir" justamente quando a tela nao sabe. O tile fica em
+     * "—" e a lista segue funcionando.
+     */
+    it('se o resumo falha, mostram "—" e nunca um zero', () => {
+      summarySpy.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      items.set([item]);
+      total.set(1);
+      const fixture = render();
+
+      for (const key of ['submitted', 'pending', 'approved', 'rejected']) {
+        const label = (tile(fixture, key).textContent ?? '').replace(/\s+/g, ' ');
+        expect(label, `tile ${key}`).toContain('—');
+        expect(label, `tile ${key}`).not.toMatch(/\b0\b/);
+      }
+      // CONTROLE POSITIVO: a falha do resumo nao derrubou a lista.
+      expect(cards(fixture).length).toBe(1);
+    });
+
+    it('"Tentar novamente" do erro da lista relê tambem os numeros', () => {
+      error.set('Não foi possível carregar as vistorias.');
+      const fixture = render();
+
+      host(fixture).querySelector<HTMLButtonElement>('[data-retry-list]')?.click();
+
+      expect(listSpy).toHaveBeenCalledTimes(2);
+      expect(summarySpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ============================================================ filtros e busca
+
+  describe('filtros, busca e ordenacao', () => {
+    it('Situacao, Tipo e Ordenar vao na consulta e voltam para a primeira pagina', () => {
+      total.set(60);
+      page.set(2);
+      const fixture = render();
+
+      pick(fixture, '[data-filter-status]', 'SUBMITTED');
+      expect(lastQuery()).toMatchObject({ status: 'SUBMITTED', page: 0 });
+
+      pick(fixture, '[data-filter-kind]', 'CHECKOUT');
+      expect(lastQuery()).toMatchObject({ status: 'SUBMITTED', kind: 'CHECKOUT', page: 0 });
+
+      pick(fixture, '[data-filter-sort]', 'date,asc');
+      expect(lastQuery()).toMatchObject({
+        status: 'SUBMITTED',
+        kind: 'CHECKOUT',
+        sort: 'date,asc',
+        page: 0,
+      });
+    });
+
+    it('oferece as opcoes do desenho, mais Frota em Tipo', () => {
+      const fixture = render();
+      const labels = (selector: string) =>
+        Array.from(host(fixture).querySelector<HTMLSelectElement>(selector)!.options).map((o) =>
+          o.textContent?.trim(),
+        );
+
+      expect(labels('[data-filter-status]')).toEqual([
+        'Situação: Todas',
+        'Situação: Aguardando aprovação',
+        'Situação: Em andamento',
+        'Situação: Aprovada',
+        'Situação: Recusada',
+      ]);
+      expect(labels('[data-filter-kind]')).toEqual([
+        'Tipo: Todos',
+        'Tipo: Retirada',
+        'Tipo: Devolução',
+        'Tipo: Frota',
+      ]);
+      expect(labels('[data-filter-sort]')).toEqual([
+        'Ordenar: Mais recentes',
+        'Ordenar: Mais antigas',
+      ]);
+    });
+
+    it('"Todas" e "Todos" NAO mandam o parametro — ausente nao e vazio', () => {
+      const fixture = render();
+      pick(fixture, '[data-filter-status]', 'APPROVED');
+      pick(fixture, '[data-filter-status]', 'ALL');
+      pick(fixture, '[data-filter-kind]', 'FLEET');
+      pick(fixture, '[data-filter-kind]', 'ALL');
+
+      expect(lastQuery()).toMatchObject({ status: null, kind: null });
+    });
+
+    it('a busca espera a pessoa parar de digitar e vai como q, aparada', () => {
+      vi.useFakeTimers();
+      const fixture = render();
+      const callsBefore = listSpy.mock.calls.length;
+
+      type(fixture, '  abc');
+      type(fixture, '  abc1d');
+      expect(listSpy).toHaveBeenCalledTimes(callsBefore);
+
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
       fixture.detectChanges();
 
-      expect(lastQuery()).toMatchObject({
-        vehicleId: 'veh-1',
-        rentalId: 'LOC-0001',
-        from: '2026-09-01',
-        to: '2026-09-30',
+      expect(listSpy).toHaveBeenCalledTimes(callsBefore + 1);
+      expect(lastQuery()).toMatchObject({ q: 'abc1d', page: 0 });
+    });
+
+    it('Enter busca na hora e o debounce pendente nao repete a consulta', () => {
+      vi.useFakeTimers();
+      const fixture = render();
+      const callsBefore = listSpy.mock.calls.length;
+
+      const input = type(fixture, 'argo');
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      fixture.detectChanges();
+      expect(lastQuery()).toMatchObject({ q: 'argo' });
+      expect(listSpy).toHaveBeenCalledTimes(callsBefore + 1);
+
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS * 2);
+      expect(listSpy).toHaveBeenCalledTimes(callsBefore + 1);
+    });
+
+    it('o campo limita a busca a 60 caracteres, como o servidor', () => {
+      const fixture = render();
+      const input = host(fixture).querySelector<HTMLInputElement>('[data-search]')!;
+
+      expect(input.getAttribute('maxlength')).toBe('60');
+      expect(input.getAttribute('placeholder')).toBe('Buscar por placa, modelo ou motorista…');
+    });
+
+    it('os quatro valem ao mesmo tempo', () => {
+      const fixture = render();
+      pick(fixture, '[data-filter-status]', 'REJECTED');
+      pick(fixture, '[data-filter-kind]', 'CHECKIN');
+      pick(fixture, '[data-filter-sort]', 'date,asc');
+      const input = type(fixture, 'gol');
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      fixture.detectChanges();
+
+      expect(lastQuery()).toEqual({
+        page: 0,
+        status: 'REJECTED',
+        kind: 'CHECKIN',
+        sort: 'date,asc',
+        q: 'gol',
+      });
+    });
+
+    it('"Limpar filtros" esta SEMPRE na tela, mesmo sem filtro nenhum', () => {
+      const fixture = render();
+
+      const button = host(fixture).querySelector<HTMLButtonElement>('[data-clear-filters]');
+      expect(button).not.toBeNull();
+      expect(button?.textContent?.trim()).toBe('Limpar filtros');
+    });
+
+    it('"Limpar filtros" zera busca, situacao, tipo e ordenacao — na consulta e nos campos', () => {
+      const fixture = render();
+      pick(fixture, '[data-filter-status]', 'REJECTED');
+      pick(fixture, '[data-filter-kind]', 'CHECKIN');
+      pick(fixture, '[data-filter-sort]', 'date,asc');
+      const input = type(fixture, 'gol');
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      fixture.detectChanges();
+      expect(lastQuery()).toMatchObject({ status: 'REJECTED', q: 'gol' });
+
+      host(fixture).querySelector<HTMLButtonElement>('[data-clear-filters]')?.click();
+      fixture.detectChanges();
+
+      expect(lastQuery()).toEqual({
+        page: 0,
+        status: null,
+        kind: null,
+        sort: 'date,desc',
+        q: null,
+      });
+      expect(host(fixture).querySelector<HTMLSelectElement>('[data-filter-status]')?.value).toBe('ALL');
+      expect(host(fixture).querySelector<HTMLSelectElement>('[data-filter-kind]')?.value).toBe('ALL');
+      expect(host(fixture).querySelector<HTMLSelectElement>('[data-filter-sort]')?.value).toBe(
+        'date,desc',
+      );
+      expect(host(fixture).querySelector<HTMLInputElement>('[data-search]')?.value).toBe('');
+    });
+
+    /**
+     * Item de grade nasce com `min-width:auto` e NAO encolhe abaixo do conteudo: sem `min-w-0`
+     * uma placa longa empurra a grade e a pagina rola para o lado no celular.
+     */
+    it('todo item da grade de filtros tem min-w-0', () => {
+      const fixture = render();
+      const input = host(fixture).querySelector('[data-search]')!;
+      const grid = input.closest('.grid')!;
+      const children = Array.from(grid.children);
+
+      expect(children.length).toBe(4);
+      for (const child of children) {
+        expect(child.className, `item sem min-w-0: ${child.className}`).toContain('min-w-0');
+      }
+      // 1 coluna, depois 3 (a busca ocupa a linha toda), depois 4 com a busca mais larga.
+      expect(grid.className).toContain('grid-cols-1');
+      expect(grid.className).toContain('@min-[592px]:grid-cols-3');
+      expect(grid.className).toContain('@min-[820px]:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]');
+      expect(children[0].className).toContain('@min-[592px]:col-span-3');
+      expect(children[0].className).toContain('@min-[820px]:col-span-1');
+    });
+  });
+
+  // ================================================================ o cartao
+
+  describe('cartao da vistoria', () => {
+    it('mostra placa, situacao, modelo, motorista e "Tipo · data · N/14 fotos"', () => {
+      items.set([item]);
+      total.set(1);
+      const fixture = render();
+      const card = cards(fixture)[0];
+
+      expect(card.querySelector('[data-plate]')?.textContent?.trim()).toBe('ABC1D23');
+      expect(card.querySelector('[data-plate]')?.className).toContain('font-mono');
+      expect(card.querySelector('[data-status-chip]')?.textContent?.trim()).toBe('Aprovada');
+      expect(card.querySelector('[data-model]')?.textContent?.trim()).toBe('Fiat Argo');
+      expect(card.querySelector('[data-driver]')?.textContent?.trim()).toBe('Fulano de Tal');
+      expect((card.querySelector('[data-meta]')?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Devolução · 10/09/2026 · 14/14 fotos',
+      );
+    });
+
+    it('o chip de situacao vem do mapa de status, com as cores do desenho', () => {
+      const chip = (status: InspectionListItem['status']) => {
+        items.set([{ ...item, status }]);
+        total.set(1);
+        const el = cards(render())[0].querySelector('[data-status-chip]') as HTMLElement;
+        return { label: el.textContent?.trim(), cls: el.className };
+      };
+
+      expect(chip('PENDING')).toMatchObject({ label: 'Em andamento' });
+      expect(chip('PENDING').cls).toContain('bg-neutral-100');
+      expect(chip('SUBMITTED')).toMatchObject({ label: 'Aguardando aprovação' });
+      expect(chip('SUBMITTED').cls).toContain('bg-amber-100');
+      expect(chip('APPROVED').cls).toContain('bg-emerald-100');
+      expect(chip('REJECTED')).toMatchObject({ label: 'Recusada' });
+      expect(chip('REJECTED').cls).toContain('bg-rose-100');
+    });
+
+    it('com menos de 14 fotos, o "N/14" fica ambar; com 14, nao', () => {
+      items.set([{ ...item, photoCount: 9 }, { ...item, id: 'insp-2', photoCount: 14 }]);
+      total.set(2);
+      const fixture = render();
+      const counts = cards(fixture).map(
+        (c) => c.querySelector('[data-photo-count]') as HTMLElement,
+      );
+
+      expect(counts[0].textContent?.trim()).toBe('9/14 fotos');
+      expect(counts[0].className).toContain('text-amber-700');
+      expect(counts[1].textContent?.trim()).toBe('14/14 fotos');
+      expect(counts[1].className).not.toContain('text-amber-700');
+    });
+
+    it('zero fotos medido aparece como "0/14 fotos": zero nao e ausencia', () => {
+      items.set([{ ...item, status: 'PENDING', photoCount: 0 }]);
+      total.set(1);
+
+      expect(text(render())).toContain('0/14 fotos');
+    });
+
+    it('com a foto da frente, mostra a imagem; sem ela, o placeholder do carro', () => {
+      items.set([
+        { ...item, frontPhotoUrl: 'https://cdn/front-1.jpg' },
+        { ...item, id: 'insp-2', frontPhotoUrl: null },
+      ]);
+      total.set(2);
+      const fixture = render();
+      const [withPhoto, without] = cards(fixture);
+
+      expect(withPhoto.querySelector('[data-front-photo]')?.getAttribute('src')).toBe(
+        'https://cdn/front-1.jpg',
+      );
+      expect(withPhoto.querySelector('[data-photo-placeholder]')).toBeNull();
+      expect(without.querySelector('[data-front-photo]')).toBeNull();
+      expect(without.querySelector('[data-photo-placeholder]')).not.toBeNull();
+    });
+
+    it('a foto sem legenda por cima', () => {
+      items.set([{ ...item, frontPhotoUrl: 'https://cdn/front-1.jpg' }]);
+      total.set(1);
+      const fixture = render();
+      const photo = cards(fixture)[0].querySelector('[data-front-photo]')!;
+
+      expect(photo.getAttribute('alt')).toBe('');
+      expect(photo.parentElement?.textContent?.trim()).toBe('');
+    });
+
+    it('URL vencida (a imagem nao carrega) cai no placeholder em vez de um icone quebrado', () => {
+      items.set([{ ...item, frontPhotoUrl: 'https://cdn/expirada.jpg' }]);
+      total.set(1);
+      const fixture = render();
+
+      cards(fixture)[0]
+        .querySelector('[data-front-photo]')
+        ?.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      expect(cards(fixture)[0].querySelector('[data-front-photo]')).toBeNull();
+      expect(cards(fixture)[0].querySelector('[data-photo-placeholder]')).not.toBeNull();
+    });
+
+    it('"Revisar vistoria" so na que aguarda decisao; as demais, "Ver detalhes"', () => {
+      items.set([
+        { ...item, id: 'insp-sub', status: 'SUBMITTED' },
+        { ...item, id: 'insp-pen', status: 'PENDING' },
+        { ...item, id: 'insp-rej', status: 'REJECTED' },
+        { ...item, id: 'insp-app', status: 'APPROVED' },
+      ]);
+      total.set(4);
+      const fixture = render();
+      const links = cards(fixture).map(
+        (c) => c.querySelector<HTMLAnchorElement>('[data-open-inspection]')!,
+      );
+
+      expect(links.map((a) => a.textContent?.trim())).toEqual([
+        'Revisar vistoria',
+        'Ver detalhes',
+        'Ver detalhes',
+        'Ver detalhes',
+      ]);
+      // Afirma DESTINO, nao so o texto do botao: rotulo muda por copy, rota e contrato.
+      expect(links.map((a) => a.getAttribute('href'))).toEqual([
+        '/vistorias/insp-sub',
+        '/vistorias/insp-pen',
+        '/vistorias/insp-rej',
+        '/vistorias/insp-app',
+      ]);
+    });
+
+    it('o alvo de toque tem 44px, largura total e e arredondado', () => {
+      items.set([item]);
+      total.set(1);
+      const link = cards(render())[0].querySelector('[data-open-inspection]')!;
+
+      expect(link.className).toContain('min-h-[44px]');
+      expect(link.className).toContain('w-full');
+      expect(link.className).toContain('rounded-full');
+    });
+
+    it('o nome acessivel do botao contem o texto visivel e a placa', () => {
+      items.set([{ ...item, status: 'SUBMITTED' }]);
+      total.set(1);
+      const link = cards(render())[0].querySelector('[data-open-inspection]')!;
+
+      expect(link.getAttribute('aria-label')).toBe('Revisar vistoria do veículo ABC1D23');
+    });
+
+    it('a grade e 1 coluna no celular e 2 quando a area de conteudo e larga', () => {
+      items.set([item]);
+      total.set(1);
+      const grid = cards(render())[0].parentElement!;
+
+      expect(grid.className).toContain('grid-cols-1');
+      expect(grid.className).toContain('@min-[820px]:grid-cols-2');
+    });
+
+    it('a foto mede 112px no celular, 148px no meio e 188px no largo', () => {
+      items.set([item]);
+      total.set(1);
+      const photo = cards(render())[0].firstElementChild!;
+
+      expect(photo.className).toContain('w-28');
+      expect(photo.className).toContain('@min-[592px]:w-[148px]');
+      expect(photo.className).toContain('@min-[820px]:w-[188px]');
+      expect(photo.className).toContain('self-stretch');
+      expect(photo.className).toContain('rounded-xl');
+    });
+
+    it('o chip de situacao nao quebra em duas linhas', () => {
+      items.set([{ ...item, status: 'SUBMITTED' }]);
+      total.set(1);
+      const chip = cards(render())[0].querySelector('[data-status-chip]')!;
+
+      expect(chip.className).toContain('whitespace-nowrap');
+    });
+
+    describe('campos ausentes', () => {
+      const bare: InspectionListItem = {
+        id: 'insp-9',
+        rentalId: null,
+        vehicleId: 'veh-9',
+        kind: 'FLEET',
+        performedAt: '2026-09-10T12:00:00',
+        status: 'PENDING',
+      };
+
+      it('sem placa diz que o carro nao foi identificado e nao escreve undefined', () => {
+        items.set([bare]);
+        total.set(1);
+        const body = text(render());
+
+        expect(body).toContain('Veículo não identificado');
+        expect(body).not.toContain('undefined');
+        expect(body).not.toContain('null');
+      });
+
+      it('sem a contagem de fotos omite o trecho, em vez de escrever zero', () => {
+        items.set([bare]);
+        total.set(1);
+        const fixture = render();
+
+        expect(cards(fixture)[0].querySelector('[data-photo-count]')).toBeNull();
+        expect(text(fixture)).toContain('Frota · 10/09/2026');
       });
     });
   });
+
+  // =============================================================== paginacao
+
+  describe('rodape de paginacao', () => {
+    it('diz "N vistorias — pagina X de Y" e desabilita o que nao existe', () => {
+      items.set([item]);
+      total.set(45);
+      const fixture = render();
+
+      expect(
+        host(fixture).querySelector('[data-pagination-summary]')?.textContent?.replace(/\s+/g, ' ').trim(),
+      ).toBe('45 vistorias — página 1 de 3');
+      expect(host(fixture).querySelector<HTMLButtonElement>('[data-prev]')?.disabled).toBe(true);
+      expect(host(fixture).querySelector<HTMLButtonElement>('[data-next]')?.disabled).toBe(false);
+      expect(host(fixture).querySelector('[data-count]')?.textContent?.trim()).toBe('45 vistorias');
+    });
+
+    it('o plural esta resolvido: "1 vistoria"', () => {
+      items.set([item]);
+      total.set(1);
+      const fixture = render();
+
+      expect(host(fixture).querySelector('[data-count]')?.textContent?.trim()).toBe('1 vistoria');
+      expect(
+        host(fixture).querySelector('[data-pagination-summary]')?.textContent?.replace(/\s+/g, ' ').trim(),
+      ).toBe('1 vistoria — página 1 de 1');
+    });
+
+    it('Proxima e Anterior pedem a pagina vizinha mantendo os filtros', () => {
+      items.set([item]);
+      total.set(45);
+      const fixture = render();
+      pick(fixture, '[data-filter-status]', 'APPROVED');
+
+      host(fixture).querySelector<HTMLButtonElement>('[data-next]')?.click();
+      expect(lastQuery()).toMatchObject({ page: 1, status: 'APPROVED' });
+
+      page.set(1);
+      fixture.detectChanges();
+      host(fixture).querySelector<HTMLButtonElement>('[data-prev]')?.click();
+      expect(lastQuery()).toMatchObject({ page: 0, status: 'APPROVED' });
+    });
+
+    it('Anterior e Proxima tem 44px de alvo', () => {
+      items.set([item]);
+      total.set(45);
+      const fixture = render();
+
+      for (const sel of ['[data-prev]', '[data-next]']) {
+        expect(host(fixture).querySelector(sel)?.className).toContain('min-h-[44px]');
+      }
+    });
+  });
+
+  // ============================================================ os 4 estados
+
+  describe('os quatro estados', () => {
+    it('carregando: 4 blocos de esqueleto e nenhum cartao nem texto de vazio', () => {
+      loading.set(true);
+      const fixture = render();
+      const skeleton = host(fixture).querySelector('[data-skeleton]')!;
+
+      expect(skeleton.children.length).toBe(4);
+      for (const block of Array.from(skeleton.children)) {
+        expect(block.className).toContain('animate-pulse');
+        expect(block.className).toContain('rounded-2xl');
+      }
+      expect(cards(fixture).length).toBe(0);
+      expect(text(fixture)).not.toContain('Nenhuma vistoria');
+      expect(text(fixture)).not.toContain('Carregando…');
+    });
+
+    it('erro: banner com a causa e "Tentar novamente"', () => {
+      error.set('Não foi possível carregar as vistorias.');
+      const fixture = render();
+      const banner = host(fixture).querySelector('app-alert-banner')!;
+
+      expect(banner.textContent).toContain('Não foi possível carregar as vistorias.');
+      expect(banner.querySelector('[data-retry-list]')?.textContent?.trim()).toBe(
+        'Tentar novamente',
+      );
+      // Erro nao vira "nenhuma vistoria": a tela nao sabe se ha ou nao.
+      expect(text(fixture)).not.toContain('Nenhuma vistoria ainda');
+    });
+
+    it('vazio sem filtro: diz o que fazer, sem inventar uma acao', () => {
+      const fixture = render();
+      const empty = host(fixture).querySelector('[data-empty]')!;
+
+      expect(empty.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'Nenhuma vistoria ainda. Quando um motorista enviar as fotos pelo celular, ela aparece aqui para você aprovar.',
+      );
+      expect(host(fixture).querySelector('[data-empty-filtered]')).toBeNull();
+    });
+
+    it('vazio com filtro: outra frase, e o botao zera os filtros', () => {
+      const fixture = render();
+      pick(fixture, '[data-filter-status]', 'REJECTED');
+
+      const empty = host(fixture).querySelector('[data-empty-filtered]')!;
+      expect(empty.textContent).toContain('Nenhuma vistoria encontrada com estes filtros.');
+      expect(text(fixture)).not.toContain('Nenhuma vistoria ainda');
+
+      const button = Array.from(empty.querySelectorAll('button')).find(
+        (b) => b.textContent?.trim() === 'Limpar filtros',
+      )!;
+      expect(button).toBeDefined();
+      button.click();
+      expect(lastQuery()).toMatchObject({ status: null });
+    });
+
+    it('so a ordenacao NAO conta como filtro: vazio continua sendo "nenhuma ainda"', () => {
+      const fixture = render();
+      pick(fixture, '[data-filter-sort]', 'date,asc');
+
+      expect(host(fixture).querySelector('[data-empty]')).not.toBeNull();
+      expect(host(fixture).querySelector('[data-empty-filtered]')).toBeNull();
+    });
+  });
+
   /**
    * FIX-0565 — a regiao viva anunciava uma frase FIXA de falha de carregamento, enquanto o
-   * banner mostrava a causa que o servico apurou. Num 403 os dois canais contavam historias
-   * diferentes sobre o MESMO evento, e so quem enxerga recebia a verdadeira. Quem usa leitor
-   * de tela ouvia "nao foi possivel carregar" e ficava recarregando uma tela que nunca abriria.
-   *
-   * Os testes abaixo comparam os DOIS canais entre si em vez de conferir duas strings
-   * esperadas: o que precisa valer e que eles nao possam divergir, e nao que cada um case com
-   * um literal que o teste tambem escreveu.
+   * banner mostrava a causa que o servico apurou. Os testes comparam os DOIS canais entre si:
+   * o que precisa valer e que eles nao possam divergir.
    */
   describe('FIX-0565 — o aria-live diz a MESMA coisa que o banner', () => {
     function liveRegion(fixture: ReturnType<typeof render>): string {
-      const el = (fixture.nativeElement as HTMLElement).querySelector('[aria-live]');
+      const el = host(fixture).querySelector('[aria-live]');
       if (!el) throw new Error('a regiao viva sumiu da tela');
       return (el.textContent ?? '').trim();
     }
 
     function bannerText(fixture: ReturnType<typeof render>): string {
-      const el = (fixture.nativeElement as HTMLElement).querySelector('app-alert-banner');
+      const el = host(fixture).querySelector('app-alert-banner');
       if (!el) throw new Error('o banner de erro nao esta na tela');
-      return (el.textContent ?? '').trim();
+      return (el.querySelector('span')?.textContent ?? '').replace(/\s+/g, ' ').trim();
     }
 
     it('403: anuncia a RECUSA, a mesma frase que o banner exibe', () => {
@@ -474,26 +803,11 @@ describe('InspectionsList', () => {
       error.set('Você não tem permissão para ver as vistorias desta empresa.');
       fixture.detectChanges();
 
-      expect(liveRegion(fixture)).toBe(bannerText(fixture));
+      expect(bannerText(fixture)).toContain(liveRegion(fixture));
       expect(liveRegion(fixture)).toContain('permissão');
-      // O defeito: a recusa sendo anunciada como falha de carregamento.
       expect(liveRegion(fixture)).not.toContain('Não foi possível carregar');
     });
 
-    /**
-     * CONTRAPESO: a metade que ja estava certa. A falha generica continua sendo anunciada
-     * como sempre foi — se isto ficar vermelho, o conserto quebrou o que funcionava.
-     */
-    it('falha generica: segue anunciando o erro de carregamento, igual ao banner', () => {
-      const fixture = render();
-      error.set('Não foi possível carregar as vistorias.');
-      fixture.detectChanges();
-
-      expect(liveRegion(fixture)).toBe(bannerText(fixture));
-      expect(liveRegion(fixture)).toContain('Não foi possível carregar as vistorias.');
-    });
-
-    /** Qualquer causa NOVA que o servico venha a distinguir chega sozinha aos dois canais. */
     it('uma causa futura do servico atravessa sem ninguem tocar na tela', () => {
       const fixture = render();
       error.set('Uma causa que ainda nao existe.');
@@ -510,354 +824,116 @@ describe('InspectionsList', () => {
       expect(liveRegion(fixture)).toBe('3 vistorias encontradas.');
     });
   });
-  /**
-   * A FILA DA APROVACAO dentro da listagem que ja existe — sem rota nova.
-   *
-   * Sem o filtro de situacao a aprovacao seria inalcancavel na pratica: o dono
-   * teria a tela e nenhum caminho ate a vistoria que a espera.
-   */
-  describe('fila de aprovacao', () => {
-    const submitted: InspectionListItem = { ...item, id: 'insp-sub', status: 'SUBMITTED' };
 
-    it('o filtro de situacao chega na API', () => {
-      configure();
+  // ================================================== vistorias automaticas
+
+  describe('cartao de vistorias automaticas (dono)', () => {
+    it('esta na tela e e neutro, com UM botao outline — nada laranja', () => {
       const fixture = render();
-      (fixture.componentInstance as unknown as Internals).onStatusChange('SUBMITTED');
+      const card = host(fixture).querySelector('[data-schedule-card]')!;
+      const button = card.querySelector<HTMLButtonElement>('[data-schedule-open]')!;
+
+      expect(card.className).toContain('bg-white');
+      expect(button.className).toContain('border-neutral-200');
+      expect(button.className).not.toContain('bg-primary');
+      expect(card.innerHTML).not.toContain('bg-primary');
+    });
+
+    it('desligado: chip "Desligado" e botao "Configurar"', () => {
+      const fixture = render();
+      const card = host(fixture).querySelector('[data-schedule-card]')!;
+
+      expect(card.querySelector('[data-schedule-chip]')?.textContent?.trim()).toBe('Desligado');
+      expect(card.querySelector('[data-schedule-open]')?.textContent?.trim()).toBe('Configurar');
+    });
+  });
+
+  // ======================================================== "Fazer vistoria"
+
+  describe('porta do dono para fotografar um carro', () => {
+    const start = (fixture: ReturnType<typeof render>) =>
+      host(fixture).querySelector<HTMLButtonElement>('[data-start-inspection]');
+
+    it('abre o seletor de carro, e comeca a captura com o carro escolhido', () => {
+      const fixture = render();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      start(fixture)?.click();
+      fixture.detectChanges();
+      pick(fixture, '[data-start-vehicle]', 'veh-1');
+      host(fixture).querySelector<HTMLButtonElement>('[data-start-confirm]')?.click();
+
+      expect(navigate).toHaveBeenCalledWith(['/vistorias', 'nova'], {
+        queryParams: { vehicleId: 'veh-1' },
+      });
+    });
+
+    it('sem escolher o carro, explica em vez de abrir uma captura em erro', () => {
+      const fixture = render();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      start(fixture)?.click();
+      fixture.detectChanges();
+      host(fixture).querySelector<HTMLButtonElement>('[data-start-confirm]')?.click();
       fixture.detectChanges();
 
-      expect(listSpy).toHaveBeenLastCalledWith(
-        expect.objectContaining({ status: 'SUBMITTED' }),
-      );
+      expect(navigate).not.toHaveBeenCalled();
+      expect(text(fixture)).toContain('Escolha o carro que você vai vistoriar.');
     });
 
-    it('"Todas" NAO manda status — filtro ausente nao e filtro vazio', () => {
-      configure();
-      const fixture = render();
-      (fixture.componentInstance as unknown as Internals).onStatusChange('ALL');
-      fixture.detectChanges();
-
-      expect(listSpy).toHaveBeenLastCalledWith(expect.objectContaining({ status: null }));
-    });
-
-    it('so a vistoria ENVIADA oferece revisar', () => {
-      configure();
-      items.set([{ ...item, status: 'APPROVED' }]);
-      total.set(1);
-      const fixture = render();
-
-      expect(
-        (fixture.nativeElement as HTMLElement).querySelector('[data-review-toggle]'),
-      ).toBeNull();
-    });
-
-    it('a decisao abre NA LINHA, sem sair da listagem', () => {
-      configure();
-      items.set([submitted]);
-      total.set(1);
-      const fixture = render();
-      const host = fixture.nativeElement as HTMLElement;
-
-      expect(host.querySelector('app-inspection-review')).toBeNull();
-      host.querySelector<HTMLButtonElement>('[data-review-toggle]')?.click();
-      fixture.detectChanges();
-
-      expect(host.querySelector('app-inspection-review')).not.toBeNull();
-    });
-  });
-  // ------------------------------------------------------------------- A PORTA
-  /**
-   * O ciclo manual inteiro — fazer, enviar, aprovar — ja funcionava em producao, e NENHUM
-   * template apontava para `/vistorias/nova`: a funcionalidade existia e ninguem chegava
-   * nela. Este caso NOMEIA os dois caminhos para que nao possam sumir em silencio, que e
-   * exatamente como eles nunca existiram.
-   *
-   * Afirma DESTINO (`href`), nao texto de botao: rotulo muda por decisao de copy, destino e
-   * contrato de rota. Ja perdi um pino por procurar o texto.
-   */
-  /**
-   * AS DUAS PORTAS DESTA TELA, agora como ACOES e nao como links.
-   *
-   * O que mudou e por que o teste mudou com isso:
-   *  - AGENDAR deixou de apontar para `/veiculos`. O agendamento nao mora mais
-   *    na tela do veiculo — o card de la foi removido, e a regra se cria aqui,
-   *    com alvo frota OU um carro. Mandar a pessoa para Veiculos agora seria
-   *    mandar para um lugar onde a funcionalidade nao esta mais.
-   *  - FAZER deixou de ser `<a href="/vistorias/nova">`. A captura exige
-   *    `?vehicleId=`; um link cru chega la e so sabe dizer que falta um carro.
-   *    O botao pergunta o carro ANTES de navegar.
-   *
-   * O invariante e o mesmo de antes: desta tela se alcanca o ciclo manual E se
-   * descobre que a vistoria periodica existe. So o mecanismo deixou de ser href.
-   */
-  it('a tela oferece FAZER vistoria e um caminho para o AGENDAMENTO', () => {
-    const fixture = render();
-    const host = fixture.nativeElement as HTMLElement;
-
-    expect(
-      host.querySelector('[data-start-inspection]'),
-      'sem isto o ciclo manual fica inalcancavel desta tela',
-    ).not.toBeNull();
-    expect(
-      host.querySelector('[data-schedule-inspection]'),
-      'quem abre Vistorias nao descobre que a vistoria periodica existe',
-    ).not.toBeNull();
-  });
-  // ------------------------------------------- LISTA ANTES, FILTRO DEPOIS
-  /**
-   * Filtro em cima de tabela vazia era a pior coisa que esta tela podia exibir numa
-   * demonstracao: quem abre quer VER as vistorias, e a tela respondia com um painel de
-   * controles. O conteudo passou a vir primeiro, e o filtro fica fechado onde se procura
-   * quando a lista ja e grande demais.
-   */
-  /**
-   * A TELA VIROU UM CARD SO, no padrao de `vehicles-list`: nao ha mais um card
-   * "Vistorias" e um card "Filtros" em sequencia.
-   *
-   * ATENCAO ao que isto troca, porque troca de verdade: no DESKTOP a grade de
-   * filtros fica ACIMA da lista, como em Veiculos. O que preserva a decisao
-   * anterior ("lista primeiro") e o recolhimento mobile-only: no celular — onde
-   * a reclamacao nasceu, com o filtro comendo a primeira tela — os controles
-   * comecam fechados e a lista e a primeira coisa visivel.
-   *
-   * Se o dono preferir a grade abaixo da lista tambem no desktop, e mover um
-   * bloco; o teste que fixa isso e este, e nao a lembranca de ninguem.
-   */
-  it('e UM card, com os filtros recolhidos no celular acima da lista', () => {
-    const fixture = render({ openFilters: false });
-    const host = fixture.nativeElement as HTMLElement;
-
-    expect(host.querySelectorAll('app-page-card').length).toBe(1);
-
-    const markup = host.innerHTML;
-    expect(markup.indexOf('insp-filtros')).toBeGreaterThan(-1);
-    // O gatilho de recolher existe e e so do celular.
-    const toggle = host.querySelector('[data-testid="filters-toggle"]');
-    expect(toggle).not.toBeNull();
-    expect(toggle?.closest('.sm\\:hidden')).not.toBeNull();
-  });
-
-  /**
-   * FECHADOS ao nascer, no celular.
-   *
-   * O mecanismo mudou e vale dizer qual: antes os controles eram REMOVIDOS do
-   * DOM; agora o painel e escondido por classe (`hidden`), que e o padrao do
-   * FIX-0284 em `vehicles-list`. `display:none` tambem sai da arvore de
-   * acessibilidade e do foco, entao a garantia para quem usa a tela e a mesma —
-   * mas o `querySelector` passa a encontrar o elemento, e e por isso que este
-   * teste mede a CLASSE e nao a ausencia.
-   */
-  it('os filtros nascem recolhidos, e abrem quando a pessoa pede', () => {
-    const fechado = render({ openFilters: false });
-    const painelFechado = (fechado.nativeElement as HTMLElement).querySelector('#insp-filtros');
-    expect(painelFechado, 'o painel de filtros desapareceu do template').not.toBeNull();
-    expect(
-      painelFechado?.classList.contains('hidden'),
-      'os controles de filtro aparecem antes de alguem pedir',
-    ).toBe(true);
-
-    const aberto = render();
-    const painelAberto = (aberto.nativeElement as HTMLElement).querySelector('#insp-filtros');
-    expect(painelAberto?.classList.contains('hidden')).toBe(false);
-    expect((aberto.nativeElement as HTMLElement).querySelector('select')).not.toBeNull();
-  });
-  /**
-   * A PRIMEIRA TELA QUE UM CLIENTE VE numa empresa sem vistoria nenhuma. A copy antiga
-   * descrevia o vazio ("elas aparecem aqui assim que a primeira for feita") e nao dizia COMO
-   * sair dele. O estado vazio agora oferece a acao, para o mesmo destino da porta no topo.
-   */
-  it('o estado vazio OFERECE a acao, nao so descreve o vazio', () => {
-    const fixture = render({ openFilters: false });
-    const host = fixture.nativeElement as HTMLElement;
-
-    expect(host.textContent).toContain('Nenhuma vistoria ainda');
-    const cta = Array.from(host.querySelectorAll('a')).find((a) =>
-      (a.textContent ?? '').includes('Fazer a primeira vistoria'),
-    );
-    expect(cta, 'o estado vazio descreve o problema e nao oferece saida').toBeDefined();
-    expect(cta?.getAttribute('href')).toBe('/vistorias/nova');
-  });
-
-  // ====================== A LINHA NAO FICA EM BRANCO ======================
-  /**
-   * O DEFEITO: o tipo exigia placa, modelo, motorista e contagem de fotos que o backend
-   * ainda nao mandava, e a linha nascia em branco — sem erro, sem aviso. O tipo agora e
-   * tolerante e a linha degrada para algo que se le.
-   */
-  describe('linha com campos ausentes', () => {
-    const bare: InspectionListItem = {
-      id: 'insp-9',
-      rentalId: null,
-      vehicleId: 'veh-9',
-      kind: 'FLEET',
-      performedAt: '2026-09-10T12:00:00Z',
-      status: 'PENDING',
-    };
-
-    it('sem placa/marca/modelo diz que o carro nao foi identificado', () => {
-      items.set([bare]);
-      total.set(1);
-      const body = text(render());
-
-      expect(body).toContain('Veículo não identificado');
-      expect(body).not.toContain('undefined');
-      expect(body).not.toContain('null');
-    });
-
-    it('sem a contagem de fotos nao escreve "undefined foto(s)" nem zero', () => {
-      items.set([bare]);
-      total.set(1);
-      const body = text(render());
-
-      expect(body).not.toContain('foto(s)');
-    });
-
-    it('com os campos, mostra placa, marca e modelo juntos, e a contagem', () => {
-      items.set([item]);
-      total.set(1);
-      const body = text(render());
-
-      expect(body).toContain('ABC1D23 · Fiat Argo');
-      expect(body).toContain('14 foto(s)');
-      expect(body).toContain('Fulano de Tal');
-    });
-
-    it('uma vistoria com zero fotos mostra "0 foto(s)": zero medido nao e ausencia', () => {
-      items.set([{ ...item, status: 'PENDING', photoCount: 0 }]);
-      total.set(1);
-
-      expect(text(render())).toContain('0 foto(s)');
-    });
-  });
-
-  // ====================== ABRIR A VISTORIA DA LINHA ======================
-  describe('abrir a vistoria', () => {
-    const open = (fixture: ReturnType<typeof render>) =>
-      Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>(
-          '[data-open-inspection]',
-        ),
-      );
-
-    it('em andamento: continua na captura', () => {
-      items.set([{ ...item, status: 'PENDING' }]);
-      total.set(1);
-      const [link] = open(render());
-
-      expect(link.textContent).toContain('Continuar vistoria');
-      expect(link.getAttribute('href')).toBe('/vistorias/insp-1/captura');
-    });
-
-    it('recusada: leva ao motivo e a refazer', () => {
-      items.set([{ ...item, status: 'REJECTED' }]);
-      total.set(1);
-
-      expect(open(render())[0].textContent).toContain('Ver recusa e refazer');
-    });
-
-    it('aprovada: so ver as fotos', () => {
-      items.set([item]);
-      total.set(1);
-
-      expect(open(render())[0].textContent).toContain('Ver fotos');
-    });
-  });
-
-  // ====================== LIMPAR FILTROS LIMPA A SITUACAO ======================
-  /**
-   * O DEFEITO: `clearFilters()` zerava veiculo, locacao, tipo e periodo — e NAO a
-   * situacao. "Limpar filtros" recarregava com o filtro de situacao ainda aplicado, o
-   * contador seguia acusando um filtro ativo e o vazio dizia "com estes filtros" sobre
-   * um filtro que a pessoa acabara de mandar limpar.
-   */
-  describe('limpar filtros', () => {
-    it('zera tambem a situacao: a consulta sai sem status', () => {
-      const fixture = render();
-      internals(fixture).onStatusChange('REJECTED');
-      expect(lastQuery()).toMatchObject({ status: 'REJECTED' });
-
-      internals(fixture).clearFilters();
-
-      expect(lastQuery()).toMatchObject({ status: null, vehicleId: null, kind: null });
-    });
-
-    it('o chip "Todas" volta marcado e o contador de filtros ativos zera', () => {
-      const fixture = render();
-      internals(fixture).onStatusChange('SUBMITTED');
-      fixture.detectChanges();
-      expect(text(fixture)).toContain('Filtros · 1');
-
-      internals(fixture).clearFilters();
-      fixture.detectChanges();
-
-      expect(text(fixture)).not.toContain('Filtros · ');
-      const checked = Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll(
-          '[aria-labelledby="insp-status-label"] [role="radio"][aria-checked="true"]',
-        ),
-      ).map((c) => c.textContent?.trim());
-      expect(checked).toEqual(['Todas']);
-    });
-  });
-
-  // ====================== VEICULOS ALEM DOS 100 ======================
-  /**
-   * O DEFEITO: o seletor pedia `size: 500`, o backend limita a 100 em silencio, e todo
-   * carro do 101o em diante simplesmente nao existia no filtro. A tela agora PAGINA ate
-   * o total.
-   */
-  describe('veiculos do seletor', () => {
-    const page = (n: number, count: number, total: number) => ({
-      content: Array.from({ length: count }, (_, i) => ({
-        id: `veh-${n}-${i}`,
-        plate: `AAA${n}${String(i).padStart(3, '0')}`,
-        model: 'Argo',
-      })),
-      page: n,
-      size: 100,
-      total,
-    });
-
-    it('carrega TODAS as paginas ate o total, sem pedir 500', () => {
-      vehiclesList.mockImplementation((filters: { page: number }) =>
-        of(filters.page === 0 ? page(0, 100, 230) : filters.page === 1 ? page(1, 100, 230) : page(2, 30, 230)),
+    /**
+     * O DEFEITO: o seletor pedia `size: 500`, o backend limita a 100 em silencio, e todo carro
+     * do 101o em diante simplesmente nao existia. A tela PAGINA ate o total.
+     */
+    it('carrega TODAS as paginas de veiculos ate o total, sem pedir 500', () => {
+      const pageOf = (n: number, count: number, totalCount: number) => ({
+        content: Array.from({ length: count }, (_, i) => ({
+          id: `veh-${n}-${i}`,
+          plate: `AAA${n}${String(i).padStart(3, '0')}`,
+          model: 'Argo',
+        })),
+        page: n,
+        size: 100,
+        total: totalCount,
+      });
+      vehiclesList.mockImplementation((f: { page: number }) =>
+        of(f.page === 0 ? pageOf(0, 100, 230) : f.page === 1 ? pageOf(1, 100, 230) : pageOf(2, 30, 230)),
       );
       const fixture = render();
-      const options = (fixture.nativeElement as HTMLElement).querySelectorAll('#insp-vehicle option');
+      start(fixture)?.click();
+      fixture.detectChanges();
 
-      // 230 veiculos + a opcao "Todos os veiculos".
-      expect(options.length).toBe(231);
-      expect(vehiclesList).toHaveBeenCalledTimes(3);
-      for (const [filters] of vehiclesList.mock.calls) {
-        expect(filters.size).toBe(100);
-      }
+      // 230 veiculos + a opcao "Escolha o carro".
+      expect(host(fixture).querySelectorAll('[data-start-vehicle] option').length).toBe(231);
       expect(vehiclesList.mock.calls.map(([f]) => f.page)).toEqual([0, 1, 2]);
-    });
-
-    it('uma pagina so basta quando o total cabe nela', () => {
-      render();
-
-      expect(vehiclesList).toHaveBeenCalledTimes(1);
+      for (const [f] of vehiclesList.mock.calls) expect(f.size).toBe(100);
     });
 
     it('falha numa pagina do meio mantem as que ja chegaram', () => {
-      vehiclesList.mockImplementation((filters: { page: number }) =>
-        filters.page === 0
-          ? of(page(0, 100, 230))
+      vehiclesList.mockImplementation((f: { page: number }) =>
+        f.page === 0
+          ? of({
+              content: [{ id: 'veh-a', plate: 'AAA0001', model: 'Argo' }],
+              page: 0,
+              size: 1,
+              total: 5,
+            })
           : throwError(() => new HttpErrorResponse({ status: 500 })),
       );
       const fixture = render();
-      const options = (fixture.nativeElement as HTMLElement).querySelectorAll('#insp-vehicle option');
+      start(fixture)?.click();
+      fixture.detectChanges();
 
-      expect(options.length).toBe(101);
+      expect(host(fixture).querySelectorAll('[data-start-vehicle] option').length).toBe(2);
     });
   });
 
-  // ====================== O MOTORISTA ======================
+  // ================================================================ MOTORISTA
+
   /**
-   * A listagem abriu para o motorista, e o que muda nela e o recorte: so as DELE (o
-   * servidor escopa), sem nada da empresa — filtros de frota, agendamento, aprovacao — e
-   * com uma porta propria, o carro do aluguel ATIVO. Cada metade tem teste, porque o
-   * defeito aqui seria a tela oferecer o que o servidor nega.
+   * A listagem abriu para o motorista, e o que muda nela e o recorte: so as DELE (o servidor
+   * escopa), com o MESMO cartao, sem nada da empresa — tiles, agendamento, revisao — e com
+   * uma porta propria, o carro do aluguel ATIVO.
    */
   describe('motorista', () => {
     const rental = {
@@ -871,56 +947,71 @@ describe('InspectionsList', () => {
       status: 'ACTIVE',
     } as unknown as RentalListItemDto;
 
-    const host = (fixture: ReturnType<typeof render>) => fixture.nativeElement as HTMLElement;
-
     beforeEach(() => {
+      sessionStorage.clear();
       signInAs('DRIVER');
       rentalsList.mockReturnValue(of({ content: [rental], page: 0, size: 20, total: 1 }));
     });
 
-    it('NAO chama a lista de veiculos da empresa: e 403 para ele', () => {
+    it('NAO chama a lista de veiculos da empresa nem o resumo: sao da empresa', () => {
       render();
 
       expect(vehiclesList).not.toHaveBeenCalled();
+      expect(summarySpy).not.toHaveBeenCalled();
     });
 
-    it('lista as vistorias dele pelo mesmo endpoint, sem filtro de frota', () => {
-      render();
-
-      expect(listSpy).toHaveBeenCalledTimes(1);
-      expect(lastQuery()).toMatchObject({ vehicleId: null, rentalId: null });
-    });
-
-    it('esconde o que e da empresa: agendar, fazer-por-carro, filtros de frota, agendamentos', () => {
+    it('esconde o que e da empresa: tiles, agendamento e a porta por carro', () => {
       const fixture = render();
 
-      expect(host(fixture).querySelector('[data-schedule-inspection]')).toBeNull();
-      expect(host(fixture).querySelector('[data-start-inspection]')).toBeNull();
-      expect(host(fixture).querySelector('#insp-vehicle')).toBeNull();
-      expect(host(fixture).querySelector('#insp-rental')).toBeNull();
+      expect(host(fixture).querySelector('[data-kpi]')).toBeNull();
       expect(host(fixture).querySelector('app-inspection-schedules-block')).toBeNull();
-      // CONTROLE POSITIVO: a tela existe — os filtros que servem a ele continuam.
-      expect(host(fixture).querySelector('[aria-labelledby="insp-status-label"]')).not.toBeNull();
+      expect(host(fixture).querySelector('[data-schedule-card]')).toBeNull();
+      expect(host(fixture).querySelector('[data-start-inspection]')).toBeNull();
+      // CONTROLE POSITIVO: a tela existe, com os filtros que servem a ele.
+      expect(host(fixture).querySelector('[data-filter-status]')).not.toBeNull();
+      expect(host(fixture).querySelector<HTMLInputElement>('[data-search]')?.placeholder).toBe(
+        'Buscar por placa ou modelo…',
+      );
     });
 
-    it('nao oferece aprovar ou recusar nem na vistoria enviada', () => {
+    it('usa o mesmo cartao, mas nao oferece revisar nem na vistoria enviada', () => {
       items.set([{ ...item, status: 'SUBMITTED' }]);
       total.set(1);
       const fixture = render();
+      const link = cards(fixture)[0].querySelector<HTMLAnchorElement>('[data-open-inspection]')!;
 
-      expect(host(fixture).querySelector('[data-review-toggle]')).toBeNull();
-      // CONTROLE POSITIVO: a linha esta la, so nao e dele decidir.
-      expect(text(fixture)).toContain('ABC1D23');
+      expect(cards(fixture)[0].querySelector('[data-plate]')?.textContent?.trim()).toBe('ABC1D23');
+      expect(link.textContent?.trim()).toBe('Ver detalhes');
+      expect(text(fixture)).not.toContain('Revisar vistoria');
     });
 
-    it('o dono, na mesma linha, continua vendo a revisao', () => {
+    it('o dono, na mesma linha, ve "Revisar vistoria"', () => {
       sessionStorage.clear();
       signInAs('OWNER');
       items.set([{ ...item, status: 'SUBMITTED' }]);
       total.set(1);
       const fixture = render();
 
-      expect(host(fixture).querySelector('[data-review-toggle]')).not.toBeNull();
+      expect(text(fixture)).toContain('Revisar vistoria');
+    });
+
+    it('continuar a em andamento e ler a recusa levam a captura; o resto, aos detalhes', () => {
+      items.set([
+        { ...item, id: 'a', status: 'PENDING' },
+        { ...item, id: 'b', status: 'REJECTED' },
+        { ...item, id: 'c', status: 'APPROVED' },
+      ]);
+      total.set(3);
+      const fixture = render();
+      const links = cards(fixture).map(
+        (c) => c.querySelector<HTMLAnchorElement>('[data-open-inspection]')!,
+      );
+
+      expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
+        ['Continuar vistoria', '/vistorias/a/captura'],
+        ['Ver recusa e refazer', '/vistorias/b/captura'],
+        ['Ver detalhes', '/vistorias/c'],
+      ]);
     });
 
     it('oferece FAZER vistoria no carro do aluguel ativo, nomeando o carro', () => {

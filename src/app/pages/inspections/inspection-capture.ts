@@ -10,8 +10,15 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
+import {
+  AbstractControl,
+  FormControl,
+  ReactiveFormsModule,
+  ValidationErrors,
+} from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { PageLoader } from '../../components/page-loader/page-loader';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
@@ -19,7 +26,14 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { ImageCompressionService } from '../../services/image-compression.service';
 import { InspectionsService } from '../../services/inspections.service';
 import { SessionService } from '../../services/session.service';
-import { Inspection, InspectionKind, InspectionStatus } from '../../types/inspection.types';
+import {
+  INSPECTION_ODOMETER_MAX_KM,
+  Inspection,
+  InspectionKind,
+  InspectionStatus,
+} from '../../types/inspection.types';
+import { parsePtBrNumber } from '../../utils/ptbr-number';
+import { formatKm } from './inspection-view';
 // A câmera ao vivo do ALUGUEL, importada SEM alteração. O dono foi literal: "o do
 // aluguel não é para mexer". Preferi o acoplamento entre pastas a extrair o
 // componente para um lugar compartilhado, porque a extração mexeria em arquivos de
@@ -80,6 +94,21 @@ interface FailedUpload {
   readonly retryable: boolean;
 }
 
+/**
+ * O hodometro e TEXTO ate o envio: o campo aceita `82109` e `82.109` (a gramatica pt-BR do
+ * app). Inteiro, de 1 ate o teto do servidor. Cada recusa tem a sua frase — "invalido" nao
+ * diz a quem esta de pe na rua o que corrigir.
+ */
+function odometerValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = String(control.value ?? '').trim();
+  if (raw === '') return { required: true };
+  const parsed = parsePtBrNumber(raw, 0);
+  if (parsed.scaled === null) return { pattern: true };
+  if (parsed.scaled < 1) return { min: { min: 1 } };
+  if (parsed.scaled > INSPECTION_ODOMETER_MAX_KM) return { max: { max: INSPECTION_ODOMETER_MAX_KM } };
+  return null;
+}
+
 const STATUS_TITLES: Readonly<Record<InspectionStatus, string>> = {
   PENDING: 'Fazer vistoria',
   SUBMITTED: 'Vistoria enviada',
@@ -90,7 +119,17 @@ const STATUS_TITLES: Readonly<Record<InspectionStatus, string>> = {
 @Component({
   selector: 'app-inspection-capture',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, PageCard, PageLoader, AlertBanner, RouterLink, LiveCameraSheet],
+  imports: [
+    ReactiveFormsModule,
+    DefaultPageLayout,
+    PageCard,
+    PageLoader,
+    AlertBanner,
+    RouterLink,
+    LiveCameraSheet,
+    FormField,
+    FieldControl,
+  ],
   templateUrl: './inspection-capture.html',
 })
 export class InspectionCapture implements OnInit, OnDestroy {
@@ -139,6 +178,30 @@ export class InspectionCapture implements OnInit, OnDestroy {
    */
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+
+  /**
+   * O HODOMETRO ATUAL do carro, que o MOTORISTA informa ao enviar. Obrigatorio na tela
+   * mesmo sendo opcional no servidor (por compatibilidade com app antigo): sem ele o dono
+   * nao consegue aprovar, e a vistoria voltaria para ser refeita so por isso.
+   */
+  protected readonly odometerControl = new FormControl('', {
+    nonNullable: true,
+    validators: [odometerValidator],
+  });
+  protected readonly odometerMessages = {
+    required: 'Informe o hodômetro atual do carro.',
+    pattern: 'Digite só os números do hodômetro, em km. Ex.: 82109.',
+    min: 'O hodômetro precisa ser maior que zero.',
+    max: 'Esse valor passa do limite de 5.000.000 km. Confira o número.',
+  };
+
+  /** A linha de apoio do campo: onde ler o numero e, se o servidor soube, o ultimo registro. */
+  protected readonly odometerHint = computed(() => {
+    const previous = formatKm(this.inspection()?.previousOdometerKm);
+    return previous
+      ? `Digite o número que aparece no painel do carro. Último registro do veículo: ${previous}.`
+      : 'Digite o número que aparece no painel do carro.';
+  });
 
   /**
    * O status que o SERVIDOR devolveu no envio nesta sessao.
@@ -639,10 +702,18 @@ export class InspectionCapture implements OnInit, OnDestroy {
       return;
     }
 
+    // O hodometro e a ultima coisa que falta. Invalido NAO chega ao servidor: a mensagem
+    // aparece no campo, que e onde a pessoa vai corrigir.
+    this.odometerControl.markAsTouched();
+    const odometerKm = this.odometerControl.invalid
+      ? null
+      : parsePtBrNumber(this.odometerControl.value, 0).scaled;
+    if (odometerKm === null) return;
+
     this.submitting.set(true);
     this.submitError.set(null);
 
-    this.service.submit(current.id).subscribe({
+    this.service.submit(current.id, { odometerKm }).subscribe({
       /*
        * NAO faca `inspection.set(result)` aqui.
        *
