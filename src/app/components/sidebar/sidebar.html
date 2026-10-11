@@ -78,8 +78,8 @@
       }
     </button>
 
-    <!-- Desktop: the list opens in the sidebar. Phones use the bottom sheet at the end of this file. -->
-    @if (layout.isTenantOpen() && !layout.isMobile() && !layout.isCollapsed()) {
+    <!-- The list opens inside the sidebar, desktop and phone drawer alike (same list, same place). -->
+    @if (layout.isTenantOpen() && (layout.isMobile() || !layout.isCollapsed())) {
     <div class="mt-2" @dropdownSlide>
       <p class="px-3 pt-1 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Suas empresas</p>
       <app-company-switcher />
@@ -202,13 +202,3 @@
   </div>
   }
 </ng-template>
-
-<!-- ==================== SWITCHER BOTTOM SHEET (PHONES) ====================
-  Outside the drawer on purpose: the drawer animates with a transform, which would turn this
-  `fixed` sheet into a child of the 260px drawer instead of the viewport. -->
-@if (layout.isMobile()) {
-<app-members-sheet [open]="layout.isTenantOpen() && layout.showSwitcher()" title="Suas empresas"
-  subtitle="Escolha em qual empresa você quer trabalhar agora." (closed)="layout.closeTenant()">
-  <app-company-switcher />
-</app-members-sheet>
-}
