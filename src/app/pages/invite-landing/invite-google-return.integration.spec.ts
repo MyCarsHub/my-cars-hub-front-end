@@ -40,7 +40,9 @@ const BLOCKED: Reply = {
  * page cannot: that spec routes to an empty `/dashboard`, so a guard that never lets the
  * invitee through was invisible to it.
  */
-describe('Google return trip of an invite, through the real guards', () => {
+// 20 s: this suite drives the REAL route table and lazy-loads page chunks; the first case
+// of a cold worker passed the 5 s default under full-suite load.
+describe('Google return trip of an invite, through the real guards', { timeout: 20_000 }, () => {
   let redirects = 0;
 
   beforeEach(() => {
