@@ -18,6 +18,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { routes } from './app.routes';
 import { authInterceptor } from './services/auth.interceptor';
 import { errorInterceptor } from './services/error.interceptor';
+import { platformMaintenanceInterceptor } from './services/platform-maintenance.interceptor';
 import { impersonationInterceptor } from './services/impersonation.interceptor';
 import { PageTitleStrategy } from './services/page-title.strategy';
 import { prerenderApiBaseInterceptor } from './services/prerender-api-base.interceptor';
@@ -50,6 +51,8 @@ export const appConfig: ApplicationConfig = {
         authInterceptor,
         errorInterceptor,
         prerenderApiBaseInterceptor,
+        // Mais interno: vê o 503 antes do errorInterceptor decidir o que fazer com ele.
+        platformMaintenanceInterceptor,
       ]),
     ),
     provideAnimations(),
