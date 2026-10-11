@@ -331,6 +331,18 @@ describe('InspectionCapture', () => {
         '[data-submit-inspection]',
       );
 
+    const odometerField = (fixture: ComponentFixture<InspectionCapture>) =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('[data-odometer]');
+
+    /** Digita o hodometro como a pessoa digita: no campo, evento `input`. */
+    function typeOdometer(fixture: ComponentFixture<InspectionCapture>, value = '82109'): void {
+      const input = odometerField(fixture);
+      if (!input) throw new Error('campo de hodometro nao renderizado');
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
+
     it('NAO oferece envio com angulo faltando', () => {
       configure({ id: 'insp-1' }, {});
       getOne.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT', 'BACK'] }));
@@ -354,10 +366,11 @@ describe('InspectionCapture', () => {
 
       expect(submit).not.toHaveBeenCalled();
 
+      typeOdometer(fixture);
       submitButton(fixture)?.click();
       fixture.detectChanges();
 
-      expect(submit).toHaveBeenCalledWith('insp-1');
+      expect(submit).toHaveBeenCalledWith('insp-1', { odometerKm: 82109 });
     });
 
     it('avisa que o envio e irreversivel ANTES do clique', () => {
@@ -371,6 +384,7 @@ describe('InspectionCapture', () => {
       const fixture = renderComplete();
       submit.mockReturnValue(pending);
 
+      typeOdometer(fixture);
       submitButton(fixture)?.click();
       fixture.detectChanges();
 
@@ -384,6 +398,7 @@ describe('InspectionCapture', () => {
     it('enviada: confirma, tira o botao e encerra as refotos', () => {
       const fixture = renderComplete();
 
+      typeOdometer(fixture);
       submitButton(fixture)?.click();
       fixture.detectChanges();
 
@@ -403,6 +418,7 @@ describe('InspectionCapture', () => {
     it('o envio NAO apaga o progresso: os angulos sobrevivem a resposta', () => {
       const fixture = renderComplete();
 
+      typeOdometer(fixture);
       submitButton(fixture)?.click();
       fixture.detectChanges();
 
@@ -417,6 +433,7 @@ describe('InspectionCapture', () => {
       const fixture = renderComplete();
       submit.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
 
+      typeOdometer(fixture);
       submitButton(fixture)?.click();
       fixture.detectChanges();
 
@@ -438,6 +455,7 @@ describe('InspectionCapture', () => {
       const fixture = renderComplete();
       submit.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
 
+      typeOdometer(fixture);
       submitButton(fixture)?.click();
       fixture.detectChanges();
 
@@ -445,7 +463,171 @@ describe('InspectionCapture', () => {
       expect(shown).not.toContain('Vistoria enviada');
       expect(shown.toLowerCase()).toContain('permiss');
     });
+
+    // ================= O HODOMETRO ATUAL, pedido antes de enviar =================
+    /**
+     * O motorista informa o hodometro ao enviar: sem ele o dono nao consegue aprovar e a
+     * vistoria voltaria para ser refeita so por isso. O campo e obrigatorio NA TELA, mesmo
+     * sendo opcional no servidor (compatibilidade com o app antigo).
+     */
+    describe('hodometro atual', () => {
+      const errorText = (fixture: ComponentFixture<InspectionCapture>) =>
+        (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent ?? '';
+
+      it('o campo esta na tela com o roteiro completo, antes do botao de enviar', () => {
+        const fixture = renderComplete();
+        const input = odometerField(fixture)!;
+        const html = (fixture.nativeElement as HTMLElement).innerHTML;
+
+        expect(input).not.toBeNull();
+        expect(html.indexOf('data-odometer')).toBeLessThan(html.indexOf('data-submit-inspection'));
+        expect(text(fixture)).toContain('Hodômetro atual (km)');
+      });
+
+      it('NAO aparece com angulo faltando — nao ha o que enviar ainda', () => {
+        configure({ id: 'insp-1' }, {});
+        getOne.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
+        const fixture = render();
+
+        expect(odometerField(fixture)).toBeNull();
+      });
+
+      it('e numerico, de texto e de 16px: abaixo disso o iOS da zoom ao focar', () => {
+        const fixture = renderComplete();
+        const input = odometerField(fixture)!;
+
+        expect(input.getAttribute('inputmode')).toBe('numeric');
+        // Texto, nao `type=number`: o campo aceita o ponto de milhar pt-BR.
+        expect(input.getAttribute('type')).toBe('text');
+        expect(input.className).toContain('text-base');
+        expect(input.className).not.toMatch(/text-(xs|sm)/);
+        expect(input.className).toContain('min-h-12');
+      });
+
+      it('e obrigatorio: sem ele nada e enviado e a frase aparece no campo', () => {
+        const fixture = renderComplete();
+
+        submitButton(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(submit).not.toHaveBeenCalled();
+        expect(errorText(fixture)).toContain('Informe o hodômetro atual do carro.');
+        expect(odometerField(fixture)?.getAttribute('aria-invalid')).toBe('true');
+      });
+
+      it('espacos nao contam como preenchido', () => {
+        const fixture = renderComplete();
+        typeOdometer(fixture, '   ');
+
+        submitButton(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(submit).not.toHaveBeenCalled();
+      });
+
+      it('recusa o que nao e inteiro positivo, com a frase do que corrigir', () => {
+        const cases: Array<[string, string]> = [
+          ['abc', 'Digite só os números do hodômetro'],
+          ['45.99', 'Digite só os números do hodômetro'],
+          ['82109,5', 'Digite só os números do hodômetro'],
+          ['-100', 'Digite só os números do hodômetro'],
+          ['0', 'maior que zero'],
+          ['5000001', 'limite de 5.000.000 km'],
+        ];
+        for (const [value, expected] of cases) {
+          const fixture = renderComplete();
+          typeOdometer(fixture, value);
+
+          submitButton(fixture)?.click();
+          fixture.detectChanges();
+
+          expect(submit, `"${value}" foi enviado`).not.toHaveBeenCalled();
+          expect(errorText(fixture), `"${value}"`).toContain(expected);
+        }
+      });
+
+      it('aceita o ponto de milhar pt-BR e envia o numero inteiro', () => {
+        const fixture = renderComplete();
+        typeOdometer(fixture, '82.109');
+
+        submitButton(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(submit).toHaveBeenCalledWith('insp-1', { odometerKm: 82109 });
+      });
+
+      it('o teto do servidor (5.000.000) ainda vale', () => {
+        const fixture = renderComplete();
+        typeOdometer(fixture, '5000000');
+
+        submitButton(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(submit).toHaveBeenCalledWith('insp-1', { odometerKm: 5_000_000 });
+      });
+
+      it('mostra o ultimo registro do veiculo quando o servidor o manda', () => {
+        configure({ id: 'insp-1' }, {});
+        getOne.mockReturnValue(of({ ...complete, previousOdometerKm: 81420 }));
+        const fixture = render();
+
+        expect(text(fixture)).toContain('Último registro do veículo: 81.420 km.');
+      });
+
+      /**
+       * `INSPECTION_ODOMETER_BELOW_PREVIOUS` etc. chegam com `message` em portugues: a tela a
+       * mostra, em vez de uma frase generica que esconde o que a pessoa precisa corrigir.
+       */
+      it('mostra a mensagem do servidor quando ele recusa o hodometro', () => {
+        const fixture = renderComplete();
+        submit.mockReturnValue(
+          throwError(
+            () =>
+              new HttpErrorResponse({
+                status: 400,
+                error: {
+                  message: 'O hodômetro (80.000 km) não pode ser menor que o da retirada (81.420 km).',
+                  code: 'INSPECTION_ODOMETER_BELOW_PREVIOUS',
+                },
+              }),
+          ),
+        );
+        typeOdometer(fixture, '80000');
+
+        submitButton(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('não pode ser menor que o da retirada');
+        expect(text(fixture)).not.toContain('Vistoria enviada');
+        // O que a pessoa digitou fica, e o envio pode ser tentado de novo.
+        expect(odometerField(fixture)?.value).toBe('80000');
+        expect(submitButton(fixture)).not.toBeNull();
+      });
+
+      it('mostra a mensagem quando faltam fotos no servidor (INSPECTION_MISSING_ANGLES)', () => {
+        const fixture = renderComplete();
+        submit.mockReturnValue(
+          throwError(
+            () =>
+              new HttpErrorResponse({
+                status: 400,
+                error: {
+                  message: 'Faltam fotos: Hodômetro.',
+                  code: 'INSPECTION_MISSING_ANGLES',
+                },
+              }),
+          ),
+        );
+        typeOdometer(fixture);
+
+        submitButton(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('Faltam fotos: Hodômetro.');
+      });
+    });
   });
+
   /**
    * MEDIUM-1 — A FOTO RECEM-TIRADA NAO PODE SE PERDER NO ERRO.
    *

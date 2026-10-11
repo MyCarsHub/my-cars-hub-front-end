@@ -24,6 +24,7 @@ import type {
   MaintenanceType,
 } from '../types/maintenance.types';
 import type { FinancingStatus, IpvaStatus } from '../types/vehicle.types';
+import type { InspectionKind, InspectionStatus } from '../types/inspection.types';
 import type {
   InsuranceCoverage,
   InsurancePaymentMethod,
@@ -282,6 +283,40 @@ export const FINE_SEVERITY_FILTER_OPTIONS: Array<
     defaultPoints: FINE_SEVERITY_META.GRAVISSIMA.defaultPoints,
   },
 ];
+
+// ------------------------------------------------------------ inspection
+
+/**
+ * Situacao da vistoria. Rotulos e cores do handoff de vistorias v2: em andamento NEUTRO,
+ * aguardando aprovacao AMBAR (e a fila de quem decide), aprovada ESMERALDA, recusada ROSE.
+ *
+ * `PENDING` e "Em andamento" — o motorista ainda esta tirando as fotos —, nao "Pendente":
+ * a palavra "pendente" aqui leria como algo que o DONO deve fazer, e quem deve e o motorista.
+ */
+export const INSPECTION_STATUS_META: Record<InspectionStatus, StatusMeta> = {
+  PENDING: { label: 'Em andamento', chip: 'bg-neutral-100 text-neutral-700', color: '#6b7280' },
+  SUBMITTED: { label: 'Aguardando aprovação', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
+  APPROVED: { label: 'Aprovada', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
+  REJECTED: { label: 'Recusada', chip: 'bg-rose-100 text-rose-700', color: '#ef4444' },
+};
+
+/**
+ * Tipo da vistoria. `CHECKOUT` e a RETIRADA do carro e `CHECKIN` a DEVOLUCAO. `FLEET` e a
+ * vistoria de frota, sem aluguel — nao tem par no fluxo de retirada/devolucao.
+ */
+export const INSPECTION_KIND_LABELS: Record<InspectionKind, string> = {
+  CHECKOUT: 'Retirada',
+  CHECKIN: 'Devolução',
+  FLEET: 'Frota',
+};
+
+/** O chip de uma vistoria, tolerando um valor que o mapa ainda nao conhece. */
+export function inspectionStatusMeta(status: InspectionStatus | string | null | undefined): StatusMeta {
+  if (status && status in INSPECTION_STATUS_META) {
+    return INSPECTION_STATUS_META[status as InspectionStatus];
+  }
+  return { label: '—', chip: 'bg-neutral-100 text-neutral-700', color: '#6b7280' };
+}
 
 // ----------------------------------------------------------- maintenance
 

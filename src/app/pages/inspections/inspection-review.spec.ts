@@ -1,66 +1,80 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Subject, of, throwError } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InspectionReview } from './inspection-review';
-import { InspectionsService } from '../../services/inspections.service';
-import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import type { InspectionPhoto, InspectionReviewResult } from '../../types/inspection.types';
+import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { InspectionsService } from '../../services/inspections.service';
+import { NotificationService } from '../../services/notification.service';
+import { SessionService } from '../../services/session.service';
+import type {
+  Inspection,
+  InspectionPhoto,
+  InspectionReviewResult,
+} from '../../types/inspection.types';
+import { RENTAL_PHOTO_ANGLES } from '../../types/rental.types';
 
 /**
- * A DECISAO sobre uma vistoria enviada: aprovar ou recusar.
+ * `/vistorias/:id` — os DETALHES da vistoria e, para quem decide, a decisao.
  *
- * E a aprovacao — nao o envio — que fecha a ocorrencia do ciclo. Enquanto
- * ninguem aprovava, NENHUMA vistoria chegava a `COMPLETED` e o lembrete do
- * motor nunca parava, para papel nenhum.
+ * E a aprovacao — nao o envio — que fecha a ocorrencia do ciclo. Os invariantes, em ordem de
+ * risco:
  *
- * Os invariantes, em ordem de risco:
- *
- * 1. NAO SE APROVA SEM VER. Sem as fotos na tela nao ha botao de aprovar —
- *    aprovar as cegas e assinar em branco. Lista vazia ou falha viram "tentar
- *    de novo", nunca um aprovar habilitado.
- * 2. RECUSA EXIGE MOTIVO na tela, nao so no servidor. Quem refotografa precisa
- *    saber o que estava errado; um 400 do backend chegaria tarde e sem rumo.
- * 3. O MOTORISTA NAO DECIDE. O servidor ja barra; aqui e defesa em
- *    profundidade, para a tela nao oferecer o que sera recusado.
- * 4. A URL ASSINADA EXPIRA. Imagem quebrada nao e estado final: a tela
- *    RECARREGA a lista em vez de exibir o icone de imagem morta.
- * 5. FALHAR NAO E DECIDIR. Se aprovar ou recusar falhar, a tela nao pode
- *    afirmar que decidiu.
+ * 1. NAO SE APROVA SEM VER NEM SEM HODOMETRO. Sem as 14 fotos visiveis e o km informado, o
+ *    botao fica desabilitado e a tela diz por que — aprovar as cegas e assinar em branco.
+ * 2. RECUSA EXIGE MOTIVO na tela, nao so no servidor, e pede confirmacao.
+ * 3. O MOTORISTA NAO DECIDE. O servidor ja barra; aqui e defesa em profundidade.
+ * 4. A URL ASSINADA EXPIRA. Imagem quebrada nao e estado final: a tela RECARREGA a lista.
+ * 5. FALHAR NAO E DECIDIR. Se aprovar ou recusar falhar, a tela nao afirma que decidiu e o
+ *    motivo digitado fica.
+ * 6. A foto SEM URL nao some: o quadro existe, diz o angulo e o aviso oferece tentar de novo.
  */
-describe('InspectionReview', () => {
-  /**
-   * A forma EXATA de `GET /v1/inspections/{id}/photos` — os sete campos do DTO
-   * real, nao os dois que a tela consome. Duble que so traz o que o componente
-   * usa deixa de pegar o dia em que o componente passar a usar outro.
-   *
-   * `storagePath` NAO aparece porque o servidor nao o manda: e caminho de
-   * objeto no bucket. Um duble que o inventasse convidaria alguem a usa-lo.
-   */
-  const PHOTOS: InspectionPhoto[] = [
-    {
-      id: 'ph-1',
-      inspectionId: 'insp-1',
-      angle: 'FRONT',
-      mimeType: 'image/jpeg',
-      sizeBytes: 182_344,
-      signedUrl: 'https://cdn.example/f.jpg?sig=1',
-      createdDate: '2026-10-01T10:00:00',
-    },
-    {
-      id: 'ph-2',
-      inspectionId: 'insp-1',
-      angle: 'BACK',
-      mimeType: 'image/jpeg',
-      sizeBytes: 201_118,
-      signedUrl: 'https://cdn.example/b.jpg?sig=2',
-      createdDate: '2026-10-01T10:04:00',
-    },
-  ];
+describe('InspectionReview — detalhes da vistoria', () => {
+  const ANGLES = RENTAL_PHOTO_ANGLES.map((a) => a.value as string);
 
-  /** A forma EXATA de `approve` / `reject` — campo a campo com o backend. */
+  /** Uma foto por angulo, na forma EXATA do DTO real (sem `storagePath`). */
+  function photoFor(angle: string, n: number, signedUrl: string | null = null): InspectionPhoto {
+    return {
+      id: `ph-${n}`,
+      inspectionId: 'insp-1',
+      angle,
+      mimeType: 'image/jpeg',
+      sizeBytes: 180_000,
+      signedUrl: signedUrl ?? `https://cdn.example/${angle.toLowerCase()}.jpg?sig=${n}`,
+      createdDate: '2026-10-09T08:40:00',
+    };
+  }
+
+  const ALL_PHOTOS: InspectionPhoto[] = ANGLES.map((angle, n) => photoFor(angle, n));
+
+  const DETAIL: Inspection = {
+    id: 'insp-1',
+    companyId: 'co-1',
+    vehicleId: 'veh-1',
+    rentalId: 'alg_01J9Z4K7QX2M',
+    kind: 'CHECKOUT',
+    performedBy: 'user-1',
+    performedAt: '2026-10-09T08:42:00',
+    requiredAngles: ANGLES,
+    capturedAngles: ANGLES,
+    status: 'SUBMITTED',
+    vehiclePlate: 'SJH2B17',
+    vehicleBrand: 'Fiat',
+    vehicleModel: 'Mobi Like 1.0',
+    vehicleColor: 'Branco',
+    vehicleYear: 2023,
+    driverName: 'Carlos Henrique Souza',
+    driverPhone: '11981234567',
+    photoCount: 14,
+    odometerKm: 82109,
+    previousOdometerKm: 81420,
+    kmDriven: 689,
+  };
+
   const APPROVED: InspectionReviewResult = {
     id: 'insp-1',
     status: 'APPROVED',
@@ -71,534 +85,1056 @@ describe('InspectionReview', () => {
   };
   const REJECTED: InspectionReviewResult = { ...APPROVED, status: 'REJECTED' };
 
+  let getOne: ReturnType<typeof vi.fn>;
   let photos: ReturnType<typeof vi.fn>;
   let approve: ReturnType<typeof vi.fn>;
   let reject: ReturnType<typeof vi.fn>;
+  let reportUrl: ReturnType<typeof vi.fn>;
+  let openPendingTab: ReturnType<typeof vi.fn>;
+  let tab: { blocked: boolean; navigate: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
+  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let notifications: NotificationService;
   let role: string;
 
   function configure(): void {
     TestBed.resetTestingModule();
-    photos = vi.fn().mockReturnValue(of(PHOTOS));
+    getOne = vi.fn().mockReturnValue(of(DETAIL));
+    photos = vi.fn().mockReturnValue(of(ALL_PHOTOS));
     approve = vi.fn().mockReturnValue(of(APPROVED));
     reject = vi.fn().mockReturnValue(of(REJECTED));
+    reportUrl = vi.fn().mockReturnValue(of({ url: 'https://storage.example/laudo.pdf?sig=1' }));
+    tab = { blocked: false, navigate: vi.fn(), close: vi.fn() };
+    openPendingTab = vi.fn().mockReturnValue(tab);
+    params = new BehaviorSubject(convertToParamMap({ id: 'insp-1' }));
 
     TestBed.configureTestingModule({
       imports: [InspectionReview],
       providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
         ApiErrorService,
-        { provide: InspectionsService, useValue: { photos, approve, reject } },
+        {
+          provide: InspectionsService,
+          useValue: { getOne, photos, approve, reject, reportUrl },
+        },
         { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
+        { provide: ExternalNavigationService, useValue: { openPendingTab } },
+        { provide: ActivatedRoute, useValue: { paramMap: params } },
       ],
     });
+    notifications = TestBed.inject(NotificationService);
   }
 
   function render(): ComponentFixture<InspectionReview> {
     const fixture = TestBed.createComponent(InspectionReview);
-    fixture.componentRef.setInput('inspectionId', 'insp-1');
+    fixture.detectChanges();
     fixture.detectChanges();
     return fixture;
+  }
+
+  /** Pinta uma vistoria especifica, com as fotos que o teste escolher. */
+  function renderWith(
+    detail: Partial<Inspection> = {},
+    photoList: InspectionPhoto[] = ALL_PHOTOS,
+  ): ComponentFixture<InspectionReview> {
+    getOne.mockReturnValue(of({ ...DETAIL, ...detail }));
+    photos.mockReturnValue(of(photoList));
+    return render();
   }
 
   const host = (f: ComponentFixture<InspectionReview>) => f.nativeElement as HTMLElement;
   const text = (f: ComponentFixture<InspectionReview>) =>
     (host(f).textContent ?? '').replace(/\s+/g, ' ');
+  const q = <T extends Element = HTMLElement>(f: ComponentFixture<InspectionReview>, s: string) =>
+    host(f).querySelector<T>(s);
   const approveBtn = (f: ComponentFixture<InspectionReview>) =>
-    host(f).querySelector<HTMLButtonElement>('[data-approve]');
-  const rejectBtn = (f: ComponentFixture<InspectionReview>) =>
-    host(f).querySelector<HTMLButtonElement>('[data-reject]');
-  const reasonInput = (f: ComponentFixture<InspectionReview>) =>
-    host(f).querySelector<HTMLTextAreaElement>('[data-reject-reason]');
-  const images = (f: ComponentFixture<InspectionReview>) =>
-    Array.from(host(f).querySelectorAll('img'));
+    q<HTMLButtonElement>(f, '[data-approve]');
+  const field = (f: ComponentFixture<InspectionReview>, name: string) =>
+    (q(f, `[data-field="${name}"]`)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const frames = (f: ComponentFixture<InspectionReview>) =>
+    Array.from(host(f).querySelectorAll<HTMLElement>('[data-frame]'));
+
+  function button(f: ComponentFixture<InspectionReview>, label: string): HTMLButtonElement {
+    const found = Array.from(host(f).querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === label,
+    );
+    if (!found) throw new Error(`botao "${label}" nao esta na tela`);
+    return found;
+  }
 
   function typeReason(f: ComponentFixture<InspectionReview>, value: string): void {
-    const field = reasonInput(f);
-    if (!field) throw new Error('campo de motivo não renderizado');
-    field.value = value;
-    field.dispatchEvent(new Event('input'));
+    const input = q<HTMLTextAreaElement>(f, '[data-reject-reason]');
+    if (!input) throw new Error('campo de motivo nao renderizado');
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
     f.detectChanges();
   }
 
+  /** Abre o motivo, escreve e pede a recusa — o caminho ate o dialogo de confirmacao. */
+  function askToReject(f: ComponentFixture<InspectionReview>, reason = 'Foto do painel desfocada.') {
+    button(f, 'Recusar').click();
+    f.detectChanges();
+    typeReason(f, reason);
+    button(f, 'Recusar e pedir nova vistoria').click();
+    f.detectChanges();
+  }
+
+  const confirmDialog = (f: ComponentFixture<InspectionReview>) =>
+    host(f).querySelector('app-confirm-dialog [role="dialog"]');
+
   beforeEach(() => {
+    sessionStorage.clear();
     role = 'OWNER';
-  });
-
-  it('busca as fotos da vistoria ao abrir', () => {
     configure();
-    render();
-
-    expect(photos).toHaveBeenCalledWith('insp-1');
   });
 
-  it('mostra cada foto COM o rotulo do angulo', () => {
-    configure();
-    const fixture = render();
+  // ==================================================================== cabecalho
 
-    expect(images(fixture).length).toBe(2);
-    // Ordem canonica do roteiro: `FRONT` antes de `BACK`.
-    expect(images(fixture)[0].getAttribute('src')).toBe(PHOTOS[0].signedUrl);
-    // O rotulo e do contrato (`angle`), nao da ordem, e vem EM PORTUGUES do
-    // mesmo `angleLabel` da captura: o mesmo angulo nao pode ter dois nomes, e
-    // quem fotografa na rua nao traduz nada para achar o lado do carro.
-    expect(text(fixture)).toContain('Frente');
-    expect(text(fixture)).toContain('Traseira');
-  });
+  describe('cabecalho', () => {
+    it('le o id da ROTA e busca a vistoria e as fotos dela', () => {
+      render();
 
-  describe('invariante 1 — nao se aprova sem ver', () => {
-    it('sem fotos carregadas ainda, nao oferece aprovar', () => {
-      configure();
-      photos.mockReturnValue(new Subject<InspectionPhoto[]>());
-      const fixture = render();
-
-      expect(approveBtn(fixture)).toBeNull();
+      expect(getOne).toHaveBeenCalledWith('insp-1');
+      expect(photos).toHaveBeenCalledWith('insp-1');
     });
 
-    it('lista de fotos VAZIA nao oferece aprovar — oferece tentar de novo', () => {
-      configure();
-      photos.mockReturnValue(of([]));
+    it('tem o voltar, o titulo, o chip de situacao e o subtitulo com a data', () => {
       const fixture = render();
 
-      expect(approveBtn(fixture)).toBeNull();
-      expect(host(fixture).querySelector('[data-retry-photos]')).not.toBeNull();
+      const back = q<HTMLAnchorElement>(fixture, '[data-back]')!;
+      expect(back.getAttribute('href')).toBe('/vistorias');
+      expect(back.textContent?.trim()).toBe('Vistorias');
+      expect(back.className).toContain('min-h-[44px]');
+
+      expect(q(fixture, 'h1')?.textContent?.trim()).toBe('Detalhes da vistoria');
+      expect(q(fixture, '[data-status-chip]')?.textContent?.trim()).toBe('Aguardando aprovação');
+      expect(q(fixture, '[data-status-chip]')?.className).toContain('bg-amber-100');
+      expect(text(fixture)).toContain('Retirada realizada em 09/10/2026 08:42.');
     });
 
-    it('FALHA ao buscar fotos nao oferece aprovar — oferece tentar de novo', () => {
-      configure();
-      photos.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    it('o chip fica AO LADO do titulo, no mesmo bloco do h1', () => {
       const fixture = render();
+      const heading = q(fixture, 'h1')!;
 
-      expect(approveBtn(fixture)).toBeNull();
-      expect(host(fixture).querySelector('[data-retry-photos]')).not.toBeNull();
-      expect(approve).not.toHaveBeenCalled();
+      expect(heading.parentElement).toBe(q(fixture, '[data-status-chip]')!.parentElement);
     });
 
-    it('o retry busca as fotos de novo', () => {
-      configure();
-      photos.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    it('devolucao diz "Devolução realizada em"', () => {
+      const fixture = renderWith({ kind: 'CHECKIN' });
+
+      expect(text(fixture)).toContain('Devolução realizada em 09/10/2026 08:42.');
+    });
+
+    it('enquanto carrega mostra o esqueleto e nao um zero', () => {
+      getOne.mockReturnValue(new Subject<Inspection>());
       const fixture = render();
 
-      photos.mockReturnValue(of(PHOTOS));
-      host(fixture).querySelector<HTMLButtonElement>('[data-retry-photos]')?.click();
+      expect(q(fixture, '[data-skeleton]')).not.toBeNull();
+      expect(q(fixture, '[data-status-chip]')).toBeNull();
+      expect(q(fixture, '[data-summary]')).toBeNull();
+    });
+
+    it('se a leitura falha, diz o que houve e o retry le de novo', () => {
+      getOne.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 404, error: { message: 'Vistoria não encontrada.' } })),
+      );
+      const fixture = render();
+
+      expect(text(fixture)).toContain('Vistoria não encontrada.');
+      expect(q(fixture, '[data-summary]')).toBeNull();
+
+      getOne.mockReturnValue(of(DETAIL));
+      q<HTMLButtonElement>(fixture, '[data-retry-detail]')?.click();
       fixture.detectChanges();
 
-      expect(photos).toHaveBeenCalledTimes(2);
-      expect(approveBtn(fixture)).not.toBeNull();
-    });
-  });
-
-  describe('invariante 2 — recusa exige motivo', () => {
-    it('motivo vazio NAO envia', () => {
-      configure();
-      const fixture = render();
-
-      rejectBtn(fixture)?.click();
-      fixture.detectChanges();
-
-      expect(reject).not.toHaveBeenCalled();
-      expect(text(fixture)).toContain('motivo');
+      expect(getOne).toHaveBeenCalledTimes(2);
+      expect(q(fixture, '[data-summary]')).not.toBeNull();
     });
 
-    it('so espacos tambem nao envia', () => {
-      configure();
+    it('navegar para outra vistoria na mesma instancia le a nova', () => {
       const fixture = render();
-      typeReason(fixture, '    ');
 
-      rejectBtn(fixture)?.click();
+      params.next(convertToParamMap({ id: 'insp-2' }));
       fixture.detectChanges();
 
-      expect(reject).not.toHaveBeenCalled();
-    });
-
-    it('com motivo, recusa e manda o texto', () => {
-      configure();
-      const fixture = render();
-      typeReason(fixture, 'A foto da frente está escura.');
-
-      rejectBtn(fixture)?.click();
-      fixture.detectChanges();
-
-      expect(reject).toHaveBeenCalledWith('insp-1', 'A foto da frente está escura.');
+      expect(getOne).toHaveBeenLastCalledWith('insp-2');
+      expect(photos).toHaveBeenLastCalledWith('insp-2');
     });
   });
 
-  describe('invariante 3 — o motorista nao decide', () => {
-    it('MOTORISTA nao recebe aprovar nem recusar', () => {
-      configure();
-      role = 'DRIVER';
-      const fixture = render();
+  // ================================================================== as faixas
 
-      expect(approveBtn(fixture)).toBeNull();
-      expect(rejectBtn(fixture)).toBeNull();
+  describe('faixas por situacao', () => {
+    it('REJECTED: faixa rose com o motivo, e role=alert', () => {
+      const fixture = renderWith({
+        status: 'REJECTED',
+        rejectionReason: 'A foto do hodômetro está desfocada.',
+      });
+      const strip = q(fixture, '[data-rejected-strip]')!;
+
+      expect(strip.getAttribute('role')).toBe('alert');
+      expect(strip.className).toContain('bg-rose-50');
+      expect(strip.className).toContain('border-rose-200');
+      expect(strip.className).toContain('rounded-2xl');
+      expect(strip.textContent).toContain('Vistoria recusada. O motorista precisa refazer.');
+      expect(q(fixture, '[data-rejection-reason]')?.textContent?.trim()).toBe(
+        'Motivo: A foto do hodômetro está desfocada.',
+      );
     });
 
-    it('MOTORISTA ainda VE as fotos — o que ele nao tem e a decisao', () => {
-      configure();
-      role = 'DRIVER';
-      const fixture = render();
+    it('REJECTED sem motivo nao inventa um', () => {
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: null });
 
-      expect(images(fixture).length).toBe(2);
+      expect(q(fixture, '[data-rejected-strip]')).not.toBeNull();
+      expect(q(fixture, '[data-rejection-reason]')).toBeNull();
     });
 
-    it('OWNER e MANAGER decidem', () => {
-      for (const papel of ['OWNER', 'MANAGER']) {
+    it('PENDING: banner de informacao com o primeiro nome e a contagem', () => {
+      const fixture = renderWith(
+        { status: 'PENDING', odometerKm: null },
+        ALL_PHOTOS.slice(0, 9),
+      );
+
+      expect(text(fixture)).toContain(
+        'Aguardando Carlos enviar as 14 fotos e o hodômetro pelo celular (9/14).',
+      );
+      expect(q(fixture, 'app-alert-banner')?.querySelector('[role="status"]')).not.toBeNull();
+      expect(q(fixture, '[data-rejected-strip]')).toBeNull();
+    });
+
+    it('SUBMITTED e APPROVED nao tem faixa', () => {
+      for (const status of ['SUBMITTED', 'APPROVED'] as const) {
         configure();
-        role = papel;
+        const fixture = renderWith({ status });
+        expect(q(fixture, '[data-rejected-strip]'), status).toBeNull();
+        expect(text(fixture), status).not.toContain('Aguardando Carlos enviar');
+      }
+    });
+
+    it('o dono NAO e convidado a "continuar" a vistoria do motorista', () => {
+      const fixture = renderWith({ status: 'PENDING', odometerKm: null }, ALL_PHOTOS.slice(0, 9));
+
+      expect(q(fixture, '[data-continue]')).toBeNull();
+    });
+
+    it('vistoria de FROTA em andamento oferece continuar a captura', () => {
+      const fixture = renderWith({ status: 'PENDING', kind: 'FLEET', rentalId: null });
+
+      expect(q<HTMLAnchorElement>(fixture, '[data-continue]')?.getAttribute('href')).toBe(
+        '/vistorias/insp-1/captura',
+      );
+    });
+  });
+
+  // =================================================================== o Resumo
+
+  describe('card Resumo', () => {
+    it('mostra veiculo, cor e ano, motorista e contato', () => {
+      const fixture = render();
+
+      expect(field(fixture, 'vehicle')).toBe('SJH2B17 · Fiat Mobi Like 1.0');
+      expect(field(fixture, 'color-year')).toBe('2023 · Branco');
+      expect(field(fixture, 'driver')).toBe('Carlos Henrique Souza');
+      expect(field(fixture, 'phone')).toBe('(11) 98123-4567');
+    });
+
+    it('a placa e mono e SEM retangulo ao redor', () => {
+      const fixture = render();
+      const plate = q(fixture, '[data-field="vehicle"] span')!;
+
+      expect(plate.className).toContain('font-mono');
+      expect(plate.className).not.toMatch(/\b(border|bg-|rounded|ring)/);
+    });
+
+    it('o ID do aluguel e mono e leva ao aluguel', () => {
+      const fixture = render();
+      const link = q<HTMLAnchorElement>(fixture, '[data-rental-link]')!;
+
+      expect(field(fixture, 'rental')).toContain('alg_01J9Z4K7QX2M');
+      expect(q(fixture, '[data-field="rental"] span')?.className).toContain('font-mono');
+      expect(link.getAttribute('href')).toBe('/alugueis/alg_01J9Z4K7QX2M');
+      expect(link.textContent?.trim()).toBe('Ver aluguel');
+      expect(link.className).toContain('text-primary-700');
+    });
+
+    it('vistoria de frota nao tem aluguel: diz isso e nao oferece o link', () => {
+      const fixture = renderWith({ kind: 'FLEET', rentalId: null });
+
+      expect(field(fixture, 'rental')).toContain('Vistoria de frota, sem aluguel.');
+      expect(q(fixture, '[data-rental-link]')).toBeNull();
+    });
+
+    it('retirada: hodometro em mono e o ultimo registro do veiculo', () => {
+      const fixture = render();
+
+      expect(q(fixture, '[data-odometer-value]')?.textContent?.trim()).toBe('82.109 km');
+      expect(q(fixture, '[data-odometer-value]')?.className).toContain('font-mono');
+      expect(q(fixture, '[data-odometer-hint]')?.textContent?.trim()).toBe(
+        'Último registro do veículo: 81.420 km.',
+      );
+    });
+
+    it('devolucao: quantos km rodou desde a retirada, com o km da retirada', () => {
+      const fixture = renderWith({ kind: 'CHECKIN' });
+
+      expect(q(fixture, '[data-odometer-hint]')?.textContent?.trim()).toBe(
+        '689 km rodados desde a retirada (81.420 km).',
+      );
+    });
+
+    it('sem hodometro: "Aguardando o motorista" e a instrucao, nunca 0 km', () => {
+      const fixture = renderWith({
+        status: 'PENDING',
+        odometerKm: null,
+        previousOdometerKm: null,
+        kmDriven: null,
+      });
+
+      expect(q(fixture, '[data-odometer-value]')?.textContent?.trim()).toBe('Aguardando o motorista');
+      expect(q(fixture, '[data-odometer-value]')?.className).toContain('text-neutral-500');
+      expect(q(fixture, '[data-odometer-hint]')?.textContent?.trim()).toBe(
+        'O motorista informa o hodômetro ao enviar as fotos.',
+      );
+      expect(text(fixture)).not.toContain('0 km');
+    });
+
+    it('o servidor que nao manda os campos novos degrada para "—", sem undefined', () => {
+      const bare: Partial<Inspection> = {
+        vehiclePlate: undefined,
+        vehicleBrand: undefined,
+        vehicleModel: undefined,
+        vehicleColor: undefined,
+        vehicleYear: undefined,
+        driverName: undefined,
+        driverPhone: undefined,
+        odometerKm: undefined,
+        previousOdometerKm: undefined,
+        kmDriven: undefined,
+      };
+      const fixture = renderWith(bare);
+
+      for (const name of ['vehicle', 'color-year', 'driver', 'phone']) {
+        expect(field(fixture, name), name).toBe('—');
+      }
+      expect(text(fixture)).not.toContain('undefined');
+      expect(text(fixture)).not.toContain('null');
+    });
+
+    it('a grade e auto-fit de 200px', () => {
+      const fixture = render();
+
+      expect(q(fixture, '[data-summary]')?.className).toContain(
+        'grid-cols-[repeat(auto-fit,minmax(200px,1fr))]',
+      );
+    });
+  });
+
+  // ================================================================ as 14 fotos
+
+  describe('galeria', () => {
+    it('titula pelo tipo e conta os angulos enviados', () => {
+      const fixture = render();
+
+      expect(text(fixture)).toContain('Vistoria de retirada');
+      expect(q(fixture, '[data-photo-summary]')?.textContent?.trim()).toBe(
+        '14 de 14 ângulos enviados. O laudo em PDF é gerado a partir dessas fotos.',
+      );
+    });
+
+    it('devolucao titula "Vistoria de devolução"', () => {
+      const fixture = renderWith({ kind: 'CHECKIN' });
+
+      expect(text(fixture)).toContain('Vistoria de devolução');
+    });
+
+    it('sao 14 quadros quadrados, tracejados, na ordem do roteiro', () => {
+      const fixture = render();
+      const list = frames(fixture);
+
+      expect(list.length).toBe(14);
+      for (const el of list) {
+        expect(el.className).toContain('aspect-square');
+        expect(el.className).toContain('border-dashed');
+        expect(el.className).toContain('rounded-xl');
+      }
+      expect(q(fixture, '[data-frame]')?.closest('ul')?.className).toContain(
+        'grid-cols-[repeat(auto-fill,minmax(140px,1fr))]',
+      );
+
+      const labels = list.map((el) => (el.textContent ?? '').trim());
+      expect(labels[0]).toBe('Frente');
+      expect(labels[1]).toBe('Traseira');
+      expect(labels[13]).toBe('Banco traseiro');
+    });
+
+    it('com foto: a imagem cobre o quadro, o angulo vai na faixa e e um botao "Ampliar foto"', () => {
+      const fixture = render();
+      const first = frames(fixture)[0];
+      const img = first.querySelector('img')!;
+
+      expect(first.tagName).toBe('BUTTON');
+      expect(first.getAttribute('aria-label')).toBe('Ampliar foto: Frente');
+      expect(img.getAttribute('src')).toBe(ALL_PHOTOS[0].signedUrl);
+      expect(img.className).toContain('object-cover');
+      expect(first.className).toContain('hover:border-primary-500');
+      const strip = first.querySelector('span')!;
+      expect(strip.className).toContain('bg-black/65');
+      expect(strip.textContent?.trim()).toBe('Frente');
+    });
+
+    it('sem foto: camera e o nome do angulo, sem faixa, sem texto vermelho, sem botao', () => {
+      const fixture = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 9));
+      const empty = frames(fixture).filter((el) => el.getAttribute('data-frame') === 'empty');
+
+      expect(empty.length).toBe(5);
+      const first = empty[0];
+      expect(first.tagName).toBe('DIV');
+      expect(first.querySelector('svg')).not.toBeNull();
+      expect(first.querySelector('img')).toBeNull();
+      // Das 9 primeiras (ate o Motor), o primeiro quadro vazio e o Porta-malas.
+      expect((first.textContent ?? '').trim()).toBe('Porta-malas');
+      expect(first.innerHTML).not.toMatch(/text-(red|rose)-/);
+      expect(first.innerHTML).not.toContain('bg-black');
+      expect(first.className).toContain('bg-neutral-50');
+    });
+
+    it('resume o que falta: "9 de 14 … Faltam 5 fotos." e "Falta 1 foto." no singular', () => {
+      const nine = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 9));
+      expect(q(nine, '[data-photo-summary]')?.textContent?.trim()).toBe(
+        '9 de 14 ângulos enviados. Faltam 5 fotos.',
+      );
+
+      configure();
+      const thirteen = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 13));
+      expect(q(thirteen, '[data-photo-summary]')?.textContent?.trim()).toBe(
+        '13 de 14 ângulos enviados. Falta 1 foto.',
+      );
+    });
+
+    it('ordem e do ROTEIRO, nao da resposta do servidor', () => {
+      const fixture = renderWith({}, [...ALL_PHOTOS].reverse());
+      const labels = frames(fixture).map((el) => (el.textContent ?? '').trim());
+
+      expect(labels.slice(0, 3)).toEqual(['Frente', 'Traseira', 'Lateral esquerda']);
+    });
+
+    it('alias legado `*_PANEL` cai no quadro do pneu, sem criar um quadro extra', () => {
+      const legacy = ALL_PHOTOS.map((p) =>
+        p.angle === 'FRONT_LEFT_TIRE' ? { ...p, angle: 'FRONT_LEFT_PANEL' } : p,
+      );
+      const fixture = renderWith({}, legacy);
+
+      expect(frames(fixture).length).toBe(14);
+      expect(
+        frames(fixture).filter((el) => el.getAttribute('data-frame') === 'empty').length,
+      ).toBe(0);
+    });
+
+    it('a chave da lista NAO e a signedUrl: reassinar nao recria as imagens', () => {
+      const fixture = render();
+      const before = Array.from(host(fixture).querySelectorAll('img'));
+
+      photos.mockReturnValue(
+        of(ALL_PHOTOS.map((p, n) => ({ ...p, signedUrl: `${p.signedUrl}&r=${n}` }))),
+      );
+      // Forca uma releitura pelo mesmo caminho do retry.
+      (fixture.componentInstance as unknown as { loadPhotos: () => void }).loadPhotos();
+      fixture.detectChanges();
+      const after = Array.from(host(fixture).querySelectorAll('img'));
+
+      expect(after.length).toBe(before.length);
+      expect(after[0]).toBe(before[0]);
+      expect(after[0].getAttribute('src')).toContain('&r=0');
+    });
+
+    it('a imagem que falha recarrega a LISTA uma vez; na segunda explica, sem laco', () => {
+      const fixture = render();
+      expect(photos).toHaveBeenCalledTimes(1);
+
+      host(fixture).querySelector('img')?.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      expect(photos).toHaveBeenCalledTimes(2);
+
+      host(fixture).querySelector('img')?.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      expect(photos).toHaveBeenCalledTimes(2);
+      expect(text(fixture)).toContain('Os links das fotos expiraram');
+    });
+
+    describe('foto sem URL assinada (a assinatura dela falhou)', () => {
+      const withNullUrl = ALL_PHOTOS.map((p) =>
+        p.angle === 'DASHBOARD' ? { ...p, signedUrl: null } : p,
+      );
+
+      it('o quadro existe como placeholder e o aviso nomeia o angulo e diz que esta salva', () => {
+        const fixture = renderWith({}, withNullUrl);
+
+        expect(frames(fixture).length).toBe(14);
+        expect(
+          frames(fixture).filter((el) => el.getAttribute('data-frame') === 'empty').length,
+        ).toBe(1);
+        const warning = text(fixture);
+        expect(warning).toContain('Não foi possível carregar a foto de: Painel');
+        expect(warning).toContain('está salva');
+      });
+
+      it('oferece tentar de novo, e o retry busca as fotos outra vez', () => {
+        const fixture = renderWith({}, withNullUrl);
+        expect(photos).toHaveBeenCalledTimes(1);
+
+        photos.mockReturnValue(of(ALL_PHOTOS));
+        q<HTMLButtonElement>(fixture, '[data-retry-photos]')?.click();
+        fixture.detectChanges();
+
+        expect(photos).toHaveBeenCalledTimes(2);
+        expect(q(fixture, '[data-retry-photos]')).toBeNull();
+        expect(approveBtn(fixture)?.disabled).toBe(false);
+      });
+
+      it('NAO libera aprovar — ver 13 de 14 nao e ver — mas RECUSAR segue', () => {
+        const fixture = renderWith({}, withNullUrl);
+
+        expect(approveBtn(fixture)?.disabled).toBe(true);
+        expect(q(fixture, '[data-start-reject]')?.hasAttribute('disabled')).toBe(false);
+      });
+    });
+
+    it('falha ao buscar as fotos: banner, tentar de novo e aprovar travado', () => {
+      photos.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 500 })),
+      );
+      const fixture = render();
+
+      expect(text(fixture)).toContain('Sem vê-las não dá para decidir');
+      expect(q(fixture, '[data-retry-photos]')).not.toBeNull();
+      expect(approveBtn(fixture)?.disabled).toBe(true);
+      expect(frames(fixture).length).toBe(0);
+    });
+  });
+
+  // ================================================================ visualizador
+
+  describe('visualizador de fotos', () => {
+    const dialog = (f: ComponentFixture<InspectionReview>) =>
+      host(f).querySelectorAll<HTMLElement>('app-members-sheet [role="dialog"]');
+
+    function open(f: ComponentFixture<InspectionReview>, label: string): void {
+      host(f)
+        .querySelector<HTMLButtonElement>(`[aria-label="Ampliar foto: ${label}"]`)
+        ?.click();
+      f.detectChanges();
+      f.detectChanges();
+    }
+
+    const counter = (f: ComponentFixture<InspectionReview>) =>
+      q(f, '[data-viewer-counter]')?.textContent?.trim();
+    const title = (f: ComponentFixture<InspectionReview>) =>
+      host(f).querySelector('app-members-sheet h2')?.textContent?.trim();
+
+    it('abre com o angulo no titulo, "N de 14" e a data em que a foto foi tirada', () => {
+      const fixture = render();
+      expect(dialog(fixture).length).toBe(0);
+
+      open(fixture, 'Traseira');
+
+      expect(dialog(fixture).length).toBe(1);
+      expect(title(fixture)).toBe('Traseira');
+      expect(counter(fixture)).toBe('2 de 14');
+      expect(q(fixture, '[data-viewer-image] img')?.getAttribute('src')).toBe(ALL_PHOTOS[1].signedUrl);
+      expect(host(fixture).querySelector('app-members-sheet')?.textContent).toContain(
+        'Tirada em 09/10/2026 08:40.',
+      );
+    });
+
+    it('Proxima e Anterior PULAM os angulos sem foto, e dao a volta', () => {
+      // Sem Traseira (indice 1) e sem Banco traseiro (13): da Frente vai a Lateral esquerda.
+      const partial = ALL_PHOTOS.filter((p) => p.angle !== 'BACK' && p.angle !== 'REAR_SEAT');
+      const fixture = renderWith({ status: 'PENDING' }, partial);
+
+      open(fixture, 'Frente');
+      expect(counter(fixture)).toBe('1 de 14');
+
+      q<HTMLButtonElement>(fixture, '[data-viewer-next]')?.click();
+      fixture.detectChanges();
+      expect(title(fixture)).toBe('Lateral esquerda');
+      expect(counter(fixture)).toBe('3 de 14');
+
+      q<HTMLButtonElement>(fixture, '[data-viewer-prev]')?.click();
+      q<HTMLButtonElement>(fixture, '[data-viewer-prev]')?.click();
+      fixture.detectChanges();
+      // De Frente, Anterior volta ao ultimo angulo COM foto (Banco dianteiro), nao ao 14o vazio.
+      expect(title(fixture)).toBe('Banco dianteiro');
+      expect(counter(fixture)).toBe('13 de 14');
+    });
+
+    it('fecha no X, no fundo e no Esc', () => {
+      const fixture = render();
+
+      open(fixture, 'Frente');
+      host(fixture).querySelector<HTMLButtonElement>('app-members-sheet [aria-label="Fechar"]')?.click();
+      fixture.detectChanges();
+      expect(dialog(fixture).length).toBe(0);
+
+      open(fixture, 'Frente');
+      host(fixture)
+        .querySelector<HTMLElement>('app-members-sheet [aria-hidden="true"]')
+        ?.click();
+      fixture.detectChanges();
+      expect(dialog(fixture).length).toBe(0);
+
+      open(fixture, 'Frente');
+      dialog(fixture)[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+      expect(dialog(fixture).length).toBe(0);
+    });
+
+    it('o X tem 44x44', () => {
+      const fixture = render();
+      open(fixture, 'Frente');
+      const close = host(fixture).querySelector<HTMLElement>(
+        'app-members-sheet [aria-label="Fechar"]',
+      )!;
+
+      expect(close.className).toContain('min-h-[44px]');
+      expect(close.className).toContain('min-w-[44px]');
+    });
+
+    it('com uma foto so, nao ha para onde navegar', () => {
+      const fixture = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 1));
+      open(fixture, 'Frente');
+
+      expect(q<HTMLButtonElement>(fixture, '[data-viewer-next]')?.disabled).toBe(true);
+      expect(q<HTMLButtonElement>(fixture, '[data-viewer-prev]')?.disabled).toBe(true);
+    });
+  });
+
+  // ============================================================== sua decisao
+
+  describe('cartao "Sua decisao"', () => {
+    it('aparece para dono e gerente quando a vistoria aguarda decisao', () => {
+      for (const r of ['OWNER', 'MANAGER']) {
+        role = r;
+        configure();
         const fixture = render();
 
-        expect(approveBtn(fixture), `${papel} sem aprovar`).not.toBeNull();
-        expect(rejectBtn(fixture), `${papel} sem recusar`).not.toBeNull();
-      }
-    });
-  });
-
-  describe('invariante 4 — a URL assinada expira', () => {
-    it('imagem que falha recarrega a LISTA em vez de ficar quebrada', () => {
-      configure();
-      const fixture = render();
-
-      images(fixture)[0].dispatchEvent(new Event('error'));
-      fixture.detectChanges();
-
-      expect(photos).toHaveBeenCalledTimes(2);
-    });
-
-    it('nao entra em laco: recarrega uma vez, depois explica', () => {
-      configure();
-      const fixture = render();
-
-      images(fixture)[0].dispatchEvent(new Event('error'));
-      fixture.detectChanges();
-      images(fixture)[0].dispatchEvent(new Event('error'));
-      fixture.detectChanges();
-
-      expect(photos).toHaveBeenCalledTimes(2);
-      expect(text(fixture).toLowerCase()).toContain('expir');
-    });
-  });
-
-  describe('invariante 5 — falhar nao e decidir', () => {
-    it('aprovar com sucesso confirma e encerra a decisao', () => {
-      configure();
-      const fixture = render();
-
-      approveBtn(fixture)?.click();
-      fixture.detectChanges();
-
-      expect(approve).toHaveBeenCalledWith('insp-1');
-      expect(text(fixture)).toContain('aprovada');
-      expect(approveBtn(fixture)).toBeNull();
-    });
-
-    it('aprovar que FALHA nao diz que aprovou, e deixa tentar de novo', () => {
-      configure();
-      const fixture = render();
-      approve.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
-
-      approveBtn(fixture)?.click();
-      fixture.detectChanges();
-
-      expect(text(fixture)).not.toContain('aprovada');
-      expect(approveBtn(fixture)).not.toBeNull();
-    });
-
-    it('recusar que FALHA nao diz que recusou, e preserva o motivo digitado', () => {
-      configure();
-      const fixture = render();
-      reject.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
-      typeReason(fixture, 'Faltou a lateral direita.');
-
-      rejectBtn(fixture)?.click();
-      fixture.detectChanges();
-
-      expect(text(fixture)).not.toContain('recusada');
-      // Perder o texto obrigaria a pessoa a redigitar o motivo depois de falhar.
-      expect(reasonInput(fixture)?.value).toBe('Faltou a lateral direita.');
-    });
-
-    it('enquanto decide, nao decide duas vezes', () => {
-      configure();
-      const fixture = render();
-      approve.mockReturnValue(new Subject<InspectionReviewResult>());
-
-      approveBtn(fixture)?.click();
-      fixture.detectChanges();
-      approveBtn(fixture)?.click();
-      fixture.detectChanges();
-
-      expect(approve).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('emite a decisao para quem hospeda, para a lista se atualizar', () => {
-    configure();
-    const fixture = render();
-    const decided: InspectionReviewResult[] = [];
-    fixture.componentInstance.decided.subscribe((r) => decided.push(r));
-
-    approveBtn(fixture)?.click();
-    fixture.detectChanges();
-
-    expect(decided).toEqual([APPROVED]);
-  });
-  /**
-   * A ORDEM e do ROTEIRO, e `id` identifica. Nenhum dos dois e cosmetico:
-   * ordem imprevisivel obriga quem aprova a ler rotulo por rotulo para saber
-   * onde esta, e chave instavel remonta a galeria inteira a cada recarga.
-   */
-  describe('ordem e identidade das fotos', () => {
-    const labelsOf = (f: ComponentFixture<InspectionReview>) =>
-      Array.from(host(f).querySelectorAll('[data-angle-label]')).map((p) =>
-        (p.textContent ?? '').trim(),
-      );
-
-    it('mostra na ordem CANONICA do roteiro, qualquer que seja a ordem do servidor', () => {
-      configure();
-      // Servidor devolve invertido de proposito: ordem de resposta NAO e
-      // contrato, e a tela nao pode depender dela.
-      photos.mockReturnValue(of([PHOTOS[1], PHOTOS[0]]));
-      const fixture = render();
-
-      expect(labelsOf(fixture)).toEqual(['Frente', 'Traseira']);
-    });
-
-    /**
-     * NAO ordena por data: dentro de uma vistoria ha uma foto por angulo, entao
-     * a data so embaralharia o roteiro. Aqui a mais RECENTE e a `FRONT`, e ela
-     * continua em primeiro por ser a primeira do roteiro — nao por ser recente.
-     */
-    it('a data nao decide a ordem', () => {
-      configure();
-      photos.mockReturnValue(
-        of([
-          { ...PHOTOS[0], createdDate: '2026-10-01T23:59:00' },
-          { ...PHOTOS[1], createdDate: '2026-10-01T00:01:00' },
-        ]),
-      );
-      const fixture = render();
-
-      expect(labelsOf(fixture)).toEqual(['Frente', 'Traseira']);
-    });
-
-    /** Roteiro e configuravel por empresa: chave fora da lista vai para o FIM. */
-    it('angulo desconhecido fica depois dos do roteiro, sem se intercalar', () => {
-      configure();
-      photos.mockReturnValue(
-        of([
-          { ...PHOTOS[0], id: 'ph-x', angle: 'TETO_SOLAR', createdDate: '2026-10-01T09:00:00' },
-          PHOTOS[1],
-          PHOTOS[0],
-        ]),
-      );
-      const fixture = render();
-
-      expect(labelsOf(fixture)).toEqual(['Frente', 'Traseira', 'Teto solar']);
-    });
-
-    it('a chave da lista NAO e a signedUrl: reassinar nao recria a galeria', () => {
-      configure();
-      const fixture = render();
-      const before = images(fixture)[0];
-
-      // Mesma foto (mesmo `id`), URL reassinada — o que acontece a cada recarga.
-      photos.mockReturnValue(
-        of(PHOTOS.map((p) => ({ ...p, signedUrl: `${p.signedUrl}&again=1` }))),
-      );
-      host(fixture).querySelector<HTMLButtonElement>('[data-retry-photos]')?.click();
-      fixture.detectChanges();
-
-      // O elemento e o MESMO no DOM; so o src mudou. Com `track signedUrl` o
-      // Angular teria destruido e recriado as 14 imagens.
-      expect(images(fixture)[0]).toBe(before);
-    });
-  });
-  /**
-   * FALHA PARCIAL — e esta que vai acontecer de verdade.
-   *
-   * O backend isola a assinatura por foto: antes, UMA que falhasse derrubava a
-   * resposta inteira e a tela mostrava zero em vez de 13 de 14. Agora o item
-   * vem com `signedUrl` nulo e NAO e omitido, porque omitir faria a lista
-   * parecer completa.
-   *
-   * O teste de falha que ja existia era a lista INTEIRA caindo. Este e o outro,
-   * e e o comum.
-   */
-  describe('foto indisponivel (signedUrl nulo)', () => {
-    const partial = () => [PHOTOS[0], { ...PHOTOS[1], signedUrl: null }];
-
-    it('NAO oferece aprovar com qualquer foto indisponivel — ver 13 de 14 nao e ver', () => {
-      configure();
-      photos.mockReturnValue(of(partial()));
-      const fixture = render();
-
-      expect(approveBtn(fixture)).toBeNull();
-    });
-
-    it('diz QUAL angulo nao carregou', () => {
-      configure();
-      photos.mockReturnValue(of(partial()));
-      const fixture = render();
-
-      expect(text(fixture)).toContain('Traseira');
-      expect(text(fixture)).toContain('não carregou');
-    });
-
-    it('o item NAO some da lista: 2 angulos continuam listados', () => {
-      configure();
-      photos.mockReturnValue(of(partial()));
-      const fixture = render();
-
-      const labels = Array.from(host(fixture).querySelectorAll('[data-angle-label]'));
-      expect(labels.length).toBe(2);
-      // Sem img quebrada: o lugar existe, com explicacao no lugar da imagem.
-      expect(images(fixture).length).toBe(1);
-    });
-
-    /**
-     * A copia distingue "nao carregou" de "nao tem foto", e a distincao e o que
-     * impede recusar pelo motivo errado — mandar refotografar o que ja esta
-     * salvo seria punir o motorista por uma falha nossa.
-     */
-    it('diz que a foto esta SALVA, nao que falta', () => {
-      configure();
-      photos.mockReturnValue(of(partial()));
-      const fixture = render();
-
-      expect(text(fixture)).toContain('está salva');
-    });
-
-    it('oferece tentar de novo', () => {
-      configure();
-      photos.mockReturnValue(of(partial()));
-      const fixture = render();
-
-      expect(host(fixture).querySelector('[data-retry-photos]')).not.toBeNull();
-    });
-
-    /** Assimetria deliberada: recusar aponta problema, aprovar afirma que esta tudo certo. */
-    it('RECUSAR continua disponivel, com motivo', () => {
-      configure();
-      photos.mockReturnValue(of(partial()));
-      const fixture = render();
-      typeReason(fixture, 'A frente está fora de foco.');
-
-      rejectBtn(fixture)?.click();
-      fixture.detectChanges();
-
-      expect(reject).toHaveBeenCalledWith('insp-1', 'A frente está fora de foco.');
-    });
-
-    it('assinando de novo com sucesso, aprovar volta', () => {
-      configure();
-      photos.mockReturnValue(of(partial()));
-      const fixture = render();
-      expect(approveBtn(fixture)).toBeNull();
-
-      photos.mockReturnValue(of(PHOTOS));
-      host(fixture).querySelector<HTMLButtonElement>('[data-retry-photos]')?.click();
-      fixture.detectChanges();
-
-      expect(approveBtn(fixture)).not.toBeNull();
-    });
-  });
-  /**
-   * QUANDO cada foto foi tirada.
-   *
-   * Numa vistoria PERIODICA, foto de hoje e foto de tres semanas atras sao
-   * indistinguiveis para quem aprova. Sem a data o dono aprova como ATUAL um
-   * estado que pode nao ser mais verdade — e medir o estado atual e a razao de
-   * a vistoria periodica existir.
-   */
-  describe('data de cada foto', () => {
-    const dates = (f: ComponentFixture<InspectionReview>) =>
-      Array.from(host(f).querySelectorAll('[data-taken-at]')).map((p) =>
-        (p.textContent ?? '').trim(),
-      );
-
-    it('mostra a data de CADA foto, uma por foto', () => {
-      configure();
-      const fixture = render();
-
-      expect(dates(fixture).length).toBe(2);
-      expect(dates(fixture)[0]).toContain('01/10/2026');
-    });
-
-    /** O caso que motivou: uma foto velha no meio de uma vistoria de hoje. */
-    it('uma foto de semanas atras aparece com a data dela, nao com a das outras', () => {
-      configure();
-      photos.mockReturnValue(
-        of([PHOTOS[0], { ...PHOTOS[1], createdDate: '2026-09-10T08:30:00' }]),
-      );
-      const fixture = render();
-
-      expect(dates(fixture)[0]).toContain('01/10/2026');
-      expect(dates(fixture)[1]).toContain('10/09/2026');
-    });
-
-    it('a foto indisponivel tambem mostra quando foi tirada', () => {
-      configure();
-      photos.mockReturnValue(of([PHOTOS[0], { ...PHOTOS[1], signedUrl: null }]));
-      const fixture = render();
-
-      expect(dates(fixture).length).toBe(2);
-    });
-  });
-  /**
-   * PARIDADE COM O CARD DE FOTOS DO ALUGUEL
-   * (`pages/rentals/documents/rental-inspection-card`).
-   *
-   * A referencia e aquele card e NAO `vehicles-list`: esta tela julga FOTO POR
-   * FOTO, como a do aluguel. Padrao de lista serve a lista.
-   *
-   * Sem estas asercoes a convergencia e invisivel para a suite — e volta a
-   * divergir na proxima edicao de qualquer um dos dois lados, que foi
-   * exatamente como as duas telas acabaram diferentes.
-   */
-  describe('paridade com o card de fotos do aluguel', () => {
-    it('usa o MESMO involucro: app-page-card', () => {
-      configure();
-      const fixture = render();
-
-      expect(host(fixture).querySelector('app-page-card')).not.toBeNull();
-    });
-
-    it('a grade e 2 colunas no celular, 3 no sm, 4 no lg', () => {
-      configure();
-      const fixture = render();
-      const grid = host(fixture).querySelector('ul');
-
-      expect(grid?.className).toContain('grid-cols-2');
-      expect(grid?.className).toContain('sm:grid-cols-3');
-      expect(grid?.className).toContain('lg:grid-cols-4');
-    });
-
-    /**
-     * QUADRO QUADRADO, e a imagem preenchendo em absoluto — nao `h-40` no
-     * `<img>`. Altura fixa recorta diferente conforme a largura da coluna;
-     * `aspect-square` mantem o enquadramento igual em qualquer tela, e e isso
-     * que deixa comparar dois angulos sem um parecer esticado.
-     */
-    it('cada foto vive num quadro QUADRADO, preenchido em absoluto', () => {
-      configure();
-      const fixture = render();
-      const tiles = host(fixture).querySelectorAll('li .aspect-square');
-
-      expect(tiles.length).toBe(2);
-      for (const img of images(fixture)) {
-        expect(img.className).toContain('absolute');
-        expect(img.className).toContain('object-cover');
-        expect(img.className, 'altura fixa voltou e o enquadramento varia por coluna')
-          .not.toContain('h-40');
+        expect(q(fixture, '[data-decision]'), r).not.toBeNull();
+        expect(text(fixture), r).toContain('Sua decisão');
+        expect(text(fixture), r).toContain(
+          'Aprove se as 14 fotos e o hodômetro estão corretos. Se recusar, o motorista é avisado e refaz a vistoria inteira.',
+        );
       }
     });
 
-    /** O lugar da foto que nao assinou tambem e quadrado: a grade nao deforma. */
-    it('a foto indisponivel ocupa o mesmo quadro quadrado', () => {
+    it('so existe em SUBMITTED', () => {
+      for (const status of ['PENDING', 'APPROVED', 'REJECTED'] as const) {
+        configure();
+        const fixture = renderWith({ status });
+        expect(q(fixture, '[data-decision]'), status).toBeNull();
+        expect(approveBtn(fixture), status).toBeNull();
+      }
+    });
+
+    it('MOTORISTA nao recebe aprovar nem recusar — mas ve as fotos', () => {
+      role = 'DRIVER';
       configure();
-      photos.mockReturnValue(of([PHOTOS[0], { ...PHOTOS[1], signedUrl: null }]));
       const fixture = render();
 
-      expect(host(fixture).querySelectorAll('li .aspect-square').length).toBe(2);
-      expect(host(fixture).textContent).toContain('está salva');
+      expect(q(fixture, '[data-decision]')).toBeNull();
+      expect(approveBtn(fixture)).toBeNull();
+      expect(q(fixture, '[data-start-reject]')).toBeNull();
+      expect(frames(fixture).length).toBe(14);
+    });
+
+    it('o motorista na vistoria recusada tem o atalho para ler o motivo e refazer', () => {
+      role = 'DRIVER';
+      configure();
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+      expect(q<HTMLAnchorElement>(fixture, '[data-redo]')?.getAttribute('href')).toBe(
+        '/vistorias/insp-1/captura',
+      );
+    });
+
+    it('o dono na vistoria recusada nao ve o atalho de refazer', () => {
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+      expect(q(fixture, '[data-redo]')).toBeNull();
+    });
+
+    it('o motorista na vistoria em andamento pode continuar a captura', () => {
+      role = 'DRIVER';
+      configure();
+      const fixture = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 5));
+
+      expect(q<HTMLAnchorElement>(fixture, '[data-continue]')?.getAttribute('href')).toBe(
+        '/vistorias/insp-1/captura',
+      );
+    });
+
+    describe('Aprovar so com 14 fotos e hodometro', () => {
+      const NOTE =
+        'Aprovar fica disponível quando as 14 fotos e o hodômetro estiverem enviados.';
+
+      it('completo: habilitado, laranja, sem a nota', () => {
+        const fixture = render();
+        const approveButton = approveBtn(fixture)!;
+
+        expect(approveButton.disabled).toBe(false);
+        expect(approveButton.textContent?.trim()).toBe('Aprovar vistoria');
+        expect(approveButton.className).toContain('bg-primary-500');
+        expect(q(fixture, '[data-approve-note]')).toBeNull();
+      });
+
+      it('falta uma foto: desabilitado, com a nota', () => {
+        const fixture = renderWith({}, ALL_PHOTOS.slice(0, 13));
+        const approveButton = approveBtn(fixture)!;
+
+        expect(approveButton.disabled).toBe(true);
+        expect(approveButton.className).toContain('disabled:opacity-50');
+        expect(approveButton.className).toContain('disabled:cursor-not-allowed');
+        expect(q(fixture, '[data-approve-note]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+          NOTE,
+        );
+        expect(approveButton.getAttribute('aria-describedby')).toBe('approve-note');
+      });
+
+      it('falta o hodometro: desabilitado, com a nota', () => {
+        const fixture = renderWith({ odometerKm: null });
+
+        expect(approveBtn(fixture)?.disabled).toBe(true);
+        expect(q(fixture, '[data-approve-note]')).not.toBeNull();
+      });
+
+      it('hodometro ausente no payload (servidor antigo) tambem trava', () => {
+        const fixture = renderWith({ odometerKm: undefined });
+
+        expect(approveBtn(fixture)?.disabled).toBe(true);
+      });
+
+      it('clicar no desabilitado nao chama o servico', () => {
+        const fixture = renderWith({ odometerKm: null });
+        (fixture.componentInstance as unknown as { approve: () => void }).approve();
+
+        expect(approve).not.toHaveBeenCalled();
+      });
+
+      it('no celular o primario fica ACIMA (flex-col-reverse)', () => {
+        const fixture = render();
+        const row = approveBtn(fixture)!.parentElement!;
+
+        expect(row.className).toContain('flex-col-reverse');
+        expect(row.className).toContain('sm:flex-row');
+      });
+    });
+
+    describe('aprovar', () => {
+      it('chama a API, avisa com a placa entre aspas, e relê a vistoria', () => {
+        const success = vi.spyOn(notifications, 'success');
+        getOne
+          .mockReturnValueOnce(of(DETAIL))
+          .mockReturnValue(of({ ...DETAIL, status: 'APPROVED' }));
+        const fixture = render();
+
+        approveBtn(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(approve).toHaveBeenCalledWith('insp-1');
+        expect(success).toHaveBeenCalledWith('Vistoria de «SJH2B17» aprovada.');
+        expect(getOne).toHaveBeenCalledTimes(2);
+        expect(q(fixture, '[data-decision]')).toBeNull();
+        expect(q(fixture, '[data-status-chip]')?.textContent?.trim()).toBe('Aprovada');
+      });
+
+      it('falhar NAO e aprovar: mostra a mensagem do servidor, sem toast de sucesso', () => {
+        const success = vi.spyOn(notifications, 'success');
+        approve.mockReturnValue(
+          throwError(
+            () =>
+              new HttpErrorResponse({
+                status: 400,
+                error: {
+                  message: 'Aprovar exige o hodômetro informado pelo motorista.',
+                  code: 'INSPECTION_NO_ODOMETER',
+                },
+              }),
+          ),
+        );
+        const fixture = render();
+
+        approveBtn(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('Aprovar exige o hodômetro informado pelo motorista.');
+        expect(success).not.toHaveBeenCalled();
+        expect(q(fixture, '[data-decision]')).not.toBeNull();
+        expect(getOne).toHaveBeenCalledTimes(1);
+      });
+
+      it('enquanto decide, nao decide duas vezes', () => {
+        const pending = new Subject<InspectionReviewResult>();
+        approve.mockReturnValue(pending);
+        const fixture = render();
+
+        approveBtn(fixture)?.click();
+        fixture.detectChanges();
+        expect(approveBtn(fixture)?.textContent).toContain('Registrando');
+        approveBtn(fixture)?.click();
+
+        expect(approve).toHaveBeenCalledTimes(1);
+      });
+
+      it('403 explica a regra em vez de erro cru', () => {
+        approve.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+        const fixture = render();
+
+        approveBtn(fixture)?.click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('Só o dono ou o gerente');
+      });
+    });
+
+    describe('recusar', () => {
+      it('"Recusar" abre o motivo, com a ajuda e os dois botoes do desenho', () => {
+        const fixture = render();
+
+        button(fixture, 'Recusar').click();
+        fixture.detectChanges();
+
+        const body = text(fixture);
+        expect(body).toContain('Motivo da recusa');
+        expect(body).toContain('É o que o motorista vai ler para saber o que refazer.');
+        expect(q(fixture, '[data-reject-reason]')?.getAttribute('maxlength')).toBe('1000');
+        expect(() => button(fixture, 'Voltar')).not.toThrow();
+        expect(() => button(fixture, 'Recusar e pedir nova vistoria')).not.toThrow();
+        expect(approveBtn(fixture)).toBeNull();
+      });
+
+      it('o campo e 16px no celular', () => {
+        const fixture = render();
+        button(fixture, 'Recusar').click();
+        fixture.detectChanges();
+
+        expect(q(fixture, '[data-reject-reason]')?.className).toContain('text-base');
+      });
+
+      it('"Voltar" fecha o motivo e esquece o que foi digitado', () => {
+        const fixture = render();
+        button(fixture, 'Recusar').click();
+        fixture.detectChanges();
+        typeReason(fixture, 'Algo');
+
+        button(fixture, 'Voltar').click();
+        fixture.detectChanges();
+        expect(q(fixture, '[data-reject-reason]')).toBeNull();
+
+        button(fixture, 'Recusar').click();
+        fixture.detectChanges();
+        expect(q<HTMLTextAreaElement>(fixture, '[data-reject-reason]')?.value).toBe('');
+      });
+
+      it('motivo vazio: mostra "Escreva o motivo da recusa." e NAO abre a confirmacao', () => {
+        const fixture = render();
+        button(fixture, 'Recusar').click();
+        fixture.detectChanges();
+
+        button(fixture, 'Recusar e pedir nova vistoria').click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('Escreva o motivo da recusa.');
+        expect(q(fixture, '[role="alert"]')?.textContent).toContain('Escreva o motivo da recusa.');
+        expect(confirmDialog(fixture)).toBeNull();
+        expect(reject).not.toHaveBeenCalled();
+      });
+
+      it('so espacos tambem nao vale', () => {
+        const fixture = render();
+        button(fixture, 'Recusar').click();
+        fixture.detectChanges();
+        typeReason(fixture, '    ');
+
+        button(fixture, 'Recusar e pedir nova vistoria').click();
+        fixture.detectChanges();
+
+        expect(confirmDialog(fixture)).toBeNull();
+        expect(reject).not.toHaveBeenCalled();
+      });
+
+      it('com motivo, abre a confirmacao com a frase do desenho — e ainda nao recusa', () => {
+        const fixture = render();
+
+        askToReject(fixture);
+
+        const dialog = confirmDialog(fixture);
+        expect(dialog).not.toBeNull();
+        expect(dialog?.textContent).toContain('Recusar vistoria');
+        expect((dialog?.textContent ?? '').replace(/\s+/g, ' ')).toContain(
+          'Carlos será avisado e precisa refazer a vistoria do veículo «SJH2B17» do zero.',
+        );
+        expect(reject).not.toHaveBeenCalled();
+      });
+
+      it('"Voltar" na confirmacao nao recusa e mantem o motivo', async () => {
+        const fixture = render();
+        askToReject(fixture, 'Painel desfocado.');
+
+        const cancel = Array.from(
+          host(fixture).querySelectorAll<HTMLButtonElement>('app-confirm-dialog button'),
+        ).find((b) => b.textContent?.trim() === 'Voltar')!;
+        cancel.click();
+        fixture.detectChanges();
+        // A remocao do no termina depois do `:leave`, mesmo com animacoes noop.
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(confirmDialog(fixture)).toBeNull();
+        expect(reject).not.toHaveBeenCalled();
+        expect(q<HTMLTextAreaElement>(fixture, '[data-reject-reason]')?.value).toBe(
+          'Painel desfocado.',
+        );
+      });
+
+      it('confirmar recusa com o motivo aparado, avisa com «guillemets» e relê', () => {
+        const success = vi.spyOn(notifications, 'success');
+        getOne
+          .mockReturnValueOnce(of(DETAIL))
+          .mockReturnValue(
+            of({ ...DETAIL, status: 'REJECTED', rejectionReason: 'Painel desfocado.' }),
+          );
+        const fixture = render();
+        askToReject(fixture, '  Painel desfocado.  ');
+
+        const confirm = Array.from(
+          host(fixture).querySelectorAll<HTMLButtonElement>('app-confirm-dialog button'),
+        ).find((b) => b.textContent?.trim() === 'Recusar vistoria')!;
+        confirm.click();
+        fixture.detectChanges();
+
+        expect(reject).toHaveBeenCalledWith('insp-1', 'Painel desfocado.');
+        expect(success).toHaveBeenCalledWith(
+          'Vistoria de «SJH2B17» recusada. Carlos foi avisado.',
+        );
+        expect(getOne).toHaveBeenCalledTimes(2);
+        expect(q(fixture, '[data-decision]')).toBeNull();
+        expect(q(fixture, '[data-rejected-strip]')).not.toBeNull();
+      });
+
+      it('falhar NAO e recusar: preserva o motivo digitado e nao mostra toast', () => {
+        const success = vi.spyOn(notifications, 'success');
+        reject.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+        const fixture = render();
+        askToReject(fixture, 'Painel desfocado.');
+
+        Array.from(host(fixture).querySelectorAll<HTMLButtonElement>('app-confirm-dialog button'))
+          .find((b) => b.textContent?.trim() === 'Recusar vistoria')
+          ?.click();
+        fixture.detectChanges();
+
+        expect(success).not.toHaveBeenCalled();
+        expect(q<HTMLTextAreaElement>(fixture, '[data-reject-reason]')?.value).toBe(
+          'Painel desfocado.',
+        );
+        expect(text(fixture)).toContain('Nada foi alterado');
+        expect(q(fixture, '[data-decision]')).not.toBeNull();
+      });
+    });
+  });
+
+  // ==================================================================== o PDF
+
+  describe('card do laudo em PDF', () => {
+    it('so existe na vistoria APROVADA', () => {
+      for (const status of ['PENDING', 'SUBMITTED', 'REJECTED'] as const) {
+        configure();
+        expect(q(renderWith({ status }), '[data-pdf-card]'), status).toBeNull();
+      }
+      configure();
+      expect(q(renderWith({ status: 'APPROVED' }), '[data-pdf-card]')).not.toBeNull();
+    });
+
+    it('nomeia o arquivo pelo tipo e pela placa e diz de onde vem o laudo', () => {
+      const fixture = renderWith({ status: 'APPROVED' });
+      const card = q(fixture, '[data-pdf-card]')!;
+
+      expect(q(fixture, '[data-pdf-name]')?.textContent?.trim()).toBe(
+        'vistoria-retirada-SJH2B17.pdf',
+      );
+      expect(card.textContent).toContain('Laudo gerado a partir das 14 fotos');
+      expect(card.querySelector('.bg-rose-50')).not.toBeNull();
+    });
+
+    it('devolucao: o nome leva "devolução"', () => {
+      const fixture = renderWith({ status: 'APPROVED', kind: 'CHECKIN' });
+
+      expect(q(fixture, '[data-pdf-name]')?.textContent?.trim()).toBe(
+        'vistoria-devolução-SJH2B17.pdf',
+      );
+    });
+
+    it('"Baixar PDF" e o primario e abre a URL assinada numa aba reservada no clique', () => {
+      const fixture = renderWith({ status: 'APPROVED' });
+      const download = q<HTMLButtonElement>(fixture, '[data-download-pdf]')!;
+
+      expect(download.textContent?.trim()).toBe('Baixar PDF');
+      expect(download.className).toContain('bg-primary-500');
+
+      download.click();
+      fixture.detectChanges();
+
+      expect(openPendingTab).toHaveBeenCalledTimes(1);
+      expect(reportUrl).toHaveBeenCalledWith('insp-1');
+      expect(tab.navigate).toHaveBeenCalledWith('https://storage.example/laudo.pdf?sig=1');
+    });
+
+    it('pop-up bloqueado: explica e nem chama o servidor', () => {
+      tab.blocked = true;
+      const fixture = renderWith({ status: 'APPROVED' });
+
+      q<HTMLButtonElement>(fixture, '[data-download-pdf]')?.click();
+      fixture.detectChanges();
+
+      expect(reportUrl).not.toHaveBeenCalled();
+      expect(text(fixture)).toContain('Permita pop-ups');
+    });
+
+    it('falha do servidor fecha a aba reservada e mostra a mensagem', () => {
+      reportUrl.mockReturnValue(
+        throwError(
+          () => new HttpErrorResponse({ status: 409, error: { message: 'O laudo ainda não foi gerado.' } }),
+        ),
+      );
+      const fixture = renderWith({ status: 'APPROVED' });
+
+      q<HTMLButtonElement>(fixture, '[data-download-pdf]')?.click();
+      fixture.detectChanges();
+
+      expect(tab.close).toHaveBeenCalled();
+      expect(tab.navigate).not.toHaveBeenCalled();
+      expect(text(fixture)).toContain('O laudo ainda não foi gerado.');
+    });
+  });
+
+  // ============================================================= mobile-first
+
+  describe('mobile-first', () => {
+    it('nenhum controle da tela tem alvo abaixo de 44px', () => {
+      const fixture = render();
+      button(fixture, 'Recusar').click();
+      fixture.detectChanges();
+
+      const small = Array.from(host(fixture).querySelectorAll<HTMLElement>('button, a[href]'))
+        .filter((el) => !el.closest('app-members-sheet'))
+        .filter((el) => !/min-h-\[44px\]|min-h-11|min-h-12|aspect-square/.test(el.className))
+        .map((el) => `${el.tagName} "${(el.textContent ?? '').trim().slice(0, 30)}"`);
+
+      expect(small).toEqual([]);
+    });
+
+    it('os botoes de acao ocupam a largura toda no celular', () => {
+      const fixture = render();
+
+      expect(approveBtn(fixture)?.className).toContain('w-full');
+      expect(approveBtn(fixture)?.className).toContain('sm:w-auto');
     });
   });
 });

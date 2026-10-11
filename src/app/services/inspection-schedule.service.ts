@@ -70,6 +70,16 @@ export class InspectionScheduleService {
     );
   }
 
+  /**
+   * `DELETE /v1/inspection-schedules/fleet` — desliga a regra da FROTA.
+   *
+   * DESATIVA a linha e cancela as ocorrencias pendentes dela; as regras proprias de carro
+   * nao sao tocadas. 404 quando a empresa nao tem regra de frota vigente. 204 sem corpo.
+   */
+  deactivateFleet(): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/inspection-schedules/fleet`);
+  }
+
   /** `DELETE` — desativa o agendamento DE UM VEICULO. 204 sem corpo. */
   deactivate(vehicleId: string): Observable<void> {
     return this.http.delete<void>(this.url(vehicleId));

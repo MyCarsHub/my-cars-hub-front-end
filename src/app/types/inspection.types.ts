@@ -66,6 +66,29 @@ export interface Inspection {
   readonly rejectionReason?: string | null;
   /** Quando o dono decidiu (ISO). So vem em vistoria decidida (`APPROVED`/`REJECTED`). */
   readonly reviewedAt?: string | null;
+  /*
+   * VISTORIAS v2 — o que a tela de DETALHES le. O backend devolve o MESMO record na lista e
+   * no detalhe, entao estes campos chegam como na linha da lista. Todos opcionais de
+   * proposito: uma resposta anterior as vistorias v2 nao os manda, e a tela degrada para
+   * "—" em vez de inventar. A leitura mora em UM lugar: `pages/inspections/inspection-view.ts`.
+   */
+  readonly vehiclePlate?: string | null;
+  readonly vehicleBrand?: string | null;
+  readonly vehicleModel?: string | null;
+  readonly vehicleColor?: string | null;
+  readonly vehicleYear?: number | null;
+  readonly driverName?: string | null;
+  readonly driverPhone?: string | null;
+  readonly photoCount?: number;
+  /**
+   * Hodometro (km) que o MOTORISTA informou ao enviar as fotos. `null`/ausente = ainda nao
+   * informou — nunca zero, que seria um hodometro de 0 km.
+   */
+  readonly odometerKm?: number | null;
+  /** Ultimo hodometro registrado do veiculo ANTES desta vistoria (km). */
+  readonly previousOdometerKm?: number | null;
+  /** `odometerKm - previousOdometerKm`, calculado pelo servidor. A tela NAO recalcula. */
+  readonly kmDriven?: number | null;
 }
 
 /**
@@ -199,6 +222,17 @@ export interface InspectionListItem {
    * que lhe cabe decidir: `SUBMITTED` e a fila de aprovacao.
    */
   readonly status: InspectionStatus;
+  /** Telefone do motorista, como cadastrado. Ausente = o servidor nao mandou. */
+  readonly driverPhone?: string | null;
+  readonly vehicleColor?: string | null;
+  readonly vehicleYear?: number | null;
+  /** Hodometro (km) informado pelo motorista; `null` = ainda nao informado. */
+  readonly odometerKm?: number | null;
+  /**
+   * URL ASSINADA da foto do angulo FRONT, ou `null` quando a vistoria nao tem essa foto
+   * (ou a assinatura falhou). E reassinada a cada carga: NUNCA use como chave de `@for`.
+   */
+  readonly frontPhotoUrl?: string | null;
   /*
    * TRÊS CAMPOS SAÍRAM DAQUI, e nenhum por descuido — nenhum tem coluna atrás.
    *
@@ -237,6 +271,43 @@ export interface InspectionFilters {
   readonly status?: InspectionStatus | null;
   readonly from?: string | null;
   readonly to?: string | null;
+  /**
+   * Busca por texto: placa, marca, modelo ou motorista. Ate `INSPECTION_SEARCH_MAX_LENGTH`
+   * caracteres — o servidor corta o resto, entao a tela ja limita o campo.
+   */
+  readonly q?: string | null;
+  /** Ordem por data de realizacao. Ausente = o padrao do servidor (mais recentes). */
+  readonly sort?: InspectionSort | null;
   readonly page?: number;
   readonly size?: number;
+}
+
+/** Ordenacao da listagem — `sort=date,desc` e o padrao do produto (mais recentes primeiro). */
+export type InspectionSort = 'date,desc' | 'date,asc';
+
+/** Tamanho maximo da busca por texto aceito pelo servidor. */
+export const INSPECTION_SEARCH_MAX_LENGTH = 60;
+
+/** Teto do hodometro (km) que o servidor aceita no envio — acima disso e 400. */
+export const INSPECTION_ODOMETER_MAX_KM = 5_000_000;
+
+/**
+ * `GET /v1/inspections/summary` — quantas vistorias ha em cada situacao.
+ *
+ * E a FONTE dos quatro tiles do topo da lista: quatro chamadas de lista so para ler `total`
+ * custariam quatro viagens e quatro paginas descartadas. Nao e derivado da pagina carregada.
+ */
+export interface InspectionSummary {
+  readonly pending: number;
+  readonly submitted: number;
+  readonly approved: number;
+  readonly rejected: number;
+}
+
+/**
+ * Corpo de `POST /v1/inspections/{id}/submit`. O hodometro e opcional no servidor (uma
+ * versao anterior nao o pedia) e a tela de captura SEMPRE o envia.
+ */
+export interface SubmitInspectionRequest {
+  readonly odometerKm: number;
 }

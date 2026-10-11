@@ -492,6 +492,22 @@ export const routes: Routes = [
                         data: { pageTitle: 'Fazer vistoria' },
                     },
                     {
+                        // DETALHES da vistoria: resumo, as 14 fotos e — para OWNER/MANAGER,
+                        // com a vistoria aguardando — a decisao. Fica DEPOIS de
+                        // `vistorias/nova`: o curinga `:id` casaria "nova" se viesse antes.
+                        //
+                        // Os tres papeis entram. O servidor escopa `GET /v1/inspections/:id`
+                        // (o motorista le so a PROPRIA) e nega aprovar/recusar a quem nao e
+                        // dono ou gerente — a tela esconde a decisao do motorista do mesmo jeito.
+                        path: 'vistorias/:id',
+                        canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
+                        loadComponent: () =>
+                            import('./pages/inspections/inspection-review').then(
+                                (m) => m.InspectionReview
+                            ),
+                        data: { pageTitle: 'Detalhes da vistoria' },
+                    },
+                    {
                         path: 'multas',
                         canActivate: [roleGuard(['OWNER', 'MANAGER'])],
                         children: [

@@ -1,5 +1,4 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,9 +9,20 @@ import {
   signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
+import { Observable, map, startWith, switchMap, tap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
+import {
+  FilterChipGroup,
+  FilterChipOption,
+} from '../../../components/filter-chip-group/filter-chip-group';
 import { FieldControl, FormField } from '../../../components/form-field/form-field';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { InspectionScheduleService } from '../../../services/inspection-schedule.service';
@@ -24,68 +34,76 @@ import {
   inspectionFrequencyLabel,
   isFleetSchedule,
 } from '../../../types/inspection-schedule.types';
+import { todayInBusinessTz } from '../../../utils/business-clock';
+import { MembersSheet } from '../../company-settings/members/members-sheet';
+import { formatDate, pluralize } from '../inspection-view';
 
-/** Uma linha de agendamento, pronta para desenhar. */
-interface ScheduleRow {
-  id: string;
-  /** `true` quando e a regra da FROTA — decide a forma da linha, nao so o rotulo. */
-  fleet: boolean;
-  /** "Toda a frota" ou a placa/modelo do carro. */
-  title: string;
-  frequencyLabel: string;
-  nextDueDate: string;
-  reminderIntervalDays: number;
-  /** `null` na linha de frota. */
-  vehicleId: string | null;
-  /** Frase que explica a precedencia nesta linha, ou vazio. */
-  precedenceNote: string;
-  /** `true` quando ESTA tela pode desligar a linha. */
-  canDeactivate: boolean;
-  /** Por que nao da para desligar, quando nao da. */
-  lockedReason: string;
+type Scope = 'FLEET' | 'ONE';
+
+/** Avisos oferecidos. Um valor que a regra salva ja tem e que nao esteja aqui entra junto. */
+const NOTICE_DAYS: readonly number[] = [1, 3, 7];
+const DEFAULT_FREQUENCY: InspectionFrequency = 'BIWEEKLY';
+const DEFAULT_NOTICE = 3;
+
+/**
+ * Amanha, no relogio de NEGOCIO (Brasilia) — nao o do navegador. O backend trata datas como
+ * horario de parede de `America/Sao_Paulo`: um operador em Manaus nao pode agendar "para
+ * amanha" no dia que, para o servidor, ainda e hoje. Lido no uso, nunca fixado na carga.
+ */
+function tomorrow(): string {
+  const [y, m, d] = todayInBusinessTz().split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+}
+
+/** A data escolhida nao pode ser hoje nem passado. Vazio e assunto do `required`. */
+function fromTomorrow(control: AbstractControl): ValidationErrors | null {
+  const value = control.value as string;
+  return value && value < tomorrow() ? { min: { min: tomorrow() } } : null;
 }
 
 /**
- * Agendamento de vistoria no escopo da EMPRESA — a regra da frota e as regras por carro.
+ * O cartao "Vistorias automaticas" e o dialogo que o configura.
  *
- * ## Por que aqui e nao dentro do veiculo
+ * ## Configurado UMA vez, editado quando precisar
  *
- * O cartao dentro do veiculo continua existindo e e o lugar certo para "este carro em
- * particular". Mas quem pensa "quero vistoria periodica na minha frota" nao vai procurar
- * dentro de um carro, e agendar carro a carro sao dez visitas a dez telas numa frota de
- * dez. Esta tela e o escopo da empresa.
+ * Nao e acao recorrente do dono, entao NAO e botao laranja nem tem destaque: e um cartao
+ * neutro com o estado (Ativo / Desligado), a regra em uma frase e UM botao outline
+ * ("Editar" ou "Configurar").
  *
- * ## A precedencia que a tela MOSTRA, medida no SQL e nao inventada
+ * ## O que o backend aceita, e onde a tela se afasta do desenho
  *
- * `findEffectiveSchedule` faz
- * `WHERE (s.vehicle_id = ? OR s.vehicle_id IS NULL) ORDER BY (s.vehicle_id IS NULL) LIMIT 1`
- * — em Postgres `false` ordena antes de `true`, entao a linha que NOMEIA o veiculo vem
- * primeiro: **o agendamento do carro vence o da frota**. Criar a regra de frota nao altera
- * nem recusa as regras de carro que ja existem.
+ * O desenho sugere repetir a cada 7/15/30/60/90 dias. O backend aceita SETE frequencias
+ * (`InspectionFrequency`) e nenhuma delas e "60 dias". A tela oferece as sete, com o nome
+ * que o servidor usa — inventar "60 dias" mandaria um valor que ele recusa.
  *
- * A tela diz isso em portugues na propria linha, em vez de um selo que ninguem decifra.
+ * ## Regra da frota nao e `upsert`
  *
- * ## O que a frota alcanca
+ * `POST /inspection-schedules/fleet` responde 400 quando ja existe uma regra vigente. Salvar
+ * sobre uma regra existente e portanto DESLIGAR a atual e CRIAR a nova, nessa ordem. Se a
+ * criacao falhar depois do desligamento, a tela diz exatamente isso (a regra anterior ficou
+ * desligada) e relê o estado em vez de fingir que nada mudou. Um `PUT` que substituisse numa
+ * chamada so tiraria essa janela — fica como pedido ao backend.
  *
- * Uma linha com `vehicle_id` nulo vale para todos os carros elegiveis, **inclusive os
- * cadastrados depois** — o motor materializa por carro no vencimento. E so para carro que
- * esta NA frota: vendido e inativo ficam fora, por um `EXISTS` na propria consulta.
- *
- * ## O que ainda nao da para fazer, e a linha diz
- *
- * Desligar ou alterar a regra da FROTA. O unico `DELETE` e por veiculo e nao alcanca
- * `vehicle_id` nulo. Linha sem acao E SEM EXPLICACAO e pior que linha sem acao, entao a
- * faixa de frota carrega a razao. Quando `DELETE /v1/inspection-schedules/fleet` existir,
- * o botao entra e a frase sai.
+ * Regra por VEICULO: `POST` ja cria ou substitui, sem passo extra.
  */
 @Component({
   selector: 'app-inspection-schedules-block',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, ReactiveFormsModule, AlertBanner, ConfirmDialog, FormField, FieldControl],
+  imports: [
+    ReactiveFormsModule,
+    AlertBanner,
+    ConfirmDialog,
+    FilterChipGroup,
+    FormField,
+    FieldControl,
+    MembersSheet,
+  ],
   templateUrl: './inspection-schedules-block.html',
 })
 export class InspectionSchedulesBlock implements OnInit {
-  /** Placas/modelos para nomear a linha de carro — a lista de agendamentos so traz o id. */
+  /** Placas/modelos para nomear o veiculo — a lista de agendamentos so traz o id. */
   readonly vehicleOptions = input<ReadonlyArray<{ id: string; label: string }>>([]);
 
   private readonly fb = inject(FormBuilder);
@@ -94,78 +112,162 @@ export class InspectionSchedulesBlock implements OnInit {
   private readonly notifications = inject(NotificationService);
 
   private readonly all = signal<InspectionScheduleResponse[]>([]);
-  protected readonly loading = signal(false);
-  protected readonly loaded = signal(false);
+  protected readonly loading = signal(true);
   protected readonly loadFailed = signal(false);
+
+  protected readonly open = signal(false);
   protected readonly saving = signal(false);
-  protected readonly formOpen = signal(false);
-  protected readonly error = signal<string | null>(null);
-  protected readonly pendingDeactivate = signal<ScheduleRow | null>(null);
+  protected readonly formError = signal<string | null>(null);
+  protected readonly confirmingOff = signal(false);
+  /** Reavaliado a cada abertura: o minimo do `<input type=date>` e "amanha" DE HOJE. */
+  protected readonly minDate = signal(tomorrow());
 
-  protected readonly frequencies = INSPECTION_FREQUENCY_OPTIONS;
+  protected readonly form = this.fb.group({
+    scope: this.fb.nonNullable.control<Scope>('FLEET'),
+    vehicleId: this.fb.nonNullable.control('', {
+      validators: [
+        (c: AbstractControl): ValidationErrors | null =>
+          c.parent?.get('scope')?.value === 'ONE' && !c.value ? { required: true } : null,
+      ],
+    }),
+    frequency: this.fb.nonNullable.control<InspectionFrequency>(DEFAULT_FREQUENCY),
+    startDate: this.fb.nonNullable.control('', {
+      validators: [Validators.required, fromTomorrow],
+    }),
+    notice: this.fb.nonNullable.control(DEFAULT_NOTICE),
+  });
 
-  protected readonly hasFleetRule = computed(() => this.all().some((s) => isFleetSchedule(s)));
+  protected readonly vehicleMessages = { required: 'Selecione o veículo.' };
+  protected readonly dateMessages = {
+    required: 'Informe a data da primeira vistoria.',
+    min: 'Escolha uma data a partir de amanhã.',
+  };
 
-  /**
-   * Nada agendado: a tela inteira vira convite. Falha de leitura NAO conta como vazio — a
-   * tela nao sabe, e convidar a agendar sobre uma regra que talvez exista criaria a segunda
-   * regra de frota que o backend recusa com 400.
-   */
-  protected readonly isEmpty = computed(
-    () => this.loaded() && !this.loadFailed() && this.all().length === 0,
+  /** Os valores do formulario como signal — `FormControl` nao e reativo para `computed`. */
+  protected readonly value = toSignal(
+    this.form.valueChanges.pipe(
+      startWith(null),
+      map(() => this.form.getRawValue()),
+    ),
+    { initialValue: this.form.getRawValue() },
   );
 
-  /**
-   * FROTA primeiro, depois os carros por nome.
-   *
-   * A regra da empresa vem antes porque e ela que explica as outras: lida depois, a frase
-   * "este carro usa a regra dele" nao tem a que se referir.
-   */
-  protected readonly rows = computed<ScheduleRow[]>(() => {
-    const fleetExists = this.hasFleetRule();
-    const fleet = this.all().filter((s) => isFleetSchedule(s)).map((s) => this.toRow(s, fleetExists));
-    const vehicles = this.all()
-      .filter((s) => !isFleetSchedule(s))
-      .map((s) => this.toRow(s, fleetExists));
-    vehicles.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
-    return [...fleet, ...vehicles];
+  protected readonly frequencyChips: ReadonlyArray<FilterChipOption<InspectionFrequency>> =
+    INSPECTION_FREQUENCY_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+
+  protected readonly scopeChips: ReadonlyArray<FilterChipOption<Scope>> = [
+    { value: 'FLEET', label: 'Toda a frota' },
+    { value: 'ONE', label: 'Um veículo' },
+  ];
+
+  protected readonly fleetRule = computed(
+    () => this.all().find((s) => isFleetSchedule(s)) ?? null,
+  );
+  private readonly vehicleRules = computed(() => this.all().filter((s) => !isFleetSchedule(s)));
+
+  protected readonly active = computed(() => this.fleetRule() !== null);
+
+  /** "Toda a frota, a cada 15 dias. Próxima em 25/10/2026, com aviso 3 dias antes." */
+  protected readonly summaryText = computed(() => {
+    const own = this.vehicleRules().length;
+    const ownText =
+      own === 0
+        ? ''
+        : ` ${own} ${own === 1 ? 'veículo com regra própria' : 'veículos com regra própria'}.`;
+
+    const fleet = this.fleetRule();
+    if (!fleet) {
+      return (
+        'Peça as vistorias aos motoristas automaticamente, para todos os veículos, ' +
+        'sem precisar lembrar de cada um.' +
+        ownText
+      );
+    }
+    const next = formatDate(fleet.nextDueDate);
+    const notice = `aviso ${pluralize(fleet.reminderIntervalDays, 'dia', 'dias')} antes`;
+    const tail = next ? `Próxima em ${next}, com ${notice}.` : `Com ${notice}.`;
+    return `Toda a frota, ${this.phrase(fleet.frequency)}. ${tail}${ownText}`;
   });
 
+  protected readonly dialogTitle = computed(() =>
+    this.all().length > 0 ? 'Agendamento automático' : 'Ativar vistorias automáticas',
+  );
+  protected readonly saveLabel = computed(() =>
+    this.fleetRule() ? 'Salvar alterações' : 'Ativar',
+  );
   /**
-   * O ALVO da regra. Antes havia DOIS formularios identicos campo a campo — um
-   * para a frota (aqui) e um para um veiculo (`pages/vehicles/
-   * inspection-schedule-card`, removido). Mesmas tres perguntas, mesmos
-   * validators, mesmas mensagens, em dois arquivos.
+   * O que "Desativar" desliga neste momento, ou `null` quando nao ha o que desligar.
    *
-   * Agora e UM formulario com um alvo. O alvo decide o endpoint: frota chama
-   * `createForFleet`, veiculo chama `create(vehicleId)`. Mover o formulario de
-   * casa sem unificar teria criado uma TERCEIRA copia.
+   * O desenho so traz o botao na regra da FROTA. A regra POR VEICULO tambem precisa de uma
+   * saida: era a unica tela que a desligava (linha "Desligar" do bloco anterior), e sem ela o
+   * dono criaria uma regra de carro e nao teria como tira-la. Entao o botao aparece tambem
+   * quando o alvo e um carro que JA tem regra propria.
    */
-  protected readonly scheduleForm = this.fb.group({
-    target: this.fb.nonNullable.control<'FLEET' | 'VEHICLE'>('FLEET', {
-      validators: [Validators.required],
-    }),
-    /**
-     * Obrigatorio SO quando o alvo e um veiculo. Validacao condicional em vez de
-     * sempre-obrigatorio: exigir veiculo para uma regra de frota recusaria o
-     * caminho mais comum da tela.
-     */
-    vehicleId: this.fb.nonNullable.control(''),
-    frequency: this.fb.nonNullable.control<InspectionFrequency>('MONTHLY', {
-      validators: [Validators.required],
-    }),
-    startDate: this.fb.nonNullable.control('', { validators: [Validators.required] }),
-    reminderIntervalDays: this.fb.control<number | null>(null, {
-      validators: [Validators.min(1)],
-    }),
+  protected readonly turnOffTarget = computed<
+    { kind: 'FLEET' } | { kind: 'VEHICLE'; vehicleId: string; plate: string } | null
+  >(() => {
+    const v = this.value();
+    if (v.scope === 'FLEET') return this.fleetRule() !== null ? { kind: 'FLEET' } : null;
+    const own = v.vehicleId && this.vehicleRules().some((s) => s.vehicleId === v.vehicleId);
+    return own
+      ? { kind: 'VEHICLE', vehicleId: v.vehicleId, plate: this.plateOf(v.vehicleId) ?? 'veículo' }
+      : null;
+  });
+  protected readonly canTurnOff = computed(() => this.turnOffTarget() !== null);
+
+  protected readonly turnOffMessage = computed(() =>
+    this.turnOffTarget()?.kind === 'VEHICLE'
+      ? 'O carro deixa de receber os pedidos automáticos e os pedidos pendentes dele são cancelados. ' +
+        'Se a frota tiver regra, ela volta a valer para este carro.'
+      : 'Os motoristas deixam de receber os pedidos automáticos e os pedidos pendentes da frota são ' +
+        'cancelados. Regras próprias de veículos continuam valendo.',
+  );
+
+  protected readonly noticeChips = computed<ReadonlyArray<FilterChipOption<number>>>(() => {
+    const current = this.value().notice;
+    const days = NOTICE_DAYS.includes(current)
+      ? NOTICE_DAYS
+      : [...NOTICE_DAYS, current].sort((a, b) => a - b);
+    return days.map((d) => ({ value: d, label: `${d} ${d === 1 ? 'dia' : 'dias'} antes` }));
   });
 
-  protected readonly startDateMessages: Readonly<Record<string, string>> = {
-    required: 'Escolha a partir de quando as vistorias passam a valer.',
-  };
-  protected readonly reminderMessages: Readonly<Record<string, string>> = {
-    min: 'O aviso tem de ser de pelo menos 1 dia antes.',
-  };
+  protected readonly isOneVehicle = computed(() => this.value().scope === 'ONE');
+
+  protected readonly scopeHint = computed(() =>
+    this.isOneVehicle()
+      ? 'Use para um carro que precisa de ritmo diferente do resto da frota.'
+      : 'Vale também para carros cadastrados depois.',
+  );
+
+  protected readonly preview = computed(() => {
+    const v = this.value();
+    const where =
+      v.scope === 'FLEET'
+        ? 'todos os veículos'
+        : (this.plateOf(v.vehicleId) ?? 'o veículo escolhido');
+    const every = this.phrase(v.frequency);
+    const date = formatDate(v.startDate);
+    if (!date) return `Vistoria de ${where}, ${every}. Escolha a data da primeira.`;
+    return (
+      `Vistoria de ${where}, ${every}, a primeira em ${date}. ` +
+      `O motorista é avisado ${pluralize(v.notice, 'dia', 'dias')} antes.`
+    );
+  });
+
+  /** O aviso "Salvar substitui o atual", ou `null` quando nao ha regra para o mesmo alvo. */
+  protected readonly replaceNotice = computed<string | null>(() => {
+    const v = this.value();
+    if (v.scope === 'FLEET') {
+      return this.fleetRule()
+        ? 'Já existe um agendamento para toda a frota. Salvar substitui o atual.'
+        : null;
+    }
+    if (!v.vehicleId) return null;
+    const exists = this.vehicleRules().some((s) => s.vehicleId === v.vehicleId);
+    return exists
+      ? `Já existe um agendamento para ${this.plateOf(v.vehicleId) ?? 'este veículo'}. Salvar substitui o atual.`
+      : null;
+  });
 
   ngOnInit(): void {
     this.load();
@@ -173,185 +275,187 @@ export class InspectionSchedulesBlock implements OnInit {
 
   protected load(): void {
     this.loading.set(true);
-    this.error.set(null);
     this.loadFailed.set(false);
     this.schedules.listForCompany().subscribe({
       next: (found) => {
         this.all.set((found ?? []).filter((s) => s.active));
         this.loading.set(false);
-        this.loaded.set(true);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: unknown) => {
+        this.apiErrors.claim(err);
         this.loading.set(false);
-        this.loaded.set(true);
         this.loadFailed.set(true);
-        this.error.set(this.messageFor(err, 'Não foi possível carregar os agendamentos.'));
       },
     });
   }
 
-  /** `FLEET` por padrao: e a frase que o dono quer dizer ao cliente. */
-  openForm(target: 'FLEET' | 'VEHICLE' = 'FLEET'): void {
-    this.scheduleForm.reset({
-      target,
-      vehicleId: '',
-      frequency: 'MONTHLY',
-      startDate: '',
-      reminderIntervalDays: null,
-    });
-    this.error.set(null);
-    this.formOpen.set(true);
+  /** Abre o dialogo. Com regra de frota, ja vem preenchido com ela. */
+  protected openDialog(): void {
+    const fleet = this.fleetRule();
+    this.minDate.set(tomorrow());
+    this.form.reset(
+      fleet
+        ? {
+            scope: 'FLEET',
+            vehicleId: '',
+            frequency: fleet.frequency,
+            // A proxima ocorrencia, nao a data de inicio: a de inicio ja passou e nao
+            // passaria na validacao "a partir de amanha" sem a pessoa tocar nela.
+            startDate: fleet.nextDueDate || fleet.startDate || '',
+            notice: fleet.reminderIntervalDays || DEFAULT_NOTICE,
+          }
+        : {
+            scope: 'FLEET',
+            vehicleId: '',
+            frequency: DEFAULT_FREQUENCY,
+            startDate: '',
+            notice: DEFAULT_NOTICE,
+          },
+    );
+    this.formError.set(null);
+    this.open.set(true);
   }
 
-  protected closeForm(): void {
-    this.formOpen.set(false);
+  protected closeDialog(): void {
+    if (this.saving()) return;
+    this.open.set(false);
+    this.confirmingOff.set(false);
   }
 
-  /**
-   * NAO use `computed(() => form.controls.target.value)`: um `computed` sem
-   * dependencia REATIVA le o valor uma vez e cacheia — o template nunca
-   * reagiria ao radio, e a aparencia de reatividade e pior que a linha honesta.
-   * Um `FormControl` nao e signal; `valueChanges` e o que de fato emite.
-   */
-  private readonly target = toSignal(this.scheduleForm.controls.target.valueChanges, {
-    initialValue: this.scheduleForm.controls.target.value,
-  });
+  protected setScope(scope: Scope): void {
+    this.form.controls.scope.setValue(scope);
+    // A obrigatoriedade do veiculo depende do alvo: revalida e, ao sair de "Um veiculo",
+    // nao deixa um erro velho preso num campo que nem aparece.
+    this.form.controls.vehicleId.updateValueAndValidity();
+    this.formError.set(null);
+  }
 
-  protected readonly targetIsVehicle = computed(() => this.target() === 'VEHICLE');
+  protected setFrequency(frequency: InspectionFrequency): void {
+    this.form.controls.frequency.setValue(frequency);
+    this.formError.set(null);
+  }
 
-  /**
-   * SALVA a regra, no alvo escolhido.
-   *
-   * O payload das tres perguntas e IDENTICO nos dois caminhos — o backend expoe
-   * dois endpoints porque o escopo difere, nao porque o corpo difere. Por isso o
-   * corpo e montado uma vez e so a chamada ramifica.
-   */
+  protected setNotice(days: number): void {
+    this.form.controls.notice.setValue(days);
+    this.formError.set(null);
+  }
+
   protected save(): void {
     if (this.saving()) return;
 
-    const raw = this.scheduleForm.getRawValue();
-    const vehicleTarget = raw.target === 'VEHICLE';
-
-    // Veiculo vazio com alvo VEHICLE nao pode virar regra de frota por omissao:
-    // seriam todos os carros agendados quando se pediu um.
-    if (vehicleTarget && !raw.vehicleId) {
-      this.scheduleForm.controls.vehicleId.setErrors({ required: true });
-      this.scheduleForm.markAllAsTouched();
-      return;
-    }
-    if (this.scheduleForm.invalid) {
-      this.scheduleForm.markAllAsTouched();
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
       return;
     }
 
+    const v = this.form.getRawValue();
     const payload = {
-      frequency: raw.frequency,
-      startDate: raw.startDate,
-      ...(raw.reminderIntervalDays ? { reminderIntervalDays: raw.reminderIntervalDays } : {}),
+      frequency: v.frequency,
+      startDate: v.startDate,
+      reminderIntervalDays: v.notice,
     };
 
     this.saving.set(true);
-    this.error.set(null);
-    (vehicleTarget
-      ? this.schedules.create(raw.vehicleId, payload)
-      : this.schedules.createForFleet(payload))
-      .subscribe({
-        next: () => {
-          this.saving.set(false);
-          this.formOpen.set(false);
-          this.notifications.success(
-            'Vistoria periódica agendada para toda a frota, inclusive os carros que você cadastrar depois.',
-          );
-          // RELER: a resposta do POST traz a regra nova, mas nao as de carro que ja existiam,
-          // e a tela precisa das duas para explicar a precedencia.
-          this.load();
-        },
-        error: (err: HttpErrorResponse) => {
-          this.saving.set(false);
-          this.error.set(this.fleetCreateMessage(err));
-        },
-      });
-  }
+    this.formError.set(null);
 
-  protected askDeactivate(row: ScheduleRow): void {
-    if (row.canDeactivate) this.pendingDeactivate.set(row);
-  }
+    const replacingFleet = v.scope === 'FLEET' && this.fleetRule() !== null;
+    // So vira `true` DEPOIS de o servidor confirmar o desligamento: e o que decide se a frase
+    // de erro pode dizer que a regra anterior ficou desligada.
+    let deactivated = false;
+    let call: Observable<unknown>;
+    if (v.scope === 'ONE') {
+      call = this.schedules.create(v.vehicleId, payload);
+    } else if (replacingFleet) {
+      // Substituir a frota = desligar a atual e criar a nova. Ver o cabecalho.
+      call = this.schedules.deactivateFleet().pipe(
+        tap(() => (deactivated = true)),
+        switchMap(() => this.schedules.createForFleet(payload)),
+      );
+    } else {
+      call = this.schedules.createForFleet(payload);
+    }
 
-  protected dismissDeactivate(): void {
-    this.pendingDeactivate.set(null);
-  }
-
-  protected confirmDeactivate(): void {
-    const row = this.pendingDeactivate();
-    if (!row || !row.vehicleId) return;
-    this.pendingDeactivate.set(null);
-    this.saving.set(true);
-    this.error.set(null);
-    this.schedules.deactivate(row.vehicleId).subscribe({
+    call.subscribe({
       next: () => {
         this.saving.set(false);
-        this.notifications.success('Vistoria periódica desligada para ' + row.title + '.');
+        this.open.set(false);
+        this.notifications.success(
+          v.scope === 'FLEET'
+            ? 'Agendamento da frota salvo.'
+            : `Agendamento de «${this.plateOf(v.vehicleId) ?? 'veículo'}» salvo.`,
+        );
         this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: unknown) => {
         this.saving.set(false);
-        this.error.set(this.messageFor(err, 'Não foi possível desligar este agendamento.'));
+        this.formError.set(this.failureMessage(err, deactivated));
+        // O estado mudou no meio (a regra anterior foi desligada): reler para a tela dizer a verdade.
+        if (deactivated) this.load();
       },
     });
   }
 
-  private toRow(schedule: InspectionScheduleResponse, fleetExists: boolean): ScheduleRow {
-    const fleet = isFleetSchedule(schedule);
-    return {
-      id: schedule.id,
-      fleet,
-      title: fleet ? 'Toda a frota' : this.vehicleLabel(schedule.vehicleId),
-      frequencyLabel: inspectionFrequencyLabel(schedule.frequency),
-      nextDueDate: schedule.nextDueDate,
-      reminderIntervalDays: schedule.reminderIntervalDays,
-      vehicleId: schedule.vehicleId,
-      precedenceNote: this.precedenceNote(fleet, fleetExists),
-      // Frota nao: nao existe endpoint que alcance `vehicle_id` nulo.
-      canDeactivate: !fleet,
-      lockedReason: fleet
-        ? 'Para mudar ou desligar a regra da frota, fale com o suporte — ainda não é possível por aqui.'
-        : '',
-    };
+  protected askTurnOff(): void {
+    if (this.canTurnOff() && !this.saving()) this.confirmingOff.set(true);
   }
 
-  /**
-   * A frase da precedencia, e ela so aparece quando HA conflito a explicar.
-   *
-   * Numa empresa sem regra de frota, dizer "este carro usa a regra dele" explica um conflito
-   * que nao existe e sobra como ruido.
-   */
-  private precedenceNote(fleet: boolean, fleetExists: boolean): string {
-    if (fleet) {
-      return 'Vale para os carros que não têm regra própria, inclusive os cadastrados depois.';
-    }
-    return fleetExists ? 'Este carro usa a regra dele, não a da frota.' : '';
+  protected dismissTurnOff(): void {
+    this.confirmingOff.set(false);
   }
 
-  private vehicleLabel(vehicleId: string | null): string {
-    if (!vehicleId) return 'Veículo';
-    return this.vehicleOptions().find((v) => v.id === vehicleId)?.label ?? 'Veículo';
+  protected confirmTurnOff(): void {
+    const target = this.turnOffTarget();
+    this.confirmingOff.set(false);
+    if (!target || this.saving()) return;
+
+    this.saving.set(true);
+    this.formError.set(null);
+    const call =
+      target.kind === 'FLEET'
+        ? this.schedules.deactivateFleet()
+        : this.schedules.deactivate(target.vehicleId);
+    call.subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.open.set(false);
+        this.notifications.success(
+          target.kind === 'FLEET'
+            ? 'Agendamento automático desativado.'
+            : `Agendamento de «${target.plate}» desativado.`,
+        );
+        this.load();
+      },
+      error: (err: unknown) => {
+        this.saving.set(false);
+        this.formError.set(this.failureMessage(err, false));
+      },
+    });
   }
 
-  /**
-   * 400 ao criar frota tem uma causa que NAO e erro de preenchimento: ja existe uma regra de
-   * frota vigente, e o backend garante no maximo uma. A frase diz o estado, nao "falhou".
-   */
-  private fleetCreateMessage(err: HttpErrorResponse): string {
-    if (err.status === 400 && this.hasFleetRule()) {
-      return 'Esta empresa já tem uma regra de vistoria para a frota.';
-    }
-    return this.messageFor(err, 'Não foi possível agendar para a frota.');
+  // ----------------------------------------------------------------- helpers
+
+  /** "a cada 15 dias", "todo mês" — o rotulo do servidor em minuscula, para caber em frase. */
+  private phrase(frequency: InspectionFrequency): string {
+    const label = inspectionFrequencyLabel(frequency);
+    return label.charAt(0).toLowerCase() + label.slice(1);
   }
 
-  private messageFor(err: HttpErrorResponse, fallback: string): string {
-    if (err.status === 403) {
+  /** A placa de um veiculo — a primeira parte do rotulo "PLACA · modelo". */
+  private plateOf(vehicleId: string): string | null {
+    if (!vehicleId) return null;
+    const label = this.vehicleOptions().find((v) => v.id === vehicleId)?.label;
+    if (!label) return null;
+    return label.split(/\s[·—-]\s/)[0] || label;
+  }
+
+  private failureMessage(err: unknown, afterDeactivate: boolean): string {
+    if (err instanceof HttpErrorResponse && err.status === 403) {
+      this.apiErrors.claim(err);
       return 'Só o dono e os gerenciadores podem agendar vistorias.';
     }
+    const fallback = afterDeactivate
+      ? 'O agendamento anterior foi desativado, mas não foi possível salvar o novo. Tente de novo.'
+      : 'Não foi possível salvar o agendamento. Tente de novo.';
     return this.apiErrors.messageFor(err, fallback);
   }
 }

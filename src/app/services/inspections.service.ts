@@ -5,11 +5,14 @@ import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
 import {
   CreateInspectionRequest,
+  INSPECTION_SEARCH_MAX_LENGTH,
   Inspection,
   InspectionFilters,
   InspectionListItem,
   InspectionPhoto,
   InspectionReviewResult,
+  InspectionSummary,
+  SubmitInspectionRequest,
 } from '../types/inspection.types';
 import { TenantResetRegistry } from './tenant-reset.registry';
 
@@ -67,22 +70,51 @@ export class InspectionsService {
    * o usuário eventualmente compartilha.
    */
   private toParams(filters: InspectionFilters): HttpParams {
-    let params = new HttpParams()
+    const params = new HttpParams()
       .set('page', String(filters.page ?? 0))
       .set('size', String(filters.size ?? 20));
 
+    return this.withOptional(params, filters, true);
+  }
+
+  /**
+   * Os filtros opcionais, so os escolhidos. Compartilhado entre a lista e o `summary` — o
+   * resumo aceita os filtros de recorte (veiculo, locacao, tipo, periodo) e NAO `status`,
+   * busca, ordem nem pagina, e duas copias desta lista divergiriam no primeiro filtro novo.
+   */
+  private withOptional(
+    params: HttpParams,
+    filters: InspectionFilters,
+    includeListOnly: boolean,
+  ): HttpParams {
     const optional: Array<[string, string | null | undefined]> = [
       ['vehicleId', filters.vehicleId],
       ['rentalId', filters.rentalId],
       ['kind', filters.kind],
-      ['status', filters.status],
+      ['status', includeListOnly ? filters.status : null],
       ['from', filters.from],
       ['to', filters.to],
+      // Busca: aparada e cortada no limite do servidor. Branco nao vai para a query.
+      ['q', includeListOnly ? filters.q?.trim().slice(0, INSPECTION_SEARCH_MAX_LENGTH) : null],
+      ['sort', includeListOnly ? filters.sort : null],
     ];
     for (const [key, value] of optional) {
       if (value) params = params.set(key, value);
     }
     return params;
+  }
+
+  /**
+   * `GET /v1/inspections/summary` — contagem por situacao, para os tiles do topo.
+   *
+   * Sem cache e sem signal de proposito: e uma leitura pontual que a tela refaz depois de
+   * uma decisao. Falha NAO e engolida aqui — quem chama decide mostrar "—", porque inventar
+   * zero afirmaria que nao ha vistoria a decidir.
+   */
+  summary(filters: InspectionFilters = {}): Observable<InspectionSummary> {
+    return this.http.get<InspectionSummary>(`${BASE}/summary`, {
+      params: this.withOptional(new HttpParams(), filters, false),
+    });
   }
 
   /**
@@ -132,13 +164,19 @@ export class InspectionsService {
    * tela exige clique explicito e nunca dispara isto como efeito de ter
    * completado o roteiro.
    *
+   * `odometerKm` (km atual do veiculo, informado pelo motorista) vai no corpo. O servidor
+   * recusa abaixo do ultimo registro (`INSPECTION_ODOMETER_BELOW_PREVIOUS`) e a mensagem
+   * em portugues vem no erro — a tela a mostra.
+   *
    * O retorno e `InspectionReviewResult`, NAO `Inspection` — ele nao traz
    * `requiredAngles` nem `capturedAngles`. Quem chamar NAO pode usar esta
    * resposta para substituir a vistoria em memoria; serve para ler o `status`
    * novo. Ver o cabecalho de `InspectionReviewResult`.
    */
-  submit(id: string): Observable<InspectionReviewResult> {
-    return this.http.post<InspectionReviewResult>(`${BASE}/${id}/submit`, {});
+  submit(id: string, body: SubmitInspectionRequest | null = null): Observable<InspectionReviewResult> {
+    // Corpo `{ odometerKm }` quando a tela o informa. Sem ele o corpo continua `{}`, que e o
+    // que um servidor anterior ao hodometro espera.
+    return this.http.post<InspectionReviewResult>(`${BASE}/${id}/submit`, body ?? {});
   }
 
   /**
@@ -168,6 +206,16 @@ export class InspectionsService {
    */
   photos(id: string): Observable<InspectionPhoto[]> {
     return this.http.get<InspectionPhoto[]>(`${BASE}/${id}/photos`);
+  }
+
+  /**
+   * `GET /v1/inspections/{id}/pdf` — o laudo da vistoria APROVADA, como URL assinada.
+   *
+   * Devolve a URL e nao os bytes: o PDF carrega as 14 fotos. A URL EXPIRA, entao ela e
+   * pedida no clique de "Baixar PDF" e nunca guardada. Vistoria nao aprovada responde erro.
+   */
+  reportUrl(id: string): Observable<{ url: string }> {
+    return this.http.get<{ url: string }>(`${BASE}/${id}/pdf`);
   }
 
   /**
