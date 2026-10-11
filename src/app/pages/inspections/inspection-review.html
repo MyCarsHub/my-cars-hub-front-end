@@ -1,218 +1,551 @@
 <!--
-  Mobile-first: o dono também decide isto no celular. Uma coluna, fotos em
-  largura total até `sm`, alvos de toque de 48px ou mais, e nada de confirmação
-  escondida — aprovar e recusar são dois botões visíveis, lado a lado só quando
-  há largura para isso.
+  DETALHES DA VISTORIA (`/vistorias/:id`). Mobile-first: o dono tambem decide isto no
+  celular. Uma coluna, alvos de 44px, o primario ACIMA no celular. O cabecalho usa os dois
+  slots do `app-default-page-layout`: o voltar acima do titulo e o chip ao lado dele.
 -->
-<!--
-  O MESMO INVOLUCRO DO CARD DE FOTOS DO ALUGUEL
-  (`pages/rentals/documents/rental-inspection-card`): `app-page-card`, e nao uma
-  caixa propria (`rounded-xl border bg-neutral-50`).
+<app-default-page-layout title="Detalhes da vistoria" [description]="subtitle()">
+  <a
+    pageBack
+    routerLink="/vistorias"
+    data-back
+    class="-ml-1 mb-1 inline-flex items-center gap-1.5 min-h-[44px] px-1 rounded-lg text-sm
+           font-medium text-neutral-600 hover:text-neutral-900 transition-colors focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-primary-400"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+    Vistorias
+  </a>
 
-  A referencia e aquele card e NAO `vehicles-list`, de proposito: esta tela
-  decide FOTO POR FOTO, como a do aluguel. Padrao de lista serve a lista; aqui
-  o conteudo e uma grade de imagens para julgar.
--->
-<app-page-card title="Fotos enviadas" class="mt-3 block">
-  <div class="p-4 sm:p-6 space-y-4">
-
-  @if (loadingPhotos()) {
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" aria-hidden="true">
-      <div class="aspect-square rounded-xl bg-neutral-200 animate-pulse"></div>
-      <div class="aspect-square rounded-xl bg-neutral-200 animate-pulse"></div>
-    </div>
-    <p class="sr-only" role="status" aria-live="polite">Carregando as fotos da vistoria…</p>
+  @if (inspection()) {
+    <span
+      pageBadge
+      data-status-chip
+      class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+      [class]="statusMeta().chip"
+    >
+      {{ statusMeta().label }}
+    </span>
   }
 
-  @if (!loadingPhotos() && hasPhotos()) {
-    <!--
-      A GRADE DO CARD DE ALUGUEL, ponto a ponto: `grid-cols-2 sm:grid-cols-3
-      lg:grid-cols-4 gap-3`. DUAS colunas ja no celular porque quem aprova
-      COMPARA angulos — uma coluna obriga a rolar entre a frente e a traseira
-      para decidir se sao do mesmo carro, e a decisao fica pior.
-    -->
-    <ul class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      @for (photo of photos(); track photo.id) {
-        <li class="rounded-xl border border-neutral-200 bg-white overflow-hidden">
-          <!--
-            QUADRO QUADRADO com a imagem em absoluto, como no card do aluguel —
-            e nao `h-40` no proprio `<img>`. Altura fixa recorta diferente
-            conforme a largura da coluna; `aspect-square` mantem o MESMO
-            enquadramento em qualquer tela, e e isso que deixa comparar dois
-            angulos lado a lado sem um parecer esticado.
-
-            O rótulo vem do `angle` do contrato, não da ordem: quem aprova
-            precisa saber que está olhando a traseira, e não a terceira foto.
-          -->
-          <div class="relative aspect-square bg-neutral-100">
-            @if (photo.signedUrl; as url) {
-              <img
-                [src]="url"
-                [alt]="'Foto da vistoria: ' + photo.label"
-                (error)="onImageError()"
-                class="absolute inset-0 w-full h-full object-cover"
-              />
-            } @else {
-              <!--
-                A foto EXISTE e não pôde ser exibida — a assinatura dela falhou.
-                A frase diz isso com todas as letras, e não "sem foto": mandar o
-                motorista refotografar o que já está no servidor seria puni-lo
-                por uma falha nossa.
-              -->
-              <div
-                class="absolute inset-0 flex items-center justify-center px-3 text-center"
-              >
-                <p class="text-xs font-medium text-neutral-600">
-                  Esta foto não carregou agora. Ela está salva — tente de novo.
-                </p>
-              </div>
-            }
-          </div>
-          <div class="px-3 py-2">
-            <p data-angle-label class="text-xs font-semibold text-neutral-700">
-              {{ photo.label }}
-              @if (!photo.signedUrl) {
-                <span class="font-normal text-neutral-500">· não carregou</span>
-              }
-            </p>
-            <!--
-              QUANDO foi tirada. Numa vistoria periódica, foto de hoje e foto de
-              três semanas atrás são indistinguíveis sem isto, e aprovar a
-              segunda como atual é aprovar um estado que já mudou.
-            -->
-            <p data-taken-at class="mt-0.5 text-[11px] text-neutral-500 tabular-nums">
-              {{ photo.takenAt }}
-            </p>
-          </div>
-        </li>
-      }
-    </ul>
-  }
-
-  <!--
-    Falha PARCIAL — o caso que de fato acontece, porque o backend isola por
-    foto. Aprovar fica fora: ver 13 de 14 não é ver.
-  -->
-  @if (!loadingPhotos() && hasPhotos() && unavailable().length > 0) {
-    <div class="mt-3">
-      <app-alert-banner variant="warning">
-        Não foi possível carregar
-        {{ unavailable().length === 1 ? 'a foto' : 'as fotos' }} de:
-        @for (photo of unavailable(); track photo.id) {
-          <strong>{{ photo.label }}</strong
-          >{{ $last ? '' : ', ' }}
-        }
-        . Aprovar só fica disponível com todas visíveis.
+  <div class="space-y-4 sm:space-y-6">
+    @if (loadError(); as message) {
+      <app-alert-banner variant="error" [message]="message">
+        <button
+          type="button"
+          data-retry-detail
+          (click)="load()"
+          class="mt-2 min-h-[44px] px-4 rounded-xl border border-rose-200 bg-white text-sm
+                 font-semibold text-rose-700 hover:bg-rose-50 transition-colors focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        >
+          Tentar novamente
+        </button>
       </app-alert-banner>
-    </div>
-  }
+    }
 
-  @if (expired()) {
-    <div class="mt-3">
-      <app-alert-banner
-        variant="warning"
-        message="Os links das fotos expiraram. Feche e abra esta vistoria de novo para vê-las."
-      />
-    </div>
-  }
+    @if (loading() && !inspection()) {
+      <div data-skeleton class="space-y-4" aria-hidden="true">
+        <div class="h-44 rounded-2xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-72 rounded-2xl bg-neutral-100 animate-pulse"></div>
+      </div>
+      <p class="sr-only" role="status">Carregando a vistoria…</p>
+    }
 
-  <!--
-    Sem foto não há decisão: aprovar às cegas é assinar em branco. Aqui só
-    existe o caminho de recarregar.
-  -->
-  @if (canRetryPhotos()) {
-    <div class="mt-3">
-      <app-alert-banner
-        variant="error"
-        [message]="
-          photosError() ??
-          'Esta vistoria não tem fotos para revisar. Sem elas não é possível aprovar.'
-        "
-      />
-      <button
-        type="button"
-        data-retry-photos
-        (click)="loadPhotos()"
-        class="mt-3 w-full sm:w-auto min-h-12 inline-flex items-center justify-center rounded-xl
-               border border-neutral-300 bg-white px-4 text-sm font-semibold text-neutral-800
-               hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
-               focus-visible:ring-primary-600 focus-visible:ring-offset-2"
-      >
-        Tentar carregar as fotos de novo
-      </button>
-    </div>
-  }
-
-  @if (decisionLabel(); as label) {
-    <div class="mt-4">
-      <app-alert-banner variant="success" [message]="label" />
-    </div>
-  }
-
-  @if (canReject()) {
-    <div class="mt-4 border-t border-neutral-200 pt-4">
-      <label for="reject-reason" class="block text-sm font-semibold text-neutral-900">
-        Motivo da recusa
-      </label>
-      <p class="mt-1 text-xs text-neutral-600">
-        Obrigatório para recusar. É o que o motorista vai ler para saber o que refazer.
-      </p>
-      <textarea
-        id="reject-reason"
-        data-reject-reason
-        rows="3"
-        maxlength="1000"
-        [value]="reason()"
-        (input)="onReasonInput($event)"
-        [attr.aria-invalid]="reasonMissing() ? 'true' : null"
-        class="mt-2 w-full rounded-xl border px-3 py-2 text-sm text-neutral-900
-               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-        [class.border-red-400]="reasonMissing()"
-        [class.border-neutral-300]="!reasonMissing()"
-      ></textarea>
-
-      @if (reasonMissing()) {
-        <p class="mt-1 text-xs font-semibold text-red-700" role="alert">
-          Escreva o motivo da recusa antes de recusar.
-        </p>
-      }
-
-      @if (decisionError(); as message) {
-        <div class="mt-3">
-          <app-alert-banner variant="error" [message]="message" />
+    @if (inspection(); as current) {
+      @if (status() === 'REJECTED') {
+        <div
+          data-rejected-strip
+          role="alert"
+          class="rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:px-6 flex flex-col gap-1"
+        >
+          <p class="text-sm font-semibold text-rose-900">
+            Vistoria recusada. O motorista precisa refazer.
+          </p>
+          @if (rejectedReason(); as reason) {
+            <p data-rejection-reason class="text-sm text-rose-900 leading-relaxed">
+              Motivo: {{ reason }}
+            </p>
+          }
+          @if (isDriver) {
+            <a
+              data-redo
+              [routerLink]="['/vistorias', current.id, 'captura']"
+              class="mt-2 w-full sm:w-auto sm:self-start min-h-[44px] inline-flex items-center
+                     justify-center rounded-xl border border-rose-200 bg-white px-5 text-sm
+                     font-semibold text-rose-700 hover:bg-rose-50 transition-colors
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              Ver recusa e refazer
+            </a>
+          }
         </div>
       }
 
-      <div class="mt-4 flex flex-col sm:flex-row gap-2">
-        @if (canApprove()) {
-        <button
-          type="button"
-          data-approve
-          (click)="approve()"
-          [disabled]="deciding()"
-          class="w-full sm:flex-1 min-h-12 inline-flex items-center justify-center rounded-xl
-                 bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700
-                 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700
-                 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
+      @if (status() === 'PENDING') {
+        <div class="space-y-3">
+          <app-alert-banner variant="info" [message]="pendingMessage()" />
+          @if (isDriver || current.kind === 'FLEET') {
+            <a
+              data-continue
+              [routerLink]="['/vistorias', current.id, 'captura']"
+              class="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center
+                     rounded-xl border border-neutral-200 bg-white px-5 text-sm font-semibold
+                     text-neutral-700 hover:bg-neutral-50 transition-colors focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              Continuar vistoria
+            </a>
+          }
+        </div>
+      }
+
+      <app-page-card title="Resumo">
+        <dl
+          data-summary
+          class="px-4 sm:px-6 pb-5 sm:pb-6 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))]
+                 gap-x-6 gap-y-5"
         >
-          {{ deciding() ? 'Registrando…' : 'Aprovar vistoria' }}
-        </button>
+          <div class="min-w-0 flex flex-col gap-0.5">
+            <dt class="text-xs uppercase tracking-wide text-neutral-500">Veículo</dt>
+            <dd data-field="vehicle" class="text-sm font-medium text-neutral-900 break-words">
+              @if (plate(); as p) {
+                <span class="font-mono font-semibold tracking-wide">{{ p }}</span>
+                @if (vehicle(); as v) {
+                  · {{ v }}
+                }
+              } @else {
+                {{ vehicle() ?? '—' }}
+              }
+            </dd>
+          </div>
+
+          <div class="min-w-0 flex flex-col gap-0.5">
+            <dt class="text-xs uppercase tracking-wide text-neutral-500">Cor e ano</dt>
+            <dd data-field="color-year" class="text-sm font-medium text-neutral-900 break-words">
+              {{ colorYear() ?? '—' }}
+            </dd>
+          </div>
+
+          <div class="min-w-0 flex flex-col gap-0.5">
+            <dt class="text-xs uppercase tracking-wide text-neutral-500">Motorista</dt>
+            <dd data-field="driver" class="text-sm font-medium text-neutral-900 break-words">
+              {{ driverName() ?? '—' }}
+            </dd>
+          </div>
+
+          <div class="min-w-0 flex flex-col gap-0.5">
+            <dt class="text-xs uppercase tracking-wide text-neutral-500">Contato</dt>
+            <dd data-field="phone" class="text-sm font-medium text-neutral-900 break-words">
+              {{ phone() ?? '—' }}
+            </dd>
+          </div>
+
+          <div class="min-w-0 flex flex-col gap-0.5">
+            <dt class="text-xs uppercase tracking-wide text-neutral-500">ID do aluguel</dt>
+            @if (current.rentalId; as rentalId) {
+              <dd data-field="rental" class="flex flex-col gap-0.5 min-w-0">
+                <span class="font-mono text-sm font-medium text-neutral-900 break-all">
+                  {{ rentalId }}
+                </span>
+                <a
+                  data-rental-link
+                  [routerLink]="['/alugueis', rentalId]"
+                  class="-my-3 self-start inline-flex items-center min-h-[44px] text-[13px]
+                         font-semibold text-primary-700 hover:text-primary-800 rounded-lg
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >
+                  Ver aluguel
+                </a>
+              </dd>
+            } @else {
+              <dd data-field="rental" class="flex flex-col gap-0.5">
+                <span class="text-sm font-medium text-neutral-900">—</span>
+                <span class="text-[13px] text-neutral-500">Vistoria de frota, sem aluguel.</span>
+              </dd>
+            }
+          </div>
+
+          <div class="min-w-0 flex flex-col gap-0.5">
+            <dt class="text-xs uppercase tracking-wide text-neutral-500">Hodômetro informado</dt>
+            @if (odometer(); as odo) {
+              <dd data-field="odometer" class="flex flex-col gap-0.5">
+                @if (odo.value; as value) {
+                  <span
+                    data-odometer-value
+                    class="font-mono text-base font-semibold text-neutral-900"
+                  >
+                    {{ value }}
+                  </span>
+                } @else {
+                  <span data-odometer-value class="text-sm font-medium text-neutral-500">
+                    Aguardando o motorista
+                  </span>
+                }
+                @if (odo.hint) {
+                  <span data-odometer-hint class="text-[13px] text-neutral-500 leading-snug">
+                    {{ odo.hint }}
+                  </span>
+                }
+              </dd>
+            }
+          </div>
+        </dl>
+      </app-page-card>
+
+      <app-page-card [title]="galleryTitle()">
+        <div class="px-4 sm:px-6 pb-5 sm:pb-6 space-y-4">
+          @if (loadingPhotos() && photos() === null) {
+            <div
+              data-photos-skeleton
+              class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3"
+              aria-hidden="true"
+            >
+              @for (n of [1, 2, 3, 4, 5, 6]; track n) {
+                <div class="aspect-square rounded-xl bg-neutral-100 animate-pulse"></div>
+              }
+            </div>
+            <p class="sr-only" role="status" aria-live="polite">
+              Carregando as fotos da vistoria…
+            </p>
+          }
+
+          @if (photos() !== null) {
+            <p data-photo-summary class="text-sm text-neutral-600 leading-relaxed">
+              {{ photoSummary() }}
+            </p>
+
+            <!--
+              A GRADE: quadros QUADRADOS tracejados. Com foto, a imagem cobre o quadro e o nome
+              do angulo vai numa faixa embaixo; sem foto, a camera e o nome — sem texto
+              vermelho, sem faixa. Chave do `@for` e o ANGULO: a URL assinada muda a cada
+              carga e recriaria as 14 imagens.
+            -->
+            <ul class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+              @for (frame of frames(); track frame.angle) {
+                <li class="min-w-0">
+                  @if (frame.hasPhoto && frame.signedUrl) {
+                    <button
+                      type="button"
+                      data-frame="photo"
+                      [attr.aria-label]="'Ampliar foto: ' + frame.label"
+                      (click)="openViewer(frame.angle)"
+                      class="relative block w-full aspect-square overflow-hidden rounded-xl border
+                             border-dashed border-neutral-300 bg-neutral-50 hover:border-primary-500
+                             transition-colors focus:outline-none focus-visible:ring-2
+                             focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                    >
+                      <img
+                        [src]="frame.signedUrl"
+                        [alt]="'Foto da vistoria: ' + frame.label"
+                        (error)="onImageError()"
+                        class="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <span
+                        class="absolute inset-x-0 bottom-0 bg-black/65 text-white text-xs
+                               font-semibold leading-tight px-2.5 py-2 text-left"
+                      >
+                        {{ frame.label }}
+                      </span>
+                    </button>
+                  } @else {
+                    <div
+                      data-frame="empty"
+                      class="w-full aspect-square rounded-xl border border-dashed border-neutral-300
+                             bg-neutral-50 flex flex-col items-center justify-center gap-2 p-2
+                             text-center"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" class="text-neutral-400"
+                        aria-hidden="true">
+                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                        <circle cx="12" cy="13" r="3" />
+                      </svg>
+                      <span class="text-[13px] text-neutral-600 leading-tight">{{ frame.label }}</span>
+                    </div>
+                  }
+                </li>
+              }
+            </ul>
+          }
+
+          <!--
+            Falha PARCIAL — o caso que de fato acontece, porque o backend isola por foto.
+            Aprovar fica fora: ver 13 de 14 nao e ver.
+          -->
+          @if (!loadingPhotos() && unavailable().length > 0) {
+            <app-alert-banner variant="warning">
+              Não foi possível carregar
+              {{ unavailable().length === 1 ? 'a foto' : 'as fotos' }} de:
+              @for (frame of unavailable(); track frame.angle) {
+                <strong>{{ frame.label }}</strong
+                >{{ $last ? '' : ', ' }}
+              }
+              . Esta foto está salva — tente de novo.
+            </app-alert-banner>
+          }
+
+          @if (expired()) {
+            <app-alert-banner
+              variant="warning"
+              message="Os links das fotos expiraram. Recarregue a página para vê-las."
+            />
+          }
+
+          @if (photosError(); as message) {
+            <app-alert-banner variant="error" [message]="message" />
+          }
+
+          @if (canRetryPhotos()) {
+            <button
+              type="button"
+              data-retry-photos
+              (click)="loadPhotos()"
+              class="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center
+                     rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold
+                     text-neutral-700 hover:bg-neutral-50 transition-colors focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Tentar carregar as fotos de novo
+            </button>
+          }
+        </div>
+      </app-page-card>
+
+      @if (canDecide()) {
+        <app-page-card title="Sua decisão">
+          <div data-decision class="px-4 sm:px-6 pb-5 sm:pb-6 space-y-4">
+            <p class="text-sm text-neutral-600 leading-relaxed">
+              Aprove se as {{ totalCount() || 14 }} fotos e o hodômetro estão corretos. Se
+              recusar, o motorista é avisado e refaz a vistoria inteira.
+            </p>
+
+            @if (rejecting()) {
+              <app-form-field
+                label="Motivo da recusa"
+                controlId="reject-reason"
+                [required]="true"
+                [control]="reasonControl"
+                [messages]="reasonMessages"
+                hint="É o que o motorista vai ler para saber o que refazer."
+              >
+                <textarea
+                  appFieldControl
+                  data-reject-reason
+                  rows="3"
+                  maxlength="1000"
+                  [formControl]="reasonControl"
+                  placeholder="Ex.: foto do hodômetro desfocada, refaça com o painel aceso."
+                  class="w-full bg-white border rounded-xl px-3 py-2.5 text-base lg:text-sm
+                         text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-400
+                         focus:border-primary-400"
+                ></textarea>
+              </app-form-field>
+            }
+
+            @if (decisionError(); as message) {
+              <app-alert-banner variant="error" [message]="message" />
+            }
+
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              @if (rejecting()) {
+                <button
+                  type="button"
+                  data-cancel-reject
+                  (click)="cancelReject()"
+                  [disabled]="deciding()"
+                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-neutral-200
+                         bg-white text-sm font-semibold text-neutral-700 hover:bg-neutral-50
+                         transition-colors focus:outline-none focus-visible:ring-2
+                         focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                         disabled:opacity-60"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  data-reject
+                  (click)="askRejectConfirmation()"
+                  [disabled]="deciding()"
+                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-rose-200
+                         bg-white text-sm font-semibold text-rose-700 hover:bg-rose-50
+                         transition-colors focus:outline-none focus-visible:ring-2
+                         focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                         disabled:opacity-60"
+                >
+                  Recusar e pedir nova vistoria
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  data-start-reject
+                  (click)="startReject()"
+                  [disabled]="deciding()"
+                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-neutral-200
+                         bg-white text-sm font-semibold text-neutral-700 hover:bg-neutral-50
+                         transition-colors focus:outline-none focus-visible:ring-2
+                         focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                         disabled:opacity-60"
+                >
+                  Recusar
+                </button>
+                <button
+                  type="button"
+                  data-approve
+                  (click)="approve()"
+                  [disabled]="approveBlocked() || deciding()"
+                  [attr.aria-describedby]="approveBlocked() ? 'approve-note' : null"
+                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl bg-primary-500
+                         hover:bg-primary-600 text-sm font-semibold text-white shadow-sm
+                         transition-colors focus:outline-none focus-visible:ring-2
+                         focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {{ deciding() ? 'Registrando…' : 'Aprovar vistoria' }}
+                </button>
+              }
+            </div>
+
+            @if (!rejecting() && approveBlocked()) {
+              <p id="approve-note" data-approve-note class="text-xs text-neutral-500">
+                Aprovar fica disponível quando as {{ totalCount() || 14 }} fotos e o hodômetro
+                estiverem enviados.
+              </p>
+            }
+          </div>
+        </app-page-card>
+      }
+
+      @if (status() === 'APPROVED') {
+        <section
+          data-pdf-card
+          class="rounded-2xl bg-white border border-neutral-200 shadow-sm px-4 sm:px-6 py-4 flex
+                 flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <div class="flex items-center gap-3 min-w-0">
+            <span
+              class="shrink-0 w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center
+                     justify-center"
+              aria-hidden="true"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+            </span>
+            <div class="min-w-0 flex flex-col">
+              <span data-pdf-name class="text-sm font-semibold text-neutral-900 break-all">
+                {{ pdfName() }}
+              </span>
+              <span class="text-xs text-neutral-500">
+                Laudo gerado a partir das {{ totalCount() || 14 }} fotos
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-download-pdf
+            (click)="downloadReport()"
+            [disabled]="openingReport()"
+            class="shrink-0 w-full sm:w-auto min-h-[44px] px-5 rounded-xl bg-primary-500
+                   hover:bg-primary-600 text-sm font-semibold text-white shadow-sm
+                   transition-colors focus:outline-none focus-visible:ring-2
+                   focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                   disabled:opacity-60 disabled:cursor-wait"
+          >
+            {{ openingReport() ? 'Abrindo…' : 'Baixar PDF' }}
+          </button>
+        </section>
+
+        @if (reportError(); as message) {
+          <app-alert-banner variant="error" [message]="message" />
         }
-        <button
-          type="button"
-          data-reject
-          (click)="reject()"
-          [disabled]="deciding()"
-          class="w-full sm:flex-1 min-h-12 inline-flex items-center justify-center rounded-xl
-                 border border-red-300 bg-white px-4 text-sm font-semibold text-red-700
-                 hover:bg-red-50 focus:outline-none focus-visible:ring-2
-                 focus-visible:ring-red-600 focus-visible:ring-offset-2
-                 disabled:opacity-60 disabled:cursor-wait"
-        >
-          Recusar com motivo
-        </button>
-      </div>
-    </div>
-  }
+      }
+    }
   </div>
-</app-page-card>
+</app-default-page-layout>
+
+<!--
+  O VISUALIZADOR. Folha no celular, caixa de 560px a partir de `sm`; fecha no X, no fundo e
+  no Esc. Anterior/Proxima PULAM angulos sem foto.
+-->
+<app-members-sheet
+  [open]="viewerIndex() !== null"
+  size="xl"
+  scrim="strong"
+  [title]="viewerFrame()?.label ?? ''"
+  [subtitle]="viewerSubtitle()"
+  (closed)="closeViewer()"
+>
+  <div
+    data-viewer-image
+    class="bg-neutral-50 aspect-square max-h-[62vh] w-full flex items-center justify-center"
+  >
+    @if (viewerFrame(); as frame) {
+      @if (frame.signedUrl) {
+        <img
+          [src]="frame.signedUrl"
+          [alt]="'Foto da vistoria: ' + frame.label"
+          (error)="onImageError()"
+          class="w-full h-full object-contain"
+        />
+      } @else {
+        <p class="px-6 text-center text-sm text-neutral-600">
+          Esta foto não carregou agora. Ela está salva — tente de novo.
+        </p>
+      }
+    }
+  </div>
+
+  <div
+    sheetFooter
+    class="flex items-center justify-between gap-2 px-4 py-3 border-t border-neutral-100"
+  >
+    <button
+      type="button"
+      data-viewer-prev
+      (click)="stepViewer(-1)"
+      [disabled]="!viewerHasOthers()"
+      class="min-h-[44px] px-5 rounded-xl border border-neutral-200 bg-white text-sm font-semibold
+             text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-50
+             disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2
+             focus-visible:ring-primary-400"
+    >
+      Anterior
+    </button>
+    <span data-viewer-counter class="text-[13px] text-neutral-500 tabular-nums">
+      {{ viewerCounter() }}
+    </span>
+    <button
+      type="button"
+      data-viewer-next
+      (click)="stepViewer(1)"
+      [disabled]="!viewerHasOthers()"
+      class="min-h-[44px] px-5 rounded-xl border border-neutral-200 bg-white text-sm font-semibold
+             text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-50
+             disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2
+             focus-visible:ring-primary-400"
+    >
+      Próxima
+    </button>
+  </div>
+</app-members-sheet>
+
+<app-confirm-dialog
+  [open]="confirmingReject()"
+  variant="danger"
+  title="Recusar vistoria"
+  [message]="confirmMessage()"
+  confirmLabel="Recusar vistoria"
+  cancelLabel="Voltar"
+  (confirmed)="confirmReject()"
+  (cancelled)="dismissConfirmation()"
+/>

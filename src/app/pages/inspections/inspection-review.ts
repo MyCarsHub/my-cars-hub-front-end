@@ -1,228 +1,344 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  OnInit,
   computed,
-  effect,
   inject,
-  input,
-  output,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
+import {
+  AbstractControl,
+  FormControl,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { PageCard } from '../../components/core/page-card/page-card';
-import { InspectionsService } from '../../services/inspections.service';
-import { SessionService } from '../../services/session.service';
+import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { FieldControl, FormField } from '../../components/form-field/form-field';
+import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../services/api-error.service';
-import type { InspectionPhoto, InspectionReviewResult } from '../../types/inspection.types';
-import { angleLabel, angleOrder } from './angle-label';
+import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { InspectionsService } from '../../services/inspections.service';
+import { NotificationService } from '../../services/notification.service';
+import { SessionService } from '../../services/session.service';
+import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
+import type { Inspection, InspectionPhoto, InspectionStatus } from '../../types/inspection.types';
+import { INSPECTION_STATUS_META } from '../../utils/status-maps';
+import { MembersSheet } from '../company-settings/members/members-sheet';
+import {
+  AngleFrame,
+  OdometerView,
+  buildFrames,
+  carName,
+  colorAndYear,
+  firstName,
+  formatDateTime,
+  formatPhone,
+  kindLabel,
+  kindWord,
+  odometerView,
+} from './inspection-view';
 
-/**
- * QUANDO a foto foi tirada, em formato que gente lê.
- *
- * ## Por que isto é defeito de aprovação, e não enfeite
- *
- * Numa vistoria PERIÓDICA, foto de hoje e foto de três semanas atrás são
- * indistinguíveis para quem aprova. Sem a data o dono aprova como ATUAL um
- * estado que pode não ser mais verdade — e medir estado atual é exatamente a
- * razão de a vistoria periódica existir.
- *
- * Mostra data E hora: as 14 fotos de uma sessão normal compartilham o dia, e é
- * a que destoa que precisa saltar aos olhos.
- *
- * `createdDate` vem sem fuso (LocalDateTime do backend), então é lido como
- * horário local — que é o do pátio onde a foto foi tirada.
- */
-function formatTakenAt(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+/** A aba que abre o laudo — sem isto ela anunciaria o checkout. */
+const REPORT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
+  documentTitle: 'Abrindo o laudo…',
+  title: 'Abrindo o laudo da vistoria',
+  note: 'Não feche esta aba. O documento abre em instantes.',
+  stalledNote:
+    'Não foi possível abrir o laudo. Feche esta aba e tente novamente na aba anterior.',
+};
 
-interface PhotoView {
-  /** Chave ESTAVEL do `@for` — nunca a `signedUrl`, que e reassinada. */
-  readonly id: string;
-  /** `null` = a foto existe, mas a assinatura dela falhou. */
-  readonly signedUrl: string | null;
-  readonly label: string;
-  /** Quando a foto foi tirada, já legível. */
-  readonly takenAt: string;
+/** Motivo em branco e motivo vazio sao a mesma coisa para quem vai ler. */
+function notBlank(control: AbstractControl): ValidationErrors | null {
+  return String(control.value ?? '').trim() === '' ? { required: true } : null;
 }
 
 /**
- * A DECISÃO sobre uma vistoria enviada: ver as fotos, aprovar ou recusar.
+ * `/vistorias/:id` — os DETALHES da vistoria: quem, qual carro, o hodometro, as 14 fotos e,
+ * para quem decide, a decisao.
  *
- * É a APROVAÇÃO, não o envio, que fecha a ocorrência do ciclo — só uma vistoria
- * `APPROVED` encerra a cobrança. Enquanto esta tela não existia, nenhuma
- * vistoria chegava a esse ponto e o lembrete do motor não parava para ninguém,
- * nem com o dono operando.
+ * Era um componente embutido na linha da lista ("Fotos enviadas"); passou a ser uma PAGINA
+ * porque 14 fotos, o hodometro e a decisao nao cabem numa linha — e porque o dono precisa
+ * de um endereco para mandar "olha essa vistoria". O nome do arquivo ficou: a revisao
+ * continua sendo o proposito dela.
  *
- * ## Por que é um componente e não uma rota
+ * ## Tres papeis na mesma tela
  *
- * Vive DENTRO da listagem que já existe. `app.routes.ts` é superfície de
- * concentração — há nós retidos esperando que ela pare de mudar —, e esta
- * decisão não precisa de endereço próprio: ela é sobre a linha que o dono
- * acabou de abrir.
+ * - OWNER/MANAGER, vistoria `SUBMITTED`: ve tudo e decide (cartao "Sua decisao").
+ * - OWNER/MANAGER, outra situacao: so le. O PDF aparece quando `APPROVED`.
+ * - MOTORISTA: le a PROPRIA vistoria (o servidor escopa), sem a decisao. Continuar a que
+ *   esta em andamento e refazer a recusada moram na tela de captura; daqui ha um atalho.
  *
- * ## O que o servidor já garante, e por que a tela repete
+ * ## O que o servidor ja garante, e por que a tela repete
  *
- * `approve` e `reject` são OWNER/MANAGER, travado no backend. O recorte aqui é
- * defesa em profundidade: a tela não OFERECE o que o servidor vai recusar. O
- * motorista continua VENDO as fotos — o que ele não tem é a decisão.
+ * `approve` e `reject` sao OWNER/MANAGER, travado no backend. O recorte aqui e defesa em
+ * profundidade: a tela nao OFERECE o que o servidor vai recusar.
  */
 @Component({
   selector: 'app-inspection-review',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner, PageCard],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    ConfirmDialog,
+    FormField,
+    FieldControl,
+    MembersSheet,
+  ],
   templateUrl: './inspection-review.html',
 })
-export class InspectionReview {
+export class InspectionReview implements OnInit {
+  private readonly route = inject(ActivatedRoute);
   private readonly service = inject(InspectionsService);
   private readonly session = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly notifications = inject(NotificationService);
+  private readonly externalNavigation = inject(ExternalNavigationService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  readonly inspectionId = input.required<string>();
+  // ----------------------------------------------------------------- estado
 
-  /** A decisão tomada, para a lista hospedeira recarregar a linha. */
-  readonly decided = output<InspectionReviewResult>();
+  protected readonly id = signal<string>('');
+  protected readonly loading = signal(true);
+  protected readonly loadError = signal<string | null>(null);
+  protected readonly inspection = signal<Inspection | null>(null);
 
-  protected readonly photos = signal<PhotoView[] | null>(null);
+  /** `null` = ainda nao chegaram (ou falharam). `[]` = chegaram e nao ha nenhuma. */
+  protected readonly photos = signal<InspectionPhoto[] | null>(null);
   protected readonly photosError = signal<string | null>(null);
   protected readonly loadingPhotos = signal(false);
 
-  protected readonly reason = signal('');
-  protected readonly reasonTouched = signal(false);
-
-  protected readonly deciding = signal(false);
-  protected readonly decision = signal<InspectionReviewResult | null>(null);
-  protected readonly decisionError = signal<string | null>(null);
-
   /**
-   * Uma URL assinada expira. Quando a imagem falha, recarregamos a lista UMA
-   * vez — o caso comum é a tela ficar aberta além da validade. Mais de uma vez
-   * seria laço: se o link novo também falha, a causa não é expiração, e insistir
-   * só faz a tela piscar.
+   * Uma URL assinada expira. Quando a imagem falha, recarregamos a lista UMA vez — o caso
+   * comum e a tela ficar aberta alem da validade. Mais de uma vez seria laco: se o link novo
+   * tambem falha, a causa nao e expiracao, e insistir so faz a tela piscar.
    */
-  private readonly refreshedForExpiry = signal(false);
+  private refreshedForExpiry = false;
   protected readonly expired = signal(false);
 
-  protected readonly canDecide = computed(() => {
-    const role = this.session.getCompanyRoleFromToken();
-    return role === 'OWNER' || role === 'MANAGER';
+  /** Posicao (em `frames`) da foto aberta no visualizador; `null` = fechado. */
+  protected readonly viewerIndex = signal<number | null>(null);
+
+  protected readonly rejecting = signal(false);
+  protected readonly confirmingReject = signal(false);
+  protected readonly deciding = signal(false);
+  protected readonly decisionError = signal<string | null>(null);
+
+  protected readonly openingReport = signal(false);
+  protected readonly reportError = signal<string | null>(null);
+
+  protected readonly reasonControl = new FormControl('', {
+    nonNullable: true,
+    validators: [notBlank, Validators.maxLength(1000)],
+  });
+  protected readonly reasonMessages = {
+    required: 'Escreva o motivo da recusa.',
+    maxlength: 'O motivo pode ter até 1000 caracteres.',
+  };
+
+  // --------------------------------------------------------------- derivados
+
+  protected readonly role = this.session.getCompanyRoleFromToken();
+  protected readonly isDriver = this.role === 'DRIVER';
+  private readonly isOperator = this.role === 'OWNER' || this.role === 'MANAGER';
+
+  protected readonly status = computed(() => this.inspection()?.status ?? 'PENDING');
+  protected readonly statusMeta = computed(() => INSPECTION_STATUS_META[this.status()]);
+
+  /** O subtitulo do cabecalho: "Retirada realizada em 09/10/2026 08:42." */
+  protected readonly subtitle = computed(() => {
+    const current = this.inspection();
+    if (!current) return '';
+    const when = formatDateTime(current.performedAt);
+    return `${kindLabel(current.kind)} realizada${when ? ` em ${when}` : ''}.`;
   });
 
-  /**
-   * APROVAR SEM VER É ASSINAR EM BRANCO. Sem foto na tela não há decisão a
-   * oferecer — nem enquanto carrega, nem se a lista voltar vazia, nem se
-   * falhar. Nos dois últimos casos a saída é tentar de novo, não decidir.
-   */
-  protected readonly hasPhotos = computed(() => (this.photos()?.length ?? 0) > 0);
+  protected readonly plate = computed(() => this.inspection()?.vehiclePlate?.trim() || null);
+  protected readonly vehicle = computed(() => {
+    const current = this.inspection();
+    return current ? carName(current) : null;
+  });
+  protected readonly colorYear = computed(() => {
+    const current = this.inspection();
+    return current ? colorAndYear(current) : null;
+  });
+  protected readonly driverName = computed(() => this.inspection()?.driverName?.trim() || null);
+  protected readonly driverFirstName = computed(() => firstName(this.inspection()?.driverName));
+  protected readonly phone = computed(() => formatPhone(this.inspection()?.driverPhone));
+  protected readonly odometer = computed<OdometerView | null>(() => {
+    const current = this.inspection();
+    return current ? odometerView(current) : null;
+  });
 
-  /**
-   * Angulos cuja foto EXISTE mas nao pode ser exibida (assinatura falhou).
-   *
-   * E a falha PARCIAL, e e ela que acontece de verdade: o backend isola por
-   * item, entao o caso comum nao e a lista inteira cair, e sim uma foto de
-   * catorze faltar.
-   */
-  protected readonly unavailable = computed(
-    () => (this.photos() ?? []).filter((photo) => photo.signedUrl === null),
+  /** Os quadros: 14 angulos, com ou sem foto. Vazio ate as fotos chegarem. */
+  protected readonly frames = computed<AngleFrame[]>(() => {
+    const list = this.photos();
+    if (list === null) return [];
+    return buildFrames(list, this.inspection()?.requiredAngles);
+  });
+
+  protected readonly receivedCount = computed(
+    () => this.frames().filter((f) => f.hasPhoto).length,
+  );
+  protected readonly totalCount = computed(() => this.frames().length);
+  protected readonly missingCount = computed(() => this.totalCount() - this.receivedCount());
+
+  /** "14 de 14 ângulos enviados. O laudo…" / "9 de 14 ângulos enviados. Faltam 5 fotos." */
+  protected readonly photoSummary = computed(() => {
+    const total = this.totalCount();
+    const got = this.receivedCount();
+    if (got === total) {
+      return `${got} de ${total} ângulos enviados. O laudo em PDF é gerado a partir dessas fotos.`;
+    }
+    const missing = total - got;
+    return `${got} de ${total} ângulos enviados. ${
+      missing === 1 ? 'Falta 1 foto' : `Faltam ${missing} fotos`
+    }.`;
+  });
+
+  /** Fotos que EXISTEM e nao puderam ser exibidas (a assinatura falhou). */
+  protected readonly unavailable = computed(() =>
+    this.frames().filter((f) => f.hasPhoto && f.signedUrl === null),
   );
 
-  protected readonly allVisible = computed(
-    () => this.hasPhotos() && this.unavailable().length === 0,
-  );
-
-  /** Recarregar serve tanto para lista vazia quanto para foto que nao assinou. */
+  /** Recarregar serve para falha da lista e para foto que nao assinou. */
   protected readonly canRetryPhotos = computed(
-    () => !this.loadingPhotos() && (!this.hasPhotos() || this.unavailable().length > 0),
+    () => !this.loadingPhotos() && (this.photosError() !== null || this.unavailable().length > 0),
   );
 
-  /**
-   * APROVAR exige ver TUDO. "Nao se aprova sem ver" vale igual para a falha
-   * parcial: ver 13 de 14 nao e ver, e o angulo que faltou e justamente o que
-   * ninguem conferiu.
-   */
-  protected readonly canApprove = computed(
-    () => this.canDecide() && this.allVisible() && this.decision() === null,
-  );
-
-  /**
-   * RECUSAR continua disponivel com foto indisponivel, e a razao e assimetrica:
-   * aprovar afirma que esta tudo certo — afirmacao que exige ter visto tudo —,
-   * enquanto recusar aponta um problema que a pessoa JA identificou no que viu.
-   *
-   * O risco desta assimetria e recusar pelo motivo errado: o rotulo diz que a
-   * foto nao CARREGOU, nao que ela falta, para ninguem mandar o motorista
-   * refotografar o que ja esta no servidor. A copia do lugar vazio carrega essa
-   * distincao — se ela se perder, a assimetria vira defeito.
-   */
-  protected readonly canReject = computed(
-    () => this.canDecide() && this.hasPhotos() && this.decision() === null,
-  );
-
-  protected readonly reasonMissing = computed(
-    () => this.reasonTouched() && this.reason().trim() === '',
-  );
-
-  protected readonly decisionLabel = computed(() => {
-    const status = this.decision()?.status;
-    if (status === 'APPROVED') return 'Vistoria aprovada.';
-    if (status === 'REJECTED') return 'Vistoria recusada. O motorista pode fotografar de novo.';
-    return null;
+  /** O titulo do cartao das fotos: "Vistoria de retirada". */
+  protected readonly galleryTitle = computed(() => {
+    const current = this.inspection();
+    return current ? `Vistoria de ${kindWord(current.kind)}` : 'Vistoria';
   });
 
-  constructor() {
-    effect(() => {
-      const id = this.inspectionId();
-      if (id) this.loadPhotos(id);
+  // ------------------------------------------------------------- decisao
+
+  /** O cartao "Sua decisao": so para quem decide, e so enquanto aguarda decisao. */
+  protected readonly canDecide = computed(() => this.isOperator && this.status() === 'SUBMITTED');
+
+  /**
+   * APROVAR exige as 14 fotos VISIVEIS e o hodometro. "Nao se aprova sem ver" vale igual
+   * para a falha parcial: ver 13 de 14 nao e ver, e o angulo que faltou e justamente o que
+   * ninguem conferiu. Sem hodometro o servidor tambem recusa (`INSPECTION_NO_ODOMETER`).
+   */
+  protected readonly approveBlocked = computed(() => {
+    const frames = this.frames();
+    const photosOk =
+      this.photos() !== null &&
+      frames.length > 0 &&
+      frames.every((f) => f.hasPhoto && f.signedUrl !== null);
+    const odometerOk = this.inspection()?.odometerKm != null;
+    return !(photosOk && odometerOk);
+  });
+
+  protected readonly rejectedReason = computed(
+    () => this.inspection()?.rejectionReason?.trim() || null,
+  );
+
+  protected readonly pendingMessage = computed(() => {
+    const first = this.driverFirstName() ?? 'O motorista';
+    const total = this.totalCount() || 14;
+    const got = this.photos() !== null ? this.receivedCount() : (this.inspection()?.photoCount ?? 0);
+    return `Aguardando ${first} enviar as ${total} fotos e o hodômetro pelo celular (${got}/${total}).`;
+  });
+
+  protected readonly confirmMessage = computed(() => {
+    const first = this.driverFirstName() ?? 'O motorista';
+    const plate = this.plate() ?? 'do veículo';
+    return `${first} será avisado e precisa refazer a vistoria do veículo «${plate}» do zero.`;
+  });
+
+  protected readonly pdfName = computed(() => {
+    const current = this.inspection();
+    if (!current) return 'vistoria.pdf';
+    return `vistoria-${kindWord(current.kind)}-${this.plate() ?? current.id}.pdf`;
+  });
+
+  // ---------------------------------------------------------- visualizador
+
+  protected readonly viewerFrame = computed<AngleFrame | null>(() => {
+    const index = this.viewerIndex();
+    return index === null ? null : (this.frames()[index] ?? null);
+  });
+
+  protected readonly viewerCounter = computed(() => {
+    const index = this.viewerIndex();
+    return index === null ? '' : `${index + 1} de ${this.totalCount()}`;
+  });
+
+  /**
+   * QUANDO a foto foi tirada. Numa vistoria periodica, foto de hoje e foto de tres semanas
+   * atras sao indistinguiveis para quem aprova; sem a data o dono aprova como ATUAL um estado
+   * que pode nao ser mais verdade. Fica no visualizador, onde a pessoa olha a foto de perto.
+   */
+  protected readonly viewerSubtitle = computed(() => {
+    const taken = this.viewerFrame()?.takenAt;
+    return taken ? `Tirada em ${taken}.` : '';
+  });
+
+  /** So ha o que navegar quando existe OUTRA foto alem da aberta. */
+  protected readonly viewerHasOthers = computed(
+    () => this.frames().filter((f) => f.hasPhoto).length > 1,
+  );
+
+  // ------------------------------------------------------------------ ciclo
+
+  ngOnInit(): void {
+    // O id vem do OBSERVAVEL: navegar de uma vistoria para outra reusa a instancia.
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id') ?? '';
+      if (!id || id === this.id()) return;
+      this.id.set(id);
+      this.resetDecision();
+      this.load();
     });
   }
 
-  protected loadPhotos(id = this.inspectionId()): void {
+  protected load(): void {
+    const id = this.id();
+    if (!id) return;
+    this.loading.set(true);
+    this.loadError.set(null);
+    this.service.getOne(id).subscribe({
+      next: (found) => {
+        this.inspection.set(found);
+        this.loading.set(false);
+        this.loadPhotos();
+      },
+      error: (err: unknown) => {
+        this.loading.set(false);
+        this.apiErrors.claim(err);
+        this.loadError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar esta vistoria.'),
+        );
+      },
+    });
+  }
+
+  protected loadPhotos(): void {
+    const id = this.id();
+    if (!id) return;
     this.loadingPhotos.set(true);
     this.photosError.set(null);
 
     this.service.photos(id).subscribe({
       next: (list) => {
         this.loadingPhotos.set(false);
-        /*
-         * ORDEM CANONICA DO ROTEIRO — frente, traseira, laterais, pneus, painel.
-         *
-         * Quem aprova ve 14 fotos em sequencia, e ordem previsivel e o que
-         * deixa perceber o que falta sem ler rotulo por rotulo. Ordenar por
-         * data nao serviria: ha uma foto por angulo (indice unico no backend),
-         * entao refoto SUBSTITUI e nao existe par velha/nova para a data
-         * desempatar — so embaralharia o roteiro, diferente a cada vistoria.
-         *
-         * Ordenamos NOS, em vez de confiar na ordem que o servidor mandou:
-         * ordem de resposta nao e contrato, e o dia em que ela mudar ninguem
-         * vai ligar os pontos. `createdDate` fica como desempate estavel para
-         * angulos fora do roteiro conhecido.
-         */
-        const ordered = [...list].sort(
-          (a, b) =>
-            angleOrder(a.angle) - angleOrder(b.angle) ||
-            a.createdDate.localeCompare(b.createdDate),
-        );
-        this.photos.set(
-          ordered.map((photo: InspectionPhoto) => ({
-            id: photo.id,
-            signedUrl: photo.signedUrl,
-            label: angleLabel(photo.angle),
-            takenAt: formatTakenAt(photo.createdDate),
-          })),
-        );
+        this.photos.set(list ?? []);
       },
       error: (err: unknown) => {
         this.loadingPhotos.set(false);
-        this.photos.set([]);
+        this.photos.set(null);
         this.apiErrors.claim(err);
         this.photosError.set(
           this.apiErrors.messageFor(
@@ -236,68 +352,180 @@ export class InspectionReview {
 
   /** A imagem morreu: provavelmente a URL assinada venceu. */
   protected onImageError(): void {
-    if (this.refreshedForExpiry()) {
+    if (this.refreshedForExpiry) {
       this.expired.set(true);
       return;
     }
-    this.refreshedForExpiry.set(true);
+    this.refreshedForExpiry = true;
     this.loadPhotos();
   }
 
-  protected onReasonInput(event: Event): void {
-    this.reason.set((event.target as HTMLTextAreaElement).value);
+  // ---------------------------------------------------------- visualizador
+
+  protected openViewer(angle: string): void {
+    const index = this.frames().findIndex((f) => f.angle === angle);
+    if (index >= 0) this.viewerIndex.set(index);
   }
+
+  protected closeViewer(): void {
+    this.viewerIndex.set(null);
+  }
+
+  /** Anterior/Proxima PULAM angulos sem foto — nao ha o que mostrar neles. */
+  protected stepViewer(direction: 1 | -1): void {
+    const start = this.viewerIndex();
+    const frames = this.frames();
+    if (start === null || frames.length === 0) return;
+    let index = start;
+    for (let n = 0; n < frames.length; n++) {
+      index = (index + direction + frames.length) % frames.length;
+      if (frames[index].hasPhoto) {
+        this.viewerIndex.set(index);
+        return;
+      }
+    }
+  }
+
+  // --------------------------------------------------------------- decisao
 
   protected approve(): void {
-    if (!this.canApprove() || this.deciding()) return;
-    this.run(this.service.approve(this.inspectionId()));
-  }
+    if (!this.canDecide() || this.approveBlocked() || this.deciding()) return;
 
-  /**
-   * RECUSA EXIGE MOTIVO na tela, não só no servidor. O backend rejeita vazio
-   * com 400, mas essa recusa chegaria depois do envio e sem apontar o campo —
-   * e quem vai refotografar precisa saber o que estava errado.
-   */
-  protected reject(): void {
-    if (!this.canReject() || this.deciding()) return;
-
-    this.reasonTouched.set(true);
-    const reason = this.reason().trim();
-    if (reason === '') return;
-
-    this.run(this.service.reject(this.inspectionId(), reason));
-  }
-
-  /**
-   * FALHAR NÃO É DECIDIR. Em erro, `decision` continua nulo — a tela não
-   * afirma um desfecho que o servidor não deu — e o motivo digitado FICA, para
-   * a pessoa não ter de redigitar o que já escreveu.
-   */
-  private run(call: ReturnType<InspectionsService['approve']>): void {
     this.deciding.set(true);
     this.decisionError.set(null);
+    const plate = this.plate() ?? 'veículo';
 
-    call.subscribe({
+    this.service.approve(this.id()).subscribe({
       next: (result) => {
         this.deciding.set(false);
-        this.decision.set(result);
-        this.decided.emit(result);
+        this.notifications.success(`Vistoria de «${plate}» aprovada.`);
+        this.afterDecision(result.status);
       },
-      error: (err: unknown) => {
-        this.deciding.set(false);
-        this.apiErrors.claim(err);
-        this.decisionError.set(this.decisionFailureMessage(err));
-      },
+      error: (err: unknown) => this.failDecision(err),
     });
   }
 
-  private decisionFailureMessage(err: unknown): string {
+  protected startReject(): void {
+    if (!this.canDecide()) return;
+    this.decisionError.set(null);
+    this.rejecting.set(true);
+  }
+
+  protected cancelReject(): void {
+    this.rejecting.set(false);
+    this.reasonControl.reset('');
+    this.decisionError.set(null);
+  }
+
+  /**
+   * RECUSA EXIGE MOTIVO na tela, nao so no servidor. O backend rejeita vazio com 400, mas
+   * essa recusa chegaria depois do envio e sem apontar o campo — e quem vai refotografar
+   * precisa saber o que estava errado. So com motivo abre a confirmacao.
+   */
+  protected askRejectConfirmation(): void {
+    if (!this.canDecide() || this.deciding()) return;
+    this.reasonControl.markAsTouched();
+    if (this.reasonControl.invalid) return;
+    this.confirmingReject.set(true);
+  }
+
+  protected dismissConfirmation(): void {
+    this.confirmingReject.set(false);
+  }
+
+  protected confirmReject(): void {
+    this.confirmingReject.set(false);
+    if (!this.canDecide() || this.deciding() || this.reasonControl.invalid) return;
+
+    this.deciding.set(true);
+    this.decisionError.set(null);
+    const plate = this.plate() ?? 'veículo';
+    const first = this.driverFirstName();
+
+    this.service.reject(this.id(), this.reasonControl.value.trim()).subscribe({
+      next: (result) => {
+        this.deciding.set(false);
+        this.notifications.success(
+          `Vistoria de «${plate}» recusada. ${first ?? 'O motorista'} foi avisado.`,
+        );
+        this.afterDecision(result.status);
+      },
+      error: (err: unknown) => this.failDecision(err),
+    });
+  }
+
+  /**
+   * Depois da decisao o servidor mudou a vistoria: relê o detalhe. A situacao devolvida pela
+   * decisao entra NA HORA, antes da releitura — sem isso o cartao "Sua decisao" ficaria na
+   * tela, clicavel, ate a leitura voltar (ou para sempre, se ela falhar).
+   */
+  private afterDecision(status: InspectionStatus): void {
+    this.inspection.update((current) => (current ? { ...current, status } : current));
+    this.resetDecision();
+    this.load();
+  }
+
+  private resetDecision(): void {
+    this.rejecting.set(false);
+    this.confirmingReject.set(false);
+    this.deciding.set(false);
+    this.decisionError.set(null);
+    this.reasonControl.reset('');
+  }
+
+  /**
+   * FALHAR NAO E DECIDIR. Em erro nada muda na tela — o motivo digitado FICA, para a pessoa
+   * nao redigitar — e a mensagem do servidor (em portugues, p.ex. "aprovar exige o
+   * hodometro") e a que aparece.
+   */
+  private failDecision(err: unknown): void {
+    this.deciding.set(false);
+    this.apiErrors.claim(err);
     if (err instanceof HttpErrorResponse && err.status === 403) {
-      return 'Só o dono ou o gerente da empresa pode aprovar ou recusar uma vistoria.';
+      this.decisionError.set(
+        'Só o dono ou o gerente da empresa pode aprovar ou recusar uma vistoria.',
+      );
+      return;
     }
-    return this.apiErrors.messageFor(
-      err,
-      'Não conseguimos registrar sua decisão agora. Nada foi alterado — tente de novo.',
+    this.decisionError.set(
+      this.apiErrors.messageFor(
+        err,
+        'Não conseguimos registrar sua decisão agora. Nada foi alterado — tente de novo.',
+      ),
     );
+  }
+
+  // -------------------------------------------------------------------- PDF
+
+  /**
+   * Abre o laudo numa aba nova pela URL assinada. A aba e reservada de forma SINCRONA dentro
+   * do gesto (navegador movel so deixa `window.open` com o gesto na pilha) e navegada quando
+   * a URL chega; se o pedido falhar a aba fecha em vez de virar uma aba branca orfa.
+   */
+  protected downloadReport(): void {
+    if (this.openingReport()) return;
+    this.reportError.set(null);
+    this.openingReport.set(true);
+
+    const tab = this.externalNavigation.openPendingTab(REPORT_PLACEHOLDER_COPY);
+    if (tab.blocked) {
+      this.openingReport.set(false);
+      this.reportError.set('Permita pop-ups neste site para abrir o laudo em uma nova aba.');
+      return;
+    }
+
+    this.service.reportUrl(this.id()).subscribe({
+      next: (res) => {
+        this.openingReport.set(false);
+        tab.navigate(res.url);
+      },
+      error: (err: unknown) => {
+        this.openingReport.set(false);
+        tab.close();
+        this.reportError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível abrir o laudo agora. Tente de novo.'),
+        );
+      },
+    });
   }
 }

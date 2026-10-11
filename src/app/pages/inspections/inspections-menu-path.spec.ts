@@ -191,6 +191,10 @@ describe('Vistorias — menu -> rota -> lista', () => {
             size: signal(20),
             loading: signal(false),
             list: listSpy,
+            // Os tiles do topo leem o resumo; sem o duble a tela quebraria no `ngOnInit`.
+            summary: vi
+              .fn()
+              .mockReturnValue(of({ pending: 0, submitted: 1, approved: 0, rejected: 0 })),
           },
         },
         {
@@ -218,11 +222,13 @@ describe('Vistorias — menu -> rota -> lista', () => {
     // é o que o backend passou a aceitar em vez de recusar com 400.
     expect(listSpy).toHaveBeenCalledTimes(1);
     const enviado = listSpy.mock.calls[0][0] as Record<string, unknown>;
-    expect(enviado['vehicleId']).toBeNull();
-    expect(enviado['rentalId']).toBeNull();
     expect(enviado['kind']).toBeNull();
-    expect(enviado['from']).toBeNull();
-    expect(enviado['to']).toBeNull();
+    expect(enviado['status']).toBeNull();
+    expect(enviado['q']).toBeNull();
+    // Veiculo, locacao e periodo saíram da tela: nao viajam, nem como nulo.
+    for (const key of ['vehicleId', 'rentalId', 'from', 'to']) {
+      expect(enviado[key], key).toBeUndefined();
+    }
   });
 
   it('o MANAGER percorre o mesmo caminho', () => {

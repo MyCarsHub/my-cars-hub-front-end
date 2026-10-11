@@ -26,6 +26,7 @@ import { isRoleGuard } from './services/role.guard';
  * - `vistorias`             → OWNER, MANAGER, DRIVER (listagem)
  * - `vistorias/nova`        → OWNER, MANAGER, DRIVER (captura)
  * - `vistorias/:id/captura` → OWNER, MANAGER, DRIVER (retomada)
+ * - `vistorias/:id`         → OWNER, MANAGER, DRIVER (detalhes; so a decisao e de quem decide)
  *
  * As duas de captura sao IRMAS da listagem, nao filhas — e isso e load-bearing,
  * nao arrumacao. Como filhas, o `roleGuard(['OWNER','MANAGER'])` da listagem
@@ -159,6 +160,39 @@ describe('fronteira de papel das vistorias', () => {
       expect(chains.has(p), `rota ${p} sumiu da arvore`).toBe(true);
       expect((chains.get(p) ?? []).length, `${p} ficou sem guard de papel`).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * OS DETALHES `/vistorias/:id`. O curinga `:id` casaria "nova": se a rota viesse ANTES de
+   * `vistorias/nova`, abrir "Fazer vistoria" cairia na tela de detalhes pedindo a vistoria
+   * "nova". A ordem de declaracao e o que impede isso — e nao ha outro teste que a meca.
+   */
+  it('o detalhe /vistorias/:id existe, admite os tres papeis e vem DEPOIS de /vistorias/nova', () => {
+    expect(chains.has('/vistorias/:id'), 'rota /vistorias/:id sumiu da arvore').toBe(true);
+
+    for (const role of ['OWNER', 'MANAGER', 'DRIVER']) {
+      expect(
+        chainAllows('/vistorias/abc-123', role),
+        `${role} barrado em /vistorias/:id`,
+      ).toBe(true);
+    }
+
+    const declared = [...chains.keys()];
+    expect(declared.indexOf('/vistorias/nova')).toBeGreaterThanOrEqual(0);
+    expect(declared.indexOf('/vistorias/:id')).toBeGreaterThan(declared.indexOf('/vistorias/nova'));
+  });
+
+  it('o detalhe nega quem nao tem sessao', () => {
+    const chain = chainFor('/vistorias/abc-123');
+    sessionStorage.clear();
+    const allowed = chain.every(({ guard }) => {
+      const result = TestBed.runInInjectionContext(() =>
+        guard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+      ) as boolean | UrlTree;
+      return result === true;
+    });
+
+    expect(allowed).toBe(false);
   });
 
   /**
