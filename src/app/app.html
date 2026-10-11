@@ -1,4 +1,9 @@
 <app-impersonation-banner />
-<router-outlet />
+@if (maintenance()) {
+  <app-system-maintenance-page class="fixed inset-0 z-[1000] overflow-y-auto bg-gray-50" />
+}
+<div [class.hidden]="maintenance()" [attr.aria-hidden]="maintenance() ? 'true' : null">
+  <router-outlet />
+</div>
 <app-toast-host />
 <app-consent-banner />

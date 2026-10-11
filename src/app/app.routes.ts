@@ -957,6 +957,16 @@ export const routes: Routes = [
         ],
     },
     {
+        // Tela de manutenção (handoff "Páginas de sistema"): pública, sem shell. O app
+        // também a mostra sozinho quando a API sinaliza manutenção (ver
+        // `MaintenanceInterceptor`); esta rota existe para abri-la direto e para o host
+        // poder redirecionar para ela.
+        path: 'manutencao',
+        loadComponent: () =>
+            import('./pages/system-maintenance/system-maintenance-page').then((m) => m.SystemMaintenancePage),
+        data: { pageTitle: 'Em manutenção' },
+    },
+    {
         // Catch-all. NÃO redireciona: `redirectTo: 'login'` transformava toda URL
         // inexistente num soft-404 servido a partir de um caminho que o robots.txt
         // bloqueia. Renderiza uma página "não encontrada" de verdade.

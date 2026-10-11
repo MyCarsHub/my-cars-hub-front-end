@@ -4,19 +4,23 @@ import { ToastHost } from './components/toast-host/toast-host';
 import { ImpersonationBanner } from './components/impersonation-banner/impersonation-banner';
 import { ServiceWorkerUpdateService } from './services/service-worker-update.service';
 import { ConsentBanner } from './components/core/consent-banner/consent-banner';
+import { PlatformMaintenanceService } from './services/platform-maintenance.service';
+import { SystemMaintenancePage } from './pages/system-maintenance/system-maintenance-page';
 
 @Component({
   selector: 'app-root',
   // O banner de impersonação mora aqui, e não dentro do `app-shell`, porque o
   // requisito é "visível em TODA tela" — inclusive nas que ficam fora da árvore
   // autenticada. Ele se esconde sozinho quando não há sessão.
-  imports: [RouterOutlet, ToastHost, ImpersonationBanner, ConsentBanner],
+  imports: [RouterOutlet, ToastHost, ImpersonationBanner, ConsentBanner, SystemMaintenancePage],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App implements OnInit {
   private readonly swUpdates = inject(ServiceWorkerUpdateService);
+  /** A API sinalizou manutenção: a página ocupa a tela, o conteúdo fica montado por baixo. */
+  protected readonly maintenance = inject(PlatformMaintenanceService).active;
   protected readonly title = signal('my-cars-hub-front-end');
 
   ngOnInit(): void {
