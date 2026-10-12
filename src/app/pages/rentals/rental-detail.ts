@@ -2,6 +2,7 @@ import {
   DRIVER_REGISTRATION_INCOMPLETE_COPY,
   isDriverRegistrationIncomplete,
 } from '../../services/driver-invite-outcome';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -48,7 +49,11 @@ import {
 import {
   CancelRentalPayload,
   CompleteRentalPayload,
+  RENTAL_CHARGE_SYNC_STATE_KEY,
   RentalChargeDto,
+  RentalChargeReconcileDto,
+  RentalChargeRetryDto,
+  RentalChargeSyncDto,
   RentalResponseDto,
   RentalStatus,
   RentalStatusHistoryDto,
@@ -77,6 +82,7 @@ import { todayInBusinessTz } from '../../utils/business-clock';
     RentalProgressChecklist,
     EndRentalDialog,
     AlertBanner,
+    NgTemplateOutlet,
   ],
   templateUrl: './rental-detail.html',
 })
@@ -119,6 +125,15 @@ export class RentalDetail implements OnInit {
   private activationErrorPendingReveal = false;
 
   constructor() {
+    // Logo após criar o aluguel, o formulário entrega o resultado da emissão no
+    // `state` da navegação. Só vale na entrada: lido aqui, enquanto a navegação
+    // ainda está em curso, e nunca de `history.state` — numa recarga o aviso
+    // seria repetido sobre cobranças que talvez já tenham sido regeradas.
+    const syncState: unknown = this.router.currentNavigation()?.extras.state?.[
+      RENTAL_CHARGE_SYNC_STATE_KEY
+    ];
+    if (isChargeSync(syncState) && syncState.failed > 0) this.chargeSyncNotice.set(syncState);
+
     /**
      * Traz o banner de erro pro campo de visão — apenas no fluxo de ativação.
      *
@@ -207,6 +222,29 @@ export class RentalDetail implements OnInit {
     const rect = el.getBoundingClientRect();
     const viewportHeight = this.document.documentElement.clientHeight;
     return rect.bottom > 0 && rect.top < viewportHeight;
+  }
+
+  /**
+   * Resultado da emissão no gateway logo depois de criar, quando parte das
+   * cobranças NÃO foi criada no Asaas (`failed > 0`). Sem isto o dono veria um
+   * aluguel "criado" com menos cobranças do que pediu, sem nada que explicasse.
+   */
+  protected readonly chargeSyncNotice = signal<RentalChargeSyncDto | null>(null);
+
+  protected readonly chargeSyncMessage = computed<string>(() => {
+    const failed = this.chargeSyncNotice()?.failed ?? 0;
+    const subject =
+      failed === 1
+        ? '1 cobrança não pôde ser criada no Asaas.'
+        : `${failed} cobranças não puderam ser criadas no Asaas.`;
+    return (
+      `${subject} O aluguel foi criado e o sistema tenta criá-las de novo automaticamente. ` +
+      'Para tentar agora, use Regerar na linha de cada cobrança que falhou.'
+    );
+  });
+
+  protected dismissChargeSyncNotice(): void {
+    this.chargeSyncNotice.set(null);
   }
 
   protected readonly vehiclePlate = signal<string>('—');
@@ -895,20 +933,35 @@ export class RentalDetail implements OnInit {
     'FAILED',
   ];
 
-  /** Show "Marcar como paga" only for manual rentals + eligible charge status/kind. */
-  protected canMarkAsPaid(charge: RentalChargeDto): boolean {
+  /**
+   * A baixa manual é recusada pelo backend só para cobrança QUE O GATEWAY GERENCIA
+   * (tem `externalId`) num aluguel de cobrança automática — essa quem quita é o
+   * webhook. Cobrança sem `externalId` nunca foi ao gateway e nunca terá webhook:
+   * a multa por atraso (dívida local) e as parcelas já vencidas que o aluguel
+   * registra só aqui. Para elas a baixa manual é o ÚNICO caminho, também em
+   * aluguel automático. `automaticCharge` ausente é tratado como automático.
+   */
+  private isManuallySettleable(charge: RentalChargeDto): boolean {
     const r = this.rental();
     if (!r) return false;
-    if (r.automaticCharge !== false) return false;
-    if (!this.MARK_PAID_STATUSES.includes(charge.status)) return false;
-    return charge.kind === 'RENTAL_TOTAL' || charge.kind === 'RENTAL_PERIOD' || charge.kind === 'CAUCAO';
+    return !(r.automaticCharge !== false && !!charge.externalId);
   }
 
-  /** Show "Desmarcar" only for manual rentals + PAID charges. */
+  /** Show "Marcar como paga" unless the gateway owns the charge's payment (see above). */
+  protected canMarkAsPaid(charge: RentalChargeDto): boolean {
+    if (!this.isManuallySettleable(charge)) return false;
+    if (!this.MARK_PAID_STATUSES.includes(charge.status)) return false;
+    return (
+      charge.kind === 'RENTAL_TOTAL' ||
+      charge.kind === 'RENTAL_PERIOD' ||
+      charge.kind === 'CAUCAO' ||
+      charge.kind === 'OVERDUE_FEE'
+    );
+  }
+
+  /** Show "Desmarcar" for PAID charges the gateway does not own (see above). */
   protected canUnmarkAsPaid(charge: RentalChargeDto): boolean {
-    const r = this.rental();
-    if (!r) return false;
-    if (r.automaticCharge !== false) return false;
+    if (!this.isManuallySettleable(charge)) return false;
     return charge.status === 'PAID';
   }
 
@@ -1037,6 +1090,93 @@ export class RentalDetail implements OnInit {
     'FAILED',
   ];
 
+  // ------- Conferir no Asaas (reconciliação de UMA cobrança) -------
+  //
+  // O webhook é o único escritor de PAID para cobrança do gateway; webhook perdido
+  // = dinheiro recebido que o sistema não registra. Este botão pergunta ao Asaas e
+  // COPIA o veredito — não é baixa manual.
+
+  /** Cobrança em consulta; só uma por vez, o backend ainda segura 30 s por cobrança. */
+  protected readonly reconciling = signal<string | null>(null);
+
+  /**
+   * Resultado da última consulta, mostrado NA LINHA da cobrança: a tela é longa e
+   * o banner de erro mora no topo, então uma recusa ("aguarde alguns segundos")
+   * ficaria fora de vista justamente onde o usuário clicou.
+   */
+  protected readonly reconcileNote = signal<{
+    chargeId: string;
+    tone: 'error' | 'info' | 'success';
+    message: string;
+  } | null>(null);
+
+  /**
+   * Só OWNER/MANAGER consultam (o backend responde 403 ao resto) e só faz sentido
+   * para cobrança que EXISTE no gateway e ainda está em aberto. Negativo ("não é
+   * motorista") de propósito: o token de "Ver como empresa" não carrega papel.
+   */
+  protected canReconcileCharge(charge: RentalChargeDto): boolean {
+    return !this.isDriver && !!charge.externalId && isOpenChargeStatus(charge.status);
+  }
+
+  protected reconcileCharge(charge: RentalChargeDto): void {
+    const r = this.rental();
+    if (!r || this.reconciling()) return;
+    this.actionError.set(null);
+    this.reconcileNote.set(null);
+    this.reconciling.set(charge.id);
+    this.rentalService.reconcileCharge(r.id, charge.id).subscribe({
+      next: (res) => {
+        this.reconciling.set(null);
+        this.reconcileNote.set({
+          chargeId: charge.id,
+          tone: res.outcome === 'SYNCED' ? 'success' : 'info',
+          message: this.reconcileMessage(res),
+        });
+        this.reloadRental(r.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reconciling.set(null);
+        // O servidor manda a mensagem pronta (janela entre consultas, cobrança
+        // sem gateway, papel); só se ela não vier cai no texto local.
+        const waitFallback =
+          err.status === 409 || err.status === 429
+            ? 'Esta cobrança acabou de ser conferida. Aguarde alguns segundos e tente de novo.'
+            : 'Não foi possível conferir a cobrança no Asaas. Tente novamente.';
+        this.reconcileNote.set({
+          chargeId: charge.id,
+          tone: 'error',
+          message: this.apiErrors.messageFor(err, waitFallback),
+        });
+      },
+    });
+  }
+
+  private reconcileMessage(res: RentalChargeReconcileDto): string {
+    if (res.outcome === 'SYNCED') {
+      const label = chargeStatusInfo({ status: res.status, dueDate: null }, this.today()).label;
+      return `Atualizada a partir do Asaas: a cobrança agora consta como ${label.toLowerCase()}.`;
+    }
+    if (res.remoteStatus === 'UNKNOWN') {
+      return 'O Asaas não deu uma resposta conclusiva. Nada foi alterado.';
+    }
+    if (res.remoteStatus === 'PENDING') {
+      return 'Conferido: o Asaas ainda mostra esta cobrança como pendente. Nada mudou.';
+    }
+    return 'Conferido no Asaas. Nada mudou.';
+  }
+
+  /** Recarrega o aluguel (cobranças inclusive) sem mexer no resto da tela. */
+  private reloadRental(id: string): void {
+    this.rentalService.getById(id).subscribe({
+      next: (fresh: RentalResponseDto) => {
+        this.rental.set(fresh);
+        // Aviso de "não foi criada" só enquanto restar linha pra regerar.
+        if (!fresh.charges.some((c) => c.status === 'FAILED')) this.chargeSyncNotice.set(null);
+      },
+    });
+  }
+
   protected retryCharge(charge: RentalChargeDto): void {
     const r = this.rental();
     if (!r || this.retrying()) return;
@@ -1045,22 +1185,30 @@ export class RentalDetail implements OnInit {
     this.rentalService.retryCharge(r.id, charge.id).subscribe({
       next: (res) => {
         this.retrying.set(null);
-        const msg =
-          res.outcome === 'RETRIED'
-            ? 'Nova cobrança gerada com sucesso.'
-            : res.outcome === 'ALREADY_PAID'
-            ? 'Cobrança já estava paga no provedor — status sincronizado.'
-            : 'Cobrança já estava reembolsada no provedor — status sincronizado.';
-        this.notifications.push('success', msg);
-        this.rentalService.getById(r.id).subscribe({
-          next: (fresh: RentalResponseDto) => this.rental.set(fresh),
-        });
+        this.notifications.push('success', this.retryMessage(res.outcome));
+        this.reloadRental(r.id);
       },
       error: (err: HttpErrorResponse) => {
         this.retrying.set(null);
         this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível regerar a cobrança. Tente novamente.'));
       },
     });
+  }
+
+  /** Uma frase por desfecho: cada um diz algo diferente sobre o que mudou. */
+  private retryMessage(outcome: RentalChargeRetryDto['outcome']): string {
+    switch (outcome) {
+      case 'RETRIED':
+        return 'Nova cobrança gerada com sucesso.';
+      case 'ALREADY_PAID':
+        return 'Cobrança já estava paga no provedor — status sincronizado.';
+      case 'ALREADY_REFUNDED':
+        return 'Cobrança já estava reembolsada no provedor — status sincronizado.';
+      case 'CANCELED':
+        return 'Nada foi gerado: o aluguel não está mais em andamento ou a caução já foi recebida por fora. A cobrança foi cancelada.';
+      case 'SKIPPED':
+        return 'A cobrança mudou de situação enquanto era regerada, então nada foi alterado. Confira o status.';
+    }
   }
 
   private loadHistory(id: string): void {
@@ -1151,4 +1299,11 @@ export class RentalDetail implements OnInit {
       currency: 'BRL',
     }).format(cents / 100);
   }
+}
+
+/** O que veio no `state` da navegação é `unknown` — só entra se tiver a forma certa. */
+function isChargeSync(value: unknown): value is RentalChargeSyncDto {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v['failed'] === 'number' && Number.isFinite(v['failed']);
 }

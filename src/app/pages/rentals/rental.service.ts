@@ -5,15 +5,19 @@ import {
   HttpParams,
 } from '@angular/common/http';
 import { Injectable, Signal, WritableSignal, inject, signal } from '@angular/core';
-import { Observable, catchError, finalize, forkJoin, of, tap, throwError } from 'rxjs';
+import { Observable, catchError, finalize, forkJoin, map, of, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { OverdueFeeSummary } from '../../types/overdue.types';
+import { normalizeChargePreview } from '../../utils/rental-charge-preview';
 import { PagedResponse } from '../../types/paged.types';
 import {
   CancelRentalPayload,
   CompleteRentalPayload,
   CreateRentalRequest,
   RentalChargeDto,
+  RentalChargePreviewDto,
+  RentalChargeReconcileDto,
+  RentalChargeRetryDto,
   RentalDocumentDto,
   RentalFilters,
   RentalListItemDto,
@@ -206,6 +210,20 @@ export class RentalService {
 
   create(payload: CreateRentalRequest): Observable<RentalResponseDto> {
     return this.http.post<RentalResponseDto>(BASE, payload);
+  }
+
+  /**
+   * Prévia das cobranças que o create geraria. **Leitura pura**: o backend não
+   * grava nada e não chama gateway, então é seguro chamar antes de confirmar.
+   * Mesmo corpo do {@link create}.
+   *
+   * A resposta passa por {@link normalizeChargePreview} — ÚNICO ponto que conhece
+   * o formato cru, de modo que uma mudança de contrato se corrige num lugar só.
+   */
+  chargePreview(payload: CreateRentalRequest): Observable<RentalChargePreviewDto> {
+    return this.http
+      .post<Partial<RentalChargePreviewDto>>(`${BASE}/charge-preview`, payload)
+      .pipe(map((raw) => normalizeChargePreview(raw)));
   }
 
   update(id: string, payload: RentalUpdateRequest): Observable<RentalResponseDto> {
@@ -441,17 +459,25 @@ export class RentalService {
     );
   }
 
-  retryCharge(rentalId: string, chargeId: string): Observable<{
-    outcome: 'RETRIED' | 'ALREADY_PAID' | 'ALREADY_REFUNDED';
-    externalId: string;
-    checkoutUrl: string;
-    retryCount: number;
-  }> {
-    return this.http.post<{
-      outcome: 'RETRIED' | 'ALREADY_PAID' | 'ALREADY_REFUNDED';
-      externalId: string;
-      checkoutUrl: string;
-      retryCount: number;
-    }>(`${BASE}/${rentalId}/charges/${chargeId}/retry`, {});
+  /**
+   * Pergunta ao gateway o status REAL da cobrança e grava o que ele responder
+   * (OWNER/MANAGER, só cobrança que existe no gateway). Não é baixa manual: se o
+   * Asaas disser que não foi paga, nada muda.
+   *
+   * Há uma janela mínima por cobrança entre duas consultas — o backend responde
+   * 409 com a mensagem pronta dentro dela; a tela a exibe como veio.
+   */
+  reconcileCharge(rentalId: string, chargeId: string): Observable<RentalChargeReconcileDto> {
+    return this.http.post<RentalChargeReconcileDto>(
+      `${BASE}/${rentalId}/charges/${chargeId}/reconcile`,
+      {},
+    );
+  }
+
+  retryCharge(rentalId: string, chargeId: string): Observable<RentalChargeRetryDto> {
+    return this.http.post<RentalChargeRetryDto>(
+      `${BASE}/${rentalId}/charges/${chargeId}/retry`,
+      {},
+    );
   }
 }

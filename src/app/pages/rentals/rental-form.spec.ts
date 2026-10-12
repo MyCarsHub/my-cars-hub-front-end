@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { signal } from '@angular/core';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, EMPTY, throwError } from 'rxjs';
+import { of, EMPTY, Subject, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 
 import { RentalForm } from './rental-form';
@@ -1621,5 +1621,605 @@ describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () 
 
     setLateFineType('PERCENT');
     expect(lateFineInput().value).toBe('');
+  });
+});
+
+/**
+ * Cobrança automática: criar o aluguel JÁ gera as cobranças no Asaas, então o
+ * clique em "Criar aluguel" abre antes um diálogo com o resumo da prévia.
+ *
+ * Contrato do fluxo medido aqui: UMA prévia por tentativa, "Voltar e editar" não
+ * chama mais nada e devolve o formulário como estava, o confirmar cria UMA vez
+ * (duplo clique não cria dois aluguéis) e um impeditivo troca o resumo por um
+ * banner com a única saída de voltar.
+ */
+describe('RentalForm — confirmação da cobrança automática', () => {
+  const VEHICLE = {
+    id: 'veh-1',
+    plate: 'AAA1A11',
+    type: 'CAR',
+    brand: 'Fiat',
+    model: 'Mobi',
+    yearModel: 2022,
+    licensingExpiration: null,
+    status: 'AVAILABLE',
+    createdDate: '2026-01-01',
+  };
+  const DRIVER = {
+    id: 'drv-1',
+    name: 'Ana',
+    email: null,
+    phone: null,
+    licenseNumber: '1',
+    licenseCategory: 'B',
+    licenseExpiry: '2030-01-01',
+    status: 'AVAILABLE',
+  };
+
+  const VALID = {
+    vehicleId: 'veh-1',
+    driverId: 'drv-1',
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    billingFrequency: 'MONTHLY',
+    periodRateReais: '2.500,00',
+    caucaoReais: '800,00',
+    initialKm: 42000,
+    pickupDate: '2026-08-01T09:00',
+    firstPaymentDate: '2026-08-05',
+    dailyInterestReais: '3,00',
+    lateFineType: 'PERCENT',
+    lateFineValueInput: 2,
+    automaticCharge: true,
+  };
+
+  const PREVIEW = {
+    automaticCharge: true,
+    willCreateInGateway: true,
+    charges: [
+      { kind: 'RENTAL_PERIOD', index: 0, dueDate: '2026-08-05', amountCents: 250_000, destination: 'ASAAS' },
+      { kind: 'RENTAL_PERIOD', index: 1, dueDate: '2026-09-05', amountCents: 250_000, destination: 'ASAAS' },
+      { kind: 'CAUCAO', index: 0, dueDate: '2026-08-01', amountCents: 80_000, destination: 'ASAAS' },
+    ],
+    totalCents: 580_000,
+    gatewayCount: 3,
+    localCount: 0,
+    firstDueDate: '2026-08-05',
+    blocker: null,
+  };
+
+  type Cmp = {
+    form: {
+      patchValue: (v: Record<string, unknown>) => void;
+      getRawValue: () => Record<string, unknown>;
+      controls: Record<
+        string,
+        { value: unknown; setValue: (v: unknown) => void; markAsTouched: () => void }
+      >;
+    };
+    submit: () => void;
+    confirmCharges: () => void;
+    cancelCharges: () => void;
+    error: () => string | null;
+  };
+
+  let previewSpy: Mock;
+  let createSpy: Mock;
+  let navigateSpy: Mock;
+
+  function mount(
+    options: { preview?: unknown; create?: unknown; editId?: string | null } = {},
+  ): {
+    fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>;
+    cmp: Cmp;
+    root: HTMLElement;
+  } {
+    TestBed.resetTestingModule();
+    previewSpy = vi.fn().mockReturnValue(options.preview ?? of(PREVIEW));
+    createSpy = vi.fn().mockReturnValue(options.create ?? of({ id: 'rental-novo' }));
+    TestBed.configureTestingModule({
+      imports: [RentalForm],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        provideNoopAnimations(),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              paramMap: { get: (k: string) => (k === 'id' ? (options.editId ?? null) : null) },
+            },
+          },
+        },
+        {
+          provide: SessionService,
+          useValue: {
+            setItem: () => undefined,
+            getItem: () => null,
+            removeItem: () => undefined,
+            getCompanyRoleFromToken: () => 'OWNER',
+          },
+        },
+        {
+          provide: VehiclesService,
+          useValue: { list: () => of({ content: [VEHICLE], page: 0, size: 500, total: 1 }) },
+        },
+        {
+          provide: DriverService,
+          useValue: { list: () => of({ content: [DRIVER], page: 0, size: 500, total: 1 }) },
+        },
+        {
+          provide: RentalService,
+          useValue: { getById: () => EMPTY, create: createSpy, chargePreview: previewSpy },
+        },
+        {
+          provide: AsaasIntegrationService,
+          useValue: { status: signal({ connected: true }), load: () => EMPTY },
+        },
+        { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RentalForm);
+    navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true) as Mock;
+    fixture.detectChanges();
+    return {
+      fixture,
+      cmp: fixture.componentInstance as unknown as Cmp,
+      root: fixture.nativeElement as HTMLElement,
+    };
+  }
+
+  function buttonLabeled(root: HTMLElement, label: string): HTMLButtonElement | null {
+    return (
+      ([...root.querySelectorAll('button')] as HTMLButtonElement[]).find((b) =>
+        (b.textContent ?? '').trim().startsWith(label),
+      ) ?? null
+    );
+  }
+
+  function dialog(root: HTMLElement): HTMLElement | null {
+    return root.querySelector('[role="dialog"]');
+  }
+
+  function dialogButtons(root: HTMLElement): string[] {
+    return [...(dialog(root)?.querySelectorAll('button') ?? [])].map((b) =>
+      (b.textContent ?? '').trim(),
+    );
+  }
+
+  /** O diálogo sai com animação (:leave): o nó só some depois de o motor assentar. */
+  async function settle(fixture: {
+    detectChanges: () => void;
+    whenStable: () => Promise<unknown>;
+  }): Promise<void> {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  function clickSubmit(fixture: { detectChanges: () => void }, root: HTMLElement): void {
+    const button = root.querySelector('button[type="submit"]') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+  }
+
+  /** Preenche o formulário, clica em "Criar aluguel" e devolve o contexto com o diálogo aberto. */
+  function openDialog(options: Parameters<typeof mount>[0] = {}): ReturnType<typeof mount> {
+    const ctx = mount(options);
+    ctx.cmp.form.patchValue(VALID);
+    ctx.fixture.detectChanges();
+    clickSubmit(ctx.fixture, ctx.root);
+    ctx.fixture.detectChanges();
+    return ctx;
+  }
+
+  function summaryText(root: HTMLElement): string {
+    return (root.querySelector('[data-testid="charge-confirm-summary"]')?.textContent ?? '').replace(
+      /\s+/g,
+      ' ',
+    );
+  }
+
+  describe('campo da 1ª cobrança', () => {
+    function hintText(root: HTMLElement): string {
+      return (root.querySelector('#rental-first-payment-hint')?.textContent ?? '').trim();
+    }
+
+    it('rotula como "Data da 1ª cobrança" (não mais "1ª parcela") e continua obrigatório', () => {
+      const { root, cmp } = mount();
+      const label = root.querySelector('label[for="rental-first-payment"]');
+      expect(label?.textContent).toContain('Data da 1ª cobrança');
+      expect(label?.textContent).not.toContain('parcela');
+      expect(cmp.form.controls['firstPaymentDate']).toBeDefined();
+      const input = root.querySelector('#rental-first-payment') as HTMLInputElement;
+      expect(input.getAttribute('aria-required')).toBe('true');
+    });
+
+    it('a ajuda diz que é o vencimento da primeira e o intervalo, no idioma do período', () => {
+      const { fixture, cmp, root } = mount();
+      const expected = (unit: string): string =>
+        'É o vencimento da primeira cobrança. As próximas vencem a cada ' +
+        unit +
+        ' a partir dela.';
+
+      cmp.form.patchValue({ billingFrequency: 'DAILY' });
+      fixture.detectChanges();
+      expect(hintText(root)).toBe(expected('dia'));
+
+      cmp.form.patchValue({ billingFrequency: 'WEEKLY' });
+      fixture.detectChanges();
+      expect(hintText(root)).toBe(expected('semana'));
+
+      cmp.form.patchValue({ billingFrequency: 'MONTHLY' });
+      fixture.detectChanges();
+      expect(hintText(root)).toBe(expected('mês'));
+    });
+
+    it('vazio, depois de tocado, acusa "Informe a data da 1ª cobrança."', () => {
+      const { fixture, cmp, root } = mount();
+      cmp.form.controls['firstPaymentDate'].setValue('');
+      cmp.form.controls['firstPaymentDate'].markAsTouched();
+      fixture.detectChanges();
+      expect(root.querySelector('#rental-first-payment-error')?.textContent).toContain(
+        'Informe a data da 1ª cobrança.',
+      );
+    });
+
+    it('depois da data final: acusa o erro e bloqueia o envio (nenhuma chamada)', () => {
+      const { fixture, cmp, root } = mount();
+      cmp.form.patchValue({ ...VALID, firstPaymentDate: '2026-09-02' });
+      fixture.detectChanges();
+
+      cmp.submit();
+      fixture.detectChanges();
+
+      expect(root.querySelector('#rental-first-payment-error')?.textContent).toContain(
+        'A 1ª cobrança não pode vencer depois da data final do aluguel.',
+      );
+      expect(previewSpy).not.toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it('encurtar o aluguel reavalia a 1ª cobrança e mostra o erro na hora', () => {
+      const { fixture, cmp, root } = mount();
+      cmp.form.patchValue({ ...VALID, firstPaymentDate: '2026-08-20' });
+      fixture.detectChanges();
+      expect(root.querySelector('#rental-first-payment-error')).toBeNull();
+
+      cmp.form.patchValue({ endDate: '2026-08-10' });
+      fixture.detectChanges();
+
+      expect(root.querySelector('#rental-first-payment-error')?.textContent).toContain(
+        'não pode vencer depois da data final',
+      );
+    });
+
+    it('no último dia do aluguel ainda é válida (a regra é "não depois")', () => {
+      const { fixture, cmp } = mount({ preview: new Subject() });
+      cmp.form.patchValue({ ...VALID, firstPaymentDate: '2026-08-31' });
+      fixture.detectChanges();
+      cmp.submit();
+      expect(previewSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('nasce igual ao início e acompanha o início enquanto o usuário não escolheu outra', () => {
+      const { cmp } = mount();
+      const first = cmp.form.controls['firstPaymentDate'];
+      cmp.form.controls['startDate'].setValue('2026-08-10');
+      expect(first.value).toBe('2026-08-10');
+      cmp.form.controls['startDate'].setValue('2026-08-12');
+      expect(first.value).toBe('2026-08-12');
+    });
+
+    it('uma data que o usuário escolheu nunca é sobrescrita pelo início', () => {
+      const { cmp } = mount();
+      const first = cmp.form.controls['firstPaymentDate'];
+      cmp.form.controls['startDate'].setValue('2026-08-10');
+      first.setValue('2026-08-25');
+      cmp.form.controls['startDate'].setValue('2026-08-15');
+      expect(first.value).toBe('2026-08-25');
+    });
+
+    it('na edição o início não reescreve a 1ª cobrança gravada', () => {
+      const { cmp } = mount({ editId: 'rental-1' });
+      cmp.form.controls['startDate'].setValue('2026-08-10');
+      expect(cmp.form.controls['firstPaymentDate'].value).toBe('');
+    });
+  });
+
+  describe('fluxo do diálogo', () => {
+    it('chama a prévia UMA vez com o corpo do create e ainda NÃO cria nada', () => {
+      openDialog();
+
+      expect(previewSpy).toHaveBeenCalledTimes(1);
+      expect(previewSpy.mock.calls[0][0]).toMatchObject({
+        vehicleId: 'veh-1',
+        driverId: 'drv-1',
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+        periodRate: 250_000,
+        caucaoAmount: 80_000,
+        firstPaymentDate: '2026-08-05',
+        automaticCharge: true,
+      });
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it('abre "Criar aluguel e cobranças" dizendo que cria e gera as cobranças no Asaas agora', () => {
+      const { root } = openDialog();
+
+      const d = dialog(root);
+      expect(d).not.toBeNull();
+      expect(d?.querySelector('#confirm-dialog-title')?.textContent?.trim()).toBe(
+        'Criar aluguel e cobranças',
+      );
+      expect(d?.querySelector('#confirm-dialog-description')?.textContent?.trim()).toBe(
+        'Ao confirmar, o aluguel é criado e as cobranças são geradas no Asaas agora. ' +
+          'Para mudar algo, volte e edite.',
+      );
+      expect(dialogButtons(root)).toEqual(['Voltar e editar', 'Criar aluguel e cobranças']);
+    });
+
+    it('o resumo traz contagem no Asaas, 1º vencimento, valor por cobrança, caução com vencimento e total', () => {
+      const { root } = openDialog();
+
+      const text = summaryText(root);
+      expect(text).toContain('Cobranças no Asaas 3');
+      expect(text).toContain('1º vencimento 05/08/2026');
+      expect(text).toMatch(/Valor por cobrança R\$\s2\.500,00/);
+      expect(text).toMatch(/Caução R\$\s800,00 · vence em 01\/08\/2026/);
+      expect(text).toMatch(/Total R\$\s5\.800,00/);
+      expect(text).not.toContain('Valores variam');
+    });
+
+    it('parcelas de valores diferentes dizem "Valores variam"', () => {
+      const varied = {
+        ...PREVIEW,
+        charges: [
+          { kind: 'RENTAL_PERIOD', index: 0, dueDate: '2026-08-05', amountCents: 250_000, destination: 'ASAAS' },
+          { kind: 'RENTAL_PERIOD', index: 1, dueDate: '2026-09-05', amountCents: 90_000, destination: 'ASAAS' },
+        ],
+        totalCents: 340_000,
+        gatewayCount: 2,
+      };
+      const { root } = openDialog({ preview: of(varied) });
+
+      const text = summaryText(root);
+      expect(text).toContain('Valor por cobrança Valores variam');
+      expect(text).not.toContain('Caução');
+    });
+
+    it('cobranças vencidas ficam só registradas aqui — a linha diz quantas', () => {
+      const { root } = openDialog({ preview: of({ ...PREVIEW, gatewayCount: 1, localCount: 2 }) });
+
+      expect(dialog(root)?.textContent).toContain(
+        '2 cobranças com vencimento anterior a hoje ficam só registradas aqui, sem ir ao Asaas.',
+      );
+    });
+
+    it('uma vencida só, no singular', () => {
+      const { root } = openDialog({ preview: of({ ...PREVIEW, gatewayCount: 2, localCount: 1 }) });
+
+      expect(dialog(root)?.textContent).toContain(
+        '1 cobrança com vencimento anterior a hoje fica só registrada aqui, sem ir ao Asaas.',
+      );
+    });
+
+    it('sem nenhuma cobrança no gateway, a frase NÃO promete Asaas', () => {
+      const none = { ...PREVIEW, willCreateInGateway: false, gatewayCount: 0, localCount: 3 };
+      const { root } = openDialog({ preview: of(none) });
+
+      const description =
+        dialog(root)?.querySelector('#confirm-dialog-description')?.textContent ?? '';
+      expect(description).toContain('Nenhuma cobrança vai ao Asaas agora');
+      expect(description).not.toContain('geradas no Asaas agora');
+      expect(dialog(root)?.textContent).not.toContain('Cobranças no Asaas');
+    });
+
+    it('"Voltar e editar" fecha sem chamar nada e deixa cada valor digitado onde estava', async () => {
+      const { fixture, cmp, root } = openDialog();
+      const before = cmp.form.getRawValue();
+
+      buttonLabeled(dialog(root) as HTMLElement, 'Voltar e editar')?.click();
+      await settle(fixture);
+
+      expect(dialog(root)).toBeNull();
+      expect(previewSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(cmp.form.getRawValue()).toEqual(before);
+      expect(cmp.error()).toBeNull();
+    });
+
+    it('depois de voltar e editar, um novo envio pede uma NOVA prévia com o que mudou', () => {
+      const { fixture, cmp, root } = openDialog();
+      buttonLabeled(dialog(root) as HTMLElement, 'Voltar e editar')?.click();
+      fixture.detectChanges();
+
+      cmp.form.patchValue({ periodRateReais: '3.000,00' });
+      fixture.detectChanges();
+      clickSubmit(fixture, root);
+
+      expect(previewSpy).toHaveBeenCalledTimes(2);
+      expect(previewSpy.mock.calls[1][0]).toMatchObject({ periodRate: 300_000 });
+    });
+
+    it('confirmar cria UMA vez, com exatamente o corpo que a prévia recebeu', () => {
+      const { fixture, root } = openDialog();
+      const previewed = previewSpy.mock.calls[0][0];
+
+      buttonLabeled(dialog(root) as HTMLElement, 'Criar aluguel e cobranças')?.click();
+      fixture.detectChanges();
+
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy.mock.calls[0][0]).toEqual(previewed);
+      expect(navigateSpy).toHaveBeenCalledWith(['/alugueis', 'rental-novo']);
+    });
+
+    it('duplo clique no confirmar: desabilita, mostra "Criando…" e cria uma vez só', () => {
+      const { fixture, cmp, root } = openDialog({ create: new Subject() });
+
+      const confirm = buttonLabeled(dialog(root) as HTMLElement, 'Criar aluguel e cobranças');
+      confirm?.click();
+      fixture.detectChanges();
+      confirm?.click();
+      cmp.confirmCharges();
+      fixture.detectChanges();
+
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(dialogButtons(root)).toContain('Criando…');
+      const all = [...(dialog(root)?.querySelectorAll('button') ?? [])] as HTMLButtonElement[];
+      expect(all.every((b) => b.disabled)).toBe(true);
+    });
+
+    it('enquanto cria, "Voltar e editar" não fecha o diálogo (nem pelo handler)', () => {
+      const { fixture, cmp, root } = openDialog({ create: new Subject() });
+      buttonLabeled(dialog(root) as HTMLElement, 'Criar aluguel e cobranças')?.click();
+      fixture.detectChanges();
+
+      cmp.cancelCharges();
+      fixture.detectChanges();
+
+      expect(dialog(root)).not.toBeNull();
+    });
+
+    it('create que falha: diálogo fechado, banner de erro e formulário intacto', async () => {
+      const { fixture, cmp, root } = openDialog({
+        create: throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { message: 'Veículo já alugado no período.' },
+            }),
+        ),
+      });
+      const before = cmp.form.getRawValue();
+
+      buttonLabeled(dialog(root) as HTMLElement, 'Criar aluguel e cobranças')?.click();
+      await settle(fixture);
+
+      expect(dialog(root)).toBeNull();
+      expect(cmp.error()).toContain('Veículo já alugado no período.');
+      expect(root.querySelector('app-alert-banner')?.textContent).toContain(
+        'Veículo já alugado no período.',
+      );
+      expect(cmp.form.getRawValue()).toEqual(before);
+      expect(navigateSpy).not.toHaveBeenCalled();
+      // Pode tentar de novo: o botão voltou a "Criar aluguel".
+      const submit = root.querySelector('button[type="submit"]') as HTMLButtonElement;
+      expect(submit.disabled).toBe(false);
+      expect(submit.textContent?.trim()).toBe('Criar aluguel');
+    });
+
+    it('prévia em andamento: botão "Conferindo cobranças…" desabilitado e Enter repetido não pede duas', () => {
+      const ctx = mount({ preview: new Subject() });
+      ctx.cmp.form.patchValue(VALID);
+      ctx.fixture.detectChanges();
+
+      clickSubmit(ctx.fixture, ctx.root);
+      ctx.cmp.submit();
+      ctx.fixture.detectChanges();
+
+      const submit = ctx.root.querySelector('button[type="submit"]') as HTMLButtonElement;
+      expect(previewSpy).toHaveBeenCalledTimes(1);
+      expect(submit.disabled).toBe(true);
+      expect(submit.textContent?.trim()).toBe('Conferindo cobranças…');
+      expect(dialog(ctx.root)).toBeNull();
+    });
+
+    it('prévia que falha: nenhum diálogo, banner de erro, nada criado e botão liberado', () => {
+      const { cmp, root } = openDialog({
+        preview: throwError(() => new HttpErrorResponse({ status: 503, error: {} })),
+      });
+
+      expect(dialog(root)).toBeNull();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(cmp.error()).toBe('Não foi possível conferir as cobranças. Tente novamente.');
+      const submit = root.querySelector('button[type="submit"]') as HTMLButtonElement;
+      expect(submit.disabled).toBe(false);
+    });
+  });
+
+  describe('impeditivo da prévia', () => {
+    const BLOCKED = {
+      ...PREVIEW,
+      willCreateInGateway: false,
+      charges: [],
+      gatewayCount: 0,
+      totalCents: 0,
+      blocker: { code: 'ASAAS_TOKEN_INVALID', message: 'A chave do Asaas não é mais válida.' },
+    };
+
+    it('mostra o motivo como banner de erro no lugar do resumo, só com "Voltar e editar"', () => {
+      const { root } = openDialog({ preview: of(BLOCKED) });
+      const d = dialog(root) as HTMLElement;
+
+      expect(d.querySelector('app-alert-banner')?.textContent).toContain(
+        'A chave do Asaas não é mais válida.',
+      );
+      expect(d.querySelector('[role="alert"]')).not.toBeNull();
+      expect(d.querySelector('[data-testid="charge-confirm-summary"]')).toBeNull();
+      expect(dialogButtons(root)).toEqual(['Voltar e editar']);
+      expect(d.textContent).not.toContain('geradas no Asaas agora');
+    });
+
+    it('nem pelo handler o impeditivo deixa criar', () => {
+      const { cmp } = openDialog({ preview: of(BLOCKED) });
+      cmp.confirmCharges();
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it('"Voltar e editar" fecha e o formulário segue intacto', async () => {
+      const { fixture, cmp, root } = openDialog({ preview: of(BLOCKED) });
+      const before = cmp.form.getRawValue();
+      buttonLabeled(dialog(root) as HTMLElement, 'Voltar e editar')?.click();
+      await settle(fixture);
+      expect(dialog(root)).toBeNull();
+      expect(cmp.form.getRawValue()).toEqual(before);
+    });
+  });
+
+  describe('cobrança manual', () => {
+    it('não consulta prévia nem abre diálogo: cria direto (o caminho mais leve)', () => {
+      const ctx = mount();
+      ctx.cmp.form.patchValue({ ...VALID, automaticCharge: false });
+      ctx.fixture.detectChanges();
+
+      clickSubmit(ctx.fixture, ctx.root);
+      ctx.fixture.detectChanges();
+
+      expect(previewSpy).not.toHaveBeenCalled();
+      expect(dialog(ctx.root)).toBeNull();
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy.mock.calls[0][0]).toMatchObject({ automaticCharge: false });
+    });
+  });
+
+  describe('resultado da emissão (chargeSync)', () => {
+    function confirmWith(created: unknown): void {
+      const { fixture, root } = openDialog({ create: of(created) });
+      buttonLabeled(dialog(root) as HTMLElement, 'Criar aluguel e cobranças')?.click();
+      fixture.detectChanges();
+    }
+
+    it('com falhas: o detalhe recebe o chargeSync no state da navegação', () => {
+      const sync = { requested: 4, created: 2, failed: 2, local: 0 };
+      confirmWith({ id: 'rental-novo', chargeSync: sync });
+
+      expect(navigateSpy).toHaveBeenCalledWith(['/alugueis', 'rental-novo'], {
+        state: { chargeSync: sync },
+      });
+    });
+
+    it('sem falhas: navegação de sempre, sem state', () => {
+      confirmWith({
+        id: 'rental-novo',
+        chargeSync: { requested: 4, created: 4, failed: 0, local: 0 },
+      });
+      expect(navigateSpy).toHaveBeenCalledWith(['/alugueis', 'rental-novo']);
+    });
+
+    it('resposta sem chargeSync (backend antigo) não quebra', () => {
+      confirmWith({ id: 'rental-novo' });
+      expect(navigateSpy).toHaveBeenCalledWith(['/alugueis', 'rental-novo']);
+    });
   });
 });

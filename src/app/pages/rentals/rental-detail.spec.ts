@@ -1,12 +1,13 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RentalDetail } from './rental-detail';
+import { NotificationService } from '../../services/notification.service';
 import { RentalService } from './rental.service';
 import { environment } from '../../../environments/environment';
 import { todayInBusinessTz } from '../../utils/business-clock';
@@ -1089,5 +1090,395 @@ describe('RentalDetail — motorista', () => {
 
     expect(cadastroCalls.some((url) => url.includes('/vehicles/'))).toBe(true);
     expect(cadastroCalls.some((url) => url.includes('/drivers/'))).toBe(true);
+  });
+});
+
+/**
+ * Emissão no gateway, reconciliação e baixa manual — as três coisas que o dono
+ * precisa para confiar no cronograma de um aluguel de cobrança automática.
+ */
+describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
+  const FUTURE = '2099-12-31';
+
+  function charge(overrides: Partial<RentalChargeDto>): RentalChargeDto {
+    return {
+      id: 'c-1',
+      kind: 'RENTAL_PERIOD',
+      amount: 10_000,
+      status: 'PENDING',
+      provider: 'ASAAS',
+      externalId: 'pay_1',
+      checkoutUrl: null,
+      paidAt: null,
+      dueDate: FUTURE,
+      periodIndex: 0,
+      ...overrides,
+    };
+  }
+
+  function signInAs(role: string): void {
+    const payload = { role, exp: Math.floor(Date.now() / 1000) + 3600 };
+    const b64 = btoa(JSON.stringify(payload))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    sessionStorage.setItem('token', `header.${b64}.signature`);
+  }
+
+  async function mountDetail(
+    rental: RentalResponseDto,
+    options: { role?: string; navState?: Record<string, unknown> } = {},
+  ): Promise<{ fixture: ComponentFixture<RentalDetail>; http: HttpTestingController }> {
+    TestBed.resetTestingModule();
+    sessionStorage.clear();
+    signInAs(options.role ?? 'OWNER');
+    TestBed.configureTestingModule({
+      imports: [RentalDetail],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: activatedRouteStub },
+      ],
+    });
+    if (options.navState) {
+      // O formulário entrega o resultado da emissão no `state` da navegação em curso.
+      vi.spyOn(TestBed.inject(Router), 'currentNavigation').mockReturnValue({
+        extras: { state: options.navState },
+      } as never);
+    }
+    const fixture = TestBed.createComponent(RentalDetail);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    http.expectOne(`${BASE}/${RENTAL_ID}`).flush(rental);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    flushAncillary(http);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return { fixture, http };
+  }
+
+  async function settle(fixture: ComponentFixture<RentalDetail>): Promise<void> {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  function text(fixture: ComponentFixture<RentalDetail>): string {
+    return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  describe('aviso de cobranças que não foram criadas (chargeSync)', () => {
+    const ACTIVE_AUTO: RentalResponseDto = {
+      ...RESERVED_BASE,
+      status: 'ACTIVE',
+      automaticCharge: true,
+      charges: [charge({ id: 'c-failed', status: 'FAILED', externalId: null })],
+    };
+
+    function warning(fixture: ComponentFixture<RentalDetail>): HTMLElement | null {
+      return (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="charge-sync-warning"]',
+      );
+    }
+
+    it('com failed > 0: diz quantas, que o sistema tenta de novo e aponta o Regerar', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO, {
+        navState: { chargeSync: { requested: 4, created: 2, failed: 2, local: 0 } },
+      });
+
+      const banner = warning(fixture);
+      expect(banner).not.toBeNull();
+      const copy = (banner?.textContent ?? '').replace(/\s+/g, ' ');
+      expect(copy).toContain('2 cobranças não puderam ser criadas no Asaas.');
+      expect(copy).toContain('o sistema tenta criá-las de novo automaticamente');
+      expect(copy).toContain('Regerar');
+      expect(banner?.querySelector('[role="alert"]')).not.toBeNull();
+      // O caminho existente continua lá: a linha FAILED tem o botão.
+      expect(buttonsLabeled(fixture, 'Regerar').length).toBeGreaterThan(0);
+    });
+
+    it('no singular quando falhou uma só', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO, {
+        navState: { chargeSync: { requested: 3, created: 2, failed: 1, local: 0 } },
+      });
+      expect(text(fixture)).toContain('1 cobrança não pôde ser criada no Asaas.');
+    });
+
+    it('sem falha (failed = 0) o fluxo é o de sempre: nenhum aviso', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO, {
+        navState: { chargeSync: { requested: 3, created: 3, failed: 0, local: 0 } },
+      });
+      expect(warning(fixture)).toBeNull();
+    });
+
+    it('sem state de navegação (abrir direto, recarregar) não há aviso', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO);
+      expect(warning(fixture)).toBeNull();
+    });
+
+    it('state malformado é ignorado em vez de quebrar a tela', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO, { navState: { chargeSync: 'x' } });
+      expect(warning(fixture)).toBeNull();
+    });
+
+    it('"Entendi" dispensa o aviso', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO, {
+        navState: { chargeSync: { requested: 2, created: 1, failed: 1, local: 0 } },
+      });
+      buttonsLabeled(fixture, 'Entendi')[0].click();
+      await settle(fixture);
+      expect(warning(fixture)).toBeNull();
+    });
+  });
+
+  describe('Conferir no Asaas (reconciliação por cobrança)', () => {
+    const ACTIVE_AUTO = (charges: RentalChargeDto[]): RentalResponseDto => ({
+      ...RESERVED_BASE,
+      status: 'ACTIVE',
+      automaticCharge: true,
+      charges,
+    });
+
+    it('aparece só na cobrança EM ABERTO que existe no gateway (mobile + desktop)', async () => {
+      const { fixture } = await mountDetail(
+        ACTIVE_AUTO([
+          charge({ id: 'open', periodIndex: 0 }),
+          charge({ id: 'local', periodIndex: 1, externalId: null }),
+          charge({ id: 'paid', periodIndex: 2, status: 'PAID', paidAt: '2026-08-02T10:00:00Z' }),
+          charge({ id: 'canceled', periodIndex: 3, status: 'CANCELED' }),
+        ]),
+      );
+
+      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(2);
+    });
+
+    it('PAST_DUE e FAILED com id no gateway também são conferíveis', async () => {
+      const { fixture } = await mountDetail(
+        ACTIVE_AUTO([
+          charge({ id: 'late', periodIndex: 0, status: 'PAST_DUE' }),
+          charge({ id: 'failed', periodIndex: 1, status: 'FAILED' }),
+        ]),
+      );
+
+      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(4);
+    });
+
+    it('o motorista não vê o botão (o backend responderia 403)', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]), {
+        role: 'DRIVER',
+      });
+      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(0);
+    });
+
+    it('clicar POSTa a reconciliação da cobrança e recarrega o aluguel', async () => {
+      const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
+
+      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const req = http.expectOne(`${BASE}/${RENTAL_ID}/charges/open/reconcile`);
+      expect(req.request.method).toBe('POST');
+      req.flush({ outcome: 'SYNCED', remoteStatus: 'PAID', status: 'PAID' });
+      await settle(fixture);
+
+      const reload = http.expectOne(`${BASE}/${RENTAL_ID}`);
+      reload.flush(
+        ACTIVE_AUTO([charge({ id: 'open', status: 'PAID', paidAt: '2026-08-02T10:00:00Z' })]),
+      );
+      await settle(fixture);
+
+      expect(text(fixture)).toContain('Atualizada a partir do Asaas: a cobrança agora consta como pago.');
+      // Paga: já não é conferível.
+      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(0);
+    });
+
+    it('Asaas ainda mostra pendente: diz que nada mudou, na linha da cobrança', async () => {
+      const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
+
+      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      http
+        .expectOne(`${BASE}/${RENTAL_ID}/charges/open/reconcile`)
+        .flush({ outcome: 'NO_CHANGE', remoteStatus: 'PENDING', status: 'PENDING' });
+      await settle(fixture);
+
+      expect(text(fixture)).toContain(
+        'Conferido: o Asaas ainda mostra esta cobrança como pendente. Nada mudou.',
+      );
+    });
+
+    it('a janela entre consultas (409) mostra a mensagem do servidor na linha, sem banner no topo', async () => {
+      const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
+
+      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      http
+        .expectOne(`${BASE}/${RENTAL_ID}/charges/open/reconcile`)
+        .flush(
+          { message: 'Esta cobrança acabou de ser consultada no gateway. Aguarde alguns segundos.' },
+          { status: 409, statusText: 'Conflict' },
+        );
+      await settle(fixture);
+
+      const note = (fixture.nativeElement as HTMLElement).querySelector('p[role="alert"]');
+      expect(note?.textContent).toContain('Aguarde alguns segundos.');
+      // Erro de operação não vai pro banner do topo: ele ficaria fora de vista.
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('app-alert-banner[variant="error"]'),
+      ).toBeNull();
+    });
+
+    it('429 sem corpo cai no texto de espera local', async () => {
+      const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
+
+      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      http
+        .expectOne(`${BASE}/${RENTAL_ID}/charges/open/reconcile`)
+        .flush(null, { status: 429, statusText: 'Too Many Requests' });
+      await settle(fixture);
+
+      expect(text(fixture)).toContain(
+        'Esta cobrança acabou de ser conferida. Aguarde alguns segundos e tente de novo.',
+      );
+    });
+
+    it('durante a consulta o botão fica desabilitado e mostra "Conferindo…"', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
+
+      const [first] = buttonsLabeled(fixture, 'Conferir no Asaas');
+      first.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const conferindo = buttonsLabeled(fixture, 'Conferindo…');
+      expect(conferindo.length).toBeGreaterThan(0);
+      expect(conferindo.every((b) => b.disabled)).toBe(true);
+    });
+  });
+
+  describe('Marcar como paga', () => {
+    it('multa por atraso (OVERDUE_FEE) é quitável também em aluguel de cobrança automática', async () => {
+      const { fixture } = await mountDetail({
+        ...RESERVED_BASE,
+        status: 'COMPLETED',
+        automaticCharge: true,
+        charges: [
+          charge({
+            id: 'fee',
+            kind: 'OVERDUE_FEE',
+            provider: 'ASAAS',
+            externalId: null,
+            periodIndex: null,
+          }),
+        ],
+      });
+
+      expect(buttonsLabeled(fixture, 'Marcar como paga').length).toBe(2);
+    });
+
+    it('parcela registrada só no app (sem id no gateway) é quitável em aluguel automático', async () => {
+      const { fixture } = await mountDetail({
+        ...RESERVED_BASE,
+        status: 'ACTIVE',
+        automaticCharge: true,
+        charges: [charge({ id: 'local', externalId: null, dueDate: '2020-01-05' })],
+      });
+
+      expect(buttonsLabeled(fixture, 'Marcar como paga').length).toBe(2);
+    });
+
+    it('cobrança que o gateway gerencia NÃO é quitável à mão em aluguel automático (o webhook quita)', async () => {
+      const { fixture } = await mountDetail({
+        ...RESERVED_BASE,
+        status: 'ACTIVE',
+        automaticCharge: true,
+        charges: [charge({ id: 'gateway', externalId: 'pay_9' })],
+      });
+
+      expect(buttonsLabeled(fixture, 'Marcar como paga').length).toBe(0);
+    });
+
+    it('multa paga à mão pode ser desmarcada em aluguel automático; paga pelo webhook não', async () => {
+      const { fixture } = await mountDetail({
+        ...RESERVED_BASE,
+        status: 'COMPLETED',
+        automaticCharge: true,
+        charges: [
+          charge({
+            id: 'fee',
+            kind: 'OVERDUE_FEE',
+            externalId: null,
+            status: 'PAID',
+            paidAt: '2026-08-02T12:00:00Z',
+            periodIndex: null,
+          }),
+          charge({
+            id: 'hook',
+            externalId: 'pay_7',
+            status: 'PAID',
+            paidAt: '2026-08-03T12:00:00Z',
+            periodIndex: 0,
+          }),
+        ],
+      });
+
+      expect(buttonsLabeled(fixture, 'Desmarcar').length).toBe(2);
+    });
+  });
+
+  describe('Regerar — cada desfecho diz o que de fato aconteceu', () => {
+    async function regerarWith(outcome: string): Promise<string[]> {
+      const { fixture, http } = await mountDetail({
+        ...RESERVED_BASE,
+        status: 'ACTIVE',
+        automaticCharge: true,
+        charges: [charge({ id: 'failed', status: 'FAILED', externalId: null })],
+      });
+      buttonsLabeled(fixture, 'Regerar')[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      http
+        .expectOne(`${BASE}/${RENTAL_ID}/charges/failed/retry`)
+        .flush({ outcome, externalId: null, checkoutUrl: null, retryCount: 1 });
+      await settle(fixture);
+      http.match(`${BASE}/${RENTAL_ID}`).forEach((r) => r.flush({ ...RESERVED_BASE, status: 'ACTIVE' }));
+      return TestBed.inject(NotificationService)
+        .notifications()
+        .map((n) => n.message);
+    }
+
+    it('CANCELED não finge que gerou uma cobrança nova', async () => {
+      const messages = await regerarWith('CANCELED');
+      expect(messages.some((m) => m.startsWith('Nada foi gerado:'))).toBe(true);
+      expect(messages).not.toContain('Nova cobrança gerada com sucesso.');
+    });
+
+    it('SKIPPED diz que a cobrança mudou e nada foi alterado', async () => {
+      const messages = await regerarWith('SKIPPED');
+      expect(messages.some((m) => m.includes('mudou de situação') && m.includes('nada foi alterado'))).toBe(
+        true,
+      );
+    });
+
+    it('RETRIED segue com a frase de sempre', async () => {
+      const messages = await regerarWith('RETRIED');
+      expect(messages).toContain('Nova cobrança gerada com sucesso.');
+    });
   });
 });

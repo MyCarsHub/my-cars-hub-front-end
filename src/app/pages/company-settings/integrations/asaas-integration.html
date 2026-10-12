@@ -58,6 +58,42 @@
             </div>
           </div>
 
+          <!-- Webhook recusado pelo Asaas: a conexão funciona e cobranças saem, mas
+               pagamento feito no Asaas nunca chega aqui. Dizer isso, com o motivo
+               e a saída, é o ponto desta faixa. -->
+          @if (webhookBroken()) {
+            <div data-testid="webhook-broken" class="space-y-3">
+              <app-alert-banner variant="error">
+                <strong class="font-semibold">O webhook do Asaas não está registrado.</strong>
+                Sem o webhook, os pagamentos feitos no Asaas não aparecem aqui.
+                @if (s.webhookFailureReason) {
+                  <span class="mt-1 block text-xs" data-testid="webhook-reason">
+                    Motivo informado pelo Asaas: {{ s.webhookFailureReason }}
+                  </span>
+                }
+                @if (webhookRetryFailed()) {
+                  <span class="mt-1 block text-xs" data-testid="webhook-retry-failed">
+                    A nova tentativa não funcionou. O motivo acima é o mais recente.
+                  </span>
+                }
+              </app-alert-banner>
+              @if (webhookError(); as webhookErr) {
+                <app-alert-banner variant="error" [message]="webhookErr" />
+              }
+              <button
+                type="button"
+                data-testid="webhook-reregister"
+                (click)="reregisterWebhook()"
+                [disabled]="webhookBusy()"
+                class="w-full sm:w-auto min-h-[44px] px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600
+                       text-white text-sm font-semibold shadow-sm disabled:opacity-60 transition-colors
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                       focus-visible:ring-offset-2">
+                {{ webhookBusy() ? 'Registrando…' : 'Registrar webhook novamente' }}
+              </button>
+            </div>
+          }
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Ambiente</p>
@@ -83,7 +119,7 @@
                 {{ formatDateTime(s.lastVerifiedAt) }}
               </p>
             </div>
-            @if (s.webhookAutoConfigured) {
+            @if (webhookOk()) {
               <div class="sm:col-span-2">
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
                              bg-emerald-100 text-emerald-800 border border-emerald-200">
