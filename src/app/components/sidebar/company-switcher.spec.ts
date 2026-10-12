@@ -343,7 +343,7 @@ describe('Company switcher', () => {
     expect(rows[0].getAttribute('aria-selected')).toBe('true');
   });
 
-  it('on a phone the list opens in a bottom sheet titled "Suas empresas"', async () => {
+  it('on a phone the list opens inline in the drawer, like on desktop, not in a sheet', async () => {
     startAs('co-alfa', 'OWNER', [alfa, beta]);
     await mount();
     layout.setMobile(true);
@@ -352,9 +352,9 @@ describe('Company switcher', () => {
     openSwitcher();
     answerMemberships([alfa, beta]);
 
-    const dialog = host().querySelector('[role="dialog"]');
-    expect(dialog).not.toBeNull();
-    expect(dialog?.querySelector('h2')?.textContent).toContain('Suas empresas');
-    expect(dialog?.querySelectorAll('[data-testid="switcher-active"]').length).toBe(2);
+    expect(host().querySelector('[role="dialog"]')).toBeNull();
+    const drawer = host().querySelector('aside');
+    expect(drawer?.textContent).toContain('Suas empresas');
+    expect(drawer?.querySelectorAll('[data-testid="switcher-active"]').length).toBe(2);
   });
 });
