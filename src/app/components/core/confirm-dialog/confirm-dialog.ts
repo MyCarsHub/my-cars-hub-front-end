@@ -43,7 +43,11 @@ export class ConfirmDialog {
   /** Dialog body message */
   message = input<string>('Tem certeza que deseja continuar?');
 
-  /** Label for the confirm button */
+  /**
+   * Label for the confirm button. An empty string drops the button — for the
+   * informational variant where there is nothing to confirm (e.g. a blocking
+   * notice that only offers the way back through the cancel button).
+   */
   confirmLabel = input<string>('Confirmar');
 
   /**
@@ -78,6 +82,13 @@ export class ConfirmDialog {
   /** Emitted whenever the optional checkbox is toggled. */
   optionCheckedChange = output<boolean>();
 
+  /**
+   * While true both buttons are disabled and the backdrop stops cancelling: a
+   * request started by `confirmed` is in flight and must not be repeated or
+   * abandoned from the dialog. The caller shows the progress in `confirmLabel`.
+   */
+  busy = input<boolean>(false);
+
   /** Emitted when the user clicks the confirm button */
   confirmed = output<void>();
 
@@ -107,10 +118,12 @@ export class ConfirmDialog {
   }
 
   protected onConfirm(): void {
+    if (this.busy()) return;
     this.confirmed.emit();
   }
 
   protected onCancel(): void {
+    if (this.busy()) return;
     this.cancelled.emit();
   }
 }

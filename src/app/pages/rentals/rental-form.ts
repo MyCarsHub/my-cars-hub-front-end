@@ -5,11 +5,15 @@ import {
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
+  Injector,
   OnInit,
+  afterNextRender,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -33,6 +37,7 @@ import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
 import { formatPtBrMoney } from '../../utils/ptbr-number';
+import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
 import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { RentalService } from './rental.service';
 import { SessionService } from '../../services/session.service';
@@ -44,6 +49,7 @@ import { RentalDraftService } from './rental-draft.service';
 import {
   BILLING_FREQUENCY_OPTIONS,
   CreateRentalRequest,
+  RENTAL_CHARGE_SYNC_STATE_KEY,
   RentalBillingFrequency,
   RentalLateFineType,
   RentalUpdateRequest,
@@ -79,6 +85,7 @@ export class RentalForm implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
 
   /** V29: true se a company tem template de contrato — controla default do toggle. */
   protected readonly hasContractTemplate = signal(false);
@@ -103,8 +110,16 @@ export class RentalForm implements OnInit {
   protected readonly editingId = signal<string | null>(null);
   protected readonly editingStatus = signal<string | null>(null);
   protected readonly isEdit = computed(() => this.editingId() !== null);
+  /** Criação/atualização em voo. Também é o `busy` do diálogo de confirmação. */
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /**
+   * Alvo de foco programático do banner de erro. Uma falha DEPOIS do diálogo de
+   * confirmação acontece com o usuário no fim da página e o banner mora no topo:
+   * sem rolar até ele, "nada acontece" — ver `revealError`.
+   */
+  private readonly formErrorBanner = viewChild<ElementRef<HTMLElement>>('formErrorBanner');
 
   // Copy por validador. Chave = validator key; o `serverError` do backend sempre
   // vence estes textos (ver MESSAGE_ORDER em services/validation-messages.ts).
@@ -133,7 +148,8 @@ export class RentalForm implements OnInit {
     min: 'A quilometragem não pode ser negativa.',
   };
   protected readonly firstPaymentMessages: Readonly<Record<string, string>> = {
-    required: 'Informe a data da 1ª parcela.',
+    required: 'Informe a data da 1ª cobrança.',
+    firstPaymentAfterEnd: 'A 1ª cobrança não pode vencer depois da data final do aluguel.',
   };
   protected readonly dailyInterestMessages: Readonly<Record<string, string>> = {
     required: 'Informe o juros diário (0 se não cobrar).',
@@ -200,7 +216,9 @@ export class RentalForm implements OnInit {
       // V29: Condições de pagamento — todos obrigatórios.
       initialKm: [null as number | null, [Validators.required, Validators.min(0)]],
       pickupDate: ['', [Validators.required]], // datetime-local yyyy-MM-ddTHH:mm
-      firstPaymentDate: ['', [Validators.required]], // yyyy-MM-dd
+      // O vencimento LITERAL da 1ª cobrança (as seguintes vencem a cada período a
+      // partir dela). Nunca depois do fim do aluguel — ver o validador.
+      firstPaymentDate: ['', [Validators.required, firstPaymentNotAfterEndValidator]], // yyyy-MM-dd
       // Nasce em '0,00' (nao vazio): o campo e obrigatorio e antes ja abria
       // preenchido com 0, entao um default vazio deixaria o form invalido ao abrir.
       dailyInterestReais: ['0,00', [ptBrMoneyValidator()]],
@@ -228,6 +246,46 @@ export class RentalForm implements OnInit {
   private readonly formValue = toSignal(this.form.valueChanges, {
     initialValue: this.form.getRawValue(),
   });
+
+  /**
+   * O validador da 1ª cobrança lê a data final, mas o Angular só reavalia um
+   * controle quando ELE muda. Sem isto, encurtar o aluguel deixaria uma 1ª
+   * cobrança fora do período aprovada até o submit.
+   *
+   * Marca como tocado quando passa a violar a regra, para a mensagem aparecer na
+   * hora em vez de esperar o usuário tentar enviar.
+   */
+  private readonly endDateRevalidatesFirstPayment = this.form.controls.endDate.valueChanges
+    .pipe(takeUntilDestroyed())
+    .subscribe(() => {
+      const control = this.form.controls.firstPaymentDate;
+      control.updateValueAndValidity();
+      if (control.errors?.['firstPaymentAfterEnd']) control.markAsTouched();
+    });
+
+  /** Último início visto — separa "a 1ª cobrança acompanha o início" de "o usuário escolheu". */
+  private lastStartDay = '';
+
+  /**
+   * A 1ª cobrança nasce igual ao início do aluguel e ACOMPANHA o início enquanto
+   * estiver vazia ou ainda igual ao início anterior. Uma data que o usuário
+   * escolheu (diferente do início) nunca é sobrescrita.
+   *
+   * Só na criação: na edição a data vem gravada do servidor e mexer no início
+   * não pode reescrever silenciosamente quando a 1ª cobrança vence.
+   */
+  private readonly startDatePrefillsFirstPayment = this.form.controls.startDate.valueChanges
+    .pipe(takeUntilDestroyed())
+    .subscribe((start) => {
+      const previous = this.lastStartDay;
+      this.lastStartDay = start ?? '';
+      if (this.isEdit()) return;
+      const day = asDay(start);
+      if (!day || !isRealDay(day)) return;
+      const control = this.form.controls.firstPaymentDate;
+      if (control.disabled) return;
+      if (!control.value || control.value === previous) control.setValue(day);
+    });
 
   /**
    * Período pretendido, reduzido a uma CHAVE estável `start|end` — ou `''`
@@ -318,6 +376,16 @@ export class RentalForm implements OnInit {
   protected readonly billingFrequency = computed<RentalBillingFrequency>(
     () => (this.formValue()?.billingFrequency ?? 'DAILY') as RentalBillingFrequency,
   );
+
+  /**
+   * Ajuda do campo da 1ª cobrança, no idioma do período escolhido. Diz as duas
+   * coisas que o campo faz: é o vencimento da PRIMEIRA e as outras andam a partir
+   * dela — foi a falta disso que fazia a data digitada não parecer a cobrada.
+   */
+  protected readonly firstPaymentHint = computed(() => {
+    const unit = FIRST_PAYMENT_PERIOD_UNIT[this.billingFrequency()];
+    return `É o vencimento da primeira cobrança. As próximas vencem a cada ${unit} a partir dela.`;
+  });
 
   /**
    * Dynamic label for the rate input — switches based on the chosen frequency.
@@ -794,7 +862,9 @@ export class RentalForm implements OnInit {
   }
 
   protected submit(): void {
-    if (this.saving()) return;
+    // `previewing` entra aqui junto de `saving`: o botão já fica desabilitado, mas
+    // Enter dentro de um campo submete o <form> sem passar por ele.
+    if (this.saving() || this.previewing()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.error.set('Verifique os campos destacados.');
@@ -814,94 +884,53 @@ export class RentalForm implements OnInit {
         return;
       }
     }
-    this.saving.set(true);
     this.error.set(null);
     clearServerErrors(this.form);
-    const raw = this.form.getRawValue();
-    const periodRate = ptBrMoneyCents(raw.periodRateReais) ?? 0;
-    const caucao = ptBrMoneyCents(raw.caucaoReais) ?? 0;
-
-    // V29: campos financeiros
-    const dailyInterestAmount = ptBrMoneyCents(raw.dailyInterestReais) ?? 0;
-    const lateFineType: RentalLateFineType = raw.lateFineType;
-    const lateFineRaw = raw.lateFineValueInput;
-    const lateFineValue =
-      lateFineType === 'FIXED'
-        ? (ptBrMoneyCents(typeof lateFineRaw === 'string' ? lateFineRaw : '') ?? 0)
-        : percentToBasisPoints(Number(lateFineRaw ?? 0));
-    const pickupDateIso = fromDateTimeLocalInput(raw.pickupDate);
-    const firstPaymentDate = raw.firstPaymentDate?.trim() || null;
-    const initialKm = raw.initialKm ?? null;
-    // V32
-    const franchiseKm = raw.franchiseKm ?? null;
-    const returnFuelPolicy = raw.returnFuelPolicy?.trim() || null;
 
     const editingId = this.editingId();
     if (editingId) {
-      const updatePayload: RentalUpdateRequest = {
-        vehicleId: raw.vehicleId,
-        driverId: raw.driverId,
-        startDate: raw.startDate,
-        endDate: raw.endDate,
-        periodRate,
-        billingFrequency: raw.billingFrequency,
-        caucaoAmount: caucao,
-        caucaoPaid: caucao > 0 ? raw.caucaoPaid === true : false,
-        notes: raw.notes?.trim() || undefined,
-        initialKm,
-        pickupDate: pickupDateIso,
-        firstPaymentDate,
-        dailyInterestAmount,
-        lateFineType,
-        lateFineValue,
-        franchiseKm,
-        returnFuelPolicy,
-      };
-      this.rentalService.update(editingId, updatePayload).subscribe({
-        next: (r) => {
-          this.notifications.success('Alterações salvas.');
-          this.router.navigate(['/alugueis', r.id]);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.saving.set(false);
-          const { formMessage } = this.apiErrors.handleForm(
-            err,
-            this.form,
-            'Não foi possível salvar as alterações.',
-          );
-          this.error.set(formMessage);
-        },
-      });
+      this.updateRental(editingId);
       return;
     }
 
-    const payload: CreateRentalRequest = {
+    const payload = this.buildCreatePayload();
+    if (payload.automaticCharge === true) {
+      // Cobrança automática: criar o aluguel JÁ dispara as cobranças no Asaas, e
+      // isso não se desfaz com um "voltar". Primeiro a prévia, depois o diálogo.
+      this.requestChargePreview(payload);
+      return;
+    }
+    // Manual: nada vai ao gateway, então não há o que confirmar. Criar direto é o
+    // caminho mais leve — um diálogo aqui só repetiria o botão que acabou de ser
+    // clicado, sem dizer nada que a tela já não diga.
+    this.createRental(payload);
+  }
+
+  private updateRental(editingId: string): void {
+    this.saving.set(true);
+    const raw = this.form.getRawValue();
+    const caucao = ptBrMoneyCents(raw.caucaoReais) ?? 0;
+    const updatePayload: RentalUpdateRequest = {
       vehicleId: raw.vehicleId,
       driverId: raw.driverId,
       startDate: raw.startDate,
       endDate: raw.endDate,
-      periodRate,
+      periodRate: ptBrMoneyCents(raw.periodRateReais) ?? 0,
       billingFrequency: raw.billingFrequency,
       caucaoAmount: caucao,
       caucaoPaid: caucao > 0 ? raw.caucaoPaid === true : false,
-      automaticCharge: raw.automaticCharge === true,
       notes: raw.notes?.trim() || undefined,
-      initialKm,
-      pickupDate: pickupDateIso,
-      firstPaymentDate,
-      dailyInterestAmount,
-      lateFineType,
-      lateFineValue,
-      franchiseKm,
-      returnFuelPolicy,
-      contractSource: raw.useContractTemplate ? 'AUTO' : 'MANUAL',
+      initialKm: raw.initialKm ?? null,
+      pickupDate: fromDateTimeLocalInput(raw.pickupDate),
+      firstPaymentDate: raw.firstPaymentDate?.trim() || null,
+      dailyInterestAmount: ptBrMoneyCents(raw.dailyInterestReais) ?? 0,
+      ...this.lateFineFields(),
+      franchiseKm: raw.franchiseKm ?? null,
+      returnFuelPolicy: raw.returnFuelPolicy?.trim() || null,
     };
-
-    this.rentalService.create(payload).subscribe({
+    this.rentalService.update(editingId, updatePayload).subscribe({
       next: (r) => {
-        // Aluguel criado: o rascunho cumpriu sua função e some.
-        this.dropDraft();
-        this.notifications.success('Aluguel criado.');
+        this.notifications.success('Alterações salvas.');
         this.router.navigate(['/alugueis', r.id]);
       },
       error: (err: HttpErrorResponse) => {
@@ -909,12 +938,219 @@ export class RentalForm implements OnInit {
         const { formMessage } = this.apiErrors.handleForm(
           err,
           this.form,
-          'Não foi possível criar o aluguel.',
+          'Não foi possível salvar as alterações.',
         );
-        // The driver was registered without CNH/address and has not completed it yet.
-        this.error.set(isDriverRegistrationIncomplete(err) ? DRIVER_REGISTRATION_INCOMPLETE_COPY : formMessage);
+        this.error.set(formMessage);
       },
     });
+  }
+
+  /** Corpo do create a partir do formulário — o MESMO que a prévia recebe. */
+  private buildCreatePayload(): CreateRentalRequest {
+    const raw = this.form.getRawValue();
+    const caucao = ptBrMoneyCents(raw.caucaoReais) ?? 0;
+    return {
+      vehicleId: raw.vehicleId,
+      driverId: raw.driverId,
+      startDate: raw.startDate,
+      endDate: raw.endDate,
+      periodRate: ptBrMoneyCents(raw.periodRateReais) ?? 0,
+      billingFrequency: raw.billingFrequency,
+      caucaoAmount: caucao,
+      caucaoPaid: caucao > 0 ? raw.caucaoPaid === true : false,
+      automaticCharge: raw.automaticCharge === true,
+      notes: raw.notes?.trim() || undefined,
+      initialKm: raw.initialKm ?? null,
+      pickupDate: fromDateTimeLocalInput(raw.pickupDate),
+      firstPaymentDate: raw.firstPaymentDate?.trim() || null,
+      dailyInterestAmount: ptBrMoneyCents(raw.dailyInterestReais) ?? 0,
+      ...this.lateFineFields(),
+      franchiseKm: raw.franchiseKm ?? null,
+      returnFuelPolicy: raw.returnFuelPolicy?.trim() || null,
+      contractSource: raw.useContractTemplate ? 'AUTO' : 'MANUAL',
+    };
+  }
+
+  private lateFineFields(): { lateFineType: RentalLateFineType; lateFineValue: number } {
+    const raw = this.form.getRawValue();
+    const lateFineType: RentalLateFineType = raw.lateFineType;
+    const lateFineRaw = raw.lateFineValueInput;
+    const lateFineValue =
+      lateFineType === 'FIXED'
+        ? (ptBrMoneyCents(typeof lateFineRaw === 'string' ? lateFineRaw : '') ?? 0)
+        : percentToBasisPoints(Number(lateFineRaw ?? 0));
+    return { lateFineType, lateFineValue };
+  }
+
+  // ------------------------------------------------------------------
+  // Confirmação da cobrança automática.
+  //
+  // Fluxo: "Criar aluguel" → prévia (`POST /rentals/charge-preview`, nada é
+  // gravado) → diálogo com o resumo → "Criar aluguel e cobranças" cria de fato.
+  // "Voltar e editar" fecha sem chamar nada e devolve o formulário intacto.
+  // ------------------------------------------------------------------
+
+  /** Consultando a prévia. Mesmo padrão de botão do `saving`: rótulo + disabled. */
+  protected readonly previewing = signal(false);
+  protected readonly chargeConfirmOpen = signal(false);
+  protected readonly chargePreview = signal<ChargePreviewSummary | null>(null);
+
+  /**
+   * O corpo congelado quando a prévia foi pedida. O resumo mostra ESTE corpo, então
+   * é ele que o confirmar envia — e não uma releitura do formulário.
+   */
+  private pendingCreate: CreateRentalRequest | null = null;
+
+  protected readonly chargeConfirmMessage = computed(() => {
+    const summary = this.chargePreview();
+    if (!summary) return '';
+    if (summary.blocker) {
+      return 'Nada foi criado. Volte e edite o aluguel para continuar.';
+    }
+    if (!summary.willCreateInGateway) {
+      return (
+        'Ao confirmar, o aluguel é criado. Nenhuma cobrança vai ao Asaas agora: ' +
+        'elas ficam só registradas aqui. Para mudar algo, volte e edite.'
+      );
+    }
+    return (
+      'Ao confirmar, o aluguel é criado e as cobranças são geradas no Asaas agora. ' +
+      'Para mudar algo, volte e edite.'
+    );
+  });
+
+  /** Vazio some com o botão: com impeditivo só resta o "Voltar e editar". */
+  protected readonly chargeConfirmLabel = computed(() => {
+    if (this.chargePreview()?.blocker) return '';
+    return this.saving() ? 'Criando…' : 'Criar aluguel e cobranças';
+  });
+
+  protected readonly chargeSummaryRows = computed<Array<{ label: string; value: string }>>(() => {
+    const summary = this.chargePreview();
+    if (!summary || summary.blocker) return [];
+    const rows: Array<{ label: string; value: string }> = [];
+    if (summary.willCreateInGateway) {
+      rows.push({ label: 'Cobranças no Asaas', value: String(summary.gatewayCount) });
+    }
+    rows.push({ label: '1º vencimento', value: toBrDate(summary.firstDueDate) ?? '—' });
+    if (summary.periodCount > 0) {
+      rows.push({
+        label: 'Valor por cobrança',
+        value:
+          summary.uniformPeriodCents === null
+            ? 'Valores variam'
+            : formatBrl(summary.uniformPeriodCents),
+      });
+    }
+    if (summary.caucao) {
+      const due = toBrDate(summary.caucao.dueDate) ?? '—';
+      rows.push({
+        label: 'Caução',
+        value: `${formatBrl(summary.caucao.amountCents)} · vence em ${due}`,
+      });
+    }
+    rows.push({ label: 'Total', value: formatBrl(summary.totalCents) });
+    return rows;
+  });
+
+  /** Aviso das cobranças que NÃO vão ao Asaas por já estarem vencidas. */
+  protected readonly localChargesNote = computed<string | null>(() => {
+    const summary = this.chargePreview();
+    if (!summary || summary.blocker || summary.localCount <= 0) return null;
+    return summary.localCount === 1
+      ? '1 cobrança com vencimento anterior a hoje fica só registrada aqui, sem ir ao Asaas.'
+      : `${summary.localCount} cobranças com vencimento anterior a hoje ficam só registradas aqui, sem ir ao Asaas.`;
+  });
+
+  private requestChargePreview(payload: CreateRentalRequest): void {
+    this.previewing.set(true);
+    this.rentalService.chargePreview(payload).subscribe({
+      next: (preview) => {
+        this.previewing.set(false);
+        this.pendingCreate = payload;
+        this.chargePreview.set(summarizeChargePreview(preview));
+        this.chargeConfirmOpen.set(true);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.previewing.set(false);
+        this.failCreate(err, 'Não foi possível conferir as cobranças. Tente novamente.');
+      },
+    });
+  }
+
+  protected confirmCharges(): void {
+    const payload = this.pendingCreate;
+    // `saving` é a trava do duplo clique: o botão desabilita, mas o handler também
+    // recusa — um segundo evento antes do próximo ciclo de detecção não pode criar
+    // dois aluguéis.
+    if (!payload || this.saving() || this.chargePreview()?.blocker) return;
+    this.createRental(payload);
+  }
+
+  /** "Voltar e editar": nada é chamado e o formulário segue como o usuário deixou. */
+  protected cancelCharges(): void {
+    if (this.saving()) return;
+    this.chargeConfirmOpen.set(false);
+    this.pendingCreate = null;
+  }
+
+  private createRental(payload: CreateRentalRequest): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.rentalService.create(payload).subscribe({
+      next: (r) => {
+        // Aluguel criado: o rascunho cumpriu sua função e some.
+        this.dropDraft();
+        this.chargeConfirmOpen.set(false);
+        this.notifications.success('Aluguel criado.');
+        // Parte das cobranças pode não ter sido criada no Asaas: o aluguel existe,
+        // então o usuário vai ao detalhe e o aviso viaja junto. Sem falha, a
+        // navegação é a de sempre.
+        const sync = r.chargeSync;
+        if (sync && sync.failed > 0) {
+          this.router.navigate(['/alugueis', r.id], {
+            state: { [RENTAL_CHARGE_SYNC_STATE_KEY]: sync },
+          });
+        } else {
+          this.router.navigate(['/alugueis', r.id]);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.saving.set(false);
+        this.failCreate(err, 'Não foi possível criar o aluguel.');
+      },
+    });
+  }
+
+  /**
+   * Falha da prévia ou do create: o diálogo fecha, o formulário fica como está e o
+   * erro vai pro banner do topo (campo a campo quando o backend aponta o campo).
+   */
+  private failCreate(err: HttpErrorResponse, fallback: string): void {
+    this.chargeConfirmOpen.set(false);
+    this.pendingCreate = null;
+    const { formMessage } = this.apiErrors.handleForm(err, this.form, fallback);
+    // The driver was registered without CNH/address and has not completed it yet.
+    this.error.set(
+      isDriverRegistrationIncomplete(err) ? DRIVER_REGISTRATION_INCOMPLETE_COPY : formMessage,
+    );
+    this.revealError();
+  }
+
+  /** Leva o banner ao campo de visão — só se ele estiver fora da tela. */
+  private revealError(): void {
+    afterNextRender(
+      () => {
+        const el = this.formErrorBanner()?.nativeElement;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const viewport = el.ownerDocument.documentElement.clientHeight;
+        if (rect.bottom > 0 && rect.top < viewport) return;
+        el.scrollIntoView?.({ block: 'center' });
+        el.focus({ preventScroll: true });
+      },
+      { injector: this.injector },
+    );
   }
 
   /**
@@ -970,6 +1206,29 @@ export class RentalForm implements OnInit {
     if (p.length === 7) return `${p.slice(0, 3)}-${p.slice(3)}`;
     return p || '—';
   }
+}
+
+/** Unidade do período na ajuda da 1ª cobrança ("a cada dia / semana / mês"). */
+const FIRST_PAYMENT_PERIOD_UNIT: Record<RentalBillingFrequency, string> = {
+  DAILY: 'dia',
+  WEEKLY: 'semana',
+  MONTHLY: 'mês',
+};
+
+function formatBrl(cents: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+}
+
+/**
+ * A 1ª cobrança não pode vencer depois do fim do aluguel — nenhum período chegaria
+ * a ser cobrado. Compara DIA com DIA (strings `yyyy-MM-dd`, sem fuso). Sem uma das
+ * duas datas não há o que comparar: quem acusa o vazio é o `required`.
+ */
+function firstPaymentNotAfterEndValidator(control: AbstractControl): ValidationErrors | null {
+  const first = asDay(control.value);
+  const end = asDay(control.parent?.get('endDate')?.value);
+  if (!first || !end) return null;
+  return first > end ? { firstPaymentAfterEnd: true } : null;
 }
 
 function endAfterStartValidator(group: AbstractControl): ValidationErrors | null {

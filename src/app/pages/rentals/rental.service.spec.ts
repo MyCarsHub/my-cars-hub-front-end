@@ -341,3 +341,71 @@ describe('RentalService.overduePreview', () => {
     expect(options.params.has('returnedAt')).toBe(false);
   });
 });
+
+describe('RentalService — prévia das cobranças e reconciliação', () => {
+  function setup(response: unknown): {
+    service: RentalService;
+    httpPost: ReturnType<typeof vi.fn>;
+  } {
+    const httpPost = vi.fn().mockReturnValue(of(response));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        RentalService,
+        {
+          provide: HttpClient,
+          useValue: { get: vi.fn(), post: httpPost, delete: vi.fn(), put: vi.fn() },
+        },
+      ],
+    });
+    return { service: TestBed.inject(RentalService), httpPost };
+  }
+
+  const PAYLOAD = {
+    vehicleId: 'v',
+    driverId: 'd',
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    periodRate: 100_000,
+    billingFrequency: 'MONTHLY' as const,
+    automaticCharge: true,
+  };
+
+  it('chargePreview POSTa o MESMO corpo do create em /rentals/charge-preview', () => {
+    const { service, httpPost } = setup({ charges: [] });
+
+    service.chargePreview(PAYLOAD).subscribe();
+
+    expect(httpPost).toHaveBeenCalledTimes(1);
+    expect(httpPost).toHaveBeenCalledWith(`${environment.apiUrl}/rentals/charge-preview`, PAYLOAD);
+  });
+
+  it('chargePreview entrega a resposta já normalizada', () => {
+    const { service } = setup({
+      willCreateInGateway: true,
+      charges: [{ kind: 'RENTAL_PERIOD', index: 0, dueDate: '2026-08-05', amountCents: 100_000, destination: 'ASAAS' }],
+    });
+
+    let out: unknown;
+    service.chargePreview(PAYLOAD).subscribe((v) => (out = v));
+
+    expect(out).toMatchObject({
+      gatewayCount: 1,
+      localCount: 0,
+      totalCents: 100_000,
+      firstDueDate: '2026-08-05',
+      blocker: null,
+    });
+  });
+
+  it('reconcileCharge POSTa em /rentals/{id}/charges/{chargeId}/reconcile com corpo vazio', () => {
+    const { service, httpPost } = setup({ outcome: 'NO_CHANGE', remoteStatus: 'PENDING', status: 'PENDING' });
+
+    service.reconcileCharge('rid-9', 'cid-3').subscribe();
+
+    expect(httpPost).toHaveBeenCalledWith(
+      `${environment.apiUrl}/rentals/rid-9/charges/cid-3/reconcile`,
+      {},
+    );
+  });
+});
