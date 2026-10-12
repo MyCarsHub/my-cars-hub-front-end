@@ -23,7 +23,11 @@
 
     <!-- Erro do formulário: TOPO, dentro de @if pra que role="alert" anuncie na inserção. -->
     @if (error(); as formError) {
-      <app-alert-banner variant="error" [message]="formError" />
+      <!-- tabindex=-1: alvo de foco programático (ver `revealError` no TS) — uma
+           falha depois do diálogo de confirmação chega com o usuário no fim da página. -->
+      <div #formErrorBanner tabindex="-1" class="scroll-mt-4 rounded-xl">
+        <app-alert-banner variant="error" [message]="formError" />
+      </div>
     }
 
     <!-- 1-4: veículo, motorista, datas, frequência -->
@@ -321,8 +325,9 @@
             </div>
 
             <app-form-field
-              label="Data da 1ª parcela"
+              label="Data da 1ª cobrança"
               controlId="rental-first-payment"
+              [hint]="firstPaymentHint()"
               [required]="true"
               [control]="form.controls.firstPaymentDate"
               [messages]="firstPaymentMessages"
@@ -613,7 +618,8 @@
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
               </svg>
               <p class="text-xs leading-relaxed">
-                Ao salvar, cobranças serão criadas automaticamente no Asaas.
+                Ao criar, mostramos um resumo das cobranças e você confirma antes de elas
+                irem ao Asaas.
                 @if (isOwner) {
                   Verifique se sua integração está ativa em
                   <a routerLink="/configuracoes/integracoes/asaas" class="underline font-medium">
@@ -639,10 +645,10 @@
       </button>
       @if (!isEdit()) {
         <button type="submit"
-          [disabled]="saving()"
-          class="w-full sm:w-auto px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
+          [disabled]="saving() || previewing()"
+          class="w-full sm:w-auto min-h-[44px] px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
                  text-sm font-semibold shadow-sm disabled:opacity-60">
-          {{ saving() ? 'Criando…' : 'Criar aluguel' }}
+          {{ previewing() ? 'Conferindo cobranças…' : saving() ? 'Criando…' : 'Criar aluguel' }}
         </button>
       } @else if (form.enabled) {
         <button type="submit"
@@ -654,6 +660,46 @@
       }
     </div>
   </form>
+
+  <!-- Confirmação da cobrança automática: criar o aluguel JÁ gera as cobranças no
+       Asaas, então o usuário vê o resumo da prévia antes. "Voltar e editar" não
+       chama nada e devolve o formulário como ele deixou. -->
+  <app-confirm-dialog
+    [open]="chargeConfirmOpen()"
+    title="Criar aluguel e cobranças"
+    [message]="chargeConfirmMessage()"
+    [confirmLabel]="chargeConfirmLabel()"
+    cancelLabel="Voltar e editar"
+    [variant]="chargePreview()?.blocker ? 'warning' : 'info'"
+    [busy]="saving()"
+    (confirmed)="confirmCharges()"
+    (cancelled)="cancelCharges()"
+  >
+    @if (chargePreview(); as summary) {
+      <div class="px-4 sm:px-6 pb-2 space-y-3" data-testid="charge-confirm-body">
+        @if (summary.blocker; as blocker) {
+          <app-alert-banner variant="error" [message]="blocker.message" />
+        } @else {
+          <dl
+            class="rounded-xl border border-neutral-200 bg-neutral-50 divide-y divide-neutral-200"
+            data-testid="charge-confirm-summary"
+          >
+            @for (row of chargeSummaryRows(); track row.label) {
+              <div class="flex items-baseline justify-between gap-3 px-3 py-2.5">
+                <dt class="text-xs font-medium text-neutral-600">{{ row.label }}</dt>
+                <dd class="min-w-0 text-sm font-semibold text-neutral-900 tabular-nums text-right">
+                  {{ row.value }}
+                </dd>
+              </div>
+            }
+          </dl>
+          @if (localChargesNote(); as note) {
+            <app-alert-banner variant="warning" [message]="note" />
+          }
+        }
+      </div>
+    }
+  </app-confirm-dialog>
 
   <app-confirm-dialog
     [open]="missingIntegrationTarget() !== null"

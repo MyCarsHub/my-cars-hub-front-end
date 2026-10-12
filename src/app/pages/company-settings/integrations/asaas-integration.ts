@@ -19,7 +19,7 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { clearServerErrors } from '../../../services/api-error';
 import { SessionService } from '../../../services/session.service';
 import { AsaasIntegrationService } from './asaas-integration.service';
-import { AsaasEnvironment } from './asaas-integration.types';
+import { AsaasEnvironment, AsaasIntegrationStatus } from './asaas-integration.types';
 
 const ASAAS_CONFIG_URL = {
   SANDBOX: 'https://sandbox.asaas.com/config/index',
@@ -60,6 +60,31 @@ export class AsaasIntegration implements OnInit {
   protected readonly loadError = this.service.error;
 
   protected readonly connected = computed(() => this.status()?.connected === true);
+
+  /**
+   * Webhook quebrado: conectado, mas o Asaas recusou o registro — nenhum evento de
+   * pagamento chega e a conciliação fica parada. `webhookStatus` manda; só sem ele
+   * (resposta antiga) vale o booleano, e `undefined` NÃO é falha — é "não sei".
+   */
+  protected readonly webhookBroken = computed(() => {
+    const s = this.status();
+    if (!s?.connected) return false;
+    if (s.webhookStatus) return s.webhookStatus === 'FAILED';
+    return s.webhookAutoConfigured === false;
+  });
+
+  protected readonly webhookOk = computed(() => {
+    const s = this.status();
+    if (!s?.connected) return false;
+    if (s.webhookStatus) return s.webhookStatus === 'REGISTERED';
+    return s.webhookAutoConfigured === true;
+  });
+
+  protected readonly webhookBusy = this.service.webhookBusy;
+  /** Falha HTTP do re-registro (a recusa do Asaas vem no status, não aqui). */
+  protected readonly webhookError = signal<string | null>(null);
+  /** A última tentativa de re-registro terminou sem sucesso (recusa do Asaas). */
+  protected readonly webhookRetryFailed = signal(false);
   protected readonly hasLoaded = computed(() => this.status() !== null);
   protected readonly isPlatformAdmin = computed(() => this.session.isPlatformAdmin());
 
@@ -138,8 +163,17 @@ export class AsaasIntegration implements OnInit {
         environment,
       })
       .subscribe({
-        next: () => {
-          this.notifications.push('success', 'Integração Asaas conectada com sucesso.');
+        next: (status) => {
+          // Conectar devolve 200 mesmo quando o Asaas recusa o webhook: dizer
+          // "conectada com sucesso" aqui esconderia o problema que a tela mostra.
+          if (status.webhookStatus === 'FAILED') {
+            this.notifications.push(
+              'warning',
+              'Integração conectada, mas o webhook não foi registrado. Veja o aviso na página.',
+            );
+          } else {
+            this.notifications.push('success', 'Integração Asaas conectada com sucesso.');
+          }
           // Reset wizard for next time.
           this.step.set(1);
           this.connectForm.reset({ accessToken: '', environment: 'PRODUCTION' });
@@ -156,6 +190,35 @@ export class AsaasIntegration implements OnInit {
           this.formError.set(formMessage);
         },
       });
+  }
+
+  protected reregisterWebhook(): void {
+    if (this.webhookBusy()) return;
+    this.webhookError.set(null);
+    this.webhookRetryFailed.set(false);
+    this.service.reregisterWebhook().subscribe({
+      next: (status) => {
+        if (this.isRegistered(status)) {
+          this.notifications.push('success', 'Webhook registrado no Asaas.');
+        } else {
+          // 200 com FAILED: o Asaas recusou de novo. O banner já mostra o motivo novo.
+          this.webhookRetryFailed.set(true);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.webhookError.set(
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível registrar o webhook agora. Tente novamente.',
+          ),
+        );
+      },
+    });
+  }
+
+  private isRegistered(status: AsaasIntegrationStatus): boolean {
+    if (status.webhookStatus) return status.webhookStatus === 'REGISTERED';
+    return status.webhookAutoConfigured === true;
   }
 
   protected askDisconnect(): void {

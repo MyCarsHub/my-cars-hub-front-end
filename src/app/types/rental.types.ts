@@ -118,6 +118,21 @@ export interface RentalChargeDto {
   periodIndex: number | null;
 }
 
+/**
+ * Resultado da emissão no gateway, devolvido APENAS pelo `POST /v1/rentals`
+ * (aditivo: respostas antigas e o GET não o trazem).
+ *
+ * `failed > 0` quer dizer que o aluguel EXISTE mas parte das cobranças não foi
+ * criada no Asaas agora — o backend tenta de novo sozinho e cada linha FAILED
+ * tem "Regerar". `local` são as que nunca iriam ao gateway (vencimento passado).
+ */
+export interface RentalChargeSyncDto {
+  requested: number;
+  created: number;
+  failed: number;
+  local: number;
+}
+
 export interface RentalResponseDto {
   id: string;
   vehicleId: string;
@@ -158,6 +173,8 @@ export interface RentalResponseDto {
   franchiseKm: number | null;
   returnFuelPolicy: string | null;
   charges: RentalChargeDto[];
+  /** Só na resposta do create. Ver {@link RentalChargeSyncDto}. */
+  chargeSync?: RentalChargeSyncDto | null;
   createdAt: string;
   modifiedAt: string;
   // Encerramento (COMPLETED / CANCELED).
@@ -267,6 +284,71 @@ export interface CreateRentalRequest {
   // V32
   franchiseKm?: number | null;
   returnFuelPolicy?: string | null;
+}
+
+/**
+ * Chave do `state` de navegação com que o formulário entrega o `chargeSync` ao
+ * detalhe logo após criar. É estado de UMA navegação (não persiste em recarga),
+ * porque o aviso só é verdade no instante da criação.
+ */
+export const RENTAL_CHARGE_SYNC_STATE_KEY = 'chargeSync';
+
+/** Para onde a cobrança da prévia vai: gateway (Asaas) ou só registro local. */
+export type ChargePreviewDestination = 'ASAAS' | 'LOCAL';
+
+export interface RentalChargePreviewItemDto {
+  kind: 'RENTAL_PERIOD' | 'CAUCAO';
+  index: number;
+  dueDate: string; // yyyy-MM-dd
+  amountCents: number;
+  destination: ChargePreviewDestination;
+}
+
+/** Motivo pelo qual o aluguel NÃO pode ser criado com estes dados. */
+export interface RentalChargePreviewBlockerDto {
+  code: string;
+  message: string;
+}
+
+/**
+ * `POST /v1/rentals/charge-preview` — mesmo corpo do create, nada é gravado e
+ * nenhum gateway é chamado. É o que o diálogo de confirmação mostra.
+ */
+export interface RentalChargePreviewDto {
+  automaticCharge: boolean;
+  willCreateInGateway: boolean;
+  charges: RentalChargePreviewItemDto[];
+  totalCents: number;
+  gatewayCount: number;
+  localCount: number;
+  firstDueDate: string | null;
+  blocker: RentalChargePreviewBlockerDto | null;
+}
+
+/**
+ * `POST /v1/rentals/{id}/charges/{chargeId}/reconcile` — o gateway é consultado
+ * e o veredito COPIADO; nunca é baixa manual. `NO_CHANGE` inclui "inconclusivo".
+ */
+export interface RentalChargeReconcileDto {
+  outcome: 'SYNCED' | 'NO_CHANGE';
+  /** Veredito cru do gateway — para dizer ao dono o que o provedor respondeu. */
+  remoteStatus: string | null;
+  /** Status local depois da reconciliação. */
+  status: ChargeStatus;
+}
+
+/**
+ * Resultado de `POST /v1/rentals/{id}/charges/{chargeId}/retry`.
+ *
+ * `CANCELED` e `SKIPPED` são os dois desfechos em que NADA foi reemitido: o
+ * aluguel já não estava em andamento (ou a caução foi recebida por fora), ou a
+ * cobrança mudou de estado no meio da chamada (ex.: webhook de pagamento).
+ */
+export interface RentalChargeRetryDto {
+  outcome: 'RETRIED' | 'ALREADY_PAID' | 'ALREADY_REFUNDED' | 'CANCELED' | 'SKIPPED';
+  externalId: string | null;
+  checkoutUrl: string | null;
+  retryCount: number;
 }
 
 export interface RentalFilters {

@@ -24,11 +24,14 @@ export class AsaasIntegrationService {
   private readonly _loading = signal(false);
   private readonly _saving = signal(false);
   private readonly _error = signal<string | null>(null);
+  private readonly _webhookBusy = signal(false);
 
   readonly status = this._status.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly saving = this._saving.asReadonly();
   readonly error = this._error.asReadonly();
+  /** Re-registro do webhook em voo — separado de `saving` para não travar o resto. */
+  readonly webhookBusy = this._webhookBusy.asReadonly();
 
   load(): Observable<AsaasIntegrationStatus> {
     this._loading.set(true);
@@ -61,6 +64,21 @@ export class AsaasIntegrationService {
       tap((res) => this._status.set(res)),
       catchError((err: HttpErrorResponse) => throwError(() => err)),
       finalize(() => this._saving.set(false)),
+    );
+  }
+
+  /**
+   * Registra o webhook de novo na conta Asaas já conectada, sem pedir a chave.
+   * A recusa do Asaas NÃO é erro HTTP: volta 200 com `webhookStatus = 'FAILED'`
+   * e o motivo, então quem chama lê o status devolvido.
+   *
+   *   POST /companies/current/integrations/asaas/webhook -> AsaasIntegrationStatus
+   */
+  reregisterWebhook(): Observable<AsaasIntegrationStatus> {
+    this._webhookBusy.set(true);
+    return this.http.post<AsaasIntegrationStatus>(`${BASE}/webhook`, {}).pipe(
+      tap((res) => this._status.set(res)),
+      finalize(() => this._webhookBusy.set(false)),
     );
   }
 
