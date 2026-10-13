@@ -65,6 +65,7 @@
           >
             {{ impersonationStarting() ? 'Abrindo sessão…' : 'Ver como empresa (leitura)' }}
           </button>
+          <app-support-edit-entry [companyId]="company.id" [companyName]="company.name" />
           @if (company.active) {
             <button
               type="button"

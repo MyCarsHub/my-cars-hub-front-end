@@ -17,6 +17,7 @@ import {
   RentalChargeDto,
   RentalChargePreviewDto,
   RentalChargeReconcileDto,
+  ChargeCancelResponse,
   RentalChargeRetryDto,
   RentalDocumentDto,
   RentalFilters,
@@ -456,6 +457,23 @@ export class RentalService {
     return this.http.post<RentalChargeDto>(
       `${BASE}/${rentalId}/charges/${chargeId}/unmark-paid`,
       {},
+    );
+  }
+
+  /**
+   * Cancela UMA cobrança de caução aberta (`POST .../charges/{chargeId}/cancel`).
+   * O corpo só existe quando há observação — `note` vazia não viaja. O
+   * desfecho vem em `outcome`; ver `ChargeCancelOutcome`.
+   */
+  cancelCharge(
+    rentalId: string,
+    chargeId: string,
+    note?: string,
+  ): Observable<ChargeCancelResponse> {
+    const trimmed = note?.trim();
+    return this.http.post<ChargeCancelResponse>(
+      `${BASE}/${rentalId}/charges/${chargeId}/cancel`,
+      trimmed ? { note: trimmed } : {},
     );
   }
 

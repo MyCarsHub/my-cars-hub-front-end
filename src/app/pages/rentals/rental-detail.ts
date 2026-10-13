@@ -24,6 +24,8 @@ import {
   overdueUnpaidGatewayCharges,
   shouldWarnAboutGatewayCharges,
 } from '../../utils/rental-charges';
+import { ImpersonationService } from '../../services/impersonation.service';
+import { isToastedBySupportEditInterceptor } from '../../services/support-edit-errors';
 import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -50,6 +52,8 @@ import {
   CancelRentalPayload,
   CompleteRentalPayload,
   RENTAL_CHARGE_SYNC_STATE_KEY,
+  ChargeCancelOutcome,
+  ChargeCancelResponse,
   RentalChargeDto,
   RentalChargeReconcileDto,
   RentalChargeRetryDto,
@@ -1164,6 +1168,149 @@ export class RentalDetail implements OnInit {
       return 'Conferido: o Asaas ainda mostra esta cobrança como pendente. Nada mudou.';
     }
     return 'Conferido no Asaas. Nada mudou.';
+  }
+
+  // ------- Cancelar cobrança de caução (UMA cobrança, com confirmação) -------
+  //
+  // Elegibilidade espelha o backend: só a CAUÇÃO, só em aberto (PENDING /
+  // PAST_DUE / FAILED — `isOpenChargeStatus`, a fonte única) e não contestada
+  // (DISPUTED não é "aberta"). O DTO não traz `disputedAt`: uma cobrança
+  // contestada que ainda conste como PENDING é recusada pelo servidor (409).
+  // Negativo ("não é motorista") de propósito: o token de "Ver como empresa"
+  // não carrega papel.
+
+  /** Sessão "Ver como empresa" (leitura): cancelar/gerar ficam fora, com explicação. */
+  protected readonly readOnlySession = inject(ImpersonationService).readOnly;
+  protected readonly cancelChargeTarget = signal<RentalChargeDto | null>(null);
+  protected readonly cancelChargeNote = signal('');
+  protected readonly cancelChargeBusy = signal(false);
+  protected readonly cancelChargeResult = signal<{
+    tone: 'success' | 'warning' | 'info';
+    message: string;
+    hint: string | null;
+  } | null>(null);
+  protected readonly generatingCaucao = signal(false);
+
+  protected canCancelCaucaoCharge(charge: RentalChargeDto): boolean {
+    return (
+      !this.isDriver &&
+      !this.readOnlySession() &&
+      charge.kind === 'CAUCAO' &&
+      isOpenChargeStatus(charge.status)
+    );
+  }
+
+  /**
+   * Depois de cancelar, o card oferece gerar outra: caução configurada, não
+   * recebida, linha da caução terminal-cancelada, aluguel ainda em curso.
+   */
+  protected readonly canGenerateCaucaoCharge = computed<boolean>(() => {
+    const r = this.rental();
+    const cc = this.caucaoCharge();
+    if (!r || !cc || this.isDriver || this.readOnlySession()) return false;
+    if (cc.status !== 'CANCELED') return false;
+    if (r.caucaoAmount <= 0 || r.caucaoPaid) return false;
+    return r.status === 'RESERVED' || r.status === 'ACTIVE';
+  });
+
+  protected askCancelCharge(charge: RentalChargeDto): void {
+    if (!this.canCancelCaucaoCharge(charge) || this.cancelChargeBusy()) return;
+    this.cancelChargeNote.set('');
+    this.cancelChargeTarget.set(charge);
+  }
+
+  protected closeCancelCharge(): void {
+    if (this.cancelChargeBusy()) return;
+    this.cancelChargeTarget.set(null);
+  }
+
+  protected onCancelChargeNote(event: Event): void {
+    this.cancelChargeNote.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected confirmCancelCharge(): void {
+    const r = this.rental();
+    const charge = this.cancelChargeTarget();
+    if (!r || !charge || this.cancelChargeBusy()) return;
+    this.actionError.set(null);
+    this.cancelChargeResult.set(null);
+    this.cancelChargeBusy.set(true);
+    this.rentalService.cancelCharge(r.id, charge.id, this.cancelChargeNote()).subscribe({
+      next: (res) => {
+        this.cancelChargeBusy.set(false);
+        this.cancelChargeTarget.set(null);
+        this.cancelChargeResult.set(this.cancelChargeOutcome(res));
+        this.reloadRental(r.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.cancelChargeBusy.set(false);
+        this.cancelChargeTarget.set(null);
+        if (isToastedBySupportEditInterceptor(err)) return;
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível cancelar a cobrança. Tente novamente.'),
+        );
+      },
+    });
+  }
+
+  /** Uma frase por desfecho + o `hint` do servidor, quando houver. */
+  private cancelChargeOutcome(res: ChargeCancelResponse): {
+    tone: 'success' | 'warning' | 'info';
+    message: string;
+    hint: string | null;
+  } {
+    const messages: Record<
+      ChargeCancelOutcome,
+      { tone: 'success' | 'warning' | 'info'; text: string }
+    > = {
+      REMOVED_AT_GATEWAY: {
+        tone: 'success',
+        text: 'Cobrança da caução cancelada e removida do Asaas.',
+      },
+      NO_GATEWAY_LINK: {
+        tone: 'success',
+        text: 'Cobrança da caução cancelada. Ela não tinha vínculo com o Asaas, então nada foi removido lá.',
+      },
+      REMOVAL_PENDING_SWEEP: {
+        tone: 'warning',
+        text: 'Cobrança da caução cancelada aqui, mas a remoção no Asaas ainda está pendente. O sistema tenta de novo sozinho.',
+      },
+      ALREADY_CLOSED: {
+        tone: 'info',
+        text: 'Esta cobrança já estava encerrada. Nada foi alterado.',
+      },
+      ALREADY_PAID: {
+        tone: 'info',
+        text: 'O motorista já pagou esta cobrança, então nada foi cancelado.',
+      },
+    };
+    const entry = messages[res.outcome] ?? {
+      tone: 'info' as const,
+      text: 'Pedido de cancelamento processado. Confira a situação da cobrança.',
+    };
+    return { tone: entry.tone, message: entry.text, hint: res.hint?.trim() || null };
+  }
+
+  protected generateCaucaoCharge(): void {
+    const r = this.rental();
+    if (!r || this.generatingCaucao() || !this.canGenerateCaucaoCharge()) return;
+    this.actionError.set(null);
+    this.cancelChargeResult.set(null);
+    this.generatingCaucao.set(true);
+    this.rentalService.createCaucaoCharge(r.id).subscribe({
+      next: () => {
+        this.generatingCaucao.set(false);
+        this.notifications.push('success', 'Nova cobrança da caução gerada.');
+        this.reloadRental(r.id);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.generatingCaucao.set(false);
+        if (isToastedBySupportEditInterceptor(err)) return;
+        this.actionError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível gerar a cobrança da caução.'),
+        );
+      },
+    });
   }
 
   /** Recarrega o aluguel (cobranças inclusive) sem mexer no resto da tela. */
