@@ -6,6 +6,9 @@ import { apiPath, isAdminApiRequest, isApiRequest } from './auth.interceptor';
 import {
   IMPERSONATION_ERROR_CODES,
   IMPERSONATION_READ_ONLY_MESSAGE,
+  SUPPORT_EDIT_ERROR_CODES,
+  SUPPORT_EDIT_ROUTE_NOT_ALLOWED_MESSAGE,
+  SUPPORT_EDIT_WRITE_ROUTES,
   USE_ADMIN_TOKEN,
 } from './impersonation.context';
 import { ImpersonationService } from './impersonation.service';
@@ -24,6 +27,14 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
  * empresa enquanto o resto da interface aponta outra.
  */
 const AUTH_PATH_STILL_BLOCKED = '/auth/select-company';
+
+/** Sessão de EDIÇÃO: só os pares (método, caminho) registrados escrevem. */
+function isAllowedEditWrite(method: string, url: string): boolean {
+  const path = apiPath(url);
+  if (path === null) return false;
+  const verb = method.toUpperCase();
+  return SUPPORT_EDIT_WRITE_ROUTES.some((r) => r.method === verb && r.path.test(path));
+}
 
 /**
  * Operações de CREDENCIAL, não mutação de dado do cliente.
@@ -77,6 +88,34 @@ export const impersonationInterceptor: HttpInterceptorFn = (req, next) => {
   // de a sessão somente-leitura ter sido desfeita corretamente.
   if (isCredentialRequest(req.url)) {
     return next(req);
+  }
+
+  // `?.`: os dublês das specs de LEITURA (intocadas) não conhecem `editMode`.
+  const editMode = impersonation.editMode?.() === true;
+
+  if (editMode && !SAFE_METHODS.has(req.method.toUpperCase())) {
+    if (isAllowedEditWrite(req.method, req.url)) {
+      return next(req).pipe(
+        tap((event) => {
+          if (!(event instanceof HttpResponse)) return;
+          if (event.headers.get(HEADER_IMPERSONATION) !== 'true') return;
+          impersonation.reconcile(event.headers.get(HEADER_IMPERSONATED_COMPANY));
+        }),
+      );
+    }
+    notifications.warning(SUPPORT_EDIT_ROUTE_NOT_ALLOWED_MESSAGE);
+    return throwError(
+      () =>
+        new HttpErrorResponse({
+          status: 403,
+          statusText: 'Forbidden',
+          url: req.url,
+          error: {
+            code: SUPPORT_EDIT_ERROR_CODES.routeNotAllowed,
+            message: SUPPORT_EDIT_ROUTE_NOT_ALLOWED_MESSAGE,
+          },
+        }),
+    );
   }
 
   if (!SAFE_METHODS.has(req.method.toUpperCase())) {

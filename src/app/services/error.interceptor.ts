@@ -19,6 +19,8 @@ import { ImpersonationService } from './impersonation.service';
 import {
   IMPERSONATION_ERROR_CODES,
   IMPERSONATION_READ_ONLY_MESSAGE,
+  SUPPORT_EDIT_ERROR_CODES,
+  SUPPORT_EDIT_ROUTE_NOT_ALLOWED_MESSAGE,
   USE_ADMIN_TOKEN,
 } from './impersonation.context';
 
@@ -159,6 +161,23 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       if (status === 403 && isReadOnlyRefusal(parsed, impersonation.active())) {
         notifications.warning(IMPERSONATION_READ_ONLY_MESSAGE);
+        return throwError(() => error);
+      }
+
+      // Sessão de EDIÇÃO: rota fora da allow-list do servidor, chave desligada no
+      // meio da sessão e teto de escritas. Nenhum é "Acesso negado" genérico.
+      if (status === 403 && parsed.code === SUPPORT_EDIT_ERROR_CODES.routeNotAllowed) {
+        notifications.warning(SUPPORT_EDIT_ROUTE_NOT_ALLOWED_MESSAGE);
+        return throwError(() => error);
+      }
+      if (status === 403 && impersonation.active() && parsed.code === SUPPORT_EDIT_ERROR_CODES.disabled) {
+        notifications.warning('O modo edição foi desligado. Encerre a sessão para continuar.');
+        return throwError(() => error);
+      }
+      if (status === 429 && parsed.code === SUPPORT_EDIT_ERROR_CODES.writeCapReached) {
+        notifications.warning(
+          'Limite de alterações desta sessão de edição atingido. Encerre e abra outra sessão se precisar continuar.',
+        );
         return throwError(() => error);
       }
 

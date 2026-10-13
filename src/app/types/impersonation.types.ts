@@ -14,6 +14,25 @@ export interface ImpersonationStartResponse {
   companyName: string;
   startedAt: string;
   expiresAt: string;
+  /**
+   * Só a resposta de `POST /v1/admin/impersonation/edit` (e `/extend`) traz
+   * estes campos; a de leitura não. `mode` é o que o SERVIDOR declarou.
+   */
+  mode?: string;
+  absoluteExpiresAt?: string;
+  extensionCount?: number;
+}
+
+/** Modo da sessão de impersonação: leitura (padrão) ou edição de suporte. */
+export type ImpersonationMode = 'READ' | 'EDIT';
+
+/** `GET /v1/admin/impersonation/edit/status` — a chave e os limites em vigor. */
+export interface SupportEditStatus {
+  enabled: boolean;
+  ttlMinutes: number;
+  extensionStepMinutes: number;
+  absoluteCapMinutes: number;
+  writeCap: number;
 }
 
 /**
@@ -39,6 +58,14 @@ export interface ImpersonationState {
    * tempo do que existe — no máximo alguns milissegundos a menos.
    */
   clockOffsetMs: number;
+  /**
+   * Modo declarado pelo servidor na abertura. Ausente nas sessões gravadas
+   * antes da edição existir — leia como `READ`.
+   */
+  mode?: ImpersonationMode;
+  /** Teto absoluto da sessão de edição (ISO-8601); a extensão nunca passa dele. */
+  absoluteExpiresAt?: string;
+  extensionCount?: number;
 }
 
 /**

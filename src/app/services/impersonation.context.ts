@@ -68,3 +68,27 @@ export const IMPERSONATION_CLAIM = 'impersonation';
  * sem dependências, exatamente para isso.
  */
 export const IMPERSONATED_ROLE = 'OWNER';
+
+/**
+ * Pares (método, caminho) que uma sessão de EDIÇÃO pode escrever — espelho da
+ * lista do backend. Tudo o mais é barrado antes de sair do browser. O servidor
+ * continua sendo a autoridade (403 `SUPPORT_EDIT_ROUTE_NOT_ALLOWED`).
+ * Regex ANCORADAS sobre o caminho sem query: prefixo solto deixaria passar
+ * `/rentals/x/charges/y/cancel/../../..`.
+ */
+export const SUPPORT_EDIT_WRITE_ROUTES: ReadonlyArray<{ method: string; path: RegExp }> = [
+  { method: 'PUT', path: /^\/rentals\/[^/]+$/ },
+  { method: 'POST', path: /^\/rentals\/[^/]+\/charges\/[^/]+\/cancel$/ },
+  { method: 'POST', path: /^\/rentals\/[^/]+\/caucao-charge$/ },
+];
+
+export const SUPPORT_EDIT_ERROR_CODES = {
+  disabled: 'SUPPORT_EDIT_DISABLED',
+  alreadyActive: 'SUPPORT_EDIT_ALREADY_ACTIVE',
+  extensionRefused: 'SUPPORT_EDIT_EXTENSION_REFUSED',
+  routeNotAllowed: 'SUPPORT_EDIT_ROUTE_NOT_ALLOWED',
+  writeCapReached: 'SUPPORT_EDIT_WRITE_CAP_REACHED',
+} as const;
+
+export const SUPPORT_EDIT_ROUTE_NOT_ALLOWED_MESSAGE =
+  'Esta ação não está disponível no modo edição. Encerre a sessão e use a tela da própria empresa.';

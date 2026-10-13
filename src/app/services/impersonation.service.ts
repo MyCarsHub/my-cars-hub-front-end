@@ -8,6 +8,7 @@ import { LayoutStore } from '../components/core/layouts/layout.store';
 import {
   IMPERSONATION_FROZEN_KEYS,
   ImpersonationAdminContext,
+  ImpersonationMode,
   ImpersonationStartResponse,
   ImpersonationState,
 } from '../types/impersonation.types';
@@ -111,8 +112,18 @@ export class ImpersonationService {
   readonly active = computed(() => this._state() !== null);
   readonly companyName = computed(() => this._state()?.companyName ?? '');
   readonly companyId = computed(() => this._state()?.companyId ?? null);
-  /** Sempre igual a `active()` hoje; nomeado à parte porque é o que a UI consulta. */
-  readonly readOnly = computed(() => this._state() !== null);
+  /**
+   * Modo que o SERVIDOR declarou na abertura (resposta / claim `mode` do
+   * token). Sessões sem `mode` são de leitura.
+   */
+  readonly mode = computed<ImpersonationMode | null>(() => {
+    const s = this._state();
+    if (!s) return null;
+    return s.mode === 'EDIT' ? 'EDIT' : 'READ';
+  });
+  readonly editMode = computed(() => this.mode() === 'EDIT');
+  /** Sessão ativa E de leitura; em modo edição a escrita permitida segue a allow-list. */
+  readonly readOnly = computed(() => this.mode() === 'READ');
 
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
   /** Evita DELETE duplicado quando o usuário clica duas vezes em "Encerrar". */
@@ -150,6 +161,60 @@ export class ImpersonationService {
     return this.http
       .post<ImpersonationStartResponse>(API_BASE, { companyId })
       .pipe(map((response) => this.begin(response)));
+  }
+
+  /**
+   * Abre a sessão de EDIÇÃO de suporte (`POST .../edit`). Mesmo ciclo de
+   * credenciais da leitura; o `mode` vem da resposta do servidor.
+   */
+  startEdit(companyId: string): Observable<ImpersonationState> {
+    if (this.active()) {
+      return throwError(
+        () => new Error('Já existe uma sessão de impersonação ativa nesta aba.'),
+      );
+    }
+    return this.http
+      .post<ImpersonationStartResponse>(`${API_BASE}/edit`, { companyId })
+      .pipe(map((response) => this.begin(response)));
+  }
+
+  /**
+   * Estende a sessão de edição. O servidor devolve um token NOVO (com o
+   * `exp` ampliado): ele substitui o ativo e o estado é regravado — o token
+   * antigo continuaria vencendo no horário antigo. Viaja com a credencial
+   * administrativa, como o encerramento.
+   */
+  extendEdit(): Observable<ImpersonationState> {
+    const current = this._state();
+    if (!current || current.mode !== 'EDIT') {
+      return throwError(() => new Error('Não há sessão de edição ativa para estender.'));
+    }
+    return this.http
+      .post<ImpersonationStartResponse>(
+        `${API_BASE}/edit/${current.sessionId}/extend`,
+        {},
+        { context: new HttpContext().set(USE_ADMIN_TOKEN, true) },
+      )
+      .pipe(
+        map((response) => {
+          // A sessão pode ter acabado enquanto o POST voava.
+          const live = this._state();
+          if (!live || live.sessionId !== current.sessionId) {
+            throw new Error('A sessão de edição mudou enquanto o pedido de extensão voava.');
+          }
+          const next: ImpersonationState = {
+            ...live,
+            expiresAt: response.expiresAt,
+            absoluteExpiresAt: response.absoluteExpiresAt ?? live.absoluteExpiresAt,
+            extensionCount: response.extensionCount ?? live.extensionCount,
+          };
+          this.session.setToken(response.token);
+          this.session.setItem(IMPERSONATION_STATE_KEY, JSON.stringify(next));
+          this._state.set(next);
+          this.armExpiryTimer(next);
+          return next;
+        }),
+      );
   }
 
   /**
@@ -291,6 +356,11 @@ export class ImpersonationService {
       expiresAt: response.expiresAt,
       clockOffsetMs: this.measureClockOffset(response.startedAt),
     };
+    if (response.mode === 'EDIT') {
+      state.mode = 'EDIT';
+      state.absoluteExpiresAt = response.absoluteExpiresAt;
+      state.extensionCount = response.extensionCount ?? 0;
+    }
     this.session.setItem(IMPERSONATION_STATE_KEY, JSON.stringify(state));
 
     // A troca de credencial vem por último: até aqui, qualquer falha deixa o
@@ -506,7 +576,7 @@ export class ImpersonationService {
       if (!sessionId || !companyId || !expiresAt) return null;
       if (Number.isNaN(Date.parse(expiresAt))) return null;
       const offset = record['clockOffsetMs'];
-      return {
+      const result: ImpersonationState = {
         sessionId,
         companyId,
         companyName: this.asStringOrNull(record['companyName']) ?? 'empresa',
@@ -514,6 +584,14 @@ export class ImpersonationService {
         expiresAt,
         clockOffsetMs: typeof offset === 'number' && Number.isFinite(offset) ? offset : 0,
       };
+      if (record['mode'] === 'EDIT') {
+        result.mode = 'EDIT';
+        const absolute = this.asStringOrNull(record['absoluteExpiresAt']);
+        if (absolute && !Number.isNaN(Date.parse(absolute))) result.absoluteExpiresAt = absolute;
+        const count = record['extensionCount'];
+        result.extensionCount = typeof count === 'number' && Number.isFinite(count) ? count : 0;
+      }
+      return result;
     } catch {
       return null;
     }

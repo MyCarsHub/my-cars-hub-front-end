@@ -28,6 +28,7 @@ import {
   AdminCompanyStatus,
   AdminCompanySubscriptionStatus,
 } from '../../../types/admin-company.types';
+import { SupportEditEntry } from './support-edit-entry';
 import { formatBRL } from '../../../types/dashboard.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
 
@@ -107,7 +108,14 @@ const CONFIRMATION_WORD = 'SUSPENDER';
 @Component({
   selector: 'app-admin-company-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackLink, ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner],
+  imports: [
+    BackLink,
+    ReactiveFormsModule,
+    DefaultPageLayout,
+    PageCard,
+    AlertBanner,
+    SupportEditEntry,
+  ],
   templateUrl: './admin-company-detail.html',
 })
 export class AdminCompanyDetail implements OnInit, OnDestroy {

@@ -1,4 +1,29 @@
-<app-impersonation-banner />
+@if (!editMode()) {
+  <app-impersonation-banner />
+}
+@if (editBanner(); as banner) {
+  <ng-container *ngComponentOutlet="banner" />
+} @else if (editMode()) {
+  <div
+    role="alert"
+    class="fixed inset-x-0 top-0 z-[100] flex h-14 items-center gap-2 border-b border-rose-900
+           bg-rose-700 px-3 text-white shadow-md sm:px-6"
+    data-testid="edit-banner-fallback"
+  >
+    <p class="min-w-0 flex-1 truncate text-xs font-bold uppercase tracking-wide sm:text-sm">
+      Modo edição ativo · {{ editCompany() }}
+    </p>
+    <button
+      type="button"
+      class="min-h-11 shrink-0 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-800
+             hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white
+             focus-visible:ring-offset-2 focus-visible:ring-offset-rose-700"
+      (click)="endEdit()"
+    >
+      Encerrar
+    </button>
+  </div>
+}
 @if (maintenance()) {
   <app-system-maintenance-page class="fixed inset-0 z-[1000] overflow-y-auto bg-gray-50" />
 }

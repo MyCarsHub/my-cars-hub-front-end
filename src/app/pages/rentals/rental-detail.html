@@ -277,6 +277,18 @@
                   >
                     {{ caucaoChipInfo(cc).label }}
                   </span>
+                  @if (canCancelCaucaoCharge(cc)) {
+                    <button
+                      type="button"
+                      (click)="askCancelCharge(cc)"
+                      class="min-h-11 px-3 rounded-xl border border-rose-200 bg-white text-xs
+                             font-semibold text-rose-700 hover:bg-rose-50 focus:outline-none
+                             focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                      data-testid="cancel-caucao-charge"
+                    >
+                      Cancelar cobrança
+                    </button>
+                  }
                   @if (canMarkAsPaid(cc) && !caucaoReceivedOutside()) {
                     <button
                       type="button"
@@ -364,6 +376,18 @@
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                           >
                             {{ reconciling() === cc.id ? 'Conferindo…' : 'Conferir no Asaas' }}
+                          </button>
+                        }
+                        @if (canCancelCaucaoCharge(cc)) {
+                          <button
+                            type="button"
+                            (click)="askCancelCharge(cc)"
+                            class="min-h-11 px-3 rounded-xl border border-rose-200 bg-white text-xs
+                                   font-semibold text-rose-700 hover:bg-rose-50 focus:outline-none
+                                   focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+                            data-testid="cancel-caucao-charge-desktop"
+                          >
+                            Cancelar cobrança
                           </button>
                         }
                         @if (canMarkAsPaid(cc) && !caucaoReceivedOutside()) {
@@ -517,6 +541,34 @@
             </p>
           }
 
+          @if (readOnlySession() && caucaoCharge()) {
+            <p class="text-xs text-neutral-500" data-testid="cancel-charge-readonly-note">
+              Sessão somente leitura: para cancelar ou gerar a cobrança da caução, abra o modo edição
+              na página da empresa.
+            </p>
+          }
+          @if (cancelChargeResult(); as res) {
+            <div data-testid="cancel-charge-result">
+              <app-alert-banner
+                [variant]="res.tone"
+                [message]="res.hint ? res.message + ' ' + res.hint : res.message"
+              />
+            </div>
+          }
+          @if (canGenerateCaucaoCharge()) {
+            <button
+              type="button"
+              (click)="generateCaucaoCharge()"
+              [disabled]="generatingCaucao()"
+              class="min-h-11 w-full sm:w-auto px-4 rounded-xl border border-neutral-200 bg-white
+                     text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                     disabled:opacity-60"
+              data-testid="generate-caucao-charge"
+            >
+              {{ generatingCaucao() ? 'Gerando…' : 'Gerar nova cobrança da caução' }}
+            </button>
+          }
           @if (caucaoReceivedOutside()) {
             <p class="text-[11px] text-neutral-500" data-testid="caucao-received-note">
               Caução marcada como recebida — nenhuma cobrança será feita no Asaas.
@@ -1097,3 +1149,31 @@
   (confirmed)="confirmUnmarkCaucaoAsPaid()"
   (cancelled)="cancelUnmarkCaucaoAsPaid()"
 />
+
+<app-confirm-dialog
+  [open]="cancelChargeTarget() !== null"
+  title="Cancelar cobrança da caução?"
+  message="A cobrança será removida do Asaas; se o motorista já pagou, nada é cancelado."
+  confirmLabel="Confirmar cancelamento"
+  cancelLabel="Manter cobrança"
+  variant="danger"
+  [busy]="cancelChargeBusy()"
+  (confirmed)="confirmCancelCharge()"
+  (cancelled)="closeCancelCharge()"
+>
+  <div class="px-4 sm:px-6 pb-2">
+    <label for="cancel-charge-note" class="block text-xs font-medium text-neutral-600">
+      Observação (opcional)
+    </label>
+    <textarea
+      id="cancel-charge-note"
+      rows="3"
+      maxlength="500"
+      [value]="cancelChargeNote()"
+      (input)="onCancelChargeNote($event)"
+      class="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-base
+             text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-400
+             focus:border-primary-400"
+    ></textarea>
+  </div>
+</app-confirm-dialog>
