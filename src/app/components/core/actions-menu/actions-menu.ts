@@ -144,6 +144,18 @@ export class ActionsMenu {
     if (focusTrigger) this.triggerRef().nativeElement.focus();
   }
 
+  /**
+   * Clique fora: devolve o foco ao gatilho só se ele estaria "perdido" (corpo da
+   * página ou dentro do painel); não rouba o foco do controle que o usuário clicou.
+   */
+  protected closeOutside(): void {
+    if (!this.open()) return;
+    const active = this.document.activeElement;
+    const menu = this.menuRef()?.nativeElement;
+    const lost = !active || active === this.document.body || !!menu?.contains(active);
+    this.close(lost);
+  }
+
   protected onTriggerKeydown(event: KeyboardEvent): void {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
@@ -189,7 +201,7 @@ export class ActionsMenu {
   /** Fecha ao acionar um item (o item já executou sua própria ação). */
   protected onMenuClick(event: Event): void {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('[role="menuitem"]')) this.close(false);
+    if (target?.closest('[role="menuitem"]')) this.close(true);
   }
 
   /** Impede que o clique vaze para a linha/card clicável que envolve o menu. */

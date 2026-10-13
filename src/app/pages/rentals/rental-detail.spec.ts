@@ -65,7 +65,21 @@ function flushAncillary(http: HttpTestingController): void {
 
 function buttonsLabeled(fixture: ComponentFixture<RentalDetail>, label: string): HTMLButtonElement[] {
   const all = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-  return all.filter((b) => (b.textContent ?? '').includes(label));
+  const found = all.filter((b) => (b.textContent ?? '').includes(label));
+  // As ações de cobrança vivem em menus de três pontos (itens só existem com o
+  // menu aberto): abre um por vez, coleta os itens e fecha.
+  const triggers = all.filter((b) => b.getAttribute('aria-haspopup') === 'menu');
+  for (const trigger of triggers) {
+    trigger.click();
+    fixture.detectChanges();
+    const items = Array.from(
+      fixture.nativeElement.querySelectorAll('[role="menu"] [role="menuitem"]'),
+    ) as HTMLButtonElement[];
+    found.push(...items.filter((b) => (b.textContent ?? '').includes(label)));
+    trigger.click();
+    fixture.detectChanges();
+  }
+  return found;
 }
 
 async function mount(rental: RentalResponseDto): Promise<{
@@ -373,15 +387,20 @@ describe('RentalDetail — erro de operação que NÃO é ativação', () => {
     scrollSpy.mockRestore();
   });
 
-  it('erro ao regerar cobrança mostra o banner sem rolar a página nem mover o foco', async () => {
-    const [regerar] = buttonsLabeled(fixture, 'Regerar');
-    expect(regerar, 'botão "Regerar" não renderizou').toBeTruthy();
-
-    regerar.focus();
-    expect(document.activeElement, 'pré-condição: foco no botão').toBe(regerar);
+  it('erro ao regerar cobrança mostra o banner sem rolar a página nem levar o foco ao banner', async () => {
+    const trigger = fixture.nativeElement.querySelector(
+      '[aria-haspopup="menu"]',
+    ) as HTMLButtonElement | null;
+    expect(trigger, 'menu de ações da cobrança não renderizou').toBeTruthy();
+    trigger?.click();
+    fixture.detectChanges();
+    const regerar = (
+      Array.from(fixture.nativeElement.querySelectorAll('[role="menuitem"]')) as HTMLButtonElement[]
+    ).find((b) => (b.textContent ?? '').includes('Regerar'));
+    expect(regerar, 'item "Regerar" não renderizou').toBeTruthy();
     scrollSpy.mockClear();
 
-    regerar.click();
+    regerar?.click();
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -396,7 +415,7 @@ describe('RentalDetail — erro de operação que NÃO é ativação', () => {
     expect(banner?.textContent).toContain('Provedor indisponível.');
 
     expect(scrollSpy, 'a página rolou numa operação que não é ativação').not.toHaveBeenCalled();
-    expect(document.activeElement, 'o foco saiu do botão que o usuário quer reusar').toBe(regerar);
+    expect(document.activeElement, 'o banner roubou o foco').not.toBe(banner);
   });
 });
 
@@ -654,7 +673,7 @@ describe('RentalDetail — "Pagar" continua visível na cobrança atrasada', () 
    * era verde contra o bug. A carga que realmente distingue o gate novo do
    * velho é `PAST_DUE` no status cru, que é o que o backend passou a mandar.
    */
-  it('aluguel MANUAL com PAST_DUE persistido oferece "Pagar" E "Marcar como paga"', async () => {
+  it('aluguel MANUAL com PAST_DUE persistido (no gateway) oferece "Pagar" e NÃO a baixa manual (FIX-0727)', async () => {
     const { fixture } = await mount({
       ...RESERVED_BASE,
       status: 'ACTIVE',
@@ -665,8 +684,8 @@ describe('RentalDetail — "Pagar" continua visível na cobrança atrasada', () 
     expect(buttonsLabeled(fixture, 'Pagar').length, 'mobile + desktop').toBe(2);
     expect(
       buttonsLabeled(fixture, 'Marcar como paga').length,
-      'a baixa manual não pode desaparecer porque a cobrança atrasou',
-    ).toBe(2);
+      'cobrança com id/link no gateway não expõe baixa manual',
+    ).toBe(0);
   });
 
   it('PENDING a vencer continua com o botão — nada regrediu no caso feliz', async () => {
@@ -755,7 +774,7 @@ describe('RentalDetail — "Pagar" continua visível na cobrança atrasada', () 
     // Guarda de vacuidade: sem isto, uma tela que parasse de oferecer as ações
     // compararia dois zeros e dois vazios, e o teste viraria enfeite.
     expect(pending.pagar, 'PENDING oferece Pagar').toBeGreaterThan(0);
-    expect(pending.marcar, 'PENDING oferece Marcar como paga').toBeGreaterThan(0);
+    expect(pending.marcar, 'cobrança do gateway não oferece baixa manual').toBe(0);
     expect(pending.restante, 'o card de valor restante existe e tem número').toMatch(/\d/);
     expect(pending.proximo, 'o card de próximo recebimento existe e tem número').toMatch(/\d/);
 
@@ -967,7 +986,7 @@ describe('RentalDetail — caução recebida por fora', () => {
     expect(note(fixture)).toBeNull();
   });
 
-  it('caucaoPaid=false (caracterização): cobrança aberta segue com seu chip e "Marcar como paga"', async () => {
+  it('caucaoPaid=false (caracterização): cobrança aberta segue com seu chip (sem baixa: tem id no gateway)', async () => {
     const { fixture } = await mount({
       ...MANUAL,
       caucaoPaid: false,
@@ -976,7 +995,7 @@ describe('RentalDetail — caução recebida por fora', () => {
 
     expect(chips(fixture, 'Pendente').length, 'mobile + desktop').toBe(2);
     expect(chips(fixture, 'Recebida por fora').length).toBe(0);
-    expect(buttonsLabeled(fixture, 'Marcar como paga').length).toBe(2);
+    expect(buttonsLabeled(fixture, 'Marcar como paga').length).toBe(0);
     expect(banner(fixture)).toBeNull();
     expect(note(fixture)).toBeNull();
   });
@@ -1242,7 +1261,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
     });
   });
 
-  describe('Conferir no Asaas (reconciliação por cobrança)', () => {
+  describe('Sincronizar com o Asaas (reconciliação por cobrança)', () => {
     const ACTIVE_AUTO = (charges: RentalChargeDto[]): RentalResponseDto => ({
       ...RESERVED_BASE,
       status: 'ACTIVE',
@@ -1260,7 +1279,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
         ]),
       );
 
-      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(2);
+      expect(buttonsLabeled(fixture, 'Sincronizar com o Asaas').length).toBe(2);
     });
 
     it('PAST_DUE e FAILED com id no gateway também são conferíveis', async () => {
@@ -1271,20 +1290,20 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
         ]),
       );
 
-      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(4);
+      expect(buttonsLabeled(fixture, 'Sincronizar com o Asaas').length).toBe(4);
     });
 
     it('o motorista não vê o botão (o backend responderia 403)', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]), {
         role: 'DRIVER',
       });
-      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(0);
+      expect(buttonsLabeled(fixture, 'Sincronizar com o Asaas').length).toBe(0);
     });
 
     it('clicar POSTa a reconciliação da cobrança e recarrega o aluguel', async () => {
       const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
 
-      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      buttonsLabeled(fixture, 'Sincronizar com o Asaas')[0].click();
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -1301,13 +1320,13 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
 
       expect(text(fixture)).toContain('Atualizada a partir do Asaas: a cobrança agora consta como pago.');
       // Paga: já não é conferível.
-      expect(buttonsLabeled(fixture, 'Conferir no Asaas').length).toBe(0);
+      expect(buttonsLabeled(fixture, 'Sincronizar com o Asaas').length).toBe(0);
     });
 
     it('Asaas ainda mostra pendente: diz que nada mudou, na linha da cobrança', async () => {
       const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
 
-      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      buttonsLabeled(fixture, 'Sincronizar com o Asaas')[0].click();
       fixture.detectChanges();
       await fixture.whenStable();
       http
@@ -1323,7 +1342,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
     it('a janela entre consultas (409) mostra a mensagem do servidor na linha, sem banner no topo', async () => {
       const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
 
-      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      buttonsLabeled(fixture, 'Sincronizar com o Asaas')[0].click();
       fixture.detectChanges();
       await fixture.whenStable();
       http
@@ -1345,7 +1364,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
     it('429 sem corpo cai no texto de espera local', async () => {
       const { fixture, http } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
 
-      buttonsLabeled(fixture, 'Conferir no Asaas')[0].click();
+      buttonsLabeled(fixture, 'Sincronizar com o Asaas')[0].click();
       fixture.detectChanges();
       await fixture.whenStable();
       http
@@ -1358,15 +1377,15 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       );
     });
 
-    it('durante a consulta o botão fica desabilitado e mostra "Conferindo…"', async () => {
+    it('durante a consulta o botão fica desabilitado e mostra "Sincronizando…"', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO([charge({ id: 'open' })]));
 
-      const [first] = buttonsLabeled(fixture, 'Conferir no Asaas');
+      const [first] = buttonsLabeled(fixture, 'Sincronizar com o Asaas');
       first.click();
       fixture.detectChanges();
       await fixture.whenStable();
 
-      const conferindo = buttonsLabeled(fixture, 'Conferindo…');
+      const conferindo = buttonsLabeled(fixture, 'Sincronizando…');
       expect(conferindo.length).toBeGreaterThan(0);
       expect(conferindo.every((b) => b.disabled)).toBe(true);
     });
@@ -1479,6 +1498,270 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
     it('RETRIED segue com a frase de sempre', async () => {
       const messages = await regerarWith('RETRIED');
       expect(messages).toContain('Nova cobrança gerada com sucesso.');
+    });
+  });
+
+  describe('Menu de ações das cobranças (FIX-0735)', () => {
+    const ACTIVE_AUTO = (charges: RentalChargeDto[], over: Partial<RentalResponseDto> = {}) =>
+      ({ ...RESERVED_BASE, status: 'ACTIVE', automaticCharge: true, charges, ...over }) as RentalResponseDto;
+
+    const OPEN = (over: Partial<RentalChargeDto> = {}): RentalChargeDto =>
+      charge({ id: 'p-1', checkoutUrl: 'https://www.asaas.com/i/abc', ...over });
+
+    function triggers(fixture: ComponentFixture<RentalDetail>): HTMLButtonElement[] {
+      return Array.from(
+        fixture.nativeElement.querySelectorAll('[aria-haspopup="menu"]'),
+      ) as HTMLButtonElement[];
+    }
+
+    function menuItems(fixture: ComponentFixture<RentalDetail>): HTMLButtonElement[] {
+      return Array.from(
+        fixture.nativeElement.querySelectorAll('[role="menu"] [role="menuitem"]'),
+      ) as HTMLButtonElement[];
+    }
+
+    /** Abre o PRIMEIRO menu da tela e devolve os rótulos dos itens. */
+    function openFirstMenu(fixture: ComponentFixture<RentalDetail>): string[] {
+      const [first] = triggers(fixture);
+      if (!first) return [];
+      first.click();
+      fixture.detectChanges();
+      return menuItems(fixture).map((i) => (i.textContent ?? '').trim());
+    }
+
+    function item(fixture: ComponentFixture<RentalDetail>, label: string): HTMLButtonElement {
+      const found = menuItems(fixture).find((b) => (b.textContent ?? '').trim() === label);
+      if (!found) throw new Error(`item "${label}" não encontrado`);
+      return found;
+    }
+
+    it('cobrança aberta no gateway: Pagar, Conferir, Compartilhar e Sincronizar; sem baixa manual', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+
+      const labels = openFirstMenu(fixture);
+
+      expect(labels).toEqual([
+        'Pagar (abrir cobrança)',
+        'Conferir no Asaas',
+        'Compartilhar',
+        'Sincronizar com o Asaas',
+      ]);
+      expect(labels).not.toContain('Marcar como paga');
+    });
+
+    it('cada linha tem UM gatilho por layout (mobile + desktop) e nenhum botão solto de ação', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+
+      expect(triggers(fixture).length).toBe(2);
+      const loose = (Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLElement[])
+        .filter((b) => b.getAttribute('role') !== 'menuitem')
+        .map((b) => (b.textContent ?? '').trim());
+      for (const label of ['Pagar', 'Conferir no Asaas', 'Cancelar cobrança', 'Marcar como paga']) {
+        expect(loose, label).not.toContain(label);
+      }
+    });
+
+    it('cobrança local (sem link nem id no gateway): só a baixa manual', async () => {
+      const { fixture } = await mountDetail(
+        ACTIVE_AUTO([OPEN({ externalId: null, checkoutUrl: null })]),
+      );
+
+      expect(openFirstMenu(fixture)).toEqual(['Marcar como paga']);
+    });
+
+    it('PAID: só Conferir no Asaas; CANCELED: sem menu', async () => {
+      const paid = await mountDetail(
+        ACTIVE_AUTO([OPEN({ status: 'PAID', paidAt: '2026-08-02T10:00:00Z' })]),
+      );
+      expect(openFirstMenu(paid.fixture)).toEqual(['Conferir no Asaas']);
+
+      const canceled = await mountDetail(ACTIVE_AUTO([OPEN({ status: 'CANCELED' })]));
+      expect(triggers(canceled.fixture).length).toBe(0);
+    });
+
+    it('motorista não vê Conferir nem Sincronizar', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
+
+      expect(openFirstMenu(fixture)).toEqual(['Pagar (abrir cobrança)', 'Compartilhar']);
+    });
+
+    it('Cancelar cobrança só existe na caução aberta, nunca na parcela do cronograma', async () => {
+      const { fixture } = await mountDetail(
+        ACTIVE_AUTO(
+          [
+            OPEN({ id: 'cau', kind: 'CAUCAO', periodIndex: null }),
+            OPEN({ id: 'per', periodIndex: 0 }),
+          ],
+          { caucaoAmount: 50_000 },
+        ),
+      );
+      const all = triggers(fixture);
+      const withCancel = all.filter((t) => {
+        t.click();
+        fixture.detectChanges();
+        const has = menuItems(fixture).some((i) => (i.textContent ?? '').includes('Cancelar cobrança'));
+        t.click();
+        fixture.detectChanges();
+        return has;
+      });
+
+      // 2 cobranças x (mobile + desktop); só a caução oferece
+      expect(all.length).toBe(4);
+      expect(withCancel.length).toBe(2);
+    });
+
+    it('Pagar e Conferir abrem, cada um, o link do Asaas em nova aba', async () => {
+      const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window);
+      try {
+        const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+        for (const label of ['Pagar (abrir cobrança)', 'Conferir no Asaas']) {
+          openSpy.mockClear();
+          const [t] = triggers(fixture);
+          t.click();
+          fixture.detectChanges();
+          item(fixture, label).click();
+          fixture.detectChanges();
+
+          expect(openSpy, label).toHaveBeenCalledTimes(1);
+          expect(openSpy.mock.calls[0][0]).toBe('https://www.asaas.com/i/abc');
+          expect(openSpy.mock.calls[0][1]).toBe('_blank');
+        }
+      } finally {
+        openSpy.mockRestore();
+      }
+    });
+
+    it.each([
+      ['PENDING', ['Pagar (abrir cobrança)', 'Conferir no Asaas', 'Compartilhar']],
+      ['PAST_DUE', ['Pagar (abrir cobrança)', 'Conferir no Asaas', 'Compartilhar']],
+      ['PAID', ['Conferir no Asaas']],
+      ['FAILED', ['Regerar']],
+      ['REFUNDED', []],
+      ['DISPUTED', []],
+      ['CANCELED', []],
+    ] as const)('itens de link por status: %s', async (status, expected) => {
+      const { fixture } = await mountDetail(
+        ACTIVE_AUTO([
+          OPEN({ status, paidAt: status === 'PAID' ? '2026-08-02T10:00:00Z' : null }),
+        ]),
+      );
+      const labels = openFirstMenu(fixture).filter(
+        (l) => l !== 'Sincronizar com o Asaas' && l !== 'Desmarcar como paga',
+      );
+
+      expect(labels).toEqual([...expected]);
+    });
+
+    it('aluguel MANUAL: cobrança com externalId OU link vivo não oferece "Marcar como paga" (FIX-0727)', async () => {
+      const withId = await mountDetail(
+        ACTIVE_AUTO([OPEN({ checkoutUrl: null })], { automaticCharge: false }),
+      );
+      expect(openFirstMenu(withId.fixture)).not.toContain('Marcar como paga');
+
+      const withLink = await mountDetail(
+        ACTIVE_AUTO([OPEN({ externalId: null })], { automaticCharge: false }),
+      );
+      expect(openFirstMenu(withLink.fixture)).not.toContain('Marcar como paga');
+    });
+
+    it('Compartilhar sem Clipboard API usa o fallback (textarea + execCommand) e avisa', async () => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+      const exec = vi.fn().mockReturnValue(true);
+      (document as unknown as { execCommand: unknown }).execCommand = exec;
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+      openFirstMenu(fixture);
+
+      item(fixture, 'Compartilhar').click();
+      await fixture.whenStable();
+
+      expect(exec).toHaveBeenCalledWith('copy');
+      const messages = TestBed.inject(NotificationService)
+        .notifications()
+        .map((n) => n.message);
+      expect(messages).toContain('Link da cobrança copiado.');
+    });
+
+    it('Compartilhar com falha no clipboard e no fallback mostra o erro', async () => {
+      const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      (document as unknown as { execCommand: unknown }).execCommand = vi.fn().mockReturnValue(false);
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+      openFirstMenu(fixture);
+
+      item(fixture, 'Compartilhar').click();
+      await fixture.whenStable();
+
+      const notes = TestBed.inject(NotificationService).notifications();
+      expect(
+        notes.some((n) => n.kind === 'error' && n.message.includes('Não foi possível copiar')),
+      ).toBe(true);
+      expect(notes.some((n) => n.message === 'Link da cobrança copiado.')).toBe(false);
+    });
+
+    it('Compartilhar copia o link e avisa na tela', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+      openFirstMenu(fixture);
+
+      item(fixture, 'Compartilhar').click();
+      await fixture.whenStable();
+
+      expect(writeText).toHaveBeenCalledWith('https://www.asaas.com/i/abc');
+      const messages = TestBed.inject(NotificationService)
+        .notifications()
+        .map((n) => n.message);
+      expect(messages).toContain('Link da cobrança copiado.');
+    });
+
+    it('Cancelar cobrança: pede confirmação e só então chama o endpoint', async () => {
+      const { fixture, http } = await mountDetail(
+        ACTIVE_AUTO([OPEN({ id: 'cau', kind: 'CAUCAO', periodIndex: null })], {
+          caucaoAmount: 50_000,
+        }),
+      );
+      openFirstMenu(fixture);
+      item(fixture, 'Cancelar cobrança').click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      http.expectNone(`${BASE}/${RENTAL_ID}/charges/cau/cancel`);
+      const confirm = (
+        Array.from(fixture.nativeElement.querySelectorAll('[role="dialog"] button')) as HTMLButtonElement[]
+      ).find((b) => (b.textContent ?? '').includes('Confirmar cancelamento'));
+      expect(confirm, 'sem diálogo de confirmação').toBeTruthy();
+      confirm?.click();
+
+      const req = http.expectOne(`${BASE}/${RENTAL_ID}/charges/cau/cancel`);
+      expect(req.request.method).toBe('POST');
+    });
+
+    it.each([
+      ['cobrança local, sem vínculo com o Asaas', null, 'NO_GATEWAY_LINK', 'não tinha vínculo com o Asaas'],
+      ['cobrança do Asaas', 'pay_9', 'REMOVED_AT_GATEWAY', 'removida do Asaas'],
+    ] as const)('cancelar: %s mostra o desfecho certo', async (_n, externalId, outcome, fragment) => {
+      const { fixture, http } = await mountDetail(
+        ACTIVE_AUTO([OPEN({ id: 'cau', kind: 'CAUCAO', periodIndex: null, externalId })], {
+          caucaoAmount: 50_000,
+        }),
+      );
+      openFirstMenu(fixture);
+      item(fixture, 'Cancelar cobrança').click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      (
+        Array.from(fixture.nativeElement.querySelectorAll('[role="dialog"] button')) as HTMLButtonElement[]
+      )
+        .find((b) => (b.textContent ?? '').includes('Confirmar cancelamento'))
+        ?.click();
+
+      http
+        .expectOne(`${BASE}/${RENTAL_ID}/charges/cau/cancel`)
+        .flush({ outcome, status: 'CANCELED', hint: null });
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(fixture.nativeElement.textContent).toContain(fragment);
     });
   });
 });
