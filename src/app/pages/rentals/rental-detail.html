@@ -277,42 +277,10 @@
                   >
                     {{ caucaoChipInfo(cc).label }}
                   </span>
-                  @if (canCancelCaucaoCharge(cc)) {
-                    <button
-                      type="button"
-                      (click)="askCancelCharge(cc)"
-                      class="min-h-11 px-3 rounded-xl border border-rose-200 bg-white text-xs
-                             font-semibold text-rose-700 hover:bg-rose-50 focus:outline-none
-                             focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-                      data-testid="cancel-caucao-charge"
-                    >
-                      Cancelar cobrança
-                    </button>
-                  }
-                  @if (canMarkAsPaid(cc) && !caucaoReceivedOutside()) {
-                    <button
-                      type="button"
-                      (click)="askMarkPaid(cc)"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
-                             hover:bg-emerald-600 active:scale-95 transition
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                      aria-label="Marcar caução como paga"
-                    >
-                      Marcar como paga
-                    </button>
-                  }
-                  @if (canUnmarkAsPaid(cc)) {
-                    <button
-                      type="button"
-                      (click)="askUnmarkPaid(cc)"
-                      class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                             hover:bg-primary-600 active:scale-95 transition
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                      aria-label="Desmarcar caução como paga"
-                    >
-                      Desmarcar
-                    </button>
-                  }
+                  <ng-container
+                    [ngTemplateOutlet]="chargeMenu"
+                    [ngTemplateOutletContext]="{ $implicit: cc, name: 'da caução' }"
+                  />
                 </div>
                 <ng-container
                   [ngTemplateOutlet]="reconcileLine"
@@ -365,54 +333,10 @@
                       />
                     </td>
                     <td class="py-2.5 pr-4 text-right">
-                      <div class="inline-flex items-center gap-2 justify-end">
-                        @if (canReconcileCharge(cc)) {
-                          <button
-                            type="button"
-                            (click)="reconcileCharge(cc)"
-                            [disabled]="reconciling() !== null"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300
-                                   text-neutral-700 hover:bg-neutral-50 transition disabled:opacity-60
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                          >
-                            {{ reconciling() === cc.id ? 'Conferindo…' : 'Conferir no Asaas' }}
-                          </button>
-                        }
-                        @if (canCancelCaucaoCharge(cc)) {
-                          <button
-                            type="button"
-                            (click)="askCancelCharge(cc)"
-                            class="min-h-11 px-3 rounded-xl border border-rose-200 bg-white text-xs
-                                   font-semibold text-rose-700 hover:bg-rose-50 focus:outline-none
-                                   focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-                            data-testid="cancel-caucao-charge-desktop"
-                          >
-                            Cancelar cobrança
-                          </button>
-                        }
-                        @if (canMarkAsPaid(cc) && !caucaoReceivedOutside()) {
-                          <button
-                            type="button"
-                            (click)="askMarkPaid(cc)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
-                                   hover:bg-emerald-600 transition
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                          >
-                            Marcar como paga
-                          </button>
-                        }
-                        @if (canUnmarkAsPaid(cc)) {
-                          <button
-                            type="button"
-                            (click)="askUnmarkPaid(cc)"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                   hover:bg-primary-600 transition
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                          >
-                            Desmarcar
-                          </button>
-                        }
-                      </div>
+                      <ng-container
+                        [ngTemplateOutlet]="chargeMenu"
+                        [ngTemplateOutletContext]="{ $implicit: cc, name: 'da caução' }"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -697,53 +621,10 @@
                     >
                       {{ chargeStatusInfo(charge).label }}
                     </span>
-                    @if (canPayCharge(charge)) {
-                      <button
-                        type="button"
-                        (click)="payCharge(charge)"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                               hover:bg-primary-600 active:scale-95 transition"
-                        [attr.aria-label]="'Pagar cobrança ' + periodNumber(charge, i)"
-                      >
-                        Pagar
-                      </button>
-                    }
-                    @if (canRetryCharge(charge)) {
-                      <button
-                        type="button"
-                        (click)="retryCharge(charge)"
-                        [disabled]="retrying() === charge.id"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-amber-600 text-white
-                               hover:bg-amber-700 active:scale-95 transition disabled:opacity-60"
-                        [attr.aria-label]="'Regerar cobrança ' + periodNumber(charge, i)"
-                      >
-                        {{ retrying() === charge.id ? '…' : 'Regerar' }}
-                      </button>
-                    }
-                    @if (canMarkAsPaid(charge)) {
-                      <button
-                        type="button"
-                        (click)="askMarkPaid(charge)"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500 text-white
-                               hover:bg-emerald-600 active:scale-95 transition
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                        [attr.aria-label]="'Marcar cobrança ' + rowBadge(charge, i) + ' como paga'"
-                      >
-                        Marcar como paga
-                      </button>
-                    }
-                    @if (canUnmarkAsPaid(charge)) {
-                      <button
-                        type="button"
-                        (click)="askUnmarkPaid(charge)"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary-500 text-white
-                               hover:bg-primary-600 active:scale-95 transition
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                        [attr.aria-label]="'Desmarcar cobrança ' + rowBadge(charge, i) + ' como paga'"
-                      >
-                        Desmarcar
-                      </button>
-                    }
+                    <ng-container
+                      [ngTemplateOutlet]="chargeMenu"
+                      [ngTemplateOutletContext]="{ $implicit: charge, name: 'do período ' + rowBadge(charge, i) }"
+                    />
                   </div>
                   <ng-container
                     [ngTemplateOutlet]="reconcileLine"
@@ -811,63 +692,10 @@
                         />
                       </td>
                       <td class="py-2.5 pr-4 text-right">
-                        <div class="inline-flex items-center gap-2 justify-end">
-                          @if (canReconcileCharge(charge)) {
-                            <button
-                              type="button"
-                              (click)="reconcileCharge(charge)"
-                              [disabled]="reconciling() !== null"
-                              class="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300
-                                     text-neutral-700 hover:bg-neutral-50 transition disabled:opacity-60
-                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                            >
-                              {{ reconciling() === charge.id ? 'Conferindo…' : 'Conferir no Asaas' }}
-                            </button>
-                          }
-                          @if (canPayCharge(charge)) {
-                            <button
-                              type="button"
-                              (click)="payCharge(charge)"
-                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                     hover:bg-primary-600 transition"
-                            >
-                              Pagar
-                            </button>
-                          }
-                          @if (canRetryCharge(charge)) {
-                            <button
-                              type="button"
-                              (click)="retryCharge(charge)"
-                              [disabled]="retrying() === charge.id"
-                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 text-white
-                                     hover:bg-amber-700 transition disabled:opacity-60"
-                            >
-                              {{ retrying() === charge.id ? 'Regerando…' : 'Regerar' }}
-                            </button>
-                          }
-                          @if (canMarkAsPaid(charge)) {
-                            <button
-                              type="button"
-                              (click)="askMarkPaid(charge)"
-                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white
-                                     hover:bg-emerald-600 transition
-                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                            >
-                              Marcar como paga
-                            </button>
-                          }
-                          @if (canUnmarkAsPaid(charge)) {
-                            <button
-                              type="button"
-                              (click)="askUnmarkPaid(charge)"
-                              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-white
-                                     hover:bg-primary-600 transition
-                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                            >
-                              Desmarcar
-                            </button>
-                          }
-                        </div>
+                        <ng-container
+                          [ngTemplateOutlet]="chargeMenu"
+                          [ngTemplateOutletContext]="{ $implicit: charge, name: 'do período ' + rowBadge(charge, i) }"
+                        />
                       </td>
                     </tr>
                   }
@@ -1020,26 +848,78 @@
   os botões de ação, com alvo de 44px. `name` completa o nome acessível.
 -->
 <ng-template #reconcileLine let-charge let-name="name">
-  @if (canReconcileCharge(charge) || reconcileNote()?.chargeId === charge.id) {
-    <div class="basis-full flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-neutral-100 pt-1">
-      @if (canReconcileCharge(charge)) {
-        <button
-          type="button"
-          (click)="reconcileCharge(charge)"
-          [disabled]="reconciling() !== null"
-          [attr.aria-label]="'Conferir cobrança ' + name + ' no Asaas'"
-          class="min-h-[44px] px-3 -ml-3 rounded-lg text-xs font-medium text-primary-700
-                 hover:bg-primary-50 disabled:opacity-60
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-        >
-          {{ reconciling() === charge.id ? 'Conferindo…' : 'Conferir no Asaas' }}
-        </button>
-      }
+  @if (reconcileNote()?.chargeId === charge.id) {
+    <div class="basis-full border-t border-neutral-100 pt-1">
       <ng-container
         [ngTemplateOutlet]="reconcileNoteTpl"
         [ngTemplateOutletContext]="{ $implicit: charge }"
       />
     </div>
+  }
+</ng-template>
+
+<!--
+  UM menu de três pontos por cobrança (caução e cronograma, mobile e desktop).
+  Cada item só existe quando a ação vale para aquela cobrança; sem nenhum item o
+  menu não aparece. `name` completa o nome acessível do gatilho e dos itens.
+-->
+<ng-template #chargeMenu let-charge let-name="name">
+  @if (hasChargeActions(charge)) {
+    <app-actions-menu [label]="'Ações da cobrança ' + name" [menuWidth]="256">
+      @if (canPayCharge(charge)) {
+        <button type="button" role="menuitem" (click)="payCharge(charge)"
+          title="Abre a fatura para pagar"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          Pagar (abrir cobrança)
+        </button>
+      }
+      @if (canViewChargeAtGateway(charge)) {
+        <button type="button" role="menuitem" (click)="viewChargeAtGateway(charge)"
+          title="Abre a cobrança no site do Asaas para conferir"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          Conferir no Asaas
+        </button>
+      }
+      @if (canShareCharge(charge)) {
+        <button type="button" role="menuitem" (click)="shareCharge(charge)"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          Compartilhar
+        </button>
+      }
+      @if (canReconcileCharge(charge)) {
+        <button type="button" role="menuitem" (click)="reconcileCharge(charge)"
+          [disabled]="reconciling() !== null"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+          {{ reconciling() === charge.id ? 'Sincronizando…' : 'Sincronizar com o Asaas' }}
+        </button>
+      }
+      @if (canRetryCharge(charge)) {
+        <button type="button" role="menuitem" (click)="retryCharge(charge)"
+          [disabled]="retrying() === charge.id"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+          {{ retrying() === charge.id ? 'Regerando…' : 'Regerar' }}
+        </button>
+      }
+      @if (canMarkPaidFromMenu(charge)) {
+        <button type="button" role="menuitem" (click)="askMarkPaid(charge)"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          Marcar como paga
+        </button>
+      }
+      @if (canUnmarkAsPaid(charge)) {
+        <button type="button" role="menuitem" (click)="askUnmarkPaid(charge)"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          Desmarcar como paga
+        </button>
+      }
+      @if (canCancelCaucaoCharge(charge)) {
+        <button type="button" role="menuitem" (click)="askCancelCharge(charge)"
+          data-testid="cancel-charge-item"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-rose-700 hover:bg-rose-50 border-t border-neutral-100">
+          Cancelar cobrança
+        </button>
+      }
+    </app-actions-menu>
   }
 </ng-template>
 

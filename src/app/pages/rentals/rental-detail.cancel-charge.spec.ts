@@ -141,7 +141,19 @@ function el(fixture: ComponentFixture<RentalDetail>): HTMLElement {
 }
 
 function rowButton(fixture: ComponentFixture<RentalDetail>): HTMLButtonElement | null {
-  return el(fixture).querySelector('[data-testid="cancel-caucao-charge"]');
+  // O item vive dentro do menu de três pontos (só existe no DOM com o menu aberto).
+  const triggers = Array.from(
+    el(fixture).querySelectorAll('[aria-haspopup="menu"]'),
+  ) as HTMLButtonElement[];
+  for (const trigger of triggers) {
+    trigger.click();
+    fixture.detectChanges();
+    const item = el(fixture).querySelector<HTMLButtonElement>('[data-testid="cancel-charge-item"]');
+    trigger.click();
+    fixture.detectChanges();
+    if (item) return item;
+  }
+  return null;
 }
 
 async function settle(fixture: ComponentFixture<RentalDetail>): Promise<void> {
@@ -161,12 +173,13 @@ function dialogButton(fixture: ComponentFixture<RentalDetail>, label: string): H
 describe('RentalDetail — cancelar cobrança da caução', () => {
   afterEach(() => sessionStorage.clear());
 
-  it('oferece o botão (alvo de 44 px) para caução aberta', async () => {
+  it('oferece o item no menu (alvo de 44 px) para caução aberta', async () => {
     const { fixture } = await mount({ charges: [charge()] });
 
     const button = rowButton(fixture);
     expect(button).not.toBeNull();
-    expect(button?.className).toContain('min-h-11');
+    expect(button?.getAttribute('role')).toBe('menuitem');
+    expect(button?.className).toContain('min-h-[44px]');
   });
 
   it.each([
