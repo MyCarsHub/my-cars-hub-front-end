@@ -118,6 +118,20 @@ export interface RentalChargeDto {
   periodIndex: number | null;
 }
 
+/** Desfecho de `POST /v1/rentals/{rentalId}/charges/{chargeId}/cancel`. */
+export type ChargeCancelOutcome =
+  | 'REMOVED_AT_GATEWAY'
+  | 'NO_GATEWAY_LINK'
+  | 'REMOVAL_PENDING_SWEEP'
+  | 'ALREADY_CLOSED'
+  | 'ALREADY_PAID';
+
+export interface ChargeCancelResponse {
+  outcome: ChargeCancelOutcome;
+  status: string;
+  hint: string | null;
+}
+
 /**
  * Resultado da emissão no gateway, devolvido APENAS pelo `POST /v1/rentals`
  * (aditivo: respostas antigas e o GET não o trazem).
