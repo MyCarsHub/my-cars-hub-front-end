@@ -226,4 +226,26 @@ describe('ActionsMenu', () => {
     expect(menu(fixture)).not.toBeNull();
     expect(document.activeElement).toBe(item(fixture, 'edit'));
   });
+
+  it('returns focus to the trigger after an item is chosen', () => {
+    trigger(fixture).click();
+    fixture.detectChanges();
+    item(fixture, 'edit').click();
+    fixture.detectChanges();
+
+    expect(menu(fixture)).toBeNull();
+    expect(document.activeElement).toBe(trigger(fixture));
+  });
+
+  it('returns focus to the trigger when closed by an outside click with focus inside the panel', () => {
+    trigger(fixture).click();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(item(fixture, 'edit'));
+
+    document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(menu(fixture)).toBeNull();
+    expect(document.activeElement).toBe(trigger(fixture));
+  });
 });

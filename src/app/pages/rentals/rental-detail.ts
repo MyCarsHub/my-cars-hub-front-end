@@ -30,6 +30,7 @@ import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
@@ -87,6 +88,7 @@ import { todayInBusinessTz } from '../../utils/business-clock';
     EndRentalDialog,
     AlertBanner,
     NgTemplateOutlet,
+    ActionsMenu,
   ],
   templateUrl: './rental-detail.html',
 })
@@ -711,6 +713,86 @@ export class RentalDetail implements OnInit {
     this.externalNav.openExternal(charge.checkoutUrl);
   }
 
+  /**
+   * "Conferir no Asaas" e "Pagar (abrir cobrança)" abrem o MESMO `checkoutUrl`
+   * (o DTO só expõe um link por cobrança); o dono pediu as duas entradas, então
+   * ficam as duas, com rótulos que dizem a intenção. Link só em cobrança ABERTA
+   * (PENDING/PAST_DUE) ou PAID (comprovante): FAILED/CANCELED/REFUNDED/etc.
+   * podem apontar para fatura morta.
+   */
+  protected canViewChargeAtGateway(charge: RentalChargeDto): boolean {
+    return (
+      !this.isDriver &&
+      !!charge.checkoutUrl &&
+      (this.PAYABLE_STATUSES.includes(charge.status) || charge.status === 'PAID')
+    );
+  }
+
+  protected viewChargeAtGateway(charge: RentalChargeDto): void {
+    if (!charge.checkoutUrl) return;
+    this.externalNav.openExternal(charge.checkoutUrl);
+  }
+
+  /** Copiar o link só faz sentido enquanto a cobrança ainda pode ser paga por ele. */
+  protected canShareCharge(charge: RentalChargeDto): boolean {
+    return !!charge.checkoutUrl && this.PAYABLE_STATUSES.includes(charge.status);
+  }
+
+  protected async shareCharge(charge: RentalChargeDto): Promise<void> {
+    const url = charge.checkoutUrl;
+    if (!url) return;
+    const nav = this.document.defaultView?.navigator;
+    try {
+      if (nav?.clipboard?.writeText) {
+        await nav.clipboard.writeText(url);
+      } else {
+        this.copyWithTextarea(url);
+      }
+      this.notifications.success('Link da cobrança copiado.');
+    } catch {
+      try {
+        this.copyWithTextarea(url);
+        this.notifications.success('Link da cobrança copiado.');
+      } catch {
+        this.notifications.push('error', 'Não foi possível copiar o link. Tente novamente.');
+      }
+    }
+  }
+
+  private copyWithTextarea(text: string): void {
+    const doc = this.document;
+    const ta = doc.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    doc.body.appendChild(ta);
+    ta.select();
+    const ok = doc.execCommand('copy');
+    doc.body.removeChild(ta);
+    if (!ok) throw new Error('copy failed');
+  }
+
+  /** "Marcar como paga" no menu: a caução recebida por fora não oferece baixa. */
+  protected canMarkPaidFromMenu(charge: RentalChargeDto): boolean {
+    if (charge.kind === 'CAUCAO' && this.caucaoReceivedOutside()) return false;
+    return this.canMarkAsPaid(charge);
+  }
+
+  /** Há ao menos um item? Sem item, o menu nem aparece (PAID/CANCELED do gateway). */
+  protected hasChargeActions(charge: RentalChargeDto): boolean {
+    return (
+      this.canPayCharge(charge) ||
+      this.canViewChargeAtGateway(charge) ||
+      this.canShareCharge(charge) ||
+      this.canReconcileCharge(charge) ||
+      this.canRetryCharge(charge) ||
+      this.canMarkPaidFromMenu(charge) ||
+      this.canUnmarkAsPaid(charge) ||
+      this.canCancelCaucaoCharge(charge)
+    );
+  }
+
   protected chargeKindLabel(kind: RentalChargeDto['kind']): string {
     return chargeKindLabel(kind);
   }
@@ -948,7 +1030,8 @@ export class RentalDetail implements OnInit {
   private isManuallySettleable(charge: RentalChargeDto): boolean {
     const r = this.rental();
     if (!r) return false;
-    return !(r.automaticCharge !== false && !!charge.externalId);
+    // FIX-0727: cobrança com `externalId` ou link vivo é do gateway, em qualquer modo.
+    return !charge.externalId && !charge.checkoutUrl;
   }
 
   /** Show "Marcar como paga" unless the gateway owns the charge's payment (see above). */
@@ -1191,6 +1274,8 @@ export class RentalDetail implements OnInit {
   } | null>(null);
   protected readonly generatingCaucao = signal(false);
 
+  // FIX-0736: o backend só cancela CAUÇÃO. Para liberar parcelas, quando ele
+  // suportar, basta trocar a condição `charge.kind === 'CAUCAO'` abaixo.
   protected canCancelCaucaoCharge(charge: RentalChargeDto): boolean {
     return (
       !this.isDriver &&
