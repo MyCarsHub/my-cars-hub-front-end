@@ -37,6 +37,7 @@ const ACTION_LABELS: Record<string, string> = {
   BLOG_POST_DELETED: 'Post removido',
   RENTAL_SCHEDULE_REGENERATED: 'Cronograma regenerado',
   NOTIFICATION_TEST_DISPATCHED: 'Teste de templates enviado',
+  CONTRACT_TEMPLATE_SAVED: 'Template de contrato salvo',
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -62,6 +63,7 @@ const ACTION_CHIPS: Record<string, string> = {
   BLOG_POST_DELETED: 'bg-red-100 text-red-700',
   RENTAL_SCHEDULE_REGENERATED: 'bg-indigo-100 text-indigo-700',
   NOTIFICATION_TEST_DISPATCHED: 'bg-sky-100 text-sky-700',
+  CONTRACT_TEMPLATE_SAVED: 'bg-emerald-100 text-emerald-700',
 };
 
 const DEFAULT_CHIP = 'bg-neutral-100 text-neutral-700';
