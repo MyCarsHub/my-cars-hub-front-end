@@ -1,0 +1,75 @@
+/** Contratos de API do fluxo com IA (backend: ContractDraftController / ContractDraftDecisionController). */
+
+export type DraftStatus =
+  | 'AWAITING_CONSENT'
+  | 'ANALYZING'
+  | 'NEEDS_REVIEW'
+  | 'READY'
+  | 'FAILED'
+  | 'SAVED'
+  | 'EXPIRED';
+
+export interface FieldOption {
+  field: string;
+  label: string;
+}
+
+/** Trecho, contexto e motivo chegam MASCARADOS do backend (ex.: [CPF_1]). */
+export interface SuggestionView {
+  id: string;
+  paragraphId: string;
+  field: string;
+  fieldLabel: string;
+  excerpt: string;
+  context: string;
+  confidence: number;
+  reason: string;
+  alternatives: FieldOption[] | null;
+}
+
+export interface DraftStatusResponse {
+  draftId: string;
+  status: DraftStatus;
+  failureCode: string | null;
+  filename: string | null;
+  layoutSimplified: boolean;
+  certain: SuggestionView[];
+  doubts: SuggestionView[];
+}
+
+export interface DraftSubmittedResponse {
+  draftId: string;
+  status: DraftStatus;
+}
+
+export interface DraftDecisionsResponse {
+  draftId: string;
+  status: DraftStatus;
+  acceptedCount: number;
+  pendingDoubtIds: string[];
+}
+
+export interface MaskedTextResponse {
+  draftId: string;
+  paragraphs: { id: string; text: string }[];
+  maskedTextSha256: string;
+  consentVersion: string;
+  notMasked: { code: string; label: string }[];
+}
+
+export interface DraftDecision {
+  id: string;
+  field: string;
+  accept: boolean;
+}
+
+export type FlowStep =
+  | 'intro'
+  | 'consent'
+  | 'progress'
+  | 'doubts'
+  | 'preview'
+  | 'fields'
+  | 'failed'
+  | 'expired'
+  | 'saved';

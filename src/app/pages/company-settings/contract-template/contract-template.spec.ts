@@ -39,18 +39,21 @@ describe('ContractTemplate — open/download raw template', () => {
   };
   const notifications = { push: vi.fn() };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     service.get.mockClear();
     service.downloadTemplate.mockClear();
     notifications.push.mockClear();
     service.get.mockReturnValue(of(tpl));
 
     TestBed.configureTestingModule({
+      imports: [ContractTemplate],
       providers: [
         { provide: ContractTemplateService, useValue: service },
         { provide: NotificationService, useValue: notifications },
       ],
     });
+    // O ponto de montagem do fluxo com IA usa @defer: as dependências resolvem async.
+    await TestBed.compileComponents();
   });
 
   function makeFixture() {
