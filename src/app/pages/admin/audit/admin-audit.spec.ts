@@ -109,6 +109,20 @@ describe('AdminAudit', () => {
     expect(load).toHaveBeenCalled();
   });
 
+  it('rotula CONTRACT_TEMPLATE_SAVED em pt-BR sem vazar o código cru no DOM', () => {
+    items.set([{ ...ENTRY, id: 'aud-2', action: 'CONTRACT_TEMPLATE_SAVED' }]);
+    total.set(1);
+    actions.set(['CONTRACT_TEMPLATE_SAVED']);
+    configure();
+
+    const fixture = TestBed.createComponent(AdminAudit);
+    fixture.detectChanges();
+
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).toContain('Template de contrato salvo');
+    expect(text).not.toContain('CONTRACT_TEMPLATE_SAVED');
+  });
+
   it('popula o dropdown de ações a partir do endpoint, sem hardcode', () => {
     actions.set(['BLOG_POST_PUBLISHED', 'USER_STATUS_CHANGED']);
     configure();

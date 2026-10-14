@@ -8,6 +8,8 @@ import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { LoggerService } from '../../../services/logger.service';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
+import { ContractAiEntry } from './ai/contract-ai-entry';
+import { ContractAiCapability } from './ai/contract-ai-capability';
 
 /**
  * Configurações → Contratos. Locadora sobe UM DOCX com placeholders
@@ -18,7 +20,7 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
   selector: 'app-contract-template',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
+  imports: [DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, ContractAiEntry],
   template: `
     <app-default-page-layout
       title="Template de contrato"
@@ -27,6 +29,10 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
       <div class="space-y-4 sm:space-y-6">
         @if (error(); as pageError) {
           <app-alert-banner variant="error" [message]="pageError" />
+        }
+
+        @defer (when aiCapability.enabled()) {
+          <app-contract-ai-entry (saved)="ngOnInit()" />
         }
 
         <app-page-card title="Como funciona">
@@ -222,6 +228,7 @@ export class ContractTemplate implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly logger = inject(LoggerService);
+  protected readonly aiCapability = inject(ContractAiCapability);
 
   /** Screen-level failures. Toasts here are reserved for successes. */
   protected readonly error = signal<string | null>(null);
@@ -281,6 +288,7 @@ export class ContractTemplate implements OnInit {
   });
 
   ngOnInit(): void {
+    this.aiCapability.load();
     this.reload();
   }
 
