@@ -44,8 +44,8 @@ export function sanitizePreviewHtml(html: string): string {
         el.removeAttribute(attr.name);
       } else if (URL_ATTRS.has(name)) {
         // Remove controles e espaços que ajudam a disfarçar "java\tscript:".
-        // eslint-disable-next-line no-control-regex
-        const value = attr.value.replace(/[\u0000- ]+/g, '');
+        let value = '';
+        for (const ch of attr.value) if ((ch.codePointAt(0) ?? 0) > 0x20) value += ch;
         if (!SAFE_URL.test(value)) el.removeAttribute(attr.name);
       } else if (name === 'style') {
         el.setAttribute('style', sanitizeCss(attr.value));

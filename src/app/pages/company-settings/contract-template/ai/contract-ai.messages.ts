@@ -147,10 +147,28 @@ export function fieldLabel(field: string, apiLabel?: string | null): string {
  * direcao (bidi) / largura zero, que permitem disfarcar o nome do arquivo ou o trecho.
  */
 export function safeText(value: string | null | undefined): string {
-  // eslint-disable-next-line no-control-regex
-  return (value ?? '').replace(
-    /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g,
-    '',
+  let out = '';
+  for (const ch of value ?? '') {
+    if (!isHiddenCode(ch.codePointAt(0) ?? 0, false)) out += ch;
+  }
+  return out;
+}
+
+/**
+ * Controle (C0/C1), hífen suave, largura zero e bidi. `keepLayout` preserva \n e \t, que o
+ * texto do consentimento mostra como quebra real.
+ */
+function isHiddenCode(c: number, keepLayout: boolean): boolean {
+  if (keepLayout && (c === 0x09 || c === 0x0a)) return false;
+  return (
+    c <= 0x1f ||
+    (c >= 0x7f && c <= 0x9f) ||
+    c === 0xad ||
+    (c >= 0x200b && c <= 0x200f) ||
+    (c >= 0x202a && c <= 0x202e) ||
+    (c >= 0x2060 && c <= 0x2064) ||
+    (c >= 0x2066 && c <= 0x2069) ||
+    c === 0xfeff
   );
 }
 
@@ -168,10 +186,8 @@ export function revealInvisible(value: string): { segments: TextSegment[]; invis
   const segments: TextSegment[] = [];
   let buf = '';
   let invisible = 0;
-  // eslint-disable-next-line no-control-regex
-  const hidden = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/;
   for (const ch of text) {
-    if (hidden.test(ch)) {
+    if (isHiddenCode(ch.codePointAt(0) ?? 0, true)) {
       if (buf) segments.push({ text: buf, marker: false });
       buf = '';
       const hex = (ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0');
