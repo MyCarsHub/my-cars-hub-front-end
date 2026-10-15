@@ -345,7 +345,7 @@
               controlId="rental-daily-interest"
               [required]="true"
               [control]="form.controls.dailyInterestReais"
-              [messages]="dailyInterestMessages"
+              [messages]="dailyInterestFieldMessages()"
             >
               <input
                 appFieldControl
@@ -382,7 +382,7 @@
               hint="Se %: informe percentagem (ex.: 2 = 2%). Se R$: informe reais."
               [required]="true"
               [control]="form.controls.lateFineValueInput"
-              [messages]="lateFineValueMessages"
+              [messages]="lateFineFieldMessages()"
             >
               <!-- Campo DUPLO: em FIXED é dinheiro e leva máscara; em PERCENT é
                    percentagem pura e fica como sempre foi. São dois <input> e não
@@ -645,14 +645,14 @@
       </button>
       @if (!isEdit()) {
         <button type="submit"
-          [disabled]="saving() || previewing()"
+          [disabled]="saving() || previewing() || feeBelowChargeInvalid()"
           class="w-full sm:w-auto min-h-[44px] px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
                  text-sm font-semibold shadow-sm disabled:opacity-60">
           {{ previewing() ? 'Conferindo cobranças…' : saving() ? 'Criando…' : 'Criar aluguel' }}
         </button>
       } @else if (form.enabled) {
         <button type="submit"
-          [disabled]="saving()"
+          [disabled]="saving() || feeBelowChargeInvalid()"
           class="w-full sm:w-auto px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
                  text-sm font-semibold shadow-sm disabled:opacity-60">
           {{ saving() ? 'Salvando…' : 'Salvar alterações' }}

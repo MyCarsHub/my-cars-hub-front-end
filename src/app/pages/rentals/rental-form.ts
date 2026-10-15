@@ -18,7 +18,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { debounceTime } from 'rxjs';
+import { debounceTime, merge } from 'rxjs';
 import {
   AbstractControl,
   FormBuilder,
@@ -37,6 +37,12 @@ import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
 import { formatPtBrMoney } from '../../utils/ptbr-number';
+import {
+  FEE_NOT_BELOW_CHARGE_KEY,
+  applyFeeBelowChargeServerError,
+  currentFeeMessage,
+  feeBelowChargeValidator,
+} from './rental-fee-below-charge';
 import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
 import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { RentalService } from './rental.service';
@@ -221,12 +227,15 @@ export class RentalForm implements OnInit {
       firstPaymentDate: ['', [Validators.required, firstPaymentNotAfterEndValidator]], // yyyy-MM-dd
       // Nasce em '0,00' (nao vazio): o campo e obrigatorio e antes ja abria
       // preenchido com 0, entao um default vazio deixaria o form invalido ao abrir.
-      dailyInterestReais: ['0,00', [ptBrMoneyValidator()]],
+      dailyInterestReais: ['0,00', [ptBrMoneyValidator(), feeBelowChargeValidator('DAILY_INTEREST')]],
       lateFineType: ['PERCENT' as RentalLateFineType, [Validators.required]],
       // PERCENT: percentagem (2 = 2%). FIXED: reais.
       // Nasce em PERCENT, entao os validadores iniciais sao os do percentual.
       // `onLateFineTypeChange` troca os dois quando o modo muda.
-      lateFineValueInput: [0 as number | string, [Validators.required, Validators.min(0)]],
+      lateFineValueInput: [
+        0 as number | string,
+        [Validators.required, Validators.min(0), feeBelowChargeValidator('LATE_FINE')],
+      ],
 
       // V32: franquia e política de combustível — opcionais.
       franchiseKm: [null as number | null, [Validators.min(0)]],
@@ -262,6 +271,58 @@ export class RentalForm implements OnInit {
       control.updateValueAndValidity();
       if (control.errors?.['firstPaymentAfterEnd']) control.markAsTouched();
     });
+
+  /**
+   * FIX-0750: encargo em R$ < valor da cobranca. Os validadores dos dois campos
+   * leem `periodRateReais` e o tipo da multa, mas o Angular so reavalia o controle
+   * que mudou — entao mudar a parcela, a frequencia ou o tipo revalida os encargos.
+   */
+  private readonly feeRevalidated = signal(0);
+
+  private readonly feesRevalidateOnChargeChange = merge(
+    this.form.controls.periodRateReais.valueChanges,
+    this.form.controls.billingFrequency.valueChanges,
+    this.form.controls.lateFineType.valueChanges,
+  )
+    .pipe(takeUntilDestroyed())
+    .subscribe(() => {
+      for (const control of [
+        this.form.controls.dailyInterestReais,
+        this.form.controls.lateFineValueInput,
+      ]) {
+        control.updateValueAndValidity({ emitEvent: false });
+        if (control.errors?.[FEE_NOT_BELOW_CHARGE_KEY]) control.markAsTouched();
+      }
+      this.feeRevalidated.update((n) => n + 1);
+    });
+
+  protected readonly dailyInterestFieldMessages = computed(() => {
+    this.formValue();
+    this.feeRevalidated();
+    const text = currentFeeMessage('DAILY_INTEREST', this.form);
+    return text
+      ? { ...this.dailyInterestMessages, [FEE_NOT_BELOW_CHARGE_KEY]: text }
+      : this.dailyInterestMessages;
+  });
+
+  protected readonly lateFineFieldMessages = computed(() => {
+    this.formValue();
+    this.feeRevalidated();
+    const text = currentFeeMessage('LATE_FINE', this.form);
+    return text
+      ? { ...this.lateFineValueMessages, [FEE_NOT_BELOW_CHARGE_KEY]: text }
+      : this.lateFineValueMessages;
+  });
+
+  /** Salvar fica impedido enquanto algum encargo violar a regra. */
+  protected readonly feeBelowChargeInvalid = computed(() => {
+    this.formValue();
+    this.feeRevalidated();
+    return (
+      currentFeeMessage('DAILY_INTEREST', this.form) !== null ||
+      currentFeeMessage('LATE_FINE', this.form) !== null
+    );
+  });
 
   /** Último início visto — separa "a 1ª cobrança acompanha o início" de "o usuário escolheu". */
   private lastStartDay = '';
@@ -853,8 +914,8 @@ export class RentalForm implements OnInit {
 
   private lateFineValueValidators(): ValidatorFn[] {
     return this.form.controls.lateFineType.value === 'FIXED'
-      ? [ptBrMoneyValidator()]
-      : [Validators.required, Validators.min(0)];
+      ? [ptBrMoneyValidator(), feeBelowChargeValidator('LATE_FINE')]
+      : [Validators.required, Validators.min(0), feeBelowChargeValidator('LATE_FINE')];
   }
 
   protected onMoneyInput(event: Event, name: 'periodRateReais' | 'caucaoReais' | 'dailyInterestReais'): void {
@@ -864,7 +925,7 @@ export class RentalForm implements OnInit {
   protected submit(): void {
     // `previewing` entra aqui junto de `saving`: o botão já fica desabilitado, mas
     // Enter dentro de um campo submete o <form> sem passar por ele.
-    if (this.saving() || this.previewing()) return;
+    if (this.saving() || this.previewing() || this.feeBelowChargeInvalid()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.error.set('Verifique os campos destacados.');
@@ -935,6 +996,7 @@ export class RentalForm implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);
+        if (this.claimFeeBelowChargeError(err)) return;
         const { formMessage } = this.apiErrors.handleForm(
           err,
           this.form,
@@ -1129,12 +1191,21 @@ export class RentalForm implements OnInit {
   private failCreate(err: HttpErrorResponse, fallback: string): void {
     this.chargeConfirmOpen.set(false);
     this.pendingCreate = null;
+    if (this.claimFeeBelowChargeError(err)) return;
     const { formMessage } = this.apiErrors.handleForm(err, this.form, fallback);
     // The driver was registered without CNH/address and has not completed it yet.
     this.error.set(
       isDriverRegistrationIncomplete(err) ? DRIVER_REGISTRATION_INCOMPLETE_COPY : formMessage,
     );
     this.revealError();
+  }
+
+  /** 400 de FIX-0749: a mensagem vai ao MESMO campo, sem banner duplicado. */
+  private claimFeeBelowChargeError(err: HttpErrorResponse): boolean {
+    if (!applyFeeBelowChargeServerError(err, this.form)) return false;
+    this.apiErrors.claim(err);
+    this.error.set(null);
+    return true;
   }
 
   /** Leva o banner ao campo de visão — só se ele estiver fora da tela. */
