@@ -116,6 +116,12 @@ export interface RentalChargeDto {
   /** V29+/#46 — per-period bookkeeping. Null for legacy RENTAL_TOTAL/CAUCAO. */
   dueDate: string | null; // yyyy-MM-dd
   periodIndex: number | null;
+  /**
+   * FIX-0753/0755 — por que a emissão no gateway falhou. Só vem em `FAILED`:
+   * código estável + mensagem pt-BR já legível ao locador. Ausente/nulo nas demais.
+   */
+  failureCode?: string | null;
+  failureReason?: string | null;
 }
 
 /** Desfecho de `POST /v1/rentals/{rentalId}/charges/{chargeId}/cancel`. */
@@ -179,7 +185,9 @@ export interface RentalResponseDto {
   initialKm: number | null;
   pickupDate: string | null; // ISO
   firstPaymentDate: string | null; // yyyy-MM-dd
-  dailyInterestAmount: number | null; // cents/day
+  dailyInterestAmount: number | null; // cents/day — LEGADO: aluguel novo usa o % ao mês
+  /** Juros de mora em % ao mês (2 casas). Nulo em aluguel legado (só R$/dia). */
+  lateInterestPercentPerMonth?: number | null;
   lateFineType: RentalLateFineType | null;
   lateFineValue: number | null; // PERCENT: basis-points; FIXED: cents
   contractSource: RentalContractSource | null;
@@ -260,6 +268,8 @@ export interface RentalUpdateRequest {
   pickupDate?: string | null;
   firstPaymentDate?: string | null;
   dailyInterestAmount?: number | null;
+  /** Juros de mora em % ao mês (até 2 casas). Omitido na edição = mantém o do aluguel. */
+  lateInterestPercentPerMonth?: number | null;
   lateFineType?: RentalLateFineType | null;
   lateFineValue?: number | null;
   // V32
@@ -287,7 +297,10 @@ export interface CreateRentalRequest {
   initialKm?: number | null;
   pickupDate?: string | null;
   firstPaymentDate?: string | null;
+  /** Aluguel novo não usa juros em R$/dia: > 0 é recusado (DAILY_INTEREST_DEPRECATED). */
   dailyInterestAmount?: number | null;
+  /** Juros de mora em % ao mês (até 2 casas). Omitido = sem juros. */
+  lateInterestPercentPerMonth?: number | null;
   lateFineType?: RentalLateFineType | null;
   lateFineValue?: number | null;
   /**
@@ -582,3 +595,47 @@ export interface RentalPhotoDto {
   signedUrl: string | null;
   createdDate: string;
 }
+
+// ---------------------------------------------------------------------------
+// FIX-0752/0754 — preflight de aluguel. A regra vive SÓ no backend; estes tipos
+// só descrevem o que ele devolve (200 do preflight e 400 do create/edit).
+// ---------------------------------------------------------------------------
+
+export type RentalPreflightSeverity = 'BLOCKING' | 'WARNING';
+
+export interface RentalPreflightItem {
+  /** Nome do campo do corpo do create (ou `driver.<campo>`); nulo = sem campo. */
+  field: string | null;
+  /** Código estável (UPPER_SNAKE): a tela decide pelo código, não pelo texto. */
+  code: string;
+  message: string;
+  /** O que o campo aceita, em texto pronto para exibir. */
+  acceptedValue: string | null;
+  severity: RentalPreflightSeverity;
+}
+
+export interface RentalPreflightRange {
+  min: number | null;
+  /** Nulo = teto não configurado. */
+  max: number | null;
+}
+
+export interface RentalPreflightLimits {
+  /** Em percentual (1 = 1% ao mês). */
+  interestPercentPerMonth: RentalPreflightRange | null;
+  /** Em percentual (2 = 2%); a multa % é gravada em basis points. */
+  finePercent: RentalPreflightRange | null;
+  /** Menor cobrança emitida menos 1 centavo; nulo = nenhuma cobrança leva encargos. */
+  fixedFineMaxCents: number | null;
+  minChargeCents: number | null;
+}
+
+export interface RentalPreflightResponse {
+  ok: boolean;
+  issues: RentalPreflightItem[];
+  warnings: RentalPreflightItem[];
+  limits: RentalPreflightLimits | null;
+}
+
+/** Corpo do preflight: o do create, mais `rentalId` quando for edição. */
+export type RentalPreflightRequest = CreateRentalRequest & { rentalId?: string };

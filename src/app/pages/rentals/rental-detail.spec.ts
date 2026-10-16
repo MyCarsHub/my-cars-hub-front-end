@@ -1197,6 +1197,60 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
     vi.restoreAllMocks();
   });
 
+  describe('FIX-0755: motivo da falha na linha FAILED do cronograma', () => {
+    const REASON = 'A multa fixa precisa ser menor que o valor da cobrança.';
+    const RENTAL_WITH_FAILURE: RentalResponseDto = {
+      ...RESERVED_BASE,
+      status: 'ACTIVE',
+      automaticCharge: true,
+      charges: [
+        charge({ id: 'c-failed', status: 'FAILED', periodIndex: 0, failureCode: 'FINE', failureReason: REASON }),
+        charge({ id: 'c-pending', status: 'PENDING', periodIndex: 1, failureReason: 'não deve aparecer' }),
+      ],
+    };
+
+    function reasons(fixture: ComponentFixture<RentalDetail>): HTMLElement[] {
+      return Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+          '[data-testid="charge-failure-reason"]',
+        ),
+      );
+    }
+
+    it('mostra o failureReason legível junto da cobrança FAILED (cartão e tabela)', async () => {
+      const { fixture } = await mountDetail(RENTAL_WITH_FAILURE);
+      const found = reasons(fixture);
+      // Um no cartão do celular e um na tabela do desktop (um dos dois fica oculto por CSS).
+      expect(found.length).toBe(2);
+      for (const node of found) expect(node.textContent?.trim()).toBe(REASON);
+      expect(text(fixture)).toContain('Falhou');
+    });
+
+    it('no celular o texto é limitado a poucas linhas, com o texto inteiro no title', async () => {
+      const { fixture } = await mountDetail(RENTAL_WITH_FAILURE);
+      const mobile = reasons(fixture).find((n) => n.className.includes('line-clamp-3'));
+      expect(mobile).toBeDefined();
+      expect(mobile?.getAttribute('title')).toBe(REASON);
+    });
+
+    it('cobrança que não está FAILED não mostra motivo, mesmo que o campo venha preenchido', async () => {
+      const { fixture } = await mountDetail({
+        ...RENTAL_WITH_FAILURE,
+        charges: [charge({ id: 'c-pending', status: 'PENDING', failureReason: 'não deve aparecer' })],
+      });
+      expect(reasons(fixture).length).toBe(0);
+      expect(text(fixture)).not.toContain('não deve aparecer');
+    });
+
+    it('FAILED antiga, sem failureReason, não ganha linha vazia', async () => {
+      const { fixture } = await mountDetail({
+        ...RENTAL_WITH_FAILURE,
+        charges: [charge({ id: 'c-old', status: 'FAILED' })],
+      });
+      expect(reasons(fixture).length).toBe(0);
+    });
+  });
+
   describe('aviso de cobranças que não foram criadas (chargeSync)', () => {
     const ACTIVE_AUTO: RentalResponseDto = {
       ...RESERVED_BASE,
@@ -1232,6 +1286,50 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
         navState: { chargeSync: { requested: 3, created: 2, failed: 1, local: 0 } },
       });
       expect(text(fixture)).toContain('1 cobrança não pôde ser criada no Asaas.');
+    });
+
+    it('FIX-0755: o banner cita o motivo quando todas as cobranças falharam pelo mesmo motivo', async () => {
+      const reason = 'O CPF/CNPJ do motorista é inválido para o Asaas.';
+      const rental: RentalResponseDto = {
+        ...ACTIVE_AUTO,
+        charges: [
+          charge({ id: 'c-a', status: 'FAILED', periodIndex: 0, failureCode: 'INVALID_CUSTOMER', failureReason: reason }),
+          charge({ id: 'c-b', status: 'FAILED', periodIndex: 1, failureCode: 'INVALID_CUSTOMER', failureReason: reason }),
+        ],
+      };
+      const { fixture } = await mountDetail(rental, {
+        navState: { chargeSync: { requested: 2, created: 0, failed: 2, local: 0 } },
+      });
+
+      const copy = (warning(fixture)?.textContent ?? '').replace(/\s+/g, ' ');
+      expect(copy).toContain('2 cobranças não puderam ser criadas no Asaas.');
+      expect(copy).toContain(`Motivo: ${reason}`);
+      // Motivo repetido aparece UMA vez no banner.
+      expect(copy.split(reason).length - 1).toBe(1);
+    });
+
+    it('FIX-0755: motivos diferentes aparecem todos, sem repetir', async () => {
+      const rental: RentalResponseDto = {
+        ...ACTIVE_AUTO,
+        charges: [
+          charge({ id: 'c-a', status: 'FAILED', periodIndex: 0, failureReason: 'Juros acima do máximo.' }),
+          charge({ id: 'c-b', status: 'FAILED', periodIndex: 1, failureReason: 'Multa acima do máximo.' }),
+          charge({ id: 'c-c', status: 'FAILED', periodIndex: 2, failureReason: 'Juros acima do máximo.' }),
+        ],
+      };
+      const { fixture } = await mountDetail(rental, {
+        navState: { chargeSync: { requested: 3, created: 0, failed: 3, local: 0 } },
+      });
+
+      const copy = (warning(fixture)?.textContent ?? '').replace(/\s+/g, ' ');
+      expect(copy).toContain('Motivos: Juros acima do máximo. | Multa acima do máximo.');
+    });
+
+    it('FIX-0755: sem failureReason (cobrança antiga) o banner segue como antes, sem "Motivo"', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO, {
+        navState: { chargeSync: { requested: 2, created: 1, failed: 1, local: 0 } },
+      });
+      expect(text(fixture)).not.toContain('Motivo');
     });
 
     it('sem falha (failed = 0) o fluxo é o de sempre: nenhum aviso', async () => {

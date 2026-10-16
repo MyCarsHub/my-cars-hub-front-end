@@ -4,17 +4,17 @@ import { ptBrMoneyCents } from '../../utils/validators/ptbr-money.validator';
 import { formatPtBrMoney } from '../../utils/ptbr-number';
 
 /**
- * FIX-0750: encargo em R$ (multa fixa, juros diario) tem que ser MENOR que o
- * valor da cobranca (`periodRateReais`). Espelha FIX-0749 do servidor. Percentual
- * nunca entra: a multa % tem outro limite.
+ * FIX-0750: multa fixa (R$) tem que ser MENOR que o valor da cobranca
+ * (`periodRateReais`). Espelha FIX-0749 do servidor. Percentual nunca entra: a
+ * multa % tem outro limite. FIX-0754: o juros em R$/dia saiu da tela (agora e % ao
+ * mes, conferido pelo preflight), entao so a multa fixa segue aqui.
  */
 export const FEE_NOT_BELOW_CHARGE_KEY = 'feeNotBelowCharge';
 
-export type FeeKind = 'LATE_FINE' | 'DAILY_INTEREST';
+export type FeeKind = 'LATE_FINE';
 
 const SERVER_CODES: Readonly<Record<string, { control: string; field: string }>> = {
   LATE_FINE_NOT_BELOW_CHARGE: { control: 'lateFineValueInput', field: 'lateFineValue' },
-  DAILY_INTEREST_NOT_BELOW_CHARGE: { control: 'dailyInterestReais', field: 'dailyInterestAmount' },
 };
 
 /** `R$ 1.234,56` — mesma formatacao da mensagem do servidor. */
@@ -23,9 +23,8 @@ function reais(cents: number): string {
 }
 
 /** Texto do erro inline; identico ao devolvido pelo servidor. */
-export function feeBelowChargeMessage(kind: FeeKind, feeCents: number, chargeCents: number): string {
-  const subject = kind === 'LATE_FINE' ? 'A multa fixa' : 'O juros diário';
-  return `${subject} (${reais(feeCents)}) deve ser menor que o valor da cobrança (${reais(chargeCents)}).`;
+export function feeBelowChargeMessage(feeCents: number, chargeCents: number): string {
+  return `A multa fixa (${reais(feeCents)}) deve ser menor que o valor da cobrança (${reais(chargeCents)}).`;
 }
 
 /** Centavos do encargo e da cobranca quando a regra se aplica; senao `null`. */
@@ -34,7 +33,7 @@ export function feeAndCharge(
   form: Pick<FormGroup, 'get'>,
 ): { fee: number; charge: number } | null {
   if (kind === 'LATE_FINE' && form.get('lateFineType')?.value !== 'FIXED') return null;
-  const feeControl = form.get(kind === 'LATE_FINE' ? 'lateFineValueInput' : 'dailyInterestReais');
+  const feeControl = form.get('lateFineValueInput');
   const raw: unknown = feeControl?.value;
   const fee = typeof raw === 'string' ? ptBrMoneyCents(raw) : null;
   const periodRaw: unknown = form.get('periodRateReais')?.value;
@@ -56,7 +55,7 @@ export function feeBelowChargeValidator(kind: FeeKind): ValidatorFn {
 export function currentFeeMessage(kind: FeeKind, form: Pick<FormGroup, 'get'>): string | null {
   const pair = feeAndCharge(kind, form);
   return pair !== null && pair.fee >= pair.charge
-    ? feeBelowChargeMessage(kind, pair.fee, pair.charge)
+    ? feeBelowChargeMessage(pair.fee, pair.charge)
     : null;
 }
 

@@ -22,6 +22,8 @@ import {
   RentalDocumentDto,
   RentalFilters,
   RentalListItemDto,
+  RentalPreflightRequest,
+  RentalPreflightResponse,
   RentalPhotoAngle,
   RentalPhotoDto,
   RentalPhotoKind,
@@ -225,6 +227,15 @@ export class RentalService {
     return this.http
       .post<Partial<RentalChargePreviewDto>>(`${BASE}/charge-preview`, payload)
       .pipe(map((raw) => normalizeChargePreview(raw)));
+  }
+
+  /**
+   * FIX-0752 — confere o que o create/edit recusaria, SEM gravar nada. Mesmo corpo
+   * do {@link create} (+ `rentalId` na edição). Responde 200 mesmo com problemas:
+   * eles vêm em `issues`; os avisos que não bloqueiam, em `warnings`.
+   */
+  preflight(payload: RentalPreflightRequest): Observable<RentalPreflightResponse> {
+    return this.http.post<RentalPreflightResponse>(`${BASE}/preflight`, payload);
   }
 
   update(id: string, payload: RentalUpdateRequest): Observable<RentalResponseDto> {

@@ -13,7 +13,7 @@ import { DriverService } from '../../services/driver.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../company-settings/contract-template/contract-template-service';
 
-/** FIX-0750: multa fixa e juros diario (R$) tem que ser menores que a cobranca. */
+/** FIX-0750: multa fixa (R$) tem que ser menor que a cobranca. O juros em R$/dia saiu na FIX-0754. */
 describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', () => {
   let fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>;
   let createSpy: ReturnType<typeof vi.fn>;
@@ -23,7 +23,6 @@ describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', 
     submit: () => void;
   };
 
-  const DAILY_ERR = '#rental-daily-interest-error';
   const FINE_ERR = '#rental-late-fine-value-error';
 
   function mount(): void {
@@ -47,7 +46,7 @@ describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', 
         },
         { provide: VehiclesService, useValue: { list: () => of(emptyPage) } },
         { provide: DriverService, useValue: { list: () => of(emptyPage) } },
-        { provide: RentalService, useValue: { getById: () => EMPTY, create: createSpy } },
+        { provide: RentalService, useValue: { getById: () => EMPTY, preflight: () => EMPTY, create: createSpy } },
         { provide: AsaasIntegrationService, useValue: { status: signal(null), load: () => EMPTY } },
         { provide: ContractTemplateService, useValue: { get: () => EMPTY } },
       ],
@@ -100,29 +99,6 @@ describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', 
 
   beforeEach(() => mount());
 
-  it('juros diario IGUAL a cobranca: erro inline com a mensagem exata, aria e botao desabilitado', () => {
-    patch({ ...VALID, periodRateReais: '50,00' });
-    typeInto('#rental-daily-interest', '50,00');
-
-    expect(text(DAILY_ERR)).toBe(
-      'O juros diário (R$ 50,00) deve ser menor que o valor da cobrança (R$ 50,00).',
-    );
-    const input = el<HTMLInputElement>('#rental-daily-interest') as HTMLInputElement;
-    expect(input.getAttribute('aria-invalid')).toBe('true');
-    expect(input.getAttribute('aria-describedby')).toContain('rental-daily-interest-error');
-    expect(submitButton().disabled).toBe(true);
-  });
-
-  it('juros diario MAIOR que a cobranca erra; MENOR nao erra', () => {
-    patch({ ...VALID, periodRateReais: '50,00' });
-    typeInto('#rental-daily-interest', '50,01');
-    expect(text(DAILY_ERR)).not.toBeNull();
-
-    typeInto('#rental-daily-interest', '49,99');
-    expect(text(DAILY_ERR)).toBeNull();
-    expect(submitButton().disabled).toBe(false);
-  });
-
   it('multa FIXED: igual e maior erram com a mensagem exata, menor nao', () => {
     patch({ ...VALID, periodRateReais: '10,00', lateFineType: 'FIXED', lateFineValueInput: '' });
     typeInto('#rental-late-fine-value', '50,00');
@@ -147,43 +123,37 @@ describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', 
 
   it('encargo zero nunca erra', () => {
     patch({ ...VALID, periodRateReais: '10,00', lateFineType: 'FIXED', lateFineValueInput: '' });
-    typeInto('#rental-daily-interest', '0,00');
     typeInto('#rental-late-fine-value', '0,00');
-    expect(text(DAILY_ERR)).toBeNull();
     expect(text(FINE_ERR)).toBeNull();
     expect(submitButton().disabled).toBe(false);
   });
 
-  it('mudar o valor da parcela revalida os encargos nos dois sentidos', () => {
+  it('mudar o valor da parcela revalida a multa nos dois sentidos', () => {
     patch({ ...VALID, periodRateReais: '100,00', lateFineType: 'FIXED', lateFineValueInput: '' });
-    typeInto('#rental-daily-interest', '60,00');
     typeInto('#rental-late-fine-value', '70,00');
-    expect(text(DAILY_ERR)).toBeNull();
     expect(text(FINE_ERR)).toBeNull();
 
     typeInto('#rental-daily', '60,00');
-    expect(text(DAILY_ERR)).toContain('(R$ 60,00) deve ser menor que o valor da cobrança (R$ 60,00)');
     expect(text(FINE_ERR)).toContain('A multa fixa (R$ 70,00)');
     expect(submitButton().disabled).toBe(true);
 
     typeInto('#rental-daily', '100,00');
-    expect(text(DAILY_ERR)).toBeNull();
     expect(text(FINE_ERR)).toBeNull();
     expect(submitButton().disabled).toBe(false);
   });
 
   it('formato pt-BR com milhar: 1.234,56 contra cobranca de 1.234,56', () => {
-    patch({ ...VALID, periodRateReais: '1.234,56' });
-    typeInto('#rental-daily-interest', '1.234,56');
-    expect(text(DAILY_ERR)).toBe(
-      'O juros diário (R$ 1.234,56) deve ser menor que o valor da cobrança (R$ 1.234,56).',
+    patch({ ...VALID, periodRateReais: '1.234,56', lateFineType: 'FIXED', lateFineValueInput: '' });
+    typeInto('#rental-late-fine-value', '1.234,56');
+    expect(text(FINE_ERR)).toBe(
+      'A multa fixa (R$ 1.234,56) deve ser menor que o valor da cobrança (R$ 1.234,56).',
     );
-    typeInto('#rental-daily-interest', '1.234,55');
-    expect(text(DAILY_ERR)).toBeNull();
+    typeInto('#rental-late-fine-value', '1.234,55');
+    expect(text(FINE_ERR)).toBeNull();
   });
 
   it('erro 400 do servidor cai no MESMO campo com a mensagem do servidor (multa)', () => {
-    patch({ ...VALID, dailyInterestReais: '1,00', lateFineType: 'FIXED', lateFineValueInput: '2,00' });
+    patch({ ...VALID, lateFineType: 'FIXED', lateFineValueInput: '2,00' });
     const message = 'A multa fixa (R$ 50,00) deve ser menor que o valor da cobrança (R$ 10,00).';
     createSpy.mockReturnValue(
       throwError(
@@ -203,28 +173,5 @@ describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', 
 
     expect(createSpy).toHaveBeenCalledTimes(1);
     expect(text(FINE_ERR)).toBe(message);
-  });
-
-  it('erro 400 de juros diario cai no campo de juros', () => {
-    patch({ ...VALID, dailyInterestReais: '1,00' });
-    const message = 'O juros diário (R$ 50,00) deve ser menor que o valor da cobrança (R$ 50,00).';
-    createSpy.mockReturnValue(
-      throwError(
-        () =>
-          new HttpErrorResponse({
-            status: 400,
-            error: {
-              code: 'DAILY_INTEREST_NOT_BELOW_CHARGE',
-              message,
-              fieldErrors: { dailyInterestAmount: message },
-            },
-          }),
-      ),
-    );
-    cmp().submit();
-    fixture.detectChanges();
-
-    expect(createSpy).toHaveBeenCalledTimes(1);
-    expect(text(DAILY_ERR)).toBe(message);
   });
 });

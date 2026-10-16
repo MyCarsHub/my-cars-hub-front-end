@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
@@ -328,6 +329,7 @@ describe('RentalContractCard — download & open PDF', () => {
     state.set(snapshot());
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([{ path: '**', children: [] }]),
         { provide: RentalService, useValue: rentalService },
         { provide: DriverService, useValue: driverService },
         { provide: SessionService, useValue: session },
@@ -425,6 +427,70 @@ describe('RentalContractCard — download & open PDF', () => {
     (fixture.componentInstance as any).downloadContract();
     await settle();
     expect(anchors[1].download).toBe(`Contrato-${RID}.pdf`);
+  });
+
+  describe('FIX-0754: LATE_INTEREST_PERCENT_REQUIRED (aluguel legado sem % ao mês)', () => {
+    const MESSAGE = 'Defina o juros ao mês (de 0% a 10%) neste aluguel antes de gerar o contrato.';
+
+    function refuse(body: Record<string, unknown>): void {
+      rentalService.documentSignedUrl.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 400, error: body })),
+      );
+      vi.spyOn(window, 'open').mockReturnValue(fakeTab() as any);
+    }
+
+    const banner = (fixture: { nativeElement: HTMLElement }): HTMLElement | null =>
+      fixture.nativeElement.querySelector('app-alert-banner');
+    const shortcut = (fixture: { nativeElement: HTMLElement }): HTMLAnchorElement | null =>
+      fixture.nativeElement.querySelector('[data-testid="edit-rental-shortcut"]');
+
+    it('mostra a mensagem do backend com atalho para editar o aluguel', async () => {
+      refuse({ message: MESSAGE, code: 'LATE_INTEREST_PERCENT_REQUIRED' });
+      const fixture = makeFixture();
+      (fixture.componentInstance as any).openContract();
+      await settle();
+      fixture.detectChanges();
+
+      expect(banner(fixture)?.textContent).toContain(MESSAGE);
+      expect(shortcut(fixture)?.getAttribute('href')).toBe(`/alugueis/${RID}/editar`);
+    });
+
+    it('também reconhece o código dentro da lista issues', async () => {
+      refuse({
+        message: MESSAGE,
+        issues: [{ field: 'lateInterestPercentPerMonth', code: 'LATE_INTEREST_PERCENT_REQUIRED', message: MESSAGE }],
+      });
+      const fixture = makeFixture();
+      (fixture.componentInstance as any).openContract();
+      await settle();
+      fixture.detectChanges();
+
+      expect(shortcut(fixture)).not.toBeNull();
+    });
+
+    it('outra recusa 400 NÃO ganha o atalho', async () => {
+      refuse({ message: 'Contrato não encontrado.', code: 'NOT_FOUND' });
+      const fixture = makeFixture();
+      (fixture.componentInstance as any).openContract();
+      await settle();
+      fixture.detectChanges();
+
+      expect(banner(fixture)?.textContent).toContain('Contrato não encontrado.');
+      expect(shortcut(fixture)).toBeNull();
+    });
+
+    it('um erro posterior de outro tipo esconde o atalho', async () => {
+      refuse({ message: MESSAGE, code: 'LATE_INTEREST_PERCENT_REQUIRED' });
+      const fixture = makeFixture();
+      (fixture.componentInstance as any).openContract();
+      await settle();
+      refuse({ message: 'Servidor indisponível.', code: 'SOMETHING_ELSE' });
+      (fixture.componentInstance as any).openContract();
+      await settle();
+      fixture.detectChanges();
+
+      expect(shortcut(fixture)).toBeNull();
+    });
   });
 
   it('openContract: bytes %PDF- (mesmo com mimeType DOCX) → aba vai direto pro arquivo', async () => {

@@ -1,0 +1,299 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { AbstractControl, FormGroup } from '@angular/forms';
+import { SERVER_ERROR_KEY } from '../../services/validation-messages';
+import {
+  CreateRentalRequest,
+  RentalChargePreviewDto,
+  RentalPreflightItem,
+  RentalPreflightLimits,
+  RentalPreflightRange,
+} from '../../types/rental.types';
+import { formatPtBrMoney, formatPtBrNumber } from '../../utils/ptbr-number';
+
+/**
+ * FIX-0754 — a ponte entre o preflight do backend (FIX-0752) e o formulário.
+ *
+ * A REGRA mora só no backend: nada aqui decide se um valor é aceito. Este arquivo só
+ * (1) diz em qual campo da tela cada problema cai, (2) lê o mesmo corpo vindo do 400 de
+ * create/edit e (3) formata os números que o backend mandou em `limits`.
+ */
+
+/** Campo do corpo da API -> controle do formulário que o exibe inline. */
+const CONTROL_BY_FIELD: Readonly<Record<string, string>> = {
+  vehicleId: 'vehicleId',
+  driverId: 'driverId',
+  startDate: 'startDate',
+  endDate: 'endDate',
+  billingFrequency: 'billingFrequency',
+  periodRate: 'periodRateReais',
+  caucaoAmount: 'caucaoReais',
+  initialKm: 'initialKm',
+  pickupDate: 'pickupDate',
+  firstPaymentDate: 'firstPaymentDate',
+  // O juros em R$/dia saiu da tela: tudo o que o backend disser sobre ele cai no %.
+  dailyInterestAmount: 'lateInterestPercent',
+  lateInterestPercentPerMonth: 'lateInterestPercent',
+  lateFineType: 'lateFineType',
+  lateFineValue: 'lateFineValueInput',
+  franchiseKm: 'franchiseKm',
+  returnFuelPolicy: 'returnFuelPolicy',
+};
+
+/**
+ * Controles que existem na tela mas NÃO têm onde mostrar uma mensagem inline
+ * (toggles, textarea sem `app-form-field`): o problema vai ao resumo do topo.
+ */
+const INLINE_CONTROLS: ReadonlySet<string> = new Set(Object.values(CONTROL_BY_FIELD));
+
+/** Códigos de integração: o atalho leva a Configurações > Integrações. */
+const INTEGRATION_CODES: ReadonlySet<string> = new Set([
+  'AUTOMATIC_CHARGE_NO_INTEGRATION',
+  'ASAAS_KEY_REVOKED',
+  'ASAAS_WEBHOOK_NOT_REGISTERED',
+  'ASAAS_DAILY_QUOTA_INSUFFICIENT',
+  'ASAAS_LIMITS_UNAVAILABLE',
+]);
+
+/**
+ * Obrigatório vazio: o formulário já acusa pelos próprios validadores (e o submit marca
+ * tudo como tocado). Mostrar também o do preflight faria a tela nascer cheia de vermelho.
+ */
+const REQUIRED_CODE = 'REQUIRED_FIELD';
+
+export type PreflightLink =
+  | { kind: 'driver'; label: string; commands: string[] }
+  | { kind: 'integrations'; label: string; commands: string[] };
+
+export interface PreflightSummaryItem {
+  item: RentalPreflightItem;
+  link: PreflightLink | null;
+}
+
+/** Controle da tela que exibe o problema inline, ou `null` (vai ao resumo). */
+export function controlFor(item: RentalPreflightItem): string | null {
+  if (!item.field) return null;
+  const control = CONTROL_BY_FIELD[item.field];
+  return control && INLINE_CONTROLS.has(control) ? control : null;
+}
+
+/** Só os que bloqueiam e o usuário precisa agir (obrigatório vazio já é do formulário). */
+export function actionableIssues(issues: readonly RentalPreflightItem[]): RentalPreflightItem[] {
+  return issues.filter((i) => i.severity !== 'WARNING' && i.code !== REQUIRED_CODE);
+}
+
+/** Mensagem por controle (a primeira de cada campo). */
+export function messagesByControl(issues: readonly RentalPreflightItem[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const item of issues) {
+    const control = controlFor(item);
+    if (control && !(control in out)) out[control] = item.message;
+  }
+  return out;
+}
+
+/** Atalho do resumo: cadastro do motorista (`driver.*`) ou Integrações. */
+export function linkFor(item: RentalPreflightItem, driverId: string | null): PreflightLink | null {
+  if (INTEGRATION_CODES.has(item.code)) {
+    return { kind: 'integrations', label: 'Abrir Configurações > Integrações', commands: ['/configuracoes/integracoes'] };
+  }
+  const isDriver = (item.field?.startsWith('driver.') ?? false) || item.code.startsWith('DRIVER_');
+  if (isDriver && item.code !== 'DRIVER_NOT_FOUND' && driverId) {
+    return { kind: 'driver', label: 'Abrir o cadastro do motorista', commands: ['/motoristas', driverId, 'editar'] };
+  }
+  return null;
+}
+
+/** Problemas bloqueantes que não têm campo na tela, com o atalho de cada um. */
+export function summaryItems(
+  issues: readonly RentalPreflightItem[],
+  driverId: string | null,
+): PreflightSummaryItem[] {
+  return actionableIssues(issues)
+    .filter((i) => controlFor(i) === null)
+    .map((item) => ({ item, link: linkFor(item, driverId) }));
+}
+
+/**
+ * Marca cada controle com a mensagem do servidor e retira a marca dos que o último
+ * preflight tinha apontado e agora estão limpos.
+ *
+ * Usa `setErrors` e NÃO `updateValueAndValidity`: o preflight roda a cada mudança do
+ * formulário, e revalidar emitiria `valueChanges` de novo — um laço. Mudar o valor do
+ * próprio campo já reexecuta os validadores e derruba a marca sozinho.
+ *
+ * Devolve o conjunto de controles marcados agora, para a chamada seguinte.
+ */
+export function syncServerMarks(
+  form: FormGroup,
+  messages: Readonly<Record<string, string>>,
+  previous: ReadonlySet<string>,
+): Set<string> {
+  const marked = new Set<string>();
+  for (const [name, message] of Object.entries(messages)) {
+    const control = form.get(name);
+    if (!control) continue;
+    control.setErrors({ ...(control.errors ?? {}), [SERVER_ERROR_KEY]: { message } });
+    control.markAsTouched();
+    marked.add(name);
+  }
+  for (const name of previous) {
+    if (marked.has(name)) continue;
+    clearMark(form.get(name));
+  }
+  return marked;
+}
+
+function clearMark(control: AbstractControl | null): void {
+  if (!control?.errors || !(SERVER_ERROR_KEY in control.errors)) return;
+  const rest = Object.fromEntries(Object.entries(control.errors).filter(([k]) => k !== SERVER_ERROR_KEY));
+  control.setErrors(Object.keys(rest).length > 0 ? rest : null);
+}
+
+/** Lista de problemas e limites do 400 de create/edit (o MESMO corpo do preflight). */
+export function readPreflightError(
+  error: unknown,
+): { issues: RentalPreflightItem[]; limits: RentalPreflightLimits | null } | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 400) return null;
+  const body: unknown = error.error;
+  if (typeof body !== 'object' || body === null) return null;
+  const record = body as { issues?: unknown; limits?: unknown };
+  if (!Array.isArray(record.issues) || record.issues.length === 0) return null;
+  const issues = (record.issues as Partial<RentalPreflightItem>[])
+    .filter((i) => typeof i?.code === 'string' && typeof i?.message === 'string')
+    .map((i) => ({
+      field: typeof i.field === 'string' ? i.field : null,
+      code: i.code as string,
+      message: i.message as string,
+      acceptedValue: typeof i.acceptedValue === 'string' ? i.acceptedValue : null,
+      severity: i.severity === 'WARNING' ? ('WARNING' as const) : ('BLOCKING' as const),
+    }));
+  return issues.length > 0
+    ? { issues, limits: (record.limits as RentalPreflightLimits | null | undefined) ?? null }
+    : null;
+}
+
+/** O 400 de "aluguel legado sem % ao mês" (contrato novo exige defini-lo antes). */
+export const LATE_INTEREST_REQUIRED_CODE = 'LATE_INTEREST_PERCENT_REQUIRED';
+
+export function isLateInterestRequired(error: unknown): boolean {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 400) return false;
+  let body: unknown = error.error;
+  // Download de contrato vem como Blob/texto: o corpo de erro chega sem parse.
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return false;
+    }
+  }
+  if (typeof body !== 'object' || body === null) return false;
+  const record = body as { code?: unknown; issues?: { code?: unknown }[] };
+  return (
+    record.code === LATE_INTEREST_REQUIRED_CODE ||
+    (Array.isArray(record.issues) && record.issues.some((i) => i?.code === LATE_INTEREST_REQUIRED_CODE))
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Formatação dos números que o backend mandou
+// ---------------------------------------------------------------------------
+
+/** `2` -> `2%`, `0.5` -> `0,5%`, `1.25` -> `1,25%` (sem zeros à direita). */
+export function formatPercent(value: number): string {
+  const scaled = Math.round(value * 100);
+  return `${formatPtBrNumber(scaled, 2, { trailingZeros: false })}%`;
+}
+
+function formatRange(range: RentalPreflightRange): string {
+  const min = range.min ?? 0;
+  return range.max === null || range.max === undefined
+    ? `a partir de ${formatPercent(min)}`
+    : `de ${formatPercent(min)} a ${formatPercent(range.max)}`;
+}
+
+export function formatBrl(cents: number): string {
+  return `R$ ${formatPtBrMoney(cents)}`;
+}
+
+/** Ajuda dos juros: a faixa de `limits` + a equivalência aproximada em R$/dia. */
+export function interestHelp(
+  limits: RentalPreflightLimits | null,
+  periodCents: number | null,
+  percentHundredths: number | null,
+): string {
+  const parts: string[] = [];
+  const range = limits?.interestPercentPerMonth;
+  parts.push(
+    range
+      ? `Faixa aceita: ${formatRange(range)} ao mês. Deixe vazio ou 0 para não cobrar.`
+      : 'Percentual ao mês (ex.: 1,50). Deixe vazio ou 0 para não cobrar.',
+  );
+  if (periodCents !== null && periodCents > 0 && percentHundredths !== null && percentHundredths > 0) {
+    // valor do período x % / 30 = quanto cada dia de atraso custa, aproximadamente.
+    const perDay = Math.round((periodCents * percentHundredths) / 300_000);
+    parts.push(`Equivale a cerca de ${formatBrl(perDay)} por dia de atraso sobre ${formatBrl(periodCents)}.`);
+  }
+  return parts.join(' ');
+}
+
+/** Ajuda da multa, que muda com o tipo: faixa no %, teto por cobrança no R$. */
+export function fineHelp(type: 'PERCENT' | 'FIXED', limits: RentalPreflightLimits | null): string {
+  if (type === 'PERCENT') {
+    const range = limits?.finePercent;
+    return range
+      ? `Faixa aceita: ${formatRange(range)} do valor da cobrança.`
+      : 'Informe a percentagem (ex.: 2 = 2%).';
+  }
+  const max = limits?.fixedFineMaxCents;
+  // `fixedFineMaxCents` = menor cobrança menos 1 centavo; a ajuda fala da cobrança.
+  return typeof max === 'number'
+    ? `Menor que ${formatBrl(max + 1)} (valor de cada cobrança).`
+    : 'Informe o valor em reais (ex.: 150,00).';
+}
+
+// ---------------------------------------------------------------------------
+// Prévia de cada cobrança
+// ---------------------------------------------------------------------------
+
+export interface ChargeScheduleRow {
+  key: string;
+  title: string;
+  due: string;
+  amount: string;
+  /** Nulo na caução, que não carrega encargos. */
+  fine: string | null;
+  interest: string | null;
+  destination: string;
+}
+
+function toBrDay(day: string): string {
+  return `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
+}
+
+/**
+ * Cada cobrança como irá ao Asaas: valor e vencimento vêm da prévia do backend; multa e
+ * juros são os do corpo enviado (o backend os repassa sem recalcular).
+ */
+export function buildChargeSchedule(
+  preview: RentalChargePreviewDto,
+  payload: Pick<CreateRentalRequest, 'lateFineType' | 'lateFineValue' | 'lateInterestPercentPerMonth'>,
+): ChargeScheduleRow[] {
+  const fine =
+    payload.lateFineType === 'FIXED'
+      ? `Multa ${formatBrl(payload.lateFineValue ?? 0)}`
+      : `Multa ${formatPercent((payload.lateFineValue ?? 0) / 100)}`;
+  const pct = payload.lateInterestPercentPerMonth ?? 0;
+  const interest = pct > 0 ? `Juros ${formatPercent(pct)} ao mês` : 'Sem juros';
+  return preview.charges.map((c, i) => {
+    const isPeriod = c.kind === 'RENTAL_PERIOD';
+    return {
+      key: `${c.kind}-${c.index}-${i}`,
+      title: isPeriod ? `Cobrança ${c.index + 1}` : 'Caução',
+      due: toBrDay(c.dueDate),
+      amount: formatBrl(c.amountCents),
+      fine: isPeriod ? fine : null,
+      interest: isPeriod ? interest : null,
+      destination: c.destination === 'ASAAS' ? 'Vai ao Asaas' : 'Fica só registrada aqui',
+    };
+  });
+}
