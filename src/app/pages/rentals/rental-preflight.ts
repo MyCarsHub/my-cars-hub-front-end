@@ -295,6 +295,8 @@ export interface ChargeScheduleRow {
   key: string;
   title: string;
   due: string;
+  /** Vencimento em ISO (AAAA-MM-DD): é por ele que se ordena, não pela ordem da lista. */
+  dueIso: string;
   amount: string;
   /** Nulo na caução, que não carrega encargos. */
   fine: string | null;
@@ -326,10 +328,88 @@ export function buildChargeSchedule(
       key: `${c.kind}-${c.index}-${i}`,
       title: isPeriod ? `Cobrança ${c.index + 1}` : 'Caução',
       due: toBrDay(c.dueDate),
+      dueIso: c.dueDate,
       amount: formatBrl(c.amountCents),
       fine: isPeriod ? fine : null,
       interest: isPeriod ? interest : null,
       destination: c.destination === 'ASAAS' ? 'Vai ao Asaas' : 'Fica só registrada aqui',
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Resumo curto da prévia (FIX-0763)
+// ---------------------------------------------------------------------------
+
+export interface ChargeScheduleSummary {
+  /** Total de cobranças da lista completa, caução incluída. */
+  total: number;
+  /** A lista tem algo além do que o resumo já diz (mais de uma cobrança). */
+  hasMore: boolean;
+  /** Frase de quantidade e valor das cobranças do período. */
+  headline: string;
+  /** Primeira e última data de vencimento do período. */
+  dates: string;
+  /** Multa e juros, uma vez só: são iguais para todas as cobranças. */
+  charges: string | null;
+  /** Caução, quando existe, em uma linha. */
+  deposit: string | null;
+  /** Uma linha por divergência entre as cobranças do período. Vazio = todas iguais. */
+  differences: string[];
+}
+
+function mostCommon(values: readonly string[]): string {
+  const counts = new Map<string, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best = values[0];
+  for (const [v, n] of counts) if (n > (counts.get(best) ?? 0)) best = v;
+  return best;
+}
+
+/**
+ * Condensa a lista de cobranças em poucas linhas. Só reordena o que a lista já tem: os
+ * valores e as datas continuam sendo os do backend. `null` quando não há cobrança.
+ */
+export function summarizeChargeSchedule(rows: readonly ChargeScheduleRow[]): ChargeScheduleSummary | null {
+  if (rows.length === 0) return null;
+  const period = rows.filter((r) => r.fine !== null);
+  const deposit = rows.find((r) => r.fine === null) ?? null;
+  const depositLine = deposit ? `Caução de ${deposit.amount}, vence ${deposit.due}.` : null;
+  if (period.length === 0) {
+    return { total: rows.length, hasMore: false, headline: 'Só a caução', dates: '', charges: null, deposit: depositLine, differences: [] };
+  }
+
+  const common = mostCommon(period.map((r) => r.amount));
+  const headline =
+    period.length === 1
+      ? `1 cobrança de ${period[0].amount}`
+      : `${period.length} cobranças de ${common}`;
+  const byDue = [...period].sort((a, b) => a.dueIso.localeCompare(b.dueIso));
+  const first = byDue[0];
+  const last = byDue[byDue.length - 1];
+  const dates =
+    period.length === 1 ? `Vence em ${first.due}` : `Primeira vence em ${first.due}, última em ${last.due}`;
+
+  const differences: string[] = [];
+  const oddAmount = period.filter((r) => r.amount !== common);
+  if (oddAmount.length > 0 && oddAmount.length <= 2) {
+    differences.push(`Valor diferente: ${oddAmount.map((r) => `${r.title} (${r.amount})`).join(', ')}.`);
+  } else if (oddAmount.length > 2) {
+    differences.push(`${oddAmount.length} cobranças com valor diferente de ${common}.`);
+  }
+  if (new Set(period.map((r) => r.destination)).size > 1) {
+    const dest = mostCommon(period.map((r) => r.destination));
+    const n = period.filter((r) => r.destination !== dest).length;
+    differences.push(`${n} ${n === 1 ? 'cobrança tem' : 'cobranças têm'} outro destino (veja a lista).`);
+  }
+
+  return {
+    total: rows.length,
+    hasMore: rows.length > 1,
+    headline,
+    dates,
+    charges: first.fine !== null ? `${first.fine} · ${first.interest}` : null,
+    deposit: depositLine,
+    differences,
+  };
 }

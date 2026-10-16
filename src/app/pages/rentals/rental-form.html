@@ -308,36 +308,55 @@
           </p>
         </div>
 
-        <!-- FIX-0754: cada cobranca como ira ao Asaas (valor e vencimento do backend). -->
-        @if (chargeSchedule().length > 0) {
+        <!-- FIX-0754/0763: resumo curto; a lista completa fica recolhida. -->
+        @if (scheduleSummary(); as sum) {
           <section data-testid="charge-schedule" aria-labelledby="charge-schedule-title"
-            class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4 space-y-2">
+            class="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4 space-y-2 min-w-0">
             <h3 id="charge-schedule-title" class="text-base font-semibold text-neutral-900">
               Cobranças previstas
             </h3>
-            <ul class="divide-y divide-neutral-200">
-              @for (row of visibleScheduleRows(); track row.key) {
-                <li class="py-2 text-base text-neutral-800 min-w-0" data-testid="charge-schedule-row">
-                  <p class="flex flex-wrap items-baseline justify-between gap-x-3">
-                    <span class="font-medium">{{ row.title }} · vence {{ row.due }}</span>
-                    <span class="font-semibold tabular-nums">{{ row.amount }}</span>
-                  </p>
-                  <p class="text-neutral-700">
-                    @if (row.fine; as fine) {
-                      {{ fine }} · {{ row.interest }} ·
-                    }
-                    {{ row.destination }}
-                  </p>
-                </li>
+            <div class="text-base text-neutral-800 space-y-1 min-w-0" data-testid="charge-schedule-summary">
+              <p class="font-medium" data-testid="charge-summary-headline">{{ sum.headline }}</p>
+              @if (sum.dates) {
+                <p>{{ sum.dates }}</p>
+              }
+              @if (sum.charges; as charges) {
+                <p>{{ charges }}</p>
+              }
+              @if (sum.deposit; as deposit) {
+                <p>{{ deposit }}</p>
+              }
+              @for (line of sum.differences; track line) {
+                <p class="font-medium text-neutral-900" data-testid="charge-summary-difference">{{ line }}</p>
+              }
+            </div>
+            @if (sum.hasMore) {
+            <button type="button" (click)="toggleSchedule()"
+              [attr.aria-expanded]="scheduleExpanded()"
+              aria-controls="charge-schedule-list"
+              data-testid="charge-schedule-toggle"
+              class="min-h-[44px] text-base font-medium text-primary-700 underline rounded
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
+              {{ scheduleExpanded() ? 'Ocultar as cobranças' : 'Ver todas as ' + sum.total + ' cobranças' }}
+            </button>
+            <ul id="charge-schedule-list" [hidden]="!scheduleExpanded()" class="divide-y divide-neutral-200 max-h-96 overflow-y-auto">
+              @if (scheduleExpanded()) {
+                @for (row of chargeSchedule(); track row.key) {
+                  <li class="py-2 text-base text-neutral-800 min-w-0" data-testid="charge-schedule-row">
+                    <p class="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <span class="font-medium">{{ row.title }} · vence {{ row.due }}</span>
+                      <span class="font-semibold tabular-nums">{{ row.amount }}</span>
+                    </p>
+                    <p class="text-neutral-700">
+                      @if (row.fine; as fine) {
+                        {{ fine }} · {{ row.interest }} ·
+                      }
+                      {{ row.destination }}
+                    </p>
+                  </li>
+                }
               }
             </ul>
-            @if (hiddenScheduleCount() > 0 || scheduleExpanded()) {
-              <button type="button" (click)="toggleSchedule()"
-                [attr.aria-expanded]="scheduleExpanded()"
-                class="min-h-[44px] text-base font-medium text-primary-700 underline rounded
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
-                {{ scheduleExpanded() ? 'Mostrar menos' : 'Ver todas (' + chargeSchedule().length + ')' }}
-              </button>
             }
           </section>
         }

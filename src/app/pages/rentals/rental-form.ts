@@ -58,6 +58,7 @@ import {
   messagesByControl,
   readPreflightError,
   summaryItems,
+  summarizeChargeSchedule,
   syncServerMarks,
 } from './rental-preflight';
 import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
@@ -358,13 +359,7 @@ export class RentalForm implements OnInit {
     return `Este aluguel foi criado com juros de ${formatBrl(cents)} por dia de atraso, um formato que não é mais aceito. Defina o juros ao mês (%) para substituí-lo.`;
   });
 
-  protected readonly visibleScheduleRows = computed(() => {
-    const rows = this.chargeSchedule();
-    return this.scheduleExpanded() ? rows : rows.slice(0, SCHEDULE_COLLAPSED_ROWS);
-  });
-  protected readonly hiddenScheduleCount = computed(
-    () => this.chargeSchedule().length - this.visibleScheduleRows().length,
-  );
+  protected readonly scheduleSummary = computed(() => summarizeChargeSchedule(this.chargeSchedule()));
 
   /**
    * Chave estável do corpo a conferir; `''` = nada a conferir (edição ainda carregando
@@ -1548,9 +1543,6 @@ const PICKER_RELOAD_DEBOUNCE_MS = 300;
 
 /** Pausa antes de conferir no backend: um campo de texto emite a cada tecla. */
 const PREFLIGHT_DEBOUNCE_MS = 400;
-
-/** Cobranças mostradas antes do "ver todas" — um aluguel diário tem dezenas. */
-const SCHEDULE_COLLAPSED_ROWS = 4;
 
 interface PreflightRun {
   response: RentalPreflightResponse;
