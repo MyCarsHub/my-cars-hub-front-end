@@ -29,6 +29,8 @@ import {
   RentalPhotoKind,
   RentalResponseDto,
   RentalStatusHistoryDto,
+  RentalSupportCancelResponse,
+  RentalSupportDeleteResponse,
   RentalUpdateRequest,
   SignatureStatusDto,
   SignedUrlDto,
@@ -284,6 +286,34 @@ export class RentalService {
   remove(id: string, removeOverdueCharges = false): Observable<void> {
     const params = new HttpParams().set('removeOverdueCharges', removeOverdueCharges);
     return this.http.delete<void>(`${BASE}/${id}`, { params });
+  }
+
+  /**
+   * FEAT-0347 — cancelar na sessão de EDIÇÃO do admin. Mesma rota do dono; a resposta
+   * traz, além do aluguel, o desfecho de cada cobrança no Asaas (`chargeRemovals`).
+   */
+  supportCancel(
+    id: string,
+    removeOverdueCharges: boolean,
+  ): Observable<RentalSupportCancelResponse> {
+    return this.http.post<RentalSupportCancelResponse>(`${BASE}/${id}/cancel`, {
+      removeOverdueCharges,
+    });
+  }
+
+  /**
+   * FEAT-0347 — excluir na sessão de EDIÇÃO: 200 com o desfecho por cobrança. Com cobrança
+   * paga o servidor responde 400 `PAID_CHARGES_WOULD_BE_LOST` até vir `acknowledgePaidChargesLoss`.
+   */
+  supportRemove(
+    id: string,
+    options: { removeOverdueCharges: boolean; acknowledgePaidChargesLoss: boolean },
+  ): Observable<RentalSupportDeleteResponse> {
+    let params = new HttpParams().set('removeOverdueCharges', options.removeOverdueCharges);
+    if (options.acknowledgePaidChargesLoss) {
+      params = params.set('acknowledgePaidChargesLoss', true);
+    }
+    return this.http.delete<RentalSupportDeleteResponse>(`${BASE}/${id}`, { params });
   }
 
   /**

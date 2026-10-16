@@ -24,6 +24,8 @@ import {
   overdueUnpaidGatewayCharges,
   shouldWarnAboutGatewayCharges,
 } from '../../utils/rental-charges';
+import { ChargeRemovalList } from './components/charge-removal-list/charge-removal-list';
+import { SupportRentalActions } from './components/support-rental-actions/support-rental-actions';
 import { ImpersonationService } from '../../services/impersonation.service';
 import { isToastedBySupportEditInterceptor } from '../../services/support-edit-errors';
 import { BackLink } from '../../components/core/back-link/back-link';
@@ -56,6 +58,9 @@ import {
   ChargeCancelOutcome,
   ChargeCancelResponse,
   RentalChargeDto,
+  RentalChargeRemovalDto,
+  RentalSupportCancelResponse,
+  RentalSupportDeleteResponse,
   RentalChargeReconcileDto,
   RentalChargeRetryDto,
   RentalChargeSyncDto,
@@ -86,6 +91,8 @@ import { todayInBusinessTz } from '../../utils/business-clock';
     DetailActions,
     RentalProgressChecklist,
     EndRentalDialog,
+    SupportRentalActions,
+    ChargeRemovalList,
     AlertBanner,
     NgTemplateOutlet,
     ActionsMenu,
@@ -379,7 +386,17 @@ export class RentalDetail implements OnInit {
     return diff > 0 ? diff : 1;
   });
 
-  protected readonly canCancel = computed(() => this.rental()?.status === 'RESERVED');
+  /**
+   * FEAT-0347 — sessão de EDIÇÃO do admin. Nela cancelar/excluir passam pelo
+   * `app-support-rental-actions` (desfecho por cobrança, aviso de histórico pago); o botão
+   * do dono não aparece em dobro. `?.` porque dublês de spec antigos não conhecem `editMode`.
+   */
+  private readonly impersonation = inject(ImpersonationService);
+  protected readonly editSession = computed(() => this.impersonation.editMode?.() === true);
+  protected readonly supportDeleteRemovals = signal<readonly RentalChargeRemovalDto[] | null>(null);
+  protected readonly canCancel = computed(
+    () => this.rental()?.status === 'RESERVED' && !this.editSession(),
+  );
   protected readonly canComplete = computed(() => this.rental()?.status === 'ACTIVE');
   /**
    * Ativação é oferecida para TODO aluguel RESERVED — cobrança automática
@@ -695,6 +712,17 @@ export class RentalDetail implements OnInit {
         );
       },
     });
+  }
+
+  protected onSupportCanceled(res: RentalSupportCancelResponse): void {
+    // O aluguel vem com os campos no topo; `chargeRemovals` extra é inócuo aqui.
+    this.rental.set(res);
+    this.refreshHistoryAfterTransition();
+  }
+
+  protected onSupportDeleted(res: RentalSupportDeleteResponse): void {
+    this.supportDeleteRemovals.set(res.chargeRemovals);
+    this.rental.set(null);
   }
 
   protected askDelete(): void {
@@ -1283,7 +1311,7 @@ export class RentalDetail implements OnInit {
   // não carrega papel.
 
   /** Sessão "Ver como empresa" (leitura): cancelar/gerar ficam fora, com explicação. */
-  protected readonly readOnlySession = inject(ImpersonationService).readOnly;
+  protected readonly readOnlySession = this.impersonation.readOnly;
   protected readonly cancelChargeTarget = signal<RentalChargeDto | null>(null);
   protected readonly cancelChargeNote = signal('');
   protected readonly cancelChargeBusy = signal(false);
