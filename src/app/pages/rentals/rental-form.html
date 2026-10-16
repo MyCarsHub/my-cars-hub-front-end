@@ -34,7 +34,7 @@
         <ul class="space-y-2">
           @for (entry of preflightSummary(); track entry.item.code + entry.item.field) {
             <li class="min-w-0">
-              <span>{{ entry.item.message }}</span>
+              <span>{{ entry.text }}</span>
               @if (entry.link; as link) {
                 <a [routerLink]="link.commands"
                   class="mt-1 flex min-h-[44px] w-fit items-center font-medium underline rounded
@@ -46,6 +46,13 @@
             </li>
           }
         </ul>
+      </div>
+    }
+
+    @if (preflightUnavailable()) {
+      <div data-testid="preflight-unavailable" role="status"
+        class="rounded-xl border border-neutral-300 bg-neutral-50 text-neutral-800 text-base p-3 sm:p-4">
+        Não foi possível conferir agora; o sistema confere de novo ao salvar.
       </div>
     }
 
@@ -83,7 +90,7 @@
           <select
             appFieldControl
             formControlName="vehicleId"
-            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+            class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
             <option value="">Selecione...</option>
             @for (v of vehicles(); track v.id) {
@@ -115,7 +122,7 @@
           <select
             appFieldControl
             formControlName="driverId"
-            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+            class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
             <option value="">Selecione...</option>
             @for (d of drivers(); track d.id) {
@@ -143,7 +150,7 @@
             appFieldControl
             type="date"
             formControlName="startDate"
-            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+            class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
         </app-form-field>
 
@@ -159,7 +166,7 @@
               appFieldControl
               type="date"
               formControlName="endDate"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
           <!-- Erro de GRUPO (endDate < startDate): não pertence a um controle só,
@@ -188,7 +195,7 @@
             <select
               appFieldControl
               formControlName="billingFrequency"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of billingFrequencyOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
@@ -214,7 +221,7 @@
               placeholder="1.500,00"
               formControlName="periodRateReais"
               (input)="onMoneyInput($event, 'periodRateReais')"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -233,7 +240,7 @@
               placeholder="2.000,00"
               formControlName="caucaoReais"
               (input)="onMoneyInput($event, 'caucaoReais')"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
         </div>
@@ -356,7 +363,7 @@
                 inputmode="numeric"
                 formControlName="initialKm"
                 placeholder="Ex.: 45820"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
@@ -375,7 +382,7 @@
                 [attr.max]="pickupMax()"
                 [attr.aria-invalid]="pickupOutsidePeriod() ? 'true' : null"
                 [attr.aria-describedby]="pickupDescribedBy()"
-                class="w-full border rounded-xl px-4 py-2.5 text-neutral-800
+                class="w-full text-base border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
                 [class.bg-neutral-50]="!pickupOutsidePeriod()"
                 [class.border-neutral-200]="!pickupOutsidePeriod()"
@@ -415,7 +422,7 @@
                 appFieldControl
                 type="date"
                 formControlName="firstPaymentDate"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
+                class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
@@ -435,7 +442,7 @@
                 placeholder="1,50"
                 formControlName="lateInterestPercent"
                 (input)="onMoneyInput($event, 'lateInterestPercent')"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
               @if (legacyInterestNotice(); as notice) {
                 <p id="rental-legacy-interest-notice" data-testid="legacy-interest-notice" role="status"
@@ -455,7 +462,7 @@
                 appFieldControl
                 formControlName="lateFineType"
                 (change)="onLateFineTypeChange()"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
+                class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
                 <option value="PERCENT">Percentual (%)</option>
                 <option value="FIXED">Valor fixo (R$)</option>
@@ -468,7 +475,7 @@
               [hint]="lateFineHint()"
               [required]="true"
               [control]="form.controls.lateFineValueInput"
-              [messages]="lateFineFieldMessages()"
+              [messages]="lateFineValueMessages"
             >
               <!-- Campo DUPLO: em FIXED é dinheiro e leva máscara; em PERCENT é
                    percentagem pura e fica como sempre foi. São dois <input> e não
@@ -484,7 +491,7 @@
                   placeholder="150,00"
                   formControlName="lateFineValueInput"
                   (input)="onLateFineValueInput($event)"
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                  class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                          focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
               } @else {
                 <input
@@ -494,7 +501,7 @@
                   step="0.01"
                   inputmode="decimal"
                   formControlName="lateFineValueInput"
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                  class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                          focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
               }
             </app-form-field>
@@ -513,7 +520,7 @@
                 inputmode="numeric"
                 formControlName="franchiseKm"
                 placeholder="Ex.: 150 (0 ou vazio = ilimitada)"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
@@ -529,7 +536,7 @@
                 list="rental-return-fuel-options"
                 formControlName="returnFuelPolicy"
                 placeholder="Ex.: Mesmo nível da retirada"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
+                class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
               <datalist id="rental-return-fuel-options">
                 <option value="Mesmo nível da retirada"></option>
@@ -551,7 +558,7 @@
             rows="3"
             formControlName="notes"
             placeholder="Anotações internas sobre o aluguel..."
-            class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+            class="w-full text-base bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"></textarea>
         </app-form-field>
       </div>
@@ -739,14 +746,14 @@
       </button>
       @if (!isEdit()) {
         <button type="submit"
-          [disabled]="saving() || previewing() || feeBelowChargeInvalid() || preflightBlocked()"
+          [disabled]="saving() || previewing() || preflightBlocked()"
           class="w-full sm:w-auto min-h-[44px] px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
                  text-sm font-semibold shadow-sm disabled:opacity-60">
           {{ previewing() ? 'Conferindo cobranças…' : saving() ? 'Criando…' : 'Criar aluguel' }}
         </button>
       } @else if (form.enabled) {
         <button type="submit"
-          [disabled]="saving() || feeBelowChargeInvalid() || preflightBlocked()"
+          [disabled]="saving() || preflightBlocked()"
           class="w-full sm:w-auto px-4 py-3 rounded-xl bg-primary-500 hover:bg-primary-600 text-white
                  text-sm font-semibold shadow-sm disabled:opacity-60">
           {{ saving() ? 'Salvando…' : 'Salvar alterações' }}

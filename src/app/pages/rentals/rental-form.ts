@@ -24,7 +24,6 @@ import {
   distinctUntilChanged,
   filter,
   map,
-  merge,
   of,
   startWith,
   switchMap,
@@ -48,12 +47,7 @@ import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
 import { formatPtBrMoney } from '../../utils/ptbr-number';
-import {
-  FEE_NOT_BELOW_CHARGE_KEY,
-  applyFeeBelowChargeServerError,
-  currentFeeMessage,
-  feeBelowChargeValidator,
-} from './rental-fee-below-charge';
+import { applyFeeBelowChargeServerError } from './rental-fee-below-charge';
 import {
   ChargeScheduleRow,
   PreflightSummaryItem,
@@ -263,7 +257,7 @@ export class RentalForm implements OnInit {
       // `onLateFineTypeChange` troca os dois quando o modo muda.
       lateFineValueInput: [
         0 as number | string,
-        [Validators.required, Validators.min(0), feeBelowChargeValidator('LATE_FINE')],
+        [Validators.required, Validators.min(0)],
       ],
 
       // V32: franquia e política de combustível — opcionais.
@@ -301,42 +295,6 @@ export class RentalForm implements OnInit {
       if (control.errors?.['firstPaymentAfterEnd']) control.markAsTouched();
     });
 
-  /**
-   * FIX-0750: encargo em R$ < valor da cobranca. Os validadores dos dois campos
-   * leem `periodRateReais` e o tipo da multa, mas o Angular so reavalia o controle
-   * que mudou — entao mudar a parcela, a frequencia ou o tipo revalida os encargos.
-   */
-  private readonly feeRevalidated = signal(0);
-
-  private readonly feesRevalidateOnChargeChange = merge(
-    this.form.controls.periodRateReais.valueChanges,
-    this.form.controls.billingFrequency.valueChanges,
-    this.form.controls.lateFineType.valueChanges,
-  )
-    .pipe(takeUntilDestroyed())
-    .subscribe(() => {
-      const control = this.form.controls.lateFineValueInput;
-      control.updateValueAndValidity({ emitEvent: false });
-      if (control.errors?.[FEE_NOT_BELOW_CHARGE_KEY]) control.markAsTouched();
-      this.feeRevalidated.update((n) => n + 1);
-    });
-
-  protected readonly lateFineFieldMessages = computed(() => {
-    this.formValue();
-    this.feeRevalidated();
-    const text = currentFeeMessage('LATE_FINE', this.form);
-    return text
-      ? { ...this.lateFineValueMessages, [FEE_NOT_BELOW_CHARGE_KEY]: text }
-      : this.lateFineValueMessages;
-  });
-
-  /** Salvar fica impedido enquanto algum encargo violar a regra. */
-  protected readonly feeBelowChargeInvalid = computed(() => {
-    this.formValue();
-    this.feeRevalidated();
-    return currentFeeMessage('LATE_FINE', this.form) !== null;
-  });
-
   // ------------------------------------------------------------------
   // FIX-0754 — preflight. O backend (`POST /rentals/preflight`) diz o que recusaria no
   // create/edit; a tela só ESPELHA a lista: cada problema no campo certo, o resto no
@@ -352,24 +310,31 @@ export class RentalForm implements OnInit {
   protected readonly scheduleExpanded = signal(false);
   /** Controles marcados pela conferência anterior — para limpar os que sararam. */
   private preflightMarked: ReadonlySet<string> = new Set();
+  /** Depois de um 400 do create/edit, "obrigatório" vazio também é mostrado. */
+  private readonly requiredVisible = signal(false);
+  /** A conferência falhou (rede, 404, 5xx): status neutro, nada bloqueado. */
+  protected readonly preflightUnavailable = signal(false);
   /** Juros em R$/dia do aluguel LEGADO carregado (sem %), em centavos. */
   private readonly legacyDailyInterestCents = signal(0);
   /** O aluguel carregado já tinha o % ao mês definido (esvaziar o campo = zerar). */
   private readonly interestPercentLoaded = signal(false);
 
   protected readonly preflightBlockingCount = computed(
-    () => actionableIssues(this.preflightIssues()).length,
+    () => actionableIssues(this.preflightIssues(), this.requiredVisible()).length,
   );
   protected readonly preflightBlocked = computed(() => this.preflightBlockingCount() > 0);
 
   /** O que não tem campo na tela, com o atalho (cadastro do motorista / Integrações). */
   protected readonly preflightSummary = computed<PreflightSummaryItem[]>(() =>
-    summaryItems(this.preflightIssues(), this.formValue()?.driverId || null),
+    summaryItems(this.preflightIssues(), this.formValue()?.driverId || null, this.requiredVisible()),
   );
 
   /** A retirada não usa `app-form-field`; sua mensagem do servidor vem por aqui. */
   protected readonly pickupPreflightMessage = computed(
-    () => messagesByControl(this.preflightIssues())['pickupDate'] ?? null,
+    () =>
+      messagesByControl(actionableIssues(this.preflightIssues(), this.requiredVisible()))[
+        'pickupDate'
+      ] ?? null,
   );
 
   protected readonly lateInterestHint = computed(() => {
@@ -423,14 +388,26 @@ export class RentalForm implements OnInit {
       takeUntilDestroyed(),
     )
     .subscribe((result) => {
-      if (!result) return;
+      if (result === null) return;
+      if (result === 'failed') {
+        // Sem conferência não há como saber o que está errado: solta o botão e as marcas
+        // (o create/edit ainda recusa com a mesma lista) e avisa, sem culpar o usuário.
+        this.preflightUnavailable.set(true);
+        this.preflightWarnings.set([]);
+        this.chargeSchedule.set([]);
+        this.requiredVisible.set(false);
+        this.showIssues([]);
+        return;
+      }
+      this.preflightUnavailable.set(false);
+      this.requiredVisible.set(false);
       this.preflightWarnings.set(result.response.warnings ?? []);
       if (result.response.limits) this.preflightLimits.set(result.response.limits);
       this.showIssues(result.response.issues ?? []);
       if (result.schedule) this.chargeSchedule.set(result.schedule);
     });
 
-  private runPreflight(): Observable<PreflightRun | null> {
+  private runPreflight(): Observable<PreflightRun | 'failed' | null> {
     if (this.preflightRequestKey() === '') return of(null);
     return this.rentalService.preflight(this.buildPreflightPayload()).pipe(
       switchMap((response): Observable<PreflightRun> => {
@@ -458,7 +435,7 @@ export class RentalForm implements OnInit {
       // lista. Reclama o erro para não virar toast a cada tecla.
       catchError((err: unknown) => {
         this.apiErrors.claim(err);
-        return of(null);
+        return of('failed' as const);
       }),
     );
   }
@@ -469,7 +446,7 @@ export class RentalForm implements OnInit {
     this.preflightIssues.set(blocking);
     this.preflightMarked = syncServerMarks(
       this.form,
-      messagesByControl(actionableIssues(blocking)),
+      messagesByControl(actionableIssues(blocking, this.requiredVisible())),
       this.preflightMarked,
     );
   }
@@ -481,9 +458,10 @@ export class RentalForm implements OnInit {
    */
   private claimPreflightError(err: HttpErrorResponse): boolean {
     const parsed = readPreflightError(err);
-    if (!parsed || actionableIssues(parsed.issues).length === 0) return false;
+    if (!parsed || actionableIssues(parsed.issues, true).length === 0) return false;
     this.apiErrors.claim(err);
     if (parsed.limits) this.preflightLimits.set(parsed.limits);
+    this.requiredVisible.set(true);
     this.showIssues(parsed.issues);
     this.error.set(null);
     this.revealFirstProblem();
@@ -1106,8 +1084,8 @@ export class RentalForm implements OnInit {
 
   private lateFineValueValidators(): ValidatorFn[] {
     return this.form.controls.lateFineType.value === 'FIXED'
-      ? [ptBrMoneyValidator(), feeBelowChargeValidator('LATE_FINE')]
-      : [Validators.required, Validators.min(0), feeBelowChargeValidator('LATE_FINE')];
+      ? [ptBrMoneyValidator()]
+      : [Validators.required, Validators.min(0)];
   }
 
   protected onMoneyInput(event: Event, name: 'periodRateReais' | 'caucaoReais' | 'lateInterestPercent'): void {
@@ -1120,7 +1098,6 @@ export class RentalForm implements OnInit {
     if (
       this.saving() ||
       this.previewing() ||
-      this.feeBelowChargeInvalid() ||
       this.preflightBlocked()
     ) {
       return;

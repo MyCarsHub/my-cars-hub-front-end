@@ -353,6 +353,78 @@ describe('RentalForm — preflight (FIX-0754)', () => {
     expect(el('[data-testid="preflight-summary"]')).toBeNull();
   });
 
+  it('falha do preflight DEPOIS de um BLOCKING: solta botão e marcas e avisa em status neutro', async () => {
+    mount();
+    preflight.mockReturnValue(
+      answer([item({ field: 'periodRate', code: 'CHARGE_BELOW_MINIMUM', message: 'Abaixo do mínimo.' })]),
+    );
+    await change({ ...VALID });
+    expect(submitButton().disabled).toBe(true);
+    expect(text('#rental-daily-error')).toBe('Abaixo do mínimo.');
+
+    preflight.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+    await change({ periodRateReais: '2.700,00' });
+
+    expect(submitButton().disabled).toBe(false);
+    expect(el('#rental-daily-error')).toBeNull();
+    expect(text('[data-testid="preflight-unavailable"]')).toBe(
+      'Não foi possível conferir agora; o sistema confere de novo ao salvar.',
+    );
+
+    // Voltou: o status some.
+    preflight.mockReturnValue(answer());
+    await change({ periodRateReais: '2.800,00' });
+    expect(el('[data-testid="preflight-unavailable"]')).toBeNull();
+  });
+
+  it('REQUIRED_FIELD de campo sem validação local vira item do resumo', async () => {
+    mount();
+    preflight.mockReturnValue(
+      answer([item({ field: 'automaticCharge', code: 'REQUIRED_FIELD', message: 'Informe a cobrança.' })]),
+    );
+    await change({ ...VALID });
+    expect(text('[data-testid="preflight-summary"]')).toContain('Informe a cobrança.');
+    expect(submitButton().disabled).toBe(true);
+  });
+
+  it('acceptedValue aparece quando a mensagem não traz o valor aceito, sem duplicar quando traz', async () => {
+    mount();
+    preflight.mockReturnValue(
+      answer([
+        item({
+          field: 'lateInterestPercentPerMonth',
+          code: 'INTEREST_PERCENT_ABOVE_MAX',
+          message: 'Juros acima do permitido.',
+          acceptedValue: 'de 0% a 10%',
+        }),
+        item({
+          field: 'driver.email',
+          code: 'DRIVER_EMAIL_INVALID',
+          message: 'E-mail inválido (ex.: a@b.com).',
+          acceptedValue: 'a@b.com',
+        }),
+      ]),
+    );
+    await change({ ...VALID });
+    expect(text('#rental-late-interest-error')).toBe('Juros acima do permitido. Aceito: de 0% a 10%');
+    expect(text('[data-testid="preflight-summary"]')).toContain('E-mail inválido (ex.: a@b.com).');
+    expect(text('[data-testid="preflight-summary"]')).not.toContain('Aceito:');
+  });
+
+  it('controles e mensagens do formulário têm 16px explícitos (text-base)', async () => {
+    mount();
+    await change({ ...VALID });
+    const controls = fixture.nativeElement.querySelectorAll(
+      'input:not([type="checkbox"]), select, textarea',
+    ) as NodeListOf<HTMLElement>;
+    expect(controls.length).toBeGreaterThan(10);
+    for (const control of Array.from(controls)) {
+      expect(control.className, control.id).toContain('text-base');
+    }
+    // Ajuda e erro dos app-form-field: o seletor do <form> leva os <p> a 16px.
+    expect(el('form')!.className).toContain('[&_app-form-field_p]:text-base');
+  });
+
   describe('400 do create', () => {
     function badRequest(issues: RentalPreflightItem[]): Observable<never> {
       return throwError(
@@ -389,6 +461,24 @@ describe('RentalForm — preflight (FIX-0754)', () => {
       expect(text('#rental-late-fine-value-error')).toBe('A multa pode ir de 0% a 10%.');
       expect(submitButton().disabled).toBe(true);
       expect(el('app-alert-banner')).toBeNull();
+    });
+
+    it('400 só com REQUIRED_FIELD de campo sem validação local não vira erro genérico', async () => {
+      mount();
+      await change({ ...VALID });
+      createSpy.mockReturnValue(
+        badRequest([
+          item({ field: 'franchiseKm', code: 'REQUIRED_FIELD', message: 'Informe a franquia.' }),
+          item({ field: 'vehicleId', code: 'REQUIRED_FIELD', message: 'Informe o veículo.' }),
+        ]),
+      );
+      cmp().submit();
+      fixture.detectChanges();
+
+      expect(text('#rental-franchise-km-error')).toBe('Informe a franquia.');
+      expect(text('#rental-vehicle-error')).toBe('Informe o veículo.');
+      expect(el('app-alert-banner')).toBeNull();
+      expect(submitButton().disabled).toBe(true);
     });
 
     it('sem campo na tela, a lista vai ao resumo com o atalho do motorista', async () => {

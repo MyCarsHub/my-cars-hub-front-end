@@ -13,7 +13,7 @@ import { DriverService } from '../../services/driver.service';
 import { AsaasIntegrationService } from '../company-settings/integrations/asaas-integration.service';
 import { ContractTemplateService } from '../company-settings/contract-template/contract-template-service';
 
-/** FIX-0750: multa fixa (R$) tem que ser menor que a cobranca. O juros em R$/dia saiu na FIX-0754. */
+/** FIX-0754: a regra 'multa fixa < cobranca' e do backend; so o codigo do servidor cai no campo. */
 describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', () => {
   let fixture: ReturnType<typeof TestBed.createComponent<RentalForm>>;
   let createSpy: ReturnType<typeof vi.fn>;
@@ -99,57 +99,14 @@ describe('RentalForm — encargo em R$ abaixo do valor da cobranca (FIX-0750)', 
 
   beforeEach(() => mount());
 
-  it('multa FIXED: igual e maior erram com a mensagem exata, menor nao', () => {
+  it('a regra e do backend: multa fixa maior que a cobranca NAO bloqueia o botao nem o submit', () => {
     patch({ ...VALID, periodRateReais: '10,00', lateFineType: 'FIXED', lateFineValueInput: '' });
     typeInto('#rental-late-fine-value', '50,00');
-    expect(text(FINE_ERR)).toBe(
-      'A multa fixa (R$ 50,00) deve ser menor que o valor da cobrança (R$ 10,00).',
-    );
-    expect(submitButton().disabled).toBe(true);
 
-    typeInto('#rental-late-fine-value', '10,00');
-    expect(text(FINE_ERR)).not.toBeNull();
-
-    typeInto('#rental-late-fine-value', '9,99');
     expect(text(FINE_ERR)).toBeNull();
     expect(submitButton().disabled).toBe(false);
-  });
-
-  it('PERCENT nunca e afetado, mesmo com numero maior que a cobranca', () => {
-    patch({ ...VALID, periodRateReais: '10,00', lateFineType: 'PERCENT', lateFineValueInput: 50 });
-    expect(text(FINE_ERR)).toBeNull();
-    expect(submitButton().disabled).toBe(false);
-  });
-
-  it('encargo zero nunca erra', () => {
-    patch({ ...VALID, periodRateReais: '10,00', lateFineType: 'FIXED', lateFineValueInput: '' });
-    typeInto('#rental-late-fine-value', '0,00');
-    expect(text(FINE_ERR)).toBeNull();
-    expect(submitButton().disabled).toBe(false);
-  });
-
-  it('mudar o valor da parcela revalida a multa nos dois sentidos', () => {
-    patch({ ...VALID, periodRateReais: '100,00', lateFineType: 'FIXED', lateFineValueInput: '' });
-    typeInto('#rental-late-fine-value', '70,00');
-    expect(text(FINE_ERR)).toBeNull();
-
-    typeInto('#rental-daily', '60,00');
-    expect(text(FINE_ERR)).toContain('A multa fixa (R$ 70,00)');
-    expect(submitButton().disabled).toBe(true);
-
-    typeInto('#rental-daily', '100,00');
-    expect(text(FINE_ERR)).toBeNull();
-    expect(submitButton().disabled).toBe(false);
-  });
-
-  it('formato pt-BR com milhar: 1.234,56 contra cobranca de 1.234,56', () => {
-    patch({ ...VALID, periodRateReais: '1.234,56', lateFineType: 'FIXED', lateFineValueInput: '' });
-    typeInto('#rental-late-fine-value', '1.234,56');
-    expect(text(FINE_ERR)).toBe(
-      'A multa fixa (R$ 1.234,56) deve ser menor que o valor da cobrança (R$ 1.234,56).',
-    );
-    typeInto('#rental-late-fine-value', '1.234,55');
-    expect(text(FINE_ERR)).toBeNull();
+    cmp().submit();
+    expect(createSpy).toHaveBeenCalledTimes(1);
   });
 
   it('erro 400 do servidor cai no MESMO campo com a mensagem do servidor (multa)', () => {

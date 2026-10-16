@@ -57,8 +57,32 @@ const INTEGRATION_CODES: ReadonlySet<string> = new Set([
 /**
  * Obrigatório vazio: o formulário já acusa pelos próprios validadores (e o submit marca
  * tudo como tocado). Mostrar também o do preflight faria a tela nascer cheia de vermelho.
+ * Só vale para os campos que o formulário VALIDA localmente (lista abaixo); obrigatório
+ * vazio de qualquer outro campo é um problema real e entra na lista.
  */
 const REQUIRED_CODE = 'REQUIRED_FIELD';
+
+const LOCALLY_REQUIRED_FIELDS: ReadonlySet<string> = new Set([
+  'vehicleId',
+  'driverId',
+  'startDate',
+  'endDate',
+  'billingFrequency',
+  'periodRate',
+  'initialKm',
+  'pickupDate',
+  'firstPaymentDate',
+  'lateFineType',
+  'lateFineValue',
+]);
+
+/** Mensagem + valor aceito (`acceptedValue`) quando a mensagem ainda não o menciona. */
+export function messageWithAccepted(item: RentalPreflightItem): string {
+  const accepted = item.acceptedValue?.trim();
+  return accepted && !item.message.includes(accepted)
+    ? `${item.message} Aceito: ${accepted}`
+    : item.message;
+}
 
 export type PreflightLink =
   | { kind: 'driver'; label: string; commands: string[] }
@@ -66,6 +90,8 @@ export type PreflightLink =
 
 export interface PreflightSummaryItem {
   item: RentalPreflightItem;
+  /** Mensagem do backend + o valor aceito quando a mensagem não o traz. */
+  text: string;
   link: PreflightLink | null;
 }
 
@@ -77,8 +103,17 @@ export function controlFor(item: RentalPreflightItem): string | null {
 }
 
 /** Só os que bloqueiam e o usuário precisa agir (obrigatório vazio já é do formulário). */
-export function actionableIssues(issues: readonly RentalPreflightItem[]): RentalPreflightItem[] {
-  return issues.filter((i) => i.severity !== 'WARNING' && i.code !== REQUIRED_CODE);
+export function actionableIssues(
+  issues: readonly RentalPreflightItem[],
+  includeLocalRequired = false,
+): RentalPreflightItem[] {
+  return issues.filter(
+    (i) =>
+      i.severity !== 'WARNING' &&
+      (includeLocalRequired ||
+        i.code !== REQUIRED_CODE ||
+        !(i.field !== null && LOCALLY_REQUIRED_FIELDS.has(i.field))),
+  );
 }
 
 /** Mensagem por controle (a primeira de cada campo). */
@@ -86,7 +121,7 @@ export function messagesByControl(issues: readonly RentalPreflightItem[]): Recor
   const out: Record<string, string> = {};
   for (const item of issues) {
     const control = controlFor(item);
-    if (control && !(control in out)) out[control] = item.message;
+    if (control && !(control in out)) out[control] = messageWithAccepted(item);
   }
   return out;
 }
@@ -107,10 +142,11 @@ export function linkFor(item: RentalPreflightItem, driverId: string | null): Pre
 export function summaryItems(
   issues: readonly RentalPreflightItem[],
   driverId: string | null,
+  includeLocalRequired = false,
 ): PreflightSummaryItem[] {
-  return actionableIssues(issues)
+  return actionableIssues(issues, includeLocalRequired)
     .filter((i) => controlFor(i) === null)
-    .map((item) => ({ item, link: linkFor(item, driverId) }));
+    .map((item) => ({ item, text: messageWithAccepted(item), link: linkFor(item, driverId) }));
 }
 
 /**

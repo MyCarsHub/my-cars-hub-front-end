@@ -1231,6 +1231,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       const mobile = reasons(fixture).find((n) => n.className.includes('line-clamp-3'));
       expect(mobile).toBeDefined();
       expect(mobile?.getAttribute('title')).toBe(REASON);
+      expect(mobile?.className).toContain('text-base');
     });
 
     it('cobrança que não está FAILED não mostra motivo, mesmo que o campo venha preenchido', async () => {
