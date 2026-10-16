@@ -234,7 +234,7 @@ describe('RentalDetail — ações do administrador na sessão de EDIÇÃO (FEAT
     await click(fixture, 'support-cancel');
     const text = dialogText(fixture);
     expect(text).toContain('removidas do Asaas');
-    expect(text).toContain('já pagas ficam');
+    expect(text).toContain('pagas ficam');
     http.expectNone(`${BASE}/${RENTAL_ID}/cancel`);
 
     dialogButton(fixture, 'Cancelar aluguel').click();
@@ -243,6 +243,9 @@ describe('RentalDetail — ações do administrador na sessão de EDIÇÃO (FEAT
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ removeOverdueCharges: false });
     req.flush({ ...RENTAL, status: 'CANCELED', chargeRemovals: REMOVALS });
+    await settle(fixture);
+    // As cobranças são recarregadas para os status não ficarem velhos.
+    http.expectOne(`${BASE}/${RENTAL_ID}`).flush({ ...RENTAL, status: 'CANCELED' });
     await settle(fixture);
     drain(http);
     await settle(fixture);
@@ -282,7 +285,7 @@ describe('RentalDetail — ações do administrador na sessão de EDIÇÃO (FEAT
     const { fixture, http } = await mount('EDIT', { status: 'CANCELED' });
 
     await click(fixture, 'support-delete');
-    expect(dialogText(fixture)).toContain('depois de cancelá-lo');
+    expect(dialogText(fixture)).toContain('cancelar o aluguel antes');
     dialogButton(fixture, 'Excluir').click();
     await settle(fixture);
 
@@ -420,6 +423,90 @@ describe('RentalDetail — ações do administrador na sessão de EDIÇÃO (FEAT
     await settle(fixture);
 
     expect(byTestId(fixture, 'support-cancel-first')).not.toBeNull();
+  });
+
+  it('reason desconhecido cai na mensagem do servidor, sem atalho de cancelar', async () => {
+    const { fixture, http } = await mount('EDIT');
+
+    await click(fixture, 'support-delete');
+    dialogButton(fixture, 'Excluir').click();
+    await settle(fixture);
+    http
+      .expectOne((r) => r.method === 'DELETE')
+      .flush(
+        { code: 'OPEN_CHARGES_MUST_BE_CANCELED_FIRST', reason: 'NOVO_MOTIVO', message: 'Aguarde.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle(fixture);
+
+    expect(byTestId(fixture, 'support-action-error')?.textContent).toContain('Aguarde.');
+    expect(byTestId(fixture, 'support-cancel-first')).toBeNull();
+    http.expectNone((r) => r.method === 'DELETE');
+  });
+
+  it('duplo clique em confirmar dispara UMA chamada (cancelar e excluir)', async () => {
+    const { fixture, http } = await mount('EDIT');
+
+    await click(fixture, 'support-cancel');
+    const btn = dialogButton(fixture, 'Cancelar aluguel');
+    btn.click();
+    btn.click();
+    await settle(fixture);
+    expect(http.match(`${BASE}/${RENTAL_ID}/cancel`).length).toBe(1);
+  });
+
+  it('duplo clique em Excluir dispara UMA chamada DELETE', async () => {
+    const { fixture, http } = await mount('EDIT', { status: 'CANCELED' });
+
+    await click(fixture, 'support-delete');
+    const btn = dialogButton(fixture, 'Excluir');
+    btn.click();
+    btn.click();
+    await settle(fixture);
+    expect(http.match((r) => r.method === 'DELETE').length).toBe(1);
+  });
+
+  it('os 3 diálogos destrutivos usam a variante grande: 16px, checkbox de 44px, foco no botão seguro', async () => {
+    const { fixture, http } = await mount('EDIT', { status: 'CANCELED' });
+
+    await click(fixture, 'support-delete');
+    let dlg = el(fixture).querySelector('[role="dialog"]') as HTMLElement;
+    expect(dlg.querySelector('#confirm-dialog-description')?.className).toContain('text-base');
+    expect(dlg.querySelector('label')?.className).toContain('min-h-[44px]');
+    expect(dlg.querySelector('label span:last-child span:last-child')?.className).not.toContain(
+      'text-xs',
+    );
+    expect(document.activeElement?.textContent).toContain('Voltar');
+
+    dialogButton(fixture, 'Excluir').click();
+    await settle(fixture);
+    http
+      .expectOne((r) => r.method === 'DELETE')
+      .flush(
+        { code: 'PAID_CHARGES_WOULD_BE_LOST', message: 'x' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await settle(fixture);
+    dlg = el(fixture).querySelector('[role="dialog"]') as HTMLElement;
+    expect(dlg.querySelector('#confirm-dialog-description')?.className).toContain('text-base');
+  });
+
+  it('o motivo do Excluir do dono desabilitado fica visível, não só no title', async () => {
+    const { fixture } = await mount('EDIT');
+
+    expect(byTestId(fixture, 'owner-delete-disabled-reason')?.textContent).toContain(
+      'Excluir aluguel',
+    );
+  });
+
+  it('o texto do cancelar distingue pendentes, vencidas e pagas', async () => {
+    const { fixture } = await mount('EDIT');
+
+    await click(fixture, 'support-cancel');
+    const text = dialogText(fixture);
+    expect(text).toContain('pendentes ou falhadas são removidas');
+    expect(text).toContain('vencidas e não pagas são MANTIDAS');
+    expect(text).toContain('pagas ficam intocadas');
   });
 
   it('um 409 de outro motivo não oferece o atalho de cancelar', async () => {

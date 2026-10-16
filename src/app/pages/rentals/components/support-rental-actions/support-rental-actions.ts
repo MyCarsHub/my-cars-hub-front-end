@@ -38,11 +38,12 @@ function conflictReason(err: HttpErrorResponse): string | null {
 }
 
 const CANCEL_MESSAGE =
-  'As cobranças em aberto deste aluguel serão removidas do Asaas e o aluguel passa a Cancelado. ' +
-  'As cobranças já pagas ficam como estão, sem estorno.';
+  'Cobranças pendentes ou falhadas são removidas do Asaas. ' +
+  'Cobranças vencidas e não pagas são MANTIDAS, a menos que você marque a opção abaixo. ' +
+  'Cobranças já pagas ficam intocadas, sem estorno.';
 const DELETE_MESSAGE =
-  'Isto apaga o aluguel. Só é permitido depois de cancelá-lo: se ainda houver cobrança aberta no ' +
-  'Asaas, a exclusão é recusada. Não dá para desfazer.';
+  'Excluir apaga o aluguel e não dá para desfazer. ' +
+  'Se ainda houver cobrança aberta no Asaas, é preciso cancelar o aluguel antes.';
 const ACK_MESSAGE =
   'Este aluguel tem cobranças pagas (ou estornadas/liberadas). Se você continuar, o histórico ' +
   'delas será perdido aqui; os pagamentos continuam existindo no Asaas. Não dá para desfazer.';

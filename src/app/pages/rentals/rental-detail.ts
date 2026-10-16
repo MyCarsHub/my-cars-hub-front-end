@@ -717,6 +717,8 @@ export class RentalDetail implements OnInit {
   protected onSupportCanceled(res: RentalSupportCancelResponse): void {
     // O aluguel vem com os campos no topo; `chargeRemovals` extra é inócuo aqui.
     this.rental.set(res);
+    // Os status das cobranças mudaram no servidor (removidas/recusadas): recarrega.
+    this.reloadRental(res.id);
     this.refreshHistoryAfterTransition();
   }
 

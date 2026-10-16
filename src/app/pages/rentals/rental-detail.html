@@ -70,6 +70,11 @@
           deleteDisabledReason="No modo edição, use Excluir aluguel no bloco de ações do administrador."
           (delete)="askDelete()"
         />
+        @if (editSession()) {
+          <p class="mt-2 text-base text-neutral-700" data-testid="owner-delete-disabled-reason">
+            No modo edição, use "Excluir aluguel" no bloco de ações do administrador.
+          </p>
+        }
       </div>
 
       <app-rental-progress-checklist
@@ -872,6 +877,11 @@
           deleteDisabledReason="No modo edição, use Excluir aluguel no bloco de ações do administrador."
           (delete)="askDelete()"
         />
+        @if (editSession()) {
+          <p class="mt-2 text-base text-neutral-700" data-testid="owner-delete-disabled-reason">
+            No modo edição, use "Excluir aluguel" no bloco de ações do administrador.
+          </p>
+        }
       </div>
     </div>
 
