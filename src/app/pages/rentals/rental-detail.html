@@ -630,6 +630,11 @@
                     [ngTemplateOutlet]="reconcileLine"
                     [ngTemplateOutletContext]="{ $implicit: charge, name: 'do período ' + rowBadge(charge, i) }"
                   />
+                  <!-- FIX-0755: motivo da falha, em linha própria e curto no celular. -->
+                  <ng-container
+                    [ngTemplateOutlet]="failureNoteTpl"
+                    [ngTemplateOutletContext]="{ $implicit: charge, compact: true }"
+                  />
                 </li>
               }
             </ul>
@@ -689,6 +694,10 @@
                         <ng-container
                           [ngTemplateOutlet]="reconcileNoteTpl"
                           [ngTemplateOutletContext]="{ $implicit: charge }"
+                        />
+                        <ng-container
+                          [ngTemplateOutlet]="failureNoteTpl"
+                          [ngTemplateOutletContext]="{ $implicit: charge, compact: false }"
                         />
                       </td>
                       <td class="py-2.5 pr-4 text-right">
@@ -847,6 +856,28 @@
   "Conferir no Asaas" no cartão mobile: linha própria (basis-full) para não espremer
   os botões de ação, com alvo de 44px. `name` completa o nome acessível.
 -->
+<!--
+  FIX-0755 — por que a cobranca FAILED falhou (`failureReason`, texto pt-BR do backend).
+  `compact` = cartao do celular: no maximo tres linhas, o texto inteiro fica no `title`.
+-->
+<ng-template #failureNoteTpl let-charge let-compact="compact">
+  @if (charge.status === 'FAILED' && charge.failureReason) {
+    <p
+      data-testid="charge-failure-reason"
+      [title]="charge.failureReason"
+      class="text-rose-700 leading-snug"
+      [class.basis-full]="compact"
+      [class.line-clamp-3]="compact"
+      [class.text-base]="compact"
+      [class.text-xs]="!compact"
+      [class.mt-1]="!compact"
+      [class.max-w-xs]="!compact"
+    >
+      {{ charge.failureReason }}
+    </p>
+  }
+</ng-template>
+
 <ng-template #reconcileLine let-charge let-name="name">
   @if (reconcileNote()?.chargeId === charge.id) {
     <div class="basis-full border-t border-neutral-100 pt-1">

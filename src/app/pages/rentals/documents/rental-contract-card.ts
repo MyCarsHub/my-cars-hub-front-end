@@ -13,6 +13,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
@@ -28,6 +29,7 @@ import {
   SignerRequest,
 } from '../../../types/rental.types';
 import { RentalService } from '../rental.service';
+import { isLateInterestRequired } from '../rental-preflight';
 import { ContractDocxPreviewService } from './contract-docx-preview.service';
 
 interface SignatureBadge {
@@ -232,12 +234,23 @@ function openFailedTabHtml(originalUrl: string): string {
   selector: 'app-rental-contract-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [FormsModule, PageCard, ConfirmDialog, AlertBanner],
+  imports: [FormsModule, RouterLink, PageCard, ConfirmDialog, AlertBanner],
   template: `
     <app-page-card title="Contrato">
       <div class="p-4 sm:p-6 space-y-4">
         @if (error(); as cardError) {
           <app-alert-banner variant="error" [message]="cardError" />
+          <!-- FIX-0754: aluguel legado sem o % ao mês — o contrato novo só sai depois que o
+               dono define os juros no aluguel; o atalho leva direto à edição. -->
+          @if (cardError === interestRequiredMessage()) {
+            <a
+              data-testid="edit-rental-shortcut"
+              [routerLink]="['/alugueis', rentalId(), 'editar']"
+              class="flex min-h-[44px] w-fit items-center text-base font-medium text-primary-700 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+            >
+              Editar aluguel e definir os juros ao mês
+            </a>
+          }
         }
         @if (loading()) {
           <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
@@ -548,6 +561,20 @@ export class RentalContractCard implements OnInit, OnDestroy {
    */
   protected readonly error = signal<string | null>(null);
 
+  /**
+   * A mensagem do backend quando ele recusou por LATE_INTEREST_PERCENT_REQUIRED. O atalho
+   * "Editar aluguel" aparece só enquanto o banner mostra EXATAMENTE esta mensagem, então
+   * um erro posterior (outro texto) o esconde sem precisar limpar nada.
+   */
+  protected readonly interestRequiredMessage = signal<string | null>(null);
+
+  /** Falha de operação do cartão: banner com a mensagem do servidor (+ atalho se couber). */
+  private fail(err: HttpErrorResponse, fallback: string): void {
+    const message = this.apiErrors.messageFor(err, fallback);
+    this.interestRequiredMessage.set(isLateInterestRequired(err) ? message : null);
+    this.error.set(message);
+  }
+
   protected readonly uploading = signal(false);
   private uploadSub: Subscription | null = null;
   protected readonly downloading = signal(false);
@@ -784,7 +811,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.downloading.set(false);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível baixar o contrato.'));
+        this.fail(err, 'Não foi possível baixar o contrato.');
       },
     });
   }
@@ -832,7 +859,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
         } catch {
           /* noop — algumas policies bloqueiam close cross-context */
         }
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível abrir o contrato.'));
+        this.fail(err, 'Não foi possível abrir o contrato.');
       },
     });
   }
@@ -1093,7 +1120,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
       },
       error: (err: HttpErrorResponse) => {
         this.requesting.set(false);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível solicitar assinatura.'));
+        this.fail(err, 'Não foi possível solicitar assinatura.');
       },
     });
   }

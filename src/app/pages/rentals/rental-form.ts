@@ -18,7 +18,17 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { debounceTime, merge } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  filter,
+  map,
+  of,
+  startWith,
+  switchMap,
+  type Observable,
+} from 'rxjs';
 import {
   AbstractControl,
   FormBuilder,
@@ -37,12 +47,19 @@ import { clearServerErrors } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { applyPtBrMoneyMaskToControl } from '../../utils/ptbr-money-mask';
 import { formatPtBrMoney } from '../../utils/ptbr-number';
+import { applyFeeBelowChargeServerError } from './rental-fee-below-charge';
 import {
-  FEE_NOT_BELOW_CHARGE_KEY,
-  applyFeeBelowChargeServerError,
-  currentFeeMessage,
-  feeBelowChargeValidator,
-} from './rental-fee-below-charge';
+  ChargeScheduleRow,
+  PreflightSummaryItem,
+  actionableIssues,
+  buildChargeSchedule,
+  fineHelp,
+  interestHelp,
+  messagesByControl,
+  readPreflightError,
+  summaryItems,
+  syncServerMarks,
+} from './rental-preflight';
 import { ChargePreviewSummary, summarizeChargePreview } from '../../utils/rental-charge-preview';
 import { ptBrMoneyCents, ptBrMoneyValidator } from '../../utils/validators/ptbr-money.validator';
 import { RentalService } from './rental.service';
@@ -58,6 +75,10 @@ import {
   RENTAL_CHARGE_SYNC_STATE_KEY,
   RentalBillingFrequency,
   RentalLateFineType,
+  RentalPreflightItem,
+  RentalPreflightLimits,
+  RentalPreflightRequest,
+  RentalPreflightResponse,
   RentalUpdateRequest,
 } from '../../types/rental.types';
 import { VehicleListItem } from '../../types/vehicle.types';
@@ -92,6 +113,7 @@ export class RentalForm implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** V29: true se a company tem template de contrato — controla default do toggle. */
   protected readonly hasContractTemplate = signal(false);
@@ -157,10 +179,9 @@ export class RentalForm implements OnInit {
     required: 'Informe a data da 1ª cobrança.',
     firstPaymentAfterEnd: 'A 1ª cobrança não pode vencer depois da data final do aluguel.',
   };
-  protected readonly dailyInterestMessages: Readonly<Record<string, string>> = {
-    required: 'Informe o juros diário (0 se não cobrar).',
-    min: 'O juros não pode ser negativo.',
-    moneyFormat: 'Informe um valor válido (ex.: 12,50).',
+  protected readonly lateInterestMessages: Readonly<Record<string, string>> = {
+    min: 'Os juros ao mês não podem ser negativos.',
+    moneyFormat: 'Informe um percentual válido (ex.: 1,50).',
   };
   protected readonly caucaoMessages: Readonly<Record<string, string>> = {
     moneyFormat: 'Informe um valor válido (ex.: 2.000,00).',
@@ -225,16 +246,18 @@ export class RentalForm implements OnInit {
       // O vencimento LITERAL da 1ª cobrança (as seguintes vencem a cada período a
       // partir dela). Nunca depois do fim do aluguel — ver o validador.
       firstPaymentDate: ['', [Validators.required, firstPaymentNotAfterEndValidator]], // yyyy-MM-dd
-      // Nasce em '0,00' (nao vazio): o campo e obrigatorio e antes ja abria
-      // preenchido com 0, entao um default vazio deixaria o form invalido ao abrir.
-      dailyInterestReais: ['0,00', [ptBrMoneyValidator(), feeBelowChargeValidator('DAILY_INTEREST')]],
+      // FIX-0754: juros de mora em % AO MES, texto pt-BR com 2 casas ("1,50"). Mesma
+      // gramatica do campo de dinheiro, lida em centésimos de ponto percentual. Vazio =
+      // sem juros (aluguel novo) ou "ainda nao definido" (aluguel legado em R$/dia).
+      // A faixa aceita e do backend (limits do preflight); aqui so o formato.
+      lateInterestPercent: ['', [ptBrMoneyValidator({ optional: true })]],
       lateFineType: ['PERCENT' as RentalLateFineType, [Validators.required]],
       // PERCENT: percentagem (2 = 2%). FIXED: reais.
       // Nasce em PERCENT, entao os validadores iniciais sao os do percentual.
       // `onLateFineTypeChange` troca os dois quando o modo muda.
       lateFineValueInput: [
         0 as number | string,
-        [Validators.required, Validators.min(0), feeBelowChargeValidator('LATE_FINE')],
+        [Validators.required, Validators.min(0)],
       ],
 
       // V32: franquia e política de combustível — opcionais.
@@ -272,57 +295,197 @@ export class RentalForm implements OnInit {
       if (control.errors?.['firstPaymentAfterEnd']) control.markAsTouched();
     });
 
-  /**
-   * FIX-0750: encargo em R$ < valor da cobranca. Os validadores dos dois campos
-   * leem `periodRateReais` e o tipo da multa, mas o Angular so reavalia o controle
-   * que mudou — entao mudar a parcela, a frequencia ou o tipo revalida os encargos.
-   */
-  private readonly feeRevalidated = signal(0);
+  // ------------------------------------------------------------------
+  // FIX-0754 — preflight. O backend (`POST /rentals/preflight`) diz o que recusaria no
+  // create/edit; a tela só ESPELHA a lista: cada problema no campo certo, o resto no
+  // resumo do topo, e o botão impedido enquanto houver um bloqueante.
+  // ------------------------------------------------------------------
 
-  private readonly feesRevalidateOnChargeChange = merge(
-    this.form.controls.periodRateReais.valueChanges,
-    this.form.controls.billingFrequency.valueChanges,
-    this.form.controls.lateFineType.valueChanges,
-  )
-    .pipe(takeUntilDestroyed())
-    .subscribe(() => {
-      for (const control of [
-        this.form.controls.dailyInterestReais,
-        this.form.controls.lateFineValueInput,
-      ]) {
-        control.updateValueAndValidity({ emitEvent: false });
-        if (control.errors?.[FEE_NOT_BELOW_CHARGE_KEY]) control.markAsTouched();
-      }
-      this.feeRevalidated.update((n) => n + 1);
-    });
+  /** Problemas BLOQUEANTES da última conferência (ou do último 400). */
+  protected readonly preflightIssues = signal<RentalPreflightItem[]>([]);
+  /** Avisos: aparecem, mas nunca impedem salvar. */
+  protected readonly preflightWarnings = signal<RentalPreflightItem[]>([]);
+  protected readonly preflightLimits = signal<RentalPreflightLimits | null>(null);
+  protected readonly chargeSchedule = signal<ChargeScheduleRow[]>([]);
+  protected readonly scheduleExpanded = signal(false);
+  /** Controles marcados pela conferência anterior — para limpar os que sararam. */
+  private preflightMarked: ReadonlySet<string> = new Set();
+  /** Depois de um 400 do create/edit, "obrigatório" vazio também é mostrado. */
+  private readonly requiredVisible = signal(false);
+  /** A conferência falhou (rede, 404, 5xx): status neutro, nada bloqueado. */
+  protected readonly preflightUnavailable = signal(false);
+  /** Juros em R$/dia do aluguel LEGADO carregado (sem %), em centavos. */
+  private readonly legacyDailyInterestCents = signal(0);
+  /** O aluguel carregado já tinha o % ao mês definido (esvaziar o campo = zerar). */
+  private readonly interestPercentLoaded = signal(false);
 
-  protected readonly dailyInterestFieldMessages = computed(() => {
-    this.formValue();
-    this.feeRevalidated();
-    const text = currentFeeMessage('DAILY_INTEREST', this.form);
-    return text
-      ? { ...this.dailyInterestMessages, [FEE_NOT_BELOW_CHARGE_KEY]: text }
-      : this.dailyInterestMessages;
-  });
+  protected readonly preflightBlockingCount = computed(
+    () => actionableIssues(this.preflightIssues(), this.requiredVisible()).length,
+  );
+  protected readonly preflightBlocked = computed(() => this.preflightBlockingCount() > 0);
 
-  protected readonly lateFineFieldMessages = computed(() => {
-    this.formValue();
-    this.feeRevalidated();
-    const text = currentFeeMessage('LATE_FINE', this.form);
-    return text
-      ? { ...this.lateFineValueMessages, [FEE_NOT_BELOW_CHARGE_KEY]: text }
-      : this.lateFineValueMessages;
-  });
+  /** O que não tem campo na tela, com o atalho (cadastro do motorista / Integrações). */
+  protected readonly preflightSummary = computed<PreflightSummaryItem[]>(() =>
+    summaryItems(this.preflightIssues(), this.formValue()?.driverId || null, this.requiredVisible()),
+  );
 
-  /** Salvar fica impedido enquanto algum encargo violar a regra. */
-  protected readonly feeBelowChargeInvalid = computed(() => {
-    this.formValue();
-    this.feeRevalidated();
-    return (
-      currentFeeMessage('DAILY_INTEREST', this.form) !== null ||
-      currentFeeMessage('LATE_FINE', this.form) !== null
+  /** A retirada não usa `app-form-field`; sua mensagem do servidor vem por aqui. */
+  protected readonly pickupPreflightMessage = computed(
+    () =>
+      messagesByControl(actionableIssues(this.preflightIssues(), this.requiredVisible()))[
+        'pickupDate'
+      ] ?? null,
+  );
+
+  protected readonly lateInterestHint = computed(() => {
+    const v = this.formValue();
+    return interestHelp(
+      this.preflightLimits(),
+      ptBrMoneyCents(v?.periodRateReais),
+      ptBrMoneyCents(v?.lateInterestPercent),
     );
   });
+
+  protected readonly lateFineHint = computed(() =>
+    fineHelp(this.formValue()?.lateFineType === 'FIXED' ? 'FIXED' : 'PERCENT', this.preflightLimits()),
+  );
+
+  /** Aluguel legado (só R$/dia): o aviso e o campo % para definir. */
+  protected readonly legacyInterestNotice = computed(() => {
+    const cents = this.legacyDailyInterestCents();
+    if (!this.isEdit() || cents <= 0) return null;
+    if (ptBrMoneyCents(this.formValue()?.lateInterestPercent) !== null) return null;
+    return `Este aluguel foi criado com juros de ${formatBrl(cents)} por dia de atraso, um formato que não é mais aceito. Defina o juros ao mês (%) para substituí-lo.`;
+  });
+
+  protected readonly visibleScheduleRows = computed(() => {
+    const rows = this.chargeSchedule();
+    return this.scheduleExpanded() ? rows : rows.slice(0, SCHEDULE_COLLAPSED_ROWS);
+  });
+  protected readonly hiddenScheduleCount = computed(
+    () => this.chargeSchedule().length - this.visibleScheduleRows().length,
+  );
+
+  /**
+   * Chave estável do corpo a conferir; `''` = nada a conferir (edição ainda carregando
+   * ou formulário somente leitura). Texto de propósito: o `computed` só propaga quando a
+   * chave muda de verdade, então mexer em campo irrelevante (observações) não chama nada.
+   */
+  private readonly preflightRequestKey = computed(() => {
+    this.formValue();
+    if (this.editingId() !== null && this.editingStatus() === null) return '';
+    if (this.form.disabled) return '';
+    return JSON.stringify({ ...this.buildPreflightPayload(), notes: undefined });
+  });
+
+  private readonly preflightRun = toObservable(this.preflightRequestKey)
+    .pipe(
+      filter((key) => key !== ''),
+      distinctUntilChanged(),
+      debounceTime(PREFLIGHT_DEBOUNCE_MS),
+      // switchMap cancela a requisição anterior: só a conferência mais nova vale.
+      switchMap(() => this.runPreflight()),
+      takeUntilDestroyed(),
+    )
+    .subscribe((result) => {
+      if (result === null) return;
+      if (result === 'failed') {
+        // Sem conferência não há como saber o que está errado: solta o botão e as marcas
+        // (o create/edit ainda recusa com a mesma lista) e avisa, sem culpar o usuário.
+        this.preflightUnavailable.set(true);
+        this.preflightWarnings.set([]);
+        this.chargeSchedule.set([]);
+        this.requiredVisible.set(false);
+        this.showIssues([]);
+        return;
+      }
+      this.preflightUnavailable.set(false);
+      this.requiredVisible.set(false);
+      this.preflightWarnings.set(result.response.warnings ?? []);
+      if (result.response.limits) this.preflightLimits.set(result.response.limits);
+      this.showIssues(result.response.issues ?? []);
+      if (result.schedule) this.chargeSchedule.set(result.schedule);
+    });
+
+  private runPreflight(): Observable<PreflightRun | 'failed' | null> {
+    if (this.preflightRequestKey() === '') return of(null);
+    return this.rentalService.preflight(this.buildPreflightPayload()).pipe(
+      switchMap((response): Observable<PreflightRun> => {
+        // A prévia por cobrança só faz sentido na criação, com o formulário limpo dos
+        // dois lados: o backend aceitou e os validadores locais também.
+        if (this.isEdit() || (response.issues ?? []).length > 0 || this.form.invalid) {
+          return of({ response, schedule: [] });
+        }
+        const payload = this.buildCreatePayload();
+        return this.rentalService.chargePreview(payload).pipe(
+          map((preview) => ({
+            response,
+            schedule: preview.blocker ? [] : buildChargeSchedule(preview, payload),
+          })),
+          catchError((err: unknown) => {
+            this.apiErrors.claim(err);
+            return of({ response, schedule: [] });
+          }),
+          // Os problemas e avisos chegam já; a lista de cobranças vem depois (e a antiga
+          // fica na tela até lá, em vez de piscar a cada tecla).
+          startWith({ response, schedule: null }),
+        );
+      }),
+      // Conferência é segundo plano: se falhar, o create/edit ainda recusa com a mesma
+      // lista. Reclama o erro para não virar toast a cada tecla.
+      catchError((err: unknown) => {
+        this.apiErrors.claim(err);
+        return of('failed' as const);
+      }),
+    );
+  }
+
+  /** Aplica a lista (do preflight ou do 400): campo certo inline, resto no resumo. */
+  private showIssues(items: readonly RentalPreflightItem[]): void {
+    const blocking = items.filter((i) => i.severity !== 'WARNING');
+    this.preflightIssues.set(blocking);
+    this.preflightMarked = syncServerMarks(
+      this.form,
+      messagesByControl(actionableIssues(blocking, this.requiredVisible())),
+      this.preflightMarked,
+    );
+  }
+
+  /**
+   * 400 de create/edit com a lista do preflight. `false` quando o corpo não é essa lista,
+   * ou quando nela não há nada que o usuário possa corrigir (só "obrigatório" vazio, que
+   * o caminho comum já mostra) — assim a tela nunca fica muda.
+   */
+  private claimPreflightError(err: HttpErrorResponse): boolean {
+    const parsed = readPreflightError(err);
+    if (!parsed || actionableIssues(parsed.issues, true).length === 0) return false;
+    this.apiErrors.claim(err);
+    if (parsed.limits) this.preflightLimits.set(parsed.limits);
+    this.requiredVisible.set(true);
+    this.showIssues(parsed.issues);
+    this.error.set(null);
+    this.revealFirstProblem();
+    return true;
+  }
+
+  /** Leva o resumo (ou o 1º campo com erro) ao campo de visão. */
+  private revealFirstProblem(): void {
+    afterNextRender(
+      () => {
+        const el = this.host.nativeElement.querySelector<HTMLElement>(
+          '[data-preflight-summary], [aria-invalid="true"]',
+        );
+        if (!el) return;
+        el.scrollIntoView?.({ block: 'center' });
+        el.focus({ preventScroll: true });
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected toggleSchedule(): void {
+    this.scheduleExpanded.update((open) => !open);
+  }
 
   /** Último início visto — separa "a 1ª cobrança acompanha o início" de "o usuário escolheu". */
   private lastStartDay = '';
@@ -715,13 +878,20 @@ export class RentalForm implements OnInit {
             initialKm: r.initialKm ?? null,
             pickupDate: toDateTimeLocalInput(r.pickupDate),
             firstPaymentDate: r.firstPaymentDate ?? '',
-            dailyInterestReais: formatPtBrMoney(r.dailyInterestAmount ?? 0),
+            lateInterestPercent:
+              r.lateInterestPercentPerMonth == null
+                ? ''
+                : formatPtBrMoney(Math.round(r.lateInterestPercentPerMonth * 100)),
             lateFineType,
             lateFineValueInput,
             franchiseKm: r.franchiseKm ?? null,
             returnFuelPolicy: r.returnFuelPolicy ?? '',
             useContractTemplate: r.contractSource === 'AUTO',
           });
+          // Aluguel legado: só R$/dia, sem %. A tela avisa e pede o % (ver `legacyInterestNotice`).
+          const hasPercent = r.lateInterestPercentPerMonth != null;
+          this.interestPercentLoaded.set(hasPercent);
+          this.legacyDailyInterestCents.set(hasPercent ? 0 : (r.dailyInterestAmount ?? 0));
           // O modo da multa veio do servidor, então os validadores do valor
           // precisam seguir o modo CARREGADO e não o padrão PERCENT do form novo.
           const lateFineValue = this.form.controls.lateFineValueInput;
@@ -914,18 +1084,24 @@ export class RentalForm implements OnInit {
 
   private lateFineValueValidators(): ValidatorFn[] {
     return this.form.controls.lateFineType.value === 'FIXED'
-      ? [ptBrMoneyValidator(), feeBelowChargeValidator('LATE_FINE')]
-      : [Validators.required, Validators.min(0), feeBelowChargeValidator('LATE_FINE')];
+      ? [ptBrMoneyValidator()]
+      : [Validators.required, Validators.min(0)];
   }
 
-  protected onMoneyInput(event: Event, name: 'periodRateReais' | 'caucaoReais' | 'dailyInterestReais'): void {
+  protected onMoneyInput(event: Event, name: 'periodRateReais' | 'caucaoReais' | 'lateInterestPercent'): void {
     applyPtBrMoneyMaskToControl(event, this.form.controls[name]);
   }
 
   protected submit(): void {
     // `previewing` entra aqui junto de `saving`: o botão já fica desabilitado, mas
     // Enter dentro de um campo submete o <form> sem passar por ele.
-    if (this.saving() || this.previewing() || this.feeBelowChargeInvalid()) return;
+    if (
+      this.saving() ||
+      this.previewing() ||
+      this.preflightBlocked()
+    ) {
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.error.set('Verifique os campos destacados.');
@@ -969,9 +1145,31 @@ export class RentalForm implements OnInit {
 
   private updateRental(editingId: string): void {
     this.saving.set(true);
+    const updatePayload = this.buildUpdatePayload();
+    this.rentalService.update(editingId, updatePayload).subscribe({
+      next: (r) => {
+        this.notifications.success('Alterações salvas.');
+        this.router.navigate(['/alugueis', r.id]);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.saving.set(false);
+        if (this.claimPreflightError(err)) return;
+        if (this.claimFeeBelowChargeError(err)) return;
+        const { formMessage } = this.apiErrors.handleForm(
+          err,
+          this.form,
+          'Não foi possível salvar as alterações.',
+        );
+        this.error.set(formMessage);
+      },
+    });
+  }
+
+  /** Corpo do PUT a partir do formulário. */
+  private buildUpdatePayload(): RentalUpdateRequest {
     const raw = this.form.getRawValue();
     const caucao = ptBrMoneyCents(raw.caucaoReais) ?? 0;
-    const updatePayload: RentalUpdateRequest = {
+    return {
       vehicleId: raw.vehicleId,
       driverId: raw.driverId,
       startDate: raw.startDate,
@@ -984,27 +1182,45 @@ export class RentalForm implements OnInit {
       initialKm: raw.initialKm ?? null,
       pickupDate: fromDateTimeLocalInput(raw.pickupDate),
       firstPaymentDate: raw.firstPaymentDate?.trim() || null,
-      dailyInterestAmount: ptBrMoneyCents(raw.dailyInterestReais) ?? 0,
+      ...this.interestFields(true),
       ...this.lateFineFields(),
       franchiseKm: raw.franchiseKm ?? null,
       returnFuelPolicy: raw.returnFuelPolicy?.trim() || null,
     };
-    this.rentalService.update(editingId, updatePayload).subscribe({
-      next: (r) => {
-        this.notifications.success('Alterações salvas.');
-        this.router.navigate(['/alugueis', r.id]);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.saving.set(false);
-        if (this.claimFeeBelowChargeError(err)) return;
-        const { formMessage } = this.apiErrors.handleForm(
-          err,
-          this.form,
-          'Não foi possível salvar as alterações.',
-        );
-        this.error.set(formMessage);
-      },
-    });
+  }
+
+  /** Corpo do preflight: o do create, ou o da edição acrescido do `rentalId`. */
+  private buildPreflightPayload(): RentalPreflightRequest {
+    const editingId = this.editingId();
+    if (!editingId) return this.buildCreatePayload();
+    const raw = this.form.getRawValue();
+    return {
+      ...this.buildUpdatePayload(),
+      rentalId: editingId,
+      automaticCharge: raw.automaticCharge === true,
+      contractSource: raw.useContractTemplate ? 'AUTO' : 'MANUAL',
+    };
+  }
+
+  /**
+   * Juros no corpo. Aluguel novo nunca manda R$/dia (o backend recusa > 0). Na edição:
+   * com % digitado, manda o % e zera o R$/dia (os dois juntos seriam conflito); campo
+   * vazio num aluguel que JÁ tinha % zera o %; num legado, omite o % e devolve o R$/dia
+   * como veio — o PUT omitir o % mantém o que o aluguel tem.
+   */
+  private interestFields(
+    editing: boolean,
+  ): { dailyInterestAmount?: number; lateInterestPercentPerMonth?: number } {
+    const hundredths = ptBrMoneyCents(this.form.getRawValue().lateInterestPercent);
+    if (hundredths !== null) {
+      return editing
+        ? { dailyInterestAmount: 0, lateInterestPercentPerMonth: hundredths / 100 }
+        : { lateInterestPercentPerMonth: hundredths / 100 };
+    }
+    if (!editing) return {};
+    return this.interestPercentLoaded()
+      ? { dailyInterestAmount: 0, lateInterestPercentPerMonth: 0 }
+      : { dailyInterestAmount: this.legacyDailyInterestCents() };
   }
 
   /** Corpo do create a partir do formulário — o MESMO que a prévia recebe. */
@@ -1025,7 +1241,7 @@ export class RentalForm implements OnInit {
       initialKm: raw.initialKm ?? null,
       pickupDate: fromDateTimeLocalInput(raw.pickupDate),
       firstPaymentDate: raw.firstPaymentDate?.trim() || null,
-      dailyInterestAmount: ptBrMoneyCents(raw.dailyInterestReais) ?? 0,
+      ...this.interestFields(false),
       ...this.lateFineFields(),
       franchiseKm: raw.franchiseKm ?? null,
       returnFuelPolicy: raw.returnFuelPolicy?.trim() || null,
@@ -1191,6 +1407,7 @@ export class RentalForm implements OnInit {
   private failCreate(err: HttpErrorResponse, fallback: string): void {
     this.chargeConfirmOpen.set(false);
     this.pendingCreate = null;
+    if (this.claimPreflightError(err)) return;
     if (this.claimFeeBelowChargeError(err)) return;
     const { formMessage } = this.apiErrors.handleForm(err, this.form, fallback);
     // The driver was registered without CNH/address and has not completed it yet.
@@ -1328,6 +1545,18 @@ function pickupWithinPeriodValidator(group: AbstractControl): ValidationErrors |
  * refazer as buscas dos pickers. Mesmo valor da busca da `rentals-list`.
  */
 const PICKER_RELOAD_DEBOUNCE_MS = 300;
+
+/** Pausa antes de conferir no backend: um campo de texto emite a cada tecla. */
+const PREFLIGHT_DEBOUNCE_MS = 400;
+
+/** Cobranças mostradas antes do "ver todas" — um aluguel diário tem dezenas. */
+const SCHEDULE_COLLAPSED_ROWS = 4;
+
+interface PreflightRun {
+  response: RentalPreflightResponse;
+  /** `null` = a prévia ainda vem aí: mantém a lista que já estava na tela. */
+  schedule: ChargeScheduleRow[] | null;
+}
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
