@@ -517,20 +517,147 @@ describe('RentalForm — preflight (FIX-0754)', () => {
       blocker: null,
     };
 
-    it('lista valor, multa e juros de cada cobrança como irão ao Asaas', async () => {
+    const periodCharges = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        kind: 'RENTAL_PERIOD' as const,
+        index: i,
+        dueDate: `2026-${String(8 + Math.floor(i / 28)).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
+        amountCents: 250_000,
+        destination: 'ASAAS' as const,
+      }));
+    const previewOf = (charges: unknown[]) => ({ ...PREVIEW, charges, gatewayCount: charges.length });
+    const text = (sel: string): string => (el(sel)?.textContent ?? '').replace(/\s+/g, ' ');
+    const rowsIn = (): NodeListOf<Element> =>
+      fixture.nativeElement.querySelectorAll('[data-testid="charge-schedule-row"]');
+    const toggle = (): HTMLButtonElement => el('[data-testid="charge-schedule-toggle"]') as HTMLButtonElement;
+    const expand = async (): Promise<void> => {
+      toggle().click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('resumo com 2 cobranças: quantidade, valor, datas e multa/juros uma vez só', async () => {
       mount();
       chargePreview.mockReturnValue(of(PREVIEW));
       await change({ ...VALID, lateInterestPercent: '1,50' });
 
-      const rows = fixture.nativeElement.querySelectorAll('[data-testid="charge-schedule-row"]');
-      expect(rows.length).toBe(2);
-      const first = (rows[0] as HTMLElement).textContent!.replace(/\s+/g, ' ');
+      const summary = text('[data-testid="charge-schedule-summary"]');
+      expect(summary).toContain('2 cobranças de R$ 2.500,00');
+      expect(summary).toContain('Primeira vence em 05/08/2026, última em 05/09/2026');
+      expect(summary).toContain('Multa 2%');
+      expect(summary).toContain('Juros 1,5% ao mês');
+      expect(summary.match(/Multa/g)?.length).toBe(1);
+      expect(fixture.nativeElement.querySelectorAll('[data-testid="charge-summary-difference"]').length).toBe(0);
+    });
+
+    it('resumo com 1 cobrança: singular, uma data só e sem botão', async () => {
+      mount();
+      chargePreview.mockReturnValue(of(previewOf(periodCharges(1))));
+      await change({ ...VALID });
+
+      const summary = text('[data-testid="charge-schedule-summary"]');
+      expect(summary).toContain('1 cobrança de R$ 2.500,00');
+      expect(summary).toContain('Vence em 01/08/2026');
+      expect(summary).not.toContain('última');
+      expect(toggle()).toBeNull();
+    });
+
+    it('só a caução: resumo diz a caução e não há botão', async () => {
+      mount();
+      chargePreview.mockReturnValue(
+        of(
+          previewOf([
+            { kind: 'CAUCAO', index: 0, dueDate: '2026-08-01', amountCents: 80_000, destination: 'LOCAL' },
+          ]),
+        ),
+      );
+      await change({ ...VALID });
+
+      expect(text('[data-testid="charge-schedule-summary"]')).toContain('Caução de R$ 800,00');
+      expect(toggle()).toBeNull();
+    });
+
+    it('primeira e última vêm da data, não da ordem da lista (virada de ano)', async () => {
+      mount();
+      const c = periodCharges(3);
+      c[0] = { ...c[0], dueDate: '2027-01-02' };
+      c[1] = { ...c[1], dueDate: '2026-12-15' };
+      c[2] = { ...c[2], dueDate: '2026-12-20' };
+      chargePreview.mockReturnValue(of(previewOf(c)));
+      await change({ ...VALID });
+
+      expect(text('[data-testid="charge-schedule-summary"]')).toContain(
+        'Primeira vence em 15/12/2026, última em 02/01/2027',
+      );
+    });
+
+    it('aria-controls aponta para um elemento que existe, fechado e aberto', async () => {
+      mount();
+      chargePreview.mockReturnValue(of(previewOf(periodCharges(3))));
+      await change({ ...VALID });
+
+      const target = (): HTMLElement | null =>
+        fixture.nativeElement.querySelector('#' + toggle().getAttribute('aria-controls'));
+      expect(target()).not.toBeNull();
+      expect(target()!.hidden).toBe(true);
+      await expand();
+      expect(target()).not.toBeNull();
+      expect(target()!.hidden).toBe(false);
+    });
+
+    it('resumo com 40 cobranças continua curto e a lista fica fechada', async () => {
+      mount();
+      chargePreview.mockReturnValue(of(previewOf(periodCharges(40))));
+      await change({ ...VALID });
+
+      expect(text('[data-testid="charge-summary-headline"]')).toBe('40 cobranças de R$ 2.500,00');
+      expect(fixture.nativeElement.querySelectorAll('[data-testid="charge-summary-difference"]').length).toBe(0);
+      expect(rowsIn().length).toBe(0);
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
+      expect(toggle().textContent).toContain('Ver todas as 40 cobranças');
+    });
+
+    it('expandir mostra todas as cobranças, com valor, multa, juros e destino', async () => {
+      mount();
+      chargePreview.mockReturnValue(of(previewOf(periodCharges(40))));
+      await change({ ...VALID, lateInterestPercent: '1,50' });
+      await expand();
+
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+      expect(rowsIn().length).toBe(40);
+      const first = (rowsIn()[0] as HTMLElement).textContent!.replace(/\s+/g, ' ');
       expect(first).toContain('Cobrança 1');
-      expect(first).toContain('05/08/2026');
+      expect(first).toContain('01/08/2026');
       expect(first).toContain('R$ 2.500,00');
       expect(first).toContain('Multa 2%');
       expect(first).toContain('Juros 1,5% ao mês');
       expect(first).toContain('Vai ao Asaas');
+
+      await expand();
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
+      expect(rowsIn().length).toBe(0);
+    });
+
+    it('o resumo cita a cobrança de valor diferente e a caução', async () => {
+      mount();
+      const charges = periodCharges(3);
+      charges[0] = { ...charges[0], amountCents: 100_000 };
+      chargePreview.mockReturnValue(
+        of(
+          previewOf([
+            { kind: 'CAUCAO', index: 0, dueDate: '2026-08-01', amountCents: 80_000, destination: 'LOCAL' },
+            ...charges,
+          ]),
+        ),
+      );
+      await change({ ...VALID });
+
+      const diff = text('[data-testid="charge-summary-difference"]');
+      expect(diff).toContain('Cobrança 1 (R$ 1.000,00)');
+      expect(text('[data-testid="charge-schedule-summary"]')).toContain('3 cobranças de R$ 2.500,00');
+      expect(text('[data-testid="charge-schedule-summary"]')).toContain('Caução de R$ 800,00');
+      expect(toggle().textContent).toContain('Ver todas as 4 cobranças');
     });
 
     it('não consulta a prévia enquanto houver problema BLOCKING', async () => {
