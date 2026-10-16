@@ -551,7 +551,7 @@ describe('RentalForm — preflight (FIX-0754)', () => {
       expect(fixture.nativeElement.querySelectorAll('[data-testid="charge-summary-difference"]').length).toBe(0);
     });
 
-    it('resumo com 1 cobrança: singular e uma data só', async () => {
+    it('resumo com 1 cobrança: singular, uma data só e sem botão', async () => {
       mount();
       chargePreview.mockReturnValue(of(previewOf(periodCharges(1))));
       await change({ ...VALID });
@@ -560,7 +560,50 @@ describe('RentalForm — preflight (FIX-0754)', () => {
       expect(summary).toContain('1 cobrança de R$ 2.500,00');
       expect(summary).toContain('Vence em 01/08/2026');
       expect(summary).not.toContain('última');
-      expect(toggle().textContent).toContain('Ver todas as 1 cobranças');
+      expect(toggle()).toBeNull();
+    });
+
+    it('só a caução: resumo diz a caução e não há botão', async () => {
+      mount();
+      chargePreview.mockReturnValue(
+        of(
+          previewOf([
+            { kind: 'CAUCAO', index: 0, dueDate: '2026-08-01', amountCents: 80_000, destination: 'LOCAL' },
+          ]),
+        ),
+      );
+      await change({ ...VALID });
+
+      expect(text('[data-testid="charge-schedule-summary"]')).toContain('Caução de R$ 800,00');
+      expect(toggle()).toBeNull();
+    });
+
+    it('primeira e última vêm da data, não da ordem da lista (virada de ano)', async () => {
+      mount();
+      const c = periodCharges(3);
+      c[0] = { ...c[0], dueDate: '2027-01-02' };
+      c[1] = { ...c[1], dueDate: '2026-12-15' };
+      c[2] = { ...c[2], dueDate: '2026-12-20' };
+      chargePreview.mockReturnValue(of(previewOf(c)));
+      await change({ ...VALID });
+
+      expect(text('[data-testid="charge-schedule-summary"]')).toContain(
+        'Primeira vence em 15/12/2026, última em 02/01/2027',
+      );
+    });
+
+    it('aria-controls aponta para um elemento que existe, fechado e aberto', async () => {
+      mount();
+      chargePreview.mockReturnValue(of(previewOf(periodCharges(3))));
+      await change({ ...VALID });
+
+      const target = (): HTMLElement | null =>
+        fixture.nativeElement.querySelector('#' + toggle().getAttribute('aria-controls'));
+      expect(target()).not.toBeNull();
+      expect(target()!.hidden).toBe(true);
+      await expand();
+      expect(target()).not.toBeNull();
+      expect(target()!.hidden).toBe(false);
     });
 
     it('resumo com 40 cobranças continua curto e a lista fica fechada', async () => {
@@ -569,6 +612,7 @@ describe('RentalForm — preflight (FIX-0754)', () => {
       await change({ ...VALID });
 
       expect(text('[data-testid="charge-summary-headline"]')).toBe('40 cobranças de R$ 2.500,00');
+      expect(fixture.nativeElement.querySelectorAll('[data-testid="charge-summary-difference"]').length).toBe(0);
       expect(rowsIn().length).toBe(0);
       expect(toggle().getAttribute('aria-expanded')).toBe('false');
       expect(toggle().textContent).toContain('Ver todas as 40 cobranças');

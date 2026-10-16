@@ -330,6 +330,7 @@
                 <p class="font-medium text-neutral-900" data-testid="charge-summary-difference">{{ line }}</p>
               }
             </div>
+            @if (sum.hasMore) {
             <button type="button" (click)="toggleSchedule()"
               [attr.aria-expanded]="scheduleExpanded()"
               aria-controls="charge-schedule-list"
@@ -338,8 +339,8 @@
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
               {{ scheduleExpanded() ? 'Ocultar as cobranças' : 'Ver todas as ' + sum.total + ' cobranças' }}
             </button>
-            @if (scheduleExpanded()) {
-              <ul id="charge-schedule-list" class="divide-y divide-neutral-200 max-h-96 overflow-y-auto">
+            <ul id="charge-schedule-list" [hidden]="!scheduleExpanded()" class="divide-y divide-neutral-200 max-h-96 overflow-y-auto">
+              @if (scheduleExpanded()) {
                 @for (row of chargeSchedule(); track row.key) {
                   <li class="py-2 text-base text-neutral-800 min-w-0" data-testid="charge-schedule-row">
                     <p class="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -354,7 +355,8 @@
                     </p>
                   </li>
                 }
-              </ul>
+              }
+            </ul>
             }
           </section>
         }
