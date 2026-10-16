@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   actionableIssues,
   buildChargeSchedule,
+  summarizeChargeSchedule,
   controlFor,
   fineHelp,
   formatPercent,
@@ -187,5 +188,24 @@ describe('rental-preflight — prévia de cada cobrança', () => {
     const rows = buildChargeSchedule(preview, { lateFineType: 'FIXED', lateFineValue: 5_000 });
     expect(rows[0].fine).toBe('Multa R$ 50,00');
     expect(rows[0].interest).toBe('Sem juros');
+  });
+
+  it('resumo: sem cobranças não há resumo; destinos e encargos diferentes são citados', () => {
+    expect(summarizeChargeSchedule([])).toBeNull();
+    const rows = buildChargeSchedule(
+      {
+        ...preview,
+        charges: [
+          { kind: 'RENTAL_PERIOD', index: 0, dueDate: '2026-08-05', amountCents: 250_000, destination: 'ASAAS' },
+          { kind: 'RENTAL_PERIOD', index: 1, dueDate: '2026-09-05', amountCents: 250_000, destination: 'LOCAL' },
+          { kind: 'RENTAL_PERIOD', index: 2, dueDate: '2026-10-05', amountCents: 250_000, destination: 'ASAAS' },
+        ],
+      },
+      { lateFineType: 'FIXED', lateFineValue: 5_000 },
+    );
+    const sum = summarizeChargeSchedule(rows)!;
+    expect(sum.differences).toEqual(['1 cobrança tem outro destino (veja a lista).']);
+    expect(sum.charges).toBe('Multa R$ 50,00 · Sem juros');
+    expect(sum.deposit).toBeNull();
   });
 });
