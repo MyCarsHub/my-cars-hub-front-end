@@ -237,14 +237,34 @@ export class RentalDetail implements OnInit {
    */
   protected readonly chargeSyncNotice = signal<RentalChargeSyncDto | null>(null);
 
+  /**
+   * FIX-0755 — motivos DISTINTOS das cobranças FAILED, na ordem em que aparecem. É o
+   * `failureReason` que o backend gravou (FIX-0753), não um texto inventado aqui: sem
+   * ele o banner dizia "N cobranças falharam" e o dono não sabia o que corrigir.
+   */
+  private readonly failedReasons = computed<string[]>(() => {
+    const reasons = (this.rental()?.charges ?? [])
+      .filter((c) => c.status === 'FAILED')
+      .map((c) => c.failureReason?.trim() ?? '')
+      .filter((reason) => reason.length > 0);
+    return [...new Set(reasons)];
+  });
+
   protected readonly chargeSyncMessage = computed<string>(() => {
     const failed = this.chargeSyncNotice()?.failed ?? 0;
     const subject =
       failed === 1
         ? '1 cobrança não pôde ser criada no Asaas.'
         : `${failed} cobranças não puderam ser criadas no Asaas.`;
+    const reasons = this.failedReasons();
+    const why =
+      reasons.length === 0
+        ? ''
+        : reasons.length === 1
+          ? ` Motivo: ${reasons[0]}`
+          : ` Motivos: ${reasons.join(' | ')}`;
     return (
-      `${subject} O aluguel foi criado e o sistema tenta criá-las de novo automaticamente. ` +
+      `${subject}${why} O aluguel foi criado e o sistema tenta criá-las de novo automaticamente. ` +
       'Para tentar agora, use Regerar na linha de cada cobrança que falhou.'
     );
   });
