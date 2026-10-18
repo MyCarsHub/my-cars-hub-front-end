@@ -24,6 +24,21 @@
     </div>
   }
 
+  @if (supportDeleteRemovals(); as removals) {
+    <div class="space-y-4" data-testid="support-delete-result">
+      <app-alert-banner variant="success">
+        <span class="text-base">Aluguel excluído. Veja o que aconteceu com cada cobrança.</span>
+      </app-alert-banner>
+      <app-charge-removal-list [removals]="removals" />
+      <button type="button" (click)="backToList()"
+        class="w-full sm:w-auto min-h-[44px] rounded-xl bg-primary-500 px-4 py-2 text-base
+               font-semibold text-white hover:bg-primary-700 focus:outline-none
+               focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
+        Voltar para a lista
+      </button>
+    </div>
+  }
+
   @if (rental(); as r) {
     <div class="space-y-4 sm:space-y-6">
       <!-- Falha de OPERAÇÃO (cancelar/concluir/ativar/excluir/caução/cobranças). -->
@@ -51,8 +66,15 @@
       <div class="hidden lg:flex justify-end">
         <app-detail-actions
           [editRouterLink]="['/alugueis', r.id, 'editar']"
+          [deleteDisabled]="editSession()"
+          deleteDisabledReason="No modo edição, use Excluir aluguel no bloco de ações do administrador."
           (delete)="askDelete()"
         />
+        @if (editSession()) {
+          <p class="mt-2 text-base text-neutral-700" data-testid="owner-delete-disabled-reason">
+            No modo edição, use "Excluir aluguel" no bloco de ações do administrador.
+          </p>
+        }
       </div>
 
       <app-rental-progress-checklist
@@ -831,6 +853,14 @@
         </div>
       }
 
+      @if (editSession()) {
+        <app-support-rental-actions
+          [rental]="r"
+          (canceled)="onSupportCanceled($event)"
+          (deleted)="onSupportDeleted($event)"
+        />
+      }
+
       @if (r.notes) {
         <app-page-card title="Observações">
           <div class="p-4 sm:p-6 text-sm text-neutral-700 whitespace-pre-line">
@@ -843,8 +873,15 @@
       <div class="lg:hidden">
         <app-detail-actions
           [editRouterLink]="['/alugueis', r.id, 'editar']"
+          [deleteDisabled]="editSession()"
+          deleteDisabledReason="No modo edição, use Excluir aluguel no bloco de ações do administrador."
           (delete)="askDelete()"
         />
+        @if (editSession()) {
+          <p class="mt-2 text-base text-neutral-700" data-testid="owner-delete-disabled-reason">
+            No modo edição, use "Excluir aluguel" no bloco de ações do administrador.
+          </p>
+        }
       </div>
     </div>
 

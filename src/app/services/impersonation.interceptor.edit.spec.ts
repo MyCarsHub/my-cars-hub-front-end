@@ -62,6 +62,12 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['PUT', '/rentals/r-1'],
     ['POST', '/rentals/r-1/charges/c-1/cancel'],
     ['POST', '/rentals/r-1/caucao-charge'],
+    // FEAT-0347: as 5 rotas novas (espelho do FEAT-0345).
+    ['POST', '/rentals/r-1/cancel'],
+    ['DELETE', '/rentals/r-1'],
+    ['POST', '/rentals'],
+    ['POST', '/rentals/preflight'],
+    ['POST', '/rentals/charge-preview'],
   ])('deixa passar %s %s', (method, path) => {
     run(new HttpRequest(method as 'PUT', `${API}${path}`, {})).subscribe();
 
@@ -76,9 +82,15 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
   });
 
   it.each([
-    ['POST', '/rentals'],
-    ['DELETE', '/rentals/r-1'],
     ['PATCH', '/rentals/r-1'],
+    ['PUT', '/rentals'],
+    ['DELETE', '/rentals'],
+    ['PUT', '/rentals/r-1/cancel'],
+    ['POST', '/rentals/r-1/cancel/extra'],
+    ['POST', '/rentals/preflight/extra'],
+    ['DELETE', '/rentals/r-1/photos/p-1'],
+    ['POST', '/rentals/r-1/activate'],
+    ['POST', '/rentals/r-1/complete'],
     ['PUT', '/rentals/r-1/charges/c-1/cancel'],
     ['POST', '/rentals/r-1/charges/c-1/mark-paid'],
     ['POST', '/rentals/r-1/caucao-charge/mark-paid'],

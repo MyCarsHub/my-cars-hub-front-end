@@ -1,0 +1,103 @@
+<section
+  class="rounded-xl border border-rose-200 bg-rose-50/40 p-4 space-y-3"
+  aria-labelledby="support-actions-title"
+  data-testid="support-rental-actions"
+>
+  <h2 id="support-actions-title" class="text-base font-semibold text-neutral-900">
+    Modo edição: ações do administrador
+  </h2>
+
+  @if (error(); as message) {
+    <app-alert-banner variant="error" data-testid="support-action-error">
+      <span class="text-base">{{ message }}</span>
+      @if (hint(); as extra) {
+        <span class="mt-1 block text-base" data-testid="support-action-hint">{{ extra }}</span>
+      }
+      @if (showCancelFirst()) {
+        <button
+          type="button"
+          (click)="askCancel()"
+          data-testid="support-cancel-first"
+          class="mt-2 block w-full min-h-[44px] rounded-xl border border-rose-300 bg-white px-4 py-2 text-base font-semibold text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
+        >
+          Cancelar aluguel
+        </button>
+      }
+    </app-alert-banner>
+  }
+
+  @if (cancelResult(); as removals) {
+    <div data-testid="support-cancel-result">
+      <h3 class="mb-2 text-base font-semibold text-neutral-900">Cobranças após o cancelamento</h3>
+      <app-charge-removal-list [removals]="removals" />
+    </div>
+  }
+
+  <div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+    @if (canCancel()) {
+      <button
+        type="button"
+        (click)="askCancel()"
+        data-testid="support-cancel"
+        class="w-full sm:w-auto min-h-[44px] rounded-xl border border-rose-300 bg-white px-4 py-2 text-base font-semibold text-rose-700 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
+      >
+        Cancelar aluguel
+      </button>
+    }
+    <button
+      type="button"
+      (click)="askDelete()"
+      data-testid="support-delete"
+      class="w-full sm:w-auto min-h-[44px] rounded-xl bg-rose-600 px-4 py-2 text-base font-semibold text-white hover:bg-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
+    >
+      Excluir aluguel
+    </button>
+  </div>
+</section>
+
+<app-confirm-dialog
+  [open]="cancelOpen()"
+  title="Cancelar aluguel?"
+  [message]="cancelMessage"
+  confirmLabel="Cancelar aluguel"
+  cancelLabel="Voltar"
+  variant="danger"
+  size="large"
+  [busy]="busy()"
+  optionLabel="Remover também as cobranças vencidas e não pagas"
+  optionHint="Elas somem do Asaas e deixam de ser cobráveis por lá."
+  [optionChecked]="removeOverdue()"
+  (optionCheckedChange)="removeOverdue.set($event)"
+  (confirmed)="confirmCancel()"
+  (cancelled)="closeDialogs()"
+/>
+
+<app-confirm-dialog
+  [open]="deleteOpen()"
+  title="Excluir aluguel?"
+  [message]="deleteMessage"
+  confirmLabel="Excluir"
+  cancelLabel="Voltar"
+  variant="danger"
+  size="large"
+  [busy]="busy()"
+  optionLabel="Remover também as cobranças vencidas e não pagas"
+  optionHint="Elas somem do Asaas e deixam de ser cobráveis por lá."
+  [optionChecked]="removeOverdue()"
+  (optionCheckedChange)="removeOverdue.set($event)"
+  (confirmed)="confirmDelete()"
+  (cancelled)="closeDialogs()"
+/>
+
+<app-confirm-dialog
+  [open]="ackOpen()"
+  title="O histórico das cobranças pagas será perdido"
+  [message]="ackMessage"
+  confirmLabel="Excluir mesmo assim"
+  cancelLabel="Não excluir"
+  variant="danger"
+  size="large"
+  [busy]="busy()"
+  (confirmed)="confirmDeleteAfterAck()"
+  (cancelled)="closeDialogs()"
+/>
