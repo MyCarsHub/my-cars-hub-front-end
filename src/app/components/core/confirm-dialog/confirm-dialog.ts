@@ -1,8 +1,12 @@
 import {
+  afterRenderEffect,
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
+  computed,
   input,
   output,
+  viewChild,
 } from '@angular/core';
 import { animate, style, transition, trigger } from '@angular/animations';
 
@@ -88,6 +92,22 @@ export class ConfirmDialog {
    * abandoned from the dialog. The caller shows the progress in `confirmLabel`.
    */
   busy = input<boolean>(false);
+
+  /**
+   * 'large' (opt-in, só para diálogos destrutivos): mensagem, opção e dica em 16px, alvo do
+   * checkbox >= 44px, e foco inicial no botão seguro (cancelar). 'default' não muda nada.
+   */
+  size = input<'default' | 'large'>('default');
+
+  private readonly cancelBtn = viewChild<ElementRef<HTMLButtonElement>>('cancelBtn');
+
+  protected readonly large = computed(() => this.size() === 'large');
+
+  constructor() {
+    afterRenderEffect(() => {
+      if (this.open() && this.large()) this.cancelBtn()?.nativeElement.focus();
+    });
+  }
 
   /** Emitted when the user clicks the confirm button */
   confirmed = output<void>();

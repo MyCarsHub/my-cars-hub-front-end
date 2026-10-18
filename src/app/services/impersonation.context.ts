@@ -80,6 +80,14 @@ export const SUPPORT_EDIT_WRITE_ROUTES: ReadonlyArray<{ method: string; path: Re
   { method: 'PUT', path: /^\/rentals\/[^/]+$/ },
   { method: 'POST', path: /^\/rentals\/[^/]+\/charges\/[^/]+\/cancel$/ },
   { method: 'POST', path: /^\/rentals\/[^/]+\/caucao-charge$/ },
+  // FEAT-0347 (espelho do FEAT-0345): cancelar, excluir e criar aluguel pelas telas do dono.
+  // `preflight` e `charge-preview` são POST sem efeito de saída, mas o rental-form os dispara a
+  // cada digitação; sem estar aqui, cada um viraria 403 local com toast.
+  { method: 'POST', path: /^\/rentals\/[^/]+\/cancel$/ },
+  { method: 'DELETE', path: /^\/rentals\/[^/]+$/ },
+  { method: 'POST', path: /^\/rentals$/ },
+  { method: 'POST', path: /^\/rentals\/preflight$/ },
+  { method: 'POST', path: /^\/rentals\/charge-preview$/ },
 ];
 
 export const SUPPORT_EDIT_ERROR_CODES = {

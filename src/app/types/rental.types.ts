@@ -56,6 +56,42 @@ export interface CancelRentalPayload {
   removeOverdueCharges?: boolean;
 }
 
+/**
+ * FEAT-0345/0347 — desfecho REAL de cada cobrança quando o admin, em sessão de EDIÇÃO,
+ * cancela ou exclui um aluguel. Só vem nessa sessão.
+ */
+export type ChargeRemovalOutcome =
+  | 'REMOVED_AT_GATEWAY'
+  | 'NO_GATEWAY_LINK'
+  | 'REMOVAL_REFUSED'
+  | 'ALREADY_CLOSED'
+  | 'NOT_CANCELED'
+  | 'KEPT_PAID'
+  | 'KEPT_OVERDUE'
+  | 'KEPT_DISPUTED'
+  | 'KEPT_CLOSED';
+
+export interface RentalChargeRemovalDto {
+  chargeId: string;
+  kind: ChargeKind;
+  /** Centavos. */
+  amount: number;
+  outcome: ChargeRemovalOutcome;
+  /** Texto pt-BR para o operador (sem dado pessoal). */
+  message: string;
+}
+
+/** POST /rentals/{id}/cancel em sessão de suporte: o aluguel (campos no topo) + desfechos. */
+export type RentalSupportCancelResponse = RentalResponseDto & {
+  chargeRemovals: RentalChargeRemovalDto[];
+};
+
+/** DELETE /rentals/{id} em sessão de suporte (200, não 204). */
+export interface RentalSupportDeleteResponse {
+  rentalId: string;
+  chargeRemovals: RentalChargeRemovalDto[];
+}
+
 export function caucaoRefundMethodLabel(m: CaucaoRefundMethod): string {
   switch (m) {
     case 'AUTOMATIC':
