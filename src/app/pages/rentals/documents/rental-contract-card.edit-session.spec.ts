@@ -101,7 +101,7 @@ describe('RentalContractCard em sessão de edição', () => {
       contractSignature: null,
     });
 
-    const upload = buttonByText(el, 'Enviar contrato PDF');
+    const upload = buttonByText(el, 'Enviar contrato (PDF ou DOCX)');
     expect(upload).toBeDefined();
     expect(upload?.disabled).toBe(false);
   });

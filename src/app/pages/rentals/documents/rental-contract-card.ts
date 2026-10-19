@@ -37,12 +37,25 @@ interface SignatureBadge {
   chip: string;
 }
 
+/** Teto de upload do cliente; casa com o limite do backend (20MB). */
+const MAX_CONTRACT_BYTES = 20 * 1024 * 1024;
+const MAX_CONTRACT_LABEL = '20MB';
+
+const PDF_MIME = 'application/pdf';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 /**
- * Teto de upload do cliente. O backend aceita 20MB; a divergência é
- * INTENCIONAL — o app é usado majoritariamente em rede móvel, e 10MB é o
- * limite amigável pra franquia de dados. Não subir pra "casar" com o backend.
+ * Content-Type que o backend espera, decidido pelo arquivo escolhido. Alguns
+ * browsers/SOs entregam `File.type` vazio pra .docx, então a extensão é o
+ * fallback. `null` = formato não suportado.
  */
-const MAX_CONTRACT_BYTES = 10 * 1024 * 1024;
+function contractMimeOf(file: File): string | null {
+  if (file.type === PDF_MIME || file.type === DOCX_MIME) return file.type;
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.pdf')) return PDF_MIME;
+  if (name.endsWith('.docx')) return DOCX_MIME;
+  return null;
+}
 
 /**
  * Assinatura de um PDF (`%PDF-`), a ÚNICA autoridade sobre o formato do arquivo.
@@ -58,7 +71,7 @@ const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d];
 
 /**
  * Range que fareja o formato SEM baixar o arquivo. O caminho normal hoje é um
- * PDF anexado à mão (até 10MB) que o browser mesmo renderiza: puxar o corpo
+ * PDF anexado à mão (até o teto de upload) que o browser mesmo renderiza: puxar o corpo
  * inteiro só pra ler 5 bytes e depois deixar a aba baixar tudo de novo custaria
  * o DOBRO da franquia de dados no fluxo mais usado do app. O Supabase Storage
  * honra Range e responde 206; se algum proxy ignorar e responder 200, o corpo
@@ -285,7 +298,7 @@ function openFailedTabHtml(originalUrl: string): string {
                   }
                 </div>
                 <p class="text-xs text-neutral-500 tabular-nums">
-                  {{ formatSize(c.sizeBytes) }} · Enviado {{ formatDate(c.createdDate) }}
+                  {{ fileTypeLabel() }} · {{ formatSize(c.sizeBytes) }} · Enviado {{ formatDate(c.createdDate) }}
                 </p>
               </div>
             </div>
@@ -361,7 +374,7 @@ function openFailedTabHtml(originalUrl: string): string {
                 <div class="h-full w-1/3 rounded-full bg-primary-500 indeterminate-bar"></div>
               </div>
             </div>
-          } @else {
+          } @else if (canReplaceFile()) {
             <button type="button" (click)="picker.click()"
               class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-700 transition-colors min-h-[48px]">
               Substituir contrato
@@ -370,7 +383,7 @@ function openFailedTabHtml(originalUrl: string): string {
         } @else {
           <div class="rounded-xl border-2 border-dashed border-neutral-300 p-6 sm:p-8 text-center space-y-3">
             <p class="text-sm text-neutral-600">
-              Nenhum contrato enviado ainda. Anexe o PDF assinado para este aluguel.
+              Nenhum contrato enviado ainda. Anexe o contrato (PDF ou DOCX) para este aluguel.
             </p>
             @if (uploading()) {
               <div class="rounded-xl bg-primary-50/60 border border-primary-200 p-3 space-y-2">
@@ -389,13 +402,13 @@ function openFailedTabHtml(originalUrl: string): string {
             } @else {
               <button type="button" (click)="picker.click()"
                 class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[48px]">
-                Enviar contrato PDF
+                Enviar contrato (PDF ou DOCX)
               </button>
             }
           </div>
         }
 
-        <input #picker type="file" accept="application/pdf" hidden (change)="onFileSelected($event)" />
+        <input #picker type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden (change)="onFileSelected($event)" />
       </div>
     </app-page-card>
 
@@ -602,6 +615,24 @@ export class RentalContractCard implements OnInit, OnDestroy {
     }[s];
   });
 
+  /**
+   * Trocar o arquivo só antes da assinatura: com SIGNED/PENDING o backend
+   * recusa (409) e o arquivo já está nas mãos dos signatários.
+   */
+  protected readonly canReplaceFile = computed(() => {
+    const s = this.signatureStatus();
+    return s !== 'SIGNED' && s !== 'PENDING';
+  });
+
+  /**
+   * Rótulo do formato. Depois de SIGNED o backend sobrescreve o arquivo com o
+   * PDF assinado sem atualizar o `mimeType` da linha, então SIGNED sempre é PDF.
+   */
+  protected readonly fileTypeLabel = computed(() => {
+    if (this.signatureStatus() === 'SIGNED') return 'PDF';
+    return this.contract()?.mimeType === DOCX_MIME ? 'DOCX' : 'PDF';
+  });
+
   protected readonly canRequestSignature = computed(() => {
     const s = this.signatureStatus();
     return s === 'NOT_REQUIRED' || s === 'REFUSED' || s === 'EXPIRED';
@@ -682,22 +713,29 @@ export class RentalContractCard implements OnInit, OnDestroy {
     // Guardas client-side: falham ANTES de qualquer request — nada de gastar
     // dados móveis num upload que o backend rejeitaria. Vão pro banner inline
     // (regra do AlertBanner: erro de negócio nunca em toast).
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      this.error.set('Formato não suportado. Selecione um arquivo PDF.');
+    const mime = contractMimeOf(file);
+    if (!mime) {
+      this.error.set('Formato não suportado. Selecione um arquivo PDF ou DOCX.');
+      return;
+    }
+    if (!this.canReplaceFile()) {
+      this.error.set('Contrato em assinatura ou já assinado não pode ser substituído.');
       return;
     }
     if (file.size > MAX_CONTRACT_BYTES) {
       this.error.set(
-        `O arquivo tem ${this.formatSize(file.size)} e o limite é 10MB. ` +
-          'Comprima o PDF (ou reduza a qualidade do scan) e envie de novo.',
+        `O arquivo tem ${this.formatSize(file.size)} e o limite é ${MAX_CONTRACT_LABEL}. ` +
+          'Comprima o arquivo (ou reduza a qualidade do scan) e envie de novo.',
       );
       return;
     }
+    // Garante o Content-Type correto no multipart mesmo com `File.type` vazio.
+    const upload = file.type === mime ? file : new File([file], file.name, { type: mime });
 
     this.error.set(null);
     this.uploading.set(true);
     this.uploadSub = this.rentalService
-      .uploadContractWithProgress(this.rentalId(), file)
+      .uploadContractWithProgress(this.rentalId(), upload)
       .subscribe({
         // O app usa `withFetch()` e o FetchBackend só emite `Sent` e
         // `DownloadProgress` — `UploadProgress` NUNCA chega. Por isso não há
@@ -723,8 +761,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
    * - status 0 → retorna `null` de propósito: quem toasta rede fora é o
    *   `errorInterceptor` ("Sem conexão com o servidor."). Um banner inline aqui
    *   daria DUAS mensagens pra mesma falha.
-   * - 413 → o payload estourou o limite; usamos o teto de 10MB do cliente e não
-   *   a mensagem do backend, que fala em 20MB e contradiria a guarda acima.
+   * - 413 → o payload estourou o limite; mensagem fixa com o mesmo teto da guarda acima.
    * Qualquer outro status segue o contrato normal de `messageFor()`.
    * `claim()` mantém o safety-net do interceptor desarmado para 4xx.
    */
@@ -734,7 +771,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
       return null;
     }
     if (err.status === 413) {
-      return 'O arquivo passou do limite de 10MB. Comprima o PDF e envie de novo.';
+      return `O arquivo passou do limite de ${MAX_CONTRACT_LABEL}. Comprima o arquivo e envie de novo.`;
     }
     return this.apiErrors.messageFor(err, 'Não foi possível enviar o contrato.');
   }

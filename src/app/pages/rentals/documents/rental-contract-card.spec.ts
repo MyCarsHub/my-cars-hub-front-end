@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
 import { RentalContractCard } from './rental-contract-card';
@@ -516,7 +516,7 @@ describe('RentalContractCard — download & open PDF', () => {
 
   /**
    * Regressão de FRANQUIA DE DADOS. O caminho normal do app é um PDF anexado à
-   * mão (até 10MB) que o browser mesmo renderiza. Puxar o arquivo inteiro só
+   * mão (até o teto) que o browser mesmo renderiza. Puxar o arquivo inteiro só
    * pra ler 5 bytes e depois deixar a aba baixar TUDO de novo custava o dobro
    * dos dados móveis no fluxo mais usado — exatamente o que a regra
    * mobile-first do projeto proíbe.
@@ -819,6 +819,8 @@ describe('RentalContractCard — download & open PDF', () => {
  * congelada em 0% e mentiria pro usuário, então a UI é indeterminada e o
  * template não pode conter `%` nem `aria-valuenow`.
  */
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 describe('RentalContractCard — upload UX', () => {
   const RID = 'rid';
   const state = signal<RentalStateSnapshot | null>(null);
@@ -876,17 +878,17 @@ describe('RentalContractCard — upload UX', () => {
     return fixture;
   }
 
-  it('rejeita PDF acima de 10MB inline e NÃO dispara nenhuma chamada HTTP', () => {
+  it('rejeita PDF acima de 20MB inline e NÃO dispara nenhuma chamada HTTP', () => {
     const fixture = makeFixture();
     const cmp = fixture.componentInstance as any;
 
-    cmp.onFileSelected(fileEvent(makeFile('contrato.pdf', 'application/pdf', 11 * 1024 * 1024)));
+    cmp.onFileSelected(fileEvent(makeFile('contrato.pdf', 'application/pdf', 21 * 1024 * 1024)));
     fixture.detectChanges();
 
     expect(rentalService.uploadContractWithProgress).not.toHaveBeenCalled();
     expect(cmp.uploading()).toBe(false);
-    expect(cmp.error()).toContain('10MB');
-    expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain('10MB');
+    expect(cmp.error()).toContain('20MB');
+    expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain('20MB');
   });
 
   it('rejeita arquivo não-PDF inline e NÃO dispara nenhuma chamada HTTP', () => {
@@ -901,6 +903,105 @@ describe('RentalContractCard — upload UX', () => {
     expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain('PDF');
   });
 
+  it('aceita DOCX e envia com o Content-Type do DOCX', () => {
+    rentalService.uploadContractWithProgress.mockReturnValue(NEVER);
+    const fixture = makeFixture();
+    const cmp = fixture.componentInstance as any;
+
+    cmp.onFileSelected(fileEvent(makeFile('contrato.docx', DOCX, 1024)));
+
+    expect(rentalService.uploadContractWithProgress).toHaveBeenCalledTimes(1);
+    expect(rentalService.uploadContractWithProgress.mock.calls[0][1].type).toBe(DOCX);
+  });
+
+  it('DOCX com File.type vazio é aceito pela extensão e reenviado com o tipo correto', () => {
+    rentalService.uploadContractWithProgress.mockReturnValue(NEVER);
+    const fixture = makeFixture();
+    const cmp = fixture.componentInstance as any;
+
+    cmp.onFileSelected(fileEvent(makeFile('contrato.DOCX', '', 1024)));
+
+    expect(rentalService.uploadContractWithProgress.mock.calls[0][1].type).toBe(DOCX);
+  });
+
+  it('aceita arquivo de 15MB (acima do teto antigo de 10MB)', () => {
+    rentalService.uploadContractWithProgress.mockReturnValue(NEVER);
+    const fixture = makeFixture();
+    const cmp = fixture.componentInstance as any;
+
+    cmp.onFileSelected(fileEvent(makeFile('c.pdf', 'application/pdf', 15 * 1024 * 1024)));
+
+    expect(rentalService.uploadContractWithProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('seletor aceita PDF e DOCX', () => {
+    const fixture = makeFixture();
+    const accept = fixture.nativeElement.querySelector('input[type=file]').getAttribute('accept');
+    expect(accept).toContain('.docx');
+    expect(accept).toContain('.pdf');
+  });
+
+  it('400 do backend (formato) aparece no banner inline', () => {
+    rentalService.uploadContractWithProgress.mockReturnValue(
+      throwError(
+        () => new HttpErrorResponse({ status: 400, error: { message: 'Arquivo deve ser PDF ou DOCX.' } }),
+      ),
+    );
+    const fixture = makeFixture();
+    const cmp = fixture.componentInstance as any;
+
+    cmp.onFileSelected(fileEvent(makeFile('contrato.pdf', 'application/pdf', 1024)));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain(
+      'Arquivo deve ser PDF ou DOCX.',
+    );
+  });
+
+  describe('substituição e envio para assinatura', () => {
+    function withStatus(status: string, mimeType = DOCX) {
+      state.set({
+        documents: [{ kind: 'CONTRACT', id: 'd1', mimeType, sizeBytes: 10 } as any],
+        checkinPhotos: [],
+        checkoutPhotos: [],
+        contractSignature: { status } as any,
+      });
+    }
+    const texts = (f: any) => f.nativeElement.textContent as string;
+
+    it.each(['SIGNED', 'PENDING'])('%s: sem botão Substituir e o upload é recusado sem HTTP', (st) => {
+      withStatus(st);
+      const fixture = makeFixture();
+      fixture.detectChanges();
+      expect(texts(fixture)).not.toContain('Substituir contrato');
+      (fixture.componentInstance as any).onFileSelected(
+        fileEvent(makeFile('c.pdf', 'application/pdf', 1024)),
+      );
+      expect(rentalService.uploadContractWithProgress).not.toHaveBeenCalled();
+      expect((fixture.componentInstance as any).error()).toContain('não pode ser substituído');
+    });
+
+    it.each(['NOT_REQUIRED', 'REFUSED', 'EXPIRED'])(
+      '%s: contrato DOCX próprio mostra Substituir, tipo DOCX e botão de assinatura',
+      (st) => {
+        withStatus(st);
+        const fixture = makeFixture();
+        fixture.detectChanges();
+        expect(texts(fixture)).toContain('Substituir contrato');
+        expect(texts(fixture)).toContain('DOCX');
+        expect(texts(fixture)).toMatch(/Solicitar assinatura|Reenviar para assinatura/);
+        expect(texts(fixture)).toContain('Baixar Contrato');
+      },
+    );
+
+    it('SIGNED rotula PDF mesmo com mimeType DOCX na linha', () => {
+      withStatus('SIGNED', DOCX);
+      const fixture = makeFixture();
+      fixture.detectChanges();
+      expect((fixture.componentInstance as any).fileTypeLabel()).toBe('PDF');
+    });
+  });
+
   it('upload que falha com 413 mostra a mensagem de tamanho inline', () => {
     rentalService.uploadContractWithProgress.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 413 })),
@@ -911,7 +1012,7 @@ describe('RentalContractCard — upload UX', () => {
     cmp.onFileSelected(fileEvent(makeFile('contrato.pdf', 'application/pdf', 1024)));
     fixture.detectChanges();
 
-    expect(cmp.error()).toContain('10MB');
+    expect(cmp.error()).toContain('20MB');
     expect(cmp.uploading()).toBe(false);
     expect(notifications.push).not.toHaveBeenCalledWith('error', expect.anything());
   });
