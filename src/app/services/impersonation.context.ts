@@ -88,6 +88,19 @@ export const SUPPORT_EDIT_WRITE_ROUTES: ReadonlyArray<{ method: string; path: Re
   { method: 'POST', path: /^\/rentals$/ },
   { method: 'POST', path: /^\/rentals\/preflight$/ },
   { method: 'POST', path: /^\/rentals\/charge-preview$/ },
+  // Contrato, documentos, fotos do aluguel e vistoria (espelho do backend). De propósito FORA
+  // da lista: PATCH /inspections/checklist/** e as rotas de inspection-schedules.
+  { method: 'POST', path: /^\/rentals\/[^/]+\/contract$/ },
+  { method: 'POST', path: /^\/rentals\/[^/]+\/contract\/mark-signed$/ },
+  { method: 'POST', path: /^\/rentals\/[^/]+\/contract\/signature$/ },
+  { method: 'DELETE', path: /^\/rentals\/[^/]+\/documents\/[^/]+$/ },
+  { method: 'POST', path: /^\/rentals\/[^/]+\/photos$/ },
+  { method: 'DELETE', path: /^\/rentals\/[^/]+\/photos\/[^/]+$/ },
+  { method: 'POST', path: /^\/rentals\/[^/]+\/activate$/ },
+  { method: 'POST', path: /^\/rentals\/[^/]+\/inspections\/[^/]+\/(generate|upload)-pdf$/ },
+  { method: 'POST', path: /^\/inspections$/ },
+  { method: 'POST', path: /^\/inspections\/[^/]+\/photos\/[^/]+$/ },
+  { method: 'POST', path: /^\/inspections\/[^/]+\/(submit|approve|reject|recapture)$/ },
 ];
 
 export const SUPPORT_EDIT_ERROR_CODES = {
