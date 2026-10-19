@@ -68,6 +68,22 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/rentals'],
     ['POST', '/rentals/preflight'],
     ['POST', '/rentals/charge-preview'],
+    // Contrato, documentos, fotos e vistoria.
+    ['POST', '/rentals/r-1/contract'],
+    ['POST', '/rentals/r-1/contract/mark-signed'],
+    ['POST', '/rentals/r-1/contract/signature'],
+    ['DELETE', '/rentals/r-1/documents/d-1'],
+    ['POST', '/rentals/r-1/photos'],
+    ['DELETE', '/rentals/r-1/photos/p-1'],
+    ['POST', '/inspections'],
+    ['POST', '/inspections/i-1/photos/FRONT'],
+    ['POST', '/inspections/i-1/submit'],
+    ['POST', '/inspections/i-1/approve'],
+    ['POST', '/inspections/i-1/reject'],
+    ['POST', '/inspections/i-1/recapture'],
+    ['POST', '/rentals/r-1/activate'],
+    ['POST', '/rentals/r-1/inspections/CHECKIN/generate-pdf'],
+    ['POST', '/rentals/r-1/inspections/CHECKOUT/upload-pdf'],
   ])('deixa passar %s %s', (method, path) => {
     run(new HttpRequest(method as 'PUT', `${API}${path}`, {})).subscribe();
 
@@ -88,9 +104,10 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['PUT', '/rentals/r-1/cancel'],
     ['POST', '/rentals/r-1/cancel/extra'],
     ['POST', '/rentals/preflight/extra'],
-    ['DELETE', '/rentals/r-1/photos/p-1'],
-    ['POST', '/rentals/r-1/activate'],
     ['POST', '/rentals/r-1/complete'],
+    ['POST', '/rentals/r-1/activate/extra'],
+    ['POST', '/rentals/r-1/inspections/CHECKIN/other-pdf'],
+    ['POST', '/rentals/r-1/inspections/generate-pdf'],
     ['PUT', '/rentals/r-1/charges/c-1/cancel'],
     ['POST', '/rentals/r-1/charges/c-1/mark-paid'],
     ['POST', '/rentals/r-1/caucao-charge/mark-paid'],
@@ -98,6 +115,16 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['PUT', '/rentals/r-1/../vehicles/v-1'],
     ['PUT', '/vehicles/v-1'],
     ['POST', '/drivers'],
+    // Fora da lista de propósito: checklist e agendamentos de vistoria.
+    ['PATCH', '/inspections/checklist/c-1/FRONT'],
+    ['POST', '/inspection-schedules'],
+    ['PUT', '/inspection-schedules/s-1'],
+    ['DELETE', '/inspection-schedules/s-1'],
+    ['POST', '/inspections/i-1/submit/extra'],
+    ['POST', '/inspections/i-1/pdf'],
+    ['POST', '/rentals/r-1/contract/extra'],
+    ['DELETE', '/rentals/r-1/documents'],
+    ['POST', '/inspections/i-1/photos'],
   ])('recusa %s %s sem chamar a API e avisa', async (method, path) => {
     const error = await runAndCatch(new HttpRequest(method as 'PUT', `${API}${path}`, {}));
 
@@ -120,6 +147,31 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ).subscribe();
 
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['POST', '/rentals/r-1/contract'],
+    ['POST', '/rentals/r-1/contract/mark-signed'],
+    ['POST', '/rentals/r-1/contract/signature'],
+    ['DELETE', '/rentals/r-1/documents/d-1'],
+    ['POST', '/rentals/r-1/photos'],
+    ['DELETE', '/rentals/r-1/photos/p-1'],
+    ['POST', '/inspections'],
+    ['POST', '/inspections/i-1/photos/FRONT'],
+    ['POST', '/inspections/i-1/submit'],
+    ['POST', '/inspections/i-1/approve'],
+    ['POST', '/inspections/i-1/reject'],
+    ['POST', '/inspections/i-1/recapture'],
+    ['POST', '/rentals/r-1/activate'],
+    ['POST', '/rentals/r-1/inspections/CHECKIN/generate-pdf'],
+    ['POST', '/rentals/r-1/inspections/CHECKOUT/upload-pdf'],
+  ])('barra %s %s na sessão de LEITURA', async (method, path) => {
+    editMode = false;
+
+    const error = await runAndCatch(new HttpRequest(method as 'POST', `${API}${path}`, {}));
+
+    expect(next).not.toHaveBeenCalled();
+    expect(error?.status).toBe(403);
   });
 
   it('a mesma escrita é barrada quando a sessão é de LEITURA', async () => {
