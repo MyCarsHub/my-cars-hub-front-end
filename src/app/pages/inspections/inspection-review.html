@@ -452,22 +452,16 @@
           </div>
           <button
             type="button"
-            data-download-pdf
-            (click)="downloadReport()"
-            [disabled]="openingReport()"
+            data-view-pdf
+            (click)="viewReport()"
             class="shrink-0 w-full sm:w-auto min-h-[44px] px-5 rounded-xl bg-primary-500
                    hover:bg-primary-600 text-sm font-semibold text-white shadow-sm
                    transition-colors focus:outline-none focus-visible:ring-2
-                   focus-visible:ring-primary-400 focus-visible:ring-offset-2
-                   disabled:opacity-60 disabled:cursor-wait"
+                   focus-visible:ring-primary-400 focus-visible:ring-offset-2"
           >
-            {{ openingReport() ? 'Abrindo…' : 'Baixar PDF' }}
+            Ver PDF
           </button>
         </section>
-
-        @if (reportError(); as message) {
-          <app-alert-banner variant="error" [message]="message" />
-        }
       }
     }
   </div>

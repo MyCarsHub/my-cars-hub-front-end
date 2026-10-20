@@ -20,14 +20,13 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../services/api-error.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { InspectionsService } from '../../services/inspections.service';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
-import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import type { Inspection, InspectionPhoto, InspectionStatus } from '../../types/inspection.types';
 import { INSPECTION_STATUS_META } from '../../utils/status-maps';
 import { MembersSheet } from '../company-settings/members/members-sheet';
@@ -44,15 +43,6 @@ import {
   kindWord,
   odometerView,
 } from './inspection-view';
-
-/** A aba que abre o laudo — sem isto ela anunciaria o checkout. */
-const REPORT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
-  documentTitle: 'Abrindo o laudo…',
-  title: 'Abrindo o laudo da vistoria',
-  note: 'Não feche esta aba. O documento abre em instantes.',
-  stalledNote:
-    'Não foi possível abrir o laudo. Feche esta aba e tente novamente na aba anterior.',
-};
 
 /** Motivo em branco e motivo vazio sao a mesma coisa para quem vai ler. */
 function notBlank(control: AbstractControl): ValidationErrors | null {
@@ -102,7 +92,7 @@ export class InspectionReview implements OnInit {
   private readonly session = inject(SessionService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
-  private readonly externalNavigation = inject(ExternalNavigationService);
+  private readonly preview = inject(DocumentPreviewService);
   private readonly destroyRef = inject(DestroyRef);
 
   // ----------------------------------------------------------------- estado
@@ -133,8 +123,6 @@ export class InspectionReview implements OnInit {
   protected readonly deciding = signal(false);
   protected readonly decisionError = signal<string | null>(null);
 
-  protected readonly openingReport = signal(false);
-  protected readonly reportError = signal<string | null>(null);
 
   protected readonly reasonControl = new FormControl('', {
     nonNullable: true,
@@ -498,34 +486,17 @@ export class InspectionReview implements OnInit {
   // -------------------------------------------------------------------- PDF
 
   /**
-   * Abre o laudo numa aba nova pela URL assinada. A aba e reservada de forma SINCRONA dentro
-   * do gesto (navegador movel so deixa `window.open` com o gesto na pilha) e navegada quando
-   * a URL chega; se o pedido falhar a aba fecha em vez de virar uma aba branca orfa.
+   * Abre o laudo no visualizador do app (`DocumentPreviewService`, pdf.js), nunca numa aba
+   * nova. O modal abre no toque, pede a URL assinada e mostra a falha (inclusive a
+   * mensagem do servidor, ex. laudo ainda não gerado) dentro dele, com "Tentar de novo".
    */
-  protected downloadReport(): void {
-    if (this.openingReport()) return;
-    this.reportError.set(null);
-    this.openingReport.set(true);
-
-    const tab = this.externalNavigation.openPendingTab(REPORT_PLACEHOLDER_COPY);
-    if (tab.blocked) {
-      this.openingReport.set(false);
-      this.reportError.set('Permita pop-ups neste site para abrir o laudo em uma nova aba.');
-      return;
-    }
-
-    this.service.reportUrl(this.id()).subscribe({
-      next: (res) => {
-        this.openingReport.set(false);
-        tab.navigate(res.url);
-      },
-      error: (err: unknown) => {
-        this.openingReport.set(false);
-        tab.close();
-        this.reportError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível abrir o laudo agora. Tente de novo.'),
-        );
-      },
+  protected viewReport(): void {
+    this.preview.open({
+      source: () => this.service.reportUrl(this.id()),
+      fileName: this.pdfName(),
+      title: 'Laudo da vistoria',
+      caption: this.pdfName(),
+      errorMessage: 'Não foi possível abrir o laudo agora. Tente de novo.',
     });
   }
 }
