@@ -18,7 +18,7 @@
  * Três invariantes que NÃO podem ser quebradas ao mexer aqui:
  *
  * 1. NENHUMA query string sai daqui. Rotas do app carregam credencial na URL
- *    (`/convite?token=` em `pages/invites/invite-accept.ts`, `?token=` legado em
+ *    (`/convite?token=` em `pages/invite-landing/invite-landing.ts`, `?token=` legado em
  *    `pages/oauth-success/oauth-success.ts`). O default do GA4 é mandar
  *    `location.href` inteiro pro Google — por isso `send_page_view: false` +
  *    `page_view` manual com `page_location`/`page_referrer` já sanitizados.

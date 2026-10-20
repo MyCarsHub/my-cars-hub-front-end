@@ -160,16 +160,6 @@ describe('InvitesService', () => {
     expect(service.pendingCount()).toBe(0);
   });
 
-  it('escapa o token bruto nas rotas públicas de validar e aceitar', () => {
-    httpGet.mockReturnValue(of({ email: 'a@b.com', role: 'DRIVER', companyName: 'X', userExists: false }));
-
-    service.validate('tok/en+1').subscribe();
-    service.accept('tok/en+1').subscribe();
-
-    expect(httpGet).toHaveBeenLastCalledWith(`${BASE}/validate/tok%2Fen%2B1`);
-    expect(httpPost).toHaveBeenLastCalledWith(`${BASE}/accept/tok%2Fen%2B1`, {});
-  });
-
   it('reset zera o cache — os e-mails são PII do tenant anterior', () => {
     service.list().subscribe();
     expect(service.invites()).toHaveLength(2);

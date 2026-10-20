@@ -3,13 +3,10 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
-  AcceptInviteRequest,
-  AcceptInviteResponse,
   CreateInviteRequest,
   CreateInviteResponse,
   InviteResponse,
   ResendInviteResponse,
-  ValidateInviteResponse,
   withoutAcceptUrl,
 } from '../types/invite.types';
 import { TenantResetRegistry } from './tenant-reset.registry';
@@ -33,11 +30,9 @@ function parseResendBody(body: unknown): ResendInviteResponse {
  *
  * Endpoint notes that are NOT obvious from the URLs:
  *
- * - `validate` is the only public route. It is called before login, so it must never be
- *   wrapped in anything that assumes a session.
  * - `resend` and `cancel` are keyed by the invite **UUID**, not by the raw token — the
  *   list endpoint never returns tokens, so the id is all the screen has.
- * - `accept` returns a company-scoped ACCESS token; the caller persists it.
+ * - The invitee side (validate / accept by raw token) lives in `InviteFlowService`.
  *
  * The cache is company-scoped, so `reset()` is wired into logout the same way
  * `InsurancesService` / `AlertsService` are: `providedIn: 'root'` services outlive a
@@ -110,30 +105,6 @@ export class InvitesService {
     return this.http.delete(`${BASE}/${id}`, { responseType: 'text' }).pipe(
       map(() => void 0),
       tap(() => this._invites.update((list) => list.filter((invite) => invite.id !== id))),
-    );
-  }
-
-  /**
-   * `GET /v1/invites/validate/{rawToken}` — PUBLIC. Works anonymously and tolerates a
-   * stale `Authorization` header, and never writes. Rate limited to 20 req/min per IP.
-   */
-  validate(rawToken: string): Observable<ValidateInviteResponse> {
-    return this.http.get<ValidateInviteResponse>(
-      `${BASE}/validate/${encodeURIComponent(rawToken)}`,
-    );
-  }
-
-  /**
-   * `POST /v1/invites/accept/{rawToken}` — authenticated, and deliberately accepts a
-   * TEMPORALLY token: the invitee has just logged in with Google and belongs to no
-   * company yet, so a company-scoped token cannot exist at this point.
-   */
-  accept(rawToken: string, payload?: AcceptInviteRequest): Observable<AcceptInviteResponse> {
-    // FEAT-0167 — MANAGER sends the onboarding body; DRIVER keeps posting the empty object
-    // it always posted. `payload ?? {}` is what keeps the driver path byte-identical.
-    return this.http.post<AcceptInviteResponse>(
-      `${BASE}/accept/${encodeURIComponent(rawToken)}`,
-      payload ?? {},
     );
   }
 
