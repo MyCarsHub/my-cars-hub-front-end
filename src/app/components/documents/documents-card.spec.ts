@@ -1,11 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DocumentLike, DocumentSlotDef, DocumentsCard } from './documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../document-preview/document-preview.service';
 import { NotificationService } from '../../services/notification.service';
 
 /**
@@ -26,15 +26,10 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
     createdDate: '2026-03-02T12:00:00',
   });
 
-  const COPY = {
-    documentTitle: 'Abrindo…',
-    title: 'Abrindo o documento',
-    note: 'Aguarde.',
-    stalledNote: 'Falhou.',
-  };
-
   let list: ReturnType<typeof vi.fn>;
   let upload: ReturnType<typeof vi.fn>;
+  let signedUrl: ReturnType<typeof vi.fn>;
+  let previewOpen: ReturnType<typeof vi.fn>;
   let fixture: ComponentFixture<DocumentsCard>;
 
   function host(): HTMLElement {
@@ -63,12 +58,14 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
   }): Promise<void> {
     list = vi.fn(() => of(opts.docs ?? []));
     upload = vi.fn((kind: string) => of(doc('novo', kind, 'novo.pdf')));
+    signedUrl = vi.fn(() => of({ url: 'https://signed' }));
+    previewOpen = vi.fn();
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
         provideNoopAnimations(),
-        { provide: ExternalNavigationService, useValue: { openPendingTab: vi.fn() } },
+        { provide: DocumentPreviewService, useValue: { open: previewOpen } },
         {
           provide: NotificationService,
           useValue: { success: vi.fn(), info: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -83,10 +80,9 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
       list,
       upload,
       remove: vi.fn(() => of(void 0)),
-      signedUrl: vi.fn(() => of({ url: 'https://signed' })),
+      signedUrl,
     });
     fixture.componentRef.setInput('description', 'Descrição de teste.');
-    fixture.componentRef.setInput('placeholderCopy', COPY);
     if (opts.maxPerKind !== undefined) {
       fixture.componentRef.setInput('maxPerKind', opts.maxPerKind);
     }
@@ -226,6 +222,35 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
     expect(
       host().querySelector('[data-file-row] button')?.getAttribute('aria-label'),
     ).toBe('Abrir anexo d1.pdf');
+  });
+
+  /**
+   * "Abrir" usa o visualizador do app: nenhuma aba nova, e o modal abre no toque —
+   * a signed URL só é pedida quando o visualizador chama o carregador.
+   */
+  it('"Abrir" abre o visualizador do app, sem window.open', async () => {
+    const windowOpen = vi.spyOn(window, 'open');
+    await setup({ defs: [NOTA], docs: [doc('d1', 'NOTA', 'cnh.pdf')] });
+
+    host()
+      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento cnh.pdf"]')
+      ?.click();
+
+    expect(windowOpen).not.toHaveBeenCalled();
+    expect(previewOpen).toHaveBeenCalledTimes(1);
+    const [request] = previewOpen.mock.calls[0] as [
+      { source: () => Observable<{ url: string }>; fileName: string; title: string; errorMessage: string },
+    ];
+    expect(request.fileName).toBe('cnh.pdf');
+    expect(request.title).toBe('NOTA');
+    expect(request.errorMessage).toBe('Não foi possível abrir o documento.');
+    expect(signedUrl).not.toHaveBeenCalled();
+
+    let url = '';
+    request.source().subscribe((res) => (url = res.url));
+    expect(signedUrl).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1' }));
+    expect(url).toBe('https://signed');
+    windowOpen.mockRestore();
   });
 
   beforeEach(() => {

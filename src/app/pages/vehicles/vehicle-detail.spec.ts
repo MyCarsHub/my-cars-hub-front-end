@@ -10,7 +10,6 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
 import type { Vehicle, VehicleSale } from '../../types/vehicle.types';
 
 /**
@@ -149,7 +148,6 @@ describe('VehicleDetail — venda (FEAT-0072)', () => {
             listDocuments: vi.fn(() => of([])),
           },
         },
-        { provide: ExternalNavigationService, useValue: { openPendingTab: vi.fn() } },
         {
           provide: NotificationService,
           useValue: { success: successToast, error: vi.fn(), info: vi.fn(), warning: vi.fn() },

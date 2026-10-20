@@ -8,7 +8,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DriverDetail } from './driver-detail';
 import { ApiErrorService } from '../../services/api-error.service';
 import { DriverService } from '../../services/driver.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import { RentalService } from '../rentals/rental.service';
 import { InvitesService } from '../../services/invites.service';
@@ -84,7 +83,6 @@ describe('DriverDetail — contatos de terceiros (FEAT-0067)', () => {
           provide: RentalService,
           useValue: { list: vi.fn().mockReturnValue(of({ content: [] })) },
         },
-        { provide: ExternalNavigationService, useValue: { openPendingTab: vi.fn() } },
         {
           provide: NotificationService,
           useValue: { success: vi.fn(), info: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -223,7 +221,6 @@ describe('DriverDetail — convidar a partir do cadastro', () => {
           },
         },
         { provide: RentalService, useValue: { list: vi.fn().mockReturnValue(of({ content: [] })) } },
-        { provide: ExternalNavigationService, useValue: { openPendingTab: vi.fn() } },
         { provide: InvitesService, useValue: { create } },
         {
           provide: NotificationService,

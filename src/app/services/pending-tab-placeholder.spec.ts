@@ -3,9 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PAYMENT_PLACEHOLDER_COPY,
   PLACEHOLDER_STALL_MS,
-  POLICY_DOCUMENT_PLACEHOLDER_COPY,
   renderPendingTabPlaceholder,
 } from './pending-tab-placeholder';
+import type { PendingTabPlaceholderCopy } from './pending-tab-placeholder';
+
+/**
+ * Uma cópia que NÃO cobra nada. Documentos deixaram de usar a aba reservada (abrem no
+ * `DocumentPreviewService`), mas o parâmetro `copy` continua sendo o contrato: qualquer
+ * caller futuro que não seja checkout passa a sua e a tela não pode falar em pagamento.
+ */
+const NON_PAYMENT_COPY: PendingTabPlaceholderCopy = {
+  documentTitle: 'Abrindo a apólice…',
+  title: 'Abrindo a apólice',
+  note: 'Não feche esta aba. O documento abre em instantes.',
+  stalledNote:
+    'Não foi possível abrir o documento. Feche esta aba e tente novamente na aba anterior.',
+};
 
 /** Stand-in for the `about:blank` document of the reserved tab. */
 const blankTabDocument = () => document.implementation.createHTMLDocument('');
@@ -123,9 +136,9 @@ describe('renderPendingTabPlaceholder', () => {
   it('a apólice nunca anuncia pagamento enquanto carrega', () => {
     const doc = blankTabDocument();
 
-    renderPendingTabPlaceholder(doc, POLICY_DOCUMENT_PLACEHOLDER_COPY);
+    renderPendingTabPlaceholder(doc, NON_PAYMENT_COPY);
 
-    expect(doc.title).toBe(POLICY_DOCUMENT_PLACEHOLDER_COPY.documentTitle);
+    expect(doc.title).toBe(NON_PAYMENT_COPY.documentTitle);
     expect(doc.body.textContent).toContain('Abrindo a apólice');
     expect(doc.body.textContent).toContain('Não feche esta aba');
     expect(doc.body.textContent).not.toContain('pagamento');
@@ -134,7 +147,7 @@ describe('renderPendingTabPlaceholder', () => {
   it('a apólice também não anuncia cobrança no estado de impasse', () => {
     const doc = blankTabDocument();
 
-    renderPendingTabPlaceholder(doc, POLICY_DOCUMENT_PLACEHOLDER_COPY);
+    renderPendingTabPlaceholder(doc, NON_PAYMENT_COPY);
     vi.advanceTimersByTime(PLACEHOLDER_STALL_MS);
 
     expect(doc.querySelector('.mch-spinner')).toBeNull();
