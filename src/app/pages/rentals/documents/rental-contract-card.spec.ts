@@ -832,6 +832,8 @@ describe('RentalContractCard — upload UX', () => {
     getById: vi.fn(() => of({ driverId: null } as any)),
     documentSignedUrl: vi.fn(),
     uploadContractWithProgress: vi.fn(),
+    deleteDocument: vi.fn(),
+    requestContractSignature: vi.fn(),
   };
   const driverService = { getOne: vi.fn() };
   const session = { getItem: vi.fn(() => null) };
@@ -993,6 +995,68 @@ describe('RentalContractCard — upload UX', () => {
         expect(texts(fixture)).toContain('Baixar Contrato');
       },
     );
+
+    it.each(['SIGNED', 'PENDING'])('%s: sem botão Remover e remoção bloqueada sem HTTP', (st) => {
+      withStatus(st);
+      rentalService.deleteDocument.mockReset();
+      const fixture = makeFixture();
+      fixture.detectChanges();
+      expect(texts(fixture)).not.toContain('Remover');
+      const cmp = fixture.componentInstance as any;
+      cmp.askDelete();
+      expect(cmp.deleteOpen()).toBe(false);
+      cmp.confirmDelete();
+      expect(rentalService.deleteDocument).not.toHaveBeenCalled();
+    });
+
+    it('NOT_REQUIRED: botão Remover aparece', () => {
+      withStatus('NOT_REQUIRED');
+      const fixture = makeFixture();
+      fixture.detectChanges();
+      expect(texts(fixture)).toContain('Remover');
+    });
+
+    it('409 do backend no upload aparece no banner', () => {
+      withStatus('NOT_REQUIRED');
+      const msg = 'O contrato mudou durante a operação. Recarregue e tente de novo.';
+      rentalService.uploadContractWithProgress.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 409, error: { message: msg } })),
+      );
+      const fixture = makeFixture();
+      (fixture.componentInstance as any).onFileSelected(
+        fileEvent(makeFile('c.pdf', 'application/pdf', 1024)),
+      );
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain(msg);
+    });
+
+    it('409 do backend na remoção aparece no banner', () => {
+      withStatus('NOT_REQUIRED');
+      const msg = 'Contrato em assinatura ou assinado não pode ser removido.';
+      rentalService.deleteDocument.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 409, error: { message: msg } })),
+      );
+      const fixture = makeFixture();
+      const cmp = fixture.componentInstance as any;
+      cmp.askDelete();
+      cmp.confirmDelete();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain(msg);
+    });
+
+    it('409 do backend no envio para assinatura aparece no banner', () => {
+      withStatus('NOT_REQUIRED');
+      const msg = 'O estado da assinatura mudou. Atualize a página.';
+      rentalService.requestContractSignature.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 409, error: { message: msg } })),
+      );
+      const fixture = makeFixture();
+      const cmp = fixture.componentInstance as any;
+      cmp.signers.set([{ name: 'A', email: 'a@b.co' }]);
+      cmp.submitSignature();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-alert-banner')?.textContent).toContain(msg);
+    });
 
     it('SIGNED rotula PDF mesmo com mimeType DOCX na linha', () => {
       withStatus('SIGNED', DOCX);

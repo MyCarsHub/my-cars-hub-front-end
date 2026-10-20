@@ -313,11 +313,13 @@ function openFailedTabHtml(originalUrl: string): string {
               >
                 @if (opening()) { Abrindo… } @else { Abrir contrato }
               </button>
-              <button type="button" (click)="askDelete()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]"
-              >
-                Remover
-              </button>
+              @if (canReplaceFile()) {
+                <button type="button" (click)="askDelete()"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]"
+                >
+                  Remover
+                </button>
+              }
             </div>
           </div>
 
@@ -616,8 +618,8 @@ export class RentalContractCard implements OnInit, OnDestroy {
   });
 
   /**
-   * Trocar o arquivo só antes da assinatura: com SIGNED/PENDING o backend
-   * recusa (409) e o arquivo já está nas mãos dos signatários.
+   * Trocar ou remover o arquivo só antes da assinatura: com SIGNED/PENDING o
+   * backend recusa (409) e o arquivo já está nas mãos dos signatários.
    */
   protected readonly canReplaceFile = computed(() => {
     const s = this.signatureStatus();
@@ -639,7 +641,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
   });
 
   /**
-   * "Já Assinado" só faz sentido para contrato MANUAL com PDF anexado e sem
+   * "Já Assinado" só faz sentido para contrato MANUAL com contrato anexado e sem
    * assinatura eletrônica ativa. Reusa `canRequestSignature()` de propósito: os
    * dois botões compartilham a MESMA janela de status (NOT_REQUIRED/REFUSED/
    * EXPIRED), então ao virar SIGNED (ou PENDING) ambos somem sozinhos — não há
@@ -1010,11 +1012,14 @@ export class RentalContractCard implements OnInit, OnDestroy {
     }
   }
 
-  protected askDelete(): void { this.deleteOpen.set(true); }
+  protected askDelete(): void {
+    if (!this.canReplaceFile()) return;
+    this.deleteOpen.set(true);
+  }
   protected closeDelete(): void { if (!this.deleting()) this.deleteOpen.set(false); }
   protected confirmDelete(): void {
     const doc = this.contract();
-    if (!doc) return;
+    if (!doc || !this.canReplaceFile()) return;
     this.error.set(null);
     this.deleting.set(true);
     this.rentalService.deleteDocument(this.rentalId(), doc.id).subscribe({
