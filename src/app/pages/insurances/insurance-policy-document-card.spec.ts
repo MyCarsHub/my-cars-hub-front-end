@@ -1,16 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InsurancePolicyDocumentCard } from './insurance-policy-document-card';
 import { InsurancesService } from '../../services/insurances.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { NotificationService } from '../../services/notification.service';
-import { POLICY_DOCUMENT_PLACEHOLDER_COPY } from '../../services/pending-tab-placeholder';
-import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import type { InsurancePolicyDocument } from '../../types/insurance.types';
 
 /**
@@ -35,9 +33,7 @@ describe('InsurancePolicyDocumentCard', () => {
   let uploadPolicyDocument: ReturnType<typeof vi.fn>;
   let deletePolicyDocument: ReturnType<typeof vi.fn>;
   let policyDocumentSignedUrl: ReturnType<typeof vi.fn>;
-  let navigate: ReturnType<typeof vi.fn>;
-  let closeTab: ReturnType<typeof vi.fn>;
-  let openPendingTab: ReturnType<typeof vi.fn>;
+  let previewOpen: ReturnType<typeof vi.fn>;
   let successToast: ReturnType<typeof vi.fn>;
   let fixture: ComponentFixture<InsurancePolicyDocumentCard>;
 
@@ -47,7 +43,6 @@ describe('InsurancePolicyDocumentCard', () => {
     uploading(): boolean;
     document(): InsurancePolicyDocument | null;
     onFileSelected(event: Event): void;
-    openDocument(): void;
     confirmDelete(): void;
     cancelUpload(): void;
   }
@@ -85,9 +80,7 @@ describe('InsurancePolicyDocumentCard', () => {
     uploadPolicyDocument = vi.fn(() => of(savedDocument));
     deletePolicyDocument = vi.fn(() => of(void 0));
     policyDocumentSignedUrl = vi.fn(() => of({ url: 'https://signed/x', expiresInSeconds: 60 }));
-    navigate = vi.fn();
-    closeTab = vi.fn();
-    openPendingTab = vi.fn(() => ({ blocked: false, navigate, close: closeTab }));
+    previewOpen = vi.fn();
     successToast = vi.fn();
 
     TestBed.resetTestingModule();
@@ -98,7 +91,7 @@ describe('InsurancePolicyDocumentCard', () => {
           provide: InsurancesService,
           useValue: { uploadPolicyDocument, deletePolicyDocument, policyDocumentSignedUrl },
         },
-        { provide: ExternalNavigationService, useValue: { openPendingTab } },
+        { provide: DocumentPreviewService, useValue: { open: previewOpen } },
         {
           provide: NotificationService,
           useValue: { success: successToast, info: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -212,47 +205,30 @@ describe('InsurancePolicyDocumentCard', () => {
     expect(api().uploading()).toBe(false);
   });
 
-  it('abre a apólice navegando a aba reservada para a signed URL', async () => {
+  it('"Abrir apólice" abre o visualizador do app, sem aba nova', async () => {
+    const windowOpen = vi.spyOn(window, 'open');
     await setup(savedDocument);
 
-    api().openDocument();
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((b) => b.textContent?.includes('Abrir apólice'));
+    button?.click();
     fixture.detectChanges();
 
+    expect(windowOpen).not.toHaveBeenCalled();
+    expect(previewOpen).toHaveBeenCalledTimes(1);
+    const [request] = previewOpen.mock.calls[0] as [
+      { source: () => Observable<{ url: string }>; fileName: string; errorMessage: string },
+    ];
+    expect(request.fileName).toBe(`Apolice-${INSURANCE_ID}.pdf`);
+    expect(request.errorMessage).toBe('Não foi possível abrir a apólice.');
+    // A signed URL só é pedida quando o visualizador carrega.
+    expect(policyDocumentSignedUrl).not.toHaveBeenCalled();
+    let url = '';
+    request.source().subscribe((res) => (url = res.url));
     expect(policyDocumentSignedUrl).toHaveBeenCalledWith(INSURANCE_ID);
-    expect(navigate).toHaveBeenCalledWith('https://signed/x');
-  });
-
-  /**
-   * A aba reservada é a MESMA do checkout. Sem cópia própria ela mostra o texto
-   * padrão dela, e quem pediu o PDF de uma apólice já emitida lia "Abrindo o
-   * pagamento seguro. Não feche esta aba." — anúncio de cobrança que não existe.
-   */
-  it('a aba reservada da apólice não anuncia pagamento', async () => {
-    await setup(savedDocument);
-
-    api().openDocument();
-    fixture.detectChanges();
-
-    expect(openPendingTab).toHaveBeenCalledWith(POLICY_DOCUMENT_PLACEHOLDER_COPY);
-    const [copy] = openPendingTab.mock.calls[0] as [PendingTabPlaceholderCopy];
-    expect(`${copy.documentTitle} ${copy.title} ${copy.note} ${copy.stalledNote}`).not.toContain(
-      'pagamento',
-    );
-    expect(closeTab).not.toHaveBeenCalled();
-  });
-
-  it('fecha a aba reservada quando a signed URL falha', async () => {
-    policyDocumentSignedUrl.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
-    );
-    await setup(savedDocument);
-
-    api().openDocument();
-    fixture.detectChanges();
-
-    expect(closeTab).toHaveBeenCalledTimes(1);
-    expect(navigate).not.toHaveBeenCalled();
-    expect(api().error()).toBe('Não foi possível abrir a apólice.');
+    expect(url).toBe('https://signed/x');
+    windowOpen.mockRestore();
   });
 
   /**
