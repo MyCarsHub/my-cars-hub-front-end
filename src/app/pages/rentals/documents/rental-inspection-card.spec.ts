@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpEventType } from '@angular/common/http';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { RentalInspectionCard } from './rental-inspection-card';
@@ -10,7 +10,7 @@ import { InspectionPdfService } from '../inspection-pdf.service';
 import { DriverService } from '../../../services/driver.service';
 import { VehiclesService } from '../../../services/vehicles.service';
 import { NotificationService } from '../../../services/notification.service';
-import { ExternalNavigationService } from '../../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { ImageCompressionService } from '../../../services/image-compression.service';
 
 /**
@@ -37,6 +37,7 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
     reset: vi.fn(),
   };
   const notifications = { push: vi.fn() };
+  const preview = { open: vi.fn() };
   const compression = { compress: vi.fn() };
 
   function file(sizeBytes: number, type = 'image/jpeg', name = 'IMG_0001.jpg'): File {
@@ -102,7 +103,7 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
         { provide: InspectionPdfService, useValue: inspectionPdf },
         { provide: VehiclesService, useValue: { getOne: vi.fn() } },
         { provide: DriverService, useValue: { getOne: vi.fn() } },
-        { provide: ExternalNavigationService, useValue: { openExternal: vi.fn() } },
+        { provide: DocumentPreviewService, useValue: preview },
         { provide: NotificationService, useValue: notifications },
         { provide: ImageCompressionService, useValue: compression },
       ],
@@ -425,6 +426,49 @@ describe('RentalInspectionCard — fonte da foto e compressão', () => {
    * (enum, rota, storage) e nunca aparecem na tela. Os mesmos rótulos estão
    * duplicados em `rental-progress-checklist.ts` — mudou aqui, muda lá.
    */
+  describe('abrir o laudo', () => {
+    it('"Abrir PDF" abre o visualizador do app com a signed URL do laudo, sem aba nova', () => {
+      const windowOpen = vi.spyOn(window, 'open');
+      rentalService.documentSignedUrl.mockReturnValue(of({ url: 'https://signed/laudo.pdf' }));
+      state.set({
+        documents: [
+          {
+            id: 'doc-laudo',
+            rentalId: RID,
+            kind: 'CHECKIN',
+            mimeType: 'application/pdf',
+            sizeBytes: 1024,
+            generated: true,
+            uploadedBy: null,
+            createdDate: '2026-10-01T10:00:00',
+          },
+        ],
+        checkinPhotos: [],
+        checkoutPhotos: [],
+        contractSignature: null,
+      } as unknown as RentalStateSnapshot);
+      const fixture = makeFixture('CHECKIN');
+
+      const button = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+      ).find((b) => b.textContent?.trim() === 'Abrir PDF');
+      button?.click();
+
+      expect(windowOpen).not.toHaveBeenCalled();
+      expect(preview.open).toHaveBeenCalledTimes(1);
+      const [request] = preview.open.mock.calls[0] as [
+        { source: () => Observable<{ url: string }>; fileName: string },
+      ];
+      expect(request.fileName).toBe('vistoria-retirada.pdf');
+      expect(rentalService.documentSignedUrl).not.toHaveBeenCalled();
+      let url = '';
+      request.source().subscribe((res) => (url = res.url));
+      expect(rentalService.documentSignedUrl).toHaveBeenCalledWith(RID, 'doc-laudo');
+      expect(url).toBe('https://signed/laudo.pdf');
+      windowOpen.mockRestore();
+    });
+  });
+
   describe('rótulos de retirada/devolução', () => {
     function labels(fixture: ReturnType<typeof makeFixture>) {
       return fixture.componentInstance as unknown as {

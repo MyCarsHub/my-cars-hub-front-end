@@ -5,14 +5,13 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DRIVER_DOCUMENT_PLACEHOLDER_COPY, DriverDocumentsCard } from './driver-documents-card';
+import { DriverDocumentsCard } from './driver-documents-card';
 import { DocumentsCard } from '../../components/documents/documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { DriverService } from '../../services/driver.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { NotificationService } from '../../services/notification.service';
-import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import type { DriverDocument, DriverResponse } from '../../types/driver.types';
 
 /**
@@ -73,9 +72,7 @@ describe('DriverDocumentsCard', () => {
   let uploadDocument: ReturnType<typeof vi.fn>;
   let deleteDocument: ReturnType<typeof vi.fn>;
   let documentSignedUrl: ReturnType<typeof vi.fn>;
-  let navigate: ReturnType<typeof vi.fn>;
-  let closeTab: ReturnType<typeof vi.fn>;
-  let openPendingTab: ReturnType<typeof vi.fn>;
+  let previewOpen: ReturnType<typeof vi.fn>;
   let successToast: ReturnType<typeof vi.fn>;
   let infoToast: ReturnType<typeof vi.fn>;
   let errorToast: ReturnType<typeof vi.fn>;
@@ -195,9 +192,7 @@ describe('DriverDocumentsCard', () => {
     uploadDocument = vi.fn(() => of(cnhFrente));
     deleteDocument = vi.fn(() => of(void 0));
     documentSignedUrl = vi.fn(() => of({ url: 'https://signed/doc', expiresInSeconds: 60 }));
-    navigate = vi.fn();
-    closeTab = vi.fn();
-    openPendingTab = vi.fn(() => ({ blocked: false, navigate, close: closeTab }));
+    previewOpen = vi.fn();
     successToast = vi.fn();
     infoToast = vi.fn();
     errorToast = vi.fn();
@@ -210,7 +205,7 @@ describe('DriverDocumentsCard', () => {
           provide: DriverService,
           useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
         },
-        { provide: ExternalNavigationService, useValue: { openPendingTab } },
+        { provide: DocumentPreviewService, useValue: { open: previewOpen } },
         {
           provide: NotificationService,
           useValue: {
@@ -620,51 +615,30 @@ describe('DriverDocumentsCard', () => {
 
   // ------------------------------------------------------------------ abrir
 
-  it('abre o documento navegando a aba reservada para a signed URL', async () => {
+  it('abre o documento no visualizador do app, sem aba nova', async () => {
+    const windowOpen = vi.spyOn(window, 'open');
     listDocuments.mockReturnValue(of([cnhFrente]));
     await setup(false);
 
-    const abrir = slotFileRows('CNH')[0].querySelector<HTMLButtonElement>(
-      '[aria-label="Abrir documento cnh-frente.jpg"]',
-    );
-    abrir?.click();
+    slotFileRows('CNH')[0]
+      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento cnh-frente.jpg"]')
+      ?.click();
     fixture.detectChanges();
 
+    expect(windowOpen).not.toHaveBeenCalled();
+    expect(previewOpen).toHaveBeenCalledTimes(1);
+    const [request] = previewOpen.mock.calls[0] as [
+      { source: () => Observable<{ url: string }>; fileName: string; errorMessage: string },
+    ];
+    expect(request.fileName).toBe('cnh-frente.jpg');
+    expect(request.errorMessage).toBe('Não foi possível abrir o documento.');
+    // A signed URL só é pedida quando o visualizador carrega — e é a DESTE documento.
+    expect(documentSignedUrl).not.toHaveBeenCalled();
+    let url = '';
+    request.source().subscribe((res) => (url = res.url));
     expect(documentSignedUrl).toHaveBeenCalledWith(DRIVER_ID, 'doc-1');
-    expect(navigate).toHaveBeenCalledWith('https://signed/doc');
-  });
-
-  /** A aba reservada é a MESMA do checkout — sem cópia própria ela anuncia cobrança. */
-  it('a aba reservada do documento não fala em pagamento', async () => {
-    listDocuments.mockReturnValue(of([cnhFrente]));
-    await setup(false);
-
-    slotFileRows('CNH')[0]
-      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento cnh-frente.jpg"]')
-      ?.click();
-
-    expect(openPendingTab).toHaveBeenCalledWith(DRIVER_DOCUMENT_PLACEHOLDER_COPY);
-    const [copy] = openPendingTab.mock.calls[0] as [PendingTabPlaceholderCopy];
-    expect(`${copy.documentTitle} ${copy.title} ${copy.note} ${copy.stalledNote}`).not.toContain(
-      'pagamento',
-    );
-  });
-
-  it('fecha a aba reservada quando a signed URL falha', async () => {
-    listDocuments.mockReturnValue(of([cnhFrente]));
-    documentSignedUrl.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
-    );
-    await setup(false);
-
-    slotFileRows('CNH')[0]
-      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento cnh-frente.jpg"]')
-      ?.click();
-    fixture.detectChanges();
-
-    expect(closeTab).toHaveBeenCalledTimes(1);
-    expect(navigate).not.toHaveBeenCalled();
-    expect(host().textContent).toContain('Não foi possível abrir o documento.');
+    expect(url).toBe('https://signed/doc');
+    windowOpen.mockRestore();
   });
 
   // ----------------------------------------------------------------- remover

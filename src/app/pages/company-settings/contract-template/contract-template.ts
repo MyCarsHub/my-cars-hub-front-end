@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
-import { LoggerService } from '../../../services/logger.service';
+import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 import { ContractAiEntry } from './ai/contract-ai-entry';
 import { ContractAiCapability } from './ai/contract-ai-capability';
@@ -79,9 +79,9 @@ import { ContractAiCapability } from './ai/contract-ai-capability';
                     class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
                     @if (downloading()) { Baixando… } @else { Baixar Contrato }
                   </button>
-                  <button type="button" (click)="openTemplateAsHtml()" [disabled]="opening()"
+                  <button type="button" (click)="openTemplate()"
                     class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
-                    @if (opening()) { Abrindo… } @else { Abrir PDF }
+                    Abrir template
                   </button>
                   <button type="button" (click)="askDelete()"
                     class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]">
@@ -227,7 +227,7 @@ export class ContractTemplate implements OnInit {
   private readonly service = inject(ContractTemplateService);
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
-  private readonly logger = inject(LoggerService);
+  private readonly preview = inject(DocumentPreviewService);
   protected readonly aiCapability = inject(ContractAiCapability);
 
   /** Screen-level failures. Toasts here are reserved for successes. */
@@ -252,7 +252,6 @@ export class ContractTemplate implements OnInit {
   protected readonly deleting = signal(false);
   protected readonly aiLoading = signal(false);
   protected readonly exampleLoading = signal(false);
-  protected readonly opening = signal(false);
   protected readonly downloading = signal(false);
 
   protected readonly supportedVars = computed(
@@ -423,65 +422,18 @@ export class ContractTemplate implements OnInit {
   }
 
   /**
-   * Baixa o DOCX cru e renderiza em nova aba via docx-preview. Fiel o
-   * suficiente pra o usuário conferir formatação sem precisar do Word;
-   * Ctrl+P salva como PDF. docx-preview é lazy-loaded pra não pesar
-   * ~150KB no bundle inicial.
+   * Abre o template no visualizador do app (`DocumentPreviewService`). O DOCX vem do
+   * `GET` AUTENTICADO do template (token no header, nunca na URL) e é renderizado pelo
+   * docx-preview SANEADO num iframe sandbox — antes ele era escrito sem saneamento numa
+   * aba same-origin.
    */
-  protected openTemplateAsHtml(): void {
-    if (this.opening()) return;
+  protected openTemplate(): void {
     this.error.set(null);
-    this.opening.set(true);
-    // Nova aba é aberta ANTES do await pra evitar pop-up blocker —
-    // browsers só permitem window.open dentro de gesture handler síncrono.
-    const win = window.open('', '_blank');
-    if (!win) {
-      this.opening.set(false);
-      this.error.set('Permita pop-ups pra abrir o template.');
-      return;
-    }
-    win.document.write(
-      '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-        '<title>Template de contrato</title>' +
-        '<style>body{margin:0;padding:24px;background:#f5f5f5;font-family:sans-serif;}' +
-        '.docx-wrapper{background:transparent!important;padding:0!important;}' +
-        '.docx{background:#fff!important;margin:0 auto 16px;box-shadow:0 2px 8px rgba(0,0,0,.08);}' +
-        '.mch-loading{color:#666;text-align:center;padding:40px;}</style>' +
-        '</head><body><div class="mch-loading">Carregando template…</div></body></html>',
-    );
-    win.document.close();
-
-    this.service.downloadTemplate().subscribe({
-      next: async (blob) => {
-        try {
-          const { renderAsync } = await import('docx-preview');
-          const loading = win.document.querySelector('.mch-loading');
-          if (loading) loading.remove();
-          await renderAsync(blob, win.document.body, undefined, {
-            className: 'docx',
-            inWrapper: true,
-            ignoreWidth: false,
-            ignoreHeight: false,
-          });
-        } catch (err) {
-          win.document.body.innerHTML =
-            '<p style="color:#b91c1c;padding:24px;">Falha ao renderizar o template.</p>';
-          this.error.set('Falha ao renderizar template no browser.');
-          // Só a falha do render; nunca a URL/token do blob.
-          this.logger.error('docx-preview render failed', err);
-        } finally {
-          this.opening.set(false);
-        }
-      },
-      error: (err: HttpErrorResponse) => {
-        this.opening.set(false);
-        try {
-          win.close();
-        } catch {
-          /* noop — algumas policies bloqueiam close cross-context */
-        }
-        this.error.set(this.apiErrors.messageFor(err, 'Falha ao baixar template.'));
-      },
+    this.preview.open({
+      source: () => this.service.downloadTemplate(),
+      fileName: this.template()?.filename ?? 'contrato-template.docx',
+      title: 'Template de contrato',
+      errorMessage: 'Falha ao baixar template.',
     });
   }
 

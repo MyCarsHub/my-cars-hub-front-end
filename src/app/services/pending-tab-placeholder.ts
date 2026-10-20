@@ -37,19 +37,6 @@ export const PAYMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
 };
 
 /**
- * Cópia da aba que abre um documento já emitido (apólice de seguro). Nada aqui
- * é checkout: a apólice não cobra, não redireciona para gateway nenhum, e o
- * texto padrão fazia o usuário ler "Abrindo o pagamento seguro" ao abrir um PDF.
- */
-export const POLICY_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
-  documentTitle: 'Abrindo a apólice…',
-  title: 'Abrindo a apólice',
-  note: 'Não feche esta aba. O documento abre em instantes.',
-  stalledNote:
-    'Não foi possível abrir o documento. Feche esta aba e tente novamente na aba anterior.',
-};
-
-/**
  * Depois disso a tela para de prometer um redirecionamento que não veio.
  *
  * Folga deliberada sobre o teto de 20s que `billing.ts` impõe ao

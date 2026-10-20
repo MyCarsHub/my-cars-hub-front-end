@@ -1,0 +1,323 @@
+<!--
+  Celular (< sm): folha em tela cheia, sem fundo visível. Desktop: modal grande centralizado
+  sobre um fundo escuro que fecha no clique. Palco escuro de propósito: a folha branca do
+  documento e a foto são o que salta, como num visualizador de arquivos.
+
+  Camada: acima de TUDO que o app fixa na tela — banner de consentimento, banners de "Ver
+  como empresa"/modo suporte e toasts. Os banners de topo têm a altura do cabeçalho deste
+  modal e escondiam o X, o título e o "Baixar" justamente no modo suporte, onde o admin abre
+  documentos. Só a tela de manutenção (`app.html`) fica por cima, de propósito. Quem subir a
+  camada de um desses componentes confere esta aqui.
+-->
+<div class="dp-root fixed inset-0 z-[200] flex items-stretch justify-center sm:items-center sm:p-6">
+  <div
+    data-preview-backdrop
+    class="dp-scrim absolute inset-0 bg-black/70"
+    (click)="requestClose()"
+    aria-hidden="true"
+  ></div>
+
+  <div
+    #panel
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    [attr.aria-labelledby]="titleId"
+    [attr.aria-describedby]="subtitle() ? subtitleId : null"
+    (keydown)="onKeydown($event)"
+    class="dp-panel relative flex flex-col w-full h-full bg-neutral-900 text-white overflow-hidden
+           focus:outline-none sm:h-[min(92dvh,1100px)] sm:max-w-5xl sm:rounded-2xl sm:shadow-2xl
+           sm:ring-1 sm:ring-white/10"
+  >
+    <!-- ============================================================ topo -->
+    <header
+      class="dp-header shrink-0 flex items-center gap-1 pl-1 pr-2 sm:pl-2 sm:pr-3 min-h-[56px]
+             border-b border-white/10 bg-neutral-900"
+    >
+      <button
+        type="button"
+        data-preview-close
+        (click)="requestClose()"
+        aria-label="Fechar visualização"
+        class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl text-neutral-200
+               hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+        </svg>
+      </button>
+
+      <div class="min-w-0 flex-1 px-1.5">
+        <h2 [id]="titleId" data-preview-title class="text-base font-semibold leading-tight truncate">
+          {{ title() }}
+        </h2>
+        @if (subtitle()) {
+          <p [id]="subtitleId" class="mt-0.5 text-sm text-neutral-300 leading-tight truncate tabular-nums">
+            {{ subtitle() }}
+          </p>
+        }
+      </div>
+
+      <button
+        type="button"
+        data-preview-download
+        (click)="download()"
+        [disabled]="!file()"
+        [attr.aria-label]="downloadLabel()"
+        class="shrink-0 inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3
+               sm:px-4 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-base
+               font-semibold transition-colors focus:outline-none focus-visible:ring-2
+               focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900
+               disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <path d="M12 15V3" /><path d="m7 10 5 5 5-5" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        </svg>
+        <span class="hidden min-[400px]:inline">Baixar</span>
+      </button>
+    </header>
+
+    <!-- ============================================================ palco -->
+    <div
+      #stage
+      data-preview-stage
+      (scroll)="onStageScroll()"
+      class="dp-stage relative flex-1 min-h-0 overflow-auto overscroll-contain bg-neutral-800"
+      [class.dp-stage--frame]="readyFormat() === 'docx'"
+    >
+      @switch (state().kind) {
+        @case ('loading') {
+          <ng-container [ngTemplateOutlet]="skeleton" />
+        }
+
+        @case ('error') {
+          <div data-preview-state="error" class="dp-message">
+            <span class="dp-message__icon bg-rose-500/15 text-rose-300" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </span>
+            <h3 class="text-lg font-semibold">Não deu para abrir o arquivo</h3>
+            <p role="alert" class="text-base text-neutral-300">{{ errorMessage() }}</p>
+            <div class="dp-message__actions">
+              <button type="button" data-preview-retry (click)="retry()" class="dp-btn dp-btn--light">
+                Tentar de novo
+              </button>
+              @if (file()) {
+                <button type="button" data-preview-download-alt (click)="download()" class="dp-btn dp-btn--ghost">
+                  Baixar arquivo
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        @case ('large') {
+          <div data-preview-state="large" class="dp-message">
+            <span class="dp-message__icon bg-amber-400/15 text-amber-300" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </span>
+            <h3 class="text-lg font-semibold">Arquivo grande ({{ fileSize() }})</h3>
+            @if (canForce()) {
+              <p class="text-base text-neutral-300">
+                A visualização pode ficar lenta neste aparelho. Baixar costuma ser mais rápido.
+              </p>
+            } @else {
+              <p class="text-base text-neutral-300">
+                Este documento é grande demais para visualizar aqui. Baixe para abrir no seu aparelho.
+              </p>
+            }
+            <div class="dp-message__actions">
+              <button type="button" data-preview-download-alt (click)="download()" class="dp-btn dp-btn--light">
+                Baixar arquivo
+              </button>
+              @if (canForce()) {
+                <button type="button" data-preview-force (click)="viewAnyway()" class="dp-btn dp-btn--ghost">
+                  Visualizar mesmo assim
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        @case ('unsupported') {
+          <div data-preview-state="unsupported" class="dp-message">
+            <span class="dp-message__icon bg-white/10 text-neutral-200" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </span>
+            <h3 class="text-lg font-semibold">Sem pré-visualização para este arquivo</h3>
+            <p class="text-base text-neutral-300">
+              Seu navegador não consegue mostrar este formato aqui. Baixe para abrir no aparelho.
+            </p>
+            <div class="dp-message__actions">
+              <button type="button" data-preview-download-alt (click)="download()" class="dp-btn dp-btn--light">
+                Baixar arquivo
+              </button>
+            </div>
+          </div>
+        }
+
+        @case ('ready') {
+          @switch (readyFormat()) {
+            @case ('pdf') {
+              @if (presenting()) {
+                <ng-container [ngTemplateOutlet]="skeleton" />
+              }
+              <div
+                data-preview-pdf
+                class="dp-pages"
+                [style.transform]="pinchScale() !== 1 ? 'scale(' + pinchScale() + ')' : null"
+                [style.transform-origin]="pinchOrigin()"
+              >
+                @for (page of pdfPages(); track $index) {
+                  <div
+                    class="dp-page"
+                    [style.width.px]="pageCssWidth(page)"
+                    [style.height.px]="pageCssHeight(page)"
+                  >
+                    <canvas
+                      #pdfCanvas
+                      [attr.data-page]="$index + 1"
+                      [attr.aria-label]="'Página ' + ($index + 1) + ' de ' + pdfPages().length"
+                      role="img"
+                      class="block w-full h-full"
+                    ></canvas>
+                  </div>
+                }
+              </div>
+            }
+            @case ('docx') {
+              @if (presenting()) {
+                <ng-container [ngTemplateOutlet]="skeleton" />
+              }
+              @if (docxSrcdoc(); as srcdoc) {
+                <!-- sandbox vazio: sem scripts, sem same-origin, sem formulários nem navegação.
+                     Fora do Tab e devolve o foco ao painel: tecla dentro de um iframe de origem
+                     opaca nunca chega até nós, então Esc e o Tab preso morreriam ali. -->
+                <iframe
+                  data-preview-docx
+                  tabindex="-1"
+                  (focus)="onFrameFocus()"
+                  sandbox=""
+                  referrerpolicy="no-referrer"
+                  [title]="'Documento: ' + title()"
+                  [srcdoc]="srcdoc"
+                  class="block w-full h-full border-0 bg-neutral-800"
+                ></iframe>
+              }
+            }
+            @default {
+              @if (presenting()) {
+                <ng-container [ngTemplateOutlet]="skeleton" />
+              }
+              @if (imageUrl(); as url) {
+                <div
+                  class="dp-image-wrap"
+                  [style.transform]="pinchScale() !== 1 ? 'scale(' + pinchScale() + ')' : null"
+                  [style.transform-origin]="pinchOrigin()"
+                >
+                  <img
+                    data-preview-image
+                    [src]="url"
+                    [alt]="item().caption || title()"
+                    (load)="onImageLoad($event)"
+                    (error)="onImageError()"
+                    (click)="onImageClick()"
+                    draggable="false"
+                    class="dp-image"
+                    [class.opacity-0]="presenting()"
+                    [style.width.px]="imageCssWidth()"
+                    [style.height.px]="imageCssHeight()"
+                  />
+                </div>
+              }
+            }
+          }
+        }
+      }
+    </div>
+
+    <!-- ============================================================ barra inferior -->
+    @if (showToolbar()) {
+      <div class="dp-toolbar">
+        <div
+          role="toolbar"
+          aria-label="Controles da visualização"
+          class="pointer-events-auto inline-flex items-center gap-0.5 rounded-full bg-black/80
+                 px-1 py-1 shadow-lg ring-1 ring-white/10 backdrop-blur"
+        >
+          @if (isGallery()) {
+            <button type="button" data-preview-prev (click)="step(-1)" aria-label="Arquivo anterior" class="dp-tool">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <span data-preview-position class="px-1.5 text-base font-medium tabular-nums whitespace-nowrap">
+              {{ galleryPosition() }}
+            </span>
+            <button type="button" data-preview-next (click)="step(1)" aria-label="Próximo arquivo" class="dp-tool">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+          }
+          @if (state().kind === 'ready') {
+            @if (isGallery()) {
+              <span class="mx-1 h-6 w-px bg-white/20" aria-hidden="true"></span>
+            }
+            <button type="button" data-preview-zoom-out (click)="zoomOut()" [disabled]="!canZoomOut()"
+              aria-label="Diminuir zoom" class="dp-tool">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+            <button type="button" data-preview-zoom-reset (click)="resetZoom()"
+              [attr.aria-label]="'Zoom ' + zoomPercent() + '. Toque para ajustar à tela'"
+              class="dp-tool dp-tool--text tabular-nums">
+              {{ zoomPercent() }}
+            </button>
+            <button type="button" data-preview-zoom-in (click)="zoomIn()" [disabled]="!canZoomIn()"
+              aria-label="Aumentar zoom" class="dp-tool">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+            @if (readyFormat() === 'pdf' && pdfPages().length > 0) {
+              <span class="mx-1 h-6 w-px bg-white/20" aria-hidden="true"></span>
+              <span data-preview-page class="pl-1 pr-3 text-base font-medium tabular-nums whitespace-nowrap"
+                [attr.aria-label]="'Página ' + pageLabel()">
+                <span class="hidden sm:inline">Página </span>{{ pageLabel() }}
+              </span>
+            }
+          }
+        </div>
+      </div>
+    }
+
+    <p class="sr-only" aria-live="polite">{{ liveMessage() }}</p>
+  </div>
+</div>
+
+<ng-template #skeleton>
+  <div data-preview-state="loading" class="dp-skeleton" role="status">
+    <div class="dp-skeleton__sheet" aria-hidden="true">
+      <span class="w-2/3"></span><span class="w-full"></span><span class="w-5/6"></span>
+      <span class="w-full"></span><span class="w-3/4"></span>
+    </div>
+    <p class="text-sm text-neutral-400">Carregando {{ item().fileName }}…</p>
+  </div>
+</ng-template>

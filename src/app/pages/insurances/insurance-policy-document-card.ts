@@ -15,9 +15,8 @@ import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { NotificationService } from '../../services/notification.service';
-import { POLICY_DOCUMENT_PLACEHOLDER_COPY } from '../../services/pending-tab-placeholder';
 import { InsurancesService } from '../../services/insurances.service';
 import { InsurancePolicyDocument } from '../../types/insurance.types';
 
@@ -111,7 +110,6 @@ const MAX_POLICY_LABEL = '20MB';
               <button
                 type="button"
                 (click)="openDocument()"
-                [disabled]="opening()"
                 class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
                        bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold
                        shadow-sm transition-colors min-h-[44px]
@@ -119,11 +117,7 @@ const MAX_POLICY_LABEL = '20MB';
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
                        focus-visible:ring-offset-2"
               >
-                @if (opening()) {
-                  Abrindo…
-                } @else {
-                  Abrir apólice
-                }
+                Abrir apólice
               </button>
               <button
                 type="button"
@@ -199,7 +193,7 @@ export class InsurancePolicyDocumentCard implements OnDestroy {
   private readonly insurancesService = inject(InsurancesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
-  private readonly externalNavigation = inject(ExternalNavigationService);
+  private readonly preview = inject(DocumentPreviewService);
 
   readonly insuranceId = input.required<string>();
   /** Documento vindo do `GET /v1/insurances/{id}`. `null` = nada anexado. */
@@ -219,7 +213,6 @@ export class InsurancePolicyDocumentCard implements OnDestroy {
   /** Falha de negócio: banner inline dentro do card, nunca toast. */
   protected readonly error = signal<string | null>(null);
   protected readonly uploading = signal(false);
-  protected readonly opening = signal(false);
   protected readonly deleting = signal(false);
   protected readonly deleteOpen = signal(false);
 
@@ -310,34 +303,16 @@ export class InsurancePolicyDocumentCard implements OnDestroy {
   }
 
   /**
-   * Abre o PDF numa aba nova pela signed URL. A aba é reservada de forma
-   * SÍNCRONA dentro do gesto (browsers móveis só permitem `window.open` com o
-   * gesto ainda na pilha) e navegada quando a URL chega; se o request falhar a
-   * aba é fechada em vez de virar uma aba branca órfã.
+   * Abre a apólice no visualizador do app (`DocumentPreviewService`), nunca numa aba
+   * nova. O modal abre no toque e pede a signed URL; a falha aparece dentro dele.
    */
   protected openDocument(): void {
-    if (this.opening()) return;
     this.error.set(null);
-    this.opening.set(true);
-    // Sem a cópia própria a aba reservada anuncia o checkout — "Abrindo o
-    // pagamento seguro" — para quem só pediu o PDF de uma apólice já emitida.
-    const tab = this.externalNavigation.openPendingTab(POLICY_DOCUMENT_PLACEHOLDER_COPY);
-    if (tab.blocked) {
-      this.opening.set(false);
-      this.error.set('Permita pop-ups neste site para abrir a apólice em uma nova aba.');
-      return;
-    }
-
-    this.insurancesService.policyDocumentSignedUrl(this.insuranceId()).subscribe({
-      next: (res) => {
-        this.opening.set(false);
-        tab.navigate(res.url);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.opening.set(false);
-        tab.close();
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível abrir a apólice.'));
-      },
+    this.preview.open({
+      source: () => this.insurancesService.policyDocumentSignedUrl(this.insuranceId()),
+      fileName: `Apolice-${this.insuranceId()}.pdf`,
+      title: 'Apólice do seguro',
+      errorMessage: 'Não foi possível abrir a apólice.',
     });
   }
 

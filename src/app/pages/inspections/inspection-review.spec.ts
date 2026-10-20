@@ -2,12 +2,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { HttpErrorResponse } from '@angular/common/http';
-import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InspectionReview } from './inspection-review';
 import { ApiErrorService } from '../../services/api-error.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { InspectionsService } from '../../services/inspections.service';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
@@ -90,8 +90,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
   let approve: ReturnType<typeof vi.fn>;
   let reject: ReturnType<typeof vi.fn>;
   let reportUrl: ReturnType<typeof vi.fn>;
-  let openPendingTab: ReturnType<typeof vi.fn>;
-  let tab: { blocked: boolean; navigate: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
+  let previewOpen: ReturnType<typeof vi.fn>;
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let notifications: NotificationService;
   let role: string;
@@ -103,8 +102,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
     approve = vi.fn().mockReturnValue(of(APPROVED));
     reject = vi.fn().mockReturnValue(of(REJECTED));
     reportUrl = vi.fn().mockReturnValue(of({ url: 'https://storage.example/laudo.pdf?sig=1' }));
-    tab = { blocked: false, navigate: vi.fn(), close: vi.fn() };
-    openPendingTab = vi.fn().mockReturnValue(tab);
+    previewOpen = vi.fn();
     params = new BehaviorSubject(convertToParamMap({ id: 'insp-1' }));
 
     TestBed.configureTestingModule({
@@ -118,7 +116,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
           useValue: { getOne, photos, approve, reject, reportUrl },
         },
         { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
-        { provide: ExternalNavigationService, useValue: { openPendingTab } },
+        { provide: DocumentPreviewService, useValue: { open: previewOpen } },
         { provide: ActivatedRoute, useValue: { paramMap: params } },
       ],
     });
@@ -1071,46 +1069,30 @@ describe('InspectionReview — detalhes da vistoria', () => {
       );
     });
 
-    it('"Baixar PDF" e o primario e abre a URL assinada numa aba reservada no clique', () => {
+    it('"Ver PDF" e o primario e abre o laudo no visualizador do app, sem aba nova', () => {
+      const windowOpen = vi.spyOn(window, 'open');
       const fixture = renderWith({ status: 'APPROVED' });
-      const download = q<HTMLButtonElement>(fixture, '[data-download-pdf]')!;
+      const view = q<HTMLButtonElement>(fixture, '[data-view-pdf]')!;
 
-      expect(download.textContent?.trim()).toBe('Baixar PDF');
-      expect(download.className).toContain('bg-primary-500');
+      expect(view.textContent?.trim()).toBe('Ver PDF');
+      expect(view.className).toContain('bg-primary-500');
 
-      download.click();
+      view.click();
       fixture.detectChanges();
 
-      expect(openPendingTab).toHaveBeenCalledTimes(1);
-      expect(reportUrl).toHaveBeenCalledWith('insp-1');
-      expect(tab.navigate).toHaveBeenCalledWith('https://storage.example/laudo.pdf?sig=1');
-    });
-
-    it('pop-up bloqueado: explica e nem chama o servidor', () => {
-      tab.blocked = true;
-      const fixture = renderWith({ status: 'APPROVED' });
-
-      q<HTMLButtonElement>(fixture, '[data-download-pdf]')?.click();
-      fixture.detectChanges();
-
+      expect(windowOpen).not.toHaveBeenCalled();
+      expect(previewOpen).toHaveBeenCalledTimes(1);
+      const [request] = previewOpen.mock.calls[0] as [
+        { source: () => Observable<{ url: string }>; fileName: string },
+      ];
+      expect(request.fileName).toBe('vistoria-retirada-SJH2B17.pdf');
+      // A URL assinada só é pedida quando o visualizador carrega.
       expect(reportUrl).not.toHaveBeenCalled();
-      expect(text(fixture)).toContain('Permita pop-ups');
-    });
-
-    it('falha do servidor fecha a aba reservada e mostra a mensagem', () => {
-      reportUrl.mockReturnValue(
-        throwError(
-          () => new HttpErrorResponse({ status: 409, error: { message: 'O laudo ainda não foi gerado.' } }),
-        ),
-      );
-      const fixture = renderWith({ status: 'APPROVED' });
-
-      q<HTMLButtonElement>(fixture, '[data-download-pdf]')?.click();
-      fixture.detectChanges();
-
-      expect(tab.close).toHaveBeenCalled();
-      expect(tab.navigate).not.toHaveBeenCalled();
-      expect(text(fixture)).toContain('O laudo ainda não foi gerado.');
+      let url = '';
+      request.source().subscribe((res) => (url = res.url));
+      expect(reportUrl).toHaveBeenCalledWith('insp-1');
+      expect(url).toBe('https://storage.example/laudo.pdf?sig=1');
+      windowOpen.mockRestore();
     });
   });
 

@@ -5,17 +5,7 @@ import {
   DocumentSlotDef,
 } from '../../components/documents/documents-card';
 import { VehiclesService } from '../../services/vehicles.service';
-import { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import { VEHICLE_DOCUMENT_KIND_META, VehicleDocumentKind } from '../../types/vehicle.types';
-
-/** Cópia da aba reservada. Anexo de veículo não cobra nada — não fale em pagamento. */
-export const VEHICLE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
-  documentTitle: 'Abrindo o documento…',
-  title: 'Abrindo o documento do veículo',
-  note: 'Não feche esta aba. O documento abre em instantes.',
-  stalledNote:
-    'Não foi possível abrir o documento. Feche esta aba e tente novamente na aba anterior.',
-};
 
 /**
  * Documentos do veículo — wrapper do `DocumentsCard` compartilhado (FIX-0232,
@@ -42,7 +32,6 @@ export const VEHICLE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
       [slotDefs]="slotDefs"
       [ops]="ops"
       description="Toque em um tipo para anexar os documentos do veículo. São aceitos PDF, JPG ou PNG até 20MB cada."
-      [placeholderCopy]="placeholderCopy"
     />
   `,
 })
@@ -70,8 +59,6 @@ export class VehicleDocumentsCard {
       required: false,
     },
   ];
-
-  protected readonly placeholderCopy = VEHICLE_DOCUMENT_PLACEHOLDER_COPY;
 
   protected readonly ops: DocumentsCardOps = {
     list: () => this.vehiclesService.listDocuments(this.vehicleId()),

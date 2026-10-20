@@ -1,20 +1,19 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { Subject, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { By } from '@angular/platform-browser';
 
 import {
-  MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY,
   MaintenanceDocumentsCard,
 } from './maintenance-documents-card';
 import { DocumentsCard } from '../../components/documents/documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { MaintenancesService } from '../../services/maintenances.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { NotificationService } from '../../services/notification.service';
 import type { MaintenanceDocument } from '../../types/maintenance.types';
 
@@ -59,9 +58,7 @@ describe('MaintenanceDocumentsCard', () => {
   let uploadDocument: ReturnType<typeof vi.fn>;
   let deleteDocument: ReturnType<typeof vi.fn>;
   let documentSignedUrl: ReturnType<typeof vi.fn>;
-  let navigate: ReturnType<typeof vi.fn>;
-  let closeTab: ReturnType<typeof vi.fn>;
-  let openPendingTab: ReturnType<typeof vi.fn>;
+  let previewOpen: ReturnType<typeof vi.fn>;
   let successToast: ReturnType<typeof vi.fn>;
   let infoToast: ReturnType<typeof vi.fn>;
   let errorToast: ReturnType<typeof vi.fn>;
@@ -172,9 +169,7 @@ describe('MaintenanceDocumentsCard', () => {
     uploadDocument = vi.fn(() => of(notaPeca));
     deleteDocument = vi.fn(() => of(void 0));
     documentSignedUrl = vi.fn(() => of({ url: 'https://signed/doc', expiresInSeconds: 60 }));
-    navigate = vi.fn();
-    closeTab = vi.fn();
-    openPendingTab = vi.fn(() => ({ blocked: false, navigate, close: closeTab }));
+    previewOpen = vi.fn();
     successToast = vi.fn();
     infoToast = vi.fn();
     errorToast = vi.fn();
@@ -187,7 +182,7 @@ describe('MaintenanceDocumentsCard', () => {
           provide: MaintenancesService,
           useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
         },
-        { provide: ExternalNavigationService, useValue: { openPendingTab } },
+        { provide: DocumentPreviewService, useValue: { open: previewOpen } },
         {
           provide: NotificationService,
           useValue: {
@@ -384,7 +379,8 @@ describe('MaintenanceDocumentsCard', () => {
 
   // ------------------------------------------------------------- signed URL
 
-  it('abre pela signed URL numa aba reservada no gesto', async () => {
+  it('abre o documento no visualizador do app, sem aba nova', async () => {
+    const windowOpen = vi.spyOn(window, 'open');
     listDocuments = vi.fn(() => of([notaPeca]));
     TestBed.overrideProvider(MaintenancesService, {
       useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
@@ -394,25 +390,19 @@ describe('MaintenanceDocumentsCard', () => {
     rowButton(slotFileRows('NOTA_FISCAL')[0], 'Abrir').click();
     fixture.detectChanges();
 
-    expect(openPendingTab).toHaveBeenCalledWith(MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY);
+    expect(windowOpen).not.toHaveBeenCalled();
+    expect(previewOpen).toHaveBeenCalledTimes(1);
+    const [request] = previewOpen.mock.calls[0] as [
+      { source: () => Observable<{ url: string }>; fileName: string; errorMessage: string },
+    ];
+    expect(request.errorMessage).toBe('Não foi possível abrir o documento.');
+    // A signed URL só é pedida quando o visualizador carrega — e é a DESTE documento.
+    expect(documentSignedUrl).not.toHaveBeenCalled();
+    let url = '';
+    request.source().subscribe((res) => (url = res.url));
     expect(documentSignedUrl).toHaveBeenCalledWith(MAINTENANCE_ID, 'doc-1');
-    expect(navigate).toHaveBeenCalledWith('https://signed/doc');
-  });
-
-  it('falha na signed URL fecha a aba em vez de deixar aba branca órfã', async () => {
-    listDocuments = vi.fn(() => of([notaPeca]));
-    documentSignedUrl = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 404 })));
-    TestBed.overrideProvider(MaintenancesService, {
-      useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
-    });
-    await setup();
-
-    rowButton(slotFileRows('NOTA_FISCAL')[0], 'Abrir').click();
-    fixture.detectChanges();
-
-    expect(closeTab).toHaveBeenCalled();
-    expect(navigate).not.toHaveBeenCalled();
-    expect(state().error()).toContain('Não foi possível abrir o documento.');
+    expect(url).toBe('https://signed/doc');
+    windowOpen.mockRestore();
   });
 
   // ---------------------------------------------------------------- remoção

@@ -6,15 +6,13 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  INCIDENT_DOCUMENT_PLACEHOLDER_COPY,
   IncidentDocumentsCard,
 } from './incident-documents-card';
 import { DocumentsCard } from '../../components/documents/documents-card';
 import { VehicleIncidentsService } from '../../services/vehicle-incidents.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { NotificationService } from '../../services/notification.service';
-import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import type { IncidentDocument } from '../../types/vehicle-incident.types';
 
 /**
@@ -52,9 +50,7 @@ describe('IncidentDocumentsCard', () => {
   let uploadDocument: ReturnType<typeof vi.fn>;
   let deleteDocument: ReturnType<typeof vi.fn>;
   let documentSignedUrl: ReturnType<typeof vi.fn>;
-  let navigate: ReturnType<typeof vi.fn>;
-  let closeTab: ReturnType<typeof vi.fn>;
-  let openPendingTab: ReturnType<typeof vi.fn>;
+  let previewOpen: ReturnType<typeof vi.fn>;
   let successToast: ReturnType<typeof vi.fn>;
   let infoToast: ReturnType<typeof vi.fn>;
   let fixture: ComponentFixture<IncidentDocumentsCard>;
@@ -129,9 +125,7 @@ describe('IncidentDocumentsCard', () => {
     uploadDocument = vi.fn(() => of(savedDocument));
     deleteDocument = vi.fn(() => of(void 0));
     documentSignedUrl = vi.fn(() => of({ url: 'https://signed/doc', expiresInSeconds: 60 }));
-    navigate = vi.fn();
-    closeTab = vi.fn();
-    openPendingTab = vi.fn(() => ({ blocked: false, navigate, close: closeTab }));
+    previewOpen = vi.fn();
     successToast = vi.fn();
     infoToast = vi.fn();
 
@@ -143,7 +137,7 @@ describe('IncidentDocumentsCard', () => {
           provide: VehicleIncidentsService,
           useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
         },
-        { provide: ExternalNavigationService, useValue: { openPendingTab } },
+        { provide: DocumentPreviewService, useValue: { open: previewOpen } },
         {
           provide: NotificationService,
           useValue: { success: successToast, info: infoToast, error: vi.fn(), warning: vi.fn() },
@@ -286,7 +280,8 @@ describe('IncidentDocumentsCard', () => {
     expect(state().error()).toContain('20MB');
   });
 
-  it('abre o anexo navegando a aba reservada para a signed URL', async () => {
+  it('abre o anexo no visualizador do app, sem aba nova', async () => {
+    const windowOpen = vi.spyOn(window, 'open');
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
 
@@ -295,40 +290,20 @@ describe('IncidentDocumentsCard', () => {
       ?.click();
     fixture.detectChanges();
 
+    expect(windowOpen).not.toHaveBeenCalled();
+    expect(previewOpen).toHaveBeenCalledTimes(1);
+    const [request] = previewOpen.mock.calls[0] as [
+      { source: () => Observable<{ url: string }>; fileName: string; errorMessage: string },
+    ];
+    expect(request.fileName).toBe('dano-frontal.jpg');
+    expect(request.errorMessage).toBe('Não foi possível abrir o anexo.');
+    // A signed URL só é pedida quando o visualizador carrega — e é a DESTE anexo.
+    expect(documentSignedUrl).not.toHaveBeenCalled();
+    let url = '';
+    request.source().subscribe((res) => (url = res.url));
     expect(documentSignedUrl).toHaveBeenCalledWith(INCIDENT_ID, 'doc-1');
-    expect(navigate).toHaveBeenCalledWith('https://signed/doc');
-  });
-
-  /** A aba reservada é a MESMA do checkout — sem cópia própria ela anuncia cobrança. */
-  it('a aba reservada do anexo não fala em pagamento', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
-    await setup();
-
-    slotFileRows('DAMAGE_PHOTO')[0]
-      .querySelector<HTMLButtonElement>('[aria-label="Abrir anexo dano-frontal.jpg"]')
-      ?.click();
-
-    expect(openPendingTab).toHaveBeenCalledWith(INCIDENT_DOCUMENT_PLACEHOLDER_COPY);
-    const [copy] = openPendingTab.mock.calls[0] as [PendingTabPlaceholderCopy];
-    expect(`${copy.documentTitle} ${copy.title} ${copy.note} ${copy.stalledNote}`).not.toContain(
-      'pagamento',
-    );
-  });
-
-  it('fecha a aba reservada quando a signed URL falha', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
-    documentSignedUrl.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
-    );
-    await setup();
-
-    slotFileRows('DAMAGE_PHOTO')[0]
-      .querySelector<HTMLButtonElement>('[aria-label="Abrir anexo dano-frontal.jpg"]')
-      ?.click();
-    fixture.detectChanges();
-
-    expect(closeTab).toHaveBeenCalledTimes(1);
-    expect(navigate).not.toHaveBeenCalled();
+    expect(url).toBe('https://signed/doc');
+    windowOpen.mockRestore();
   });
 
   it('remove o anexo depois da confirmação e tira a linha da lista', async () => {

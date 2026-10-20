@@ -219,7 +219,6 @@
                       <button
                         type="button"
                         (click)="openDocument(doc)"
-                        [disabled]="openingId() !== null"
                         class="flex-1 sm:flex-none inline-flex items-center justify-center px-4
                                rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm
                                font-semibold shadow-sm transition-colors min-h-[44px]
@@ -228,11 +227,7 @@
                                focus-visible:ring-primary-600 focus-visible:ring-offset-2"
                         [attr.aria-label]="openAriaLabel(doc)"
                       >
-                        @if (openingId() === doc.id) {
-                          Abrindo…
-                        } @else {
-                          Abrir
-                        }
+                        Abrir
                       </button>
                       <button
                         type="button"
