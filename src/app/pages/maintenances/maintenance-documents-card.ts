@@ -5,20 +5,10 @@ import {
   DocumentSlotDef,
 } from '../../components/documents/documents-card';
 import { MaintenancesService } from '../../services/maintenances.service';
-import { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import {
   MAINTENANCE_DOCUMENT_KIND_META,
   MaintenanceDocumentKind,
 } from '../../types/maintenance.types';
-
-/** Cópia da aba reservada. Anexo de manutenção não cobra nada — não fale em pagamento. */
-export const MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
-  documentTitle: 'Abrindo o documento…',
-  title: 'Abrindo o documento da manutenção',
-  note: 'Não feche esta aba. O documento abre em instantes.',
-  stalledNote:
-    'Não foi possível abrir o documento. Feche esta aba e tente novamente na aba anterior.',
-};
 
 /**
  * Documentos da manutenção — wrapper do `DocumentsCard` compartilhado
@@ -44,7 +34,6 @@ export const MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = 
       [slotDefs]="slotDefs"
       [ops]="ops"
       description="Toque em um tipo para anexar os documentos da manutenção. São aceitos PDF, JPG ou PNG até 20MB cada."
-      [placeholderCopy]="placeholderCopy"
     />
   `,
 })
@@ -68,8 +57,6 @@ export class MaintenanceDocumentsCard {
       required: false,
     },
   ];
-
-  protected readonly placeholderCopy = MAINTENANCE_DOCUMENT_PLACEHOLDER_COPY;
 
   protected readonly ops: DocumentsCardOps = {
     list: () => this.maintenancesService.listDocuments(this.maintenanceId()),

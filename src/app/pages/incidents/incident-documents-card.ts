@@ -4,21 +4,11 @@ import {
   DocumentsCardOps,
   DocumentSlotDef,
 } from '../../components/documents/documents-card';
-import { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import { VehicleIncidentsService } from '../../services/vehicle-incidents.service';
 import {
   INCIDENT_DOCUMENT_KIND_META,
   IncidentDocumentKind,
 } from '../../types/vehicle-incident.types';
-
-/** Cópia da aba reservada. Anexo de sinistro não cobra nada — não fale em pagamento. */
-export const INCIDENT_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
-  documentTitle: 'Abrindo o anexo…',
-  title: 'Abrindo o anexo do sinistro',
-  note: 'Não feche esta aba. O documento abre em instantes.',
-  stalledNote:
-    'Não foi possível abrir o anexo. Feche esta aba e tente novamente na aba anterior.',
-};
 
 /**
  * Anexos do sinistro — wrapper do `DocumentsCard` compartilhado (FIX-0234,
@@ -48,7 +38,6 @@ export const INCIDENT_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
       [ops]="ops"
       [maxPerKind]="maxPerKind"
       description="Fotos do dano, boletim de ocorrência, orçamento de reparo. Aceitos PDF, JPG, PNG, WebP e HEIC/HEIF, até 20MB por arquivo."
-      [placeholderCopy]="placeholderCopy"
     />
   `,
 })
@@ -92,8 +81,6 @@ export class IncidentDocumentsCard {
       required: false,
     },
   ];
-
-  protected readonly placeholderCopy = INCIDENT_DOCUMENT_PLACEHOLDER_COPY;
 
   protected readonly ops: DocumentsCardOps = {
     list: () => this.incidentsService.listDocuments(this.incidentId()),

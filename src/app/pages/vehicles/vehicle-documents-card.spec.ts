@@ -6,14 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { By } from '@angular/platform-browser';
 
-import { VEHICLE_DOCUMENT_PLACEHOLDER_COPY, VehicleDocumentsCard } from './vehicle-documents-card';
+import { VehicleDocumentsCard } from './vehicle-documents-card';
 import { DocumentsCard } from '../../components/documents/documents-card';
 import { ApiErrorService } from '../../services/api-error.service';
 import { flatErrorMessage, parseApiError } from '../../services/api-error';
 import { VehiclesService } from '../../services/vehicles.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
 import { NotificationService } from '../../services/notification.service';
-import type { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import type { VehicleDocument } from '../../types/vehicle.types';
 
 /**
@@ -62,9 +61,7 @@ describe('VehicleDocumentsCard', () => {
   let uploadDocument: ReturnType<typeof vi.fn>;
   let deleteDocument: ReturnType<typeof vi.fn>;
   let documentSignedUrl: ReturnType<typeof vi.fn>;
-  let navigate: ReturnType<typeof vi.fn>;
-  let closeTab: ReturnType<typeof vi.fn>;
-  let openPendingTab: ReturnType<typeof vi.fn>;
+  let previewOpen: ReturnType<typeof vi.fn>;
   let successToast: ReturnType<typeof vi.fn>;
   let infoToast: ReturnType<typeof vi.fn>;
   let errorToast: ReturnType<typeof vi.fn>;
@@ -169,9 +166,7 @@ describe('VehicleDocumentsCard', () => {
     uploadDocument = vi.fn(() => of(savedDocument));
     deleteDocument = vi.fn(() => of(void 0));
     documentSignedUrl = vi.fn(() => of({ url: 'https://signed/doc', expiresInSeconds: 60 }));
-    navigate = vi.fn();
-    closeTab = vi.fn();
-    openPendingTab = vi.fn(() => ({ blocked: false, navigate, close: closeTab }));
+    previewOpen = vi.fn();
     successToast = vi.fn();
     infoToast = vi.fn();
     errorToast = vi.fn();
@@ -184,7 +179,7 @@ describe('VehicleDocumentsCard', () => {
           provide: VehiclesService,
           useValue: { listDocuments, uploadDocument, deleteDocument, documentSignedUrl },
         },
-        { provide: ExternalNavigationService, useValue: { openPendingTab } },
+        { provide: DocumentPreviewService, useValue: { open: previewOpen } },
         {
           provide: NotificationService,
           useValue: {
@@ -580,7 +575,8 @@ describe('VehicleDocumentsCard', () => {
 
   // ------------------------------------------------------------------ abrir
 
-  it('abre o documento navegando a aba reservada para a signed URL', async () => {
+  it('abre o documento no visualizador do app, sem aba nova', async () => {
+    const windowOpen = vi.spyOn(window, 'open');
     listDocuments.mockReturnValue(of([savedDocument]));
     await setup();
 
@@ -589,41 +585,20 @@ describe('VehicleDocumentsCard', () => {
       ?.click();
     fixture.detectChanges();
 
+    expect(windowOpen).not.toHaveBeenCalled();
+    expect(previewOpen).toHaveBeenCalledTimes(1);
+    const [request] = previewOpen.mock.calls[0] as [
+      { source: () => Observable<{ url: string }>; fileName: string; errorMessage: string },
+    ];
+    expect(request.fileName).toBe('crlv-2025.pdf');
+    expect(request.errorMessage).toBe('Não foi possível abrir o documento.');
+    // A signed URL só é pedida quando o visualizador carrega — e é a DESTE documento.
+    expect(documentSignedUrl).not.toHaveBeenCalled();
+    let url = '';
+    request.source().subscribe((res) => (url = res.url));
     expect(documentSignedUrl).toHaveBeenCalledWith(VEHICLE_ID, 'doc-1');
-    expect(navigate).toHaveBeenCalledWith('https://signed/doc');
-  });
-
-  /** A aba reservada é a MESMA do checkout — sem cópia própria ela anuncia cobrança. */
-  it('a aba reservada do documento não fala em pagamento', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
-    await setup();
-
-    slotFileRows('CRLV')[0]
-      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento crlv-2025.pdf"]')
-      ?.click();
-
-    expect(openPendingTab).toHaveBeenCalledWith(VEHICLE_DOCUMENT_PLACEHOLDER_COPY);
-    const [copy] = openPendingTab.mock.calls[0] as [PendingTabPlaceholderCopy];
-    expect(`${copy.documentTitle} ${copy.title} ${copy.note} ${copy.stalledNote}`).not.toContain(
-      'pagamento',
-    );
-  });
-
-  it('fecha a aba reservada quando a signed URL falha', async () => {
-    listDocuments.mockReturnValue(of([savedDocument]));
-    documentSignedUrl.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
-    );
-    await setup();
-
-    slotFileRows('CRLV')[0]
-      .querySelector<HTMLButtonElement>('[aria-label="Abrir documento crlv-2025.pdf"]')
-      ?.click();
-    fixture.detectChanges();
-
-    expect(closeTab).toHaveBeenCalledTimes(1);
-    expect(navigate).not.toHaveBeenCalled();
-    expect(host().textContent).toContain('Não foi possível abrir o documento.');
+    expect(url).toBe('https://signed/doc');
+    windowOpen.mockRestore();
   });
 
   // ----------------------------------------------------------------- remover

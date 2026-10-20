@@ -5,17 +5,7 @@ import {
   DocumentSlotDef,
 } from '../../components/documents/documents-card';
 import { DriverService } from '../../services/driver.service';
-import { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
 import { DRIVER_DOCUMENT_KIND_META, DriverDocumentKind } from '../../types/driver.types';
-
-/** Cópia da aba reservada. Anexo de motorista não cobra nada — não fale em pagamento. */
-export const DRIVER_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
-  documentTitle: 'Abrindo o documento…',
-  title: 'Abrindo o documento do motorista',
-  note: 'Não feche esta aba. O documento abre em instantes.',
-  stalledNote:
-    'Não foi possível abrir o documento. Feche esta aba e tente novamente na aba anterior.',
-};
 
 /**
  * Documentos do motorista — o dono do PADRÃO extraído para o
@@ -37,7 +27,6 @@ export const DRIVER_DOCUMENT_PLACEHOLDER_COPY: PendingTabPlaceholderCopy = {
       [slotDefs]="slotDefs()"
       [ops]="ops"
       description="Toque em um tipo para anexar os documentos do motorista. São aceitos PDF, JPG ou PNG até 20MB cada."
-      [placeholderCopy]="placeholderCopy"
     />
   `,
 })
@@ -112,8 +101,6 @@ export class DriverDocumentsCard {
       },
     ];
   });
-
-  protected readonly placeholderCopy = DRIVER_DOCUMENT_PLACEHOLDER_COPY;
 
   protected readonly ops: DocumentsCardOps = {
     list: () => this.driverService.listDocuments(this.driverId()),

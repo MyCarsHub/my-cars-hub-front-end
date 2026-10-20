@@ -16,9 +16,8 @@ import { PageCard } from '../core/page-card/page-card';
 import { ConfirmDialog } from '../core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../alert-banner/alert-banner';
 import { ApiErrorService } from '../../services/api-error.service';
-import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
-import { PendingTabPlaceholderCopy } from '../../services/pending-tab-placeholder';
+import { DocumentPreviewService } from '../document-preview/document-preview.service';
 import {
   MAX_DOCUMENT_BYTES,
   DOCUMENT_ACCEPT,
@@ -130,15 +129,13 @@ export interface DocumentSlot {
 export class DocumentsCard implements OnInit, OnDestroy {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly notifications = inject(NotificationService);
-  private readonly externalNavigation = inject(ExternalNavigationService);
+  private readonly preview = inject(DocumentPreviewService);
 
   /** Slots esperados, NA ORDEM em que aparecem — fixa, para o usuário decorar. */
   readonly slotDefs = input.required<DocumentSlotDef[]>();
   readonly ops = input.required<DocumentsCardOps>();
   /** Descrição sob o título, com a entidade no genitivo ("do motorista"…). */
   readonly description = input.required<string>();
-  /** Cópia da aba reservada do "Abrir" — por entidade, nunca a do checkout. */
-  readonly placeholderCopy = input.required<PendingTabPlaceholderCopy>();
   readonly title = input('Documentos');
   /** Teto POR TIPO. 1 = regra canônica; N continua possível (incidentes). */
   readonly maxPerKind = input(1);
@@ -163,7 +160,6 @@ export class DocumentsCard implements OnInit, OnDestroy {
 
   protected readonly documents = signal<DocumentLike[]>([]);
   protected readonly loading = signal(false);
-  protected readonly openingId = signal<string | null>(null);
   protected readonly deleting = signal<DocumentLike | null>(null);
   protected readonly deletingBusy = signal(false);
   /** Falha de negócio (inclusive o teto de 20 anexos): banner inline, nunca toast. */
@@ -416,40 +412,19 @@ export class DocumentsCard implements OnInit, OnDestroy {
   }
 
   /**
-   * Abre o documento numa aba nova pela signed URL. A aba é reservada de forma
-   * SÍNCRONA dentro do gesto (browsers móveis só permitem `window.open` com o
-   * gesto ainda na pilha) e navegada quando a URL chega; se o request falhar a
-   * aba é fechada em vez de virar uma aba branca órfã.
+   * Abre o documento no visualizador do app (`DocumentPreviewService`), nunca numa aba
+   * nova. O modal abre NA HORA do toque e só então pede a signed URL; falha do request
+   * (inclusive a mensagem do servidor) aparece DENTRO do modal, com "Tentar de novo".
    */
   protected openDocument(doc: DocumentLike): void {
-    if (this.openingId()) return;
     this.error.set(null);
-    this.openingId.set(doc.id);
-
-    const tab = this.externalNavigation.openPendingTab(this.placeholderCopy());
-    if (tab.blocked) {
-      this.openingId.set(null);
-      this.error.set(
-        `Permita pop-ups neste site para abrir o ${this.nounSingular()} em uma nova aba.`,
-      );
-      return;
-    }
-
-    this.ops()
-      .signedUrl(doc)
-      .subscribe({
-        next: (res) => {
-          this.openingId.set(null);
-          tab.navigate(res.url);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.openingId.set(null);
-          tab.close();
-          this.error.set(
-            this.apiErrors.messageFor(err, `Não foi possível abrir o ${this.nounSingular()}.`),
-          );
-        },
-      });
+    this.preview.open({
+      source: () => this.ops().signedUrl(doc),
+      fileName: doc.fileName,
+      title: doc.kindLabel,
+      caption: doc.fileName,
+      errorMessage: `Não foi possível abrir o ${this.nounSingular()}.`,
+    });
   }
 
   protected askDelete(doc: DocumentLike): void {
