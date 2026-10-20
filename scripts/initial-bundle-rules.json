@@ -6,6 +6,16 @@
       "match": "node_modules/@sentry",
       "label": "@sentry/*",
       "reason": "Sentry is global error reporting, not a screen feature, but it only runs when environment.sentryDsn is a real https DSN. With the DSN empty it ships and parses for nothing. It must stay reachable ONLY through a dynamic import so the weight follows the feature."
+    },
+    {
+      "match": "node_modules/pdfjs-dist",
+      "label": "pdfjs-dist",
+      "reason": "pdf.js (~520 kB) renders PDFs inside the document preview modal only. It must stay reachable ONLY through the dynamic import in components/document-preview/pdf-preview-engine.ts, which itself sits behind the lazily loaded viewer."
+    },
+    {
+      "match": "node_modules/docx-preview",
+      "label": "docx-preview",
+      "reason": "docx-preview renders DOCX contracts/templates on demand (preview modal, contract AI preview). It must stay reachable ONLY through a dynamic import."
     }
   ]
 }
