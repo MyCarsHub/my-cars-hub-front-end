@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { ContractTemplate } from './contract-template';
@@ -9,6 +9,7 @@ import {
   ContractTemplateService,
 } from './contract-template-service';
 import { NotificationService } from '../../../services/notification.service';
+import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 
 /**
  * Covers the two new "open" / "download" flows for the raw DOCX template.
@@ -38,11 +39,13 @@ describe('ContractTemplate — open/download raw template', () => {
     renderUrl: vi.fn(),
   };
   const notifications = { push: vi.fn() };
+  const preview = { open: vi.fn() };
 
   beforeEach(async () => {
     service.get.mockClear();
     service.downloadTemplate.mockClear();
     notifications.push.mockClear();
+    preview.open.mockClear();
     service.get.mockReturnValue(of(tpl));
 
     TestBed.configureTestingModule({
@@ -50,6 +53,7 @@ describe('ContractTemplate — open/download raw template', () => {
       providers: [
         { provide: ContractTemplateService, useValue: service },
         { provide: NotificationService, useValue: notifications },
+        { provide: DocumentPreviewService, useValue: preview },
       ],
     });
     // O ponto de montagem do fluxo com IA usa @defer: as dependências resolvem async.
@@ -101,46 +105,29 @@ describe('ContractTemplate — open/download raw template', () => {
     expect((fixture.componentInstance as any).downloading()).toBe(false);
   });
 
-  it('openTemplateAsHtml: abre nova aba, chama service e reseta loading em erro', () => {
-    service.downloadTemplate.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'fetch failed' } })),
-    );
-
-    const fakeWin = {
-      document: {
-        write: vi.fn(),
-        close: vi.fn(),
-        body: document.createElement('div'),
-        querySelector: vi.fn(() => null),
-      },
-      close: vi.fn(),
-    };
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWin as any);
-
+  it('"Abrir template" abre o visualizador do app com o DOCX autenticado, sem aba nova', () => {
+    const windowOpen = vi.spyOn(window, 'open');
+    const blob = new Blob(['PK']);
+    service.downloadTemplate.mockReturnValue(of(blob));
     const fixture = makeFixture();
-    (fixture.componentInstance as any).openTemplateAsHtml();
 
-    expect(openSpy).toHaveBeenCalledWith('', '_blank');
-    expect(fakeWin.document.write).toHaveBeenCalled();
-    expect(service.downloadTemplate).toHaveBeenCalledOnce();
-    expect((fixture.componentInstance as any).error()).toBe('fetch failed');
-    expect((fixture.componentInstance as any).opening()).toBe(false);
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((b) => b.textContent?.trim() === 'Abrir template');
+    button?.click();
 
-    openSpy.mockRestore();
-  });
-
-  it('openTemplateAsHtml: pop-up bloqueado → banner inline e sem chamar service', () => {
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
-
-    const fixture = makeFixture();
-    (fixture.componentInstance as any).openTemplateAsHtml();
-
+    expect(windowOpen).not.toHaveBeenCalled();
+    expect(preview.open).toHaveBeenCalledTimes(1);
+    const [request] = preview.open.mock.calls[0] as [
+      { source: () => Observable<Blob>; fileName: string; errorMessage: string },
+    ];
+    expect(request.fileName).toBe('my-contract.docx');
+    // Os bytes só descem quando o visualizador chama o carregador.
     expect(service.downloadTemplate).not.toHaveBeenCalled();
-    expect((fixture.componentInstance as any).error()).toBe(
-      'Permita pop-ups pra abrir o template.',
-    );
-    expect((fixture.componentInstance as any).opening()).toBe(false);
-
-    openSpy.mockRestore();
+    let received: Blob | null = null;
+    request.source().subscribe((b) => (received = b));
+    expect(service.downloadTemplate).toHaveBeenCalledOnce();
+    expect(received).toBe(blob);
+    windowOpen.mockRestore();
   });
 });
