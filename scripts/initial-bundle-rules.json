@@ -10,7 +10,7 @@
     {
       "match": "node_modules/pdfjs-dist",
       "label": "pdfjs-dist",
-      "reason": "pdf.js (~520 kB) renders PDFs inside the document preview modal only. It must stay reachable ONLY through the dynamic import in components/document-preview/pdf-preview-engine.ts, which itself sits behind the lazily loaded viewer."
+      "reason": "pdf.js renders PDFs inside the document preview modal only. It must stay reachable ONLY through the dynamic import in components/document-preview/pdf-preview-engine.ts, which itself sits behind the lazily loaded viewer."
     },
     {
       "match": "node_modules/docx-preview",

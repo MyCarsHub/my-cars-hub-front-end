@@ -36,7 +36,7 @@ const MAX_DEVICE_PIXEL_RATIO = 2;
 /**
  * Fronteira de carregamento do pdf.js — o mesmo desenho do `DocxPreviewEngine`:
  *
- * 1. **Bundle.** `pdfjs-dist` (~520 kB) só entra quando alguém abre um PDF. Este arquivo é
+ * 1. **Bundle.** `pdfjs-dist` é pesado e só entra quando alguém abre um PDF. Este arquivo é
  *    o ÚNICO importador, e por `import()` dinâmico; o guard
  *    `scripts/assert-initial-bundle.mjs` reprova o build se ele aparecer no grafo inicial.
  * 2. **Testabilidade.** O spec do visualizador troca esta classe por DI.
@@ -61,8 +61,8 @@ export class PdfPreviewEngine {
 
     const task = pdfjs.getDocument({
       data: new Uint8Array(data),
-      // Sem `isEvalSupported`: o pdf.js 6 não tem mais caminho de `eval`/`new Function`
-      // (o vetor do CVE-2024-4367) — conferido no worker empacotado, zero ocorrências.
+      // Sem `isEvalSupported`: o pdf.js 6 removeu essa opção de `DocumentInitParameters`
+      // (conferido nos tipos do pacote instalado), então não há o que desligar aqui.
       enableXfa: false,
       standardFontDataUrl: `${base}standard_fonts/`,
       wasmUrl: `${base}wasm/`,
