@@ -564,7 +564,7 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
       }
       this.pdf = handle;
       this.pdfPages.set(sizes);
-      this.stage().nativeElement.scrollTo({ top: 0 });
+      this.stage().nativeElement.scrollTop = 0;
     } catch (err) {
       if (token !== this.presentToken) return;
       this.presenting.set(false);
@@ -718,7 +718,10 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
       const top = (stage.scrollTop + midY) * ratio - midY;
       this.zoom.set(clamp(zoom * ratio, MIN_ZOOM, MAX_ZOOM));
       // O layout novo só existe depois do próximo frame.
-      requestAnimationFrame(() => stage.scrollTo({ left, top }));
+      requestAnimationFrame(() => {
+        stage.scrollLeft = left;
+        stage.scrollTop = top;
+      });
       return;
     }
     const start = this.touchStart;
