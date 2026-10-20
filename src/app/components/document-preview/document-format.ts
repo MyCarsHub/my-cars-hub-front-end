@@ -45,17 +45,6 @@ export const FORMAT_EXTENSION: Record<DocumentFormat, string | null> = {
   unknown: null,
 };
 
-export const FORMAT_MIME: Record<DocumentFormat, string> = {
-  pdf: 'application/pdf',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  gif: 'image/gif',
-  heic: 'image/heic',
-  unknown: 'application/octet-stream',
-};
-
 export const FORMAT_LABEL: Record<DocumentFormat, string> = {
   pdf: 'PDF',
   docx: 'DOCX',

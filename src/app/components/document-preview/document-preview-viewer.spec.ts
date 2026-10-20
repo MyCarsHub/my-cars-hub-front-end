@@ -136,6 +136,26 @@ describe('DocumentPreviewViewer', () => {
       expect(document.activeElement).toBe(last);
     });
 
+    /** Decisão do dono (FEAT-0358): o modal é o único jeito de ver; nada de aba nova. */
+    it('não oferece "abrir em nova aba" em nenhum formato e nunca chama window.open', async () => {
+      const windowOpen = vi.spyOn(window, 'open');
+      for (const bytes of [PDF, PNG, DOCX]) {
+        await open({ source: new Blob([bytes]), fileName: 'Arquivo' });
+        const labels = Array.from(
+          el('[role="dialog"]')!.querySelectorAll<HTMLElement>('button, a'),
+        ).map((b) => `${b.getAttribute('aria-label') ?? ''} ${b.textContent ?? ''}`.toLowerCase());
+        expect(labels.some((l) => l.includes('nova aba'))).toBe(false);
+        for (const button of Array.from(
+          el('[role="dialog"]')!.querySelectorAll<HTMLButtonElement>('button:not([disabled])'),
+        )) {
+          if (button.hasAttribute('data-preview-close')) continue;
+          button.click();
+        }
+        fixture.destroy();
+      }
+      expect(windowOpen).not.toHaveBeenCalled();
+    });
+
     it('trava a rolagem do body e devolve no destroy; revoga os object URLs', async () => {
       document.body.style.overflow = 'auto';
       await open({ source: new Blob([PNG]), fileName: 'Foto' });
@@ -293,8 +313,6 @@ describe('DocumentPreviewViewer', () => {
       expect(frame.srcdoc).toContain('Content-Security-Policy');
       expect(frame.srcdoc).toContain('Cláusula 1ª');
       expect(docxToSafeHtml).toHaveBeenCalledTimes(1);
-      // DOCX não abre em aba nova: nenhum navegador o mostra sozinho.
-      expect(el('[data-preview-new-tab]')).toBeNull();
     });
 
     it('foco dentro do iframe volta ao painel: Esc e o Tab preso continuam funcionando', async () => {

@@ -22,7 +22,6 @@ import { LoggerService } from '../../services/logger.service';
 import {
   DOCX_RENDER_LIMIT_BYTES,
   FORMAT_LABEL,
-  FORMAT_MIME,
   IMAGE_WARN_BYTES,
   PDF_WARN_BYTES,
   SNIFF_BYTES,
@@ -179,11 +178,6 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
     return parts.join(' · ');
   });
   protected readonly downloadLabel = computed(() => `Baixar ${this.item().fileName}`);
-  /** Nova aba só para o que o navegador sabe mostrar sozinho. */
-  protected readonly canOpenInTab = computed(() => {
-    const f = this.readyFormat();
-    return f === 'pdf' || (f !== null && isImageFormat(f) && f !== 'heic');
-  });
   protected readonly showToolbar = computed(
     () => this.isGallery() || this.readyFormat() === 'pdf' || this.isImage() || this.readyFormat() === 'docx',
   );
@@ -378,14 +372,6 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
     a.remove();
     // Cada "Baixar" cria um URL novo: revogado logo depois do clique, não só no fechar.
     setTimeout(() => this.revokeObjectUrl(url), DOWNLOAD_URL_TTL_MS);
-  }
-
-  /** Opção secundária: o arquivo (blob local, nunca a signed URL) numa aba nova. */
-  protected openInNewTab(): void {
-    const file = this.file();
-    if (!file || !this.canOpenInTab()) return;
-    const typed = new Blob([file.blob], { type: FORMAT_MIME[file.format] });
-    this.document.defaultView?.open(this.objectUrlFor(typed), '_blank', 'noopener');
   }
 
   protected step(delta: number): void {
