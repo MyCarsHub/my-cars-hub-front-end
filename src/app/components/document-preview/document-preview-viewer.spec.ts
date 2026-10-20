@@ -11,7 +11,7 @@ import { PdfHandle, PdfPreviewEngine } from './pdf-preview-engine';
 /**
  * O sujeito é o visualizador DE VERDADE: só as duas fronteiras de biblioteca (pdf.js e
  * docx-preview, ambas atrás de `import()` dinâmico, que não resolve no runner) são
- * trocadas por DI — o mesmo arranjo do `ContractDocxPreviewService` no card de contrato.
+ * trocadas por DI (`PdfPreviewEngine`, `DocxPreviewEngine`).
  */
 describe('DocumentPreviewViewer', () => {
   const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);

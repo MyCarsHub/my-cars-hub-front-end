@@ -28,7 +28,7 @@ const MAX_CANVAS_PIXELS = 5_500_000;
 const MAX_DEVICE_PIXEL_RATIO = 2;
 
 /**
- * Fronteira de carregamento do pdf.js — o mesmo desenho do `ContractDocxPreviewService`:
+ * Fronteira de carregamento do pdf.js — o mesmo desenho do `DocxPreviewEngine`:
  *
  * 1. **Bundle.** `pdfjs-dist` (~520 kB) só entra quando alguém abre um PDF. Este arquivo é
  *    o ÚNICO importador, e por `import()` dinâmico; o guard

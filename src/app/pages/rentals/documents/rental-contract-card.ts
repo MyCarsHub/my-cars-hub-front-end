@@ -1,5 +1,5 @@
 import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
-import { Subscription } from 'rxjs';
+import { Subscription, tap } from 'rxjs';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -30,7 +30,7 @@ import {
 } from '../../../types/rental.types';
 import { RentalService } from '../rental.service';
 import { isLateInterestRequired } from '../rental-preflight';
-import { ContractDocxPreviewService } from './contract-docx-preview.service';
+import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 
 interface SignatureBadge {
   label: string;
@@ -69,174 +69,9 @@ function contractMimeOf(file: File): string | null {
  */
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d];
 
-/**
- * Range que fareja o formato SEM baixar o arquivo. O caminho normal hoje é um
- * PDF anexado à mão (até o teto de upload) que o browser mesmo renderiza: puxar o corpo
- * inteiro só pra ler 5 bytes e depois deixar a aba baixar tudo de novo custaria
- * o DOBRO da franquia de dados no fluxo mais usado do app. O Supabase Storage
- * honra Range e responde 206; se algum proxy ignorar e responder 200, o corpo
- * que chegou já é o arquivo inteiro e é reaproveitado — nunca um segundo GET.
- */
-const SNIFF_RANGE = `bytes=0-${PDF_MAGIC.length - 1}`;
-
 /** `true` quando os primeiros bytes do arquivo são `%PDF-`. */
 function isPdfBytes(head: Uint8Array): boolean {
   return PDF_MAGIC.every((byte, index) => head[index] === byte);
-}
-
-/**
- * Teto pra renderizar no cliente. Contratos AUTO saem do template com poucas
- * dezenas de KB; acima disto o parse trava (ou derruba por memória) uma aba de
- * celular, e o fallback com o arquivo original é uma resposta melhor que um
- * navegador congelado.
- */
-const MAX_RENDER_BYTES = 8 * 1024 * 1024;
-
-/** Watchdog do render. Um `.docx` patológico não pode prender a aba pra sempre. */
-const RENDER_TIMEOUT_MS = 30_000;
-
-/** Elemento da aba nova que recebe o documento renderizado. */
-const VIEWER_HOST_ID = 'mch-doc';
-
-/** Base comum das páginas escritas na aba nova (self-contained, zero rede). */
-const TAB_STYLE =
-  'body{margin:0;padding:0;background:#f5f5f5;color:#171717;' +
-  'font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55;}' +
-  'main{max-width:34rem;margin:0 auto;padding:24px 20px;}' +
-  'h1{font-size:1.05rem;margin:0 0 .5rem;}' +
-  'p{font-size:.9rem;color:#525252;margin:0 0 .75rem;}' +
-  'a.btn{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;' +
-  'border-radius:12px;background:#0f766e;color:#fff;font-size:.9rem;font-weight:600;' +
-  'text-decoration:none;}a.btn:focus-visible{outline:3px solid #0f766e;outline-offset:2px;}' +
-  '.spin{width:26px;height:26px;border-radius:50%;border:3px solid #d4d4d4;' +
-  'border-top-color:#0f766e;animation:s .9s linear infinite;margin-bottom:14px;}' +
-  '@keyframes s{to{transform:rotate(360deg);}}' +
-  '@media (prefers-reduced-motion:reduce){.spin{animation:none;}}' +
-  '@media (prefers-color-scheme:dark){body{background:#171717;color:#fafafa;}' +
-  'p{color:#a3a3a3;}}';
-
-/** Moldura do documento renderizado: barra de contexto + páginas do Word. */
-const VIEWER_STYLE =
-  '.mch-note{margin:0;padding:10px 16px;background:#fff;color:#404040;' +
-  'border-bottom:1px solid #e5e5e5;font-size:.8rem;text-align:center;}' +
-  '.docx-wrapper{background:transparent!important;padding:16px 8px!important;}' +
-  '.docx{background:#fff!important;margin:0 auto 16px;box-shadow:0 2px 8px rgba(0,0,0,.08);}';
-
-/**
- * Conteúdo imediato da aba enquanto o arquivo é baixado. A aba precisa ser
- * aberta de forma síncrona (pop-up blocker) mas o download é assíncrono — sem
- * isto o usuário encara uma aba branca por segundos e conclui que travou.
- */
-const LOADING_TAB_HTML =
-  '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-  '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-  '<title>Carregando contrato…</title><style>' +
-  TAB_STYLE +
-  '</style></head><body><main role="status" aria-live="polite">' +
-  '<div class="spin" aria-hidden="true"></div>' +
-  '<h1>Carregando contrato…</h1>' +
-  '<p>Buscando o arquivo do aluguel. Pode levar alguns segundos.</p>' +
-  '</main></body></html>';
-
-/**
- * Casca do visualizador de `.docx`.
- *
- * O viewport é fixado na largura de uma página (A4 tem ~794px, Carta ~816px) em
- * vez de `device-width`: assim o celular ENCAIXA a página inteira na tela — como
- * um viewer de PDF faz — em vez de cortar a folha e exigir scroll horizontal.
- * Desktop ignora a meta e usa a largura real da janela.
- *
- * A nota é curta de propósito: docx-preview reproduz o layout do Word (fontes,
- * alinhamento, tabelas, paginação), então isto NÃO é uma aproximação a ser
- * carimbada com avisos — é uma visualização, e o download continua sendo o
- * arquivo oficial.
- */
-const VIEWER_SHELL_HTML =
-  '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-  '<meta name="viewport" content="width=840,initial-scale=1">' +
-  '<title>Contrato de locação</title><style>' +
-  TAB_STYLE +
-  VIEWER_STYLE +
-  '</style></head><body>' +
-  '<p class="mch-note">Visualização do contrato — o arquivo de ' +
-  '“Baixar Contrato” é o documento oficial.</p>' +
-  `<div id="${VIEWER_HOST_ID}"></div>` +
-  '</body></html>';
-
-/** Escapa texto para interpolação segura em HTML (a signed URL entra num href). */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/**
- * Ponte do caminho PDF, escrita ANTES de navegar a aba pra signed URL.
- *
- * Nem todo browser renderiza PDF inline: Firefox Android, várias WebViews e um
- * `Content-Type` velho no storage transformam a navegação em DOWNLOAD — a aba
- * fica onde estava. Sem esta página ela ficaria parada no "Carregando contrato…"
- * pra sempre, que é pior que uma aba branca porque PARECE que ainda está
- * trabalhando. Aqui ela para numa página que explica e carrega o link do
- * arquivo. Quando o viewer nativo abre, a navegação descarta isto na hora.
- */
-function openingPdfTabHtml(originalUrl: string): string {
-  return (
-    '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>Abrindo o contrato…</title><style>' +
-    TAB_STYLE +
-    '</style></head><body><main>' +
-    '<div role="status" aria-live="polite">' +
-    '<div class="spin" aria-hidden="true"></div>' +
-    '<h1>Abrindo o contrato…</h1>' +
-    '<p>Se o contrato não aparecer, seu navegador provavelmente baixou o ' +
-    'arquivo em vez de exibi-lo — procure na pasta de downloads.</p>' +
-    '</div>' +
-    `<p><a class="btn" href="${escapeHtml(originalUrl)}" download>Baixar contrato</a></p>` +
-    '</main></body></html>'
-  );
-}
-
-/**
- * Página de falha SEM link: usada quando nem a signed URL foi obtida, então não
- * existe arquivo pra oferecer. Escrita ANTES do `close()` de propósito — vários
- * browsers mobile recusam fechar a aba silenciosamente, e o `catch` do close
- * engoliria isso deixando a aba presa no "Carregando contrato…".
- */
-const LINKLESS_FAILED_TAB_HTML =
-  '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-  '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-  '<title>Falha ao abrir o contrato</title><style>' +
-  TAB_STYLE +
-  '</style></head><body><main>' +
-  '<h1>Não foi possível abrir o contrato</h1>' +
-  '<p>Não conseguimos preparar o link do arquivo. Feche esta aba, volte ao ' +
-  'aluguel e use "Baixar Contrato".</p>' +
-  '</main></body></html>';
-
-/**
- * Página de falha. Substitui o "Carregando…" e sempre oferece o ARQUIVO
- * ORIGINAL — o requisito é nunca deixar a aba morta.
- */
-function openFailedTabHtml(originalUrl: string): string {
-  return (
-    '<!doctype html><html lang="pt-br"><head><meta charset="utf-8">' +
-    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>Falha ao exibir o contrato</title><style>' +
-    TAB_STYLE +
-    '</style></head><body><main>' +
-    '<h1>Não foi possível exibir o contrato</h1>' +
-    '<p>A visualização falhou neste navegador. Você ainda pode baixar o arquivo ' +
-    'original — ele é o documento oficial.</p>' +
-    `<p><a class="btn" href="${escapeHtml(originalUrl)}" download>Baixar contrato</a></p>` +
-    '<p>Se o download falhar, o link temporário pode ter expirado: volte ao aluguel ' +
-    'e use "Baixar Contrato".</p>' +
-    '</main></body></html>'
-  );
 }
 
 /**
@@ -308,10 +143,10 @@ function openFailedTabHtml(originalUrl: string): string {
               >
                 @if (downloading()) { Baixando… } @else { Baixar Contrato }
               </button>
-              <button type="button" (click)="openContract()" [disabled]="opening()"
+              <button type="button" (click)="openContract()"
                 class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                @if (opening()) { Abrindo… } @else { Abrir contrato }
+                Abrir contrato
               </button>
               @if (canReplaceFile()) {
                 <button type="button" (click)="askDelete()"
@@ -543,7 +378,7 @@ export class RentalContractCard implements OnInit, OnDestroy {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly logger = inject(LoggerService);
-  private readonly docxPreview = inject(ContractDocxPreviewService);
+  private readonly preview = inject(DocumentPreviewService);
 
   readonly rentalId = input.required<string>();
   /**
@@ -593,7 +428,6 @@ export class RentalContractCard implements OnInit, OnDestroy {
   protected readonly uploading = signal(false);
   private uploadSub: Subscription | null = null;
   protected readonly downloading = signal(false);
-  protected readonly opening = signal(false);
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
   protected readonly markSignedOpen = signal(false);
@@ -856,160 +690,39 @@ export class RentalContractCard implements OnInit, OnDestroy {
   }
 
   /**
-   * Abre o contrato em nova aba. O formato é decidido pelos BYTES, nunca pelo
-   * `mimeType` da linha — ver {@link PDF_MAGIC} pro porquê. Dois caminhos:
+   * Abre o contrato no visualizador do app (`DocumentPreviewService`), nunca numa aba
+   * nova. O modal abre no toque e pede a signed URL; o formato é decidido pelos BYTES
+   * (ver {@link PDF_MAGIC}): `%PDF-` (upload manual, ou AUTO já assinado no Autentique)
+   * vai para o pdf.js; qualquer outra coisa é o `.docx` AUTO, renderizado pelo
+   * docx-preview SANEADO num iframe sandbox — o caminho antigo escrevia o DOCX direto
+   * numa aba same-origin, sem saneamento. O teto de render de DOCX e o "Baixar" com a
+   * extensão certa moram no visualizador.
    *
-   * - bytes começam com `%PDF-` (upload manual, ou AUTO já assinado no
-   *   Autentique, que sobrescreve o mesmo `.docx` do storage com um PDF de
-   *   verdade): navega a aba pra própria signed URL e deixa o viewer nativo
-   *   renderizar. Fidelidade total, renderizador nem carregado.
-   * - qualquer outra coisa → trata como `.docx` (contrato AUTO recém-gerado):
-   *   nenhum browser renderiza DOCX inline — `window.open` caía em download e
-   *   deixava a aba branca órfã. Aqui o arquivo é renderizado NA ABA por
-   *   docx-preview, que reproduz o layout do Word.
-   *
-   * A aba é aberta SÍNCRONA nos dois casos pra escapar do pop-up blocker
-   * (browsers só permitem `window.open` dentro do gesture handler) e recebe na
-   * hora o documento "Carregando contrato…" — o download é assíncrono e uma
-   * aba branca parada lê como travamento.
+   * FIX-0754: o backend gera o contrato AUTO ao assinar a URL e recusa com
+   * LATE_INTEREST_PERCENT_REQUIRED no aluguel legado sem juros ao mês. Esse erro NÃO fica
+   * no modal: ele fecha e o banner do card mostra a mensagem com o atalho "Editar
+   * aluguel" — o único jeito de resolver. Os demais erros ficam no modal, com retry.
    */
   protected openContract(): void {
     const doc = this.contract();
-    if (!doc || this.opening()) return;
+    if (!doc) return;
     this.error.set(null);
-    this.opening.set(true);
-    const win = window.open('', '_blank');
-    if (!win) {
-      this.opening.set(false);
-      this.error.set('Permita pop-ups pra abrir o contrato.');
-      return;
-    }
-    this.writeIntoTab(win, LOADING_TAB_HTML);
-
-    this.rentalService.documentSignedUrl(this.rentalId(), doc.id).subscribe({
-      next: (res) => void this.showInTab(win, res.url),
-      error: (err: HttpErrorResponse) => {
-        this.opening.set(false);
-        // Mensagem PRIMEIRO, close() depois: se o browser recusar fechar (comum
-        // no mobile) a aba fica com a explicação em vez do spinner eterno.
-        this.writeIntoTab(win, LINKLESS_FAILED_TAB_HTML);
-        try {
-          win.close();
-        } catch {
-          /* noop — algumas policies bloqueiam close cross-context */
-        }
-        this.fail(err, 'Não foi possível abrir o contrato.');
-      },
+    this.preview.open({
+      source: () =>
+        this.rentalService.documentSignedUrl(this.rentalId(), doc.id).pipe(
+          tap({
+            error: (err: unknown) => {
+              if (err instanceof HttpErrorResponse && isLateInterestRequired(err)) {
+                this.preview.close();
+                this.fail(err, 'Não foi possível abrir o contrato.');
+              }
+            },
+          }),
+        ),
+      fileName: `Contrato-${this.rentalId()}`,
+      title: 'Contrato de locação',
+      errorMessage: 'Não foi possível abrir o contrato.',
     });
-  }
-
-  /**
-   * Fareja o formato pela assinatura e entrega a aba.
-   *
-   * A sonda pede só {@link SNIFF_RANGE} — o formato mora nos 5 primeiros bytes,
-   * e o caminho PDF (o normal) navega a aba pra própria URL: baixar o arquivo
-   * inteiro aqui faria o usuário pagar os mesmos MB duas vezes. O corpo COMPLETO
-   * só é buscado no ramo DOCX, onde o parser precisa dele de verdade — e nem
-   * isso quando a resposta veio 200 (Range ignorado), porque aí o arquivo
-   * inteiro já está na mão.
-   *
-   * Qualquer falha — rede, signed URL expirada, arquivo vazio, grande demais,
-   * DOCX ilegível, watchdog — troca o conteúdo da aba pela página de erro que
-   * oferece o ARQUIVO ORIGINAL. A aba nunca fica branca e morta, que era o
-   * sintoma deste fix.
-   */
-  private async showInTab(win: Window, url: string): Promise<void> {
-    try {
-      const probe = await fetch(url, { headers: { Range: SNIFF_RANGE } });
-      if (!probe.ok) throw new Error(`HTTP ${probe.status}`);
-      const probeBytes = await probe.arrayBuffer();
-      if (probeBytes.byteLength === 0) throw new Error('Arquivo vazio no storage.');
-
-      // `Math.min` porque um arquivo com menos de 5 bytes estouraria o
-      // construtor da view; nesse caso `isPdfBytes` já devolve false.
-      const head = new Uint8Array(probeBytes, 0, Math.min(PDF_MAGIC.length, probeBytes.byteLength));
-      if (isPdfBytes(head)) {
-        // Rede de segurança escrita ANTES da navegação: se o browser baixar em
-        // vez de renderizar, a aba PARA aqui, com link e explicação.
-        this.writeIntoTab(win, openingPdfTabHtml(url));
-        win.location.href = url;
-        return;
-      }
-
-      // 206 = só a cabeça chegou, o parser precisa do resto. 200 = o servidor
-      // ignorou o Range e mandou tudo; refazer o GET seria o desperdício que
-      // esta sonda existe pra evitar.
-      const source = probe.status === 200 ? probeBytes : await this.fetchFull(url);
-      if (source.byteLength > MAX_RENDER_BYTES) {
-        throw new Error(`DOCX acima do teto de render (${source.byteLength} bytes).`);
-      }
-
-      this.writeIntoTab(win, VIEWER_SHELL_HTML);
-      const host = win.document.getElementById(VIEWER_HOST_ID);
-      if (!host) throw new Error('Aba do contrato indisponível para render.');
-      await this.renderWithWatchdog(source, host);
-    } catch (err) {
-      this.logger.error('[rental-contract-card] open contract failed', err, {
-        rentalId: this.rentalId(),
-      });
-      this.error.set(
-        'Não foi possível exibir o contrato. Use "Baixar Contrato" para abrir o arquivo original.',
-      );
-      this.writeIntoTab(win, openFailedTabHtml(url));
-    } finally {
-      this.opening.set(false);
-    }
-  }
-
-  /** Baixa o arquivo inteiro — só o ramo DOCX, que precisa dos bytes pro parse. */
-  private async fetchFull(url: string): Promise<ArrayBuffer> {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const buffer = await resp.arrayBuffer();
-    if (buffer.byteLength === 0) throw new Error('Arquivo vazio no storage.');
-    return buffer;
-  }
-
-  /**
-   * Render com watchdog. Cobre as travas que ESPERAM — um `import()` de
-   * docx-preview que nunca resolve, I/O pendurado: aí o prazo estoura, a promise
-   * rejeita e o `catch` de {@link showInTab} entrega a página com o arquivo
-   * original. Não cobre CPU: o parse roda majoritariamente síncrono no event
-   * loop do opener (pop-up same-origin compartilha a thread), então um arquivo
-   * patológico bloquearia o próprio `setTimeout` — a defesa contra esse caso é
-   * {@link MAX_RENDER_BYTES}, que barra o arquivo antes do parser. O render não
-   * é cancelável — se terminar depois, escreve num host já descartado pelo
-   * `document.open()` da página de erro.
-   */
-  private async renderWithWatchdog(source: ArrayBuffer, host: HTMLElement): Promise<void> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const watchdog = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new Error('Render do contrato excedeu o tempo limite.')),
-        RENDER_TIMEOUT_MS,
-      );
-    });
-    try {
-      await Promise.race([this.docxPreview.render(source, host), watchdog]);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  /**
-   * Escreve um documento inteiro na aba já aberta. `open()` explícito porque
-   * cada página substitui a anterior ("Carregando…" → visualizador ou erro) —
-   * sem ele o `write` concatenaria as duas. Falha silenciosa de propósito: se o
-   * usuário já fechou a aba, isso não é um erro que ele precise ver.
-   */
-  private writeIntoTab(win: Window, html: string): void {
-    try {
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-    } catch {
-      /* noop — aba fechada pelo usuário ou bloqueada por policy */
-    }
   }
 
   protected askDelete(): void {
