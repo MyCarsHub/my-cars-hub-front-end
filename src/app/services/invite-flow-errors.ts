@@ -53,6 +53,8 @@ export function inviteAcceptProblemCopy(error: unknown, companyName: string): st
       return 'Este convite foi enviado para outro e-mail. Entre com a conta Google do e-mail que recebeu o convite.';
     case 'INVITE_GOOGLE_ACCOUNT_REQUIRED':
       return 'Para aceitar este convite, entre com uma conta Google.';
+    case 'INVITE_EMAIL_NOT_VERIFIED':
+      return 'Não conseguimos confirmar o e-mail desta conta Google. Entre de novo com a sua conta Google deste e-mail para aceitar o convite.';
     default:
       if (error instanceof HttpErrorResponse && error.status === 0) return INVITE_UNREACHABLE_COPY;
       return error instanceof HttpErrorResponse && error.status === 429

@@ -57,19 +57,20 @@ Disallow: /*?lang=
 
 # CONVITES — a única rota do app nomeada aqui, e NÃO por causa de indexação.
 #
-# `/invite/accept?token=…` (app.routes.ts:60) é pública de propósito: o convidado ainda
-# não tem sessão. Só que `pages/invites/invite-accept.ts` dispara a validação e o
-# `POST /invites/accept/{token}` do próprio `ngOnInit`, sem nenhum gesto do usuário — ou
-# seja, BUSCAR a URL já GASTA o convite, que é de uso único. Um crawler que siga o link
-# de um e-mail encaminhado ou de um print colado em fórum queima o convite de um cliente
-# real antes de ele clicar.
+# `/invite/accept?token=…` é pública de propósito: o convidado ainda não tem sessão, e é
+# o endereço que o link do e-mail de convite continua usando. Ele redireciona para
+# `/convite`, cuja página valida o token já no carregamento (uma leitura, sem gesto do
+# usuário). O aceite em si exige clique, então um crawler que busque o link não gasta o
+# convite; a linha fica por precaução, para que BUSCAR esse endereço não dispare nem a
+# validação (e o limite de requisições dela) a partir de um link encaminhado ou colado.
 #
-# `noindex` NÃO resolve: ele governa a indexação, e o estrago acontece no fetch, antes de
-# qualquer meta tag ser lida. `Disallow` é a única diretiva que pede para não BUSCAR.
+# `noindex` NÃO resolve: ele governa a indexação, e a requisição acontece no fetch, antes
+# de qualquer meta tag ser lida. `Disallow` é a única diretiva que pede para não BUSCAR.
 #
 # Não é contradição com o bloco do topo: lá a regra é sobre esconder caminho, o que
-# `Disallow` não faz mesmo. Aqui o que se pede é abstenção de um GET com efeito colateral.
-# Se um dia o accept passar a exigir clique explícito, esta linha pode sair.
+# `Disallow` não faz mesmo. Aqui o que se pede é abstenção de um GET com efeito no servidor.
+# Pode sair quando o link do e-mail deixar de usar `/invite/accept` ou a página `/convite`
+# deixar de chamar a validação ao carregar.
 Disallow: /invite/
 
 Sitemap: https://www.mycarshub.app.br/sitemap.xml
