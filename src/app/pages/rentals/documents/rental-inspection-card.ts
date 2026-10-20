@@ -21,7 +21,7 @@ import { PageCard } from '../../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../../services/api-error.service';
-import { ExternalNavigationService } from '../../../services/external-navigation.service';
+import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { LoggerService } from '../../../services/logger.service';
 import { NotificationService } from '../../../services/notification.service';
 import { DriverService } from '../../../services/driver.service';
@@ -111,10 +111,10 @@ interface Slot {
               >
                 @if (downloading()) { Baixando… } @else { {{ downloadLabel() }} }
               </button>
-              <button type="button" (click)="openPdf(doc.id)" [disabled]="openingPdf()"
+              <button type="button" (click)="openPdf(doc.id)"
                 class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold shadow-sm transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                @if (openingPdf()) { Abrindo… } @else { Abrir PDF }
+                Abrir PDF
               </button>
               <button type="button" (click)="askDelete()"
                 class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]"
@@ -332,7 +332,7 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly logger = inject(LoggerService);
-  private readonly externalNav = inject(ExternalNavigationService);
+  private readonly preview = inject(DocumentPreviewService);
   private readonly imageCompression = inject(ImageCompressionService);
   private readonly session = inject(SessionService);
   private readonly platformId = inject(PLATFORM_ID);
@@ -433,7 +433,6 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
    */
   protected readonly error = signal<string | null>(null);
   protected readonly generating = signal(false);
-  protected readonly openingPdf = signal(false);
   protected readonly downloading = signal(false);
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
@@ -796,19 +795,18 @@ export class RentalInspectionCard implements OnInit, OnDestroy {
       });
   }
 
+  /**
+   * Abre o laudo no visualizador do app (`DocumentPreviewService`, pdf.js) — nunca numa
+   * aba nova, que no Android baixava o arquivo e no iOS mostrava só a primeira página.
+   */
   protected openPdf(docId: string): void {
-    if (this.openingPdf()) return;
     this.error.set(null);
-    this.openingPdf.set(true);
-    this.rentalService.documentSignedUrl(this.rentalId(), docId).subscribe({
-      next: (res) => {
-        this.openingPdf.set(false);
-        this.externalNav.openExternal(res.url);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.openingPdf.set(false);
-        this.error.set(this.apiErrors.messageFor(err, 'Não foi possível abrir o PDF.'));
-      },
+    this.preview.open({
+      source: () => this.rentalService.documentSignedUrl(this.rentalId(), docId),
+      fileName: this.pdfFileName(),
+      title: 'Laudo de vistoria',
+      caption: this.pdfFileName(),
+      errorMessage: 'Não foi possível abrir o PDF.',
     });
   }
 
