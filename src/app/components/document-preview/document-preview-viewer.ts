@@ -62,6 +62,11 @@ const STAGE_GUTTER = 12;
 const MAX_FIT_SCALE = 1.6;
 /** Arrasto horizontal mínimo para o swipe trocar de foto. */
 const SWIPE_MIN_PX = 56;
+/**
+ * Vida do object URL do "Baixar". O clique já entregou o arquivo ao navegador; a folga
+ * curta é para o Safari do iOS, que ainda lê a URL logo depois do clique.
+ */
+const DOWNLOAD_URL_TTL_MS = 1000;
 /** Watchdog do render de DOCX — um arquivo patológico não prende o modal. */
 const DOCX_RENDER_TIMEOUT_MS = 30_000;
 
@@ -371,6 +376,8 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
     this.document.body.appendChild(a);
     a.click();
     a.remove();
+    // Cada "Baixar" cria um URL novo: revogado logo depois do clique, não só no fechar.
+    setTimeout(() => this.revokeObjectUrl(url), DOWNLOAD_URL_TTL_MS);
   }
 
   /** Opção secundária: o arquivo (blob local, nunca a signed URL) numa aba nova. */
@@ -772,6 +779,11 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
     const url = URL.createObjectURL(blob);
     this.objectUrls.add(url);
     return url;
+  }
+
+  private revokeObjectUrl(url: string): void {
+    if (!this.objectUrls.delete(url)) return;
+    URL.revokeObjectURL(url);
   }
 
   private measureStage(): void {

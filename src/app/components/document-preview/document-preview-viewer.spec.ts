@@ -250,6 +250,26 @@ describe('DocumentPreviewViewer', () => {
       expect(anchorClicks[0].href).toMatch(/^blob:/);
     });
 
+    it('revoga o object URL do download logo depois do clique, sem esperar o fechar', async () => {
+      await open({ source: new Blob([PDF]), fileName: 'Laudo' });
+      vi.useFakeTimers();
+      try {
+        el('[data-preview-download]')!.click();
+        const url = anchorClicks[0].href;
+        expect(revokeObjectURL).not.toHaveBeenCalledWith(url);
+
+        vi.advanceTimersByTime(1000);
+
+        expect(revokeObjectURL).toHaveBeenCalledWith(url);
+        // O PDF em exibição não usa object URL; o do download não é revogado de novo.
+        revokeObjectURL.mockClear();
+        fixture.destroy();
+        expect(revokeObjectURL).not.toHaveBeenCalledWith(url);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('DOCX de verdade sai .docx', async () => {
       await open({ source: new Blob([DOCX]), fileName: 'Contrato-r1' });
       el('[data-preview-download]')!.click();
