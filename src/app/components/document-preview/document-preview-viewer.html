@@ -2,8 +2,14 @@
   Celular (< sm): folha em tela cheia, sem fundo visível. Desktop: modal grande centralizado
   sobre um fundo escuro que fecha no clique. Palco escuro de propósito: a folha branca do
   documento e a foto são o que salta, como num visualizador de arquivos.
+
+  Camada: acima de TUDO que o app fixa na tela — banner de consentimento, banners de "Ver
+  como empresa"/modo suporte e toasts. Os banners de topo têm a altura do cabeçalho deste
+  modal e escondiam o X, o título e o "Baixar" justamente no modo suporte, onde o admin abre
+  documentos. Só a tela de manutenção (`app.html`) fica por cima, de propósito. Quem subir a
+  camada de um desses componentes confere esta aqui.
 -->
-<div class="dp-root fixed inset-0 z-[70] flex items-stretch justify-center sm:items-center sm:p-6">
+<div class="dp-root fixed inset-0 z-[200] flex items-stretch justify-center sm:items-center sm:p-6">
   <div
     data-preview-backdrop
     class="dp-scrim absolute inset-0 bg-black/70"
