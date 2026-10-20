@@ -230,6 +230,20 @@ describe('DocumentPreviewViewer', () => {
       expect(el('[data-preview-new-tab]')).toBeNull();
     });
 
+    it('foco dentro do iframe volta ao painel: Esc e o Tab preso continuam funcionando', async () => {
+      await open({ source: new Blob([DOCX]), fileName: 'Contrato' });
+      const frame = el('[data-preview-docx]') as HTMLIFrameElement;
+      const dialog = el('[role="dialog"]')!;
+
+      expect(frame.getAttribute('tabindex')).toBe('-1');
+      frame.focus();
+      frame.dispatchEvent(new FocusEvent('focus'));
+
+      expect(document.activeElement).toBe(dialog);
+      key('Escape');
+      expect(closed).toBe(1);
+    });
+
     it('acima do teto de render vira "arquivo grande" só com Baixar', async () => {
       const big = new Blob([DOCX]);
       Object.defineProperty(big, 'size', { value: 9 * 1024 * 1024 });

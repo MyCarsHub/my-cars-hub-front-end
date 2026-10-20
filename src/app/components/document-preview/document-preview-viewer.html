@@ -225,9 +225,13 @@
                 <ng-container [ngTemplateOutlet]="skeleton" />
               }
               @if (docxSrcdoc(); as srcdoc) {
-                <!-- sandbox vazio: sem scripts, sem same-origin, sem formulários nem navegação. -->
+                <!-- sandbox vazio: sem scripts, sem same-origin, sem formulários nem navegação.
+                     Fora do Tab e devolve o foco ao painel: tecla dentro de um iframe de origem
+                     opaca nunca chega até nós, então Esc e o Tab preso morreriam ali. -->
                 <iframe
                   data-preview-docx
+                  tabindex="-1"
+                  (focus)="onFrameFocus()"
                   sandbox=""
                   referrerpolicy="no-referrer"
                   [title]="'Documento: ' + title()"

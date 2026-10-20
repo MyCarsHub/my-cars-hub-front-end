@@ -68,7 +68,6 @@ const DOCX_RENDER_TIMEOUT_MS = 30_000;
 const FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',
-  'iframe',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -402,6 +401,15 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
 
   protected resetZoom(): void {
     this.setZoom(1);
+  }
+
+  /**
+   * O iframe do DOCX recebeu foco (toque/clique dentro dele). O documento dele é de origem
+   * opaca (`sandbox=""`): nenhum keydown lá dentro chega ao painel, e Esc/Tab deixariam de
+   * funcionar. O foco volta ao painel; a rolagem por toque/roda continua no iframe.
+   */
+  protected onFrameFocus(): void {
+    this.panel().nativeElement.focus({ preventScroll: true });
   }
 
   protected onImageLoad(event: Event): void {
