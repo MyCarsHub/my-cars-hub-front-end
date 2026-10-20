@@ -40,8 +40,18 @@ describe('invite-flow-errors', () => {
     ['INVITE_DRIVER_NOT_REGISTERED', 'cadastro de motorista'],
     ['INVITE_EMAIL_MISMATCH', 'outro e-mail'],
     ['INVITE_GOOGLE_ACCOUNT_REQUIRED', 'conta Google'],
+    ['INVITE_EMAIL_NOT_VERIFIED', 'Entre de novo com a sua conta Google deste e-mail'],
   ])('maps %s to its own copy', (code, fragment) => {
     expect(inviteAcceptProblemCopy(err(409, { code, message: 'raw' }), 'Locadora Alfa')).toContain(fragment);
+  });
+
+  it('INVITE_EMAIL_NOT_VERIFIED (403) is not the generic "try again" copy', () => {
+    const copy = inviteAcceptProblemCopy(
+      err(403, { code: 'INVITE_EMAIL_NOT_VERIFIED', message: 'raw' }),
+      'Locadora Alfa',
+    );
+    expect(copy).not.toContain('Tente novamente');
+    expect(copy).not.toContain('raw');
   });
 
   it('falls back to a generic, rate-limit or offline copy for unknown causes', () => {

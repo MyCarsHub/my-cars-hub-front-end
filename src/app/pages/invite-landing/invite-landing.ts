@@ -330,7 +330,9 @@ export class InviteLanding implements OnInit {
         this.clearJoinWatchdog();
         const code = inviteFlowErrorCode(err);
         this.canSwitchAccount.set(
-          code === 'INVITE_EMAIL_MISMATCH' || code === 'INVITE_GOOGLE_ACCOUNT_REQUIRED',
+          code === 'INVITE_EMAIL_MISMATCH' ||
+            code === 'INVITE_GOOGLE_ACCOUNT_REQUIRED' ||
+            code === 'INVITE_EMAIL_NOT_VERIFIED',
         );
         if (this.changeScreenFor(err)) return;
         this.showProblem(inviteAcceptProblemCopy(err, this.companyName()), code === null);

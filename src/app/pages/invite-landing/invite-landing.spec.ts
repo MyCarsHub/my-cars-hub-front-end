@@ -618,6 +618,30 @@ describe('InviteLanding (/convite)', () => {
       expect(sessionStorage.getItem('token')).not.toBeNull();
     });
 
+    it('INVITE_EMAIL_NOT_VERIFIED says to sign in again with the invited e-mail, with no retry, and the button restarts Google', async () => {
+      await resumeFromGoogle();
+
+      memberRequest().flush(
+        { code: 'INVITE_EMAIL_NOT_VERIFIED', message: 'x' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+      await settle();
+
+      expect(text()).toContain('Entre de novo com a sua conta Google deste e-mail');
+      expect(text()).not.toContain('Tente novamente');
+      expect(text()).not.toContain('Tentar de novo');
+      expect(text()).not.toContain('Ir para o login');
+      const switchButton = Array.from(dom().querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Entrar com outra conta Google'),
+      ) as HTMLButtonElement;
+      expect(switchButton).toBeTruthy();
+
+      switchButton.click();
+
+      expect(loginWithGoogle).toHaveBeenCalledTimes(1);
+      expect(sessionStorage.getItem(PENDING_INVITE_TOKEN_KEY)).toBe('tok-123');
+    });
+
     describe('never an endless spinner', () => {
       it('a DRIVER with a pending registration gets an onboarding token and no access token: it goes to the onboarding and keeps the Google session', async () => {
         await resumeFromGoogle();
