@@ -16,6 +16,12 @@ export interface PdfHandle {
    * Um render anterior no MESMO canvas é cancelado. Resolve `false` quando foi cancelado.
    */
   render(pageNumber: number, canvas: HTMLCanvasElement, cssWidth: number): Promise<boolean>;
+  /**
+   * Devolve a memória de um canvas que saiu da janela de rolagem: cancela o render em voo
+   * e zera o bitmap (`width`/`height` = 0). Um PDF longo no celular acumularia dezenas de
+   * bitmaps de página até a aba morrer. Redesenhe com `render()` quando a página voltar.
+   */
+  release(canvas: HTMLCanvasElement): void;
   destroy(): void;
 }
 
@@ -97,6 +103,12 @@ export class PdfPreviewEngine {
         } finally {
           if (running.get(canvas) === task) running.delete(canvas);
         }
+      },
+      release(canvas) {
+        running.get(canvas)?.cancel();
+        running.delete(canvas);
+        canvas.width = 0;
+        canvas.height = 0;
       },
       destroy() {
         for (const task of running.values()) task.cancel();

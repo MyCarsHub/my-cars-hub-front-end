@@ -19,7 +19,11 @@ describe('DocumentPreviewViewer', () => {
   const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
   let fixture: ComponentFixture<DocumentPreviewViewer>;
-  let pdfHandle: PdfHandle & { render: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> };
+  let pdfHandle: PdfHandle & {
+    render: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
+  };
   let pdfOpen: ReturnType<typeof vi.fn>;
   let docxToSafeHtml: ReturnType<typeof vi.fn>;
   let createObjectURL: ReturnType<typeof vi.fn>;
@@ -61,6 +65,10 @@ describe('DocumentPreviewViewer', () => {
         { width: 595, height: 842 },
       ]),
       render: vi.fn().mockResolvedValue(true),
+      release: vi.fn((canvas: HTMLCanvasElement) => {
+        canvas.width = 0;
+        canvas.height = 0;
+      }),
       destroy: vi.fn(),
     } as never;
     pdfOpen = vi.fn().mockResolvedValue(pdfHandle);
@@ -152,6 +160,45 @@ describe('DocumentPreviewViewer', () => {
       // Sem IntersectionObserver no JSDOM: as primeiras páginas são desenhadas direto.
       expect(pdfHandle.render).toHaveBeenCalled();
       expect(pdfHandle.render.mock.calls[0][0]).toBe(1);
+    });
+
+    it('página que sai da janela libera o canvas e é redesenhada quando volta', async () => {
+      // IntersectionObserver controlado: o JSDOM não tem layout para decidir sozinho.
+      let notify: (entries: Partial<IntersectionObserverEntry>[]) => void = () => undefined;
+      class FakeObserver {
+        constructor(cb: (entries: Partial<IntersectionObserverEntry>[]) => void) {
+          notify = cb;
+        }
+        observe(): void {}
+        disconnect(): void {}
+        unobserve(): void {}
+      }
+      vi.stubGlobal('IntersectionObserver', FakeObserver);
+      try {
+        await open({ source: new Blob([PDF]), fileName: 'Laudo' });
+        const canvases = Array.from(
+          fixture.nativeElement.querySelectorAll('[data-preview-pdf] canvas'),
+        ) as HTMLCanvasElement[];
+        const page3 = canvases[2];
+
+        notify([{ target: page3, isIntersecting: true }]);
+        await settle();
+        const rendersOfPage3 = () => pdfHandle.render.mock.calls.filter((c) => c[0] === 3).length;
+        expect(rendersOfPage3()).toBe(1);
+        page3.width = 800;
+        page3.height = 1100;
+
+        notify([{ target: page3, isIntersecting: false }]);
+        expect(pdfHandle.release).toHaveBeenCalledWith(page3);
+        expect(page3.width).toBe(0);
+        expect(page3.height).toBe(0);
+
+        notify([{ target: page3, isIntersecting: true }]);
+        await settle();
+        expect(rendersOfPage3()).toBe(2);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it('zoom pelos botões muda a largura da página e respeita os limites', async () => {

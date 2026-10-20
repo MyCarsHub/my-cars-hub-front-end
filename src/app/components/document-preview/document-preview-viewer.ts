@@ -634,7 +634,11 @@ export class DocumentPreviewViewer implements AfterViewInit, OnDestroy {
             this.visiblePages.add(page);
             this.renderPage(page, entry.target as HTMLCanvasElement);
           } else {
+            // Fora da janela (tela visível + uma de folga): libera o bitmap e esquece que
+            // a página estava desenhada, para redesenhar quando ela voltar.
             this.visiblePages.delete(page);
+            this.renderedAt.delete(page);
+            this.pdf?.release(entry.target as HTMLCanvasElement);
           }
         }
       },
