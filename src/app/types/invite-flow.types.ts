@@ -2,8 +2,9 @@
  * Contract of the NEW invite flow (backend `develop`, not yet in production):
  * `POST /v1/invites/validate|accept|accept-as-member` and `/v1/invite-onboarding/**`.
  *
- * Distinct from `invite.types.ts`, which describes the OLD `/v1/invites/validate/{token}` +
- * `/v1/invites/accept/{token}` endpoints that stay in production until this ships.
+ * Distinct from `invite.types.ts`, which describes the admin-side `/v1/invites` CRUD (list,
+ * create, resend, cancel). The OLD `/v1/invites/validate/{token}` + `/v1/invites/accept/{token}`
+ * client and its types were removed (FIX-0634).
  */
 
 /**
