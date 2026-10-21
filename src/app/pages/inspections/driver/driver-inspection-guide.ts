@@ -79,9 +79,12 @@ export function angleGuide(angle: string, label: string): AngleGuide {
   );
 }
 
-/** Keeps only digits (at most 7) and writes them with the pt-BR thousands dot: `42.318`. */
+/**
+ * Keeps only digits (at most 7) and writes them with the pt-BR thousands dot: `42.318`.
+ * Whatever follows a decimal comma is dropped: a pasted `42.318,5` is 42.318 km, never 423.185.
+ */
 export function maskKm(raw: string): string {
-  const digits = raw.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 7);
+  const digits = raw.split(',')[0].replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 7);
   return digits === '' ? '' : formatPtBrNumber(Number(digits), 0);
 }
 

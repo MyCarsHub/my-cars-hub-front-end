@@ -366,9 +366,18 @@ export class InspectionsList implements OnInit {
       // para a rede de seguranca nao disparar toast duplo.
       .subscribe({
         next: () => {
-          if (this.isDriver) this.loadRejectionReason();
+          // The hero reads ONLY the first page (the most recent ones): page 2 holds old,
+          // already redone inspections and must not drive "what to do now".
+          if (this.isDriver && page === 0) {
+            this.heroCards.set(this.cards());
+            this.loadRejectionReason();
+          }
         },
-        error: (err: unknown) => this.apiErrors.claim(err),
+        error: (err: unknown) => {
+          // Unknown is not "nothing open": without page 0 the hero offers nothing.
+          if (page === 0) this.heroCards.set(null);
+          this.apiErrors.claim(err);
+        },
       });
   }
 
@@ -518,8 +527,14 @@ export class InspectionsList implements OnInit {
    */
   protected readonly latestRejection = signal<{ id: string; reason: string | null } | null>(null);
 
+  /**
+   * The cards of PAGE 0 — the driver's most recent inspections, newest first — as of the
+   * last successful load of that page. `null` = not known (never loaded, or that load failed).
+   */
+  protected readonly heroCards = signal<InspectionCardView[] | null>(null);
+
   private loadRejectionReason(): void {
-    const latest = this.cards()[0];
+    const latest = this.heroCards()?.[0];
     if (!latest || latest.status !== 'REJECTED') {
       this.latestRejection.set(null);
       return;
@@ -582,8 +597,10 @@ export class InspectionsList implements OnInit {
    * `null` = still loading what the answer depends on.
    */
   protected readonly driverHero = computed<DriverInspectionHero | null>(() => {
-    if (this.loading()) return null;
-    const cards = this.error() ? [] : this.cards();
+    // Unknown while the first page is loading or failed: the list's error banner (with
+    // "Tentar novamente") is the state. Never "Começar" over an inspection we could not see.
+    const cards = this.heroCards();
+    if (cards === null) return null;
     const total = INSPECTION_ANGLE_TOTAL;
 
     const pending = cards.find((c) => c.status === 'PENDING');
@@ -613,11 +630,9 @@ export class InspectionsList implements OnInit {
           ? `Motivo: ${reason}`
           : 'A locadora pediu para refazer as fotos. Comece de novo pelo botão abaixo.',
         actions: [
-          {
-            label: 'Refazer vistoria',
-            link: [this.root, latest.id, 'captura'],
-            queryParams: { refazer: '1' },
-          },
+          // Opens the refused inspection in the guided capture; the redo itself is one more,
+          // deliberate tap there ("Refazer vistoria"), never a side effect of the link.
+          { label: 'Refazer vistoria', link: [this.root, latest.id, 'captura'] },
         ],
       };
     }
@@ -659,7 +674,9 @@ export class InspectionsList implements OnInit {
 
   /** The hero's own failure: only when the answer depended on the active rental. */
   protected readonly driverHeroError = computed(() =>
-    this.driverHero() === null && !this.loading() && this.driverVehiclesState() === 'error'
+    this.driverHero() === null &&
+    this.heroCards() !== null &&
+    this.driverVehiclesState() === 'error'
       ? 'Não conseguimos achar o seu aluguel ativo agora.'
       : null,
   );

@@ -21,6 +21,9 @@ describe('driver-inspection-guide', () => {
     expect(maskKm('0042')).toBe('42');
     expect(maskKm('123456789')).toBe('1.234.567');
     expect(maskKm('')).toBe('');
+    // A pasted decimal keeps the whole kilometres; the comma's part is dropped, not glued.
+    expect(maskKm('42.318,5')).toBe('42.318');
+    expect(parseKm(maskKm('42.318,5'))).toBe(42318);
     expect(parseKm('1.234.567')).toBe(1234567);
     expect(parseKm('')).toBeNull();
   });

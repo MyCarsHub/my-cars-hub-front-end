@@ -468,15 +468,6 @@ export class InspectionCapture implements OnInit, OnDestroy {
         // Quem CONTINUA uma vistoria precisa ver o que ja fotografou: sem isto, reabrir a
         // tela mostrava quadros vazios para angulos que estao no servidor.
         this.loadPhotos(id);
-        // "Refazer vistoria" on the driver's list/detail lands here with `?refazer=1`: one
-        // tap, the same `recapture` as the button on this screen.
-        if (
-          this.isDriver &&
-          found.status === 'REJECTED' &&
-          this.route.snapshot.queryParamMap.get('refazer') === '1'
-        ) {
-          this.recapture();
-        }
       },
       error: (err: unknown) => {
         this.loadingId = null;

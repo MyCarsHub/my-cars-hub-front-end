@@ -62,10 +62,10 @@
               O motivo não foi informado. Se precisar entender o que ajustar, fale com a locadora.
             }
           </p>
+          @if (canRedo() === true) {
           <a
             data-driver-redo
             [routerLink]="captureLink()"
-            [queryParams]="{ refazer: '1' }"
             class="mt-2 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-primary-500 text-white
                    text-[15px] font-semibold inline-flex items-center justify-center active:scale-[0.98]
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
@@ -73,6 +73,12 @@
           >
             Refazer vistoria
           </a>
+          } @else if (canRedo() === false) {
+            <p data-driver-redo-elsewhere class="text-sm leading-relaxed text-rose-900">
+              Esta não é a vistoria mais recente deste carro. Para saber o que fazer agora, veja
+              <a [routerLink]="listLink()" class="underline font-semibold">Vistorias</a>.
+            </p>
+          }
         </div>
       } @else if (status() === 'SUBMITTED') {
         <app-alert-banner

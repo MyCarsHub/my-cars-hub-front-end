@@ -4,12 +4,14 @@
   without its title: the step itself is the heading.
 -->
 <section
+  [attr.inert]="exitOpen() ? '' : null"
   class="w-full min-h-full px-4 sm:px-6 pt-[calc(4.5rem+env(safe-area-inset-top))] lg:pt-10
          pb-[env(safe-area-inset-bottom)] bg-white"
 >
   <div data-wizard class="mx-auto w-full max-w-[520px] flex flex-col min-h-[calc(100dvh-5rem)]">
     <div class="flex items-center gap-2">
       <button
+        #exitButton
         type="button"
         data-exit
         (click)="askExit()"
@@ -416,12 +418,17 @@
     aria-labelledby="wizard-exit-title"
     aria-describedby="wizard-exit-text"
     data-exit-dialog
-    (keydown.escape)="stay()"
+    (keydown.tab)="trapTab($event)"
     class="fixed z-[56] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(400px,calc(100vw-32px))]
            rounded-2xl bg-white p-6 flex flex-col gap-3 shadow-xl"
   >
     <h2 id="wizard-exit-title" class="text-lg font-bold text-neutral-900">Sair da vistoria?</h2>
-    <p id="wizard-exit-text" class="text-sm leading-relaxed text-neutral-600">{{ exitMessage() }}</p>
+    <p id="wizard-exit-text" class="text-sm leading-relaxed text-neutral-600">
+      {{ exitMessage() }}
+      @if (lostOnExit(); as warning) {
+        <span data-exit-lost class="block mt-2 font-semibold text-rose-700">{{ warning }}</span>
+      }
+    </p>
     <div class="mt-2 flex flex-col gap-2">
       <button
         #stayButton
@@ -434,6 +441,7 @@
         Continuar a vistoria
       </button>
       <button
+        #leaveButton
         type="button"
         data-exit-leave
         (click)="exit()"

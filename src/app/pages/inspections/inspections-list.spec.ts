@@ -1070,7 +1070,36 @@ describe('InspectionsList', () => {
         'Motivo: painel tremido',
       );
       expect(cta?.textContent?.trim()).toBe('Refazer vistoria');
-      expect(cta?.getAttribute('href')).toBe('/vistorias/b/captura?refazer=1');
+      // The link only OPENS the refused one: the redo is a tap there, never a side effect.
+      expect(cta?.getAttribute('href')).toBe('/vistorias/b/captura');
+    });
+
+    it('lista que falhou NAO vira "Começar vistoria": o estado e o erro com tentar de novo', () => {
+      listSpy.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+      error.set('Não foi possível carregar as vistorias.');
+      const fixture = render();
+
+      expect(hero(fixture)).toBeNull();
+      expect(host(fixture).querySelector('[data-driver-hero-cta]')).toBeNull();
+      expect(text(fixture)).not.toContain('Começar vistoria');
+      expect(host(fixture).querySelector('[data-driver-retry-list]')).not.toBeNull();
+    });
+
+    it('o hero vem SO da pagina 0: a pagina 2 (antigas) nao muda o que fazer agora', () => {
+      items.set([{ ...item, id: 'a', status: 'PENDING', photoCount: 5 }]);
+      total.set(25);
+      const fixture = render();
+      expect(hero(fixture)?.textContent).toContain('Continuar vistoria');
+
+      // Page 2: an old refusal, already redone. It must not take over the hero.
+      items.set([{ ...item, id: 'old', status: 'REJECTED' }]);
+      host(fixture).querySelector<HTMLButtonElement>('[data-driver-next]')!.click();
+      fixture.detectChanges();
+
+      expect(lastQuery()['page']).toBe(1);
+      expect(hero(fixture)?.textContent).toContain('Continuar vistoria');
+      expect(hero(fixture)?.textContent).not.toContain('Refaça');
+      expect(getOneSpy).not.toHaveBeenCalledWith('old');
     });
 
     it('com a ultima enviada, o hero diz que aguarda a locadora, sem acao', () => {

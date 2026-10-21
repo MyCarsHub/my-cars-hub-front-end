@@ -278,6 +278,7 @@ export class InspectionReview implements OnInit {
         this.inspection.set(found);
         this.loading.set(false);
         this.loadPhotos();
+        if (this.isDriver) this.checkRedo(found);
       },
       error: (err: unknown) => {
         this.loading.set(false);
@@ -533,4 +534,23 @@ export class InspectionReview implements OnInit {
   });
 
   protected readonly captureLink = computed(() => [this.root, this.id(), 'captura']);
+
+  /**
+   * May the driver redo THIS refused inspection? Only when it is still the most recent one of
+   * its vehicle: once a newer one exists (redone, or approved since), redoing an old refusal
+   * would open a duplicate. `null` = not known yet (or the check failed): no button and no
+   * claim either way — the list's hero still offers the redo of the most recent one.
+   */
+  protected readonly canRedo = signal<boolean | null>(null);
+
+  private checkRedo(found: Inspection): void {
+    this.canRedo.set(null);
+    if (found.status !== 'REJECTED') return;
+    this.service
+      .list({ vehicleId: found.vehicleId, page: 0, size: 1, sort: 'date,desc' })
+      .subscribe({
+        next: (res) => this.canRedo.set(res?.content?.[0]?.id === found.id),
+        error: (err: unknown) => this.apiErrors.claim(err),
+      });
+  }
 }

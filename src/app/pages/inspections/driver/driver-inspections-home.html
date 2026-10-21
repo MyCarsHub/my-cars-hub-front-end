@@ -25,14 +25,12 @@
       </div>
     }
 
-    @if (state() === 'loading' || (!hero() && !heroError())) {
-      <div data-driver-skeleton aria-hidden="true" class="flex flex-col gap-4">
-        <div class="h-40 rounded-2xl bg-neutral-200 animate-pulse"></div>
-        @if (state() === 'loading') {
-          <div class="h-32 rounded-2xl bg-neutral-200 animate-pulse"></div>
-        }
-      </div>
-    } @else if (heroError(); as message) {
+    <!--
+      HERO. Unknown (first page not loaded, or its load failed) shows no hero at all: the
+      list's error banner above is the state, and "Começar vistoria" over an inspection we
+      could not see would open a second one.
+    -->
+    @if (heroError(); as message) {
       <div data-driver-hero-error>
         <app-alert-banner variant="error">
           {{ message }}
@@ -115,6 +113,12 @@
       @if (startError(); as message) {
         <app-alert-banner variant="error" [message]="message" />
       }
+    } @else if (state() !== 'error') {
+      <div data-driver-hero-skeleton aria-hidden="true" class="h-40 rounded-2xl bg-neutral-200 animate-pulse"></div>
+    }
+
+    @if (state() === 'loading') {
+      <div data-driver-skeleton aria-hidden="true" class="h-32 rounded-2xl bg-neutral-200 animate-pulse"></div>
     }
 
     @if (state() === 'ready') {

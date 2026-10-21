@@ -47,7 +47,11 @@ type View = 'cap' | 'odo' | 'review';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [AlertBanner, RouterLink],
   templateUrl: './driver-inspection-wizard.html',
-  host: { class: 'block' },
+  host: {
+    class: 'block',
+    // Esc closes the exit dialog wherever the focus is.
+    '(document:keydown.escape)': 'onEscape()',
+  },
 })
 export class DriverInspectionWizard {
   /** Changes when the page swaps inspections (redo): the steps start over. */
@@ -102,6 +106,8 @@ export class DriverInspectionWizard {
   protected readonly kmError = signal<string | null>(null);
   protected readonly exitOpen = signal(false);
   private readonly stayButton = viewChild<ElementRef<HTMLButtonElement>>('stayButton');
+  private readonly leaveButton = viewChild<ElementRef<HTMLButtonElement>>('leaveButton');
+  private readonly exitButton = viewChild<ElementRef<HTMLButtonElement>>('exitButton');
 
   constructor() {
     // The exit dialog takes focus on its safe choice, so Enter on the X never leaves by accident.
@@ -177,6 +183,19 @@ export class DriverInspectionWizard {
     return done === 0
       ? 'Você continua de onde parou quando voltar.'
       : `${done === 1 ? 'Sua foto já foi enviada' : `Suas ${done} fotos já foram enviadas`} e você continua de onde parou.`;
+  });
+
+  /**
+   * Photos whose upload FAILED live only in this page's memory: leaving drops them. The
+   * dialog names them, so "Sair" is a choice made knowing it.
+   */
+  protected readonly lostOnExit = computed(() => {
+    const failed = this.slots().filter((s) => !!s.failure && !s.done);
+    if (failed.length === 0) return null;
+    const names = failed.map((s) => s.label).join(', ');
+    return failed.length === 1
+      ? `A foto de ${names} não foi enviada e será perdida se você sair.`
+      : `As fotos de ${names} não foram enviadas e serão perdidas se você sair.`;
   });
 
   // ------------------------------------------------------------- capture
@@ -255,6 +274,27 @@ export class DriverInspectionWizard {
 
   protected stay(): void {
     this.exitOpen.set(false);
+    // Back where the person was: the X that opened the dialog.
+    queueMicrotask(() => this.exitButton()?.nativeElement.focus());
+  }
+
+  protected onEscape(): void {
+    if (this.exitOpen()) this.stay();
+  }
+
+  /** Keeps Tab inside the dialog: the page behind it is `inert` while it is open. */
+  protected trapTab(event: Event): void {
+    const key = event as KeyboardEvent;
+    const first = this.stayButton()?.nativeElement;
+    const last = this.leaveButton()?.nativeElement;
+    if (!first || !last) return;
+    if (key.shiftKey && document.activeElement === first) {
+      key.preventDefault();
+      last.focus();
+    } else if (!key.shiftKey && document.activeElement === last) {
+      key.preventDefault();
+      first.focus();
+    }
   }
 
   protected exit(): void {

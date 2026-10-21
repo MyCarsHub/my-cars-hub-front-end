@@ -102,6 +102,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
   let reject: ReturnType<typeof vi.fn>;
   let reportUrl: ReturnType<typeof vi.fn>;
   let previewOpen: ReturnType<typeof vi.fn>;
+  let list: ReturnType<typeof vi.fn>;
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let notifications: NotificationService;
   let role: string;
@@ -114,6 +115,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
     reject = vi.fn().mockReturnValue(of(REJECTED));
     reportUrl = vi.fn().mockReturnValue(of({ url: 'https://storage.example/laudo.pdf?sig=1' }));
     previewOpen = vi.fn();
+    list = vi.fn().mockReturnValue(of({ content: [{ id: 'insp-1' }], page: 0, size: 1, total: 1 }));
     params = new BehaviorSubject(convertToParamMap({ id: 'insp-1' }));
 
     TestBed.configureTestingModule({
@@ -124,7 +126,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
         ApiErrorService,
         {
           provide: InspectionsService,
-          useValue: { getOne, photos, approve, reject, reportUrl },
+          useValue: { getOne, photos, approve, reject, reportUrl, list },
         },
         { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
         { provide: DocumentPreviewService, useValue: { open: previewOpen } },
@@ -972,9 +974,22 @@ describe('InspectionReview — detalhes da vistoria', () => {
       const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
 
       expect(q(fixture, '[data-driver-rejected]')?.textContent).toContain('Motivo: Refaça.');
-      expect(q<HTMLAnchorElement>(fixture, '[data-driver-redo]')?.getAttribute('href')).toBe(
-        '/vistorias/insp-1/captura?refazer=1',
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ vehicleId: DETAIL.vehicleId, page: 0, size: 1, sort: 'date,desc' }),
       );
+      expect(q<HTMLAnchorElement>(fixture, '[data-driver-redo]')?.getAttribute('href')).toBe(
+        '/vistorias/insp-1/captura',
+      );
+    });
+
+    it('recusada ANTIGA (ja existe uma mais recente do carro) nao oferece refazer', () => {
+      role = 'DRIVER';
+      configure();
+      list.mockReturnValue(of({ content: [{ id: 'insp-9' }], page: 0, size: 1, total: 2 }));
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+      expect(q(fixture, '[data-driver-redo]')).toBeNull();
+      expect(q(fixture, '[data-driver-redo-elsewhere]')).not.toBeNull();
     });
 
     it('o dono na vistoria recusada nao ve o atalho de refazer', () => {

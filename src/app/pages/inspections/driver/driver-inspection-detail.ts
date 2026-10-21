@@ -40,6 +40,8 @@ export class DriverInspectionDetail {
   readonly pdfName = input('vistoria.pdf');
   readonly listLink = input('/vistorias');
   readonly captureLink = input<readonly string[]>([]);
+  /** The refusal can be redone from here only when it is the vehicle's most recent inspection. */
+  readonly canRedo = input<boolean | null>(null);
 
   readonly retry = output<void>();
   readonly retryPhotos = output<void>();

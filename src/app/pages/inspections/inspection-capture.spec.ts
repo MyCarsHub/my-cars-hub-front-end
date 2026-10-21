@@ -1238,10 +1238,11 @@ describe('InspectionCapture', () => {
       expect(recapture).toHaveBeenCalledWith('insp-1');
     });
 
-    it('"Refazer vistoria" da lista (?refazer=1) refaz em um toque', () => {
-      open({ status: 'REJECTED' }, { refazer: '1' });
+    it('abrir a recusada (mesmo com ?refazer=1 velho na URL) NAO refaz sozinho', () => {
+      const fixture = open({ status: 'REJECTED' }, { refazer: '1' });
 
-      expect(recapture).toHaveBeenCalledTimes(1);
+      expect(recapture).not.toHaveBeenCalled();
+      expect(q(fixture, '[data-wizard-redo]')).not.toBeNull();
     });
 
     it('sem ?refazer=1 a recusada NAO e refeita sozinha', () => {
@@ -1261,6 +1262,55 @@ describe('InspectionCapture', () => {
       q<HTMLButtonElement>(fixture, '[data-exit-stay]')!.click();
       fixture.detectChanges();
       expect(q(fixture, '[data-exit-dialog]')).toBeNull();
+    });
+
+    it('Esc fecha o dialogo de saida com o foco em qualquer lugar, e o foco volta ao X', async () => {
+      const fixture = open({ capturedAngles: ['FRONT'] });
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+      expect(q(fixture, '[data-wizard]')?.closest('section')?.hasAttribute('inert')).toBe(true);
+
+      (document.activeElement as HTMLElement | null)?.blur();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+      await flush(fixture);
+
+      expect(q(fixture, '[data-exit-dialog]')).toBeNull();
+      expect(q(fixture, '[data-wizard]')?.closest('section')?.hasAttribute('inert')).toBe(false);
+      expect(document.activeElement).toBe(q(fixture, '[data-exit]'));
+    });
+
+    it('Tab fica preso no dialogo de saida', () => {
+      const fixture = open({ capturedAngles: ['FRONT'] });
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+      const leave = q<HTMLButtonElement>(fixture, '[data-exit-leave]')!;
+      leave.focus();
+
+      q(fixture, '[data-exit-dialog]')!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
+      );
+
+      expect(document.activeElement).toBe(q(fixture, '[data-exit-stay]'));
+    });
+
+    it('sair avisa que a foto que falhou no envio vai se perder', async () => {
+      const fixture = open();
+      uploadPhoto.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+      q<HTMLButtonElement>(fixture, '[data-shutter]')!.click();
+      fixture.detectChanges();
+      fixture.debugElement
+        .query((dbg) => dbg.name === 'app-live-camera-sheet')
+        .triggerEventHandler('captured', new File(['x'], 'f.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+      expect(q(fixture, '[data-wizard-retry]')).not.toBeNull();
+
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, '[data-exit-lost]')?.textContent).toContain(
+        'A foto de Frente não foi enviada e será perdida se você sair.',
+      );
     });
 
     it('o dono continua com a grade de sempre', () => {
