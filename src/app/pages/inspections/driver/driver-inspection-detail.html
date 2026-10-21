@@ -62,7 +62,7 @@
               O motivo não foi informado. Se precisar entender o que ajustar, fale com a locadora.
             }
           </p>
-          @if (canRedo() === true) {
+          @if (canRedo() === 'yes') {
           <a
             data-driver-redo
             [routerLink]="captureLink()"
@@ -73,9 +73,14 @@
           >
             Refazer vistoria
           </a>
-          } @else if (canRedo() === false) {
+          } @else if (canRedo() === 'no') {
             <p data-driver-redo-elsewhere class="text-sm leading-relaxed text-rose-900">
               Esta não é a vistoria mais recente deste carro. Para saber o que fazer agora, veja
+              <a [routerLink]="listLink()" class="underline font-semibold">Vistorias</a>.
+            </p>
+          } @else if (canRedo() === 'unknown') {
+            <p data-driver-redo-unknown class="text-sm leading-relaxed text-rose-900">
+              Não conseguimos confirmar agora se esta é a mais recente. Para refazer, abra
               <a [routerLink]="listLink()" class="underline font-semibold">Vistorias</a>.
             </p>
           }

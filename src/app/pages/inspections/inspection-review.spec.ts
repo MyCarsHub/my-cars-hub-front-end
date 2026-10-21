@@ -996,6 +996,53 @@ describe('InspectionReview — detalhes da vistoria', () => {
       expect(q(fixture, '[data-driver-redo-elsewhere]')).not.toBeNull();
     });
 
+    it('checagem que falhou nao afirma nada: aponta para Vistorias, sem botao', () => {
+      role = 'DRIVER';
+      configure();
+      peek.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+      expect(q(fixture, '[data-driver-redo]')).toBeNull();
+      expect(q(fixture, '[data-driver-redo-elsewhere]')).toBeNull();
+      expect(
+        q<HTMLAnchorElement>(fixture, '[data-driver-redo-unknown] a')?.getAttribute('href'),
+      ).toBe('/vistorias');
+    });
+
+    it('resposta atrasada da vistoria anterior nao decide o refazer da atual', () => {
+      role = 'DRIVER';
+      configure();
+      const slow = new Subject<{ content: { id: string }[]; page: number; size: number; total: number }>();
+      peek.mockReturnValue(slow);
+      getOne.mockReturnValue(of({ ...DETAIL, status: 'REJECTED', rejectionReason: 'Refaça.' }));
+      const fixture = render();
+
+      // Same instance, another id (the route reuses it), whose own check has not answered.
+      peek.mockReturnValue(new Subject());
+      getOne.mockReturnValue(
+        of({ ...DETAIL, id: 'insp-2', status: 'REJECTED', rejectionReason: 'Outra.' }),
+      );
+      params.next(convertToParamMap({ id: 'insp-2' }));
+      fixture.detectChanges();
+
+      // insp-1's answer arrives late and says "insp-1 is the latest".
+      slow.next({ content: [{ id: 'insp-1' }], page: 0, size: 1, total: 1 });
+      fixture.detectChanges();
+
+      expect(q(fixture, '[data-driver-redo]')).toBeNull();
+      expect(q(fixture, '[data-driver-redo-elsewhere]')).toBeNull();
+    });
+
+    it('OWNER e MANAGER nao fazem a checagem do motorista', () => {
+      for (const actor of ['OWNER', 'MANAGER']) {
+        role = actor;
+        configure();
+        renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+        expect(peek, actor).not.toHaveBeenCalled();
+      }
+    });
+
     it('o dono na vistoria recusada nao ve o atalho de refazer', () => {
       const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
 

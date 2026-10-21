@@ -1268,16 +1268,29 @@ describe('InspectionCapture', () => {
       const fixture = open({ capturedAngles: ['FRONT'] });
       q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
       fixture.detectChanges();
-      expect(q(fixture, '[data-wizard]')?.closest('section')?.hasAttribute('inert')).toBe(true);
+      const section = q(fixture, '[data-wizard]')!.closest('section')!;
+      expect(section.hasAttribute('inert')).toBe(true);
+
+      // jsdom does not implement `inert`, so "did the focus land?" is not enough: record
+      // whether the X was still inside the inert section WHEN it was focused. A focus call
+      // made before change detection (a microtask, in this zoneless app) is lost on a phone.
+      const exit = q<HTMLButtonElement>(fixture, '[data-exit]')!;
+      const inertAtFocus: boolean[] = [];
+      const realFocus = exit.focus.bind(exit);
+      exit.focus = (options?: FocusOptions) => {
+        inertAtFocus.push(section.hasAttribute('inert'));
+        realFocus(options);
+      };
 
       (document.activeElement as HTMLElement | null)?.blur();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      fixture.detectChanges();
-      await flush(fixture);
+      // No detectChanges here: the app's own scheduler decides the order, as in production.
+      await fixture.whenStable();
 
       expect(q(fixture, '[data-exit-dialog]')).toBeNull();
-      expect(q(fixture, '[data-wizard]')?.closest('section')?.hasAttribute('inert')).toBe(false);
-      expect(document.activeElement).toBe(q(fixture, '[data-exit]'));
+      expect(section.hasAttribute('inert')).toBe(false);
+      expect(inertAtFocus).toEqual([false]);
+      expect(document.activeElement).toBe(exit);
     });
 
     it('Tab fica preso no dialogo de saida', () => {
@@ -1311,6 +1324,39 @@ describe('InspectionCapture', () => {
       expect(q(fixture, '[data-exit-lost]')?.textContent).toContain(
         'A foto de Frente não foi enviada e será perdida se você sair.',
       );
+    });
+
+    it('sair com uma foto ainda subindo avisa que ela pode se perder', async () => {
+      const fixture = open();
+      uploadPhoto.mockReturnValue(new Subject());
+      q<HTMLButtonElement>(fixture, '[data-shutter]')!.click();
+      fixture.detectChanges();
+      fixture.debugElement
+        .query((dbg) => dbg.name === 'app-live-camera-sheet')
+        .triggerEventHandler('captured', new File(['x'], 'f.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, '[data-exit-lost]')?.textContent).toContain(
+        'A foto de Frente ainda está sendo enviada e pode se perder se você sair agora.',
+      );
+    });
+
+    it('colar "42318.5" no hodometro vira 42.318, nao 423.185', () => {
+      const fixture = open({ capturedAngles: ['FRONT', 'BACK', 'LEFT'] });
+      const input = q<HTMLInputElement>(fixture, '[data-wizard-km]')!;
+      const paste = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, 'clipboardData', {
+        value: { getData: () => '42318.5' },
+      });
+
+      input.dispatchEvent(paste);
+      fixture.detectChanges();
+
+      expect(paste.defaultPrevented).toBe(true);
+      expect(input.value).toBe('42.318');
     });
 
     it('o dono continua com a grade de sempre', () => {

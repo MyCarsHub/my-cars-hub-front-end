@@ -88,6 +88,16 @@ export function maskKm(raw: string): string {
   return digits === '' ? '' : formatPtBrNumber(Number(digits), 0);
 }
 
+/**
+ * A pasted odometer reading: its decimal part is dropped, whichever separator it uses — a
+ * comma anywhere, or a dot followed by 1 or 2 digits at the end ("42318.5", "42.318,50").
+ * A dot followed by 3 digits is a thousands dot ("42.318") and stays a thousands dot.
+ */
+export function pastedKm(text: string): string {
+  const whole = text.trim().split(',')[0].replace(/\.\d{1,2}$/, '');
+  return maskKm(whole);
+}
+
 /** The masked text back to an integer; `null` when there is nothing to read. */
 export function parseKm(masked: string): number | null {
   const digits = masked.replace(/\D/g, '');

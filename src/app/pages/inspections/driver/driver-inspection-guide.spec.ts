@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RENTAL_PHOTO_ANGLES } from '../../../types/rental.types';
-import { angleGuide, kmProblem, maskKm, parseKm } from './driver-inspection-guide';
+import { angleGuide, kmProblem, maskKm, parseKm, pastedKm } from './driver-inspection-guide';
 
 describe('driver-inspection-guide', () => {
   it('every angle of the script has the prototype copy', () => {
@@ -26,6 +26,16 @@ describe('driver-inspection-guide', () => {
     expect(parseKm(maskKm('42.318,5'))).toBe(42318);
     expect(parseKm('1.234.567')).toBe(1234567);
     expect(parseKm('')).toBeNull();
+  });
+
+  it('a pasted reading drops its decimal part, whatever the separator', () => {
+    expect(pastedKm('42318.5')).toBe('42.318');
+    expect(pastedKm('42318.50')).toBe('42.318');
+    expect(pastedKm('42.318,5')).toBe('42.318');
+    expect(pastedKm(' 42.318 ')).toBe('42.318');
+    // A dot with three digits after it is a thousands dot.
+    expect(pastedKm('42.318')).toBe('42.318');
+    expect(pastedKm('1.234.567')).toBe('1.234.567');
   });
 
   it('refuses empty, zero, above the server ceiling and below the last record', () => {

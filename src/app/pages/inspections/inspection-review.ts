@@ -263,6 +263,7 @@ export class InspectionReview implements OnInit {
       const id = params.get('id') ?? '';
       if (!id || id === this.id()) return;
       this.id.set(id);
+      this.canRedo.set(null);
       this.resetDecision();
       this.load();
     });
@@ -538,10 +539,10 @@ export class InspectionReview implements OnInit {
   /**
    * May the driver redo THIS refused inspection? Only when it is still the most recent one of
    * its vehicle: once a newer one exists (redone, or approved since), redoing an old refusal
-   * would open a duplicate. `null` = not known yet (or the check failed): no button and no
-   * claim either way — the list's hero still offers the redo of the most recent one.
+   * would open a duplicate. `null` = still checking; `'unknown'` = the check failed (the
+   * detail points to Vistorias, whose hero offers the redo of the most recent one).
    */
-  protected readonly canRedo = signal<boolean | null>(null);
+  protected readonly canRedo = signal<'yes' | 'no' | 'unknown' | null>(null);
 
   private checkRedo(found: Inspection): void {
     this.canRedo.set(null);
@@ -550,8 +551,15 @@ export class InspectionReview implements OnInit {
     this.service
       .peek({ vehicleId: found.vehicleId, page: 0, size: 1, sort: 'date,desc' })
       .subscribe({
-        next: (res) => this.canRedo.set(res?.content?.[0]?.id === found.id),
-        error: (err: unknown) => this.apiErrors.claim(err),
+        // The instance is reused across ids: an answer about another inspection is dropped.
+        next: (res) => {
+          if (this.id() !== found.id) return;
+          this.canRedo.set(res?.content?.[0]?.id === found.id ? 'yes' : 'no');
+        },
+        error: (err: unknown) => {
+          this.apiErrors.claim(err);
+          if (this.id() === found.id) this.canRedo.set('unknown');
+        },
       });
   }
 }

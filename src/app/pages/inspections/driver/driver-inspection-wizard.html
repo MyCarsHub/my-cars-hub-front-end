@@ -307,6 +307,7 @@
                 required
                 [value]="km()"
                 (input)="onKm($event)"
+                (paste)="onKmPaste($event)"
                 (keydown.enter)="goReview()"
                 [attr.aria-invalid]="kmError() ? 'true' : null"
                 [attr.aria-describedby]="kmError() ? 'driver-km-error driver-km-hint' : 'driver-km-hint'"

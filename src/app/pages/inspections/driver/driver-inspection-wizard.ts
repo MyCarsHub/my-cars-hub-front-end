@@ -2,7 +2,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  Injector,
+  afterNextRender,
   computed,
+  inject,
   effect,
   input,
   viewChild,
@@ -15,7 +18,7 @@ import { RouterLink } from '@angular/router';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import type { InspectionStatus } from '../../../types/inspection.types';
 import { formatPtBrNumber } from '../../../utils/ptbr-number';
-import { angleGuide, kmProblem, maskKm, parseKm } from './driver-inspection-guide';
+import { angleGuide, kmProblem, maskKm, parseKm, pastedKm } from './driver-inspection-guide';
 
 /** One angle of the script as the guided capture draws it. */
 export interface WizardSlot {
@@ -108,6 +111,7 @@ export class DriverInspectionWizard {
   private readonly stayButton = viewChild<ElementRef<HTMLButtonElement>>('stayButton');
   private readonly leaveButton = viewChild<ElementRef<HTMLButtonElement>>('leaveButton');
   private readonly exitButton = viewChild<ElementRef<HTMLButtonElement>>('exitButton');
+  private readonly injector = inject(Injector);
 
   constructor() {
     // The exit dialog takes focus on its safe choice, so Enter on the X never leaves by accident.
@@ -190,12 +194,23 @@ export class DriverInspectionWizard {
    * dialog names them, so "Sair" is a choice made knowing it.
    */
   protected readonly lostOnExit = computed(() => {
-    const failed = this.slots().filter((s) => !!s.failure && !s.done);
-    if (failed.length === 0) return null;
-    const names = failed.map((s) => s.label).join(', ');
-    return failed.length === 1
-      ? `A foto de ${names} não foi enviada e será perdida se você sair.`
-      : `As fotos de ${names} não foram enviadas e serão perdidas se você sair.`;
+    const parts: string[] = [];
+    const failed = this.slots().filter((s) => !!s.failure && !s.done && !s.uploading);
+    if (failed.length > 0) {
+      const names = failed.map((s) => s.label).join(', ');
+      parts.push(
+        failed.length === 1
+          ? `A foto de ${names} não foi enviada e será perdida se você sair.`
+          : `As fotos de ${names} não foram enviadas e serão perdidas se você sair.`,
+      );
+    }
+    // Still compressing or on the wire: leaving now may drop it too.
+    const sending = this.slots().filter((s) => s.uploading);
+    if (sending.length > 0) {
+      const names = sending.map((s) => s.label).join(', ');
+      parts.push(`A foto de ${names} ainda está sendo enviada e pode se perder se você sair agora.`);
+    }
+    return parts.length > 0 ? parts.join(' ') : null;
   });
 
   // ------------------------------------------------------------- capture
@@ -230,6 +245,22 @@ export class DriverInspectionWizard {
   protected onKm(event: Event): void {
     const field = event.target as HTMLInputElement;
     const masked = maskKm(field.value);
+    field.value = masked;
+    this.km.set(masked);
+    this.kmError.set(null);
+  }
+
+  /**
+   * A PASTED reading may carry a decimal part ("42318.5", "42.318,5"): it is dropped here,
+   * where the whole text is known. Typing goes through `onKm`, where "1.00" is just "1.000"
+   * with a digit deleted, not a decimal.
+   */
+  protected onKmPaste(event: ClipboardEvent): void {
+    const text = event.clipboardData?.getData('text');
+    if (text == null) return;
+    event.preventDefault();
+    const field = event.target as HTMLInputElement;
+    const masked = pastedKm(text);
     field.value = masked;
     this.km.set(masked);
     this.kmError.set(null);
@@ -274,8 +305,12 @@ export class DriverInspectionWizard {
 
   protected stay(): void {
     this.exitOpen.set(false);
-    // Back where the person was: the X that opened the dialog.
-    queueMicrotask(() => this.exitButton()?.nativeElement.focus());
+    // Back where the person was: the X that opened the dialog. AFTER the next render, when
+    // the section behind is no longer `inert` — focusing an inert element does nothing, and
+    // in this zoneless app a microtask runs BEFORE change detection removes the attribute.
+    afterNextRender({ write: () => this.exitButton()?.nativeElement.focus() }, {
+      injector: this.injector,
+    });
   }
 
   protected onEscape(): void {
