@@ -9,7 +9,7 @@
   <div class="flex flex-col gap-4 pt-2" data-pay-sheet>
     <div class="flex flex-col gap-0.5">
       <span class="text-xs uppercase tracking-wide text-neutral-500">Valor a pagar</span>
-      <span class="font-mono text-3xl font-bold leading-tight tabular-nums text-neutral-900" data-pay-value>
+      <span class="text-3xl font-semibold leading-tight tracking-tight tabular-nums text-neutral-900" data-pay-value>
         {{ amount() }}
       </span>
       @if (overdue()) {
@@ -73,7 +73,7 @@
         type="button"
         (click)="openCheckout()"
         [disabled]="linkLocked()"
-        class="min-h-11 w-full sm:w-auto px-4 rounded-xl border border-rule-contrast bg-white text-sm font-semibold text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-60 cursor-pointer"
+        class="min-h-12 w-full sm:w-auto px-5 rounded-xl border border-rule-contrast bg-white text-base font-semibold text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-60 cursor-pointer"
         data-invoice
       >
         Ver fatura
@@ -85,7 +85,7 @@
           type="button"
           (click)="openCheckout()"
           [disabled]="linkLocked()"
-          class="min-h-11 w-full sm:w-auto px-4 rounded-xl bg-primary-700 text-sm font-semibold text-white hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 cursor-pointer"
+          class="min-h-12 w-full sm:w-auto px-5 rounded-xl bg-primary-500 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 cursor-pointer"
           data-open-checkout
         >
           Abrir página de pagamento
@@ -96,7 +96,7 @@
         type="button"
         (click)="copy()"
         [disabled]="!pixPayload()"
-        class="min-h-11 w-full sm:w-auto px-4 rounded-xl bg-primary-700 text-sm font-semibold text-white hover:bg-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 cursor-pointer"
+        class="min-h-12 w-full sm:w-auto px-5 rounded-xl bg-primary-500 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 cursor-pointer"
         data-copy
       >
         Copiar código Pix

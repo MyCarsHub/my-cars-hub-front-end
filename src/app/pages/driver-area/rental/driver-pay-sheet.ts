@@ -11,6 +11,7 @@ import {
   input,
   output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -94,7 +95,7 @@ export class DriverPaySheet {
   readonly rentalId = input.required<string>();
   /** The charge to pay; `null` keeps the popup closed. */
   readonly charge = input<DriverCharge | null>(null);
-  /** How the charge is called on the screen ("Aluguel semanal · semana 10"). */
+  /** How the charge is called on the screen ("Semana 10 · Aluguel semanal"). */
   readonly chargeTitle = input<string>('');
   readonly closed = output<void>();
 
@@ -135,6 +136,8 @@ export class DriverPaySheet {
   private retryTimer: ReturnType<typeof setInterval> | null = null;
   protected readonly linkLocked = signal(false);
   private lockTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private readonly chargeId = computed(() => this.charge()?.id ?? null);
 
   protected readonly amount = computed(() => {
     const c = this.charge();
@@ -191,10 +194,15 @@ export class DriverPaySheet {
         else this.stopRetryWait();
       });
 
+    // Keyed on the charge ID, not the object: the detail refetches the charges quietly when
+    // the driver comes back to the tab, which hands in a NEW object for the same charge.
+    // Re-asking the Pix then would blank a good code (or swap it for a transient 503).
     effect(() => {
-      const charge = this.charge();
-      this.copyHint.set(null);
-      this.request$.next(charge);
+      this.chargeId();
+      untracked(() => {
+        this.copyHint.set(null);
+        this.request$.next(this.charge());
+      });
     });
 
     inject(DestroyRef).onDestroy(() => {

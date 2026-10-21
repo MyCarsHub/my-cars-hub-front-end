@@ -1,14 +1,17 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { EMPTY, Subject, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import { EMPTY, Subject, catchError, from, map, mergeMap, of, switchMap, tap } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -31,6 +34,8 @@ const LOAD_ERROR = 'Não foi possível carregar seus aluguéis.';
 /** A driver has a handful of rentals: one request brings them all, the screen pages them. */
 const FETCH_SIZE = 100;
 export const DRIVER_RENTALS_PAGE_SIZE = 10;
+/** Charges are read for the VISIBLE page only, at most this many requests at a time. */
+export const CHARGES_CONCURRENCY = 3;
 
 type Order = 'DESC' | 'ASC';
 
@@ -67,10 +72,22 @@ export class DriverRentalsList {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly todayFn = inject(DRIVER_RENTAL_TODAY);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly document = inject(DOCUMENT);
 
-  protected readonly statusOptions = (Object.keys(RENTAL_STATUS_META) as RentalStatus[]).map(
-    (value) => ({ value, label: RENTAL_STATUS_META[value].label }),
-  );
+  /** "Today" of the cards' alert lines; refreshed on reload and when the tab comes back. */
+  private readonly today = signal(this.todayFn());
+
+  /** "Todos" + the four situations, labels from status-maps (the prototype's chips). */
+  protected readonly statusChips: readonly { value: RentalStatus | ''; label: string }[] = [
+    { value: '', label: 'Todos' },
+    ...(['ACTIVE', 'RESERVED', 'COMPLETED', 'CANCELED'] as const).map((value) => ({
+      value,
+      label: RENTAL_STATUS_META[value].label,
+    })),
+  ];
+
+  /** Phone only: the situation chips and the order open under "Filtrar". */
+  protected readonly filtersOpen = signal(false);
 
   protected readonly items = signal<RentalListItemDto[]>([]);
   protected readonly loading = signal(true);
@@ -83,6 +100,10 @@ export class DriverRentalsList {
   protected readonly status = signal<RentalStatus | ''>('');
   protected readonly order = signal<Order>('DESC');
   protected readonly page = signal(0);
+
+  protected readonly activeFilterCount = computed(
+    () => (this.status() !== '' ? 1 : 0) + (this.order() !== 'DESC' ? 1 : 0),
+  );
 
   protected readonly hasFilters = computed(
     () => this.query().trim() !== '' || this.status() !== '' || this.order() !== 'DESC',
@@ -106,13 +127,22 @@ export class DriverRentalsList {
     Math.max(1, Math.ceil(this.filtered().length / DRIVER_RENTALS_PAGE_SIZE)),
   );
 
-  protected readonly cards = computed<readonly Card[]>(() => {
-    const today = this.todayFn();
-    const charges = this.chargesById();
+  private readonly pageItems = computed(() => {
     const start = this.page() * DRIVER_RENTALS_PAGE_SIZE;
-    return this.filtered()
-      .slice(start, start + DRIVER_RENTALS_PAGE_SIZE)
-      .map((r) => {
+    return this.filtered().slice(start, start + DRIVER_RENTALS_PAGE_SIZE);
+  });
+
+  /** The visible ids as one string, so the same page does not re-trigger the fetch. */
+  private readonly pageKey = computed(() =>
+    this.pageItems()
+      .map((r) => r.id)
+      .join(','),
+  );
+
+  protected readonly cards = computed<readonly Card[]>(() => {
+    const today = this.today();
+    const charges = this.chargesById();
+    return this.pageItems().map((r) => {
         const meta = rentalStatusMeta(r.status);
         const own = charges.get(r.id) ?? null;
         return {
@@ -138,6 +168,9 @@ export class DriverRentalsList {
   );
 
   private readonly load$ = new Subject<void>();
+  private readonly chargesFor$ = new Subject<string[]>();
+  /** Bumped on every successful load, so the same page of a reload fetches again. */
+  private readonly loadGen = signal(0);
 
   constructor() {
     this.load$
@@ -145,6 +178,10 @@ export class DriverRentalsList {
         tap(() => {
           this.loading.set(true);
           this.error.set(null);
+          this.today.set(this.todayFn());
+          // A reload drops what was read and cancels what is still in flight.
+          this.chargesById.set(new Map());
+          this.chargesFor$.next([]);
         }),
         switchMap(() =>
           this.rentals.list({ size: FETCH_SIZE }).pipe(
@@ -162,8 +199,48 @@ export class DriverRentalsList {
         this.items.set(items);
         this.loading.set(false);
         this.loaded.set(true);
-        this.loadCharges(items);
+        this.loadGen.update((n) => n + 1);
       });
+
+    this.chargesFor$
+      .pipe(
+        switchMap((ids) => {
+          const known = untracked(() => this.chargesById());
+          return from(ids.filter((id) => !known.has(id))).pipe(
+            mergeMap(
+              (id) =>
+                this.chargesApi.list(id).pipe(
+                  map((list): [string, DriverCharge[] | null] => [id, list]),
+                  catchError((err: unknown) => {
+                    this.apiErrors.claim(err);
+                    return of<[string, DriverCharge[] | null]>([id, null]);
+                  }),
+                ),
+              CHARGES_CONCURRENCY,
+            ),
+          );
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe(([id, list]) =>
+        this.chargesById.update((m) => new Map(m).set(id, list)),
+      );
+
+    // The visible page (after a load, a filter or a page turn) asks for its own charges.
+    effect(() => {
+      this.loadGen();
+      const key = this.pageKey();
+      untracked(() => this.chargesFor$.next(key ? key.split(',') : []));
+    });
+
+    const onVisible = (): void => {
+      if (this.document.visibilityState === 'visible') this.today.set(this.todayFn());
+    };
+    this.document.addEventListener('visibilitychange', onVisible);
+    this.destroyRef.onDestroy(() =>
+      this.document.removeEventListener('visibilitychange', onVisible),
+    );
+
     this.load$.next();
   }
 
@@ -176,9 +253,13 @@ export class DriverRentalsList {
     this.page.set(0);
   }
 
-  protected onStatus(event: Event): void {
-    this.status.set((event.target as HTMLSelectElement).value as RentalStatus | '');
+  protected setStatus(value: RentalStatus | ''): void {
+    this.status.set(value);
     this.page.set(0);
+  }
+
+  protected toggleFilters(): void {
+    this.filtersOpen.update((open) => !open);
   }
 
   protected onOrder(event: Event): void {
@@ -199,23 +280,5 @@ export class DriverRentalsList {
 
   protected next(): void {
     this.page.update((p) => Math.min(this.pageCount() - 1, p + 1));
-  }
-
-  /** One request per rental, in parallel; each failure is that card's alone. */
-  private loadCharges(items: readonly RentalListItemDto[]): void {
-    if (items.length === 0) return;
-    forkJoin(
-      items.map((r) =>
-        this.chargesApi.list(r.id).pipe(
-          map((list): [string, DriverCharge[] | null] => [r.id, list]),
-          catchError((err: unknown) => {
-            this.apiErrors.claim(err);
-            return of<[string, DriverCharge[] | null]>([r.id, null]);
-          }),
-        ),
-      ),
-    )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((pairs) => this.chargesById.set(new Map(pairs)));
   }
 }

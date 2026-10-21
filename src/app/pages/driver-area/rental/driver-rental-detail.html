@@ -41,15 +41,15 @@
     <div class="flex flex-col gap-4">
       <!-- O que fazer agora: atrasada (rosa), próxima (laranja), em dia (verde), encerrado (cinza). -->
       @if (hero(); as h) {
-        <section [class]="heroClass()" class="rounded-2xl text-white p-4 sm:p-6 flex flex-col gap-1.5"
+        <!-- Texto branco >= 16px peso 600 sobre o laranja principal (decisão do dono). -->
+        <section [class]="heroClass()" class="rounded-2xl text-white px-5 py-5 sm:p-6 flex flex-col"
           [attr.data-hero]="h.tone" aria-labelledby="driver-hero-label">
-          <span id="driver-hero-label" class="text-xs uppercase tracking-wide text-white/90">{{ h.label }}</span>
-          <span class="text-3xl sm:text-4xl font-semibold leading-tight tabular-nums"
-            [class.font-mono]="h.valueIsMoney" data-hero-value>{{ h.value }}</span>
-          <span class="text-sm leading-relaxed text-white/90" data-hero-sub>{{ h.sub }}</span>
+          <span id="driver-hero-label" class="text-xs font-semibold uppercase tracking-wider text-white">{{ h.label }}</span>
+          <span class="mt-1 text-4xl font-semibold leading-tight tracking-tight tabular-nums" data-hero-value>{{ h.value }}</span>
+          <span class="mt-2 text-base font-semibold leading-snug text-white" data-hero-sub>{{ h.sub }}</span>
           @if (readOnlySession() ? null : h.payCharge; as charge) {
             <button type="button" (click)="pay(charge)"
-              class="mt-2 self-stretch sm:self-start min-h-11 px-5 rounded-xl bg-white text-sm font-semibold text-neutral-900 hover:bg-neutral-100 active:scale-[0.98] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 cursor-pointer"
+              class="mt-4 self-stretch sm:self-start min-h-12 px-6 rounded-xl bg-white text-base font-semibold text-neutral-900 hover:bg-neutral-100 active:scale-[0.98] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 cursor-pointer"
               data-hero-pay>
               Pagar agora
             </button>
@@ -99,26 +99,30 @@
               } @else {
                 <ul class="m-0 p-0 list-none">
                   @for (row of rows(); track row.charge.id) {
-                    <li class="flex items-center gap-3 min-h-[64px] px-4 sm:px-6 py-2.5 border-t border-neutral-100"
+                    <!-- Duas linhas: título inteiro + valor; data, chip e um "Pagar" secundário.
+                         O CTA laranja é um só, no bloco de cima. -->
+                    <li class="flex items-start justify-between gap-3 px-4 sm:px-6 py-3 border-t border-neutral-100"
                       [class.bg-rose-50]="row.overdue" data-charge-row [attr.data-overdue]="row.overdue || null">
-                      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <span class="text-sm font-medium text-neutral-900 truncate">{{ row.title }}</span>
-                        <span class="text-xs tabular-nums" [class.text-rose-700]="row.overdue"
-                          [class.text-neutral-500]="!row.overdue">{{ row.sub }}</span>
+                      <div class="min-w-0 flex flex-col gap-1">
+                        <span class="text-sm font-medium leading-snug text-neutral-900" data-charge-title>{{ row.title }}</span>
+                        <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span class="text-xs tabular-nums" [class.text-rose-700]="row.overdue"
+                            [class.text-neutral-500]="!row.overdue">{{ row.sub }}</span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                            [class]="row.chipClass">{{ row.chipLabel }}</span>
+                        </span>
                       </div>
                       <div class="shrink-0 flex flex-col items-end gap-1">
-                        <span class="font-mono text-sm font-semibold tabular-nums text-neutral-900">{{ row.amount }}</span>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                          [class]="row.chipClass">{{ row.chipLabel }}</span>
+                        <span class="text-sm font-semibold tabular-nums text-neutral-900" data-charge-amount>{{ row.amount }}</span>
+                        @if (row.payable && !readOnlySession()) {
+                          <button type="button" (click)="pay(row.charge)"
+                            [attr.aria-label]="'Pagar ' + row.title + ', ' + row.amount"
+                            class="-mr-2 min-h-11 px-2 rounded-lg text-sm font-semibold text-primary-700 underline underline-offset-2 hover:text-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer"
+                            data-pay>
+                            Pagar
+                          </button>
+                        }
                       </div>
-                      @if (row.payable && !readOnlySession()) {
-                        <button type="button" (click)="pay(row.charge)"
-                          [attr.aria-label]="'Pagar ' + row.title + ', ' + row.amount"
-                          class="shrink-0 min-h-11 px-4 rounded-xl bg-primary-700 text-sm font-semibold text-white hover:bg-primary-800 active:scale-[0.98] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 cursor-pointer"
-                          data-pay>
-                          Pagar
-                        </button>
-                      }
                     </li>
                   }
                 </ul>
@@ -144,8 +148,7 @@
                 @for (term of terms(); track term.label) {
                   <div class="flex flex-col gap-0.5 min-w-0" [class.col-span-2]="term.wide">
                     <dt class="text-xs uppercase tracking-wide text-neutral-500">{{ term.label }}</dt>
-                    <dd class="m-0 text-sm font-medium leading-snug text-neutral-900 break-words"
-                      [class.font-mono]="term.mono">{{ term.value }}</dd>
+                    <dd class="m-0 text-sm font-medium leading-snug tabular-nums text-neutral-900">{{ term.value }}</dd>
                   </div>
                 }
               </dl>

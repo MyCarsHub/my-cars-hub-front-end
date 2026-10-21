@@ -67,21 +67,32 @@ describe('DriverRentalsList', () => {
   const q = (sel: string) => root().querySelector<HTMLElement>(sel);
   const qa = (sel: string) => Array.from(root().querySelectorAll<HTMLElement>(sel));
 
-  function build(list: () => Observable<PagedResponse<RentalListItemDto>>): void {
+  let today = TODAY;
+
+  function build(
+    list: () => Observable<PagedResponse<RentalListItemDto>>,
+    charges?: (id: string) => Observable<DriverCharge[]>,
+  ): void {
     listCall = vi.fn(list);
-    chargesCall = vi.fn((id: string) =>
-      id === 'r3' ? throwError(() => new HttpErrorResponse({ status: 500 })) : of(CHARGES[id] ?? []),
+    chargesCall = vi.fn(
+      charges ??
+        ((id: string) =>
+          id === 'r3'
+            ? throwError(() => new HttpErrorResponse({ status: 500 }))
+            : of(CHARGES[id] ?? [])),
     );
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         ApiErrorService,
-        { provide: DRIVER_RENTAL_TODAY, useValue: () => TODAY },
+        { provide: DRIVER_RENTAL_TODAY, useValue: () => today },
         { provide: RentalService, useValue: { list: listCall } },
         { provide: DriverRentalChargesService, useValue: { list: chargesCall } },
       ],
     });
     fixture = TestBed.createComponent(DriverRentalsList);
+    fixture.detectChanges();
+    // The visible page's charges are asked for by an effect: one more pass renders them.
     fixture.detectChanges();
   }
 
@@ -92,7 +103,10 @@ describe('DriverRentalsList', () => {
     fixture.detectChanges();
   }
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    today = TODAY;
+  });
 
   describe('os quatro estados', () => {
     it('1. carregando: esqueleto, sem cards nem vazio', () => {
@@ -163,7 +177,6 @@ describe('DriverRentalsList', () => {
       expect(flat(done)).toContain('Concluído');
       // As cobranças do concluído falharam: o card fica, só sem a linha.
       expect(done.querySelector('[data-rate]')).toBeNull();
-      expect(flat(q('[data-count]'))).toBe('3 aluguéis');
     });
 
     it('"Ver detalhes" leva ao aluguel, com o nome acessível pela placa', () => {
@@ -182,10 +195,13 @@ describe('DriverRentalsList', () => {
       expect(qa('[data-plate]').map(flat)).toEqual(['RTA-9C55']);
 
       type('[data-search]', '');
-      type('[data-status]', 'COMPLETED', 'change');
+      q('[data-status-chip="COMPLETED"]')!.click();
+      fixture.detectChanges();
+      expect(q('[data-status-chip="COMPLETED"]')!.getAttribute('aria-pressed')).toBe('true');
       expect(qa('[data-plate]').map(flat)).toEqual(['QWE-4F21']);
 
-      type('[data-status]', '', 'change');
+      q('[data-status-chip="ALL"]')!.click();
+      fixture.detectChanges();
       type('[data-order]', 'ASC', 'change');
       expect(qa('[data-plate]').map(flat)).toEqual(['QWE-4F21', 'SJH-2B17', 'RTA-9C55']);
     });
@@ -203,6 +219,81 @@ describe('DriverRentalsList', () => {
         expect(cls).not.toContain('self-stretch');
         expect(cls.some((c) => /^(sm:)?(min-)?h-/.test(c))).toBe(false);
       }
+    });
+
+    it('celular: só busca + "Filtrar"; situação e ordem abrem embaixo, com a contagem', () => {
+      build(() => of(page(ROWS)));
+
+      const panel = q('[data-filters]')!;
+      const toggle = q('[data-filter-toggle]')!;
+      expect(panel.classList).toContain('max-sm:hidden');
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+      expect(qa('[data-status-chip]').map(flat)).toEqual([
+        'Todos',
+        'Ativo',
+        'Reservado',
+        'Concluído',
+        'Cancelado',
+      ]);
+
+      toggle.click();
+      fixture.detectChanges();
+      expect(panel.classList).not.toContain('max-sm:hidden');
+
+      q('[data-status-chip="ACTIVE"]')!.click();
+      fixture.detectChanges();
+      expect(flat(toggle)).toBe('Filtrar (1)');
+    });
+
+    it('cobranças só da página visível, no máximo 3 de cada vez', () => {
+      const many = Array.from({ length: 12 }, (_, i) =>
+        row({ id: `x${i}`, vehiclePlate: `AAA-${1000 + i}`, startDate: `2026-01-${String(10 + i).padStart(2, '0')}` }),
+      );
+      const pending = new Map<string, Subject<DriverCharge[]>>();
+      build(
+        () => of(page(many)),
+        (id) => {
+          const s = new Subject<DriverCharge[]>();
+          pending.set(id, s);
+          return s;
+        },
+      );
+
+      expect(chargesCall).toHaveBeenCalledTimes(3);
+      for (let round = 0; round < 4; round++) {
+        for (const [id, s] of [...pending]) {
+          pending.delete(id);
+          s.next([]);
+          s.complete();
+        }
+        fixture.detectChanges();
+      }
+      expect(chargesCall).toHaveBeenCalledTimes(10);
+      const asked = chargesCall.mock.calls.map((c) => c[0] as string);
+      expect(asked).not.toContain('x0');
+      expect(asked).not.toContain('x1');
+
+      // A outra página pede só as dela.
+      qa('button').find((b) => flat(b) === 'Próxima')!.click();
+      fixture.detectChanges();
+      fixture.detectChanges();
+      for (const [, s] of pending) { s.next([]); s.complete(); }
+      expect(chargesCall.mock.calls.map((c) => c[0])).toEqual(expect.arrayContaining(['x0', 'x1']));
+      expect(chargesCall).toHaveBeenCalledTimes(12);
+    });
+
+    it('"hoje" não congela: ao voltar à aba o alerta usa o dia novo', () => {
+      build(() => of(page(ROWS)));
+      const reserved = () => flat(qa('[data-rental-card]')[0].querySelector('[data-alert]'));
+      expect(reserved()).toBe('Começa em 20/10');
+      const active = () => flat(qa('[data-rental-card]')[1].querySelector('[data-alert]'));
+      expect(active()).toBe('1 cobrança atrasada');
+
+      today = '2026-10-05'; // antes do vencimento de 06/10: nada atrasado
+      document.dispatchEvent(new Event('visibilitychange'));
+      fixture.detectChanges();
+
+      expect(active()).toBe('Próxima cobrança em 06/10');
     });
 
     it('rodapé com a página', () => {

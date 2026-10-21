@@ -1,5 +1,7 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  DestroyRef,
   Component,
   computed,
   effect,
@@ -60,7 +62,7 @@ import { DRIVER_RENTAL_TODAY, buildHero, dayMonth, weekday } from './driver-rent
               >
               <span class="text-sm font-semibold text-neutral-900 tabular-nums" data-next-line>
                 @if (amount(); as value) {
-                  <span class="font-mono">{{ value }}</span>
+                  <span>{{ value }}</span>
                   @if (when(); as w) {
                     · {{ w }}
                   }
@@ -88,6 +90,10 @@ export class DriverNextCharge {
   private readonly service = inject(DriverRentalChargesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly todayFn = inject(DRIVER_RENTAL_TODAY);
+  private readonly document = inject(DOCUMENT);
+
+  /** Refreshed on every load and when the tab comes back: the card is not frozen at mount. */
+  private readonly today = signal(this.todayFn());
 
   private readonly charges = signal<DriverCharge[]>([]);
   protected readonly loaded = signal(false);
@@ -96,7 +102,7 @@ export class DriverNextCharge {
   /** Same choice as the colored block of the rental: overdue first, then the next one. */
   private readonly hero = computed(() =>
     this.loaded()
-      ? buildHero('ACTIVE', this.charges(), this.todayFn(), { startDate: '', endDate: '' })
+      ? buildHero('ACTIVE', this.charges(), this.today(), { startDate: '', endDate: '' })
       : null,
   );
 
@@ -126,7 +132,10 @@ export class DriverNextCharge {
   constructor() {
     this.load$
       .pipe(
-        tap(() => this.failed.set(false)),
+        tap(() => {
+          this.failed.set(false);
+          this.today.set(this.todayFn());
+        }),
         switchMap((id) =>
           this.service.list(id).pipe(
             catchError((err: unknown) => {
@@ -148,6 +157,16 @@ export class DriverNextCharge {
       this.loaded.set(false);
       this.load$.next(id);
     });
+
+    const onVisible = (): void => {
+      if (this.document.visibilityState === 'visible' && this.loaded()) {
+        this.load$.next(this.rentalId());
+      }
+    };
+    this.document.addEventListener('visibilitychange', onVisible);
+    inject(DestroyRef).onDestroy(() =>
+      this.document.removeEventListener('visibilitychange', onVisible),
+    );
   }
 
   protected reload(): void {

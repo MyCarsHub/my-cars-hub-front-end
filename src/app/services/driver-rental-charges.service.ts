@@ -60,12 +60,12 @@ const STATUSES: readonly ChargeStatus[] = [
   'DISPUTED',
 ];
 
-/** The payment link opens in the driver's browser: only http(s), never `javascript:` and co. */
+/** The payment link opens in the driver's browser: only https, never http, `javascript:` and co. */
 function safeLink(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   try {
     const { protocol } = new URL(value);
-    return protocol === 'https:' || protocol === 'http:' ? value : null;
+    return protocol === 'https:' ? value : null;
   } catch {
     return null;
   }

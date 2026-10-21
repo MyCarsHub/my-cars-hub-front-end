@@ -9,6 +9,7 @@ import {
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -54,7 +55,7 @@ const IDENTITY_PAGE_SIZE = 100;
 
 const HERO_BG: Record<HeroTone, string> = {
   overdue: 'bg-rose-700',
-  next: 'bg-primary-700',
+  next: 'bg-primary-500',
   clear: 'bg-success-800',
   ended: 'bg-neutral-800',
 };
@@ -293,19 +294,12 @@ export class DriverRentalDetail {
       });
 
     // First load, and every change of rental. Nothing of the previous rental stays on screen.
+    // ONLY `id` is tracked: `loadIdentity` reads `rentals.items()`, which `rentals.list()`
+    // rewrites — tracked, that re-ran this effect (double load on a deep link, and an endless
+    // loop when the row is not in the list).
     effect(() => {
       const id = this.id();
-      this.rental.set(null);
-      this.charges.set([]);
-      this.chargesLoaded.set(false);
-      this.docs.set([]);
-      this.docsLoaded.set(false);
-      this.showAll.set(false);
-      this.payingId.set(null);
-      this.rental$.next(id);
-      this.charges$.next({ id, quiet: false });
-      this.docs$.next(id);
-      this.loadIdentity(id);
+      untracked(() => this.load(id));
     });
 
     const onVisible = (): void => {
@@ -317,6 +311,20 @@ export class DriverRentalDetail {
     this.destroyRef.onDestroy(() =>
       this.document.removeEventListener('visibilitychange', onVisible),
     );
+  }
+
+  private load(id: string): void {
+    this.rental.set(null);
+    this.charges.set([]);
+    this.chargesLoaded.set(false);
+    this.docs.set([]);
+    this.docsLoaded.set(false);
+    this.showAll.set(false);
+    this.payingId.set(null);
+    this.rental$.next(id);
+    this.charges$.next({ id, quiet: false });
+    this.docs$.next(id);
+    this.loadIdentity(id);
   }
 
   protected reload(): void {

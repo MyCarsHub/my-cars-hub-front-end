@@ -62,7 +62,7 @@ describe('DriverPaySheet', () => {
     });
     fixture = TestBed.createComponent(DriverPaySheet);
     fixture.componentRef.setInput('rentalId', 'r1');
-    fixture.componentRef.setInput('chargeTitle', 'Aluguel semanal · semana 11');
+    fixture.componentRef.setInput('chargeTitle', 'Semana 11 · Aluguel semanal');
     fixture.componentRef.setInput('charge', c);
     fixture.componentInstance.closed.subscribe(() => closed++);
     fixture.detectChanges();
@@ -95,12 +95,28 @@ describe('DriverPaySheet', () => {
     const dialog = q('[role="dialog"]')!;
     expect(dialog).not.toBeNull();
     expect(flat(dialog)).toContain('Pagar cobrança');
-    expect(flat(dialog)).toContain('Aluguel semanal · semana 11 · vence 13/10/2026');
+    expect(flat(dialog)).toContain('Semana 11 · Aluguel semanal · vence 13/10/2026');
     expect(flat(q('[data-pay-value]'))).toBe('R$ 650,00');
     expect(pixCall).toHaveBeenCalledWith('r1', 'c10');
     expect(flat(q('[data-pix-code]'))).toBe(PAYLOAD);
     expect(q('[data-pay-late]')).toBeNull();
     expect(flat(dialog)).toContain('O pagamento é confirmado em até 1 minuto');
+  });
+
+  it('a MESMA cobrança chegando como objeto novo (refetch ao voltar à aba) não pede o Pix de novo', () => {
+    build(ready);
+    expect(pixCall).toHaveBeenCalledTimes(1);
+
+    fixture.componentRef.setInput('charge', { ...charge() });
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(pixCall).toHaveBeenCalledTimes(1);
+    expect(flat(q('[data-pix-code]'))).toBe(PAYLOAD);
+
+    fixture.componentRef.setInput('charge', charge({ id: 'c11' }));
+    fixture.detectChanges();
+    expect(pixCall).toHaveBeenCalledTimes(2);
   });
 
   it('enquanto o Pix não chega: esqueleto e "Copiar" desabilitado', () => {

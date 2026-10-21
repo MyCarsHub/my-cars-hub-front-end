@@ -73,8 +73,8 @@ describe('driver-rental-view', () => {
 
   describe('chargeTitle', () => {
     it('nomeia pelo tipo e pela frequência, com o período a partir de 1', () => {
-      expect(chargeTitle(c({ periodIndex: 9 }), 'WEEKLY')).toBe('Aluguel semanal · semana 10');
-      expect(chargeTitle(c({ periodIndex: 0 }), 'MONTHLY')).toBe('Aluguel mensal · mês 1');
+      expect(chargeTitle(c({ periodIndex: 9 }), 'WEEKLY')).toBe('Semana 10 · Aluguel semanal');
+      expect(chargeTitle(c({ periodIndex: 0 }), 'MONTHLY')).toBe('Mês 1 · Aluguel mensal');
       expect(chargeTitle(c({ kind: 'CAUCAO' }), 'WEEKLY')).toBe('Caução');
       expect(chargeTitle(c({ kind: 'OVERDUE_FEE' }), 'WEEKLY')).toBe('Multa por atraso');
       expect(chargeTitle(c({ kind: 'RENTAL_TOTAL' }), 'WEEKLY')).toBe('Aluguel');
@@ -90,7 +90,7 @@ describe('driver-rental-view', () => {
       expect(hero.label).toBe('Cobrança atrasada');
       expect(hero.value).toBe('R$ 650,00');
       expect(hero.sub).toBe(
-        'Venceu em 06/10 (4 dias de atraso). Pode incluir multa e juros por atraso.',
+        'Venceu em 06/10 (4 dias de atraso). Pode incluir multa e juros.',
       );
       expect(hero.payCharge?.id).toBe('late');
     });
@@ -225,6 +225,11 @@ describe('driver-rental-view', () => {
         ['Combustível', 'Mesmo nível da retirada'],
         ['Atraso no pagamento', 'Multa de 2% + juros de 1% ao mês'],
       ]);
+      // Texto longo ocupa a linha inteira; curto fica na metade.
+      const wide = Object.fromEntries(terms.map((t) => [t.label, t.wide]));
+      expect(wide['Combustível']).toBe(true);
+      expect(wide['Cobrança']).toBe(false);
+      expect(wide['Km por dia']).toBe(false);
     });
 
     it('omite o que não foi combinado e lê a devolução da caução', () => {

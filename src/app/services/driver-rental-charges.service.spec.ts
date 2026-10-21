@@ -109,7 +109,7 @@ describe('DriverRentalChargesService', () => {
     expect(results).toEqual([[], []]);
   });
 
-  it('link de pagamento só http(s): javascript:, texto solto e vazio viram null', () => {
+  it('link de pagamento só https: javascript:, http, texto solto e vazio viram null', () => {
     let result: { checkoutUrl: string | null }[] = [];
     service.list('r-1').subscribe((r) => (result = r));
 
@@ -133,7 +133,7 @@ describe('DriverRentalChargesService', () => {
       null,
       null,
       'https://pay.example/i/1',
-      'http://pay.example/i/2',
+      null,
     ]);
   });
 

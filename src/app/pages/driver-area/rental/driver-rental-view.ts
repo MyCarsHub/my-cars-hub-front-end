@@ -75,7 +75,8 @@ const PERIOD_WORDS: Record<RentalBillingFrequency, { adjective: string; unit: st
     MONTHLY: { adjective: 'mensal', unit: 'mês', per: 'por mês' },
   };
 
-/** "Aluguel semanal · semana 10", "Caução", "Multa por atraso". */
+/** "Semana 10 · Aluguel semanal", "Caução", "Multa por atraso". The number comes FIRST: it
+ * is what tells two rows apart on a narrow screen. */
 export function chargeTitle(charge: DriverCharge, frequency: RentalBillingFrequency | null): string {
   switch (charge.kind) {
     case 'CAUCAO':
@@ -86,8 +87,9 @@ export function chargeTitle(charge: DriverCharge, frequency: RentalBillingFreque
       const words = frequency ? PERIOD_WORDS[frequency] : null;
       if (!words) return 'Aluguel';
       // `periodIndex` is 0-based on the wire; the operator's schedule shows it +1 too.
+      const unit = words.unit.charAt(0).toUpperCase() + words.unit.slice(1);
       return charge.periodIndex != null
-        ? `Aluguel ${words.adjective} · ${words.unit} ${charge.periodIndex + 1}`
+        ? `${unit} ${charge.periodIndex + 1} · Aluguel ${words.adjective}`
         : `Aluguel ${words.adjective}`;
     }
     default:
@@ -195,7 +197,7 @@ export interface Hero {
   readonly tone: HeroTone;
   readonly label: string;
   readonly value: string;
-  /** True when `value` is money (drawn in the mono face). */
+  /** True when `value` is money (tabular figures). */
   readonly valueIsMoney: boolean;
   readonly sub: string;
   /** The charge the block is about (oldest overdue, or the next one); `null` otherwise. */
@@ -248,7 +250,7 @@ export function buildHero(
       label: many ? plural(groups.overdue.length, 'cobrança atrasada', 'cobranças atrasadas') : 'Cobrança atrasada',
       value: money(oldest.amount),
       valueIsMoney: true,
-      sub: `${since}Pode incluir multa e juros por atraso.${payable ? '' : NO_LINK}`,
+      sub: `${since}Pode incluir multa e juros.${payable ? '' : NO_LINK}`,
       charge: oldest,
       payCharge: payable ? oldest : null,
     };
@@ -317,9 +319,10 @@ export interface Term {
   readonly value: string;
   /** Takes the whole row of the two-column grid. */
   readonly wide: boolean;
-  /** Money: drawn in the mono face. */
-  readonly mono: boolean;
 }
+
+/** Longer than this, a term's value takes the whole row of the grid. */
+const WIDE_AFTER = 18;
 
 const FULL_WEEKDAYS = [
   'Todo domingo',
@@ -396,21 +399,24 @@ export function buildTerms(
       ? [money(rental.caucaoAmount), caucaoState(rental, charges, today)].filter(Boolean).join(' · ')
       : '';
   const terms: Term[] = [
-    { label: rateLabel ?? 'Valor', value: money(rental.periodRate), wide: false, mono: true },
-    { label: 'Cobrança', value: billingDay(rental, charges), wide: false, mono: false },
-    { label: 'Início', value: fullDate(rental.startDate), wide: false, mono: false },
-    { label: 'Fim previsto', value: fullDate(rental.endDate), wide: false, mono: false },
-    { label: 'Caução', value: caucao, wide: true, mono: false },
+    { label: rateLabel ?? 'Valor', value: money(rental.periodRate), wide: false },
+    { label: 'Cobrança', value: billingDay(rental, charges), wide: false },
+    { label: 'Início', value: fullDate(rental.startDate), wide: false },
+    { label: 'Fim previsto', value: fullDate(rental.endDate), wide: false },
+    { label: 'Caução', value: caucao, wide: true },
     {
       label: 'Km por dia',
       value: rental.franchiseKm ? `${rental.franchiseKm.toLocaleString('pt-BR')} km` : '',
       wide: false,
-      mono: false,
     },
-    { label: 'Combustível', value: rental.returnFuelPolicy?.trim() ?? '', wide: false, mono: false },
-    { label: 'Atraso no pagamento', value: lateTerms(rental), wide: true, mono: false },
+    { label: 'Combustível', value: rental.returnFuelPolicy?.trim() ?? '', wide: false },
+    { label: 'Atraso no pagamento', value: lateTerms(rental), wide: true },
   ];
-  return terms.filter((t) => t.value);
+  // A long value in half a row breaks into three lines ("Mesmo nível / da / retirada"):
+  // it takes the whole row instead.
+  return terms
+    .filter((t) => t.value)
+    .map((t) => (t.wide || t.value.length <= WIDE_AFTER ? t : { ...t, wide: true }));
 }
 
 // ------------------------------------------------------------------------- list

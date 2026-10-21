@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { Observable, Subject, of, throwError } from 'rxjs';
+import { Observable, Subject, of, tap, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { ApiErrorService } from '../../../services/api-error.service';
@@ -114,6 +114,8 @@ interface Setup {
   docs?: () => Observable<RentalDocumentDto[]>;
   cached?: RentalListItemDto[];
   readOnly?: boolean;
+  /** What `GET /rentals` answers (default: the row of this rental). */
+  listed?: RentalListItemDto[];
 }
 
 describe('DriverRentalDetail', () => {
@@ -131,7 +133,14 @@ describe('DriverRentalDetail', () => {
   function build(setup: Setup = {}): void {
     getById = vi.fn(setup.rental ?? (() => of(RENTAL)));
     chargesCall = vi.fn(setup.charges ?? (() => of(PROTOTYPE_CHARGES)));
-    listCall = vi.fn(() => of({ content: [ROW], page: 0, size: 100, total: 1 }));
+    const items = signal<RentalListItemDto[]>(setup.cached ?? []);
+    const listed = setup.listed ?? [ROW];
+    // Like the real RentalService: list() REWRITES the `items` signal.
+    listCall = vi.fn(() =>
+      of({ content: listed, page: 0, size: 100, total: listed.length }).pipe(
+        tap(() => items.set([...listed])),
+      ),
+    );
     previewOpen = vi.fn();
     pixCall = vi.fn(() => of({ payload: '000201PIX', qrCodeBase64: null, expiresAt: null }));
     TestBed.configureTestingModule({
@@ -144,7 +153,7 @@ describe('DriverRentalDetail', () => {
           provide: RentalService,
           useValue: {
             getById,
-            items: signal(setup.cached ?? []),
+            items,
             list: listCall,
             listDocuments: vi.fn(setup.docs ?? (() => of(DOCS))),
             documentSignedUrl: vi.fn(() => of({ url: 'https://storage.example/x', expiresInSeconds: 60 })),
@@ -190,6 +199,26 @@ describe('DriverRentalDetail', () => {
       expect(flat(root())).toContain('SJH-2B17 · Fiat Mobi');
     });
 
+    it('deep link com a linha FORA da lista: um único conjunto de requisições, sem laço', () => {
+      build({ listed: [{ ...ROW, id: 'outro' }] });
+      for (let i = 0; i < 5; i++) fixture.detectChanges();
+
+      expect(getById).toHaveBeenCalledTimes(1);
+      expect(chargesCall).toHaveBeenCalledTimes(1);
+      expect(listCall).toHaveBeenCalledTimes(1);
+      expect(flat(root())).not.toContain('SJH-2B17');
+      expect(q('[data-hero]')).not.toBeNull();
+    });
+
+    it('deep link com a linha na lista: carrega uma vez só', () => {
+      build();
+      for (let i = 0; i < 5; i++) fixture.detectChanges();
+
+      expect(getById).toHaveBeenCalledTimes(1);
+      expect(chargesCall).toHaveBeenCalledTimes(1);
+      expect(listCall).toHaveBeenCalledTimes(1);
+    });
+
     it('esqueleto enquanto o aluguel não chega', () => {
       const pending = new Subject<RentalResponseDto>();
       build({ rental: () => pending });
@@ -230,7 +259,7 @@ describe('DriverRentalDetail', () => {
       expect(hero.className).toContain('bg-rose-700');
       expect(flat(hero.querySelector('[data-hero-value]'))).toBe('R$ 650,00');
       expect(flat(hero)).toContain('Venceu em 06/10 (4 dias de atraso).');
-      expect(flat(hero)).toContain('Pode incluir multa e juros por atraso.');
+      expect(flat(hero)).toContain('Pode incluir multa e juros.');
       expect(flat(hero.querySelector('[data-hero-pay]'))).toBe('Pagar agora');
     });
 
@@ -239,7 +268,7 @@ describe('DriverRentalDetail', () => {
 
       const hero = q('[data-hero]')!;
       expect(hero.getAttribute('data-hero')).toBe('next');
-      expect(hero.className).toContain('bg-primary-700');
+      expect(hero.className).toContain('bg-primary-500');
       expect(flat(hero)).toContain('Vence terça, 13/10 · em 3 dias');
     });
 
@@ -271,7 +300,7 @@ describe('DriverRentalDetail', () => {
 
       const dialog = q('[role="dialog"]')!;
       expect(flat(dialog)).toContain('Pagar cobrança');
-      expect(flat(dialog)).toContain('Aluguel semanal · semana 10 · venceu em 06/10/2026');
+      expect(flat(dialog)).toContain('Semana 10 · Aluguel semanal · venceu em 06/10/2026');
       expect(pixCall).toHaveBeenCalledWith('r1', 'w9');
     });
   });
@@ -286,7 +315,7 @@ describe('DriverRentalDetail', () => {
       expect(flat(q('[data-more]'))).toBe('Ver todas as 7 cobranças');
 
       expect(rows[0].hasAttribute('data-overdue')).toBe(true);
-      expect(flat(rows[0])).toContain('Aluguel semanal · semana 10');
+      expect(flat(rows[0])).toContain('Semana 10 · Aluguel semanal');
       expect(flat(rows[0])).toContain('Venceu em 06/10/2026');
       expect(flat(rows[0])).toContain('Atrasada');
       expect(flat(rows[1])).toContain('Vence terça, 13/10/2026');
@@ -312,7 +341,7 @@ describe('DriverRentalDetail', () => {
       const buttons = qa('[data-pay]');
       expect(buttons).toHaveLength(2);
       expect(buttons[1].getAttribute('aria-label')).toBe(
-        'Pagar Aluguel semanal · semana 11, R$ 650,00',
+        'Pagar Semana 11 · Aluguel semanal, R$ 650,00',
       );
 
       buttons[1].click();
