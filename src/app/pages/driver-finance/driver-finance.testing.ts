@@ -1,0 +1,111 @@
+import { Observable, of, throwError } from 'rxjs';
+import { DriverFinanceSource } from './driver-finance.source';
+import {
+  DriverFinanceContext,
+  DriverGoals,
+  LedgerFilter,
+  LedgerItem,
+  LedgerItemRequest,
+  LedgerType,
+} from './driver-finance.types';
+
+/** Test double of `DriverFinanceSource`: synchronous, recording every write. */
+export class FakeFinanceSource extends DriverFinanceSource {
+  items: LedgerItem[] = [];
+  goalsValue: DriverGoals | null = { dailyGoal: 30000, workDaysPerWeek: 6 };
+  contextValue: DriverFinanceContext = { firstName: 'Carlos', licenseExpiry: null, rental: null };
+  /** `'error'` makes every read fail; `'never'` keeps every read pending. */
+  mode: 'ok' | 'error' | 'never' = 'ok';
+  created: LedgerItemRequest[] = [];
+  updated: { id: string; request: LedgerItemRequest }[] = [];
+  removed: string[] = [];
+  savedGoals: DriverGoals[] = [];
+
+  private read<T>(value: T): Observable<T> {
+    if (this.mode === 'error') return throwError(() => new Error('boom'));
+    if (this.mode === 'never') return new Observable<T>(() => undefined);
+    return of(value);
+  }
+
+  list(filter: LedgerFilter): Observable<LedgerItem[]> {
+    return this.read(
+      this.items.filter(
+        (i) =>
+          (!filter.from || i.date >= filter.from) &&
+          (!filter.to || i.date <= filter.to) &&
+          (!filter.type || i.type === filter.type),
+      ),
+    );
+  }
+
+  hasAny(type: LedgerType): Observable<boolean> {
+    return this.read(this.items.some((i) => i.type === type));
+  }
+
+  create(request: LedgerItemRequest): Observable<LedgerItem> {
+    this.created.push(request);
+    const item = { ...request, id: `new-${this.created.length}` };
+    this.items = [item, ...this.items];
+    return of(item);
+  }
+
+  update(id: string, request: LedgerItemRequest): Observable<LedgerItem> {
+    this.updated.push({ id, request });
+    return of({ ...request, id });
+  }
+
+  remove(id: string): Observable<void> {
+    this.removed.push(id);
+    this.items = this.items.filter((i) => i.id !== id);
+    return of(undefined);
+  }
+
+  goals(): Observable<DriverGoals | null> {
+    return this.read(this.goalsValue);
+  }
+
+  saveGoals(goals: DriverGoals): Observable<DriverGoals> {
+    this.savedGoals.push(goals);
+    return of(goals);
+  }
+
+  context(): Observable<DriverFinanceContext> {
+    return this.read(this.contextValue);
+  }
+}
+
+export const TODAY = '2026-10-10';
+
+export function income(over: Partial<LedgerItem> = {}): LedgerItem {
+  return {
+    id: 'g1',
+    date: TODAY,
+    type: 'INCOME',
+    category: 'RIDES',
+    amount: 18640,
+    app: 'UBER',
+    rides: 9,
+    hours: 6.5,
+    km: 112,
+    odometerKm: null,
+    notes: null,
+    ...over,
+  };
+}
+
+export function expense(over: Partial<LedgerItem> = {}): LedgerItem {
+  return {
+    id: 'c1',
+    date: TODAY,
+    type: 'EXPENSE',
+    category: 'FUEL',
+    amount: 12000,
+    app: null,
+    rides: null,
+    hours: null,
+    km: null,
+    odometerKm: 48320,
+    notes: null,
+    ...over,
+  };
+}

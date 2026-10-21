@@ -58,7 +58,13 @@ describe('app.routes — area do motorista', () => {
     it('existe, e a lista de lancamentos mora debaixo dele', () => {
       const [panel] = find('meu-painel');
       expect(panel, 'a rota meu-painel sumiu da arvore').toBeDefined();
-      expect(panel.children?.map((c) => c.path)).toEqual(['', 'lancamentos']);
+      expect(panel.children?.map((c) => c.path)).toEqual([
+        '',
+        'ganhos',
+        'custos',
+        'metas',
+        'lancamentos',
+      ]);
     });
 
     it('as duas telas sao carregadas sob demanda', async () => {

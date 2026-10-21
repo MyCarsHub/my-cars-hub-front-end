@@ -262,7 +262,16 @@ export class DriverEarnings {
         km,
         value: brl(item.amount),
         title: `${appLabel(item.app)} · ${when}`,
-        sub: [plural(item.rides ?? 0, 'corrida', 'corridas'), hours, km].join(' · '),
+        sub:
+          [
+            item.rides ? plural(item.rides, 'corrida', 'corridas') : null,
+            item.hours ? hours : null,
+            item.km ? km : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') ||
+          item.notes ||
+          'Sem detalhes',
         aria: `Editar ganho de ${brl(item.amount)}, ${when}`,
       };
     }),
