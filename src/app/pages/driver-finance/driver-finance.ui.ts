@@ -4,7 +4,13 @@
  * No hex anywhere — every colour is a token of `styles.css` or a Tailwind palette step.
  */
 
-export const PAGE = 'block px-4 pt-5 pb-28 sm:px-8 sm:pt-8 sm:pb-16';
+/**
+ * Top padding follows the shell: `--page-top` is set by the driver shell when its top bar
+ * is in the flow (below `lg`); without it the page keeps clear of the floating menu button,
+ * the same fallback as `app-default-page-layout`.
+ */
+export const PAGE =
+  'block px-4 pt-[var(--page-top,calc(4.5rem+env(safe-area-inset-top)))] pb-28 sm:px-8 sm:pb-16 lg:pt-8';
 export const STACK = 'flex flex-col gap-4';
 export const H1 = 'm-0 text-2xl sm:text-3xl font-bold tracking-tight leading-tight text-neutral-900';
 export const LEAD = 'm-0 text-base text-neutral-600';
