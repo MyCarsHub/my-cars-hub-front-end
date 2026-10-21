@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { environment } from '../../../environments/environment';
 import { DriverDashboard } from './driver-dashboard';
 import { periodModel } from './driver-dashboard.model';
-import { simulateDashboard } from './driver-finance.simulator';
+import { previousWindow, simulateDashboard } from './driver-finance.simulator';
 import { DriverEarnings } from './driver-earnings';
 import { DriverExpenses } from './driver-expenses';
 import { DriverFinanceClock } from './driver-finance.clock';
@@ -57,8 +57,10 @@ describe('driver finance — review fixes', () => {
     document.body.innerHTML = '';
   });
 
-  it('4 · goals failing does not take the Dashboard down: no ring, the rest renders', () => {
-    source.failGoals = true;
+  // N4: the server always sends `goals`; what reaches the screen is a driver WITHOUT a goal
+  // (`configured: false`). A failing /dashboard is still fatal — it is the screen's source.
+  it('4 · a driver without a goal: no ring, the rest renders, «Definir metas» link', () => {
+    source.goalsValue = null;
     source.items = [income()];
     mount(DriverDashboard);
     expect(q('[data-state="error"]')).toBeNull();
@@ -205,6 +207,61 @@ describe('driver finance — review fixes', () => {
     });
   });
 
+  describe('re-review N3, N5, N6, N7, N8, N9 and the odometer ceiling', () => {
+    it('N3 · "Por hora" divides only the earnings that carry hours', () => {
+      source.items = [
+        income({ id: 'a', amount: 20000, hours: 8 }),
+        income({ id: 'b', amount: 20000, hours: null }),
+      ];
+      mount(DriverEarnings);
+      expect(text(q('dl'))).toContain('R$ 25,00');
+    });
+
+    it('N8 · earnings without app get their own bar', () => {
+      source.items = [income({ id: 'a', app: null, amount: 5000 }), income({ id: 'b', amount: 5000 })];
+      mount(DriverEarnings);
+      expect(text(document.body)).toContain('Sem app');
+    });
+
+    it('N5 · an edit keeps zeros as zeros', () => {
+      source.items = [income({ rides: 0, km: 0, hours: 0 })];
+      const fixture = mount(DriverEarnings);
+      qa('[data-row]')[0].click();
+      fixture.detectChanges();
+      q('[data-action="save"]')!.click();
+      fixture.detectChanges();
+      expect(source.updated[0].request).toMatchObject({ rides: 0, km: 0, hours: 0 });
+    });
+
+    it('item 7 · the odometer above 2.000.000 km is refused on the field', () => {
+      const fixture = mount(DriverExpenses);
+      q('[data-action="first"]')!.click();
+      fixture.detectChanges();
+      type(fixture, '[data-field="amount"]', '50');
+      type(fixture, '#ledger-odometer', '2000001');
+      q('[data-action="save"]')!.click();
+      fixture.detectChanges();
+      expect(source.created).toHaveLength(0);
+      expect(text(q('#ledger-odometer-error'))).toBe('No máximo 2.000.000 km.');
+    });
+
+    it('N7 · the day turning over refreshes Metas in place, keeping what is typed', () => {
+      const fixture = mount(DriverGoalsPage);
+      type(fixture, '[data-field="daily"]', '180,00');
+      today = '2026-10-11';
+      source.today = today;
+      fixture.debugElement.injector.get(DriverFinanceClock).refresh();
+      fixture.detectChanges();
+      expect(q('[data-state="loading"]')).toBeNull();
+      expect(q<HTMLInputElement>('[data-field="daily"]')!.value).toBe('180,00');
+    });
+
+    it('N9 · a whole month is compared with the previous calendar month', () => {
+      expect(previousWindow('2026-10-01', '2026-10-31')).toEqual({ from: '2026-09-01', to: '2026-09-30' });
+      expect(previousWindow('2026-10-04', '2026-10-10')).toEqual({ from: '2026-09-27', to: '2026-10-03' });
+    });
+  });
+
   it('13 · a failed period read keeps the Dashboard and offers a retry', () => {
     source.items = [income()];
     const fixture = mount(DriverDashboard);
@@ -268,5 +325,41 @@ describe('5 · HttpDriverFinanceSource pages through the window', () => {
     second.flush({ content: Array.from({ length: 30 }, (_, i) => row(100 + i)), page: 1, size: 100, total: 130 });
     http.verify();
     expect(result).toHaveLength(130);
+  });
+
+  it('N6 · follows the size the server used and drops an id repeated across pages', () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const src = TestBed.inject(HttpDriverFinanceSource);
+    let result: LedgerItem[] | null = null;
+    src.list({}).subscribe((items) => (result = items));
+    const row = (n: number) => ({ id: `e${n}`, kind: 'INCOME', amountCents: 1, occurredOn: TODAY });
+    const url = `${environment.apiUrl}/driver/ledger`;
+    // The server capped the page at 50 although 100 was asked.
+    http
+      .expectOne((r) => r.url === url && r.params.get('page') === '0')
+      .flush({ content: Array.from({ length: 50 }, (_, i) => row(i)), page: 0, size: 50, total: 60 });
+    http
+      .expectOne((r) => r.url === url && r.params.get('page') === '1')
+      .flush({ content: [row(49), ...Array.from({ length: 10 }, (_, i) => row(50 + i))], page: 1, size: 50, total: 60 });
+    http.verify();
+    expect(result).toHaveLength(60);
+  });
+
+  it('N6 · an empty page stops the paging', () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const src = TestBed.inject(HttpDriverFinanceSource);
+    let result: LedgerItem[] | null = null;
+    src.list({}).subscribe((items) => (result = items));
+    http
+      .expectOne((r) => r.url === `${environment.apiUrl}/driver/ledger`)
+      .flush({ content: [], page: 0, size: 100, total: 999 });
+    http.verify();
+    expect(result).toEqual([]);
   });
 });

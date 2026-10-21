@@ -72,10 +72,19 @@ export const LEDGER_PAGE_SIZE = 100;
 /** 50 × 100 entries: more than a year of a busy driver; beyond it something is wrong. */
 const MAX_PAGES = 50;
 
-/** Another page exists when the last one came full and the total (if sent) is not reached. */
-export function hasNextPage(index: number, received: number, total: number | null): boolean {
-  if (index + 1 >= MAX_PAGES || received < LEDGER_PAGE_SIZE) return false;
-  return total === null || (index + 1) * LEDGER_PAGE_SIZE < total;
+/**
+ * Another page exists when the last one came full and the total (if sent) is not reached.
+ * "Full" is measured against the `size` the SERVER says it used (it may cap below what was
+ * asked), so a lower ceiling on its side still pages instead of stopping at page one.
+ */
+export function hasNextPage(
+  index: number,
+  received: number,
+  total: number | null,
+  pageSize: number = LEDGER_PAGE_SIZE,
+): boolean {
+  if (index + 1 >= MAX_PAGES || received === 0 || received < pageSize) return false;
+  return total === null || (index + 1) * pageSize < total;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -95,8 +104,15 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
         .get<unknown>(LEDGER, { params: ledgerParams(filter, index, LEDGER_PAGE_SIZE) })
         .pipe(map((res) => ({ index, ...toPage(res) })));
     return page(0).pipe(
-      expand((p) => (hasNextPage(p.index, p.received, p.total) ? page(p.index + 1) : EMPTY)),
-      reduce((all, p) => all.concat(p.items), [] as LedgerItem[]),
+      expand((p) =>
+        hasNextPage(p.index, p.received, p.total, p.size) ? page(p.index + 1) : EMPTY,
+      ),
+      // An entry saved between two page reads shifts the OFFSET: the same id can come twice.
+      reduce((all, p) => {
+        for (const item of p.items) all.set(item.id, item);
+        return all;
+      }, new Map<string, LedgerItem>()),
+      map((all) => [...all.values()]),
     );
   }
 
@@ -246,13 +262,21 @@ export function toItem(raw: unknown): LedgerItem | null {
   };
 }
 
-function toPage(res: unknown): { items: LedgerItem[]; received: number; total: number | null } {
+function toPage(res: unknown): {
+  items: LedgerItem[];
+  received: number;
+  total: number | null;
+  size: number;
+} {
   const raw = Array.isArray(res) ? res : ((res as { content?: unknown[] } | null)?.content ?? []);
-  const total = Array.isArray(res) ? null : Number((res as { total?: unknown } | null)?.total);
+  const meta = Array.isArray(res) ? {} : ((res ?? {}) as { total?: unknown; size?: unknown });
+  const total = Number(meta.total);
+  const size = Number(meta.size);
   return {
     items: raw.map(toItem).filter((x): x is LedgerItem => x !== null),
     received: Array.isArray(res) ? 0 : raw.length,
-    total: total !== null && Number.isFinite(total) ? total : null,
+    total: Number.isFinite(total) ? total : null,
+    size: Number.isFinite(size) && size > 0 ? size : LEDGER_PAGE_SIZE,
   };
 }
 

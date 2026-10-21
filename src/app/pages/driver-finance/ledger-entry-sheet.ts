@@ -42,6 +42,7 @@ const MAX_AMOUNT_CENTS = 100_000_000;
 export const MAX_RIDES = 1000;
 export const MAX_KM = 5000;
 export const MAX_HOURS = 24;
+export const MAX_ODOMETER_KM = 2_000_000;
 
 const CHIP =
   'min-h-11 px-4 rounded-full border text-sm font-medium cursor-pointer transition-colors ' +
@@ -204,8 +205,13 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
               Km atual do carro
             </label>
             <input id="ledger-odometer" inputmode="numeric" placeholder="Ex.: 48.320"
-              aria-describedby="ledger-odometer-hint" [value]="odometer()"
-              (input)="odometer.set(digits($event))" [class]="inputClass + ' border-neutral-200'" />
+              [attr.aria-describedby]="odometerError() ? 'ledger-odometer-error ledger-odometer-hint' : 'ledger-odometer-hint'"
+              [attr.aria-invalid]="odometerError() ? 'true' : null" [value]="odometer()"
+              (input)="odometer.set(digits($event)); odometerError.set(null)"
+              [class]="inputClass + (odometerError() ? ' border-rose-400' : ' border-neutral-200')" />
+            @if (odometerError(); as message) {
+              <span id="ledger-odometer-error" role="alert" class="text-xs text-rose-700">{{ message }}</span>
+            }
             <span id="ledger-odometer-hint" class="text-xs text-neutral-500">{{ odometerHint() }}</span>
           </div>
         }
@@ -288,6 +294,7 @@ export class LedgerEntrySheet {
   protected readonly notes = signal('');
   protected readonly category = signal<string>('FUEL');
   protected readonly odometer = signal('');
+  protected readonly odometerError = signal<string | null>(null);
   protected readonly amountError = signal<string | null>(null);
   protected readonly serverError = signal<string | null>(null);
   protected readonly busy = signal(false);
@@ -349,16 +356,16 @@ export class LedgerEntrySheet {
     if (item.type === 'INCOME') {
       this.app.set(item.app);
       this.details.set({
-        rides: item.rides ? String(item.rides) : '',
-        hours: item.hours
+        rides: item.rides !== null ? String(item.rides) : '',
+        hours: item.hours !== null
           ? formatPtBrNumber(Math.round(item.hours * 100), 2, { trailingZeros: false })
           : '',
-        km: item.km ? String(item.km) : '',
+        km: item.km !== null ? String(item.km) : '',
       });
       this.notes.set(item.notes ?? '');
     } else {
       this.category.set(item.category);
-      this.odometer.set(item.odometerKm ? String(item.odometerKm) : '');
+      this.odometer.set(item.odometerKm !== null ? String(item.odometerKm) : '');
     }
     this.show();
   }
@@ -408,6 +415,11 @@ export class LedgerEntrySheet {
     }
     const details = this.type() === 'INCOME' ? this.validateDetails() : null;
     if (details === undefined) return;
+    if (this.type() === 'EXPENSE' && this.odometer() !== '' && Number(this.odometer()) > MAX_ODOMETER_KM) {
+      this.odometerError.set(`No máximo ${integer(MAX_ODOMETER_KM)} km.`);
+      this.focus('ledger-odometer');
+      return;
+    }
     const request = this.request(scaled, details);
     const editing = this.editing();
     this.busy.set(true);
@@ -451,8 +463,9 @@ export class LedgerEntrySheet {
   private validateDetails(): { rides: number | null; hours: number | null; km: number | null } | undefined {
     const d = this.details();
     const errors: Record<DetailField, string | null> = { rides: null, hours: null, km: null };
-    const rides = d.rides ? Number(d.rides) : null;
-    const km = d.km ? Number(d.km) : null;
+    // Zero is a value ("0 corridas"), not "empty": only an empty field becomes null.
+    const rides = d.rides !== '' ? Number(d.rides) : null;
+    const km = d.km !== '' ? Number(d.km) : null;
     const hours = parseHours(d.hours);
     if (rides !== null && rides > MAX_RIDES) errors.rides = `No máximo ${integer(MAX_RIDES)}.`;
     if (km !== null && km > MAX_KM) errors.km = `No máximo ${integer(MAX_KM)} km.`;
@@ -463,7 +476,7 @@ export class LedgerEntrySheet {
       this.focus(`ledger-${first.key}`);
       return undefined;
     }
-    return { rides: rides || null, hours: hours.value || null, km: km || null };
+    return { rides, hours: hours.value, km };
   }
 
   private request(
@@ -498,7 +511,7 @@ export class LedgerEntrySheet {
       rides: null,
       hours: null,
       km: null,
-      odometerKm: this.odometer() ? Number(this.odometer()) || null : null,
+      odometerKm: this.odometer() !== '' ? Number(this.odometer()) : null,
       // Costs have no notes field on screen: the edit keeps what was there.
       notes: editing?.type === 'EXPENSE' ? editing.notes : null,
       rentalId,
@@ -515,6 +528,7 @@ export class LedgerEntrySheet {
     this.notes.set('');
     this.category.set('FUEL');
     this.odometer.set('');
+    this.odometerError.set(null);
     this.amountError.set(null);
     this.serverError.set(null);
     this.busy.set(false);

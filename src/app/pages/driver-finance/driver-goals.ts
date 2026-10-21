@@ -104,7 +104,7 @@ const MAX_DAILY_GOAL_CENTS = 9_999_900;
                     <div role="radiogroup" aria-labelledby="goal-days-label" appArrowSelect class="flex flex-wrap gap-2">
                       @for (n of dayOptions; track n) {
                         <button type="button" role="radio" [attr.data-days]="n" [attr.aria-checked]="days() === n" [attr.tabindex]="days() === n ? 0 : -1"
-                          (click)="days.set(n)" [class]="(days() === n ? ui.CHIP_ON : ui.CHIP_OFF) + ' min-w-11'">{{ n }}</button>
+                          (click)="selectDays(n)" [class]="(days() === n ? ui.CHIP_ON : ui.CHIP_OFF) + ' min-w-11'">{{ n }}</button>
                       }
                     </div>
                   </div>
@@ -215,14 +215,46 @@ export class DriverGoalsPage {
   });
 
   constructor() {
-    // First load, and again when "hoje" turns over (the progress is relative to it).
+    // First load; when "hoje" turns over only the PROGRESS is re-read, in place: the
+    // screen does not go back to "carregando" and a goal being typed is not overwritten.
+    let first = true;
     effect(() => {
       this.today();
-      untracked(() => this.load());
+      untracked(() => (first ? this.load() : this.refreshProgress()));
+      first = false;
     });
   }
 
+  /** Re-reads the progress; the form follows only if the driver has not touched it. */
+  private refreshProgress(): void {
+    if (this.state() !== 'ready') return;
+    this.source
+      .goals()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (state) => {
+          this.goals.set(state);
+          if (!this.dirty) this.fillForm(state);
+        },
+        error: () => undefined, // the progress on screen stays; the next turn retries
+      });
+  }
+
+  private fillForm(state: DriverGoalsState): void {
+    this.daily.set(state.goal ? formatPtBrMoney(state.goal.dailyGoal) : '');
+    this.days.set(state.goal?.workDaysPerWeek ?? 6);
+  }
+
+  /** The driver changed the form since the last load or save. */
+  private dirty = false;
+
+  protected selectDays(n: number): void {
+    this.days.set(n);
+    this.dirty = true;
+  }
+
   load(): void {
+    this.dirty = false;
     this.state.set('loading');
     this.source
       .goals()
@@ -230,8 +262,7 @@ export class DriverGoalsPage {
       .subscribe({
         next: (state) => {
           this.goals.set(state);
-          this.daily.set(state.goal ? formatPtBrMoney(state.goal.dailyGoal) : '');
-          this.days.set(state.goal?.workDaysPerWeek ?? 6);
+          this.fillForm(state);
           this.state.set('ready');
         },
         error: () => this.state.set('error'),
@@ -241,6 +272,7 @@ export class DriverGoalsPage {
   protected onDaily(event: Event): void {
     this.daily.set(applyPtBrMoneyMask(event, this.daily()).value);
     this.dailyError.set(null);
+    this.dirty = true;
   }
 
   save(): void {
@@ -262,6 +294,7 @@ export class DriverGoalsPage {
       .subscribe({
         next: (state) => {
           this.goals.set(state);
+          this.dirty = false;
           this.saving.set(false);
           this.notify.success('Metas salvas.');
         },

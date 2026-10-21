@@ -222,12 +222,15 @@ export class DriverEarnings {
   });
 
   protected readonly summary = computed(() => {
-    const s = { gross: 0, rides: 0, hours: 0, km: 0 };
+    // `grossWithHours`: only the entries that carry hours enter "Por hora" (the server's
+    // `perHourCents` rule) — an entry without hours must not inflate the hourly value.
+    const s = { gross: 0, rides: 0, hours: 0, km: 0, grossWithHours: 0 };
     for (const i of this.visible()) {
       s.gross += i.amount;
       s.rides += i.rides ?? 0;
       s.hours += i.hours ?? 0;
       s.km += i.km ?? 0;
+      if ((i.hours ?? 0) > 0) s.grossWithHours += i.amount;
     }
     return s;
   });
@@ -238,13 +241,14 @@ export class DriverEarnings {
       { label: 'Corridas', value: integer(s.rides) },
       { label: 'Horas', value: `${decimal(s.hours)} h` },
       { label: 'Km', value: integer(s.km) },
-      { label: 'Por hora', value: s.hours ? brl(s.gross / s.hours) : '—' },
+      { label: 'Por hora', value: s.hours ? brl(s.grossWithHours / s.hours) : '—' },
     ];
   });
 
   protected readonly byApp = computed(() => {
     const total = this.summary().gross;
-    return RIDE_APPS.map((app) => ({
+    // Entries without an app get their own bar ("Sem app"): the bars add up to the total.
+    return [...RIDE_APPS, null].map((app) => ({
       label: appLabel(app),
       cents: this.visible()
         .filter((i) => i.app === app)

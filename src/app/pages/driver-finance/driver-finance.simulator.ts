@@ -1,6 +1,7 @@
 import {
   RIDE_APPS,
   addDays,
+  addMonths,
   daysBetween,
   goalTargets,
   minIso,
@@ -92,6 +93,19 @@ function efficiency(items: readonly LedgerItem[], from: string, to: string, toda
   };
 }
 
+/**
+ * The server's `previousWindow`: a whole calendar month is compared with the previous
+ * calendar month; any other window with the same number of days right before it.
+ */
+export function previousWindow(from: string, to: string): { from: string; to: string } {
+  if (from === monthStart(from) && to === monthEnd(from)) {
+    const start = addMonths(from, -1);
+    return { from: start, to: monthEnd(start) };
+  }
+  const len = daysBetween(from, to) + 1;
+  return { from: addDays(from, -len), to: addDays(from, -1) };
+}
+
 export function simulateDashboard(
   items: readonly LedgerItem[],
   from: string,
@@ -101,9 +115,7 @@ export function simulateDashboard(
   goal: DriverGoals | null,
 ): DriverDashboardData {
   const cur = totals(items, from, to, today);
-  const len = daysBetween(from, to) + 1;
-  const prevFrom = addDays(from, -len);
-  const prevTo = addDays(from, -1);
+  const { from: prevFrom, to: prevTo } = previousWindow(from, to);
   const rent = rentAccrued(rental, from, to, today);
   const td = totals(items, today, today, today);
   const rentToday = rentAccrued(rental, today, today, today);
