@@ -148,10 +148,10 @@
       <!-- Como estão seus números -->
       <div class="flex flex-col gap-2.5 mt-1">
         <h2 class="m-0 text-lg font-semibold text-neutral-900">Como estão seus números</h2>
-        <div role="radiogroup" aria-label="Período"
+        <div role="radiogroup" aria-label="Período" appArrowSelect
           class="-mx-4 px-4 sm:mx-0 sm:px-0 py-0.5 flex gap-2 overflow-x-auto snap-x [scrollbar-width:none]">
           @for (p of presets; track p.key) {
-            <button type="button" role="radio" [attr.aria-checked]="preset() === p.key" [attr.data-preset]="p.key"
+            <button type="button" role="radio" [attr.aria-checked]="preset() === p.key" [attr.tabindex]="preset() === p.key ? 0 : -1" [attr.data-preset]="p.key"
               (click)="selectPreset(p.key)" [class]="(preset() === p.key ? ui.CHIP_ON : ui.CHIP_OFF) + ' snap-start'">
               {{ p.label }}
             </button>
@@ -174,6 +174,13 @@
           <span class="text-xs text-neutral-500 tabular-nums" data-range>{{ period().range }}</span>
         }
       </div>
+
+      @if (windowError()) {
+        <app-alert-banner variant="error" data-window-error>
+          Não foi possível carregar este período.
+          <button type="button" (click)="ensureWindow(true)" [class]="ui.RETRY">Tentar novamente</button>
+        </app-alert-banner>
+      }
 
       @if (period().empty) {
         <div [class]="ui.CARD + ' px-6 py-8 text-center'" data-state="empty">

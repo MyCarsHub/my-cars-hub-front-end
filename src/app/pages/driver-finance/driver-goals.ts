@@ -3,15 +3,20 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../services/notification.service';
+import { applyPtBrMoneyMask } from '../../utils/ptbr-money-mask';
+import { formatPtBrMoney, parsePtBrMoneyCents } from '../../utils/ptbr-number';
 import {
   addDays,
+  brl,
   brl0,
   ddmm,
   goalTargets,
@@ -21,9 +26,14 @@ import {
   percent,
   totals,
 } from './driver-finance.calc';
-import { DRIVER_FINANCE_TODAY, DriverFinanceSource } from './driver-finance.source';
+import { DriverFinanceClock } from './driver-finance.clock';
+import { DriverFinanceSource } from './driver-finance.source';
 import { DriverGoals, LedgerItem, LoadState } from './driver-finance.types';
 import * as ui from './driver-finance.ui';
+import { ArrowSelect } from './arrow-select';
+
+/** Guard-rail against an extra zero, not a commercial limit: R$ 100.000,00 per day. */
+const MAX_DAILY_GOAL_CENTS = 10_000_000;
 
 /**
  * Metas — progress of today, the week and the month against the goal, the form that
@@ -34,7 +44,8 @@ import * as ui from './driver-finance.ui';
 @Component({
   selector: 'app-driver-goals',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner],
+  imports: [AlertBanner, ArrowSelect],
+  providers: [DriverFinanceClock],
   host: { class: 'block' },
   template: `
     <section [class]="ui.PAGE" aria-labelledby="goals-title">
@@ -89,24 +100,22 @@ import * as ui from './driver-finance.ui';
                   class="px-4 sm:px-6 pt-2 pb-6 flex flex-col gap-5">
                   <div class="flex flex-col gap-2">
                     <label for="goal-daily" class="text-sm font-medium text-neutral-800">Meta por dia (R$)</label>
-                    <input id="goal-daily" data-field="daily" inputmode="numeric" autocomplete="off"
+                    <input id="goal-daily" data-field="daily" inputmode="decimal" autocomplete="off" placeholder="0,00"
                       [value]="daily()" (input)="onDaily($event)"
                       [attr.aria-invalid]="dailyError() ? 'true' : null"
                       [attr.aria-describedby]="dailyError() ? 'goal-daily-error' : null"
                       class="min-h-12 w-full rounded-xl border bg-white px-3 text-base text-neutral-800 tabular-nums
                              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                       [class]="dailyError() ? 'border-rose-400' : 'border-neutral-200'" />
-                    @if (dailyError()) {
-                      <span id="goal-daily-error" role="alert" class="text-xs text-rose-700">
-                        Informe um valor maior que zero.
-                      </span>
+                    @if (dailyError(); as message) {
+                      <span id="goal-daily-error" role="alert" class="text-xs text-rose-700">{{ message }}</span>
                     }
                   </div>
                   <div class="flex flex-col gap-2">
                     <span id="goal-days-label" class="text-sm font-medium text-neutral-800">Dias de trabalho por semana</span>
-                    <div role="radiogroup" aria-labelledby="goal-days-label" class="flex flex-wrap gap-2">
+                    <div role="radiogroup" aria-labelledby="goal-days-label" appArrowSelect class="flex flex-wrap gap-2">
                       @for (n of dayOptions; track n) {
-                        <button type="button" role="radio" [attr.data-days]="n" [attr.aria-checked]="days() === n"
+                        <button type="button" role="radio" [attr.data-days]="n" [attr.aria-checked]="days() === n" [attr.tabindex]="days() === n ? 0 : -1"
                           (click)="days.set(n)" [class]="(days() === n ? ui.CHIP_ON : ui.CHIP_OFF) + ' min-w-11'">{{ n }}</button>
                       }
                     </div>
@@ -157,7 +166,8 @@ import * as ui from './driver-finance.ui';
 })
 export class DriverGoalsPage {
   private readonly source = inject(DriverFinanceSource);
-  private readonly today = inject(DRIVER_FINANCE_TODAY);
+  /** A signal: the page re-reads when the day turns over with it open. */
+  private readonly today = inject(DriverFinanceClock).today;
   private readonly notify = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -168,18 +178,18 @@ export class DriverGoalsPage {
   protected readonly items = signal<LedgerItem[]>([]);
   /** Saved goals; drive the progress cards. */
   protected readonly goals = signal<DriverGoals | null>(null);
-  /** Form state, in whole reais (the prototype's field). */
+  /** Form state: the masked pt-BR text ("150,50"), parsed to cents — never whole reais. */
   protected readonly daily = signal('');
   protected readonly days = signal(6);
-  protected readonly dailyError = signal(false);
+  protected readonly dailyError = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal(false);
 
-  private readonly dailyCents = computed(() => (Number(this.daily()) || 0) * 100);
+  private readonly dailyCents = computed(() => parsePtBrMoneyCents(this.daily().trim()).scaled ?? 0);
 
   protected readonly preview = computed(() => {
     const t = goalTargets(this.dailyCents(), this.days());
-    return { week: brl0(t.week), month: brl0(t.month) };
+    return { week: brl(t.week), month: brl(t.month) };
   });
 
   protected readonly progress = computed(() => {
@@ -229,7 +239,11 @@ export class DriverGoalsPage {
   });
 
   constructor() {
-    this.load();
+    // First load, and again when "hoje" turns over (the windows are relative to it).
+    effect(() => {
+      this.today();
+      untracked(() => this.load());
+    });
   }
 
   load(): void {
@@ -245,7 +259,7 @@ export class DriverGoalsPage {
         next: ({ goals, items }) => {
           this.items.set(items);
           this.goals.set(goals);
-          this.daily.set(goals ? String(Math.round(goals.dailyGoal / 100)) : '');
+          this.daily.set(goals ? formatPtBrMoney(goals.dailyGoal) : '');
           this.days.set(goals?.workDaysPerWeek ?? 6);
           this.state.set('ready');
         },
@@ -254,17 +268,19 @@ export class DriverGoalsPage {
   }
 
   protected onDaily(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const value = input.value.replace(/\D/g, '').slice(0, 5);
-    input.value = value;
-    this.daily.set(value);
-    this.dailyError.set(false);
+    this.daily.set(applyPtBrMoneyMask(event, this.daily()).value);
+    this.dailyError.set(null);
   }
 
   save(): void {
     if (this.saving()) return;
-    if (!this.dailyCents()) {
-      this.dailyError.set(true);
+    const cents = this.dailyCents();
+    if (!cents) {
+      this.dailyError.set('Informe um valor maior que zero.');
+      return;
+    }
+    if (cents > MAX_DAILY_GOAL_CENTS) {
+      this.dailyError.set('Meta acima de R$ 100.000,00 por dia. Confira os zeros.');
       return;
     }
     this.saving.set(true);

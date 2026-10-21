@@ -232,8 +232,8 @@ describe('driver finance screens', () => {
       input.dispatchEvent(new Event('input'));
       q('[data-days="5"]')!.click();
       fixture.detectChanges();
-      expect(text(q('[data-week-goal]'))).toBe('R$ 1.250');
-      expect(text(q('[data-month-goal]'))).toBe('R$ 5.000');
+      expect(text(q('[data-week-goal]'))).toBe('R$ 1.250,00');
+      expect(text(q('[data-month-goal]'))).toBe('R$ 5.000,00');
       q('[data-action="save"]')!.click();
       fixture.detectChanges();
       expect(source.savedGoals).toEqual([{ dailyGoal: 25000, workDaysPerWeek: 5 }]);

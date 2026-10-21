@@ -3,8 +3,10 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -24,10 +26,12 @@ import {
   plural,
   relativeDay,
 } from './driver-finance.calc';
-import { DRIVER_FINANCE_TODAY, DriverFinanceSource } from './driver-finance.source';
+import { DriverFinanceClock } from './driver-finance.clock';
+import { DriverFinanceSource } from './driver-finance.source';
 import { ExpenseCategory, LedgerItem, LoadState } from './driver-finance.types';
 import * as ui from './driver-finance.ui';
 import { LedgerEntrySheet } from './ledger-entry-sheet';
+import { ArrowSelect } from './arrow-select';
 
 type CategoryFilter = ExpenseCategory | 'ALL';
 
@@ -39,7 +43,8 @@ type CategoryFilter = ExpenseCategory | 'ALL';
 @Component({
   selector: 'app-driver-expenses',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner, LedgerEntrySheet],
+  imports: [AlertBanner, ArrowSelect, LedgerEntrySheet],
+  providers: [DriverFinanceClock],
   host: { class: 'block' },
   template: `
     <section [class]="ui.PAGE" aria-labelledby="expenses-title">
@@ -83,16 +88,16 @@ type CategoryFilter = ExpenseCategory | 'ALL';
               </div>
             } @else {
               <div class="flex flex-col gap-2">
-                <div role="radiogroup" aria-label="Período" class="flex flex-wrap gap-2">
+                <div role="radiogroup" aria-label="Período" appArrowSelect class="flex flex-wrap gap-2">
                   @for (p of periods; track p.key) {
-                    <button type="button" role="radio" [attr.aria-checked]="period() === p.key"
+                    <button type="button" role="radio" [attr.aria-checked]="period() === p.key" [attr.tabindex]="period() === p.key ? 0 : -1"
                       [attr.data-period]="p.key" (click)="period.set(p.key)"
                       [class]="period() === p.key ? ui.CHIP_ON : ui.CHIP_OFF">{{ p.label }}</button>
                   }
                 </div>
-                <div role="radiogroup" aria-label="Categoria" class="flex flex-wrap gap-2">
+                <div role="radiogroup" aria-label="Categoria" appArrowSelect class="flex flex-wrap gap-2">
                   @for (c of categoryChips; track c.key) {
-                    <button type="button" role="radio" [attr.aria-checked]="category() === c.key"
+                    <button type="button" role="radio" [attr.aria-checked]="category() === c.key" [attr.tabindex]="category() === c.key ? 0 : -1"
                       [attr.data-category]="c.key" (click)="category.set(c.key)"
                       [class]="category() === c.key ? ui.CHIP_ON : ui.CHIP_OFF">{{ c.label }}</button>
                   }
@@ -203,7 +208,8 @@ type CategoryFilter = ExpenseCategory | 'ALL';
 })
 export class DriverExpenses {
   private readonly source = inject(DriverFinanceSource);
-  private readonly today = inject(DRIVER_FINANCE_TODAY);
+  /** A signal: the page re-reads when the day turns over with it open. */
+  private readonly today = inject(DriverFinanceClock).today;
   private readonly destroyRef = inject(DestroyRef);
   private readonly sheet = viewChild.required(LedgerEntrySheet);
 
@@ -218,7 +224,10 @@ export class DriverExpenses {
   protected readonly state = signal<LoadState>('loading');
   protected readonly items = signal<LedgerItem[]>([]);
   protected readonly hasAny = signal(false);
-  /** Highest odometer ever typed (not only in the window): the popup's "Último registro". */
+  /**
+   * Highest odometer in the 30 days this page loads — the popup's "Último registro". A
+   * reading older than that window is not seen (the ledger has no "last odometer" read).
+   */
   protected readonly lastOdometer = signal<number | null>(null);
   protected readonly period = signal<ListPeriod>('30');
   protected readonly category = signal<CategoryFilter>('ALL');
@@ -239,23 +248,38 @@ export class DriverExpenses {
 
   protected readonly total = computed(() => this.visible().reduce((t, i) => t + i.amount, 0));
 
-  /** Cost ÷ km driven between the lowest and the highest odometer of the window. */
-  protected readonly perKm = computed(() => {
-    const kms = this.visible()
+  /**
+   * Km driven in the PERIOD: highest − lowest odometer of every cost in it, whatever the
+   * category chip (a category filter must not shrink the distance the car ran).
+   */
+  private readonly periodKm = computed(() => {
+    const from = listPeriodFrom(this.period(), this.today());
+    const kms = this.items()
+      .filter((i) => i.type === 'EXPENSE' && i.date >= from && i.date <= this.today())
       .map((i) => i.odometerKm ?? 0)
       .filter((k) => k > 0);
-    const span = kms.length > 1 ? Math.max(...kms) - Math.min(...kms) : 0;
-    return span ? brl(this.total() / span) : '—';
+    return kms.length > 1 ? Math.max(...kms) - Math.min(...kms) : 0;
+  });
+
+  /** The shown costs (all, or one category) ÷ the km of the period. */
+  protected readonly perKm = computed(() => {
+    const km = this.periodKm();
+    return km ? brl(this.total() / km) : '—';
   });
 
   protected readonly byCategory = computed(() => {
     const total = this.total();
-    return EXPENSE_CATEGORIES.map((c) => ({
-      label: EXPENSE_LABEL[c],
-      cents: this.visible()
-        .filter((i) => i.category === c)
-        .reduce((t, i) => t + i.amount, 0),
-    }))
+    // Every category the entries carry — one without a chip still gets its own bar, so the
+    // bars always add up to the total.
+    const sums = new Map<string, number>();
+    for (const i of this.visible()) sums.set(i.category, (sums.get(i.category) ?? 0) + i.amount);
+    const order = (c: string) => {
+      const index = (EXPENSE_CATEGORIES as readonly string[]).indexOf(c);
+      return index < 0 ? EXPENSE_CATEGORIES.length : index;
+    };
+    return [...sums.entries()]
+      .sort((x, y) => order(x[0]) - order(y[0]))
+      .map(([c, cents]) => ({ label: expenseLabel(c), cents }))
       .filter((x) => x.cents > 0)
       .map((x) => ({ label: x.label, value: brl(x.cents), pct: total ? Math.round((x.cents / total) * 100) : 0 }));
   });
@@ -280,7 +304,11 @@ export class DriverExpenses {
   );
 
   constructor() {
-    this.load();
+    // First load, and again when "hoje" turns over (the windows are relative to it).
+    effect(() => {
+      this.today();
+      untracked(() => this.load());
+    });
   }
 
   load(): void {

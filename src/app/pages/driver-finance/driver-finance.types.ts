@@ -25,7 +25,11 @@ export interface LedgerItem {
   id: string;
   date: string;
   type: LedgerType;
-  category: LedgerItemCategory;
+  /**
+   * Kept as the server sent it: a category this UI has no chip for (an entry made on another
+   * screen) must survive an edit untouched, never be coerced to a UI value.
+   */
+  category: string;
   /** Cents. Always positive: the `type` carries the sign. */
   amount: number;
   app: RideApp | null;
@@ -35,6 +39,8 @@ export interface LedgerItem {
   /** Odometer reading the driver typed with an expense. */
   odometerKm: number | null;
   notes: string | null;
+  /** Rental the entry is tied to; an edit sends it back unchanged. */
+  rentalId: string | null;
 }
 
 /** Body of `POST` and `PUT /v1/driver/ledger[/{id}]`. */
@@ -62,6 +68,8 @@ export interface DriverRentalContext {
   periodAmount: number;
   /** Length of one billing period in days (7 for a weekly rental). */
   periodDays: number;
+  /** First day of the contract: no rent is debited before it. */
+  startDate: string | null;
   /** Next open charge, if the server has one. */
   nextCharge: { amount: number; dueDate: string } | null;
   /** Charges due inside the dashboard window, for the calendar. */

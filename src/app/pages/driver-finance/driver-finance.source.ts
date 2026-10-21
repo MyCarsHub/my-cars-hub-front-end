@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, InjectionToken, inject } from '@angular/core';
-import { Observable, catchError, map, of, switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, expand, map, of, reduce, switchMap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { DriverProfileService } from '../../services/driver-profile.service';
 import { RentalChargeDto } from '../../types/rental.types';
@@ -12,7 +12,6 @@ import {
   DriverRentalContext,
   LedgerFilter,
   LedgerItem,
-  LedgerItemCategory,
   LedgerItemRequest,
   LedgerType,
   RideApp,
@@ -53,8 +52,16 @@ const LEDGER = `${environment.apiUrl}/driver/ledger`;
 const GOALS = `${environment.apiUrl}/driver/goals`;
 const RENTALS = `${environment.apiUrl}/rentals`;
 
-/** Large enough for a year of daily entries; the dashboard reads a window, not a page. */
-const WINDOW_SIZE = 1000;
+/** The server's ceiling for one page of the ledger (`MAX_PAGE_SIZE`). */
+export const LEDGER_PAGE_SIZE = 100;
+/** 50 × 100 entries: more than a year of a busy driver; beyond it something is wrong. */
+const MAX_PAGES = 50;
+
+/** Another page exists when the last one came full and the total (if sent) is not reached. */
+export function hasNextPage(index: number, received: number, total: number | null): boolean {
+  if (index + 1 >= MAX_PAGES || received < LEDGER_PAGE_SIZE) return false;
+  return total === null || (index + 1) * LEDGER_PAGE_SIZE < total;
+}
 
 @Injectable({ providedIn: 'root' })
 export class HttpDriverFinanceSource extends DriverFinanceSource {
@@ -62,13 +69,28 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
   private readonly profile = inject(DriverProfileService);
   private readonly today = inject(DRIVER_FINANCE_TODAY);
 
+  /**
+   * Every entry of the window, page after page: the server caps a page at
+   * `LEDGER_PAGE_SIZE` and lists newest first, so one page would silently drop the oldest
+   * days of a long period. Stops at the last page (or `MAX_PAGES`, a guard-rail).
+   */
   list(filter: LedgerFilter): Observable<LedgerItem[]> {
-    let params = new HttpParams().set('page', '0').set('size', String(WINDOW_SIZE));
-    if (filter.from) params = params.set('from', filter.from);
-    if (filter.to) params = params.set('to', filter.to);
-    if (filter.type) params = params.set('type', filter.type);
-    if (filter.category) params = params.set('category', filter.category);
-    return this.http.get<unknown>(LEDGER, { params }).pipe(map(toItems));
+    const page = (index: number) => {
+      let params = new HttpParams()
+        .set('page', String(index))
+        .set('size', String(LEDGER_PAGE_SIZE));
+      if (filter.from) params = params.set('from', filter.from);
+      if (filter.to) params = params.set('to', filter.to);
+      if (filter.type) params = params.set('type', filter.type);
+      if (filter.category) params = params.set('category', filter.category);
+      return this.http
+        .get<unknown>(LEDGER, { params })
+        .pipe(map((res) => ({ index, ...toPage(res) })));
+    };
+    return page(0).pipe(
+      expand((p) => (hasNextPage(p.index, p.received, p.total) ? page(p.index + 1) : EMPTY)),
+      reduce((all, p) => all.concat(p.items), [] as LedgerItem[]),
+    );
   }
 
   hasAny(type: LedgerType): Observable<boolean> {
@@ -124,7 +146,7 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
             catchError(() => of([] as RentalChargeDto[])),
             map((charges) => ({
               ...base,
-              rental: toRentalContext(label, rental.plate, charges, this.today()),
+              rental: toRentalContext(label, rental.plate, charges, this.today(), rental.startDate),
             })),
           );
       }),
@@ -154,7 +176,7 @@ export function toItem(raw: unknown): LedgerItem | null {
     id: String(id),
     date,
     type,
-    category: String(r['category'] ?? (type === 'INCOME' ? 'RIDES' : 'OTHER')) as LedgerItemCategory,
+    category: String(r['category'] ?? (type === 'INCOME' ? 'RIDES' : 'OTHER')),
     amount: Math.round(amount),
     app: (r['app'] as RideApp | null | undefined) ?? null,
     rides: num('rides'),
@@ -162,6 +184,17 @@ export function toItem(raw: unknown): LedgerItem | null {
     km: num('km'),
     odometerKm: num('odometerKm'),
     notes: (r['notes'] ?? r['description'] ?? null) as string | null,
+    rentalId: r['rentalId'] === null || r['rentalId'] === undefined ? null : String(r['rentalId']),
+  };
+}
+
+function toPage(res: unknown): { items: LedgerItem[]; received: number; total: number | null } {
+  const raw = Array.isArray(res) ? res : ((res as { content?: unknown[] } | null)?.content ?? []);
+  const total = Array.isArray(res) ? null : Number((res as { total?: unknown } | null)?.total);
+  return {
+    items: raw.map(toItem).filter((x): x is LedgerItem => x !== null),
+    received: Array.isArray(res) ? 0 : raw.length,
+    total: total !== null && Number.isFinite(total) ? total : null,
   };
 }
 
@@ -202,6 +235,7 @@ export function toRentalContext(
   plate: string | null,
   charges: readonly RentalChargeDto[],
   today: string,
+  startDate: string | null = null,
 ): DriverRentalContext | null {
   const rent = charges
     .filter((c) => RENT_KINDS.has(c.kind) && c.dueDate && c.status !== 'CANCELED')
@@ -218,6 +252,7 @@ export function toRentalContext(
     plate,
     periodAmount: reference?.amount ?? 0,
     periodDays,
+    startDate,
     nextCharge: next ? { amount: next.amount, dueDate: next.dueDate! } : null,
     charges: rent
       .filter((c) => c.dueDate! >= addDays(today, -400))

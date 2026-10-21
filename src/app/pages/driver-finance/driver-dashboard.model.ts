@@ -1,5 +1,9 @@
 import {
+  DashboardPreset,
+  RENT_EXPENSE_CATEGORY,
   RIDE_APPS,
+  addMonths,
+  minIso,
   WEEKDAY_LONG,
   WEEKDAY_PLURAL,
   WEEKDAY_SHORT,
@@ -49,15 +53,59 @@ function rentDay(rental: DriverRentalContext | null): number {
   return rental ? rentPerDay(rental.periodAmount, rental.periodDays) : 0;
 }
 
+/** Rent the driver typed himself as a cost (`RENTAL_FEE`) inside `from..to`. */
+export function rentFeesIn(items: readonly LedgerItem[], from: string, to: string): number {
+  return items
+    .filter((i) => i.type === 'EXPENSE' && i.category === RENT_EXPENSE_CATEGORY && i.date >= from && i.date <= to)
+    .reduce((t, i) => t + i.amount, 0);
+}
+
+/**
+ * Rent the Dashboard debits for `from..to`: one day's share for each day that already
+ * happened AND falls inside the contract (nothing before `startDate`). Zero when the
+ * driver already typed the rent as a `RENTAL_FEE` cost in the window — it is already in the
+ * expenses, and debiting the share too would count it twice.
+ */
+export function rentDebit(input: DashboardInput, from: string, to: string): number {
+  const { items, rental, today } = input;
+  if (!rental || rentFeesIn(items, from, to) > 0) return 0;
+  const first = rental.startDate && rental.startDate > from ? rental.startDate : from;
+  const last = minIso(to, today);
+  if (last < first) return 0;
+  return (daysBetween(first, last) + 1) * rentDay(rental);
+}
+
+/**
+ * The window the period is compared with: the previous MONTH for the month presets (same
+ * number of elapsed days for the current month), the previous YEAR for "Este ano", and the
+ * same number of days right before for the rolling windows.
+ */
+export function previousRange(preset: DashboardPreset, from: string, to: string, today: string) {
+  const elapsed = Math.max(0, daysBetween(from, minIso(to, today)));
+  if (preset === 'monthCurrent' || preset === 'monthPast') {
+    const start = addMonths(from, -1);
+    const end = preset === 'monthPast' ? monthEnd(start) : minIso(addDays(start, elapsed), monthEnd(start));
+    return { from: start, to: end };
+  }
+  if (preset === 'year') {
+    const start = `${Number(from.slice(0, 4)) - 1}-01-01`;
+    return { from: start, to: addDays(start, elapsed) };
+  }
+  const len = daysBetween(from, to) + 1;
+  const start = addDays(from, -len);
+  return { from: start, to: addDays(start, elapsed) };
+}
+
 // ---------------------------------------------------------------- hero
 
-export function heroModel({ items, goals, rental, today }: DashboardInput) {
+export function heroModel(input: DashboardInput) {
+  const { items, goals, today } = input;
   const td = totals(items, today, today, today);
-  const rent = rentDay(rental);
+  const rent = rentDebit(input, today, today);
   const net = td.gross - td.expenses - rent;
   const pct = goals ? percent(td.gross, goals.dailyGoal) : null;
   const parts = [`Ganhou ${brl(td.gross)}`, `gastou ${brl(td.expenses)}`];
-  if (rental) parts.push(`aluguel do dia ${brl(rent)}`);
+  if (rent > 0) parts.push(`aluguel do dia ${brl(rent)}`);
   return {
     net: brl(net),
     line: parts.join(' · '),
@@ -171,7 +219,9 @@ export function coverModel({ items, rental, today }: DashboardInput) {
   const lastDue = lastPast ?? (nextDue ? addDays(nextDue, -rental.periodDays) : null);
   if (!lastDue) return null;
   const since = totals(items, addDays(lastDue, 1), today, today);
-  const earned = Math.max(0, since.gross - since.expenses);
+  // Paying the rent (a RENTAL_FEE cost) does not "un-cover" it.
+  const fees = rentFeesIn(items, addDays(lastDue, 1), today);
+  const earned = Math.max(0, since.gross - (since.expenses - fees));
   const pct = percent(earned, rental.periodAmount);
   const left = Math.max(0, rental.periodAmount - earned);
   const due = nextDue ?? addDays(lastDue, rental.periodDays);
@@ -203,14 +253,22 @@ function delta(current: number, previous: number) {
   return { text: `${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}% vs anterior`, good: p >= 0 };
 }
 
-export function periodModel(input: DashboardInput, from: string, to: string) {
+export function periodModel(
+  input: DashboardInput,
+  from: string,
+  to: string,
+  preset: DashboardPreset = '30d',
+) {
   const { items, rental, today } = input;
   const cur = totals(items, from, to, today);
-  const len = daysBetween(from, to) + 1;
-  const prevFrom = addDays(from, -len);
-  const prev = totals(items, prevFrom, addDays(prevFrom, Math.max(0, cur.days - 1)), today);
-  const rentCur = cur.days * rentDay(rental);
-  const rentPrev = prev.days * rentDay(rental);
+  const before = previousRange(preset, from, to, today);
+  const prev = totals(items, before.from, before.to, today);
+  const rentCur = rentDebit(input, from, to);
+  const rentPrev = rentDebit(input, before.from, before.to);
+  // Rent typed as a cost is shown in the "Aluguel" row, not inside "Despesas".
+  const fees = rentFeesIn(items, from, to);
+  const otherExpenses = cur.expenses - fees;
+  const rentShown = rentCur + fees;
   const empty = cur.gross === 0 && cur.expenses === 0;
 
   const avgRun = (t: typeof cur) => (t.rides ? t.gross / t.rides : 0);
@@ -232,14 +290,14 @@ export function periodModel(input: DashboardInput, from: string, to: string) {
   ];
 
   const net = cur.gross - cur.expenses - rentCur;
-  const base = Math.max(cur.gross, cur.expenses + rentCur, 1);
+  const base = Math.max(cur.gross, otherExpenses + rentShown, 1);
   const per100 = (v: number) => (cur.gross ? `R$ ${Math.round((v / cur.gross) * 100)}` : '—');
   const splitRows = [
     { key: 'net', label: 'Sobrou', per100: per100(Math.max(0, net)), value: brl(net), width: (Math.max(0, net) / base) * 100 },
-    { key: 'exp', label: 'Despesas', per100: per100(cur.expenses), value: brl(cur.expenses), width: (cur.expenses / base) * 100 },
+    { key: 'exp', label: 'Despesas', per100: per100(otherExpenses), value: brl(otherExpenses), width: (otherExpenses / base) * 100 },
   ];
-  if (rental) {
-    splitRows.push({ key: 'rent', label: 'Aluguel', per100: per100(rentCur), value: brl(rentCur), width: (rentCur / base) * 100 });
+  if (rental || fees > 0) {
+    splitRows.push({ key: 'rent', label: 'Aluguel', per100: per100(rentShown), value: brl(rentShown), width: (rentShown / base) * 100 });
   }
   const split = {
     net: brl(net),
@@ -247,8 +305,8 @@ export function periodModel(input: DashboardInput, from: string, to: string) {
     gross: brl(cur.gross),
     rows: splitRows,
     aria:
-      `De ${brl(cur.gross)} ganhos: despesas ${brl(cur.expenses)}` +
-      (rental ? `, aluguel ${brl(rentCur)}` : '') +
+      `De ${brl(cur.gross)} ganhos: despesas ${brl(otherExpenses)}` +
+      (rental || fees > 0 ? `, aluguel ${brl(rentShown)}` : '') +
       `, sobrou ${brl(net)}.`,
   };
 

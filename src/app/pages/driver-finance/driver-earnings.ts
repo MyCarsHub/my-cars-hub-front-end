@@ -3,8 +3,10 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -24,10 +26,12 @@ import {
   plural,
   relativeDay,
 } from './driver-finance.calc';
-import { DRIVER_FINANCE_TODAY, DriverFinanceSource } from './driver-finance.source';
+import { DriverFinanceClock } from './driver-finance.clock';
+import { DriverFinanceSource } from './driver-finance.source';
 import { LedgerItem, LoadState } from './driver-finance.types';
 import * as ui from './driver-finance.ui';
 import { LedgerEntrySheet } from './ledger-entry-sheet';
+import { ArrowSelect } from './arrow-select';
 
 /**
  * Ganhos — what the driver earned with rides: period chips (hoje, 7, 30 dias), the total
@@ -39,7 +43,8 @@ import { LedgerEntrySheet } from './ledger-entry-sheet';
 @Component({
   selector: 'app-driver-earnings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner, LedgerEntrySheet],
+  imports: [AlertBanner, ArrowSelect, LedgerEntrySheet],
+  providers: [DriverFinanceClock],
   host: { class: 'block' },
   template: `
     <section [class]="ui.PAGE" aria-labelledby="earnings-title">
@@ -82,9 +87,9 @@ import { LedgerEntrySheet } from './ledger-entry-sheet';
                 </button>
               </div>
             } @else {
-              <div role="radiogroup" aria-label="Período" class="flex flex-wrap gap-2">
+              <div role="radiogroup" aria-label="Período" appArrowSelect class="flex flex-wrap gap-2">
                 @for (p of periods; track p.key) {
-                  <button type="button" role="radio" [attr.aria-checked]="period() === p.key"
+                  <button type="button" role="radio" [attr.aria-checked]="period() === p.key" [attr.tabindex]="period() === p.key ? 0 : -1"
                     [attr.data-period]="p.key" (click)="period.set(p.key)"
                     [class]="period() === p.key ? ui.CHIP_ON : ui.CHIP_OFF">{{ p.label }}</button>
                 }
@@ -194,7 +199,8 @@ import { LedgerEntrySheet } from './ledger-entry-sheet';
 })
 export class DriverEarnings {
   private readonly source = inject(DriverFinanceSource);
-  private readonly today = inject(DRIVER_FINANCE_TODAY);
+  /** A signal: the page re-reads when the day turns over with it open. */
+  private readonly today = inject(DriverFinanceClock).today;
   private readonly destroyRef = inject(DestroyRef);
   private readonly sheet = viewChild.required(LedgerEntrySheet);
 
@@ -282,7 +288,11 @@ export class DriverEarnings {
   );
 
   constructor() {
-    this.load();
+    // First load, and again when "hoje" turns over (the windows are relative to it).
+    effect(() => {
+      this.today();
+      untracked(() => this.load());
+    });
   }
 
   load(): void {

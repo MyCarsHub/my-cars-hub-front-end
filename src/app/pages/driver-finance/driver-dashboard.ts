@@ -7,13 +7,15 @@ import {
   PLATFORM_ID,
   afterNextRender,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { Subject, catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { MembersSheet } from '../company-settings/members/members-sheet';
 import {
@@ -46,11 +48,8 @@ import {
   periodModel,
   weekModel,
 } from './driver-dashboard.model';
-import {
-  DRIVER_FINANCE_LINKS,
-  DRIVER_FINANCE_TODAY,
-  DriverFinanceSource,
-} from './driver-finance.source';
+import { DriverFinanceClock } from './driver-finance.clock';
+import { DRIVER_FINANCE_LINKS, DriverFinanceSource } from './driver-finance.source';
 import {
   DriverFinanceContext,
   DriverGoals,
@@ -60,6 +59,7 @@ import {
 import * as ui from './driver-finance.ui';
 import { DriverRentCoverCard } from './driver-rent-cover-card';
 import { LedgerEntrySheet } from './ledger-entry-sheet';
+import { ArrowSelect } from './arrow-select';
 
 const WEEKDAY_HEAD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -80,14 +80,15 @@ const WEEKDAY_HEAD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 @Component({
   selector: 'app-driver-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner, DriverRentCoverCard, LedgerEntrySheet, MembersSheet, RouterLink],
+  imports: [AlertBanner, ArrowSelect, DriverRentCoverCard, LedgerEntrySheet, MembersSheet, RouterLink],
+  providers: [DriverFinanceClock],
   host: { class: 'block' },
   templateUrl: './driver-dashboard.html',
 })
 export class DriverDashboard {
   private readonly source = inject(DriverFinanceSource);
   protected readonly links = inject(DRIVER_FINANCE_LINKS);
-  private readonly todayFn = inject(DRIVER_FINANCE_TODAY);
+  private readonly clock = inject(DriverFinanceClock);
   private readonly destroyRef = inject(DestroyRef);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private readonly sheet = viewChild.required(LedgerEntrySheet);
@@ -100,7 +101,8 @@ export class DriverDashboard {
   protected readonly money = brl;
   protected readonly short = brlShort;
 
-  protected readonly today = computed(() => this.todayFn());
+  /** A signal (not a memoised function): turns over at midnight with the screen open. */
+  protected readonly today = this.clock.today;
   protected readonly todayLabel = computed(() => longDate(this.today()));
 
   protected readonly state = signal<LoadState>('loading');
@@ -111,9 +113,13 @@ export class DriverDashboard {
   private loaded: { from: string; to: string } | null = null;
 
   protected readonly preset = signal<DashboardPreset>('monthCurrent');
-  protected readonly customFrom = signal(addDays(this.todayFn(), -13));
-  protected readonly customTo = signal(this.todayFn());
-  protected readonly calMonth = signal(monthStart(this.todayFn()));
+  protected readonly customFrom = signal(addDays(this.clock.today(), -13));
+  protected readonly customTo = signal(this.clock.today());
+  protected readonly calMonth = signal(monthStart(this.clock.today()));
+  /** A period/calendar read failed: the screen stays, with a retry for that part. */
+  protected readonly windowError = signal(false);
+  /** Each request supersedes the previous one (switchMap): a stale answer never lands. */
+  private readonly windowRequests = new Subject<{ from: string; to: string }>();
   protected readonly selectedDay = signal<string | null>(null);
   /** Phones: the FAB shows once the hero's «Lançar» left the screen. */
   protected readonly fabVisible = signal(false);
@@ -140,7 +146,7 @@ export class DriverDashboard {
   protected readonly week = computed(() => weekModel(this.input()));
   protected readonly cover = computed(() => coverModel(this.input()));
   protected readonly period = computed(() =>
-    periodModel(this.input(), this.range().from, this.range().to),
+    periodModel(this.input(), this.range().from, this.range().to, this.preset()),
   );
   protected readonly calendar = computed(() => calendarModel(this.input(), this.calMonth()));
   protected readonly calendarLabel = computed(() => monthLabel(this.calMonth()));
@@ -156,8 +162,34 @@ export class DriverDashboard {
   });
 
   constructor() {
+    this.windowRequests
+      .pipe(
+        switchMap((window) =>
+          this.source.list({ from: window.from, to: window.to }).pipe(
+            map((items) => ({ window, items, failed: false })),
+            catchError(() => of({ window, items: null, failed: true })),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(({ window, items, failed }) => {
+        this.windowError.set(failed);
+        if (failed || !items) return;
+        this.items.set(items);
+        this.loaded = window;
+      });
     this.loadAll();
     afterNextRender(() => this.watchHeroAction());
+    // Midnight with the Dashboard open: "Hoje" moved, so the window may have to grow.
+    let firstDay = true;
+    effect(() => {
+      this.today();
+      if (firstDay) {
+        firstDay = false;
+        return;
+      }
+      untracked(() => this.ensureWindow());
+    });
   }
 
   /** First load (and «Tentar novamente»): goals, context and the ledger window. */
@@ -166,7 +198,8 @@ export class DriverDashboard {
     this.loaded = null;
     const window = this.neededWindow();
     forkJoin({
-      goals: this.source.goals(),
+      // The goal is optional: if its read fails, the Dashboard shows without it.
+      goals: this.source.goals().pipe(catchError(() => of(null))),
       context: this.source.context(),
       items: this.source.list({ from: window.from, to: window.to }),
     })
@@ -237,24 +270,16 @@ export class DriverDashboard {
     };
   }
 
-  private ensureWindow(): void {
+  /** Grows the ledger window when the period, the calendar or "hoje" needs more days. */
+  protected ensureWindow(force = false): void {
     if (this.state() !== 'ready') return;
     const need = this.neededWindow();
     const have = this.loaded;
-    if (have && need.from >= have.from && need.to <= have.to) return;
+    if (!force && have && need.from >= have.from && need.to <= have.to) return;
     const window = have
       ? { from: minIso(need.from, have.from), to: maxIso(need.to, have.to) }
       : need;
-    this.source
-      .list({ from: window.from, to: window.to })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (items) => {
-          this.items.set(items);
-          this.loaded = window;
-        },
-        error: () => this.state.set('error'),
-      });
+    this.windowRequests.next(window);
   }
 
   // ------------------------------------------------------------ launch
@@ -269,12 +294,18 @@ export class DriverDashboard {
     this.sheet().openEdit(item);
   }
 
+  /**
+   * Shows the change at once, then re-reads the window: a read already in flight (started
+   * before the save) is superseded, so its stale answer cannot wipe the new entry.
+   */
   protected onSaved(item: LedgerItem): void {
     this.items.update((list) => [item, ...list.filter((i) => i.id !== item.id)]);
+    this.ensureWindow(true);
   }
 
   protected onRemoved(id: string): void {
     this.items.update((list) => list.filter((i) => i.id !== id));
+    this.ensureWindow(true);
   }
 
   private watchHeroAction(): void {

@@ -20,6 +20,12 @@ export class FakeFinanceSource extends DriverFinanceSource {
   updated: { id: string; request: LedgerItemRequest }[] = [];
   removed: string[] = [];
   savedGoals: DriverGoals[] = [];
+  /** Fail only one read, after the screen loaded (goals, or a later window of the ledger). */
+  failGoals = false;
+  failList = false;
+  /** Error a write returns (an `HttpErrorResponse` to exercise the message). */
+  writeError: unknown = null;
+  listCalls: LedgerFilter[] = [];
 
   private read<T>(value: T): Observable<T> {
     if (this.mode === 'error') return throwError(() => new Error('boom'));
@@ -28,6 +34,8 @@ export class FakeFinanceSource extends DriverFinanceSource {
   }
 
   list(filter: LedgerFilter): Observable<LedgerItem[]> {
+    this.listCalls.push(filter);
+    if (this.failList) return throwError(() => new Error('list'));
     return this.read(
       this.items.filter(
         (i) =>
@@ -43,6 +51,7 @@ export class FakeFinanceSource extends DriverFinanceSource {
   }
 
   create(request: LedgerItemRequest): Observable<LedgerItem> {
+    if (this.writeError) return throwError(() => this.writeError);
     this.created.push(request);
     const item = { ...request, id: `new-${this.created.length}` };
     this.items = [item, ...this.items];
@@ -61,6 +70,7 @@ export class FakeFinanceSource extends DriverFinanceSource {
   }
 
   goals(): Observable<DriverGoals | null> {
+    if (this.failGoals) return throwError(() => new Error('goals'));
     return this.read(this.goalsValue);
   }
 
@@ -89,6 +99,7 @@ export function income(over: Partial<LedgerItem> = {}): LedgerItem {
     km: 112,
     odometerKm: null,
     notes: null,
+    rentalId: null,
     ...over,
   };
 }
@@ -106,6 +117,7 @@ export function expense(over: Partial<LedgerItem> = {}): LedgerItem {
     km: null,
     odometerKm: 48320,
     notes: null,
+    rentalId: null,
     ...over,
   };
 }
