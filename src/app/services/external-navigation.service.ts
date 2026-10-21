@@ -31,14 +31,23 @@ const BLOCKED_TAB: PendingTab = {
 export class ExternalNavigationService {
   private readonly notifications = inject(NotificationService);
 
-  openExternal(url: string): void {
-    if (typeof window === 'undefined' || !url) return;
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!opened) {
-      this.notifications.warning(
-        'Ative pop-ups para este site para abrir o link em nova aba.',
-      );
-    }
+  /**
+   * Opens `url` in a new tab. Returns `true` when a tab really opened, `false` when the
+   * browser refused (or there was nothing to open), after warning the user.
+   *
+   * Deliberately WITHOUT the `noopener` window feature: per spec it makes `window.open`
+   * return `null` ALWAYS, so a successful open was indistinguishable from a blocked pop-up
+   * and every payment link raised the "ative pop-ups" warning. The handle is severed by hand
+   * instead (`opener = null`), the same way `openPendingTab` does, and a tab whose opener
+   * cannot be disowned is thrown away rather than left holding a live reference to this page.
+   */
+  openExternal(url: string): boolean {
+    if (typeof window === 'undefined' || !url) return false;
+    const opened = window.open(url, '_blank');
+    if (opened && this.severOpener(opened)) return true;
+    opened?.close();
+    this.notifications.warning('Ative pop-ups para este site para abrir o link em nova aba.');
+    return false;
   }
 
   /**

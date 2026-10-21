@@ -20,25 +20,49 @@ describe('ExternalNavigationService', () => {
     vi.restoreAllMocks();
   });
 
-  it('opens the URL in a new tab with noopener and noreferrer', () => {
-    openSpy.mockReturnValue({} as Window);
-    service.openExternal('https://example.com/checkout');
-    expect(openSpy).toHaveBeenCalledWith(
-      'https://example.com/checkout',
-      '_blank',
-      'noopener,noreferrer',
-    );
+  it('opens the URL in a new tab WITHOUT the noopener feature (it would always return null)', () => {
+    openSpy.mockReturnValue({ opener: {} } as unknown as Window);
+
+    expect(service.openExternal('https://example.com/checkout')).toBe(true);
+
+    expect(openSpy).toHaveBeenCalledWith('https://example.com/checkout', '_blank');
   });
 
-  it('warns via NotificationService when the popup is blocked', () => {
+  it('a window that opened is NOT reported as a blocked pop-up, and loses its opener', () => {
+    const win = { opener: {} as unknown, close: vi.fn() };
+    openSpy.mockReturnValue(win as unknown as Window);
+    const warnSpy = vi.spyOn(notifications, 'warning');
+
+    service.openExternal('https://example.com/checkout');
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(win.opener).toBeNull();
+    expect(win.close).not.toHaveBeenCalled();
+  });
+
+  it('warns via NotificationService only when the browser really returned no window', () => {
     openSpy.mockReturnValue(null);
     const warnSpy = vi.spyOn(notifications, 'warning');
-    service.openExternal('https://example.com/checkout');
+
+    expect(service.openExternal('https://example.com/checkout')).toBe(false);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws the tab away (and warns) when its opener cannot be disowned', () => {
+    const win = { close: vi.fn() };
+    Object.defineProperty(win, 'opener', { get: () => ({}), set: () => void 0 });
+    openSpy.mockReturnValue(win as unknown as Window);
+    const warnSpy = vi.spyOn(notifications, 'warning');
+
+    expect(service.openExternal('https://example.com/checkout')).toBe(false);
+
+    expect(win.close).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing when URL is empty', () => {
-    service.openExternal('');
+    expect(service.openExternal('')).toBe(false);
     expect(openSpy).not.toHaveBeenCalled();
   });
 
