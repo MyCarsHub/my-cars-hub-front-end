@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DriverCharge } from '../types/driver-charges.types';
-import { businessDayOf, driverChargeKindLabel, groupDriverCharges } from './driver-charges';
+import { paidDayOf, driverChargeKindLabel, groupDriverCharges } from './driver-charges';
 
 const TODAY = '2026-10-21';
 
@@ -20,7 +20,7 @@ describe('groupDriverCharges', () => {
   it('separa atrasadas, a próxima, as demais abertas e o histórico', () => {
     const g = groupDriverCharges(
       [
-        c({ id: 'paid', status: 'PAID', paidAt: '2026-09-01T10:00:00Z' }),
+        c({ id: 'paid', status: 'PAID', paidAt: '2026-09-01T10:00:00' }),
         c({ id: 'n2', dueDate: '2026-12-01' }),
         c({ id: 'late', status: 'PAST_DUE', dueDate: '2026-10-01' }),
         c({ id: 'n1', dueDate: '2026-11-01' }),
@@ -69,9 +69,9 @@ describe('groupDriverCharges', () => {
   it('histórico: a paga mais recente primeiro, e a devolvida entra', () => {
     const g = groupDriverCharges(
       [
-        c({ id: 'old', status: 'PAID', paidAt: '2026-08-01T10:00:00Z' }),
-        c({ id: 'new', status: 'PAID', paidAt: '2026-10-01T10:00:00Z' }),
-        c({ id: 'ref', status: 'REFUNDED', paidAt: '2026-09-01T10:00:00Z' }),
+        c({ id: 'old', status: 'PAID', paidAt: '2026-08-01T10:00:00' }),
+        c({ id: 'new', status: 'PAID', paidAt: '2026-10-01T10:00:00' }),
+        c({ id: 'ref', status: 'REFUNDED', paidAt: '2026-09-01T10:00:00' }),
       ],
       TODAY,
     );
@@ -98,13 +98,14 @@ describe('driverChargeKindLabel', () => {
   });
 });
 
-describe('businessDayOf', () => {
-  it('lê o dia no fuso de Brasília, não em UTC', () => {
-    expect(businessDayOf('2026-09-13T01:30:00Z')).toBe('2026-09-12');
+describe('paidDayOf', () => {
+  it('usa a parte da data como veio, sem converter fuso (o backend manda sem offset)', () => {
+    expect(paidDayOf('2026-09-12T23:30:00')).toBe('2026-09-12');
+    expect(paidDayOf('2026-09-13T00:10:00')).toBe('2026-09-13');
   });
 
   it('vazio ou inválido vira null', () => {
-    expect(businessDayOf(null)).toBeNull();
-    expect(businessDayOf('não é data')).toBeNull();
+    expect(paidDayOf(null)).toBeNull();
+    expect(paidDayOf('não é data')).toBeNull();
   });
 });

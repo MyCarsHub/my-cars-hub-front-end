@@ -1,6 +1,5 @@
 import { DriverCharge, DriverChargeGroups } from '../types/driver-charges.types';
 import { effectiveChargeStatus } from '../types/rental.types';
-import { todayInBusinessTz } from './business-clock';
 
 /** What the driver reads for each kind. Short, no jargon; "Aluguel" covers period and total. */
 export function driverChargeKindLabel(kind: DriverCharge['kind']): string {
@@ -14,11 +13,18 @@ export function driverChargeKindLabel(kind: DriverCharge['kind']): string {
   }
 }
 
-/** The calendar day (`yyyy-MM-dd`, business timezone) of an instant, or `null`. */
-export function businessDayOf(instant: string | null): string | null {
-  if (!instant) return null;
-  const at = new Date(instant);
-  return Number.isNaN(at.getTime()) ? null : todayInBusinessTz(at);
+/**
+ * The calendar day (`yyyy-MM-dd`) of a `paidAt`, or `null`.
+ *
+ * The backend sends `paidAt` as a `LocalDateTime`: no offset, so there is no instant to
+ * convert and no timezone to convert it to. The date part is taken AS IS — the same reading
+ * the operator's screen gives it. Which zone the JVM wrote it in is an open observation, not
+ * something this function can fix; if it turns out not to be Brasilia, the day shown here
+ * (and there) is the one to revisit.
+ */
+export function paidDayOf(paidAt: string | null): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(paidAt ?? '');
+  return match ? match[1] : null;
 }
 
 /**

@@ -41,7 +41,7 @@
       <!-- Atrasadas: vermelho e primeiro. O motorista não precisa procurar o que deve. -->
       @for (charge of groups().overdue; track charge.id) {
         <article class="rounded-2xl border border-rose-300 bg-rose-50 p-4" data-overdue>
-          <p class="text-sm font-semibold text-rose-800">Atrasada · {{ label(charge) }}</p>
+          <p class="text-base font-semibold text-rose-800">Atrasada · {{ label(charge) }}</p>
           <p class="mt-1 text-3xl font-bold tabular-nums text-neutral-900">
             {{ money(charge.amount) }}
           </p>
@@ -69,7 +69,7 @@
       <!-- O próximo a pagar: valor grande, data e um botão só. -->
       @if (groups().next; as next) {
         <article class="rounded-2xl border border-primary-200 bg-white p-4 shadow-sm" data-next>
-          <p class="text-sm font-semibold text-primary-800">{{ label(next) }}</p>
+          <p class="text-base font-semibold text-primary-800">{{ label(next) }}</p>
           <p class="mt-1 text-3xl font-bold tabular-nums text-neutral-900">
             {{ money(next.amount) }}
           </p>

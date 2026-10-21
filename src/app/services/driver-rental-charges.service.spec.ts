@@ -67,4 +67,51 @@ describe('DriverRentalChargesService', () => {
 
     expect(results).toEqual([[], []]);
   });
+
+  it('link de pagamento só http(s): javascript:, texto solto e vazio viram null', () => {
+    let result: { checkoutUrl: string | null }[] = [];
+    service.list('r-1').subscribe((r) => (result = r));
+
+    const row = (id: string, checkoutUrl: unknown) => ({
+      id,
+      kind: 'RENTAL_PERIOD',
+      amount: 1,
+      status: 'PENDING',
+      checkoutUrl,
+    });
+    http.expectOne(`${environment.apiUrl}/rentals/r-1/charges`).flush([
+      row('a', 'javascript:alert(1)'),
+      row('b', 'pagar aqui'),
+      row('c', ''),
+      row('d', 'https://pay.example/i/1'),
+      row('e', 'http://pay.example/i/2'),
+    ]);
+
+    expect(result.map((c) => c.checkoutUrl)).toEqual([
+      null,
+      null,
+      null,
+      'https://pay.example/i/1',
+      'http://pay.example/i/2',
+    ]);
+  });
+
+  it('status que esta versão não conhece vira cobrança aberta sem botão, e não some', () => {
+    let result: { status: string; checkoutUrl: string | null }[] = [];
+    service.list('r-1').subscribe((r) => (result = r));
+
+    http.expectOne(`${environment.apiUrl}/rentals/r-1/charges`).flush([
+      {
+        id: 'x',
+        kind: 'RENTAL_PERIOD',
+        amount: 1,
+        status: 'IN_ANALYSIS',
+        checkoutUrl: 'https://pay.example/i/1',
+      },
+    ]);
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'x', status: 'PENDING', checkoutUrl: null }),
+    ]);
+  });
 });

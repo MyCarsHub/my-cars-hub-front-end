@@ -396,10 +396,16 @@ export class RentalDetail implements OnInit {
   private readonly impersonation = inject(ImpersonationService);
   protected readonly editSession = computed(() => this.impersonation.editMode?.() === true);
   protected readonly supportDeleteRemovals = signal<readonly RentalChargeRemovalDto[] | null>(null);
+  /**
+   * Cancelar, concluir e ativar são do operador: para o motorista o backend responde 403,
+   * então o botão nem existe. `isDriver` vem do token e não muda durante a tela.
+   */
   protected readonly canCancel = computed(
-    () => this.rental()?.status === 'RESERVED' && !this.editSession(),
+    () => this.rental()?.status === 'RESERVED' && !this.editSession() && !this.isDriver,
   );
-  protected readonly canComplete = computed(() => this.rental()?.status === 'ACTIVE');
+  protected readonly canComplete = computed(
+    () => this.rental()?.status === 'ACTIVE' && !this.isDriver,
+  );
   /**
    * Ativação é oferecida para TODO aluguel RESERVED — cobrança automática
    * inclusive. Com automática a ativação normalmente chega sozinha pelo webhook
@@ -408,7 +414,9 @@ export class RentalDetail implements OnInit {
    * pré-condição de pagamento (recusa só por status, papel, tenant ou
    * assinatura), e essa recusa aparece no banner via `apiErrors.messageFor`.
    */
-  protected readonly canActivate = computed(() => this.rental()?.status === 'RESERVED');
+  protected readonly canActivate = computed(
+    () => this.rental()?.status === 'RESERVED' && !this.isDriver,
+  );
   protected readonly activateBusy = signal(false);
   protected readonly activateLabel = computed(() =>
     this.activateBusy() ? 'Ativando…' : 'Marcar como ativo',
@@ -572,6 +580,11 @@ export class RentalDetail implements OnInit {
    * cadastro a tela NAO faz.
    */
   protected readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
+
+  /** Sem nome de provedor para o motorista: ele só vê o que é dele. */
+  protected readonly pageDescription = this.isDriver
+    ? 'Contrato, pagamentos e histórico do seu aluguel.'
+    : 'Contrato, cobranças Asaas e ações do ciclo de vida.';
 
   /**
    * Placa, modelo e motorista a partir da linha da LISTA, que o servico ainda guarda.

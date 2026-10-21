@@ -160,7 +160,7 @@ describe('DriverCharges', () => {
           charge({
             id: 'p-1',
             status: 'PAID',
-            paidAt: '2026-09-12T15:30:00Z',
+            paidAt: '2026-09-12T15:30:00',
             checkoutUrl: null,
             amount: 80000,
           }),
@@ -238,7 +238,7 @@ describe('DriverCharges', () => {
         of(
           ++attempt === 1
             ? [charge()]
-            : [charge({ status: 'PAID', paidAt: '2026-10-20T12:00:00Z', checkoutUrl: null })],
+            : [charge({ status: 'PAID', paidAt: '2026-10-20T12:00:00', checkoutUrl: null })],
         ),
       );
       expect(q('[data-next]')).not.toBeNull();
@@ -262,6 +262,32 @@ describe('DriverCharges', () => {
 
       expect(q('[data-load-error]')).toBeNull();
       expect(q('[data-next]')).not.toBeNull();
+    });
+
+    it('com a primeira carga ainda pendente, voltar para a aba não cancela nem refaz a busca', () => {
+      const pending = new Subject<DriverCharge[]>();
+      build(() => pending);
+
+      document.dispatchEvent(new Event('visibilitychange'));
+      fixture.detectChanges();
+
+      expect(listCall).toHaveBeenCalledTimes(1);
+      expect(q('[data-loading]')).not.toBeNull();
+
+      pending.next([charge()]);
+      fixture.detectChanges();
+      expect(q('[data-next]')).not.toBeNull();
+    });
+
+    it('com a primeira carga falha, voltar para a aba não engole o erro nem some com o "Tentar novamente"', () => {
+      build(() => throwError(() => new HttpErrorResponse({ status: 500 })));
+      expect(q('[data-load-error]')).not.toBeNull();
+
+      document.dispatchEvent(new Event('visibilitychange'));
+      fixture.detectChanges();
+
+      expect(listCall).toHaveBeenCalledTimes(1);
+      expect(flat(q('[data-load-error]'))).toContain('Tentar novamente');
     });
 
     it('depois de destruído, a aba não dispara mais busca', () => {

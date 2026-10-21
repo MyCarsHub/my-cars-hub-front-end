@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { DriverCharge } from '../types/driver-charges.types';
+import { ChargeStatus } from '../types/rental.types';
 
 const RENTALS = `${environment.apiUrl}/rentals`;
 
@@ -25,20 +26,45 @@ export class DriverRentalChargesService {
   }
 }
 
+const STATUSES: readonly ChargeStatus[] = [
+  'PENDING',
+  'PAST_DUE',
+  'PAID',
+  'FAILED',
+  'CANCELED',
+  'REFUNDED',
+  'RELEASED',
+  'DISPUTED',
+];
+
+/** The payment link opens in the driver's browser: only http(s), never `javascript:` and co. */
+function safeLink(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'https:' || protocol === 'http:' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Keeps only what the screen reads; a row without id or amount is dropped, not guessed. */
 function toCharge(raw: unknown): DriverCharge | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
   if (typeof r['id'] !== 'string' || typeof r['amount'] !== 'number') return null;
+  const knownStatus = STATUSES.find((s) => s === r['status']) ?? null;
   return {
     id: r['id'],
     kind: r['kind'] as DriverCharge['kind'],
     amount: r['amount'],
-    status: r['status'] as DriverCharge['status'],
+    status: knownStatus ?? 'PENDING',
     dueDate: typeof r['dueDate'] === 'string' ? r['dueDate'] : null,
     periodIndex: typeof r['periodIndex'] === 'number' ? r['periodIndex'] : null,
     paidAt: typeof r['paidAt'] === 'string' ? r['paidAt'] : null,
-    checkoutUrl: typeof r['checkoutUrl'] === 'string' && r['checkoutUrl'] ? r['checkoutUrl'] : null,
+    // A status this build does not know is an OPEN charge with no button: it stays on the
+    // screen (the driver still owes it) but nothing here can say how to pay it.
+    checkoutUrl: knownStatus ? safeLink(r['checkoutUrl']) : null,
   };
 }
 

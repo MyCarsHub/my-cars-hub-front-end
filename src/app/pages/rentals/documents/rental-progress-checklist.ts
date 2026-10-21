@@ -217,6 +217,8 @@ export class RentalProgressChecklist implements OnInit {
   readonly automaticCharge = input<boolean | undefined>(false);
   /** Repassado ao card de contrato — habilita o botão "Já Assinado" só em MANUAL. */
   readonly contractSource = input<RentalContractSource | null>(null);
+  /** O motorista acompanha o checklist, mas não ativa o aluguel: o backend recusa. */
+  readonly canActivateAction = input(true);
 
   readonly activateRequested = output<void>();
 
@@ -384,7 +386,7 @@ export class RentalProgressChecklist implements OnInit {
         visible: true,
         panel: null,
         badge: activateBadge,
-        showActionButton: canActivate,
+        showActionButton: canActivate && this.canActivateAction(),
         actionLabel: 'Marcar como ativo',
         actionKind: 'activate',
       },

@@ -1695,6 +1695,53 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       expect(lastAncillaryUrls).toContain(`${BASE}/${RENTAL_ID}/charges`);
     });
 
+    describe('o detalhe para o motorista é só de consulta', () => {
+      const labeled = (fixture: ComponentFixture<RentalDetail>, label: string) =>
+        Array.from(fixture.nativeElement.querySelectorAll('button, a') as NodeListOf<HTMLElement>)
+          .filter((el) => (el.textContent ?? '').trim() === label);
+
+      const WITH_NOTES = { notes: 'Obs do operador: cliente difícil' };
+
+      it('não vê as observações do operador, mas o dono vê', async () => {
+        const driver = await mountDetail(ACTIVE_AUTO([OPEN()], WITH_NOTES), { role: 'DRIVER' });
+        expect(text(driver.fixture)).not.toContain('Obs do operador');
+
+        const owner = await mountDetail(ACTIVE_AUTO([OPEN()], WITH_NOTES));
+        expect(text(owner.fixture)).toContain('Obs do operador');
+      });
+
+      it('não vê o nome do provedor: nem o chip da cobrança automática nem o texto do cabeçalho', async () => {
+        const driver = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
+        expect(text(driver.fixture)).not.toContain('Asaas');
+        expect(text(driver.fixture)).toContain('Contrato, pagamentos e histórico do seu aluguel.');
+
+        const owner = await mountDetail(ACTIVE_AUTO([OPEN()]));
+        expect(text(owner.fixture)).toContain('Cobrança automática via Asaas');
+        expect(text(owner.fixture)).toContain('Contrato, cobranças Asaas');
+      });
+
+      it('não vê Editar, Excluir, Cancelar, Concluir nem Marcar como ativo (o backend recusa)', async () => {
+        const reserved = await mountDetail({ ...RESERVED_BASE, status: 'RESERVED' }, { role: 'DRIVER' });
+        const active = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
+
+        for (const { fixture } of [reserved, active]) {
+          for (const label of ['Editar', 'Excluir', 'Cancelar aluguel', 'Concluir aluguel', 'Marcar como ativo']) {
+            expect(labeled(fixture, label).length, label).toBe(0);
+          }
+        }
+      });
+
+      it('o dono segue vendo as ações do ciclo de vida', async () => {
+        const reserved = await mountDetail({ ...RESERVED_BASE, status: 'RESERVED' });
+        expect(labeled(reserved.fixture, 'Cancelar aluguel').length).toBe(1);
+        expect(labeled(reserved.fixture, 'Marcar como ativo').length).toBeGreaterThan(0);
+        expect(labeled(reserved.fixture, 'Editar').length).toBeGreaterThan(0);
+
+        const active = await mountDetail(ACTIVE_AUTO([OPEN()]));
+        expect(labeled(active.fixture, 'Concluir aluguel').length).toBe(1);
+      });
+    });
+
     it('o dono segue com o cronograma e sem a seção do motorista', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
 

@@ -20,9 +20,9 @@ import { formatDate } from '../../types/dashboard.types';
 import { DriverCharge, DriverChargeGroups } from '../../types/driver-charges.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
 import {
-  businessDayOf,
   driverChargeKindLabel,
   groupDriverCharges,
+  paidDayOf,
 } from '../../utils/driver-charges';
 
 const LOAD_ERROR = 'Não foi possível carregar os pagamentos.';
@@ -168,7 +168,7 @@ export class DriverCharges {
 
   protected paidText(charge: DriverCharge): string {
     if (charge.status === 'REFUNDED') return 'Devolvido';
-    const day = businessDayOf(charge.paidAt);
+    const day = paidDayOf(charge.paidAt);
     return day ? `Pago em ${formatDate(day)}` : 'Pago';
   }
 
