@@ -22,6 +22,21 @@ export interface DriverCharge {
   checkoutUrl: string | null;
 }
 
+/**
+ * `GET /v1/rentals/{rentalId}/charges/{chargeId}/pix` — the Pix of one open charge, asked
+ * for when the driver opens "Pagar cobrança". Errors come with a pt-BR message shown as is:
+ * 404 (rental/charge not found), 409 (not open, or no Pix for this charge) and 503 (the
+ * gateway did not answer). The screen then offers the invoice page (`checkoutUrl`) instead.
+ */
+export interface DriverChargePix {
+  /** The EMV "copia e cola" string. */
+  payload: string;
+  /** PNG of the QR code, base64 without the `data:` prefix. `null` when not sent. */
+  qrCodeBase64: string | null;
+  /** When the code stops being accepted (ISO with offset, e.g. `-03:00`). `null` = no limit. */
+  expiresAt: string | null;
+}
+
 /** What the screen draws, already sorted and split by what the driver has to do about it. */
 export interface DriverChargeGroups {
   /** Past the due date and still unpaid: red, "Pagar agora". Oldest first. */

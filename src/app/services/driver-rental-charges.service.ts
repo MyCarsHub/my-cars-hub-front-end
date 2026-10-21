@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { DriverCharge } from '../types/driver-charges.types';
+import { DriverCharge, DriverChargePix } from '../types/driver-charges.types';
 import { ChargeStatus } from '../types/rental.types';
 
 const RENTALS = `${environment.apiUrl}/rentals`;
@@ -24,6 +24,29 @@ export class DriverRentalChargesService {
       .get<unknown>(`${RENTALS}/${encodeURIComponent(rentalId)}/charges`)
       .pipe(map((res) => (Array.isArray(res) ? res.map(toCharge).filter(isCharge) : [])));
   }
+
+  /**
+   * The Pix "copia e cola" of one open charge. A body without a usable `payload` is an
+   * error, not an empty code: the screen must never offer to copy nothing.
+   */
+  pix(rentalId: string, chargeId: string): Observable<DriverChargePix> {
+    return this.http
+      .get<unknown>(
+        `${RENTALS}/${encodeURIComponent(rentalId)}/charges/${encodeURIComponent(chargeId)}/pix`,
+      )
+      .pipe(map(toPix));
+  }
+}
+
+function toPix(raw: unknown): DriverChargePix {
+  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const payload = typeof r['payload'] === 'string' ? r['payload'].trim() : '';
+  if (!payload) throw new Error('Pix sem código');
+  return {
+    payload,
+    qrCodeBase64: typeof r['qrCodeBase64'] === 'string' ? r['qrCodeBase64'] : null,
+    expiresAt: typeof r['expiresAt'] === 'string' ? r['expiresAt'] : null,
+  };
 }
 
 const STATUSES: readonly ChargeStatus[] = [

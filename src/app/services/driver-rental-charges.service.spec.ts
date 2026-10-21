@@ -56,6 +56,47 @@ describe('DriverRentalChargesService', () => {
     ]);
   });
 
+  describe('pix()', () => {
+    const url = `${environment.apiUrl}/rentals/r%201/charges/c%2F1/pix`;
+
+    it('GET .../charges/{chargeId}/pix com os ids codificados, e mapeia o contrato', () => {
+      let result: unknown;
+      service.pix('r 1', 'c/1').subscribe((r) => (result = r));
+
+      const req = http.expectOne(url);
+      expect(req.request.method).toBe('GET');
+      req.flush({ payload: ' 000201PIX ', qrCodeBase64: 'iVBOR', expiresAt: '2026-10-22T03:00:00Z' });
+
+      expect(result).toEqual({
+        payload: '000201PIX',
+        qrCodeBase64: 'iVBOR',
+        expiresAt: '2026-10-22T03:00:00Z',
+      });
+    });
+
+    it('resposta sem código é ERRO, nunca um código vazio para copiar', () => {
+      let failed = false;
+      service.pix('r 1', 'c/1').subscribe({ error: () => (failed = true) });
+
+      http.expectOne(url).flush({ payload: '   ', qrCodeBase64: null });
+
+      expect(failed).toBe(true);
+    });
+
+    it('o 503 do provedor chega ao chamador com o corpo intacto', () => {
+      let status = 0;
+      service.pix('r 1', 'c/1').subscribe({
+        error: (err: { status: number }) => (status = err.status),
+      });
+
+      http
+        .expectOne(url)
+        .flush({ message: 'Pix indisponível agora.' }, { status: 503, statusText: 'Unavailable' });
+
+      expect(status).toBe(503);
+    });
+  });
+
   it('descarta linha sem id ou sem valor e tolera resposta que não é lista', () => {
     const results: unknown[] = [];
     service.list('r-1').subscribe((r) => results.push(r));
