@@ -546,8 +546,9 @@ export class InspectionReview implements OnInit {
   private checkRedo(found: Inspection): void {
     this.canRedo.set(null);
     if (found.status !== 'REJECTED') return;
+    // `peek`, not `list`: this answer must not overwrite the list state the Vistorias page owns.
     this.service
-      .list({ vehicleId: found.vehicleId, page: 0, size: 1, sort: 'date,desc' })
+      .peek({ vehicleId: found.vehicleId, page: 0, size: 1, sort: 'date,desc' })
       .subscribe({
         next: (res) => this.canRedo.set(res?.content?.[0]?.id === found.id),
         error: (err: unknown) => this.apiErrors.claim(err),

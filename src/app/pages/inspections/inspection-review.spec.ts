@@ -103,6 +103,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
   let reportUrl: ReturnType<typeof vi.fn>;
   let previewOpen: ReturnType<typeof vi.fn>;
   let list: ReturnType<typeof vi.fn>;
+  let peek: ReturnType<typeof vi.fn>;
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let notifications: NotificationService;
   let role: string;
@@ -115,7 +116,8 @@ describe('InspectionReview — detalhes da vistoria', () => {
     reject = vi.fn().mockReturnValue(of(REJECTED));
     reportUrl = vi.fn().mockReturnValue(of({ url: 'https://storage.example/laudo.pdf?sig=1' }));
     previewOpen = vi.fn();
-    list = vi.fn().mockReturnValue(of({ content: [{ id: 'insp-1' }], page: 0, size: 1, total: 1 }));
+    list = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+    peek = vi.fn().mockReturnValue(of({ content: [{ id: 'insp-1' }], page: 0, size: 1, total: 1 }));
     params = new BehaviorSubject(convertToParamMap({ id: 'insp-1' }));
 
     TestBed.configureTestingModule({
@@ -126,7 +128,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
         ApiErrorService,
         {
           provide: InspectionsService,
-          useValue: { getOne, photos, approve, reject, reportUrl, list },
+          useValue: { getOne, photos, approve, reject, reportUrl, list, peek },
         },
         { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
         { provide: DocumentPreviewService, useValue: { open: previewOpen } },
@@ -974,9 +976,11 @@ describe('InspectionReview — detalhes da vistoria', () => {
       const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
 
       expect(q(fixture, '[data-driver-rejected]')?.textContent).toContain('Motivo: Refaça.');
-      expect(list).toHaveBeenCalledWith(
+      expect(peek).toHaveBeenCalledWith(
         expect.objectContaining({ vehicleId: DETAIL.vehicleId, page: 0, size: 1, sort: 'date,desc' }),
       );
+      // `list` would overwrite the Vistorias page's state (items, loading, error).
+      expect(list).not.toHaveBeenCalled();
       expect(q<HTMLAnchorElement>(fixture, '[data-driver-redo]')?.getAttribute('href')).toBe(
         '/vistorias/insp-1/captura',
       );
@@ -985,7 +989,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
     it('recusada ANTIGA (ja existe uma mais recente do carro) nao oferece refazer', () => {
       role = 'DRIVER';
       configure();
-      list.mockReturnValue(of({ content: [{ id: 'insp-9' }], page: 0, size: 1, total: 2 }));
+      peek.mockReturnValue(of({ content: [{ id: 'insp-9' }], page: 0, size: 1, total: 2 }));
       const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
 
       expect(q(fixture, '[data-driver-redo]')).toBeNull();
