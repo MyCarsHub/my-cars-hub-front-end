@@ -154,3 +154,57 @@ describe('DetailDialog', () => {
     expect(fixture.componentInstance.open()).toBe(false);
   });
 });
+
+@Component({
+  selector: 'app-detail-dialog-actions-host',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DetailDialog],
+  template: `
+    <app-detail-dialog [open]="true" title="Pagar" size="compact" [showCloseAction]="false">
+      <p>corpo</p>
+      <div dialogActions><button type="button" id="own-action">Copiar</button></div>
+    </app-detail-dialog>
+  `,
+})
+class DetailDialogActionsHost {}
+
+describe('DetailDialog — ações de quem abre', () => {
+  it('projeta [dialogActions] no rodapé, sem o "Fechar" de rodapé, em caixa de 480px', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [DetailDialogActionsHost],
+      providers: [provideNoopAnimations()],
+    });
+    const fixture = TestBed.createComponent(DetailDialogActionsHost);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const footerButtons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.border-t button'),
+    ).map((b) => b.textContent?.trim());
+    expect(footerButtons).toEqual(['Copiar']);
+    expect(root.querySelector('[tabindex="-1"]')!.className).toContain('max-w-[480px]');
+    // O X do topo continua lá.
+    expect(root.querySelector('button[aria-label="Fechar"]')).not.toBeNull();
+    document.body.style.overflow = '';
+  });
+
+  it('sem as entradas novas, o rodapé segue com o "Fechar" e 512px', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [DetailDialogHost],
+      providers: [provideNoopAnimations()],
+    });
+    const fixture = TestBed.createComponent(DetailDialogHost);
+    fixture.componentInstance.open.set(true);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const footer = Array.from(root.querySelectorAll<HTMLButtonElement>('.border-t button'));
+    expect(footer.map((b) => b.textContent?.trim())).toEqual(['Fechar']);
+    expect(root.querySelector('[tabindex="-1"]')!.className).toContain('max-w-lg');
+    document.body.style.overflow = '';
+  });
+});
