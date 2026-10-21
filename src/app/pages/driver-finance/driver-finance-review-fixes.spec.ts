@@ -6,7 +6,8 @@ import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { environment } from '../../../environments/environment';
 import { DriverDashboard } from './driver-dashboard';
-import { previousRange, rentDebit } from './driver-dashboard.model';
+import { periodModel } from './driver-dashboard.model';
+import { simulateDashboard } from './driver-finance.simulator';
 import { DriverEarnings } from './driver-earnings';
 import { DriverExpenses } from './driver-expenses';
 import { DriverFinanceClock } from './driver-finance.clock';
@@ -21,7 +22,7 @@ import { DriverRentalContext, LedgerItem } from './driver-finance.types';
 import { FakeFinanceSource, TODAY, expense, income } from './driver-finance.testing';
 import { parseHours, saveErrorMessage } from './ledger-entry-sheet';
 
-/** One spec per finding of the cold review of 2026-10-21 (items 4–7, 10–14, 16, 17). */
+/** One spec per finding of the cold review of 2026-10-21 (items 4–7, 10–14, 16). */
 describe('driver finance — review fixes', () => {
   let source: FakeFinanceSource;
   let today = TODAY;
@@ -177,7 +178,7 @@ describe('driver finance — review fixes', () => {
     expect(source.listCalls.at(-1)).toMatchObject({ to: '2026-10-11', from: '2026-09-12' });
   });
 
-  describe('12 · rent debit', () => {
+  describe('12 · rent', () => {
     const rental: DriverRentalContext = {
       vehicleLabel: 'Mobi',
       plate: null,
@@ -187,32 +188,20 @@ describe('driver finance — review fixes', () => {
       nextCharge: null,
       charges: [],
     };
-    const input = (items: LedgerItem[] = []) => ({ items, goals: null, rental, today: TODAY });
 
-    it('counts only contract days that already happened', () => {
+    it('the simulated server accrues only contract days that already happened', () => {
       // 08, 09, 10 of October: three days of R$ 100,00.
-      expect(rentDebit(input(), '2026-10-01', '2026-10-31')).toBe(30000);
-      expect(rentDebit(input(), '2026-09-01', '2026-09-30')).toBe(0);
+      const d = simulateDashboard([], '2026-10-01', '2026-10-31', TODAY, rental, null);
+      expect(d.breakdown.rentAccruedCents).toBe(30000);
     });
 
-    it('is not debited again when the driver typed the rent as a cost', () => {
-      const fee = expense({ category: 'RENTAL_FEE', amount: 70000 });
-      expect(rentDebit(input([fee]), '2026-10-01', '2026-10-31')).toBe(0);
-    });
-  });
-
-  it('17 · "Mês atual" is compared with the same days of the previous month', () => {
-    expect(previousRange('monthCurrent', '2026-10-01', '2026-10-31', TODAY)).toEqual({
-      from: '2026-09-01',
-      to: '2026-09-10',
-    });
-    expect(previousRange('monthPast', '2026-09-01', '2026-09-30', TODAY)).toEqual({
-      from: '2026-08-01',
-      to: '2026-08-31',
-    });
-    expect(previousRange('7d', '2026-10-04', TODAY, TODAY)).toEqual({
-      from: '2026-09-27',
-      to: '2026-10-03',
+    it('the split shows the rent once when the driver typed it as a RENTAL_FEE cost', () => {
+      const items = [income({ amount: 100000 }), expense({ category: 'RENTAL_FEE', amount: 70000, odometerKm: null })];
+      const model = periodModel(simulateDashboard(items, '2026-10-01', '2026-10-31', TODAY, rental, null));
+      const row = (key: string) => model.split.rows.find((r) => r.key === key)?.value;
+      expect(row('exp')).toBe('R$ 0,00');
+      expect(row('rent')).toBe('R$ 700,00');
+      expect(model.split.net).toBe('R$ 300,00');
     });
   });
 
@@ -233,10 +222,10 @@ describe('driver finance — review fixes', () => {
   it('14 · cost per km uses the km of the period even with a category filter', () => {
     source.items = [
       expense({ id: 'a', category: 'FUEL', amount: 10000, odometerKm: 1000 }),
-      expense({ id: 'b', category: 'WASH', amount: 3000, odometerKm: 1100, date: '2026-10-09' }),
+      expense({ id: 'b', category: 'CAR_WASH', amount: 3000, odometerKm: 1100, date: '2026-10-09' }),
     ];
     const fixture = mount(DriverExpenses);
-    q('[data-category="WASH"]')!.click();
+    q('[data-category="CAR_WASH"]')!.click();
     fixture.detectChanges();
     // R$ 30,00 of washing over the 100 km the car ran in the period.
     expect(text(q('dl'))).toContain('R$ 0,30');

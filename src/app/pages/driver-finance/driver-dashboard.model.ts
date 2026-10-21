@@ -1,9 +1,6 @@
 import {
-  DashboardPreset,
   RENT_EXPENSE_CATEGORY,
   RIDE_APPS,
-  addMonths,
-  minIso,
   WEEKDAY_LONG,
   WEEKDAY_PLURAL,
   WEEKDAY_SHORT,
@@ -18,105 +15,77 @@ import {
   ddmmyyyy,
   decimal,
   expenseLabel,
-  goalTargets,
   integer,
   monthEnd,
-  monthStart,
   mondayOf,
   percent,
   plural,
-  rentPerDay,
   totals,
   weekdayOf,
 } from './driver-finance.calc';
 import {
-  DriverGoals,
+  DriverCalendarData,
+  DriverDashboardData,
+  DriverEfficiency,
+  DriverGoalsState,
   DriverRentalContext,
   LedgerItem,
   RideApp,
 } from './driver-finance.types';
 
 /*
- * The Dashboard's view models, as pure functions of (ledger, goals, rental, today). The
- * numbers follow the owner's prototype (`Motorista Dashboard.dc.html`) rule for rule; only
- * the inputs changed — real entries and charges instead of generated data.
+ * The Dashboard's view models, as pure functions. The prototype's layout and copy
+ * (`Motorista Dashboard.dc.html`), the SERVER's numbers: today, efficiency, breakdown,
+ * weekdays, average per ride by app, goals and the calendar come from
+ * `/v1/driver/dashboard`, `/v1/driver/goals` and `/v1/driver/calendar`. Only what the
+ * server does not compute is derived here from the recent ledger: the rent coverage since
+ * the last charge and the km of the week.
  */
 
 export interface DashboardInput {
+  /** The ledger of the last 31 days (rent coverage, km of the week, week fallback). */
   items: readonly LedgerItem[];
-  goals: DriverGoals | null;
+  goals: DriverGoalsState | null;
   rental: DriverRentalContext | null;
   today: string;
-}
-
-function rentDay(rental: DriverRentalContext | null): number {
-  return rental ? rentPerDay(rental.periodAmount, rental.periodDays) : 0;
 }
 
 /** Rent the driver typed himself as a cost (`RENTAL_FEE`) inside `from..to`. */
 export function rentFeesIn(items: readonly LedgerItem[], from: string, to: string): number {
   return items
-    .filter((i) => i.type === 'EXPENSE' && i.category === RENT_EXPENSE_CATEGORY && i.date >= from && i.date <= to)
+    .filter(
+      (i) =>
+        i.type === 'EXPENSE' &&
+        i.category === RENT_EXPENSE_CATEGORY &&
+        i.date >= from &&
+        i.date <= to,
+    )
     .reduce((t, i) => t + i.amount, 0);
-}
-
-/**
- * Rent the Dashboard debits for `from..to`: one day's share for each day that already
- * happened AND falls inside the contract (nothing before `startDate`). Zero when the
- * driver already typed the rent as a `RENTAL_FEE` cost in the window — it is already in the
- * expenses, and debiting the share too would count it twice.
- */
-export function rentDebit(input: DashboardInput, from: string, to: string): number {
-  const { items, rental, today } = input;
-  if (!rental || rentFeesIn(items, from, to) > 0) return 0;
-  const first = rental.startDate && rental.startDate > from ? rental.startDate : from;
-  const last = minIso(to, today);
-  if (last < first) return 0;
-  return (daysBetween(first, last) + 1) * rentDay(rental);
-}
-
-/**
- * The window the period is compared with: the previous MONTH for the month presets (same
- * number of elapsed days for the current month), the previous YEAR for "Este ano", and the
- * same number of days right before for the rolling windows.
- */
-export function previousRange(preset: DashboardPreset, from: string, to: string, today: string) {
-  const elapsed = Math.max(0, daysBetween(from, minIso(to, today)));
-  if (preset === 'monthCurrent' || preset === 'monthPast') {
-    const start = addMonths(from, -1);
-    const end = preset === 'monthPast' ? monthEnd(start) : minIso(addDays(start, elapsed), monthEnd(start));
-    return { from: start, to: end };
-  }
-  if (preset === 'year') {
-    const start = `${Number(from.slice(0, 4)) - 1}-01-01`;
-    return { from: start, to: addDays(start, elapsed) };
-  }
-  const len = daysBetween(from, to) + 1;
-  const start = addDays(from, -len);
-  return { from: start, to: addDays(start, elapsed) };
 }
 
 // ---------------------------------------------------------------- hero
 
-export function heroModel(input: DashboardInput) {
-  const { items, goals, today } = input;
-  const td = totals(items, today, today, today);
-  const rent = rentDebit(input, today, today);
-  const net = td.gross - td.expenses - rent;
-  const pct = goals ? percent(td.gross, goals.dailyGoal) : null;
-  const parts = [`Ganhou ${brl(td.gross)}`, `gastou ${brl(td.expenses)}`];
-  if (rent > 0) parts.push(`aluguel do dia ${brl(rent)}`);
+export function heroModel(today: DriverDashboardData['today'], goals: DriverGoalsState | null) {
+  const pct = goals?.goal ? Math.min(100, goals.today.percent) : null;
+  const parts = [`Ganhou ${brl(today.incomeCents)}`, `gastou ${brl(today.expenseCents)}`];
+  if (today.rentAccruedCents > 0) parts.push(`aluguel do dia ${brl(today.rentAccruedCents)}`);
   return {
-    net: brl(net),
+    net: brl(today.profitCents),
     line: parts.join(' · '),
     pct,
     deg: pct === null ? 0 : Math.round(pct * 3.6),
-    aria: goals && pct !== null ? `${pct}% da meta diária de ${brl0(goals.dailyGoal)}` : '',
+    aria:
+      goals?.goal && pct !== null
+        ? `${goals.today.percent}% da meta diária de ${brl0(goals.goal.dailyGoal)}`
+        : '',
     stats: [
-      { value: integer(td.rides), label: 'corridas' },
-      { value: `${integer(td.km)} km`, label: 'rodados' },
-      { value: `${decimal(td.hours)} h`, label: 'online' },
-      { value: td.rides ? brl(td.gross / td.rides) : '—', label: 'por corrida' },
+      { value: integer(today.rides), label: 'corridas' },
+      { value: `${integer(today.km)} km`, label: 'rodados' },
+      { value: `${decimal(today.hours)} h`, label: 'online' },
+      {
+        value: today.avgPerRideCents !== null ? brl(today.avgPerRideCents) : '—',
+        label: 'por corrida',
+      },
     ],
   };
 }
@@ -166,28 +135,30 @@ export function alertsModel(
 export const WEEK_CHART_HEIGHT = 120;
 const LABEL_SPACE = 18;
 
+/** «Minha semana»: the goals' `weekDays` when the server sent them, else the ledger. */
 export function weekModel({ items, goals, today }: DashboardInput) {
   const start = mondayOf(today);
-  const days = byDay(items);
-  const target = goals?.dailyGoal ?? 0;
+  const fromLedger = byDay(items);
+  const target = goals?.goal?.dailyGoal ?? 0;
   const list = [0, 1, 2, 3, 4, 5, 6].map((i) => {
     const date = addDays(start, i);
     const future = date > today;
-    const gross = future ? 0 : (days.get(date)?.income ?? 0);
+    const server = goals?.weekDays.find((d) => d.date === date);
+    const gross = future ? 0 : (server?.incomeCents ?? fromLedger.get(date)?.income ?? 0);
     return { date, future, gross, isToday: date === today };
   });
   const max = Math.max(target * 1.25, ...list.map((d) => d.gross), 1);
   const usable = WEEK_CHART_HEIGHT - LABEL_SPACE;
-  const wk = totals(items, start, today, today);
-  const weekGoal = goals ? goalTargets(goals.dailyGoal, goals.workDaysPerWeek).week : 0;
-  let text = `${brl(wk.gross)} na semana até agora.`;
+  const weekGross = list.reduce((t, d) => t + d.gross, 0);
+  const weekGoal = goals?.goal ? goals.week.goalCents : 0;
+  let text = `${brl(weekGross)} na semana até agora.`;
   if (weekGoal) {
-    const left = Math.max(0, weekGoal - wk.gross);
+    const left = Math.max(0, weekGoal - weekGross);
     const remaining = list.filter((d) => d.future && weekdayOf(d.date) !== 0).length;
     text =
       left === 0
-        ? `Meta da semana batida: ${brl(wk.gross)} de ${brl(weekGoal)}.`
-        : `${brl(wk.gross)} de ${brl(weekGoal)} na semana. Faltam ${brl(left)}` +
+        ? `Meta da semana batida: ${brl(weekGross)} de ${brl(weekGoal)}.`
+        : `${brl(weekGross)} de ${brl(weekGoal)} na semana. Faltam ${brl(left)}` +
           (remaining
             ? `: ${brl(left / (remaining + 1))} por dia contando hoje e os ${plural(remaining, 'dia', 'dias')} que restam.`
             : ' para a meta da semana.');
@@ -212,6 +183,7 @@ export function weekModel({ items, goals, today }: DashboardInput) {
 
 // ---------------------------------------------------------------- rent coverage
 
+/** Not computed by the server: what came in since the last charge against the rent. */
 export function coverModel({ items, rental, today }: DashboardInput) {
   if (!rental || !rental.periodAmount) return null;
   const nextDue = rental.nextCharge?.dueDate ?? null;
@@ -247,118 +219,111 @@ export function coverModel({ items, rental, today }: DashboardInput) {
 
 // ---------------------------------------------------------------- period numbers
 
-function delta(current: number, previous: number) {
-  if (!previous) return { text: 'sem período anterior', good: null as boolean | null };
+function delta(current: number | null, previous: number | null) {
+  if (!current || !previous) return { text: 'sem período anterior', good: null as boolean | null };
   const p = Math.round((current / previous - 1) * 100);
   return { text: `${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}% vs anterior`, good: p >= 0 };
 }
 
-export function periodModel(
-  input: DashboardInput,
-  from: string,
-  to: string,
-  preset: DashboardPreset = '30d',
-) {
-  const { items, rental, today } = input;
-  const cur = totals(items, from, to, today);
-  const before = previousRange(preset, from, to, today);
-  const prev = totals(items, before.from, before.to, today);
-  const rentCur = rentDebit(input, from, to);
-  const rentPrev = rentDebit(input, before.from, before.to);
-  // Rent typed as a cost is shown in the "Aluguel" row, not inside "Despesas".
-  const fees = rentFeesIn(items, from, to);
-  const otherExpenses = cur.expenses - fees;
-  const rentShown = rentCur + fees;
-  const empty = cur.gross === 0 && cur.expenses === 0;
+/** ISO weekday (1 = segunda … 7 = domingo) → index of `WEEKDAY_*` (0 = domingo). */
+const isoToJs = (iso: number) => iso % 7;
 
-  const avgRun = (t: typeof cur) => (t.rides ? t.gross / t.rides : 0);
-  const perHour = (t: typeof cur) => (t.hours ? t.gross / t.hours : 0);
-  const perKm = (t: typeof cur) => (t.km ? t.gross / t.km : 0);
-  const profitKm = (t: typeof cur, rent: number) => (t.km ? (t.gross - t.expenses - rent) / t.km : 0);
-  const tile = (label: string, v: number, pv: number, hint: string, accent = false) => ({
-    label,
-    value: v ? brl(v) : '—',
-    hint,
-    accent,
-    delta: delta(v, pv),
-  });
+/**
+ * «Como estão seus números» from `/v1/driver/dashboard`.
+ *
+ * One correction on top of the server: when the driver typed the rent as a `RENTAL_FEE`
+ * cost, the server's `breakdown` holds it in `expenseCents` AND accrues the estimated rent
+ * in `rentAccruedCents`. The split shows the rent once — the larger of the two — and moves
+ * the typed rent out of "Despesas".
+ */
+export function periodModel(dash: DriverDashboardData) {
+  const eff = dash.efficiency;
+  const prev: DriverEfficiency | null = dash.previousEfficiency;
+  const tile = (
+    label: string,
+    v: number | null,
+    pv: number | null,
+    hint: string,
+    accent = false,
+  ) => ({ label, value: v !== null ? brl(v) : '—', hint, accent, delta: delta(v, pv) });
   const tiles = [
-    tile('Média por corrida', avgRun(cur), avgRun(prev), 'quanto cada corrida rende em média', true),
-    tile('Ganho por hora', perHour(cur), perHour(prev), 'só as horas online'),
-    tile('Ganho por km', perKm(cur), perKm(prev), 'antes das despesas'),
-    tile('Lucro por km', profitKm(cur, rentCur), profitKm(prev, rentPrev), 'depois de despesas e aluguel'),
+    tile('Média por corrida', eff.avgPerRideCents, prev?.avgPerRideCents ?? null, 'quanto cada corrida rende em média', true),
+    tile('Ganho por hora', eff.perHourCents, prev?.perHourCents ?? null, 'só as horas online'),
+    tile('Ganho por km', eff.perKmCents, prev?.perKmCents ?? null, 'antes das despesas'),
+    tile('Lucro por km', eff.profitPerKmCents, prev?.profitPerKmCents ?? null, 'depois de despesas e aluguel'),
   ];
 
-  const net = cur.gross - cur.expenses - rentCur;
-  const base = Math.max(cur.gross, otherExpenses + rentShown, 1);
-  const per100 = (v: number) => (cur.gross ? `R$ ${Math.round((v / cur.gross) * 100)}` : '—');
-  const splitRows = [
+  const b = dash.breakdown;
+  const fee =
+    dash.expenseByCategory.find((c) => c.category === RENT_EXPENSE_CATEGORY)?.totalCents ?? 0;
+  const otherExpenses = b.expenseCents - fee;
+  const rent = Math.max(fee, b.rentAccruedCents);
+  const net = b.incomeCents - otherExpenses - rent;
+  const base = Math.max(b.incomeCents, otherExpenses + rent, 1);
+  const per100 = (v: number) => (b.incomeCents ? `R$ ${Math.round((v / b.incomeCents) * 100)}` : '—');
+  const rows = [
     { key: 'net', label: 'Sobrou', per100: per100(Math.max(0, net)), value: brl(net), width: (Math.max(0, net) / base) * 100 },
     { key: 'exp', label: 'Despesas', per100: per100(otherExpenses), value: brl(otherExpenses), width: (otherExpenses / base) * 100 },
   ];
-  if (rental || fees > 0) {
-    splitRows.push({ key: 'rent', label: 'Aluguel', per100: per100(rentShown), value: brl(rentShown), width: (rentShown / base) * 100 });
+  if (rent > 0) {
+    rows.push({ key: 'rent', label: 'Aluguel', per100: per100(rent), value: brl(rent), width: (rent / base) * 100 });
   }
   const split = {
     net: brl(net),
     positive: net >= 0,
-    gross: brl(cur.gross),
-    rows: splitRows,
+    gross: brl(b.incomeCents),
+    rows,
     aria:
-      `De ${brl(cur.gross)} ganhos: despesas ${brl(otherExpenses)}` +
-      (rental || fees > 0 ? `, aluguel ${brl(rentShown)}` : '') +
+      `De ${brl(b.incomeCents)} ganhos: despesas ${brl(otherExpenses)}` +
+      (rent > 0 ? `, aluguel ${brl(rent)}` : '') +
       `, sobrou ${brl(net)}.`,
   };
 
-  // Best weekdays — average of the days actually worked.
-  const days = byDay(items);
-  const sum = [0, 0, 0, 0, 0, 0, 0];
-  const count = [0, 0, 0, 0, 0, 0, 0];
-  let workedDays = 0;
-  for (let d = from; d <= to && d <= today; d = addDays(d, 1)) {
-    const income = days.get(d)?.income ?? 0;
-    if (income > 0) {
-      sum[weekdayOf(d)] += income;
-      count[weekdayOf(d)]++;
-      workedDays++;
-    }
-  }
-  const avg = sum.map((v, i) => (count[i] ? v / count[i] : 0));
-  const maxAvg = Math.max(1, ...avg);
-  const best = avg.indexOf(Math.max(...avg));
-  const workedAvg = workedDays ? cur.gross / workedDays : 0;
-  const weekdays = [1, 2, 3, 4, 5, 6, 0].map((i) => ({
-    label: WEEKDAY_SHORT[i],
-    value: avg[i] ? brlShort(avg[i]) : '—',
-    height: Math.round((avg[i] / maxAvg) * 90),
-    best: i === best && avg[i] > 0,
-  }));
+  const days = dash.weekdays.days;
+  const maxAvg = Math.max(1, ...days.map((d) => d.avgIncomeCents));
+  const best = dash.weekdays.bestIsoDay;
+  const weekdays = [1, 2, 3, 4, 5, 6, 7].map((iso) => {
+    const d = days.find((x) => x.isoDay === iso);
+    const avg = d?.avgIncomeCents ?? 0;
+    return {
+      label: WEEKDAY_SHORT[isoToJs(iso)],
+      value: avg ? brlShort(avg) : '—',
+      height: Math.round((avg / maxAvg) * 90),
+      best: iso === best && avg > 0,
+    };
+  });
+  const bestAvg = days.find((d) => d.isoDay === best)?.avgIncomeCents ?? 0;
+  const worked = days.reduce((t, d) => t + d.workedDays, 0);
+  const perDay = dash.weekdays.avgPerWorkedDayCents;
   const insight =
-    avg[best] && workedAvg && workedDays >= 2
-      ? `Nas ${WEEKDAY_PLURAL[best]} você ganha em média ${brl(avg[best])}, ${Math.round(
-          (avg[best] / workedAvg - 1) * 100,
-        )}% acima da sua média de ${brl(workedAvg)} por dia trabalhado.`
+    best !== null && bestAvg && perDay && worked >= 2
+      ? `Nas ${WEEKDAY_PLURAL[isoToJs(best)]} você ganha em média ${brl(bestAvg)}, ${Math.round(
+          (bestAvg / perDay - 1) * 100,
+        )}% acima da sua média de ${brl(perDay)} por dia trabalhado.`
       : 'Ainda não há dias suficientes neste período.';
 
-  // Average per ride of each app — only entries that carry the number of rides.
-  const perApp = RIDE_APPS.map((app) => {
-    const rows = items.filter(
-      (i) => i.type === 'INCOME' && i.app === app && (i.rides ?? 0) > 0 && i.date >= from && i.date <= to,
-    );
-    const gross = rows.reduce((t, i) => t + i.amount, 0);
-    const rides = rows.reduce((t, i) => t + (i.rides ?? 0), 0);
-    return { app, gross, rides, avg: rides ? gross / rides : 0 };
-  }).filter((x) => x.rides > 0);
-  const maxApp = Math.max(1, ...perApp.map((x) => x.avg));
-  const byApp = perApp.map((x) => ({
-    app: x.app as RideApp,
-    label: appLabel(x.app),
-    value: brl(x.avg),
-    width: Math.round((x.avg / maxApp) * 100),
-    note: `${plural(x.rides, 'corrida', 'corridas')} · ${brl(x.gross)}`,
-  }));
+  const withRides = dash.incomeByApp.filter((a) => a.avgPerRideCents !== null && a.rides > 0);
+  const maxApp = Math.max(1, ...withRides.map((a) => a.avgPerRideCents ?? 0));
+  const order = (app: RideApp | null) => (app ? RIDE_APPS.indexOf(app) : RIDE_APPS.length);
+  const byApp = [...withRides]
+    .sort((x, y) => order(x.app) - order(y.app))
+    .map((a) => ({
+      app: a.app,
+      label: appLabel(a.app),
+      value: brl(a.avgPerRideCents ?? 0),
+      width: Math.round(((a.avgPerRideCents ?? 0) / maxApp) * 100),
+      note: `${plural(a.rides, 'corrida', 'corridas')} · ${brl(a.totalCents)}`,
+    }));
 
-  return { empty, tiles, split, weekdays, insight, byApp, range: `${ddmmyyyy(from)} — ${ddmmyyyy(to)}` };
+  return {
+    empty: dash.totals.entryCount === 0,
+    tiles,
+    split,
+    weekdays,
+    insight,
+    byApp,
+    range: `${ddmmyyyy(dash.from)} — ${ddmmyyyy(dash.to)}`,
+  };
 }
 
 // ---------------------------------------------------------------- calendar
@@ -373,35 +338,33 @@ export interface CalendarCell {
   isToday: boolean;
 }
 
-export function calendarModel(input: DashboardInput, month: string) {
-  const { items, rental, today } = input;
-  const first = monthStart(month);
-  const last = monthEnd(month);
-  const days = byDay(items);
+/** The month grid from `/v1/driver/calendar` (which only lists days with movement). */
+export function calendarModel(cal: DriverCalendarData | null, month: string, today: string) {
+  const first = `${month.slice(0, 7)}-01`;
+  const last = monthEnd(first);
   const cells: CalendarCell[] = [];
   for (let i = 0; i < weekdayOf(first); i++) {
     cells.push({ date: null, day: 0, income: 0, out: 0, due: false, count: 0, isToday: false });
   }
-  let totalIn = 0;
-  let totalOut = 0;
   for (let d = first; d <= last; d = addDays(d, 1)) {
-    const entry = days.get(d);
-    const dayItems = items.filter((i) => i.date === d);
-    const income = entry?.income ?? 0;
-    let out = entry?.expense ?? 0;
-    let due = false;
-    let count = dayItems.length;
-    for (const c of rental?.charges ?? []) {
-      if (c.dueDate !== d) continue;
-      out += c.amount;
-      count++;
-      if (!c.paid && d >= today) due = true;
-    }
-    totalIn += income;
-    totalOut += out;
-    cells.push({ date: d, day: Number(d.slice(8, 10)), income, out, due, count, isToday: d === today });
+    const day = cal?.days.find((x) => x.date === d);
+    cells.push({
+      date: d,
+      day: Number(d.slice(8, 10)),
+      income: day?.incomeCents ?? 0,
+      out: (day?.outflowCents ?? 0) + (day?.dueCents ?? 0),
+      due: (day?.dueCents ?? 0) > 0,
+      count: day?.items.length ?? 0,
+      isToday: d === today,
+    });
   }
-  return { cells, totalIn, totalOut, balance: totalIn - totalOut };
+  const t = cal?.totals ?? { incomeCents: 0, outflowCents: 0, dueCents: 0, balanceCents: 0 };
+  return {
+    cells,
+    totalIn: t.incomeCents,
+    totalOut: t.outflowCents + t.dueCents,
+    balance: t.balanceCents,
+  };
 }
 
 export interface DayEvent {
@@ -409,73 +372,53 @@ export interface DayEvent {
   label: string;
   value: string;
   tone: 'in' | 'out' | 'due';
-  item: LedgerItem | null;
+  /** Ledger entry id: the row opens the edit popup. `null` for charges and fines. */
+  ledgerId: string | null;
 }
 
-export function dayModel(input: DashboardInput, date: string) {
-  const { items, rental, today } = input;
-  const events: DayEvent[] = [];
-  let income = 0;
-  let out = 0;
-  for (const item of items.filter((i) => i.date === date)) {
-    if (item.type === 'INCOME') {
-      income += item.amount;
-      const parts = [
-        item.rides ? plural(item.rides, 'corrida', 'corridas') : null,
-        item.km ? `${integer(item.km)} km` : null,
-        item.hours ? `${decimal(item.hours)} h online` : null,
-      ].filter(Boolean);
-      events.push({
-        kind: `Ganho ${appLabel(item.app)}`,
-        label: parts.join(' · ') || item.notes || 'Ganho lançado',
-        value: `+ ${brl(item.amount)}`,
-        tone: 'in',
-        item,
-      });
-    } else {
-      out += item.amount;
-      events.push({
-        kind: 'Despesa',
-        label: expenseLabel(item.category),
-        value: `- ${brl(item.amount)}`,
-        tone: 'out',
-        item,
-      });
+export function dayModel(cal: DriverCalendarData | null, date: string, rental: DriverRentalContext | null) {
+  const day = cal?.days.find((d) => d.date === date);
+  const events: DayEvent[] = (day?.items ?? []).map((item) => {
+    switch (item.type) {
+      case 'LEDGER_INCOME':
+        return { kind: 'Ganho', label: expenseLabel(item.label), value: `+ ${brl(item.amountCents)}`, tone: 'in', ledgerId: item.id };
+      case 'LEDGER_EXPENSE':
+        return { kind: 'Despesa', label: expenseLabel(item.label), value: `- ${brl(item.amountCents)}`, tone: 'out', ledgerId: item.id };
+      case 'CHARGE_PAID':
+        return { kind: 'Aluguel pago', label: rentLabel(rental), value: `- ${brl(item.amountCents)}`, tone: 'out', ledgerId: null };
+      case 'CHARGE_DUE':
+        return {
+          kind: item.status === 'PAST_DUE' ? 'Cobrança em atraso' : 'Cobrança a vencer',
+          label: rentLabel(rental),
+          value: `- ${brl(item.amountCents)}`,
+          tone: 'due',
+          ledgerId: null,
+        };
+      default:
+        return { kind: 'Multa a vencer', label: item.label || 'Multa', value: `- ${brl(item.amountCents)}`, tone: 'due', ledgerId: null };
     }
-  }
-  for (const c of rental?.charges ?? []) {
-    if (c.dueDate !== date) continue;
-    out += c.amount;
-    const pending = !c.paid && date >= today;
-    events.push({
-      kind: c.paid ? 'Aluguel pago' : pending ? 'Cobrança a vencer' : 'Cobrança em aberto',
-      label: `Aluguel · ${rental?.vehicleLabel ?? ''}`.trim(),
-      value: `- ${brl(c.amount)}`,
-      tone: pending ? 'due' : 'out',
-      item: null,
-    });
-  }
+  });
   return {
     title: `${WEEKDAY_LONG[weekdayOf(date)]}, ${ddmmyyyy(date)}`,
-    income: brl(income),
-    out: brl(out),
+    income: brl(day?.incomeCents ?? 0),
+    out: brl((day?.outflowCents ?? 0) + (day?.dueCents ?? 0)),
     events,
   };
 }
 
+function rentLabel(rental: DriverRentalContext | null): string {
+  return rental ? `Aluguel · ${rental.vehicleLabel}` : 'Aluguel';
+}
+
 // ---------------------------------------------------------------- goals + car
 
-export function goalsModel({ items, goals, today }: DashboardInput) {
-  if (!goals) return null;
-  const t = goalTargets(goals.dailyGoal, goals.workDaysPerWeek);
-  const row = (label: string, got: number, goal: number) => {
-    const pct = percent(got, goal);
-    return { label, value: `${brl0(got)} de ${brl0(goal)}`, pct, hit: pct >= 100 };
+export function goalsModel(goals: DriverGoalsState | null) {
+  if (!goals?.goal) return null;
+  const row = (label: string, p: DriverGoalsState['week']) => {
+    const pct = Math.min(100, p.percent);
+    return { label, value: `${brl0(p.incomeCents)} de ${brl0(p.goalCents)}`, pct, hit: p.reached };
   };
-  return [
-    row('Semana', totals(items, mondayOf(today), today, today).gross, t.week),
-    row('Mês', totals(items, monthStart(today), today, today).gross, t.month),
-  ];
+  return [row('Semana', goals.week), row('Mês', goals.month)];
 }
 
 export function carModel({ items, rental, today }: DashboardInput) {

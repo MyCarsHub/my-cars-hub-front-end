@@ -175,10 +175,10 @@
         }
       </div>
 
-      @if (windowError()) {
+      @if (periodError()) {
         <app-alert-banner variant="error" data-window-error>
           Não foi possível carregar este período.
-          <button type="button" (click)="ensureWindow(true)" [class]="ui.RETRY">Tentar novamente</button>
+          <button type="button" (click)="retryPeriod()" [class]="ui.RETRY">Tentar novamente</button>
         </app-alert-banner>
       }
 
@@ -291,8 +291,16 @@
           <div [class]="ui.CARD_HEAD"><h2 [class]="ui.H2">Calendário financeiro</h2></div>
           <div class="px-4 sm:px-6 pt-2 pb-4 sm:pb-6 min-w-0">
             <p class="mt-0 mb-3 text-xs text-neutral-500 leading-normal">
-              Ganhos e despesas de cada dia, mais as cobranças do aluguel. Toque em um dia para ver o detalhe.
+              Ganhos e despesas de cada dia, mais cobranças e multas a vencer. Toque em um dia para ver o detalhe.
             </p>
+            @if (calendarError()) {
+              <div class="mb-3">
+                <app-alert-banner variant="error" data-calendar-error>
+                  Não foi possível carregar este mês.
+                  <button type="button" (click)="retryCalendar()" [class]="ui.RETRY">Tentar novamente</button>
+                </app-alert-banner>
+              </div>
+            }
             <div class="flex items-center justify-between gap-2 mb-3">
               <button type="button" aria-label="Mês anterior" (click)="calPrev()"
                 class="size-11 rounded-lg border border-neutral-300 bg-white text-neutral-700 flex items-center justify-center cursor-pointer
@@ -369,7 +377,7 @@
                 <dt [class]="ui.EYEBROW">Saldo do mês</dt>
                 <dd class="m-0 text-lg sm:text-xl font-semibold tabular-nums"
                   [class]="calendar().balance >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ money(calendar().balance) }}</dd>
-                <dd class="m-0 text-xs text-neutral-500">Ganhos − despesas e aluguel</dd>
+                <dd class="m-0 text-xs text-neutral-500">Ganhos − despesas, aluguel e multas</dd>
               </div>
             </dl>
           </div>
@@ -455,8 +463,8 @@
     <ul class="m-0 list-none p-4 flex flex-col gap-3">
       @for (e of d.events; track $index) {
         <li>
-          @if (e.item) {
-            <button type="button" (click)="editEvent(e.item)" [attr.aria-label]="'Editar: ' + e.kind + ', ' + e.value"
+          @if (e.ledgerId) {
+            <button type="button" (click)="editEvent(e.ledgerId)" [attr.aria-label]="'Editar: ' + e.kind + ', ' + e.value"
               class="w-full text-left border border-neutral-200 rounded-xl p-3 flex items-start justify-between gap-2 bg-white cursor-pointer
                      hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
               <span class="flex flex-col min-w-0">
@@ -482,4 +490,4 @@
   }
 </app-members-sheet>
 
-<app-ledger-entry-sheet [lastOdometer]="lastOdometer()" (saved)="onSaved($event.item)" (removed)="onRemoved($event)" />
+<app-ledger-entry-sheet [lastOdometer]="lastOdometer()" (saved)="onSaved()" (removed)="onRemoved()" />

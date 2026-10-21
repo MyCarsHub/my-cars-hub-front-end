@@ -57,21 +57,22 @@ describe('driver-finance.calc', () => {
 });
 
 describe('driver-finance.source adapters', () => {
-  it('reads the target contract', () => {
+  it('reads the server keys (kind, amountCents, occurredOn, description)', () => {
     expect(
-      toItem({ id: 7, date: TODAY, type: 'INCOME', category: 'RIDES', amount: 100, app: '99', rides: 2 }),
-    ).toMatchObject({ id: '7', amount: 100, app: '99', rides: 2, hours: null });
-  });
-
-  it('falls back to the ledger keys in production today', () => {
+      toItem({ id: 7, kind: 'INCOME', category: 'RIDES', amountCents: 100, occurredOn: TODAY, app: '99', rides: 2 }),
+    ).toMatchObject({ id: '7', type: 'INCOME', amount: 100, date: TODAY, app: '99', rides: 2, hours: null });
     expect(
       toItem({ id: 'x', kind: 'EXPENSE', category: 'FUEL', amountCents: 5000, occurredOn: TODAY, description: 'Posto' }),
-    ).toMatchObject({ type: 'EXPENSE', amount: 5000, date: TODAY, notes: 'Posto' });
+    ).toMatchObject({ type: 'EXPENSE', amount: 5000, notes: 'Posto' });
+  });
+
+  it('an app label the UI does not know becomes "no app", never a guess', () => {
+    expect(toItem({ id: 1, kind: 'INCOME', amountCents: 1, occurredOn: TODAY, app: 'LYFT' })?.app).toBeNull();
   });
 
   it('drops rows it cannot read', () => {
-    expect(toItem({ id: 1, type: 'OTHER', amount: 1, date: TODAY })).toBeNull();
-    expect(toItem({ id: 1, type: 'INCOME', amount: 1, date: '10/10/2026' })).toBeNull();
+    expect(toItem({ id: 1, kind: 'OTHER', amountCents: 1, occurredOn: TODAY })).toBeNull();
+    expect(toItem({ id: 1, kind: 'INCOME', amountCents: 1, occurredOn: '10/10/2026' })).toBeNull();
   });
 
   it('infers the rent period and the next charge from the charges', () => {

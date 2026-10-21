@@ -179,7 +179,7 @@ describe('driver finance screens', () => {
 
   describe('Custos', () => {
     it('editar e excluir pelo mesmo popup', () => {
-      source.items = [expense(), expense({ id: 'c2', category: 'TOLL', amount: 1890 })];
+      source.items = [expense(), expense({ id: 'c2', category: 'TOLL_PARKING', amount: 1890 })];
       const fixture = mount(DriverExpenses);
       qa('[data-row]')[0].click();
       fixture.detectChanges();
@@ -215,7 +215,7 @@ describe('driver finance screens', () => {
 
       source.items = [expense()];
       fixture = mount(DriverExpenses);
-      q('[data-category="WASH"]')!.click();
+      q('[data-category="CAR_WASH"]')!.click();
       fixture.detectChanges();
       expect(text(q('[data-state="no-match"]'))).toContain('Nenhum custo com esses filtros.');
       q('[data-action="clear"]')!.click();

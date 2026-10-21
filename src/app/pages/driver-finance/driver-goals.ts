@@ -9,37 +9,25 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../services/notification.service';
 import { applyPtBrMoneyMask } from '../../utils/ptbr-money-mask';
 import { formatPtBrMoney, parsePtBrMoneyCents } from '../../utils/ptbr-number';
-import {
-  addDays,
-  brl,
-  brl0,
-  ddmm,
-  goalTargets,
-  minIso,
-  mondayOf,
-  monthStart,
-  percent,
-  totals,
-} from './driver-finance.calc';
+import { brl, brl0, ddmm, goalTargets } from './driver-finance.calc';
 import { DriverFinanceClock } from './driver-finance.clock';
 import { DriverFinanceSource } from './driver-finance.source';
-import { DriverGoals, LedgerItem, LoadState } from './driver-finance.types';
+import { DriverGoalsState, GoalProgress, LoadState } from './driver-finance.types';
 import * as ui from './driver-finance.ui';
 import { ArrowSelect } from './arrow-select';
 
-/** Guard-rail against an extra zero, not a commercial limit: R$ 100.000,00 per day. */
-const MAX_DAILY_GOAL_CENTS = 10_000_000;
+/** The server's ceiling (`DriverGoalsRequestDto`): R$ 99.999,00 per day. */
+const MAX_DAILY_GOAL_CENTS = 9_999_900;
 
 /**
  * Metas — progress of today, the week and the month against the goal, the form that
  * defines it (daily goal + work days; weekly = daily × days, monthly = weekly × 4) and the
- * last four closed weeks. The progress is derived from the ledger: the server stores only
- * `{ dailyGoal, workDaysPerWeek }`.
+ * last four closed weeks. All the progress is the server's (`GET /v1/driver/goals`); the
+ * form saves `{ dailyGoalCents, workDaysPerWeek }` and the answer brings the new progress.
  */
 @Component({
   selector: 'app-driver-goals',
@@ -175,9 +163,8 @@ export class DriverGoalsPage {
   protected readonly dayOptions = [1, 2, 3, 4, 5, 6, 7];
 
   protected readonly state = signal<LoadState>('loading');
-  protected readonly items = signal<LedgerItem[]>([]);
-  /** Saved goals; drive the progress cards. */
-  protected readonly goals = signal<DriverGoals | null>(null);
+  /** The server's goal + progress (`GET/PUT /v1/driver/goals`). */
+  protected readonly goals = signal<DriverGoalsState | null>(null);
   /** Form state: the masked pt-BR text ("150,50"), parsed to cents — never whole reais. */
   protected readonly daily = signal('');
   protected readonly days = signal(6);
@@ -187,59 +174,48 @@ export class DriverGoalsPage {
 
   private readonly dailyCents = computed(() => parsePtBrMoneyCents(this.daily().trim()).scaled ?? 0);
 
+  /** Preview of what the form would save (weekly = daily × days; monthly = weekly × 4). */
   protected readonly preview = computed(() => {
     const t = goalTargets(this.dailyCents(), this.days());
     return { week: brl(t.week), month: brl(t.month) };
   });
 
+  /** Today / week / month: the server's progress, as is. */
   protected readonly progress = computed(() => {
-    const today = this.today();
-    const items = this.items();
     const g = this.goals();
-    const t = g ? goalTargets(g.dailyGoal, g.workDaysPerWeek) : null;
-    const done = {
-      day: totals(items, today, today, today).gross,
-      week: totals(items, mondayOf(today), today, today).gross,
-      month: totals(items, monthStart(today), today, today).gross,
-    };
-    const card = (key: 'day' | 'week' | 'month', label: string, goal: number | null) => {
-      const pct = goal ? percent(done[key], goal) : 0;
+    const set = !!g?.goal;
+    const card = (key: 'day' | 'week' | 'month', label: string, p: GoalProgress | undefined) => {
+      const income = p?.incomeCents ?? 0;
+      const goal = set ? (p?.goalCents ?? 0) : 0;
+      const pct = goal ? Math.min(100, p?.percent ?? 0) : 0;
       const status = !goal
         ? 'Defina uma meta.'
-        : done[key] >= goal
+        : p?.reached
           ? 'Meta batida.'
-          : `${pct}% da meta · faltam ${brl0(goal - done[key])}`;
-      return { key, label, value: brl0(done[key]), goal: goal ? brl0(goal) : '', pct, status };
+          : `${p?.percent ?? 0}% da meta · faltam ${brl0(goal - income)}`;
+      return { key, label, value: brl0(income), goal: goal ? brl0(goal) : '', pct, status };
     };
     return [
-      card('day', 'Hoje', t?.day ?? null),
-      card('week', 'Semana', t?.week ?? null),
-      card('month', 'Mês', t?.month ?? null),
+      card('day', 'Hoje', g?.today),
+      card('week', 'Semana', g?.week),
+      card('month', 'Mês', g?.month),
     ];
   });
 
-  /** The four closed weeks before this one, newest first. */
+  /** The four closed weeks before this one, newest first (the server sends oldest first). */
   protected readonly weeks = computed(() => {
-    const today = this.today();
     const g = this.goals();
-    const weekGoal = g ? goalTargets(g.dailyGoal, g.workDaysPerWeek).week : 0;
-    const thisMonday = mondayOf(today);
-    return [1, 2, 3, 4].map((n) => {
-      const from = addDays(thisMonday, -7 * n);
-      const to = addDays(from, 6);
-      const got = totals(this.items(), from, to, today).gross;
-      const hit = weekGoal > 0 && got >= weekGoal;
-      return {
-        range: `${ddmm(from)} a ${ddmm(to)}`,
-        text: weekGoal ? `${brl0(got)} de ${brl0(weekGoal)}` : brl0(got),
-        tag: weekGoal ? (hit ? 'Atingida' : 'Abaixo') : '',
-        hit,
-      };
-    });
+    const set = !!g?.goal;
+    return [...(g?.lastWeeks ?? [])].reverse().map((w) => ({
+      range: `${ddmm(w.from)} a ${ddmm(w.to)}`,
+      text: set ? `${brl0(w.incomeCents)} de ${brl0(w.goalCents)}` : brl0(w.incomeCents),
+      tag: set ? (w.reached ? 'Atingida' : 'Abaixo') : '',
+      hit: set && w.reached,
+    }));
   });
 
   constructor() {
-    // First load, and again when "hoje" turns over (the windows are relative to it).
+    // First load, and again when "hoje" turns over (the progress is relative to it).
     effect(() => {
       this.today();
       untracked(() => this.load());
@@ -248,19 +224,14 @@ export class DriverGoalsPage {
 
   load(): void {
     this.state.set('loading');
-    const today = this.today();
-    const from = minIso(monthStart(today), addDays(mondayOf(today), -28));
-    forkJoin({
-      goals: this.source.goals(),
-      items: this.source.list({ from, to: today, type: 'INCOME' }),
-    })
+    this.source
+      .goals()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ goals, items }) => {
-          this.items.set(items);
-          this.goals.set(goals);
-          this.daily.set(goals ? formatPtBrMoney(goals.dailyGoal) : '');
-          this.days.set(goals?.workDaysPerWeek ?? 6);
+        next: (state) => {
+          this.goals.set(state);
+          this.daily.set(state.goal ? formatPtBrMoney(state.goal.dailyGoal) : '');
+          this.days.set(state.goal?.workDaysPerWeek ?? 6);
           this.state.set('ready');
         },
         error: () => this.state.set('error'),
@@ -280,7 +251,7 @@ export class DriverGoalsPage {
       return;
     }
     if (cents > MAX_DAILY_GOAL_CENTS) {
-      this.dailyError.set('Meta acima de R$ 100.000,00 por dia. Confira os zeros.');
+      this.dailyError.set('Meta acima de R$ 99.999,00 por dia. Confira os zeros.');
       return;
     }
     this.saving.set(true);
@@ -289,8 +260,8 @@ export class DriverGoalsPage {
       .saveGoals({ dailyGoal: this.dailyCents(), workDaysPerWeek: this.days() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (goals) => {
-          this.goals.set(goals);
+        next: (state) => {
+          this.goals.set(state);
           this.saving.set(false);
           this.notify.success('Metas salvas.');
         },

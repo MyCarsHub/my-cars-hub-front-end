@@ -10,7 +10,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { map, of, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import {
   EXPENSE_CATEGORIES,
@@ -225,10 +225,15 @@ export class DriverExpenses {
   protected readonly items = signal<LedgerItem[]>([]);
   protected readonly hasAny = signal(false);
   /**
-   * Highest odometer in the 30 days this page loads — the popup's "Último registro". A
-   * reading older than that window is not seen (the ledger has no "last odometer" read).
+   * The popup's "Último registro": the server's last odometer reading (any date) or the
+   * highest in the 30 days loaded, whichever is higher — a reading just saved counts at once.
    */
-  protected readonly lastOdometer = signal<number | null>(null);
+  private readonly loadedOdometer = signal<number | null>(null);
+  /** `expenseStats.lastOdometerKm` of the server; null when that read failed. */
+  private readonly serverOdometer = signal<number | null>(null);
+  protected readonly lastOdometer = computed(() =>
+    Math.max(this.serverOdometer() ?? 0, this.loadedOdometer() ?? 0) || null,
+  );
   protected readonly period = signal<ListPeriod>('30');
   protected readonly category = signal<CategoryFilter>('ALL');
 
@@ -314,21 +319,27 @@ export class DriverExpenses {
   load(): void {
     this.state.set('loading');
     const today = this.today();
-    this.source
-      .list({ from: addDays(today, -29), to: today, type: 'EXPENSE' })
+    const from = addDays(today, -29);
+    forkJoin({
+      items: this.source.list({ from, to: today, type: 'EXPENSE' }),
+      // Only for "Último registro" (the server's last odometer, older than the window too):
+      // optional, the list is what the screen is about.
+      dash: this.source.dashboard(from, today).pipe(catchError(() => of(null))),
+    })
       .pipe(
-        switchMap((items) =>
+        switchMap(({ items, dash }) =>
           items.length
-            ? of({ items, any: true })
-            : this.source.hasAny('EXPENSE').pipe(map((any) => ({ items, any }))),
+            ? of({ items, dash, any: true })
+            : this.source.hasAny('EXPENSE').pipe(map((any) => ({ items, dash, any }))),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ items, any }) => {
+        next: ({ items, dash, any }) => {
           this.items.set(items);
           this.hasAny.set(any);
-          this.lastOdometer.set(this.maxOdometer(items));
+          this.serverOdometer.set(dash?.expenseStats.lastOdometerKm ?? null);
+          this.loadedOdometer.set(this.maxOdometer(items));
           this.state.set('ready');
         },
         error: () => this.state.set('error'),
@@ -351,7 +362,7 @@ export class DriverExpenses {
   protected onSaved(item: LedgerItem): void {
     this.items.update((list) => [item, ...list.filter((i) => i.id !== item.id)]);
     this.hasAny.set(true);
-    this.lastOdometer.set(this.maxOdometer(this.items()));
+    this.loadedOdometer.set(this.maxOdometer(this.items()));
   }
 
   protected onRemoved(id: string): void {

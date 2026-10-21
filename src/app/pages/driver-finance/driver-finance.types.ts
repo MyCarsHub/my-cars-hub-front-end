@@ -13,7 +13,18 @@ export type LedgerType = 'INCOME' | 'EXPENSE';
 
 export type RideApp = 'UBER' | '99' | 'INDRIVE' | 'OUTRO';
 
-export type ExpenseCategory = 'FUEL' | 'WASH' | 'TOLL' | 'MAINTENANCE' | 'PARKING' | 'OTHER';
+/**
+ * The expense chips of the UI, with the SERVER's names (`DriverLedgerCategoryEnum`):
+ * Pedágio is `TOLL_PARKING` (legacy name), Estacionamento is `PARKING`, Lavagem `CAR_WASH`.
+ * The server has more (FOOD, FINE, RENTAL_FEE): they are shown and kept, not offered.
+ */
+export type ExpenseCategory =
+  | 'FUEL'
+  | 'CAR_WASH'
+  | 'TOLL_PARKING'
+  | 'MAINTENANCE'
+  | 'PARKING'
+  | 'OTHER_EXPENSE';
 
 /** Income has one category today; the field exists so the wire shape is one for both types. */
 export type IncomeCategory = 'RIDES';
@@ -46,7 +57,7 @@ export interface LedgerItem {
 /** Body of `POST` and `PUT /v1/driver/ledger[/{id}]`. */
 export type LedgerItemRequest = Omit<LedgerItem, 'id'>;
 
-/** Query of `GET /v1/driver/ledger`. Every key is optional. */
+/** Query of `GET /v1/driver/ledger` (domain names; the wire calls `type` `kind`). */
 export interface LedgerFilter {
   from?: string;
   to?: string;
@@ -54,7 +65,7 @@ export interface LedgerFilter {
   category?: LedgerItemCategory;
 }
 
-/** `GET/PUT /v1/driver/goals`. `dailyGoal` in cents; `null` goal = never defined. */
+/** The goal itself. `dailyGoal` in cents (wire: `dailyGoalCents`). */
 export interface DriverGoals {
   dailyGoal: number;
   workDaysPerWeek: number;
@@ -86,3 +97,110 @@ export interface DriverFinanceContext {
 
 /** The four states every list exposes. */
 export type LoadState = 'loading' | 'error' | 'ready';
+
+// ------------------------------------------------------------------ server aggregates
+// Shapes of `/v1/driver/goals`, `/v1/driver/dashboard` and `/v1/driver/calendar`
+// (backend feat/driver-finance-api). Every money field is in cents; the adapters in
+// `driver-finance.source.ts` turn absent numbers into 0 / null, never NaN.
+
+/** `Progress` of the goals response. */
+export interface GoalProgress {
+  from: string;
+  to: string;
+  incomeCents: number;
+  goalCents: number;
+  /** No ceiling: 150 = goal beaten with room to spare. 0 without a goal. */
+  percent: number;
+  reached: boolean;
+}
+
+/** `GET/PUT /v1/driver/goals`: the goal (null = never configured) plus its progress. */
+export interface DriverGoalsState {
+  goal: DriverGoals | null;
+  today: GoalProgress;
+  week: GoalProgress;
+  month: GoalProgress;
+  /** Monday to Sunday of this week. */
+  weekDays: { date: string; incomeCents: number; goalCents: number; reached: boolean }[];
+  /** The four complete weeks before this one, OLDEST first (as the server sends them). */
+  lastWeeks: GoalProgress[];
+}
+
+export interface DriverEfficiency {
+  rides: number;
+  hours: number;
+  km: number;
+  avgPerRideCents: number | null;
+  perHourCents: number | null;
+  perKmCents: number | null;
+  profitPerKmCents: number | null;
+}
+
+/** `GET /v1/driver/dashboard?from&to`, the fields these screens read. */
+export interface DriverDashboardData {
+  from: string;
+  to: string;
+  totals: { incomeCents: number; expenseCents: number; netCents: number; entryCount: number };
+  expenseByCategory: { category: string; totalCents: number; entryCount: number }[];
+  today: {
+    date: string;
+    incomeCents: number;
+    expenseCents: number;
+    rentAccruedCents: number;
+    profitCents: number;
+    rides: number;
+    hours: number;
+    km: number;
+    avgPerRideCents: number | null;
+  };
+  /** `null` when the server sent none (or the goals part failed). */
+  goals: DriverGoalsState | null;
+  efficiency: DriverEfficiency;
+  previousEfficiency: DriverEfficiency | null;
+  breakdown: { incomeCents: number; expenseCents: number; rentAccruedCents: number; leftCents: number };
+  incomeByApp: {
+    app: RideApp | null;
+    totalCents: number;
+    rides: number;
+    entryCount: number;
+    avgPerRideCents: number | null;
+  }[];
+  weekdays: {
+    /** `isoDay`: 1 = segunda … 7 = domingo. */
+    days: { isoDay: number; avgIncomeCents: number; workedDays: number }[];
+    bestIsoDay: number | null;
+    avgPerWorkedDayCents: number;
+  };
+  expenseStats: {
+    lastOdometerKm: number | null;
+    odometerSpanKm: number | null;
+    costPerKmCents: number | null;
+  };
+}
+
+export type CalendarItemType =
+  | 'LEDGER_INCOME'
+  | 'LEDGER_EXPENSE'
+  | 'CHARGE_PAID'
+  | 'CHARGE_DUE'
+  | 'FINE_DUE';
+
+/** `GET /v1/driver/calendar?month=YYYY-MM`. `days` holds only days with movement. */
+export interface DriverCalendarData {
+  month: string;
+  totals: { incomeCents: number; outflowCents: number; dueCents: number; balanceCents: number };
+  days: {
+    date: string;
+    incomeCents: number;
+    outflowCents: number;
+    dueCents: number;
+    items: {
+      id: string;
+      type: CalendarItemType;
+      /** Ledger category, `RENT` for a charge, the description for a fine. */
+      label: string;
+      amountCents: number;
+      status: string | null;
+    }[];
+  }[];
+}

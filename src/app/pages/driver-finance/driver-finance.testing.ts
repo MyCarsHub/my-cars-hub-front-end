@@ -1,8 +1,12 @@
 import { Observable, of, throwError } from 'rxjs';
 import { DriverFinanceSource } from './driver-finance.source';
+import { simulateCalendar, simulateDashboard, simulateGoals } from './driver-finance.simulator';
 import {
+  DriverCalendarData,
+  DriverDashboardData,
   DriverFinanceContext,
   DriverGoals,
+  DriverGoalsState,
   LedgerFilter,
   LedgerItem,
   LedgerItemRequest,
@@ -69,14 +73,33 @@ export class FakeFinanceSource extends DriverFinanceSource {
     return of(undefined);
   }
 
-  goals(): Observable<DriverGoals | null> {
+  /** "Hoje" of the simulated server. */
+  today = TODAY;
+
+  goals(): Observable<DriverGoalsState> {
     if (this.failGoals) return throwError(() => new Error('goals'));
-    return this.read(this.goalsValue);
+    return this.read(simulateGoals(this.items, this.goalsValue, this.today));
   }
 
-  saveGoals(goals: DriverGoals): Observable<DriverGoals> {
+  saveGoals(goals: DriverGoals): Observable<DriverGoalsState> {
     this.savedGoals.push(goals);
-    return of(goals);
+    this.goalsValue = goals;
+    return of(simulateGoals(this.items, goals, this.today));
+  }
+
+  dashboardCalls: { from: string; to: string }[] = [];
+
+  /** With `failGoals` the dashboard comes without its goals part. */
+  dashboard(from: string, to: string): Observable<DriverDashboardData> {
+    this.dashboardCalls.push({ from, to });
+    if (this.failList) return throwError(() => new Error('dashboard'));
+    const data = simulateDashboard(this.items, from, to, this.today, this.contextValue.rental, this.goalsValue);
+    return this.read(this.failGoals ? { ...data, goals: null } : data);
+  }
+
+  calendar(month: string): Observable<DriverCalendarData> {
+    if (this.failList) return throwError(() => new Error('calendar'));
+    return this.read(simulateCalendar(this.items, this.contextValue.rental, month));
   }
 
   context(): Observable<DriverFinanceContext> {

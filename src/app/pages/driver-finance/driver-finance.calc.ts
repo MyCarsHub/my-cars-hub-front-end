@@ -20,40 +20,38 @@ export const RIDE_APP_LABEL: Record<RideApp, string> = {
 
 export const EXPENSE_CATEGORIES: readonly ExpenseCategory[] = [
   'FUEL',
-  'WASH',
-  'TOLL',
+  'CAR_WASH',
+  'TOLL_PARKING',
   'MAINTENANCE',
   'PARKING',
-  'OTHER',
+  'OTHER_EXPENSE',
 ];
 
 export const EXPENSE_LABEL: Record<ExpenseCategory, string> = {
   FUEL: 'Combustível',
-  WASH: 'Lavagem',
-  TOLL: 'Pedágio',
+  CAR_WASH: 'Lavagem',
+  TOLL_PARKING: 'Pedágio',
   MAINTENANCE: 'Manutenção',
   PARKING: 'Estacionamento',
-  OTHER: 'Outros',
+  OTHER_EXPENSE: 'Outros',
 };
 
 /**
- * Categories other screens (or the server) may have written that this UI has no chip for.
- * They are SHOWN with their own name and kept on edit — never folded into "Outros".
+ * Server categories with no chip in this UI (`DriverLedgerCategoryEnum`). They are SHOWN
+ * with their own name and kept on edit — never folded into "Outros".
  */
-const OTHER_CATEGORY_LABEL: Record<string, string> = {
+export const OTHER_CATEGORY_LABEL: Record<string, string> = {
   FOOD: 'Alimentação',
   FINE: 'Multa',
   RENTAL_FEE: 'Aluguel',
-  TOLL_PARKING: 'Pedágio e estacionamento',
-  CAR_WASH: 'Lavagem',
-  OTHER_EXPENSE: 'Outros',
   RIDES: 'Corridas',
   DELIVERIES: 'Entregas',
   OTHER_INCOME: 'Outros ganhos',
 };
 
+/** Label of any ledger category; an unknown one shows as itself rather than as "Outros". */
 export function expenseLabel(category: string): string {
-  return EXPENSE_LABEL[category as ExpenseCategory] ?? OTHER_CATEGORY_LABEL[category] ?? 'Outros';
+  return EXPENSE_LABEL[category as ExpenseCategory] ?? OTHER_CATEGORY_LABEL[category] ?? category;
 }
 
 /** Rent the driver typed himself as a cost; the Dashboard then does not debit it again. */

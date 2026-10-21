@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { Subject, catchError, forkJoin, map, of, switchMap } from 'rxjs';
+import { Observable, Subject, catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { MembersSheet } from '../company-settings/members/members-sheet';
 import {
@@ -25,14 +25,9 @@ import {
   addMonths,
   brl,
   brlShort,
-  daysBetween,
   longDate,
-  maxIso,
-  minIso,
-  monthEnd,
   monthLabel,
   monthStart,
-  mondayOf,
   presetRange,
 } from './driver-finance.calc';
 import {
@@ -49,10 +44,11 @@ import {
   weekModel,
 } from './driver-dashboard.model';
 import { DriverFinanceClock } from './driver-finance.clock';
-import { DRIVER_FINANCE_LINKS, DriverFinanceSource } from './driver-finance.source';
+import { DRIVER_FINANCE_LINKS, DriverFinanceSource, toDashboard } from './driver-finance.source';
 import {
+  DriverCalendarData,
+  DriverDashboardData,
   DriverFinanceContext,
-  DriverGoals,
   LedgerItem,
   LoadState,
 } from './driver-finance.types';
@@ -63,16 +59,34 @@ import { ArrowSelect } from './arrow-select';
 
 const WEEKDAY_HEAD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+/** Days of ledger the Dashboard keeps: rent coverage (up to a monthly period) and the week. */
+const RECENT_DAYS = 31;
+
+const NO_CONTEXT: DriverFinanceContext = { firstName: null, licenseExpiry: null, rental: null };
+
+/** Each request supersedes the previous one; a failure comes back as `null`, never as an error. */
+function latest<K, V>(requests: Subject<K>, call: (key: K) => Observable<V>) {
+  return requests.pipe(
+    switchMap((key) =>
+      call(key).pipe(
+        map((value) => ({ value: value as V | null })),
+        catchError(() => of({ value: null as V | null })),
+      ),
+    ),
+  );
+}
+
 /**
  * Dashboard do motorista — the owner's prototype (`Motorista Dashboard.dc.html`): today's
  * profit against the daily goal, the alerts the app can prove, the week, the rent
  * coverage, the period numbers (efficiency, where the money goes, best days, average per
  * ride by app), the financial calendar, goals and the car.
  *
- * Everything is computed here from the ledger + goals + the rental's charges
- * (`driver-dashboard.model.ts`). The ledger is read as a WINDOW that grows to cover the
- * selected period, its previous period, the week and the calendar month — moving the
- * calendar or the period only fetches when the window does not cover it yet.
+ * The numbers are the SERVER's: `/v1/driver/dashboard` (today, goals, efficiency,
+ * breakdown, weekdays, by app) and `/v1/driver/calendar`. The ledger of the last
+ * `RECENT_DAYS` feeds only what the server does not compute (rent coverage since the last
+ * charge, km of the week). Only the dashboard read is fatal: the profile, the recent ledger
+ * and the calendar degrade in place.
  *
  * «Lançar» (hero, and the FAB on phones once the hero's button scrolled away) opens the
  * launch popup with the Ganho/Custo tabs: Lançar → valor → Salvar is three touches.
@@ -106,81 +120,86 @@ export class DriverDashboard {
   protected readonly todayLabel = computed(() => longDate(this.today()));
 
   protected readonly state = signal<LoadState>('loading');
-  private readonly items = signal<LedgerItem[]>([]);
-  private readonly goals = signal<DriverGoals | null>(null);
-  private readonly context = signal<DriverFinanceContext | null>(null);
-  /** The ledger window already in memory. */
-  private loaded: { from: string; to: string } | null = null;
+  private readonly context = signal<DriverFinanceContext>(NO_CONTEXT);
+  private readonly recent = signal<LedgerItem[]>([]);
+  private readonly dash = signal<DriverDashboardData>(toDashboard({}, '', ''));
+  private readonly cal = signal<DriverCalendarData | null>(null);
+  /** A later read failed: the screen stays, with a retry for that part. */
+  protected readonly periodError = signal(false);
+  protected readonly calendarError = signal(false);
 
   protected readonly preset = signal<DashboardPreset>('monthCurrent');
   protected readonly customFrom = signal(addDays(this.clock.today(), -13));
   protected readonly customTo = signal(this.clock.today());
   protected readonly calMonth = signal(monthStart(this.clock.today()));
-  /** A period/calendar read failed: the screen stays, with a retry for that part. */
-  protected readonly windowError = signal(false);
-  /** Each request supersedes the previous one (switchMap): a stale answer never lands. */
-  private readonly windowRequests = new Subject<{ from: string; to: string }>();
   protected readonly selectedDay = signal<string | null>(null);
   /** Phones: the FAB shows once the hero's «Lançar» left the screen. */
   protected readonly fabVisible = signal(false);
+
+  private readonly periodRequests = new Subject<{ from: string; to: string }>();
+  private readonly calendarRequests = new Subject<string>();
+  private readonly recentRequests = new Subject<string>();
 
   protected readonly range = computed(() =>
     presetRange(this.preset(), this.today(), { from: this.customFrom(), to: this.customTo() }),
   );
 
   private readonly input = computed<DashboardInput>(() => ({
-    items: this.items(),
-    goals: this.goals(),
-    rental: this.context()?.rental ?? null,
+    items: this.recent(),
+    goals: this.dash().goals,
+    rental: this.context().rental,
     today: this.today(),
   }));
 
   protected readonly greeting = computed(() => {
-    const name = this.context()?.firstName;
+    const name = this.context().firstName;
     return name ? `Olá, ${name}` : 'Olá';
   });
-  protected readonly hero = computed(() => heroModel(this.input()));
+  protected readonly hero = computed(() => heroModel(this.dash().today, this.dash().goals));
   protected readonly alerts = computed(() =>
-    alertsModel(this.context()?.rental ?? null, this.context()?.licenseExpiry ?? null, this.today()),
+    alertsModel(this.context().rental, this.context().licenseExpiry, this.today()),
   );
   protected readonly week = computed(() => weekModel(this.input()));
   protected readonly cover = computed(() => coverModel(this.input()));
-  protected readonly period = computed(() =>
-    periodModel(this.input(), this.range().from, this.range().to, this.preset()),
+  protected readonly period = computed(() => periodModel(this.dash()));
+  protected readonly calendar = computed(() =>
+    calendarModel(this.cal(), this.calMonth(), this.today()),
   );
-  protected readonly calendar = computed(() => calendarModel(this.input(), this.calMonth()));
   protected readonly calendarLabel = computed(() => monthLabel(this.calMonth()));
   protected readonly day = computed(() => {
     const d = this.selectedDay();
-    return d ? dayModel(this.input(), d) : null;
+    return d ? dayModel(this.cal(), d, this.context().rental) : null;
   });
-  protected readonly goalRows = computed(() => goalsModel(this.input()));
+  protected readonly goalRows = computed(() => goalsModel(this.dash().goals));
   protected readonly car = computed(() => carModel(this.input()));
-  protected readonly lastOdometer = computed(() => {
-    const max = Math.max(0, ...this.items().map((i) => i.odometerKm ?? 0));
-    return max || null;
-  });
+  /** The server's last odometer reading — the cost popup's "Último registro". */
+  protected readonly lastOdometer = computed(() => this.dash().expenseStats.lastOdometerKm);
 
   constructor() {
-    this.windowRequests
-      .pipe(
-        switchMap((window) =>
-          this.source.list({ from: window.from, to: window.to }).pipe(
-            map((items) => ({ window, items, failed: false })),
-            catchError(() => of({ window, items: null, failed: true })),
-          ),
-        ),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe(({ window, items, failed }) => {
-        this.windowError.set(failed);
-        if (failed || !items) return;
-        this.items.set(items);
-        this.loaded = window;
+    latest(this.periodRequests, (r) => this.source.dashboard(r.from, r.to))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ value }) => {
+        this.periodError.set(value === null);
+        if (value) this.dash.set(value);
       });
+    latest(this.calendarRequests, (month) => this.source.calendar(month))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ value }) => {
+        this.calendarError.set(value === null);
+        if (value) this.cal.set(value);
+      });
+    latest(this.recentRequests, (today) =>
+      this.source.list({ from: addDays(today, -RECENT_DAYS), to: today }),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ value }) => {
+        if (value) this.recent.set(value);
+      });
+
     this.loadAll();
     afterNextRender(() => this.watchHeroAction());
-    // Midnight with the Dashboard open: "Hoje" moved, so the window may have to grow.
+
+    // Midnight with the Dashboard open: "Hoje" moved, every part re-reads.
     let firstDay = true;
     effect(() => {
       this.today();
@@ -188,65 +207,89 @@ export class DriverDashboard {
         firstDay = false;
         return;
       }
-      untracked(() => this.ensureWindow());
+      untracked(() => this.refresh());
     });
   }
 
-  /** First load (and «Tentar novamente»): goals, context and the ledger window. */
+  /** First load (and «Tentar novamente»). Only the dashboard read can fail the screen. */
   loadAll(): void {
     this.state.set('loading');
-    this.loaded = null;
-    const window = this.neededWindow();
+    const today = this.today();
+    const { from, to } = this.range();
     forkJoin({
-      // The goal is optional: if its read fails, the Dashboard shows without it.
-      goals: this.source.goals().pipe(catchError(() => of(null))),
-      context: this.source.context(),
-      items: this.source.list({ from: window.from, to: window.to }),
+      dash: this.source.dashboard(from, to),
+      context: this.source.context().pipe(catchError(() => of(NO_CONTEXT))),
+      recent: this.source
+        .list({ from: addDays(today, -RECENT_DAYS), to: today })
+        .pipe(catchError(() => of([] as LedgerItem[]))),
+      cal: this.source.calendar(this.calMonth().slice(0, 7)).pipe(catchError(() => of(null))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ goals, context, items }) => {
-          this.goals.set(goals);
+        next: ({ dash, context, recent, cal }) => {
+          this.dash.set(dash);
           this.context.set(context);
-          this.items.set(items);
-          this.loaded = window;
+          this.recent.set(recent);
+          this.cal.set(cal);
+          this.calendarError.set(cal === null);
+          this.periodError.set(false);
           this.state.set('ready');
         },
         error: () => this.state.set('error'),
       });
   }
 
+  /** After a save, a delete or a new day: every part re-reads; stale answers are dropped. */
+  private refresh(): void {
+    if (this.state() !== 'ready') return;
+    this.retryPeriod();
+    this.retryCalendar();
+    this.recentRequests.next(this.today());
+  }
+
   // ------------------------------------------------------------ period + calendar
+
+  protected retryPeriod(): void {
+    this.periodRequests.next(this.range());
+  }
+
+  protected retryCalendar(): void {
+    this.calendarRequests.next(this.calMonth().slice(0, 7));
+  }
 
   protected selectPreset(key: DashboardPreset): void {
     this.preset.set(key);
-    this.ensureWindow();
+    this.retryPeriod();
   }
 
   protected onCustomFrom(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     if (value) this.customFrom.set(value);
-    this.ensureWindow();
+    this.retryPeriod();
   }
 
   protected onCustomTo(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     if (value) this.customTo.set(value);
-    this.ensureWindow();
+    this.retryPeriod();
   }
 
   protected calPrev(): void {
     this.calMonth.update((m) => addMonths(m, -1));
-    this.ensureWindow();
+    this.retryCalendar();
   }
 
   protected calNext(): void {
     this.calMonth.update((m) => addMonths(m, 1));
-    this.ensureWindow();
+    this.retryCalendar();
   }
 
   protected calToday(): void {
-    this.calMonth.set(monthStart(this.today()));
+    const month = monthStart(this.today());
+    if (month !== this.calMonth()) {
+      this.calMonth.set(month);
+      this.retryCalendar();
+    }
     this.selectedDay.set(this.today());
   }
 
@@ -258,54 +301,45 @@ export class DriverDashboard {
     this.selectedDay.set(null);
   }
 
-  /** The window every card needs: the period + its previous period, the week and the month. */
-  private neededWindow(): { from: string; to: string } {
-    const today = this.today();
-    const { from, to } = this.range();
-    const len = daysBetween(from, to) + 1;
-    const month = this.calMonth();
-    return {
-      from: minIso(addDays(from, -len), mondayOf(today), monthStart(month), monthStart(today), addDays(mondayOf(today), -28)),
-      to: minIso(maxIso(to, monthEnd(month), today), today),
-    };
-  }
-
-  /** Grows the ledger window when the period, the calendar or "hoje" needs more days. */
-  protected ensureWindow(force = false): void {
-    if (this.state() !== 'ready') return;
-    const need = this.neededWindow();
-    const have = this.loaded;
-    if (!force && have && need.from >= have.from && need.to <= have.to) return;
-    const window = have
-      ? { from: minIso(need.from, have.from), to: maxIso(need.to, have.to) }
-      : need;
-    this.windowRequests.next(window);
-  }
-
   // ------------------------------------------------------------ launch
 
   protected openLaunch(): void {
     this.sheet().openCreate('INCOME', true);
   }
 
-  protected editEvent(item: LedgerItem | null): void {
-    if (!item) return;
-    this.selectedDay.set(null);
-    this.sheet().openEdit(item);
-  }
-
   /**
-   * Shows the change at once, then re-reads the window: a read already in flight (started
-   * before the save) is superseded, so its stale answer cannot wipe the new entry.
+   * A ledger row of the day opens the edit popup. The calendar item carries only id, label
+   * and amount, so the full entry (rides, app, rentalId…) comes from the recent ledger or,
+   * for an older day, from a read of that day.
    */
-  protected onSaved(item: LedgerItem): void {
-    this.items.update((list) => [item, ...list.filter((i) => i.id !== item.id)]);
-    this.ensureWindow(true);
+  protected editEvent(id: string | null): void {
+    const date = this.selectedDay();
+    if (!id || !date) return;
+    const open = (item: LedgerItem | undefined) => {
+      if (!item) return;
+      this.selectedDay.set(null);
+      this.sheet().openEdit(item);
+    };
+    const known = this.recent().find((i) => i.id === id);
+    if (known) {
+      open(known);
+      return;
+    }
+    this.source
+      .list({ from: date, to: date })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => open(items.find((i) => i.id === id)),
+        error: () => this.calendarError.set(true),
+      });
   }
 
-  protected onRemoved(id: string): void {
-    this.items.update((list) => list.filter((i) => i.id !== id));
-    this.ensureWindow(true);
+  protected onSaved(): void {
+    this.refresh();
+  }
+
+  protected onRemoved(): void {
+    this.refresh();
   }
 
   private watchHeroAction(): void {

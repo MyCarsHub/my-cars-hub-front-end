@@ -5,11 +5,17 @@ import { environment } from '../../../environments/environment';
 import { DriverProfileService } from '../../services/driver-profile.service';
 import { RentalChargeDto } from '../../types/rental.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
-import { addDays, daysBetween } from './driver-finance.calc';
+import { RIDE_APPS, addDays, daysBetween } from './driver-finance.calc';
 import {
+  CalendarItemType,
+  DriverCalendarData,
+  DriverDashboardData,
+  DriverEfficiency,
   DriverFinanceContext,
   DriverGoals,
+  DriverGoalsState,
   DriverRentalContext,
+  GoalProgress,
   LedgerFilter,
   LedgerItem,
   LedgerItemRequest,
@@ -33,6 +39,9 @@ export const DRIVER_FINANCE_LINKS = new InjectionToken<{ goals: string }>('DRIVE
  * The one port the four finance screens read and write through. Production uses
  * `HttpDriverFinanceSource`; the `/dev/driver` demo swaps in an in-memory one with the
  * prototype's data and a state switch (normal / carregando / vazio / erro).
+ *
+ * The port speaks the DOMAIN (`type`, `amount`, `date`); the HTTP adapter below is the one
+ * place that knows the wire (`kind`, `amountCents`, `occurredOn`, `dailyGoalCents`).
  */
 @Injectable({ providedIn: 'root', useFactory: () => inject(HttpDriverFinanceSource) })
 export abstract class DriverFinanceSource {
@@ -42,14 +51,20 @@ export abstract class DriverFinanceSource {
   abstract create(request: LedgerItemRequest): Observable<LedgerItem>;
   abstract update(id: string, request: LedgerItemRequest): Observable<LedgerItem>;
   abstract remove(id: string): Observable<void>;
-  /** `null` when the driver never defined goals. */
-  abstract goals(): Observable<DriverGoals | null>;
-  abstract saveGoals(goals: DriverGoals): Observable<DriverGoals>;
+  /** The goal (null = never configured) and the server's progress against it. */
+  abstract goals(): Observable<DriverGoalsState>;
+  abstract saveGoals(goals: DriverGoals): Observable<DriverGoalsState>;
+  /** The server's aggregates of `from..to` (plus today, goals and the weekdays). */
+  abstract dashboard(from: string, to: string): Observable<DriverDashboardData>;
+  /** `month` = `YYYY-MM`. */
+  abstract calendar(month: string): Observable<DriverCalendarData>;
   abstract context(): Observable<DriverFinanceContext>;
 }
 
 const LEDGER = `${environment.apiUrl}/driver/ledger`;
 const GOALS = `${environment.apiUrl}/driver/goals`;
+const DASHBOARD = `${environment.apiUrl}/driver/dashboard`;
+const CALENDAR = `${environment.apiUrl}/driver/calendar`;
 const RENTALS = `${environment.apiUrl}/rentals`;
 
 /** The server's ceiling for one page of the ledger (`MAX_PAGE_SIZE`). */
@@ -75,18 +90,10 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
    * days of a long period. Stops at the last page (or `MAX_PAGES`, a guard-rail).
    */
   list(filter: LedgerFilter): Observable<LedgerItem[]> {
-    const page = (index: number) => {
-      let params = new HttpParams()
-        .set('page', String(index))
-        .set('size', String(LEDGER_PAGE_SIZE));
-      if (filter.from) params = params.set('from', filter.from);
-      if (filter.to) params = params.set('to', filter.to);
-      if (filter.type) params = params.set('type', filter.type);
-      if (filter.category) params = params.set('category', filter.category);
-      return this.http
-        .get<unknown>(LEDGER, { params })
+    const page = (index: number) =>
+      this.http
+        .get<unknown>(LEDGER, { params: ledgerParams(filter, index, LEDGER_PAGE_SIZE) })
         .pipe(map((res) => ({ index, ...toPage(res) })));
-    };
     return page(0).pipe(
       expand((p) => (hasNextPage(p.index, p.received, p.total) ? page(p.index + 1) : EMPTY)),
       reduce((all, p) => all.concat(p.items), [] as LedgerItem[]),
@@ -94,17 +101,18 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
   }
 
   hasAny(type: LedgerType): Observable<boolean> {
-    const params = new HttpParams().set('type', type).set('page', '0').set('size', '1');
-    return this.http.get<unknown>(LEDGER, { params }).pipe(map((res) => toItems(res).length > 0));
+    return this.http
+      .get<unknown>(LEDGER, { params: ledgerParams({ type }, 0, 1) })
+      .pipe(map((res) => toPage(res).items.length > 0));
   }
 
   create(request: LedgerItemRequest): Observable<LedgerItem> {
-    return this.http.post<unknown>(LEDGER, request).pipe(map(itemOrFail));
+    return this.http.post<unknown>(LEDGER, toWire(request)).pipe(map(itemOrFail));
   }
 
   update(id: string, request: LedgerItemRequest): Observable<LedgerItem> {
     return this.http
-      .put<unknown>(`${LEDGER}/${encodeURIComponent(id)}`, request)
+      .put<unknown>(`${LEDGER}/${encodeURIComponent(id)}`, toWire(request))
       .pipe(map(itemOrFail));
   }
 
@@ -112,14 +120,25 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
     return this.http.delete<void>(`${LEDGER}/${encodeURIComponent(id)}`);
   }
 
-  goals(): Observable<DriverGoals | null> {
-    return this.http.get<unknown>(GOALS).pipe(map(toGoals));
+  goals(): Observable<DriverGoalsState> {
+    return this.http.get<unknown>(GOALS).pipe(map(toGoalsState));
   }
 
-  saveGoals(goals: DriverGoals): Observable<DriverGoals> {
+  saveGoals(goals: DriverGoals): Observable<DriverGoalsState> {
+    const body = { dailyGoalCents: goals.dailyGoal, workDaysPerWeek: goals.workDaysPerWeek };
+    return this.http.put<unknown>(GOALS, body).pipe(map(toGoalsState));
+  }
+
+  dashboard(from: string, to: string): Observable<DriverDashboardData> {
+    const params = new HttpParams().set('from', from).set('to', to);
     return this.http
-      .put<unknown>(GOALS, goals)
-      .pipe(map((res) => toGoals(res) ?? goals));
+      .get<unknown>(DASHBOARD, { params })
+      .pipe(map((res) => toDashboard(res, from, to)));
+  }
+
+  calendar(month: string): Observable<DriverCalendarData> {
+    const params = new HttpParams().set('month', month);
+    return this.http.get<unknown>(CALENDAR, { params }).pipe(map((res) => toCalendar(res, month)));
   }
 
   /**
@@ -154,16 +173,54 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
   }
 }
 
-// ---------------------------------------------------------------- adapters
+// ---------------------------------------------------------------- ledger: domain ⇄ wire
 
-/** Reads the TARGET contract and, as a fallback, the ledger keys in production today. */
+/** Query of `GET /v1/driver/ledger`: the domain `type` travels as `kind`. */
+export function ledgerParams(filter: LedgerFilter, page: number, size: number): HttpParams {
+  let params = new HttpParams().set('page', String(page)).set('size', String(size));
+  if (filter.from) params = params.set('from', filter.from);
+  if (filter.to) params = params.set('to', filter.to);
+  if (filter.type) params = params.set('kind', filter.type);
+  if (filter.category) params = params.set('category', filter.category);
+  return params;
+}
+
+/**
+ * Body of `POST` / `PUT /v1/driver/ledger` (`DriverLedgerEntryRequestDto`). The PUT
+ * replaces the whole entry, so every field the entry has is sent. Ride fields go ONLY with
+ * an INCOME and the odometer ONLY with an EXPENSE: the server answers 400 to a field of the
+ * other kind, so they are left out of the body rather than sent as null.
+ */
+export function toWire(request: LedgerItemRequest): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    kind: request.type,
+    category: request.category,
+    amountCents: request.amount,
+    occurredOn: request.date,
+    description: request.notes,
+    rentalId: request.rentalId,
+  };
+  if (request.type === 'INCOME') {
+    body['app'] = request.app;
+    body['rides'] = request.rides;
+    body['hours'] = request.hours;
+    body['km'] = request.km;
+  } else {
+    body['odometerKm'] = request.odometerKm;
+  }
+  return body;
+}
+
+const isRideApp = (v: unknown): v is RideApp => (RIDE_APPS as readonly unknown[]).includes(v);
+
+/** One entry of the server (`DriverLedgerEntryResponseDto`) in the domain shape. */
 export function toItem(raw: unknown): LedgerItem | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   const id = r['id'];
-  const type = (r['type'] ?? r['kind']) as LedgerType | undefined;
-  const amount = Number(r['amount'] ?? r['amountCents']);
-  const date = String(r['date'] ?? r['occurredOn'] ?? '');
+  const type = r['kind'] as LedgerType | undefined;
+  const amount = Number(r['amountCents']);
+  const date = String(r['occurredOn'] ?? '');
   if (id === undefined || id === null || (type !== 'INCOME' && type !== 'EXPENSE')) return null;
   if (!Number.isFinite(amount) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   const num = (key: string): number | null => {
@@ -176,14 +233,15 @@ export function toItem(raw: unknown): LedgerItem | null {
     id: String(id),
     date,
     type,
-    category: String(r['category'] ?? (type === 'INCOME' ? 'RIDES' : 'OTHER')),
+    // Kept exactly as sent: a category without a chip survives an edit.
+    category: String(r['category'] ?? (type === 'INCOME' ? 'RIDES' : 'OTHER_EXPENSE')),
     amount: Math.round(amount),
-    app: (r['app'] as RideApp | null | undefined) ?? null,
+    app: isRideApp(r['app']) ? r['app'] : null,
     rides: num('rides'),
     hours: num('hours'),
     km: num('km'),
     odometerKm: num('odometerKm'),
-    notes: (r['notes'] ?? r['description'] ?? null) as string | null,
+    notes: (r['description'] ?? r['notes'] ?? null) as string | null,
     rentalId: r['rentalId'] === null || r['rentalId'] === undefined ? null : String(r['rentalId']),
   };
 }
@@ -198,32 +256,189 @@ function toPage(res: unknown): { items: LedgerItem[]; received: number; total: n
   };
 }
 
-function toItems(res: unknown): LedgerItem[] {
-  const list = Array.isArray(res)
-    ? res
-    : ((res as { content?: unknown[] } | null)?.content ?? []);
-  return list.map(toItem).filter((x): x is LedgerItem => x !== null);
-}
-
 function itemOrFail(raw: unknown): LedgerItem {
   const item = toItem(raw);
   if (!item) throw new Error('Resposta inválida do servidor ao salvar o lançamento.');
   return item;
 }
 
-function toGoals(raw: unknown): DriverGoals | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const r = raw as Record<string, unknown>;
-  const dailyGoal = Number(r['dailyGoal']);
-  const workDaysPerWeek = Number(r['workDaysPerWeek']);
-  if (!Number.isFinite(dailyGoal) || dailyGoal <= 0) return null;
+// ---------------------------------------------------------------- aggregates
+
+type Raw = Record<string, unknown>;
+const obj = (v: unknown): Raw => (v && typeof v === 'object' ? (v as Raw) : {});
+const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const int = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const opt = (v: unknown): number | null =>
+  v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
+
+function toProgress(raw: unknown): GoalProgress {
+  const r = obj(raw);
   return {
-    dailyGoal: Math.round(dailyGoal),
-    workDaysPerWeek: Number.isFinite(workDaysPerWeek) && workDaysPerWeek >= 1 ? workDaysPerWeek : 6,
+    from: str(r['from']),
+    to: str(r['to']),
+    incomeCents: int(r['incomeCents']),
+    goalCents: int(r['goalCents']),
+    percent: int(r['percent']),
+    reached: r['reached'] === true,
   };
 }
 
-const PAID = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH', 'PAID']);
+/** `DriverGoalsResponseDto`. `configured: false` (or a zero goal) is "never defined". */
+export function toGoalsState(raw: unknown): DriverGoalsState {
+  const r = obj(raw);
+  const daily = int(r['dailyGoalCents']);
+  const configured = r['configured'] !== false && daily > 0;
+  return {
+    goal: configured
+      ? { dailyGoal: daily, workDaysPerWeek: int(r['workDaysPerWeek']) || 6 }
+      : null,
+    today: toProgress(r['today']),
+    week: toProgress(r['week']),
+    month: toProgress(r['month']),
+    weekDays: arr(r['weekDays']).map((d) => {
+      const x = obj(d);
+      return {
+        date: str(x['date']),
+        incomeCents: int(x['incomeCents']),
+        goalCents: int(x['goalCents']),
+        reached: x['reached'] === true,
+      };
+    }),
+    lastWeeks: arr(r['lastWeeks']).map(toProgress),
+  };
+}
+
+function toEfficiency(raw: unknown): DriverEfficiency {
+  const r = obj(raw);
+  return {
+    rides: int(r['rides']),
+    hours: int(r['hours']),
+    km: int(r['km']),
+    avgPerRideCents: opt(r['avgPerRideCents']),
+    perHourCents: opt(r['perHourCents']),
+    perKmCents: opt(r['perKmCents']),
+    profitPerKmCents: opt(r['profitPerKmCents']),
+  };
+}
+
+/** `DriverDashboardResponseDto`, the fields the finance screens read. */
+export function toDashboard(raw: unknown, from: string, to: string): DriverDashboardData {
+  const r = obj(raw);
+  const totals = obj(r['totals']);
+  const today = obj(r['today']);
+  const breakdown = obj(r['breakdown']);
+  const weekdays = obj(r['weekdays']);
+  const stats = obj(r['expenseStats']);
+  return {
+    from: str(r['from'], from),
+    to: str(r['to'], to),
+    totals: {
+      incomeCents: int(totals['incomeCents']),
+      expenseCents: int(totals['expenseCents']),
+      netCents: int(totals['netCents']),
+      entryCount: int(totals['entryCount']),
+    },
+    expenseByCategory: arr(r['expenseByCategory']).map((c) => {
+      const x = obj(c);
+      return { category: str(x['category']), totalCents: int(x['totalCents']), entryCount: int(x['entryCount']) };
+    }),
+    today: {
+      date: str(today['date']),
+      incomeCents: int(today['incomeCents']),
+      expenseCents: int(today['expenseCents']),
+      rentAccruedCents: int(today['rentAccruedCents']),
+      profitCents: int(today['profitCents']),
+      rides: int(today['rides']),
+      hours: int(today['hours']),
+      km: int(today['km']),
+      avgPerRideCents: opt(today['avgPerRideCents']),
+    },
+    goals: r['goals'] ? toGoalsState(r['goals']) : null,
+    efficiency: toEfficiency(r['efficiency']),
+    previousEfficiency: r['previousEfficiency'] ? toEfficiency(r['previousEfficiency']) : null,
+    breakdown: {
+      incomeCents: int(breakdown['incomeCents']),
+      expenseCents: int(breakdown['expenseCents']),
+      rentAccruedCents: int(breakdown['rentAccruedCents']),
+      leftCents: int(breakdown['leftCents']),
+    },
+    incomeByApp: arr(r['incomeByApp']).map((a) => {
+      const x = obj(a);
+      return {
+        app: isRideApp(x['app']) ? x['app'] : null,
+        totalCents: int(x['totalCents']),
+        rides: int(x['rides']),
+        entryCount: int(x['entryCount']),
+        avgPerRideCents: opt(x['avgPerRideCents']),
+      };
+    }),
+    weekdays: {
+      days: arr(weekdays['days']).map((d) => {
+        const x = obj(d);
+        return { isoDay: int(x['isoDay']), avgIncomeCents: int(x['avgIncomeCents']), workedDays: int(x['workedDays']) };
+      }),
+      bestIsoDay: opt(weekdays['bestIsoDay']),
+      avgPerWorkedDayCents: int(weekdays['avgPerWorkedDayCents']),
+    },
+    expenseStats: {
+      lastOdometerKm: opt(stats['lastOdometerKm']),
+      odometerSpanKm: opt(stats['odometerSpanKm']),
+      costPerKmCents: opt(stats['costPerKmCents']),
+    },
+  };
+}
+
+const CALENDAR_TYPES = new Set<CalendarItemType>([
+  'LEDGER_INCOME',
+  'LEDGER_EXPENSE',
+  'CHARGE_PAID',
+  'CHARGE_DUE',
+  'FINE_DUE',
+]);
+
+/** `DriverCalendarResponseDto`. An item of an unknown type is dropped, not guessed. */
+export function toCalendar(raw: unknown, month: string): DriverCalendarData {
+  const r = obj(raw);
+  const totals = obj(r['totals']);
+  return {
+    month: str(r['month'], `${month}-01`),
+    totals: {
+      incomeCents: int(totals['incomeCents']),
+      outflowCents: int(totals['outflowCents']),
+      dueCents: int(totals['dueCents']),
+      balanceCents: int(totals['balanceCents']),
+    },
+    days: arr(r['days']).map((d) => {
+      const x = obj(d);
+      return {
+        date: str(x['date']),
+        incomeCents: int(x['incomeCents']),
+        outflowCents: int(x['outflowCents']),
+        dueCents: int(x['dueCents']),
+        items: arr(x['items'])
+          .map((i) => {
+            const y = obj(i);
+            return {
+              id: String(y['id'] ?? ''),
+              type: str(y['type']) as CalendarItemType,
+              label: str(y['label']),
+              amountCents: int(y['amountCents']),
+              status: typeof y['status'] === 'string' ? (y['status'] as string) : null,
+            };
+          })
+          .filter((i) => CALENDAR_TYPES.has(i.type)),
+      };
+    }),
+  };
+}
+
+// ---------------------------------------------------------------- rental
+
+const PAID = new Set(['PAID']);
 const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL']);
 
 /**
