@@ -7,6 +7,7 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { ImpersonationService } from '../../../services/impersonation.service';
 import { DriverRentalChargesService } from '../../../services/driver-rental-charges.service';
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -112,6 +113,7 @@ interface Setup {
   charges?: () => Observable<DriverCharge[]>;
   docs?: () => Observable<RentalDocumentDto[]>;
   cached?: RentalListItemDto[];
+  readOnly?: boolean;
 }
 
 describe('DriverRentalDetail', () => {
@@ -150,6 +152,7 @@ describe('DriverRentalDetail', () => {
         },
         { provide: DriverRentalChargesService, useValue: { list: chargesCall, pix: pixCall } },
         { provide: DocumentPreviewService, useValue: { open: previewOpen } },
+        { provide: ImpersonationService, useValue: { readOnly: signal(setup.readOnly ?? false) } },
         { provide: ExternalNavigationService, useValue: { openExternal: vi.fn(() => true) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } },
       ],
@@ -382,6 +385,15 @@ describe('DriverRentalDetail', () => {
         'Seu aluguel começa em 20/10/2026. Pague a caução e faça a vistoria de retirada',
       );
       expect(flat(q('[data-hero]'))).toContain('Primeira cobrança');
+    });
+
+    it('suporte em sessão somente leitura: nenhum "Pagar" (o backend recusa o Pix com 409)', () => {
+      build({ readOnly: true });
+
+      expect(q('[data-hero]')).not.toBeNull();
+      expect(q('[data-hero-pay]')).toBeNull();
+      expect(qa('[data-pay]')).toHaveLength(0);
+      expect(qa('[data-charge-row]').length).toBeGreaterThan(0);
     });
 
     it('não mostra o que o motorista não alcança: notas do operador, multas e WhatsApp', () => {

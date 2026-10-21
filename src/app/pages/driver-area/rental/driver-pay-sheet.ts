@@ -1,4 +1,5 @@
 import { DOCUMENT } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -28,6 +29,12 @@ export const PIX_COPIED = 'Código Pix copiado. Cole no app do seu banco.';
 export const PIX_COPY_FALLBACK =
   'Não deu para copiar sozinho. O código está selecionado: toque e segure para copiar.';
 const PIX_ERROR = 'Não foi possível gerar o código Pix agora.';
+
+/**
+ * The gateway's 503 can repeat for a few seconds (contract: up to ~5 s). "Tentar de novo"
+ * only unlocks after this wait, so an impatient tap does not hit the same failure again.
+ */
+export const PIX_RETRY_WAIT_S = 5;
 
 const VALID_UNTIL = new Intl.DateTimeFormat('pt-BR', {
   timeZone: BUSINESS_TIME_ZONE,
@@ -64,7 +71,7 @@ type PixState =
       readonly qrSrc: string;
       readonly validUntil: string;
     }
-  | { readonly kind: 'error'; readonly message: string };
+  | { readonly kind: 'error'; readonly message: string; readonly retryable: boolean };
 
 /**
  * "Pagar cobrança" — the driver's popup to pay ONE open charge: the value, the Pix QR code
@@ -118,6 +125,14 @@ export class DriverPaySheet {
     return state.kind === 'error' ? state.message : '';
   });
   protected readonly copyHint = signal<string | null>(null);
+  /** Only a 503 is worth repeating; 404/409 would answer the same. */
+  protected readonly retryable = computed(() => {
+    const state = this.pix();
+    return state.kind === 'error' && state.retryable;
+  });
+  /** Seconds left before "Tentar de novo" unlocks; 0 = ready. */
+  protected readonly retryIn = signal(0);
+  private retryTimer: ReturnType<typeof setInterval> | null = null;
   protected readonly linkLocked = signal(false);
   private lockTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -158,7 +173,11 @@ export class DriverPaySheet {
               }),
             ),
             catchError((err: unknown) =>
-              of<PixState>({ kind: 'error', message: this.apiErrors.messageFor(err, PIX_ERROR) }),
+              of<PixState>({
+                kind: 'error',
+                message: this.apiErrors.messageFor(err, PIX_ERROR),
+                retryable: err instanceof HttpErrorResponse && err.status === 503,
+              }),
             ),
             startWith<PixState>({ kind: 'loading' }),
           );
@@ -166,7 +185,11 @@ export class DriverPaySheet {
         catchError(() => EMPTY),
         takeUntilDestroyed(),
       )
-      .subscribe((state) => this.pix.set(state));
+      .subscribe((state) => {
+        this.pix.set(state);
+        if (state.kind === 'error' && state.retryable) this.startRetryWait();
+        else this.stopRetryWait();
+      });
 
     effect(() => {
       const charge = this.charge();
@@ -176,7 +199,28 @@ export class DriverPaySheet {
 
     inject(DestroyRef).onDestroy(() => {
       if (this.lockTimer) clearTimeout(this.lockTimer);
+      this.stopRetryWait();
     });
+  }
+
+  protected retry(): void {
+    if (this.retryIn() > 0) return;
+    this.request$.next(this.charge());
+  }
+
+  private startRetryWait(): void {
+    this.stopRetryWait();
+    this.retryIn.set(PIX_RETRY_WAIT_S);
+    this.retryTimer = setInterval(() => {
+      const left = this.retryIn() - 1;
+      this.retryIn.set(Math.max(0, left));
+      if (left <= 0) this.stopRetryWait();
+    }, 1000);
+  }
+
+  private stopRetryWait(): void {
+    if (this.retryTimer) clearInterval(this.retryTimer);
+    this.retryTimer = null;
   }
 
   protected close(): void {

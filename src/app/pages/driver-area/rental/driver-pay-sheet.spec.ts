@@ -8,7 +8,13 @@ import { DriverRentalChargesService } from '../../../services/driver-rental-char
 import { ExternalNavigationService } from '../../../services/external-navigation.service';
 import { NotificationService } from '../../../services/notification.service';
 import { DriverCharge, DriverChargePix } from '../../../types/driver-charges.types';
-import { DriverPaySheet, PIX_COPIED, PIX_COPY_FALLBACK, validUntil } from './driver-pay-sheet';
+import {
+  DriverPaySheet,
+  PIX_COPIED,
+  PIX_COPY_FALLBACK,
+  PIX_RETRY_WAIT_S,
+  validUntil,
+} from './driver-pay-sheet';
 import { DRIVER_RENTAL_TODAY } from './driver-rental-view';
 
 const flat = (el: Element | null | undefined): string =>
@@ -247,6 +253,45 @@ describe('DriverPaySheet', () => {
       expect(flat(open)).toBe('Abrir página de pagamento');
       open.click();
       expect(openExternal).toHaveBeenCalledWith('https://pay.example/i/10');
+    });
+
+    it('503: "Tentar de novo" só destrava depois da espera, e então pede o Pix de novo', () => {
+      vi.useFakeTimers();
+      let calls = 0;
+      build(() => (++calls === 1 ? unavailable() : ready()));
+
+      const retry = () => q('[data-pix-retry]') as HTMLButtonElement;
+      expect(PIX_RETRY_WAIT_S).toBe(5);
+      expect(retry().disabled).toBe(true);
+      expect(flat(retry())).toBe('Tentar de novo em 5 s');
+
+      retry().click();
+      expect(pixCall).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(PIX_RETRY_WAIT_S * 1000);
+      fixture.detectChanges();
+      expect(retry().disabled).toBe(false);
+      expect(flat(retry())).toBe('Tentar de novo');
+
+      retry().click();
+      fixture.detectChanges();
+      expect(pixCall).toHaveBeenCalledTimes(2);
+      expect(flat(q('[data-pix-code]'))).toBe(PAYLOAD);
+    });
+
+    it('409 de sessão somente leitura: mensagem como veio, sem "Tentar de novo"', () => {
+      build(() =>
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { message: 'Pix não disponível em sessão somente leitura.' },
+            }),
+        ),
+      );
+
+      expect(flat(q('[data-pix-error]'))).toContain('Pix não disponível em sessão somente leitura.');
+      expect(q('[data-pix-retry]')).toBeNull();
     });
 
     it('409 do backend: a mensagem como veio, e a saída pela página de pagamento', () => {

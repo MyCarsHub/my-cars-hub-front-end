@@ -47,7 +47,7 @@
           <span class="text-3xl sm:text-4xl font-semibold leading-tight tabular-nums"
             [class.font-mono]="h.valueIsMoney" data-hero-value>{{ h.value }}</span>
           <span class="text-sm leading-relaxed text-white/90" data-hero-sub>{{ h.sub }}</span>
-          @if (h.payCharge; as charge) {
+          @if (readOnlySession() ? null : h.payCharge; as charge) {
             <button type="button" (click)="pay(charge)"
               class="mt-2 self-stretch sm:self-start min-h-11 px-5 rounded-xl bg-white text-sm font-semibold text-neutral-900 hover:bg-neutral-100 active:scale-[0.98] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 cursor-pointer"
               data-hero-pay>
@@ -111,7 +111,7 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
                           [class]="row.chipClass">{{ row.chipLabel }}</span>
                       </div>
-                      @if (row.payable) {
+                      @if (row.payable && !readOnlySession()) {
                         <button type="button" (click)="pay(row.charge)"
                           [attr.aria-label]="'Pagar ' + row.title + ', ' + row.amount"
                           class="shrink-0 min-h-11 px-4 rounded-xl bg-primary-700 text-sm font-semibold text-white hover:bg-primary-800 active:scale-[0.98] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 cursor-pointer"

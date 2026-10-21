@@ -17,6 +17,7 @@ import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { ImpersonationService } from '../../../services/impersonation.service';
 import { DriverRentalChargesService } from '../../../services/driver-rental-charges.service';
 import { DriverCharge } from '../../../types/driver-charges.types';
 import {
@@ -105,6 +106,14 @@ export class DriverRentalDetail {
   private readonly document = inject(DOCUMENT);
   private readonly todayFn = inject(DRIVER_RENTAL_TODAY);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly impersonation = inject(ImpersonationService);
+
+  /**
+   * Support viewing as the company in READ-ONLY mode: the backend answers the Pix with 409
+   * "Pix não disponível em sessão somente leitura.", so no "Pagar" is offered at all.
+   * `?.` because older spec doubles do not know `readOnly`.
+   */
+  protected readonly readOnlySession = computed(() => this.impersonation.readOnly?.() === true);
 
   protected readonly today = signal(this.todayFn());
 
@@ -329,7 +338,7 @@ export class DriverRentalDetail {
   }
 
   protected pay(charge: DriverCharge | null): void {
-    if (charge) this.payingId.set(charge.id);
+    if (charge && !this.readOnlySession()) this.payingId.set(charge.id);
   }
 
   protected closePay(): void {
