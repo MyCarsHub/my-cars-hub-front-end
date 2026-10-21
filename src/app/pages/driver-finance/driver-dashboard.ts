@@ -36,7 +36,6 @@ import {
   alertsModel,
   calendarModel,
   carModel,
-  coverModel,
   dayModel,
   goalsModel,
   heroModel,
@@ -53,7 +52,7 @@ import {
   LoadState,
 } from './driver-finance.types';
 import * as ui from './driver-finance.ui';
-import { DriverRentCoverCard } from './driver-rent-cover-card';
+import { DriverNextCharge } from '../driver-area/rental/driver-next-charge';
 import { LedgerEntrySheet } from './ledger-entry-sheet';
 import { ArrowSelect } from './arrow-select';
 
@@ -94,7 +93,7 @@ function latest<K, V>(requests: Subject<K>, call: (key: K) => Observable<V>) {
 @Component({
   selector: 'app-driver-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner, ArrowSelect, DriverRentCoverCard, LedgerEntrySheet, MembersSheet, RouterLink],
+  imports: [AlertBanner, ArrowSelect, DriverNextCharge, LedgerEntrySheet, MembersSheet, RouterLink],
   providers: [DriverFinanceClock],
   host: { class: 'block' },
   templateUrl: './driver-dashboard.html',
@@ -160,7 +159,8 @@ export class DriverDashboard {
     alertsModel(this.context().rental, this.context().licenseExpiry, this.today()),
   );
   protected readonly week = computed(() => weekModel(this.input()));
-  protected readonly cover = computed(() => coverModel(this.input()));
+  /** Active rental, for the «Aluguel da semana» card (the real one from Meu aluguel). */
+  protected readonly rentalId = computed(() => this.context().rental?.rentalId ?? null);
   protected readonly period = computed(() => periodModel(this.dash()));
   protected readonly calendar = computed(() =>
     calendarModel(this.cal(), this.calMonth(), this.today()),

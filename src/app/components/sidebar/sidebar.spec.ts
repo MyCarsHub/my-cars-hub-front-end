@@ -143,9 +143,28 @@ describe('Sidebar', () => {
 
     it('na ordem do protótipo, só com o que tem rota para ele', () => {
       signInDriver();
-      // Financeiro some por inteiro enquanto Ganhos/Custos/Metas não têm rota; Multas e
-      // Alertas são da frota; Configurações espera o endpoint de preferências.
-      expect(topLabels()).toEqual(['Dashboard', 'Veículo', 'Roadmap', 'Suporte', 'Perfil']);
+      // Multas e Alertas são da frota; Configurações espera o endpoint de preferências.
+      expect(topLabels()).toEqual([
+        'Dashboard',
+        'Financeiro',
+        'Veículo',
+        'Roadmap',
+        'Suporte',
+        'Perfil',
+      ]);
+    });
+
+    it('Financeiro leva a Ganhos, Custos e Metas dentro de /meu-painel', () => {
+      const host = signInDriver();
+      const toggle = host.querySelector<HTMLButtonElement>('button[aria-label="Financeiro"]');
+      if (toggle && !links(host).has('Ganhos')) {
+        toggle.click();
+        fixture.detectChanges();
+      }
+      const map = links(host);
+      expect(map.get('Ganhos')).toBe('/meu-painel/ganhos');
+      expect(map.get('Custos')).toBe('/meu-painel/custos');
+      expect(map.get('Metas')).toBe('/meu-painel/metas');
     });
 
     it('Dashboard é o painel dele (/meu-painel), não o da frota', () => {

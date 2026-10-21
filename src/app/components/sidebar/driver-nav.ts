@@ -7,8 +7,8 @@ import { InjectionToken } from '@angular/core';
  *
  * Cada item é uma CHAVE; a URL vem de um mapa à parte (`DRIVER_NAV_ROUTES`). Chave sem URL
  * (`null`) não aparece: é como o menu esconde o que o motorista ainda não pode abrir — Multas
- * e Alertas são telas da FROTA (`roleGuard(['OWNER', 'MANAGER'])` em `app.routes.ts`) e Ganhos,
- * Custos e Metas ainda não têm rota. Quem criar a rota troca o `null` pela URL, e só isso.
+ * e Alertas são telas da FROTA (`roleGuard(['OWNER', 'MANAGER'])` em `app.routes.ts`).
+ * Quem criar a rota de uma chave `null` troca o `null` pela URL, e só isso.
  *
  * Outro mapa pode ser fornecido pelo token (um shell de demonstração, um teste): o desenho do
  * menu é o mesmo, só as URLs mudam.
@@ -35,9 +35,9 @@ export type DriverNavRoutes = Record<DriverNavKey, string | null>;
 /** URLs do app real. `null` = item oculto (ver o comentário do topo). */
 export const DRIVER_PROD_ROUTES: DriverNavRoutes = {
   dashboard: '/meu-painel',
-  ganhos: null,
-  custos: null,
-  metas: null,
+  ganhos: '/meu-painel/ganhos',
+  custos: '/meu-painel/custos',
+  metas: '/meu-painel/metas',
   aluguel: '/alugueis',
   vistorias: '/vistorias',
   multas: null,

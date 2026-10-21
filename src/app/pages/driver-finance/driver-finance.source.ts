@@ -181,7 +181,10 @@ export class HttpDriverFinanceSource extends DriverFinanceSource {
             catchError(() => of([] as RentalChargeDto[])),
             map((charges) => ({
               ...base,
-              rental: toRentalContext(label, rental.plate, charges, this.today(), rental.startDate),
+              rental: withRentalId(
+                toRentalContext(label, rental.plate, charges, this.today(), rental.startDate),
+                rental.rentalId,
+              ),
             })),
           );
       }),
@@ -466,6 +469,14 @@ export function toCalendar(raw: unknown, month: string): DriverCalendarData {
 /** Settled charges: PAID, and DISPUTED (the money already left — the server's rule too). */
 const PAID = new Set(['PAID', 'DISPUTED']);
 const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL']);
+
+/** Tags the rental context with the rental's id (the dashboard's weekly-rent card needs it). */
+function withRentalId(
+  context: DriverRentalContext | null,
+  rentalId: string,
+): DriverRentalContext | null {
+  return context ? { ...context, rentalId } : null;
+}
 
 /**
  * The period length is inferred from two consecutive rent charges (7 when there is only

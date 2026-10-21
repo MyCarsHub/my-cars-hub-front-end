@@ -97,7 +97,7 @@
         </ul>
       }
 
-      <div class="grid grid-cols-1 gap-4 items-start" [class.md:grid-cols-2]="cover() !== null">
+      <div class="grid grid-cols-1 gap-4 items-start" [class.md:grid-cols-2]="rentalId() !== null">
         <!-- Minha semana -->
         <div [class]="ui.CARD" data-week>
           <div class="px-4 sm:px-6 pt-5 pb-1 flex items-baseline justify-between gap-2">
@@ -137,11 +137,11 @@
         </div>
 
         <!--
-          SLOT «Aluguel da semana»: na integração com feat/0361-driver-rental-prototype este
-          elemento é o ponto de troca pelo card do outro agente (DriverWeeklyRentalDemoCard).
+          «Aluguel da semana»: o card de produção de Meu aluguel (feat/0361) — a próxima
+          cobrança (ou a atrasada) e «Como pagar», que leva ao aluguel, onde se paga.
         -->
-        @if (cover(); as c) {
-          <app-driver-rent-cover-card [cover]="c" data-cover />
+        @if (rentalId(); as id) {
+          <app-driver-next-charge [rentalId]="id" data-cover />
         }
       </div>
 

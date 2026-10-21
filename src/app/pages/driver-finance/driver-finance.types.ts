@@ -73,6 +73,8 @@ export interface DriverGoals {
 
 /** What the dashboard knows about the driver's active rental (none = `null`). */
 export interface DriverRentalContext {
+  /** Id of the active rental; the "Aluguel da semana" card reads its charges by it. */
+  rentalId?: string;
   vehicleLabel: string;
   plate: string | null;
   /** Amount of one billing period, in cents (the next charge's amount). */
