@@ -197,17 +197,17 @@ describe('RentalContractCard signature transition toasts', () => {
  * Download e abertura do contrato.
  *
  * O eixo destes testes é UM só: quem decide o formato são os BYTES, nunca o
- * `mimeType` da linha. Ao receber o webhook do Autentique o backend sobrescreve
- * o MESMO objeto `.docx` do storage com o PDF assinado e não atualiza
- * `mime_type` (AutentiqueWebhookService:141, RentalDocumentService:190) — um
- * contrato AUTO assinado se declara DOCX pra sempre. Decidir pelo MIME jogaria
- * bytes de PDF num parser de DOCX e quebraria justamente o contrato ASSINADO.
+ * `mimeType` da linha. Nas linhas LEGADAS (assinadas antes do FIX-0771) o backend
+ * sobrescreveu o MESMO objeto `.docx` do storage com o PDF assinado e não atualizou
+ * `mime_type` — um contrato AUTO assinado nessa época se declara DOCX pra sempre.
+ * Decidir pelo MIME jogaria bytes de PDF num parser de DOCX e quebraria justamente o
+ * contrato ASSINADO.
  *
  * Stub no HTTP boundary (RentalService.documentSignedUrl), em `fetch` e no DOM.
  */
 describe('RentalContractCard — download & abrir no visualizador', () => {
   const RID = 'rid';
-  /** MIME que o backend mantém mesmo depois do arquivo virar PDF. */
+  /** MIME que uma linha LEGADA mantém mesmo depois do arquivo virar PDF. */
   const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   const state = signal<RentalStateSnapshot | null>(null);
   const rentalService = {

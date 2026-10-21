@@ -1,5 +1,5 @@
 /**
- * Contract of the NEW invite flow (backend `develop`, not yet in production):
+ * Contract of the invite flow:
  * `POST /v1/invites/validate|accept|accept-as-member` and `/v1/invite-onboarding/**`.
  *
  * Distinct from `invite.types.ts`, which describes the admin-side `/v1/invites` CRUD (list,
@@ -29,12 +29,15 @@ export interface InviteValidateResponse {
   accountKind?: InviteAccountKind;
   /**
    * The e-mail the invite was sent to, shown in the summary so the invitee sees WHICH account
-   * the invite is for. Not in the backend contract today (the anonymous route is a closed key
-   * list without PII); the row renders only when it shows up, and the "this tab is already
-   * signed in as the invitee" shortcut needs it.
+   * the invite is for. The anonymous route returns it only when `state` is PENDING (null
+   * otherwise); it is the one PII field of an otherwise closed key list. How much of the
+   * address the backend discloses is the backend's decision and can tighten (see FIX-0801),
+   * so the summary row renders only when it is present and the UI must not rely on it being a
+   * complete address. The "this tab is already signed in as the invitee" shortcut compares it
+   * with the session e-mail, and that comparison only holds when the full address arrives.
    */
   email?: string;
-  /** Not in the contract today; the "Convidado por" row renders only when it shows up. */
+  /** Not in the backend contract; the "Convidado por" row renders only when it shows up. */
   inviterName?: string;
 }
 
