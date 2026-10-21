@@ -43,7 +43,9 @@ export const DRIVER_PROD_ROUTES: DriverNavRoutes = {
   multas: null,
   alertas: null,
   roadmap: '/roadmap',
-  configuracoes: '/configuracoes',
+  // Sem endpoint de preferências ainda (`services/driver-preferences.service.ts`): a tela
+  // existe, mas só sai no menu quando gravar de verdade.
+  configuracoes: null,
   suporte: '/suporte',
   perfil: '/perfil',
 };

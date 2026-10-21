@@ -1,0 +1,117 @@
+<app-default-page-layout title="Configurações" description="Avisos da sua conta.">
+  @if (loadError(); as message) {
+    <div data-load-error>
+      <app-alert-banner variant="error">
+        {{ message }}
+        <button
+          type="button"
+          (click)="load()"
+          class="ml-1 min-h-11 inline-flex items-center underline font-medium
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm"
+        >
+          Tentar novamente
+        </button>
+      </app-alert-banner>
+    </div>
+  } @else if (loading() && prefs() === null) {
+    <div aria-busy="true" data-skeleton>
+      <span class="sr-only">Carregando suas configurações…</span>
+      <div class="h-[21.25rem] rounded-2xl bg-neutral-200 animate-pulse" aria-hidden="true"></div>
+    </div>
+  } @else {
+    <section
+      aria-labelledby="driver-alerts-title"
+      class="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
+      data-prefs
+    >
+      <div class="flex items-center gap-4 px-4 pt-5 pb-2 sm:px-6">
+        <span
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50
+                 text-primary-500"
+          aria-hidden="true"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+        </span>
+        <div class="min-w-0">
+          <h2 id="driver-alerts-title" class="font-semibold text-neutral-800">Avisos</h2>
+          <p class="mt-0.5 text-[0.8125rem] leading-snug text-neutral-600">
+            Escolha o que você quer receber no celular.
+          </p>
+        </div>
+      </div>
+
+      <div class="px-4 pt-1 pb-3 sm:px-6">
+        @for (row of rows; track row.key) {
+          <div class="flex min-h-16 items-center gap-3 border-t border-neutral-100 py-2.5">
+            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span [id]="'pref-' + row.key" class="text-sm font-medium text-neutral-900">
+                {{ row.label }}
+              </span>
+              <span class="text-[0.8125rem] leading-snug text-neutral-600">{{ row.hint }}</span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="isOn(row.key)"
+              [attr.aria-labelledby]="'pref-' + row.key"
+              [attr.data-pref]="row.key"
+              (click)="toggle(row.key)"
+              class="group flex h-11 w-13 shrink-0 items-center justify-center rounded-full
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              <span
+                class="relative block h-6.5 w-11 rounded-full transition-colors
+                       motion-reduce:transition-none"
+                [class.bg-primary-500]="isOn(row.key)"
+                [class.bg-neutral-300]="!isOn(row.key)"
+                aria-hidden="true"
+              >
+                <span
+                  class="absolute top-[3px] left-[3px] h-5 w-5 rounded-full bg-white shadow
+                         transition-transform motion-reduce:transition-none"
+                  [style.transform]="isOn(row.key) ? 'translateX(18px)' : null"
+                ></span>
+              </span>
+            </button>
+          </div>
+        }
+
+        <div class="flex flex-col gap-2 border-t border-neutral-100 pt-3 pb-1">
+          <span id="lead-label" class="text-sm font-medium text-neutral-600">
+            Avisar sobre cobranças com antecedência de
+          </span>
+          <div role="radiogroup" aria-labelledby="lead-label" class="flex flex-wrap gap-2">
+            @for (days of leadOptions; track days; let i = $index) {
+              <button
+                type="button"
+                role="radio"
+                [attr.aria-checked]="leadDays() === days"
+                [attr.tabindex]="leadDays() === days ? 0 : -1"
+                (keydown)="onLeadKeydown($event, i)"
+                [attr.data-lead]="days"
+                (click)="pickLead(days)"
+                class="min-h-11 rounded-full border px-4.5 text-sm focus:outline-none
+                       focus-visible:ring-2 focus-visible:ring-primary-400
+                       focus-visible:ring-offset-1"
+                [class.border-primary-500]="leadDays() === days"
+                [class.bg-primary-500]="leadDays() === days"
+                [class.text-white]="leadDays() === days"
+                [class.font-semibold]="leadDays() === days"
+                [class.border-neutral-200]="leadDays() !== days"
+                [class.bg-white]="leadDays() !== days"
+                [class.text-neutral-800]="leadDays() !== days"
+                [class.font-medium]="leadDays() !== days"
+              >
+                {{ leadLabel(days) }}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+  }
+</app-default-page-layout>

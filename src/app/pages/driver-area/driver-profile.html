@@ -1,307 +1,391 @@
-@if (loading() && profile() === null) {
-  <app-page-loader title="Carregando o seu perfil…" [fullScreen]="false" />
-} @else {
-  <app-default-page-layout title="Meu perfil" description="Seus dados e a sua conta.">
-    @if (loadError(); as message) {
-      <div class="mb-4" data-load-error>
-        <app-alert-banner variant="error">
-          {{ message }}
-          <button
-            type="button"
-            (click)="load()"
-            class="ml-1 min-h-11 inline-flex items-center underline font-medium
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm"
+<app-default-page-layout
+  title="Meu perfil"
+  description="Suas informações de conta, locadora e aluguel."
+>
+  @if (loadError(); as message) {
+    <div data-load-error>
+      <app-alert-banner variant="error">
+        {{ message }}
+        <button
+          type="button"
+          (click)="load()"
+          class="ml-1 min-h-11 inline-flex items-center underline font-medium
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm"
+        >
+          Tentar novamente
+        </button>
+      </app-alert-banner>
+    </div>
+  } @else if (loading() && profile() === null) {
+    <!-- Skeleton com o desenho da página: dois blocos, lado a lado só no desktop largo. -->
+    <div
+      class="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]"
+      aria-busy="true"
+      data-skeleton
+    >
+      <span class="sr-only">Carregando o seu perfil…</span>
+      <div class="h-[22.5rem] rounded-2xl bg-neutral-200 animate-pulse" aria-hidden="true"></div>
+      <div class="h-[16.25rem] rounded-2xl bg-neutral-200 animate-pulse" aria-hidden="true"></div>
+    </div>
+  } @else {
+    <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+      <div class="flex min-w-0 flex-col gap-4">
+        <!-- Quem é: somente leitura. Nome, e-mail, CPF e CNH são da locadora que cadastrou. -->
+        <app-page-card title="Informações pessoais">
+          <span
+            cardIcon
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50
+                   text-primary-500"
+            aria-hidden="true"
           >
-            Tentar novamente
-          </button>
-        </app-alert-banner>
-      </div>
-    }
-
-    <div class="space-y-4 sm:space-y-6 max-w-3xl">
-      <!-- Quem é: somente leitura. Nome, e-mail, CPF e CNH são da locadora que cadastrou. -->
-      <app-page-card title="Seus dados">
-        <div class="px-4 pb-5 sm:px-6">
-          <div class="flex items-center gap-3 sm:gap-4">
-            <div
-              class="w-12 h-12 shrink-0 rounded-full bg-primary-700 flex items-center justify-center
-                     text-white font-bold text-lg"
-              aria-hidden="true"
-            >
-              {{ initials() }}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </span>
+          <dl class="grid grid-cols-1 gap-4 px-4 pb-6 sm:grid-cols-2 sm:px-6">
+            <div class="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
+              <dt class="text-sm font-medium text-neutral-600">Nome</dt>
+              <dd [class]="readonlyClass" data-name>{{ name() }}</dd>
             </div>
-            <div class="min-w-0 flex-1">
-              <p class="font-semibold text-neutral-900 break-words" data-name>{{ name() }}</p>
-              <p class="text-sm text-neutral-600 break-all">{{ email() }}</p>
+            <div class="flex min-w-0 flex-col gap-1.5">
+              <dt class="text-sm font-medium text-neutral-600">E-mail</dt>
+              <dd [class]="readonlyClass">{{ email() }}</dd>
             </div>
-            <span
-              class="shrink-0 px-2 py-0.5 bg-primary-low text-primary-700 text-[10px] font-bold
-                     uppercase rounded-md tracking-wider border border-primary-low"
-            >
-              {{ roleLabel }}
-            </span>
-          </div>
-
-          <dl class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div class="min-w-0">
-              <dt class="text-xs font-medium text-neutral-600">
+            <div class="flex min-w-0 flex-col gap-1.5">
+              <dt class="text-sm font-medium text-neutral-600">
                 {{ profile()?.documentType ?? 'CPF' }}
               </dt>
-              <dd class="mt-0.5 font-medium text-neutral-900 tabular-nums" data-document>
-                {{ profile()?.documentMasked ?? '—' }}
+              <dd [class]="readonlyClass + ' tabular-nums'" data-document>
+                {{ profile()?.documentMasked || '—' }}
               </dd>
             </div>
             @if (license(); as cnh) {
-              <div class="min-w-0">
-                <dt class="text-xs font-medium text-neutral-600">CNH</dt>
-                <dd class="mt-0.5 font-medium text-neutral-900">{{ cnh }}</dd>
+              <div class="flex min-w-0 flex-col gap-1.5">
+                <dt class="text-sm font-medium text-neutral-600">CNH</dt>
+                <dd [class]="readonlyClass">{{ cnh }}</dd>
               </div>
             }
-          </dl>
-          <p class="mt-4 text-xs text-neutral-600">
-            Nome, e-mail, CPF e CNH são cadastrados pela locadora. Para corrigir, fale com ela.
-          </p>
-        </div>
-      </app-page-card>
-
-      <!-- A empresa e o carro. -->
-      <app-page-card title="Locadora e aluguel">
-        <div class="px-4 pb-5 sm:px-6 space-y-4">
-          <div class="min-w-0">
-            <p class="text-xs font-medium text-neutral-600">Locadora</p>
-            <p class="mt-0.5 text-sm font-semibold text-neutral-900 break-words" data-company>
-              {{ profile()?.companyName ?? '—' }}
-            </p>
-          </div>
-
-          @if (profile()?.activeRental; as rental) {
-            <div
-              class="rounded-xl bg-neutral-50 border border-neutral-200 p-3 flex items-center
-                     justify-between gap-3"
-              data-active-rental
-            >
-              <div class="min-w-0">
-                <p class="text-xs font-medium text-neutral-600">Aluguel ativo</p>
-                <p class="text-sm font-semibold text-neutral-900 truncate">
-                  {{ rental.plate ?? 'Veículo' }}@if (rentalVehicle()) { · {{ rentalVehicle() }} }
-                </p>
-                @if (rentalSince(); as since) {
-                  <p class="text-xs text-neutral-600">desde {{ since }}</p>
-                }
+            @if (profile()?.companyName; as company) {
+              <div class="flex min-w-0 flex-col gap-1.5">
+                <dt class="text-sm font-medium text-neutral-600">Locadora</dt>
+                <dd [class]="readonlyClass" data-company>{{ company }}</dd>
               </div>
-              <a
-                [routerLink]="['/alugueis', rental.rentalId]"
-                class="shrink-0 min-h-11 inline-flex items-center px-4 rounded-xl text-sm font-medium
-                       text-neutral-700 bg-white border border-neutral-200 hover:bg-neutral-100
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                       focus-visible:ring-offset-1"
-              >
-                Ver
-              </a>
+            }
+            <div class="flex flex-col gap-1.5">
+              <dt class="text-sm font-medium text-neutral-600">Seu papel</dt>
+              <dd>
+                <span
+                  class="inline-flex rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-medium
+                         text-primary-500"
+                >
+                  {{ roleLabel }}
+                </span>
+              </dd>
             </div>
-          } @else {
-            <p class="text-sm text-neutral-600" data-no-rental>Você não tem um aluguel ativo agora.</p>
-          }
-        </div>
-      </app-page-card>
+            <p class="text-xs leading-normal text-neutral-600 sm:col-span-2">
+              Nome, e-mail, CPF e CNH são cadastrados pela locadora. Para corrigir, fale com ela.
+            </p>
+          </dl>
+        </app-page-card>
 
-      <!-- O que ele edita: telefone e endereço. -->
-      <app-page-card title="Contato e endereço">
-        <form
-          [formGroup]="form"
-          (ngSubmit)="save()"
-          novalidate
-          class="px-4 pb-5 sm:px-6 space-y-4"
-          data-edit-form
-        >
-          @if (formError(); as message) {
-            <app-alert-banner variant="error" [message]="message" />
-          }
-
-          <app-form-field
-            label="Telefone"
-            controlId="driver-phone"
-            [required]="true"
-            [control]="form.controls.phone"
-            [messages]="phoneMessages"
+        <!-- O que ele edita: telefone e endereço (PUT /v1/driver/profile). -->
+        <app-page-card title="Contato e endereço">
+          <span
+            cardIcon
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50
+                   text-blue-600"
+            aria-hidden="true"
           >
-            <input
-              appFieldControl
-              formControlName="phone"
-              type="tel"
-              inputmode="tel"
-              autocomplete="tel"
-              maxlength="15"
-              placeholder="(00) 00000-0000"
-              (input)="onPhoneInput($event)"
-              [class]="inputClass + ' tabular-nums'"
-            />
-          </app-form-field>
-
-          <div
-            formGroupName="address"
-            class="space-y-4"
-            (input)="onAddressInput()"
-            (change)="onAddressInput()"
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <path d="M9 22V12h6v10" />
+            </svg>
+          </span>
+          <form
+            [formGroup]="form"
+            (ngSubmit)="save()"
+            novalidate
+            class="flex flex-col gap-4 px-4 pb-6 sm:px-6"
+            data-edit-form
           >
+            @if (formError(); as message) {
+              <app-alert-banner variant="error" [message]="message" />
+            }
+
             <app-form-field
-              label="CEP"
-              controlId="driver-cep"
-              [required]="addressStarted()"
-              [hint]="cepLoading() ? 'Buscando endereço…' : 'Digite o CEP e preenchemos o resto.'"
-              [control]="form.controls.address.controls.cep"
-              [messages]="cepMessages"
+              label="Telefone"
+              controlId="driver-phone"
+              [required]="true"
+              [control]="form.controls.phone"
+              [messages]="phoneMessages"
             >
               <input
                 appFieldControl
-                formControlName="cep"
-                type="text"
-                inputmode="numeric"
-                autocomplete="postal-code"
-                maxlength="9"
-                placeholder="00000-000"
-                (input)="onCepInput($event)"
-                (blur)="onCepBlur()"
+                formControlName="phone"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                maxlength="15"
+                placeholder="(00) 00000-0000"
+                (input)="onPhoneInput($event)"
                 [class]="inputClass + ' tabular-nums'"
               />
             </app-form-field>
 
-            <app-form-field
-              label="Rua"
-              controlId="driver-street"
-              [required]="addressStarted()"
-              [control]="form.controls.address.controls.street"
-              [messages]="streetMessages"
+            <div
+              formGroupName="address"
+              class="flex flex-col gap-4"
+              (input)="onAddressInput()"
+              (change)="onAddressInput()"
             >
-              <input
-                appFieldControl
-                formControlName="street"
-                type="text"
-                autocomplete="address-line1"
-                maxlength="180"
-                [class]="inputClass"
-              />
-            </app-form-field>
-
-            <div class="grid grid-cols-2 gap-3">
               <app-form-field
-                label="Número"
-                controlId="driver-number"
-                [control]="form.controls.address.controls.number"
+                label="CEP"
+                controlId="driver-cep"
+                [required]="addressStarted()"
+                [hint]="cepLoading() ? 'Buscando endereço…' : 'Digite o CEP e preenchemos o resto.'"
+                [control]="form.controls.address.controls.cep"
+                [messages]="cepMessages"
               >
                 <input
                   appFieldControl
-                  formControlName="number"
+                  formControlName="cep"
                   type="text"
-                  autocomplete="off"
-                  maxlength="20"
+                  inputmode="numeric"
+                  autocomplete="postal-code"
+                  maxlength="9"
+                  placeholder="00000-000"
+                  (input)="onCepInput($event)"
+                  (blur)="onCepBlur()"
+                  [class]="inputClass + ' tabular-nums'"
+                />
+              </app-form-field>
+
+              <app-form-field
+                label="Rua"
+                controlId="driver-street"
+                [required]="addressStarted()"
+                [control]="form.controls.address.controls.street"
+                [messages]="streetMessages"
+              >
+                <input
+                  appFieldControl
+                  formControlName="street"
+                  type="text"
+                  autocomplete="address-line1"
+                  maxlength="180"
                   [class]="inputClass"
                 />
               </app-form-field>
+
+              <div class="grid grid-cols-2 gap-3">
+                <app-form-field
+                  label="Número"
+                  controlId="driver-number"
+                  [control]="form.controls.address.controls.number"
+                >
+                  <input
+                    appFieldControl
+                    formControlName="number"
+                    type="text"
+                    autocomplete="off"
+                    maxlength="20"
+                    [class]="inputClass"
+                  />
+                </app-form-field>
+                <app-form-field
+                  label="Complemento"
+                  controlId="driver-complement"
+                  [control]="form.controls.address.controls.complement"
+                >
+                  <input
+                    appFieldControl
+                    formControlName="complement"
+                    type="text"
+                    autocomplete="off"
+                    maxlength="120"
+                    [class]="inputClass"
+                  />
+                </app-form-field>
+              </div>
+
               <app-form-field
-                label="Complemento"
-                controlId="driver-complement"
-                [control]="form.controls.address.controls.complement"
+                label="Bairro"
+                controlId="driver-district"
+                [required]="addressStarted()"
+                [control]="form.controls.address.controls.district"
+                [messages]="districtMessages"
               >
                 <input
                   appFieldControl
-                  formControlName="complement"
+                  formControlName="district"
                   type="text"
-                  autocomplete="off"
                   maxlength="120"
                   [class]="inputClass"
                 />
               </app-form-field>
+
+              <div class="grid grid-cols-[minmax(0,1fr)_6rem] gap-3">
+                <app-form-field
+                  label="Cidade"
+                  controlId="driver-city"
+                  [required]="addressStarted()"
+                  [control]="form.controls.address.controls.city"
+                  [messages]="cityMessages"
+                >
+                  <input
+                    appFieldControl
+                    formControlName="city"
+                    type="text"
+                    autocomplete="address-level2"
+                    maxlength="120"
+                    [class]="inputClass"
+                  />
+                </app-form-field>
+                <app-form-field
+                  label="UF"
+                  controlId="driver-uf"
+                  [required]="addressStarted()"
+                  [control]="form.controls.address.controls.uf"
+                  [messages]="ufMessages"
+                >
+                  <select appFieldControl formControlName="uf" [class]="inputClass">
+                    <option value="">—</option>
+                    @for (uf of ufs; track uf) {
+                      <option [value]="uf">{{ uf }}</option>
+                    }
+                  </select>
+                </app-form-field>
+              </div>
             </div>
 
-            <app-form-field
-              label="Bairro"
-              controlId="driver-district"
-              [required]="addressStarted()"
-              [control]="form.controls.address.controls.district"
-              [messages]="districtMessages"
+            <button
+              type="submit"
+              [disabled]="saving()"
+              [attr.aria-busy]="saving() ? 'true' : null"
+              class="min-h-12 w-full rounded-xl bg-primary-500 text-base font-semibold text-white
+                     shadow-sm hover:bg-primary-600 active:scale-[0.98] disabled:opacity-60
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                     focus-visible:ring-offset-2"
             >
-              <input
-                appFieldControl
-                formControlName="district"
-                type="text"
-                maxlength="120"
-                [class]="inputClass"
-              />
-            </app-form-field>
+              {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
+            </button>
+          </form>
+        </app-page-card>
+      </div>
 
-            <div class="grid grid-cols-[1fr_6rem] gap-3">
-              <app-form-field
-                label="Cidade"
-                controlId="driver-city"
-                [required]="addressStarted()"
-                [control]="form.controls.address.controls.city"
-                [messages]="cityMessages"
-              >
-                <input
-                  appFieldControl
-                  formControlName="city"
-                  type="text"
-                  autocomplete="address-level2"
-                  maxlength="120"
-                  [class]="inputClass"
-                />
-              </app-form-field>
-              <app-form-field
-                label="UF"
-                controlId="driver-uf"
-                [required]="addressStarted()"
-                [control]="form.controls.address.controls.uf"
-                [messages]="ufMessages"
-              >
-                <select appFieldControl formControlName="uf" [class]="inputClass">
-                  <option value="">—</option>
-                  @for (uf of ufs; track uf) {
-                    <option [value]="uf">{{ uf }}</option>
-                  }
-                </select>
-              </app-form-field>
+      <div class="flex min-w-0 flex-col gap-4">
+        <!-- A conta: quem está logado, ajuda e saída. -->
+        <section
+          aria-labelledby="driver-account-title"
+          class="rounded-2xl border border-neutral-200 bg-white px-4 py-5 shadow-sm sm:px-6"
+        >
+          <h2 id="driver-account-title" class="mb-4 font-semibold text-neutral-800">Sua conta</h2>
+          <div class="mb-3 flex items-center gap-3">
+            <span
+              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-500
+                     text-lg font-bold text-white"
+              aria-hidden="true"
+            >
+              {{ initials() }}
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-semibold text-neutral-900 break-words">{{ name() }}</span>
+                <span
+                  class="rounded-md bg-primary-50 px-2 py-0.5 text-xs font-bold uppercase
+                         tracking-wider text-primary-500"
+                >
+                  {{ roleLabel }}
+                </span>
+              </div>
+              <span class="text-sm text-neutral-600 break-words">{{ email() }}</span>
             </div>
           </div>
-
-          <button
-            type="submit"
-            [disabled]="saving()"
-            [attr.aria-busy]="saving() ? 'true' : null"
-            class="min-h-12 w-full sm:w-auto sm:px-8 rounded-xl text-base font-semibold text-white
-                   bg-primary-700 hover:bg-primary-800 shadow-sm disabled:opacity-60
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                   focus-visible:ring-offset-2"
+          <div
+            class="flex min-h-11 items-center justify-between gap-3 border-t border-neutral-100 py-3"
           >
-            {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
-          </button>
-        </form>
-      </app-page-card>
+            <span class="text-sm text-neutral-600">Ajuda</span>
+            <a
+              [routerLink]="supportRoute"
+              data-support-link
+              class="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium
+                     text-primary-500 hover:bg-primary-50 focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              Falar com o suporte
+            </a>
+          </div>
+          <div
+            class="flex min-h-11 items-center justify-between gap-3 border-t border-neutral-100 py-3"
+          >
+            <span class="text-sm text-neutral-600">Encerrar sessão</span>
+            <button
+              type="button"
+              data-logout
+              (click)="logout()"
+              class="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-medium
+                     text-rose-700 hover:bg-rose-50 focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-rose-500"
+            >
+              Sair
+            </button>
+          </div>
+        </section>
 
-      <!-- Ajuda e saída, no fim da página, ao alcance do polegar. -->
-      <section aria-label="Ajuda e sessão" class="space-y-3">
-        <a
-          routerLink="/suporte"
-          data-support-link
-          class="min-h-12 w-full inline-flex items-center justify-center rounded-xl border
-                 border-neutral-300 bg-white text-base font-medium text-neutral-800
-                 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
-                 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-        >
-          Falar com o suporte
-        </a>
-        <button
-          type="button"
-          data-logout
-          (click)="logout()"
-          class="min-h-12 w-full rounded-xl border border-rose-200 bg-white text-base font-semibold
-                 text-rose-700 hover:bg-rose-50 focus:outline-none focus-visible:ring-2
-                 focus-visible:ring-rose-500 focus-visible:ring-offset-2
-                 mb-[env(safe-area-inset-bottom)]"
-        >
-          Sair da conta
-        </button>
-      </section>
+        <!-- O aluguel ativo. Sem aluguel, o cartão NÃO aparece (decisão do dono: nada de card vazio). -->
+        @if (profile()?.activeRental; as rental) {
+          <section
+            aria-labelledby="driver-rental-title"
+            class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-neutral-800
+                   bg-neutral-900 px-4 py-5 shadow-xl sm:px-6"
+            data-active-rental
+          >
+            <span
+              class="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full
+                     bg-primary-500/20 blur-[80px]"
+              aria-hidden="true"
+            ></span>
+            <div class="relative flex min-w-0 flex-col gap-1">
+              <h2
+                id="driver-rental-title"
+                class="text-xs font-semibold uppercase tracking-widest text-neutral-400"
+              >
+                Aluguel ativo
+              </h2>
+              <span class="font-mono text-2xl font-bold tracking-wide text-white break-all">
+                {{ rental.plate ?? 'Veículo' }}
+              </span>
+            </div>
+            <dl class="relative flex flex-col gap-2.5 text-sm">
+              @if (rentalVehicle(); as vehicle) {
+                <div class="flex justify-between gap-3">
+                  <dt class="text-neutral-400">Veículo</dt>
+                  <dd class="font-medium text-white text-right">{{ vehicle }}</dd>
+                </div>
+              }
+              @if (rentalSince(); as since) {
+                <div class="flex justify-between gap-3">
+                  <dt class="text-neutral-400">Desde</dt>
+                  <dd class="font-medium text-white tabular-nums">{{ since }}</dd>
+                </div>
+              }
+            </dl>
+            <a
+              [routerLink]="[rentalBase, rental.rentalId]"
+              class="relative inline-flex min-h-12 w-full items-center justify-center rounded-xl
+                     bg-white text-[0.9375rem] font-bold text-neutral-950 hover:bg-neutral-100
+                     active:scale-[0.98] focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-white focus-visible:ring-offset-2
+                     focus-visible:ring-offset-neutral-900"
+            >
+              Ver aluguel
+            </a>
+          </section>
+        }
+      </div>
     </div>
-  </app-default-page-layout>
-}
+  }
+</app-default-page-layout>
