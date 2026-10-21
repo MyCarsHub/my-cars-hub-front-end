@@ -1,4 +1,4 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
@@ -19,14 +19,13 @@ import { ExternalNavigationService } from '../../services/external-navigation.se
 import { formatDate } from '../../types/dashboard.types';
 import { DriverCharge, DriverChargeGroups } from '../../types/driver-charges.types';
 import { todayInBusinessTz } from '../../utils/business-clock';
-import {
-  driverChargeKindLabel,
-  groupDriverCharges,
-  paidDayOf,
-} from '../../utils/driver-charges';
+import { driverChargeKindLabel, groupDriverCharges, paidDayOf } from '../../utils/driver-charges';
 
 const LOAD_ERROR = 'Não foi possível carregar os pagamentos.';
 const NOT_FOUND = 'Não encontramos os pagamentos deste aluguel.';
+
+/** A second tap inside this window is the same tap: it would open the payment twice. */
+const DOUBLE_TAP_LOCK_MS = 1000;
 
 const EMPTY_GROUPS: DriverChargeGroups = { overdue: [], next: null, upcoming: [], history: [] };
 
@@ -46,7 +45,7 @@ const EMPTY_GROUPS: DriverChargeGroups = { overdue: [], next: null, upcoming: []
 @Component({
   selector: 'app-driver-charges',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner],
+  imports: [AlertBanner, NgTemplateOutlet],
   templateUrl: './driver-charges.html',
 })
 export class DriverCharges {
@@ -66,6 +65,12 @@ export class DriverCharges {
   protected readonly notFound = signal(false);
 
   private readonly today = signal(todayInBusinessTz());
+
+  /** The charge whose payment link was just tried, and whether the new tab really opened. */
+  protected readonly paying = signal<{ id: string; opened: boolean } | null>(null);
+  /** True for a moment after a tap on "Pagar", so a double tap opens one tab, not two. */
+  protected readonly payLocked = signal(false);
+  private lockTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly groups = computed<DriverChargeGroups>(() =>
     this.loaded() ? groupDriverCharges(this.charges(), this.today()) : EMPTY_GROUPS,
@@ -131,9 +136,10 @@ export class DriverCharges {
       }
     };
     this.document.addEventListener('visibilitychange', onVisible);
-    inject(DestroyRef).onDestroy(() =>
-      this.document.removeEventListener('visibilitychange', onVisible),
-    );
+    inject(DestroyRef).onDestroy(() => {
+      this.document.removeEventListener('visibilitychange', onVisible);
+      if (this.lockTimer) clearTimeout(this.lockTimer);
+    });
   }
 
   protected reload(): void {
@@ -141,7 +147,11 @@ export class DriverCharges {
   }
 
   protected pay(charge: DriverCharge): void {
-    if (charge.checkoutUrl) this.externalNav.openExternal(charge.checkoutUrl);
+    if (!charge.checkoutUrl || this.payLocked()) return;
+    this.payLocked.set(true);
+    const opened = this.externalNav.openExternal(charge.checkoutUrl);
+    this.paying.set({ id: charge.id, opened });
+    this.lockTimer = setTimeout(() => this.payLocked.set(false), DOUBLE_TAP_LOCK_MS);
   }
 
   protected label(charge: DriverCharge): string {

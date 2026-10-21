@@ -52,12 +52,17 @@
             <button
               type="button"
               (click)="pay(charge)"
+              [disabled]="payLocked()"
               [attr.aria-label]="payLabel('Pagar agora', charge)"
-              class="mt-3 min-h-12 w-full px-4 py-2 rounded-xl text-base font-semibold text-white bg-rose-700 hover:bg-rose-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
+              class="mt-3 min-h-12 w-full px-4 py-2 rounded-xl text-base font-semibold text-white bg-rose-700 hover:bg-rose-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:opacity-60"
               data-pay
             >
               Pagar agora
             </button>
+            <ng-container
+              [ngTemplateOutlet]="payNote"
+              [ngTemplateOutletContext]="{ $implicit: charge }"
+            />
           } @else {
             <p class="mt-3 text-base text-rose-800" data-no-link>
               O link de pagamento ainda não está disponível. Fale com a locadora.
@@ -80,12 +85,17 @@
             <button
               type="button"
               (click)="pay(next)"
+              [disabled]="payLocked()"
               [attr.aria-label]="payLabel('Pagar com Pix', next)"
-              class="mt-3 min-h-12 w-full px-4 py-2 rounded-xl text-base font-semibold text-white bg-primary-700 hover:bg-primary-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+              class="mt-3 min-h-12 w-full px-4 py-2 rounded-xl text-base font-semibold text-white bg-primary-700 hover:bg-primary-800 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60"
               data-pay
             >
               Pagar com Pix
             </button>
+            <ng-container
+              [ngTemplateOutlet]="payNote"
+              [ngTemplateOutletContext]="{ $implicit: next }"
+            />
           } @else {
             <p class="mt-3 text-base text-neutral-700" data-no-link>
               O link de pagamento ainda não está disponível. Fale com a locadora.
@@ -137,4 +147,26 @@
       }
     </div>
   }
+
+  <!-- Depois de tocar em pagar: o que aconteceu, e um link de verdade caso a aba não tenha aberto. -->
+  <ng-template #payNote let-charge>
+    @if (paying(); as p) {
+      @if (p.id === charge.id) {
+        <p role="status" class="mt-2 text-base text-neutral-800" data-pay-note>
+          {{
+            p.opened ? 'Abrimos o pagamento em outra aba.' : 'O navegador não abriu a outra aba.'
+          }}
+          <a
+            [href]="charge.checkoutUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="min-h-11 inline-flex items-center font-semibold underline underline-offset-2 text-primary-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+            data-pay-again
+          >
+            Abrir de novo
+          </a>
+        </p>
+      }
+    }
+  </ng-template>
 </section>

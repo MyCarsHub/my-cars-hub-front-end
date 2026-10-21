@@ -41,7 +41,7 @@ describe('DriverCharges', () => {
 
   function build(list: () => Observable<DriverCharge[]>, rentalId = 'r-7'): void {
     listCall = vi.fn(list);
-    openExternal = vi.fn();
+    openExternal = vi.fn(() => true);
     TestBed.configureTestingModule({
       providers: [
         ApiErrorService,
@@ -54,7 +54,10 @@ describe('DriverCharges', () => {
     fixture.detectChanges();
   }
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   describe('carga', () => {
     it('pede as cobranças do aluguel recebido, pelo endpoint do motorista', () => {
@@ -93,6 +96,49 @@ describe('DriverCharges', () => {
 
       expect(openExternal).toHaveBeenCalledTimes(1);
       expect(openExternal).toHaveBeenCalledWith('https://pay.example/i/abc');
+    });
+
+    it('depois de tocar, diz que abriu em outra aba e deixa um link de verdade para abrir de novo', () => {
+      build(() => of([charge()]));
+
+      q('[data-pay]')!.click();
+      fixture.detectChanges();
+
+      const note = q('[data-pay-note]')!;
+      expect(flat(note)).toContain('Abrimos o pagamento em outra aba.');
+      const again = note.querySelector<HTMLAnchorElement>('[data-pay-again]')!;
+      expect(again.getAttribute('href')).toBe('https://pay.example/i/abc');
+      expect(again.getAttribute('target')).toBe('_blank');
+      expect(again.getAttribute('rel')).toBe('noopener noreferrer');
+    });
+
+    it('se o navegador não abrir a aba, o aviso muda mas o link de reserva continua lá', () => {
+      build(() => of([charge()]));
+      openExternal.mockReturnValue(false);
+
+      q('[data-pay]')!.click();
+      fixture.detectChanges();
+
+      expect(flat(q('[data-pay-note]'))).toContain('O navegador não abriu a outra aba.');
+      expect(q('[data-pay-again]')).not.toBeNull();
+    });
+
+    it('toque duplo abre uma aba só; passado ~1 s o botão volta', () => {
+      vi.useFakeTimers();
+      build(() => of([charge()]));
+      const button = q('[data-pay]') as HTMLButtonElement;
+
+      button.click();
+      fixture.detectChanges();
+      expect(button.disabled).toBe(true);
+      button.click();
+      expect(openExternal).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+      expect(button.disabled).toBe(false);
+      button.click();
+      expect(openExternal).toHaveBeenCalledTimes(2);
     });
 
     it('vencendo hoje, diz "Vence hoje"', () => {
