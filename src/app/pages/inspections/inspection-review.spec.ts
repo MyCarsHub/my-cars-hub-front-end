@@ -3,11 +3,18 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, Observable, Subject, firstValueFrom, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InspectionReview } from './inspection-review';
 import { ApiErrorService } from '../../services/api-error.service';
-import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
+import {
+  DOCUMENT_PREVIEW_VIEWER,
+  DocumentPreviewService,
+} from '../../components/document-preview/document-preview.service';
+import { DocumentPreviewViewer } from '../../components/document-preview/document-preview-viewer';
+import { DocxPreviewEngine } from '../../components/document-preview/docx-preview-engine';
+import { PdfPreviewEngine } from '../../components/document-preview/pdf-preview-engine';
+import { LoggerService } from '../../services/logger.service';
 import type {
   DocumentPreviewGallery,
   DocumentPreviewItem,
@@ -650,7 +657,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
 
       const item = gallery().items[1];
       expect(item.title).toBe('Traseira');
-      expect(item.caption).toBe('Tirada em 09/10/2026 08:40.');
+      expect(item.caption).toBe('Tirada em 09/10/2026 08:40');
       expect(item.errorMessage).toContain('Ela está salva');
       // Sem titulo de galeria: o modal mostra o titulo de CADA foto.
       expect(gallery().title).toBeUndefined();
@@ -754,6 +761,11 @@ describe('InspectionReview — detalhes da vistoria', () => {
         expect(photos).toHaveBeenCalledTimes(2);
         expect(photos).toHaveBeenLastCalledWith('insp-1');
         expect(retry).toBe('https://cdn.example/novo-1.jpg');
+        // A lista nova vai para a tela: a proxima abertura nao parte da URL vencida.
+        fixture.detectChanges();
+        expect(
+          host(fixture).querySelector('[aria-label="Ampliar foto: Traseira"] img')?.getAttribute('src'),
+        ).toBe('https://cdn.example/novo-1.jpg');
       });
 
       it('a foto cuja assinatura falhou entra na galeria e busca a URL ao abrir', async () => {
@@ -794,6 +806,99 @@ describe('InspectionReview — detalhes da vistoria', () => {
 
         await expect(fetchUrl(item)).rejects.toBeInstanceOf(HttpErrorResponse);
       });
+    });
+  });
+
+  // ===================================== visualizador de verdade (integracao)
+
+  /**
+   * O sujeito aqui e a COSTURA: tela + `DocumentPreviewService` + `DocumentPreviewViewer`
+   * reais, so com o `import()` dinamico trocado por um carregador sincrono e as duas
+   * bibliotecas (pdf.js, docx-preview) por stubs. O `fetch` do storage e o unico dublê.
+   */
+  describe('visualizador real: URL assinada vencida', () => {
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    const FRESH = (n: number) => `https://cdn.example/novo-${n}.jpg`;
+    let service: DocumentPreviewService;
+    let fetchSpy: ReturnType<typeof vi.fn>;
+
+    async function settle(f: ComponentFixture<InspectionReview>): Promise<void> {
+      for (let i = 0; i < 8; i++) {
+        await new Promise((resolve) => setTimeout(resolve));
+        f.detectChanges();
+        TestBed.tick();
+      }
+    }
+    const modal = () => document.body.querySelector('app-document-preview-viewer');
+
+    beforeEach(() => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [InspectionReview],
+        providers: [
+          provideRouter([]),
+          provideNoopAnimations(),
+          ApiErrorService,
+          { provide: InspectionsService, useValue: { getOne, photos, approve, reject, reportUrl } },
+          { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
+          { provide: ActivatedRoute, useValue: { paramMap: params } },
+          // Reais: DocumentPreviewService e DocumentPreviewViewer.
+          { provide: DOCUMENT_PREVIEW_VIEWER, useValue: () => Promise.resolve(DocumentPreviewViewer) },
+          { provide: PdfPreviewEngine, useValue: { open: vi.fn() } },
+          { provide: DocxPreviewEngine, useValue: { toSafeHtml: vi.fn() } },
+          { provide: LoggerService, useValue: { error: vi.fn(), warn: vi.fn() } },
+        ],
+      });
+      service = TestBed.inject(DocumentPreviewService);
+
+      let n = 0;
+      Object.assign(URL, {
+        createObjectURL: vi.fn(() => `blob:test/${++n}`),
+        revokeObjectURL: vi.fn(),
+      });
+      // A foto da Traseira (a clicada) venceu: 403 do storage. As URLs NOVAS respondem.
+      fetchSpy = vi.fn((url: string) =>
+        Promise.resolve(
+          url === ALL_PHOTOS[1].signedUrl
+            ? new Response('', { status: 403 })
+            : new Response(PNG, { status: 200 }),
+        ),
+      );
+      vi.spyOn(globalThis, 'fetch').mockImplementation(fetchSpy as never);
+    });
+
+    afterEach(() => {
+      service.close();
+      vi.restoreAllMocks();
+    });
+
+    it('403 na primeira URL mostra "Tentar de novo"; o clique busca a URL NOVA da lista', async () => {
+      const fixture = render();
+      host(fixture)
+        .querySelector<HTMLButtonElement>('[aria-label="Ampliar foto: Traseira"]')
+        ?.click();
+      await settle(fixture);
+
+      // O modal REAL abriu na foto clicada, falhou com 403 e oferece o retry.
+      expect(modal()).not.toBeNull();
+      expect(modal()?.querySelector('[data-preview-state="error"]')?.textContent).toContain(
+        'O link do arquivo expirou',
+      );
+      expect(fetchSpy).toHaveBeenCalledWith(ALL_PHOTOS[1].signedUrl, expect.anything());
+      expect(photos).toHaveBeenCalledTimes(1);
+
+      photos.mockReturnValue(
+        of(ALL_PHOTOS.map((p, n) => photoFor(p.angle, n, FRESH(n)))),
+      );
+      modal()?.querySelector<HTMLButtonElement>('[data-preview-retry]')?.click();
+      await settle(fixture);
+
+      expect(photos).toHaveBeenCalledTimes(2);
+      expect(fetchSpy).toHaveBeenCalledWith(FRESH(1), expect.anything());
+      expect(modal()?.querySelector('[data-preview-state="error"]')).toBeNull();
+      // A lista nova tambem foi para a tela: a proxima abertura nao parte da URL vencida.
+      const thumb = host(fixture).querySelector('[aria-label="Ampliar foto: Traseira"] img');
+      expect(thumb?.getAttribute('src')).toBe(FRESH(1));
     });
   });
 

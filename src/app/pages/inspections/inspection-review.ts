@@ -346,7 +346,8 @@ export class InspectionReview implements OnInit {
       source: this.photoSource(frame.angle),
       fileName: `${stem}-${frame.angle.toLowerCase()}`,
       title: frame.label,
-      caption: frame.takenAt ? `Tirada em ${frame.takenAt}.` : undefined,
+      // Sem ponto final: o visualizador concatena " · FORMATO · tamanho" depois da legenda.
+      caption: frame.takenAt ? `Tirada em ${frame.takenAt}` : undefined,
       errorMessage: 'Esta foto não carregou agora. Ela está salva — tente de novo.',
     };
   }
@@ -367,6 +368,9 @@ export class InspectionReview implements OnInit {
             (f) => f.angle === angle,
           )?.signedUrl;
           if (!fresh) throw new Error('photo-url-unavailable');
+          // A lista nova vale para a tela inteira: a proxima abertura (e as outras fotos da
+          // galeria) nao comecam com a URL vencida.
+          this.photos.set(list);
           return fresh;
         }),
       );
