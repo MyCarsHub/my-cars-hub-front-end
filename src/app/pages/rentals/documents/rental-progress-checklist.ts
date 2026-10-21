@@ -378,7 +378,10 @@ export class RentalProgressChecklist implements OnInit {
         description: isActive
           ? 'Aluguel ativado — cobranças em andamento.'
           : awaitingPayment
-            ? 'Ativa sozinho quando o pagamento for confirmado no Asaas — ou marque como ativo agora.'
+            ? this.canActivateAction()
+              ? 'Ativa sozinho quando o pagamento for confirmado no Asaas — ou marque como ativo agora.'
+              : // O motorista não ativa nada e não precisa do nome do provedor.
+                'Ativa sozinho quando o pagamento for confirmado.'
             : canActivate
               ? 'Cobrança da caução (se houver) é disparada aqui.'
               : 'Locação não foi iniciada.',
