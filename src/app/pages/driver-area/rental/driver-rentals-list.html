@@ -1,0 +1,140 @@
+<app-default-page-layout
+  title="Meus aluguéis"
+  description="Contratos, cobranças e o que foi combinado com a locadora."
+>
+  <div class="flex flex-col gap-4">
+    @if (error(); as message) {
+      <div data-load-error>
+        <app-alert-banner variant="error">
+          {{ message }}
+          <button type="button" (click)="reload()"
+            class="ml-1 min-h-11 inline-flex items-center underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm">
+            Tentar novamente
+          </button>
+        </app-alert-banner>
+      </div>
+    }
+
+    <section class="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden"
+      aria-labelledby="driver-rentals-title">
+      <div class="flex items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-4">
+        <h2 id="driver-rentals-title" class="text-base font-semibold text-neutral-800">Lista</h2>
+        @if (loaded()) {
+          <span class="text-xs text-neutral-500 tabular-nums" data-count>{{ countLabel() }}</span>
+        }
+      </div>
+
+      <div class="flex flex-col gap-3 px-4 sm:px-6 pb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <input type="search" aria-label="Buscar por placa ou modelo" placeholder="Buscar por placa ou modelo…"
+            [value]="query()" (input)="onQuery($event)"
+            class="sm:col-span-2 w-full min-w-0 min-h-11 rounded-xl border border-rule-contrast bg-white px-3 text-base text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+            data-search />
+          <select aria-label="Situação" (change)="onStatus($event)"
+            class="w-full min-w-0 min-h-11 rounded-xl border border-rule-contrast bg-white px-3 text-base text-neutral-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+            data-status>
+            <option value="" [selected]="status() === ''">Situação: Todas</option>
+            @for (opt of statusOptions; track opt.value) {
+              <option [value]="opt.value" [selected]="status() === opt.value">Situação: {{ opt.label }}</option>
+            }
+          </select>
+          <select aria-label="Ordenar" (change)="onOrder($event)"
+            class="w-full min-w-0 min-h-11 rounded-xl border border-rule-contrast bg-white px-3 text-base text-neutral-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+            data-order>
+            <option value="DESC" [selected]="order() === 'DESC'">Ordenar: Mais recentes</option>
+            <option value="ASC" [selected]="order() === 'ASC'">Ordenar: Mais antigos</option>
+          </select>
+        </div>
+        @if (hasFilters()) {
+          <div class="flex justify-center sm:justify-end">
+          <button type="button" (click)="clearFilters()"
+            class="min-h-11 px-3 rounded-lg text-sm font-medium text-neutral-600 hover:text-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer"
+            data-clear>
+            Limpar filtros
+          </button>
+          </div>
+        }
+      </div>
+
+      @if (loading() && !loaded()) {
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 px-4 sm:px-6 pb-4 sm:pb-6" role="status" aria-busy="true"
+          aria-label="Carregando seus aluguéis" data-loading>
+          <div class="h-[152px] rounded-2xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-[152px] rounded-2xl bg-neutral-100 animate-pulse"></div>
+        </div>
+      } @else if (emptyAll()) {
+        <div class="px-4 sm:px-6 pt-6 pb-10 text-center" data-empty>
+          <p class="mx-auto max-w-[46ch] text-sm leading-relaxed text-neutral-600">
+            Você ainda não tem aluguéis. Quando a locadora criar o seu, ele aparece aqui.
+          </p>
+        </div>
+      } @else if (emptyFiltered()) {
+        <div class="px-4 sm:px-6 pt-6 pb-10 flex flex-col items-center gap-3 text-center" data-empty-filtered>
+          <p class="text-sm text-neutral-600">Nenhum aluguel encontrado com estes filtros.</p>
+          <button type="button" (click)="clearFilters()"
+            class="min-h-11 px-4 rounded-xl border border-rule-contrast bg-white text-sm font-semibold text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer">
+            Limpar filtros
+          </button>
+        </div>
+      } @else if (loaded()) {
+        <ul class="m-0 list-none grid grid-cols-1 xl:grid-cols-2 gap-4 px-4 sm:px-6 pb-4 sm:pb-6">
+          @for (card of cards(); track card.id) {
+            <li class="min-w-0">
+              <article class="h-full rounded-2xl border border-neutral-200 bg-white p-3 sm:p-3.5 flex gap-3 sm:gap-4 min-w-0"
+                data-rental-card>
+                <div class="shrink-0 w-24 sm:w-40 self-stretch rounded-xl bg-neutral-100 text-neutral-400 flex items-center justify-center"
+                  aria-hidden="true">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 16H4a1 1 0 0 1-1-1v-2.5a2 2 0 0 1 1.3-1.9L7 9.5l1.7-2.6A2 2 0 0 1 10.4 6h3.6a2 2 0 0 1 1.7 1l1.6 2.6 2.3.8A2 2 0 0 1 21 12.3V15a1 1 0 0 1-1 1h-1" />
+                    <path d="M9 16h6" />
+                    <path d="M8.5 10h7" />
+                    <circle cx="7" cy="16" r="2" />
+                    <circle cx="17" cy="16" r="2" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <span class="flex items-center gap-2 flex-wrap">
+                    <span class="font-mono text-base font-semibold tracking-[0.04em] text-neutral-900" data-plate>{{ card.plate }}</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      [class]="card.chipClass">{{ card.chipLabel }}</span>
+                  </span>
+                  @if (card.model) {
+                    <span class="text-sm text-neutral-600 truncate">{{ card.model }}</span>
+                  }
+                  <span class="text-sm text-neutral-800 tabular-nums">{{ card.period }}</span>
+                  @if (card.rate) {
+                    <span class="font-mono text-[13px] text-neutral-500" data-rate>{{ card.rate }}</span>
+                  }
+                  @if (card.alert; as alert) {
+                    <span class="text-[13px] font-semibold" [class.text-rose-700]="alert.tone === 'danger'"
+                      [class.text-amber-700]="alert.tone === 'warning'" data-alert>{{ alert.text }}</span>
+                  }
+                  <span class="flex-1 min-h-2"></span>
+                  <a [routerLink]="[card.id]" [attr.aria-label]="'Abrir aluguel do veículo ' + card.plate"
+                    class="min-h-11 w-full inline-flex items-center justify-center rounded-full border border-rule-contrast bg-white text-sm font-medium text-neutral-900 hover:bg-neutral-50 hover:border-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    data-open>
+                    Ver detalhes
+                  </a>
+                </div>
+              </article>
+            </li>
+          }
+        </ul>
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 sm:px-6 pt-4 pb-5 border-t border-neutral-100">
+          <span class="text-sm text-neutral-600 tabular-nums" data-pages>{{ countLabel() }} — página {{ page() + 1 }} de {{ pageCount() }}</span>
+          <div class="flex gap-2">
+            <button type="button" (click)="prev()" [disabled]="page() === 0"
+              class="flex-1 sm:flex-none min-h-11 px-4 rounded-xl border border-rule-contrast bg-white text-sm font-medium text-neutral-900 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer">
+              Anterior
+            </button>
+            <button type="button" (click)="next()" [disabled]="page() + 1 >= pageCount()"
+              class="flex-1 sm:flex-none min-h-11 px-4 rounded-xl border border-rule-contrast bg-white text-sm font-medium text-neutral-900 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer">
+              Próxima
+            </button>
+          </div>
+        </div>
+      }
+    </section>
+  </div>
+</app-default-page-layout>

@@ -67,8 +67,8 @@
       </a>
     </section>
 
-    <!-- O que ele deve neste aluguel e o jeito de pagar: logo abaixo do aluguel. -->
-    <app-driver-charges [rentalId]="rental.rentalId" />
+    <!-- "Aluguel da semana": a próxima cobrança e "Como pagar", que leva ao aluguel (onde se paga). -->
+    <app-driver-next-charge [rentalId]="rental.rentalId" />
   }
 
   @if (isEmpty()) {

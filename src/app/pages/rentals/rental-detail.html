@@ -259,10 +259,11 @@
         </div>
       </div>
 
-      <!-- O motorista vê UMA seção "Pagamentos", vinda do endpoint dele (sem notas do operador). -->
-      @if (isDriver) {
-        <app-driver-charges [rentalId]="r.id" />
-      } @else {
+      <!--
+        Caução e cobranças do OPERADOR. O motorista não chega a esta tela (a rota `/alugueis/:id`
+        dele é `DriverRentalDetail`, escolhida por `driverRoleMatch`); o corte fica como defesa.
+      -->
+      @if (!isDriver) {
       <!-- Caução — card dedicado ACIMA do cronograma. -->
       <app-page-card
         title="Caução"

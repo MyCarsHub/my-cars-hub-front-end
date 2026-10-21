@@ -1,0 +1,216 @@
+<app-default-page-layout title="Meu aluguel" [description]="vehicleLine()">
+  <a
+    pageBack
+    routerLink=".."
+    data-back
+    class="-ml-1 mb-1 inline-flex items-center gap-1.5 min-h-11 px-1 rounded-lg text-sm font-medium
+           text-neutral-600 hover:text-neutral-900 transition-colors focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-primary-400"
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+    Meus aluguéis
+  </a>
+  @if (statusChip(); as chip) {
+    <span pageBadge class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold" [class]="chip.chip"
+      data-status-chip>
+      {{ chip.label }}
+    </span>
+  }
+
+  @if (loading() && !rental()) {
+    <div class="flex flex-col gap-4" role="status" aria-busy="true" aria-label="Carregando o aluguel" data-loading>
+      <div class="h-40 rounded-2xl bg-neutral-200 animate-pulse"></div>
+      <div class="h-64 rounded-2xl bg-white border border-neutral-200 animate-pulse"></div>
+    </div>
+  } @else if (error(); as message) {
+    <div data-load-error>
+      <app-alert-banner variant="error">
+        {{ message }}
+        @if (!notFound()) {
+          <button type="button" (click)="reload()"
+            class="ml-1 min-h-11 inline-flex items-center underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm">
+            Tentar novamente
+          </button>
+        }
+      </app-alert-banner>
+    </div>
+  } @else if (rental(); as r) {
+    <div class="flex flex-col gap-4">
+      <!-- O que fazer agora: atrasada (rosa), próxima (laranja), em dia (verde), encerrado (cinza). -->
+      @if (hero(); as h) {
+        <section [class]="heroClass()" class="rounded-2xl text-white p-4 sm:p-6 flex flex-col gap-1.5"
+          [attr.data-hero]="h.tone" aria-labelledby="driver-hero-label">
+          <span id="driver-hero-label" class="text-xs uppercase tracking-wide text-white/90">{{ h.label }}</span>
+          <span class="text-3xl sm:text-4xl font-semibold leading-tight tabular-nums"
+            [class.font-mono]="h.valueIsMoney" data-hero-value>{{ h.value }}</span>
+          <span class="text-sm leading-relaxed text-white/90" data-hero-sub>{{ h.sub }}</span>
+          @if (h.payCharge; as charge) {
+            <button type="button" (click)="pay(charge)"
+              class="mt-2 self-stretch sm:self-start min-h-11 px-5 rounded-xl bg-white text-sm font-semibold text-neutral-900 hover:bg-neutral-100 active:scale-[0.98] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 cursor-pointer"
+              data-hero-pay>
+              Pagar agora
+            </button>
+          }
+        </section>
+      } @else if (!chargesLoaded() && !chargesError()) {
+        <div class="h-40 rounded-2xl bg-neutral-200 animate-pulse" aria-hidden="true" data-hero-loading></div>
+      }
+
+      @if (banner(); as text) {
+        <div data-reserved-banner>
+          <app-alert-banner variant="info" [message]="text" />
+        </div>
+      }
+
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+        <div class="flex flex-col gap-4 min-w-0">
+          <!-- Cobranças -->
+          <section class="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden"
+            aria-labelledby="driver-charges-title" data-charges>
+            <div class="flex items-baseline justify-between gap-2 px-4 sm:px-6 pt-5 pb-1">
+              <h2 id="driver-charges-title" class="text-base font-semibold text-neutral-800">Cobranças</h2>
+              @if (chargesLoaded()) {
+                <span class="text-xs text-neutral-500 tabular-nums" data-charge-count>{{ chargeCount() }}</span>
+              }
+            </div>
+            <div class="pt-2">
+              @if (chargesError(); as message) {
+                <div class="px-4 sm:px-6 pb-5" data-charges-error>
+                  <app-alert-banner variant="error">
+                    {{ message }}
+                    <button type="button" (click)="reloadCharges()"
+                      class="ml-1 min-h-11 inline-flex items-center underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm">
+                      Tentar novamente
+                    </button>
+                  </app-alert-banner>
+                </div>
+              } @else if (!chargesLoaded()) {
+                <div class="flex flex-col gap-2 px-4 sm:px-6 pb-5" aria-hidden="true">
+                  <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+                  <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+                </div>
+              } @else if (rows().length === 0) {
+                <p class="px-4 sm:px-6 pt-2 pb-5 text-sm text-neutral-500" data-charges-empty>
+                  Nenhuma cobrança por enquanto.
+                </p>
+              } @else {
+                <ul class="m-0 p-0 list-none">
+                  @for (row of rows(); track row.charge.id) {
+                    <li class="flex items-center gap-3 min-h-[64px] px-4 sm:px-6 py-2.5 border-t border-neutral-100"
+                      [class.bg-rose-50]="row.overdue" data-charge-row [attr.data-overdue]="row.overdue || null">
+                      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span class="text-sm font-medium text-neutral-900 truncate">{{ row.title }}</span>
+                        <span class="text-xs tabular-nums" [class.text-rose-700]="row.overdue"
+                          [class.text-neutral-500]="!row.overdue">{{ row.sub }}</span>
+                      </div>
+                      <div class="shrink-0 flex flex-col items-end gap-1">
+                        <span class="font-mono text-sm font-semibold tabular-nums text-neutral-900">{{ row.amount }}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                          [class]="row.chipClass">{{ row.chipLabel }}</span>
+                      </div>
+                      @if (row.payable) {
+                        <button type="button" (click)="pay(row.charge)"
+                          [attr.aria-label]="'Pagar ' + row.title + ', ' + row.amount"
+                          class="shrink-0 min-h-11 px-4 rounded-xl bg-primary-700 text-sm font-semibold text-white hover:bg-primary-800 active:scale-[0.98] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 cursor-pointer"
+                          data-pay>
+                          Pagar
+                        </button>
+                      }
+                    </li>
+                  }
+                </ul>
+                @if (hasMore()) {
+                  <button type="button" (click)="toggleAll()" [attr.aria-expanded]="showAll()"
+                    class="w-full min-h-12 border-t border-neutral-100 bg-white text-sm font-semibold text-primary-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400 cursor-pointer"
+                    data-more>
+                    {{ moreLabel() }}
+                  </button>
+                }
+              }
+            </div>
+          </section>
+        </div>
+
+        <div class="flex flex-col gap-4 min-w-0">
+          <!-- O que foi combinado -->
+          @if (terms().length > 0) {
+            <section class="rounded-2xl border border-neutral-200 bg-white shadow-sm px-4 sm:px-6 py-5 flex flex-col gap-4"
+              aria-labelledby="driver-terms-title" data-terms>
+              <h2 id="driver-terms-title" class="text-base font-semibold text-neutral-800">O que foi combinado</h2>
+              <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-5">
+                @for (term of terms(); track term.label) {
+                  <div class="flex flex-col gap-0.5 min-w-0" [class.col-span-2]="term.wide">
+                    <dt class="text-xs uppercase tracking-wide text-neutral-500">{{ term.label }}</dt>
+                    <dd class="m-0 text-sm font-medium leading-snug text-neutral-900 break-words"
+                      [class.font-mono]="term.mono">{{ term.value }}</dd>
+                  </div>
+                }
+              </dl>
+            </section>
+          }
+
+          <!-- Documentos -->
+          <section class="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden"
+            aria-labelledby="driver-docs-title" data-docs>
+            <div class="px-4 sm:px-6 pt-5 pb-1">
+              <h2 id="driver-docs-title" class="text-base font-semibold text-neutral-800">Documentos</h2>
+            </div>
+            <div class="pt-2">
+              @if (docsError(); as message) {
+                <div class="px-4 sm:px-6 pb-5">
+                  <app-alert-banner variant="error">
+                    {{ message }}
+                    <button type="button" (click)="reloadDocs()"
+                      class="ml-1 min-h-11 inline-flex items-center underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-sm">
+                      Tentar novamente
+                    </button>
+                  </app-alert-banner>
+                </div>
+              } @else if (!docsLoaded()) {
+                <div class="px-4 sm:px-6 pb-5" aria-hidden="true">
+                  <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+                </div>
+              } @else if (docRows().length === 0) {
+                <p class="px-4 sm:px-6 pt-2 pb-5 text-sm text-neutral-500" data-docs-empty>
+                  Nenhum documento por enquanto.
+                </p>
+              } @else {
+                <ul class="m-0 p-0 list-none">
+                  @for (row of docRows(); track row.doc.id) {
+                    <li class="flex items-center gap-3 min-h-[64px] px-4 sm:px-6 py-2.5 border-t border-neutral-100" data-doc-row>
+                      <span class="shrink-0 w-10 h-10 rounded-[10px] bg-rose-50 text-rose-600 flex items-center justify-center"
+                        aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                          stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <path d="M14 2v6h6" />
+                        </svg>
+                      </span>
+                      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span class="text-sm font-medium text-neutral-900">{{ row.name }}</span>
+                        @if (row.sub) {
+                          <span class="text-xs text-neutral-500">{{ row.sub }}</span>
+                        }
+                      </div>
+                      <button type="button" (click)="openDoc(row)" [attr.aria-label]="'Abrir ' + row.name"
+                        class="shrink-0 min-h-11 px-3.5 rounded-xl border border-rule-contrast bg-white text-sm font-medium text-neutral-900 hover:border-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer"
+                        data-doc-open>
+                        Abrir
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <app-driver-pay-sheet [rentalId]="r.id" [charge]="payingCharge()" [chargeTitle]="payingTitle()"
+      (closed)="closePay()" />
+  }
+</app-default-page-layout>

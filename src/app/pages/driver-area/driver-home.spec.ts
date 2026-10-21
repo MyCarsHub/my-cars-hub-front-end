@@ -247,7 +247,7 @@ describe('DriverHome', () => {
       expect(card.querySelector('a')!.getAttribute('href')).toBe('/alugueis/r-7');
     });
 
-    it('traz a seção "Pagamentos" do aluguel ativo, pelo endpoint do motorista', () => {
+    it('traz o card "Aluguel da semana" do aluguel ativo, pelo endpoint do motorista', () => {
       build({
         dashboard: () =>
           of(
@@ -265,15 +265,20 @@ describe('DriverHome', () => {
           ),
       });
 
-      expect(q('[data-driver-charges]')).not.toBeNull();
+      const card = q('[data-driver-next-charge]')!;
+      expect(card).not.toBeNull();
+      expect(flat(card)).toContain('Aluguel da semana');
       expect(chargesCall).toHaveBeenCalledTimes(1);
       expect(chargesCall).toHaveBeenCalledWith('r-7');
+      // Sem cobrança em aberto: diz isso e leva ao aluguel, nunca paga daqui.
+      expect(flat(card)).toContain('Nenhuma cobrança em aberto');
+      expect(card.querySelector('[data-how-to-pay]')!.getAttribute('href')).toBe('/alugueis/r-7');
     });
 
-    it('sem aluguel ativo, não há seção de pagamentos nem chamada', () => {
+    it('sem aluguel ativo, não há card de cobrança nem chamada', () => {
       build();
 
-      expect(q('[data-driver-charges]')).toBeNull();
+      expect(q('[data-driver-next-charge]')).toBeNull();
       expect(chargesCall).not.toHaveBeenCalled();
     });
 

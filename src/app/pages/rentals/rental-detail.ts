@@ -36,7 +36,6 @@ import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
-import { DriverCharges } from '../driver-area/driver-charges';
 import { ApiErrorService } from '../../services/api-error.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
@@ -97,7 +96,6 @@ import { todayInBusinessTz } from '../../utils/business-clock';
     AlertBanner,
     NgTemplateOutlet,
     ActionsMenu,
-    DriverCharges,
   ],
   templateUrl: './rental-detail.html',
 })

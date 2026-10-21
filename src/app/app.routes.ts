@@ -370,6 +370,21 @@ export const routes: Routes = [
                         canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
                         children: [
                             {
+                                // FEAT-0361 — o MOTORISTA tem a propria lista e o proprio
+                                // detalhe ("Meus aluguéis" / "Meu aluguel"), do prototipo do
+                                // dono. Mesma URL, dois componentes: `canMatch` escolhe pelo
+                                // papel do TOKEN e a rota do motorista vem PRIMEIRO (como em
+                                // `/perfil`).
+                                path: '',
+                                pathMatch: 'full',
+                                canMatch: [driverRoleMatch],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/driver-area/rental/driver-rentals-list'
+                                    ).then((m) => m.DriverRentalsList),
+                                data: { pageTitle: 'Meus aluguéis' },
+                            },
+                            {
                                 path: '',
                                 pathMatch: 'full',
                                 loadComponent: () =>
@@ -390,6 +405,15 @@ export const routes: Routes = [
                                         './pages/rentals/rental-form'
                                     ).then((m) => m.RentalForm),
                                 data: { pageTitle: 'Novo aluguel' },
+                            },
+                            {
+                                path: ':id',
+                                canMatch: [driverRoleMatch],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/driver-area/rental/driver-rental-detail'
+                                    ).then((m) => m.DriverRentalDetail),
+                                data: { pageTitle: 'Meu aluguel' },
                             },
                             {
                                 path: ':id',

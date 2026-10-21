@@ -24,10 +24,10 @@ import {
   RECENT_ENTRIES,
 } from './driver-area.constants';
 import { DriverBreakdown } from './driver-breakdown';
-import { DriverCharges } from './driver-charges';
 import { DriverEntryCard } from './driver-entry-card';
 import { DriverEntryEditor } from './driver-entry-editor';
 import { DriverKpiStrip } from './driver-kpi-strip';
+import { DriverNextCharge } from './rental/driver-next-charge';
 
 /**
  * `/meu-painel` — the DRIVER's home: what came in, what went out, what is left, and the two
@@ -60,10 +60,10 @@ import { DriverKpiStrip } from './driver-kpi-strip';
     DateRangePicker,
     DefaultPageLayout,
     DriverBreakdown,
-    DriverCharges,
     DriverEntryCard,
     DriverEntryEditor,
     DriverKpiStrip,
+    DriverNextCharge,
   ],
   templateUrl: './driver-home.html',
 })

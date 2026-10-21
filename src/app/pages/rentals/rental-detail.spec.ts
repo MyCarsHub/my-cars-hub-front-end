@@ -1683,16 +1683,15 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       expect(triggers(canceled.fixture).length).toBe(0);
     });
 
-    it('motorista não vê o menu do operador: vê a seção "Pagamentos", do endpoint dele', async () => {
+    it('motorista (defesa: a rota dele é outra tela) não vê menu, cronograma nem caução do operador', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
 
       expect(triggers(fixture).length).toBe(0);
-      expect(fixture.nativeElement.querySelector('[data-driver-charges]')).not.toBeNull();
       expect(text(fixture)).not.toContain('Cronograma de cobrança');
       expect(text(fixture)).not.toContain('Conferir');
       expect(text(fixture)).not.toContain('Sincronizar');
-      // O endpoint novo, e não o `charges` que o detalhe do operador carrega.
-      expect(lastAncillaryUrls).toContain(`${BASE}/${RENTAL_ID}/charges`);
+      // As cobranças dele moram em `DriverRentalDetail` (FEAT-0361); esta tela não as pede.
+      expect(lastAncillaryUrls).not.toContain(`${BASE}/${RENTAL_ID}/charges`);
     });
 
     describe('o detalhe para o motorista é só de consulta', () => {
@@ -1742,10 +1741,9 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       });
     });
 
-    it('o dono segue com o cronograma e sem a seção do motorista', async () => {
+    it('o dono segue com o cronograma e sem a chamada do motorista', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
 
-      expect(fixture.nativeElement.querySelector('[data-driver-charges]')).toBeNull();
       expect(text(fixture)).toContain('Cronograma de cobrança');
       expect(lastAncillaryUrls).not.toContain(`${BASE}/${RENTAL_ID}/charges`);
     });

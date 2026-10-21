@@ -140,6 +140,55 @@ describe('app.routes — area do motorista', () => {
     });
   });
 
+  describe('/alugueis (FEAT-0361)', () => {
+    const rentalChildren = (): Route[] =>
+      appChildren().find((r) => r.path === 'alugueis')?.children ?? [];
+    const byPath = (path: string) => rentalChildren().filter((r) => r.path === path);
+    const decide = (route: Route) =>
+      TestBed.runInInjectionContext(
+        () => (route.canMatch![0] as CanMatchFn)(route, [] as UrlSegment[]) as boolean,
+      );
+
+    it('lista e detalhe tem DUAS rotas cada, e a do motorista vem PRIMEIRO', () => {
+      for (const path of ['', ':id']) {
+        const [driver, company] = byPath(path);
+        expect(driver.canMatch, path).toHaveLength(1);
+        expect(company.canMatch, path).toBeUndefined();
+      }
+    });
+
+    it('"novo" continua antes de ":id" (o motorista nao abre um aluguel chamado "novo")', () => {
+      const paths = rentalChildren().map((r) => r.path);
+      expect(paths.indexOf('novo')).toBeLessThan(paths.indexOf(':id'));
+    });
+
+    it('so o DRIVER casa a do motorista; dono e gerente seguem nas telas da frota', () => {
+      for (const path of ['', ':id']) {
+        const [driver] = byPath(path);
+        sessionStorage.setItem('token', token('DRIVER'));
+        expect(decide(driver)).toBe(true);
+        for (const role of ['OWNER', 'MANAGER']) {
+          sessionStorage.setItem('token', token(role));
+          expect(decide(driver), `${role} em ${path}`).toBe(false);
+        }
+        sessionStorage.setItem('token', token(null));
+        expect(decide(driver)).toBe(false);
+      }
+    });
+
+    it('cada uma carrega o seu componente', async () => {
+      const load = async (r: Route) =>
+        ((await (r.loadComponent as () => Promise<unknown>)()) as { name: string }).name;
+      const [driverList, companyList] = byPath('');
+      const [driverDetail, companyDetail] = byPath(':id');
+
+      expect(await load(driverList)).toMatch(/^_?DriverRentalsList$/);
+      expect(await load(companyList)).toMatch(/^_?RentalsList$/);
+      expect(await load(driverDetail)).toMatch(/^_?DriverRentalDetail$/);
+      expect(await load(companyDetail)).toMatch(/^_?RentalDetail$/);
+    });
+  });
+
   describe('/suporte', () => {
     it('admite o motorista, o dono e o gerente', () => {
       const [support] = find('suporte');
