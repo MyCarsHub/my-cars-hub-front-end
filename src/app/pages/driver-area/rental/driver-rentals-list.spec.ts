@@ -190,6 +190,21 @@ describe('DriverRentalsList', () => {
       expect(qa('[data-plate]').map(flat)).toEqual(['QWE-4F21', 'SJH-2B17', 'RTA-9C55']);
     });
 
+    it('miniatura do carro: quadrado de largura fixa (104px / 148px), no topo, nunca esticado', () => {
+      build(() => of(page(ROWS)));
+
+      const thumbs = qa('[data-car-thumb]');
+      expect(thumbs).toHaveLength(3);
+      for (const t of thumbs) {
+        const cls = t.className.split(/\s+/);
+        expect(cls).toEqual(
+          expect.arrayContaining(['aspect-square', 'self-start', 'shrink-0', 'w-[104px]', 'sm:w-[148px]']),
+        );
+        expect(cls).not.toContain('self-stretch');
+        expect(cls.some((c) => /^(sm:)?(min-)?h-/.test(c))).toBe(false);
+      }
+    });
+
     it('rodapé com a página', () => {
       build(() => of(page(ROWS)));
       expect(flat(q('[data-pages]'))).toBe('3 aluguéis — página 1 de 1');
