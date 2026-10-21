@@ -66,6 +66,9 @@
         Ver aluguel
       </a>
     </section>
+
+    <!-- O que ele deve neste aluguel e o jeito de pagar: logo abaixo do aluguel. -->
+    <app-driver-charges [rentalId]="rental.rentalId" />
   }
 
   @if (isEmpty()) {

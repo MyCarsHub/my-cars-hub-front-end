@@ -36,6 +36,7 @@ import { ActionsMenu } from '../../components/core/actions-menu/actions-menu';
 import { MarkPaidDialog } from '../../components/core/mark-paid-dialog/mark-paid-dialog';
 import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { DriverCharges } from '../driver-area/driver-charges';
 import { ApiErrorService } from '../../services/api-error.service';
 import { ExternalNavigationService } from '../../services/external-navigation.service';
 import { NotificationService } from '../../services/notification.service';
@@ -96,6 +97,7 @@ import { todayInBusinessTz } from '../../utils/business-clock';
     AlertBanner,
     NgTemplateOutlet,
     ActionsMenu,
+    DriverCharges,
   ],
   templateUrl: './rental-detail.html',
 })
@@ -569,7 +571,7 @@ export class RentalDetail implements OnInit {
    * O MOTORISTA, lido do TOKEN — a mesma fonte do `roleGuard`. Decide quais chamadas de
    * cadastro a tela NAO faz.
    */
-  private readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
+  protected readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
 
   /**
    * Placa, modelo e motorista a partir da linha da LISTA, que o servico ainda guarda.

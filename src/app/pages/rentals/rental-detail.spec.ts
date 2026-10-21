@@ -56,9 +56,14 @@ const activatedRouteStub = {
  * fotos, assinatura). Todos são tolerantes a erro na tela; só o SHAPE importa —
  * as listas precisam ser arrays porque o service faz `.some()` nelas.
  */
+/** Os GETs que o último `flushAncillary` respondeu — para afirmar QUAL endpoint a tela chamou. */
+let lastAncillaryUrls: string[] = [];
+
 function flushAncillary(http: HttpTestingController): void {
+  lastAncillaryUrls = [];
   for (const req of http.match(() => true)) {
     if (req.request.method !== 'GET') continue;
+    lastAncillaryUrls.push(req.request.url);
     req.flush(req.request.url.includes('signature') ? null : []);
   }
 }
@@ -1678,10 +1683,24 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       expect(triggers(canceled.fixture).length).toBe(0);
     });
 
-    it('motorista não vê Conferir nem Sincronizar', async () => {
+    it('motorista não vê o menu do operador: vê a seção "Pagamentos", do endpoint dele', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
 
-      expect(openFirstMenu(fixture)).toEqual(['Pagar (abrir cobrança)', 'Compartilhar']);
+      expect(triggers(fixture).length).toBe(0);
+      expect(fixture.nativeElement.querySelector('[data-driver-charges]')).not.toBeNull();
+      expect(text(fixture)).not.toContain('Cronograma de cobrança');
+      expect(text(fixture)).not.toContain('Conferir');
+      expect(text(fixture)).not.toContain('Sincronizar');
+      // O endpoint novo, e não o `charges` que o detalhe do operador carrega.
+      expect(lastAncillaryUrls).toContain(`${BASE}/${RENTAL_ID}/charges`);
+    });
+
+    it('o dono segue com o cronograma e sem a seção do motorista', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+
+      expect(fixture.nativeElement.querySelector('[data-driver-charges]')).toBeNull();
+      expect(text(fixture)).toContain('Cronograma de cobrança');
+      expect(lastAncillaryUrls).not.toContain(`${BASE}/${RENTAL_ID}/charges`);
     });
 
     it('Cancelar cobrança só existe na caução aberta, nunca na parcela do cronograma', async () => {

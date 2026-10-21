@@ -256,6 +256,10 @@
         </div>
       </div>
 
+      <!-- O motorista vê UMA seção "Pagamentos", vinda do endpoint dele (sem notas do operador). -->
+      @if (isDriver) {
+        <app-driver-charges [rentalId]="r.id" />
+      } @else {
       <!-- Caução — card dedicado ACIMA do cronograma. -->
       <app-page-card
         title="Caução"
@@ -535,6 +539,7 @@
           }
         </div>
       </app-page-card>
+      }
 
       <!--
         Multa por devolução em atraso (V53). Só aparece quando existe: a
@@ -575,6 +580,7 @@
         </app-page-card>
       }
 
+      @if (!isDriver) {
       <!-- Cronograma de cobrança (RENTAL_PERIOD + RENTAL_TOTAL, sem CAUCAO) -->
       <app-page-card
         title="Cronograma de cobrança"
@@ -736,6 +742,7 @@
           }
         </div>
       </app-page-card>
+      }
 
       <!-- Histórico de status -->
       <app-page-card

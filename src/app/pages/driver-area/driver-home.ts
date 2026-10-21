@@ -24,6 +24,7 @@ import {
   RECENT_ENTRIES,
 } from './driver-area.constants';
 import { DriverBreakdown } from './driver-breakdown';
+import { DriverCharges } from './driver-charges';
 import { DriverEntryCard } from './driver-entry-card';
 import { DriverEntryEditor } from './driver-entry-editor';
 import { DriverKpiStrip } from './driver-kpi-strip';
@@ -59,6 +60,7 @@ import { DriverKpiStrip } from './driver-kpi-strip';
     DateRangePicker,
     DefaultPageLayout,
     DriverBreakdown,
+    DriverCharges,
     DriverEntryCard,
     DriverEntryEditor,
     DriverKpiStrip,
