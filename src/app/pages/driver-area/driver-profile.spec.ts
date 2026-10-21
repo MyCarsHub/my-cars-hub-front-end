@@ -110,6 +110,20 @@ describe('DriverProfile', () => {
       expect(text()).toContain('Motorista');
     });
 
+    // AXE `definition-list`: um <dl> só pode ter dt, dd e div como filhos diretos.
+    it('os <dl> só têm dt, dd e div como filhos diretos', () => {
+      const lists = Array.from(root().querySelectorAll('dl'));
+      expect(lists.length).toBeGreaterThan(0);
+      for (const dl of lists) {
+        for (const child of Array.from(dl.children)) {
+          expect(['DT', 'DD', 'DIV'], `<${child.tagName.toLowerCase()}> dentro de <dl>`).toContain(
+            child.tagName,
+          );
+        }
+      }
+      expect(q('[data-readonly-note]')?.textContent).toContain('cadastrados pela locadora');
+    });
+
     it('não tem plano, assinatura, cobrança nem tour', () => {
       const t = text().toLowerCase();
       for (const word of ['assinatura', 'plano', 'cobrança', 'billing', 'tour', 'empresas vinculadas']) {

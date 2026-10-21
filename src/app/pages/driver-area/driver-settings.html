@@ -60,7 +60,10 @@
               [attr.aria-labelledby]="'pref-' + row.key"
               [attr.data-pref]="row.key"
               (click)="toggle(row.key)"
+              [attr.aria-disabled]="saving() ? 'true' : null"
+              [attr.aria-busy]="saving() ? 'true' : null"
               class="group flex h-11 w-13 shrink-0 items-center justify-center rounded-full
+                     aria-disabled:cursor-wait aria-disabled:opacity-60
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >
               <span
@@ -94,7 +97,9 @@
                 (keydown)="onLeadKeydown($event, i)"
                 [attr.data-lead]="days"
                 (click)="pickLead(days)"
+                [attr.aria-disabled]="saving() ? 'true' : null"
                 class="min-h-11 rounded-full border px-4.5 text-sm focus:outline-none
+                       aria-disabled:cursor-wait aria-disabled:opacity-60
                        focus-visible:ring-2 focus-visible:ring-primary-400
                        focus-visible:ring-offset-1"
                 [class.border-primary-500]="leadDays() === days"

@@ -10,8 +10,8 @@ import { InjectionToken } from '@angular/core';
  * e Alertas são telas da FROTA (`roleGuard(['OWNER', 'MANAGER'])` em `app.routes.ts`) e Ganhos,
  * Custos e Metas ainda não têm rota. Quem criar a rota troca o `null` pela URL, e só isso.
  *
- * O mesmo desenho serve a demo local (`pages/dev/driver-demo.routes.ts`), que fornece outro
- * mapa com as URLs `/dev/driver/*` — por isso o menu da demo é o menu de produção.
+ * Outro mapa pode ser fornecido pelo token (um shell de demonstração, um teste): o desenho do
+ * menu é o mesmo, só as URLs mudam.
  */
 export const DRIVER_NAV_KEYS = [
   'dashboard',

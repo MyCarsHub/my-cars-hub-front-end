@@ -202,6 +202,40 @@ describe('Sidebar', () => {
       expect(layout.driverTopBar()).toBe(true);
     });
 
+    it('no drawer, o Fechar do motorista tem 44px e cabe no cabeçalho do logo', () => {
+      const host = signInDriver();
+      layout.setMobile(true);
+      layout.openMobile();
+      fixture.detectChanges();
+      const close = host.querySelector<HTMLButtonElement>('[data-drawer-close]')!;
+      for (const cls of ['w-11', 'h-11', 'right-2']) {
+        expect(close.classList.contains(cls), cls).toBe(true);
+      }
+      // 10px + 44px + 10px = os 64px (h-16) do cabeçalho do logo.
+      expect(close.style.top).toBe('0.625rem');
+      // Uma só regra de `top` e de tamanho — duas decidiriam pela ordem do CSS gerado.
+      for (const cls of ['top-4', 'right-3', 'w-8', 'h-8']) {
+        expect(close.classList.contains(cls), cls).toBe(false);
+      }
+    });
+
+    it('no drawer, o Fechar do dono fica como era (32px em top-4)', () => {
+      signInAs('OWNER');
+      layout.tenants.set([tenant('OWNER')]);
+      layout.selectedTenant.set(tenant('OWNER'));
+      layout.setMobile(true);
+      layout.openMobile();
+      fixture.detectChanges();
+      const close = (fixture.nativeElement as HTMLElement).querySelector('[data-drawer-close]')!;
+      for (const cls of ['top-4', 'right-3', 'w-8', 'h-8']) {
+        expect(close.classList.contains(cls), cls).toBe(true);
+      }
+      for (const cls of ['w-11', 'h-11', 'right-2']) {
+        expect(close.classList.contains(cls), cls).toBe(false);
+      }
+      expect((close as HTMLElement).style.top).toBe('');
+    });
+
     it('no celular o dono continua com o ☰ flutuante e sem barra de topo', () => {
       signInAs('OWNER');
       layout.tenants.set([tenant('OWNER')]);

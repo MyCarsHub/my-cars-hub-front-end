@@ -67,6 +67,13 @@ export class DriverSettings implements OnInit {
   protected readonly loadError = signal<string | null>(null);
   protected readonly saving = signal(false);
 
+  /**
+   * O último estado que o SERVIDOR confirmou (carga ou gravação bem-sucedida). É para ele que
+   * a tela volta quando uma gravação falha — não para o "anterior" da chamada, que pode ser
+   * uma escolha otimista ainda não gravada.
+   */
+  private confirmed: DriverNotificationPrefs | null = null;
+
   protected readonly leadDays = computed(() => this.prefs()?.chargeLeadDays ?? null);
 
   ngOnInit(): void {
@@ -78,6 +85,7 @@ export class DriverSettings implements OnInit {
     this.loadError.set(null);
     this.prefsService.get().subscribe({
       next: (prefs) => {
+        this.confirmed = prefs;
         this.prefs.set(prefs);
         this.loading.set(false);
       },
@@ -110,31 +118,37 @@ export class DriverSettings implements OnInit {
 
   protected toggle(key: PrefKey): void {
     const current = this.prefs();
-    if (!current) return;
+    if (!current || this.saving()) return;
     const turningOn = !current[key];
     this.persist({ ...current, [key]: turningOn }, turningOn ? 'Aviso ligado.' : 'Aviso desligado.');
   }
 
   protected pickLead(days: ChargeLeadDays): void {
     const current = this.prefs();
-    if (!current || current.chargeLeadDays === days) return;
+    if (!current || this.saving() || current.chargeLeadDays === days) return;
     this.persist({ ...current, chargeLeadDays: days }, 'Antecedência salva.');
   }
 
-  /** Mostra a escolha na hora; se o servidor recusar, volta ao que estava. */
+  /**
+   * Mostra a escolha na hora e grava o objeto INTEIRO. Uma gravação por vez: enquanto
+   * `saving()`, os controles ficam `aria-disabled` (não `disabled`, que tiraria o foco de quem
+   * usa teclado) e os handlers recusam outro toque — dois PUTs
+   * em voo com o objeto inteiro poderiam gravar no servidor uma escolha que a tela desfez, ou
+   * chegar fora de ordem. Se o servidor recusar, a tela volta ao último estado CONFIRMADO.
+   */
   private persist(next: DriverNotificationPrefs, successMessage: string): void {
-    const previous = this.prefs();
     this.prefs.set(next);
     this.saving.set(true);
     this.prefsService.update(next).subscribe({
       next: (saved) => {
         this.saving.set(false);
+        this.confirmed = saved;
         this.prefs.set(saved);
         this.notifications.success(successMessage);
       },
       error: (err: unknown) => {
         this.saving.set(false);
-        this.prefs.set(previous);
+        this.prefs.set(this.confirmed);
         this.notifications.error(
           this.apiErrors.messageFor(err, 'Não foi possível salvar. Tente novamente.'),
         );

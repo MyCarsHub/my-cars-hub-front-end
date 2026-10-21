@@ -9,7 +9,6 @@
 <button class="fixed top-[calc(1rem+env(safe-area-inset-top))] left-4 z-50 flex items-center justify-center w-10 h-10
            rounded-lg bg-white shadow-md border border-gray-200
            text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
-  [class.w-11]="isDriverMenu()" [class.h-11]="isDriverMenu()"
   (click)="layout.openMobile()" aria-label="Abrir menu" type="button">
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -34,10 +33,20 @@
 <aside class="fixed top-0 left-0 z-50 h-dvh w-[260px] bg-white border-r border-gray-200
            flex flex-col shadow-2xl" @mobileSlide role="navigation" aria-label="Menu principal">
   <!-- Close button -->
-  <button class="absolute top-4 right-3 flex items-center justify-center w-8 h-8
+  <!--
+    Motorista: alvo de 44px CENTRADO no cabeçalho do logo (h-16): 10px + 44px + 10px = 64px.
+    Posição e tamanho são condicionais por papel — duas regras de `top` ao mesmo tempo
+    decidiriam pela ordem do CSS gerado. O `top` do motorista é estilo, não classe: um
+    `[class.top-2.5]` não aplica nada (o ponto quebra o nome da classe no binding).
+  -->
+  <button class="absolute flex items-center justify-center
              rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100
              focus:outline-none focus:ring-2 focus:ring-primary-500" (click)="layout.closeMobile()"
-    [class.w-11]="isDriverMenu()" [class.h-11]="isDriverMenu()" [class.top-2.5]="isDriverMenu()"
+    [class.top-4]="!isDriverMenu()" [class.right-3]="!isDriverMenu()"
+    [class.w-8]="!isDriverMenu()" [class.h-8]="!isDriverMenu()"
+    [style.top]="isDriverMenu() ? '0.625rem' : null" [class.right-2]="isDriverMenu()"
+    [class.w-11]="isDriverMenu()" [class.h-11]="isDriverMenu()"
+    data-drawer-close
     aria-label="Fechar menu" type="button">
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

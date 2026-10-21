@@ -54,6 +54,7 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
       [class.pt-14]="impersonating()"
       [class.flex-col]="layout.driverTopBar()"
       [style.--page-top]="layout.driverTopBar() ? '1.25rem' : null"
+      [style.--page-header-end]="layout.driverTopBar() && showBell() ? '3.25rem' : null"
     >
       @if (layout.driverTopBar()) {
         <app-driver-top-bar />
@@ -73,8 +74,18 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
             fixed, portanto sem disputar z-index com os elementos sticky das
             páginas.
           -->
+          <!--
+            Motorista abaixo de lg: o <main> já começa ABAIXO da barra de topo, que consumiu o
+            recorte do aparelho. Somar o safe-area aqui de novo derrubaria o sino sobre a
+            descrição; ele se alinha à mesma --page-top do título, e --page-header-end (no
+            frame) reserva a coluna dele para o título e a descrição não correrem por baixo.
+          -->
           <header class="pointer-events-none absolute inset-x-0 top-0 z-10">
-            <div class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10">
+            <div
+              class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10"
+              [style.padding-top]="layout.driverTopBar() ? 'var(--page-top)' : null"
+              data-bell-row
+            >
               <app-notification-bell class="pointer-events-auto" />
             </div>
           </header>

@@ -103,6 +103,45 @@ describe('DriverSettings', () => {
       expect(error).toHaveBeenCalled();
     });
 
+    it('uma gravação por vez: enquanto grava, outro toque não dispara outro PUT', () => {
+      const inFlight = new Subject<DriverNotificationPrefs>();
+      build(undefined, () => inFlight);
+      sw('newFine').click();
+      fixture.detectChanges();
+      sw('chargeOverdue').click();
+      lead(2).click();
+      fixture.detectChanges();
+
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(sw('chargeOverdue').getAttribute('aria-checked')).toBe('true');
+      expect(sw('chargeOverdue').getAttribute('aria-disabled')).toBe('true');
+      expect(lead(2).getAttribute('aria-disabled')).toBe('true');
+
+      inFlight.next({ ...DEFAULT_DRIVER_PREFS, newFine: true });
+      inFlight.complete();
+      fixture.detectChanges();
+      expect(sw('chargeOverdue').getAttribute('aria-disabled')).toBeNull();
+    });
+
+    it('falha volta ao último estado CONFIRMADO pelo servidor', () => {
+      // O servidor confirma a 1ª gravação com a SUA versão (antecedência 2) e recusa a 2ª.
+      let call = 0;
+      build(undefined, (p) => {
+        call++;
+        return call === 1
+          ? of({ ...p, chargeLeadDays: 2 as const })
+          : throwError(() => new HttpErrorResponse({ status: 500 }));
+      });
+      sw('newFine').click();
+      fixture.detectChanges();
+      sw('chargeOverdue').click();
+      fixture.detectChanges();
+
+      expect(sw('newFine').getAttribute('aria-checked')).toBe('true');
+      expect(sw('chargeOverdue').getAttribute('aria-checked')).toBe('true');
+      expect(lead(2).getAttribute('aria-checked')).toBe('true');
+    });
+
     it('setas movem o foco no grupo de antecedência, circulando', () => {
       build();
       lead(1).focus();

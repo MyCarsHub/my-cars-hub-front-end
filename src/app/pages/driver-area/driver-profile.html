@@ -44,7 +44,8 @@
               <circle cx="12" cy="7" r="4" />
             </svg>
           </span>
-          <dl class="grid grid-cols-1 gap-4 px-4 pb-6 sm:grid-cols-2 sm:px-6">
+          <div class="px-4 pb-6 sm:px-6">
+          <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div class="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
               <dt class="text-sm font-medium text-neutral-600">Nome</dt>
               <dd [class]="readonlyClass" data-name>{{ name() }}</dd>
@@ -84,10 +85,12 @@
                 </span>
               </dd>
             </div>
-            <p class="text-xs leading-normal text-neutral-600 sm:col-span-2">
-              Nome, e-mail, CPF e CNH são cadastrados pela locadora. Para corrigir, fale com ela.
-            </p>
           </dl>
+          <!-- Fora do <dl>: ele só aceita dt/dd/div (regra definition-list do AXE). -->
+          <p class="mt-4 text-xs leading-normal text-neutral-600" data-readonly-note>
+            Nome, e-mail, CPF e CNH são cadastrados pela locadora. Para corrigir, fale com ela.
+          </p>
+          </div>
         </app-page-card>
 
         <!-- O que ele edita: telefone e endereço (PUT /v1/driver/profile). -->
