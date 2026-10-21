@@ -3,10 +3,10 @@ import type { DocumentFormat } from './document-preview.types';
 /**
  * Formato pelos BYTES, nunca pelo `mimeType` declarado.
  *
- * O caso que obriga isto: ao receber o webhook do Autentique o backend sobrescreve o MESMO
- * objeto `.docx` do storage com o PDF assinado e nunca atualiza `mime_type` — um contrato
- * AUTO assinado se declara DOCX para sempre. Decidir pelo MIME jogaria bytes de PDF no
- * parser de DOCX (e salvaria o PDF como `.docx`).
+ * O caso que obriga isto: nas linhas LEGADAS (assinadas antes do FIX-0771) o backend
+ * sobrescreveu o MESMO objeto `.docx` do storage com o PDF assinado e não atualizou
+ * `mime_type` — um contrato AUTO assinado nessa época se declara DOCX para sempre. Decidir
+ * pelo MIME jogaria bytes de PDF no parser de DOCX (e salvaria o PDF como `.docx`).
  */
 export function sniffFormat(head: Uint8Array): DocumentFormat {
   const at = (offset: number, bytes: readonly number[]) =>
