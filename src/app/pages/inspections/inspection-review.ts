@@ -17,10 +17,12 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { Observable, map, of } from 'rxjs';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
 import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
+import type { DocumentPreviewItem } from '../../components/document-preview/document-preview.types';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ApiErrorService } from '../../services/api-error.service';
@@ -29,7 +31,6 @@ import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import type { Inspection, InspectionPhoto, InspectionStatus } from '../../types/inspection.types';
 import { INSPECTION_STATUS_META } from '../../utils/status-maps';
-import { MembersSheet } from '../company-settings/members/members-sheet';
 import {
   AngleFrame,
   OdometerView,
@@ -82,7 +83,6 @@ function notBlank(control: AbstractControl): ValidationErrors | null {
     ConfirmDialog,
     FormField,
     FieldControl,
-    MembersSheet,
   ],
   templateUrl: './inspection-review.html',
 })
@@ -114,9 +114,6 @@ export class InspectionReview implements OnInit {
    */
   private refreshedForExpiry = false;
   protected readonly expired = signal(false);
-
-  /** Posicao (em `frames`) da foto aberta no visualizador; `null` = fechado. */
-  protected readonly viewerIndex = signal<number | null>(null);
 
   protected readonly rejecting = signal(false);
   protected readonly confirmingReject = signal(false);
@@ -252,33 +249,6 @@ export class InspectionReview implements OnInit {
     return `vistoria-${kindWord(current.kind)}-${this.plate() ?? current.id}.pdf`;
   });
 
-  // ---------------------------------------------------------- visualizador
-
-  protected readonly viewerFrame = computed<AngleFrame | null>(() => {
-    const index = this.viewerIndex();
-    return index === null ? null : (this.frames()[index] ?? null);
-  });
-
-  protected readonly viewerCounter = computed(() => {
-    const index = this.viewerIndex();
-    return index === null ? '' : `${index + 1} de ${this.totalCount()}`;
-  });
-
-  /**
-   * QUANDO a foto foi tirada. Numa vistoria periodica, foto de hoje e foto de tres semanas
-   * atras sao indistinguiveis para quem aprova; sem a data o dono aprova como ATUAL um estado
-   * que pode nao ser mais verdade. Fica no visualizador, onde a pessoa olha a foto de perto.
-   */
-  protected readonly viewerSubtitle = computed(() => {
-    const taken = this.viewerFrame()?.takenAt;
-    return taken ? `Tirada em ${taken}.` : '';
-  });
-
-  /** So ha o que navegar quando existe OUTRA foto alem da aberta. */
-  protected readonly viewerHasOthers = computed(
-    () => this.frames().filter((f) => f.hasPhoto).length > 1,
-  );
-
   // ------------------------------------------------------------------ ciclo
 
   ngOnInit(): void {
@@ -350,28 +320,57 @@ export class InspectionReview implements OnInit {
 
   // ---------------------------------------------------------- visualizador
 
+  /**
+   * Abre a foto no visualizador do app (`DocumentPreviewService`): galeria com anterior,
+   * proxima, swipe e zoom. Entram na galeria os angulos que TEM foto — os vazios nao tem o
+   * que mostrar —, na ordem do roteiro; o titulo e o angulo e a legenda diz quando a foto foi
+   * tirada (numa vistoria periodica, foto de hoje e de tres semanas atras sao indistinguiveis
+   * para quem aprova).
+   */
   protected openViewer(angle: string): void {
-    const index = this.frames().findIndex((f) => f.angle === angle);
-    if (index >= 0) this.viewerIndex.set(index);
+    const withPhoto = this.frames().filter((f) => f.hasPhoto);
+    const startIndex = withPhoto.findIndex((f) => f.angle === angle);
+    if (startIndex < 0) return;
+    this.preview.open({
+      items: withPhoto.map((frame) => this.photoItem(frame)),
+      startIndex,
+    });
   }
 
-  protected closeViewer(): void {
-    this.viewerIndex.set(null);
+  private photoItem(frame: AngleFrame): DocumentPreviewItem {
+    const current = this.inspection();
+    const stem = current
+      ? `vistoria-${kindWord(current.kind)}-${this.plate() ?? current.id}`
+      : 'vistoria';
+    return {
+      source: this.photoSource(frame.angle),
+      fileName: `${stem}-${frame.angle.toLowerCase()}`,
+      title: frame.label,
+      caption: frame.takenAt ? `Tirada em ${frame.takenAt}.` : undefined,
+      errorMessage: 'Esta foto não carregou agora. Ela está salva — tente de novo.',
+    };
   }
 
-  /** Anterior/Proxima PULAM angulos sem foto — nao ha o que mostrar neles. */
-  protected stepViewer(direction: 1 | -1): void {
-    const start = this.viewerIndex();
-    const frames = this.frames();
-    if (start === null || frames.length === 0) return;
-    let index = start;
-    for (let n = 0; n < frames.length; n++) {
-      index = (index + direction + frames.length) % frames.length;
-      if (frames[index].hasPhoto) {
-        this.viewerIndex.set(index);
-        return;
-      }
-    }
+  /**
+   * De onde o visualizador busca os bytes da foto. A PRIMEIRA tentativa usa a URL que a tela
+   * ja tem; "Tentar de novo" (e a foto cuja assinatura falhou) pede a lista outra vez, porque
+   * a URL assinada expira e repetir a mesma so repetiria a falha.
+   */
+  private photoSource(angle: string): () => Observable<string> {
+    let attempts = 0;
+    return () => {
+      const known = this.frames().find((f) => f.angle === angle)?.signedUrl ?? null;
+      if (attempts++ === 0 && known) return of(known);
+      return this.service.photos(this.id()).pipe(
+        map((list) => {
+          const fresh = buildFrames(list ?? [], this.inspection()?.requiredAngles).find(
+            (f) => f.angle === angle,
+          )?.signedUrl;
+          if (!fresh) throw new Error('photo-url-unavailable');
+          return fresh;
+        }),
+      );
+    };
   }
 
   // --------------------------------------------------------------- decisao

@@ -2,12 +2,16 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { HttpErrorResponse } from '@angular/common/http';
-import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InspectionReview } from './inspection-review';
 import { ApiErrorService } from '../../services/api-error.service';
 import { DocumentPreviewService } from '../../components/document-preview/document-preview.service';
+import type {
+  DocumentPreviewGallery,
+  DocumentPreviewItem,
+} from '../../components/document-preview/document-preview.types';
 import { InspectionsService } from '../../services/inspections.service';
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
@@ -612,97 +616,184 @@ describe('InspectionReview — detalhes da vistoria', () => {
 
   // ================================================================ visualizador
 
-  describe('visualizador de fotos', () => {
-    const dialog = (f: ComponentFixture<InspectionReview>) =>
-      host(f).querySelectorAll<HTMLElement>('app-members-sheet [role="dialog"]');
-
+  describe('visualizador de fotos (DocumentPreviewService)', () => {
     function open(f: ComponentFixture<InspectionReview>, label: string): void {
       host(f)
         .querySelector<HTMLButtonElement>(`[aria-label="Ampliar foto: ${label}"]`)
         ?.click();
       f.detectChanges();
-      f.detectChanges();
     }
 
-    const counter = (f: ComponentFixture<InspectionReview>) =>
-      q(f, '[data-viewer-counter]')?.textContent?.trim();
-    const title = (f: ComponentFixture<InspectionReview>) =>
-      host(f).querySelector('app-members-sheet h2')?.textContent?.trim();
+    /** A galeria que o servico recebeu na ultima abertura. */
+    const gallery = () => previewOpen.mock.calls.at(-1)?.[0] as DocumentPreviewGallery;
+    const fetchUrl = (item: DocumentPreviewItem) =>
+      firstValueFrom((item.source as () => Observable<string>)());
 
-    it('abre com o angulo no titulo, "N de 14" e a data em que a foto foi tirada', () => {
+    it('clicar na miniatura abre a galeria com as 14 fotos, no indice do angulo clicado', () => {
       const fixture = render();
-      expect(dialog(fixture).length).toBe(0);
+      expect(previewOpen).not.toHaveBeenCalled();
 
       open(fixture, 'Traseira');
 
-      expect(dialog(fixture).length).toBe(1);
-      expect(title(fixture)).toBe('Traseira');
-      expect(counter(fixture)).toBe('2 de 14');
-      expect(q(fixture, '[data-viewer-image] img')?.getAttribute('src')).toBe(ALL_PHOTOS[1].signedUrl);
-      expect(host(fixture).querySelector('app-members-sheet')?.textContent).toContain(
-        'Tirada em 09/10/2026 08:40.',
+      expect(previewOpen).toHaveBeenCalledTimes(1);
+      expect(gallery().items.length).toBe(14);
+      expect(gallery().startIndex).toBe(1);
+      expect(gallery().items.map((i) => i.title)).toEqual(
+        RENTAL_PHOTO_ANGLES.map((a) => a.label),
       );
     });
 
-    it('Proxima e Anterior PULAM os angulos sem foto, e dao a volta', () => {
-      // Sem Traseira (indice 1) e sem Banco traseiro (13): da Frente vai a Lateral esquerda.
+    it('mantem o titulo e a legenda do lightbox antigo: angulo no titulo, "Tirada em" embaixo', () => {
+      const fixture = render();
+
+      open(fixture, 'Traseira');
+
+      const item = gallery().items[1];
+      expect(item.title).toBe('Traseira');
+      expect(item.caption).toBe('Tirada em 09/10/2026 08:40.');
+      expect(item.errorMessage).toContain('Ela está salva');
+      // Sem titulo de galeria: o modal mostra o titulo de CADA foto.
+      expect(gallery().title).toBeUndefined();
+    });
+
+    it('o nome do arquivo baixado leva o tipo, a placa e o angulo', () => {
+      const fixture = render();
+
+      open(fixture, 'Frente');
+
+      expect(gallery().items[0].fileName).toBe('vistoria-retirada-SJH2B17-front');
+    });
+
+    it('angulos sem foto ficam FORA da galeria e o indice conta so as fotos', () => {
+      // Sem Traseira (posicao 1) e sem Banco traseiro (13): sobram 12 fotos.
       const partial = ALL_PHOTOS.filter((p) => p.angle !== 'BACK' && p.angle !== 'REAR_SEAT');
       const fixture = renderWith({ status: 'PENDING' }, partial);
 
-      open(fixture, 'Frente');
-      expect(counter(fixture)).toBe('1 de 14');
+      open(fixture, 'Lateral esquerda');
 
-      q<HTMLButtonElement>(fixture, '[data-viewer-next]')?.click();
-      fixture.detectChanges();
-      expect(title(fixture)).toBe('Lateral esquerda');
-      expect(counter(fixture)).toBe('3 de 14');
-
-      q<HTMLButtonElement>(fixture, '[data-viewer-prev]')?.click();
-      q<HTMLButtonElement>(fixture, '[data-viewer-prev]')?.click();
-      fixture.detectChanges();
-      // De Frente, Anterior volta ao ultimo angulo COM foto (Banco dianteiro), nao ao 14o vazio.
-      expect(title(fixture)).toBe('Banco dianteiro');
-      expect(counter(fixture)).toBe('13 de 14');
+      expect(gallery().items.length).toBe(12);
+      expect(gallery().items.map((i) => i.title)).not.toContain('Traseira');
+      expect(gallery().items.map((i) => i.title)).not.toContain('Banco traseiro');
+      // Frente e 0; Lateral esquerda e a SEGUNDA foto, nao a terceira posicao do roteiro.
+      expect(gallery().startIndex).toBe(1);
+      expect(gallery().items[1].title).toBe('Lateral esquerda');
     });
 
-    it('fecha no X, no fundo e no Esc', () => {
-      const fixture = render();
-
-      open(fixture, 'Frente');
-      host(fixture).querySelector<HTMLButtonElement>('app-members-sheet [aria-label="Fechar"]')?.click();
-      fixture.detectChanges();
-      expect(dialog(fixture).length).toBe(0);
-
-      open(fixture, 'Frente');
-      host(fixture)
-        .querySelector<HTMLElement>('app-members-sheet [aria-hidden="true"]')
-        ?.click();
-      fixture.detectChanges();
-      expect(dialog(fixture).length).toBe(0);
-
-      open(fixture, 'Frente');
-      dialog(fixture)[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      fixture.detectChanges();
-      expect(dialog(fixture).length).toBe(0);
-    });
-
-    it('o X tem 44x44', () => {
-      const fixture = render();
-      open(fixture, 'Frente');
-      const close = host(fixture).querySelector<HTMLElement>(
-        'app-members-sheet [aria-label="Fechar"]',
-      )!;
-
-      expect(close.className).toContain('min-h-[44px]');
-      expect(close.className).toContain('min-w-[44px]');
-    });
-
-    it('com uma foto so, nao ha para onde navegar', () => {
+    it('com uma foto so, a galeria tem um item', () => {
       const fixture = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 1));
+
       open(fixture, 'Frente');
 
-      expect(q<HTMLButtonElement>(fixture, '[data-viewer-next]')?.disabled).toBe(true);
-      expect(q<HTMLButtonElement>(fixture, '[data-viewer-prev]')?.disabled).toBe(true);
+      expect(gallery().items.length).toBe(1);
+      expect(gallery().startIndex).toBe(0);
+    });
+
+    it('a ordem e a do ROTEIRO, nao a da resposta do servidor', () => {
+      const fixture = renderWith({}, [...ALL_PHOTOS].reverse());
+
+      open(fixture, 'Frente');
+
+      expect(gallery().startIndex).toBe(0);
+      expect(gallery().items[0].title).toBe('Frente');
+    });
+
+    it('nao ha mais o lightbox antigo: nenhuma folha e aberta pela tela', () => {
+      const fixture = render();
+
+      open(fixture, 'Frente');
+
+      expect(host(fixture).querySelector('app-members-sheet')).toBeNull();
+      expect(host(fixture).querySelector('[role="dialog"]')).toBeNull();
+      expect(host(fixture).querySelector('[data-viewer-next]')).toBeNull();
+    });
+
+    it('o quadro sem foto nao e botao e nao abre nada', () => {
+      const fixture = renderWith({}, ALL_PHOTOS.slice(1));
+
+      const empty = frames(fixture).find((el) => el.getAttribute('data-frame') === 'empty');
+      empty?.click();
+      fixture.detectChanges();
+
+      expect(empty?.tagName).toBe('DIV');
+      expect(previewOpen).not.toHaveBeenCalled();
+    });
+
+    it('o motorista (so leitura) tambem amplia a foto da propria vistoria', () => {
+      role = 'DRIVER';
+      const fixture = render();
+
+      open(fixture, 'Frente');
+
+      expect(previewOpen).toHaveBeenCalledTimes(1);
+      expect(gallery().items.length).toBe(14);
+    });
+
+    describe('a origem dos bytes (a URL assinada expira)', () => {
+      it('a primeira tentativa usa a URL que a tela ja tem, sem pedir a lista de novo', async () => {
+        const fixture = render();
+        open(fixture, 'Traseira');
+        expect(photos).toHaveBeenCalledTimes(1);
+
+        const url = await fetchUrl(gallery().items[1]);
+
+        expect(url).toBe(ALL_PHOTOS[1].signedUrl);
+        expect(photos).toHaveBeenCalledTimes(1);
+      });
+
+      it('"Tentar de novo" pede a lista outra vez e usa a URL NOVA daquele angulo', async () => {
+        const fixture = render();
+        open(fixture, 'Traseira');
+        const item = gallery().items[1];
+        await fetchUrl(item);
+
+        photos.mockReturnValue(
+          of(ALL_PHOTOS.map((p, n) => photoFor(p.angle, n, `https://cdn.example/novo-${n}.jpg`))),
+        );
+        const retry = await fetchUrl(item);
+
+        expect(photos).toHaveBeenCalledTimes(2);
+        expect(photos).toHaveBeenLastCalledWith('insp-1');
+        expect(retry).toBe('https://cdn.example/novo-1.jpg');
+      });
+
+      it('a foto cuja assinatura falhou entra na galeria e busca a URL ao abrir', async () => {
+        const withNullUrl = ALL_PHOTOS.map((p) =>
+          p.angle === 'DASHBOARD' ? { ...p, signedUrl: null } : p,
+        );
+        const fixture = renderWith({}, withNullUrl);
+        // O quadro dela e placeholder (nao clica); outra foto abre a galeria.
+        open(fixture, 'Frente');
+        const dashboard = gallery().items.find((i) => i.title === 'Painel');
+        expect(dashboard).toBeDefined();
+
+        photos.mockReturnValue(of(ALL_PHOTOS));
+        const url = await fetchUrl(dashboard!);
+
+        expect(photos).toHaveBeenCalledTimes(2);
+        expect(url).toBe(ALL_PHOTOS.find((p) => p.angle === 'DASHBOARD')?.signedUrl);
+      });
+
+      it('se a lista nova tambem vem sem URL, falha (o modal mostra a mensagem e o retry)', async () => {
+        const fixture = render();
+        open(fixture, 'Traseira');
+        const item = gallery().items[1];
+        await fetchUrl(item);
+
+        photos.mockReturnValue(of(ALL_PHOTOS.map((p) => ({ ...p, signedUrl: null }))));
+
+        await expect(fetchUrl(item)).rejects.toThrow('photo-url-unavailable');
+      });
+
+      it('se a lista nova falha no servidor, o erro chega ao modal', async () => {
+        const fixture = render();
+        open(fixture, 'Traseira');
+        const item = gallery().items[1];
+        await fetchUrl(item);
+
+        photos.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+        await expect(fetchUrl(item)).rejects.toBeInstanceOf(HttpErrorResponse);
+      });
     });
   });
 
@@ -1105,7 +1196,6 @@ describe('InspectionReview — detalhes da vistoria', () => {
       fixture.detectChanges();
 
       const small = Array.from(host(fixture).querySelectorAll<HTMLElement>('button, a[href]'))
-        .filter((el) => !el.closest('app-members-sheet'))
         .filter((el) => !/min-h-\[44px\]|min-h-11|min-h-12|aspect-square/.test(el.className))
         .map((el) => `${el.tagName} "${(el.textContent ?? '').trim().slice(0, 30)}"`);
 
