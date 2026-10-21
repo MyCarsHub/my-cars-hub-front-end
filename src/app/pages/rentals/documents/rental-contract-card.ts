@@ -60,12 +60,14 @@ function contractMimeOf(file: File): string | null {
 /**
  * Assinatura de um PDF (`%PDF-`), a ÚNICA autoridade sobre o formato do arquivo.
  *
- * O `mimeType` da linha MENTE por design do backend: ao receber o webhook do
- * Autentique (`AutentiqueWebhookService`) ele sobrescreve o MESMO objeto `.docx`
- * do storage com o PDF assinado e nunca atualiza `mime_type` — não existe método
- * pra isso. Um contrato AUTO assinado se declara DOCX pra sempre. Decidir pelo
- * MIME jogaria bytes de PDF num parser de DOCX e quebraria justamente o
- * contrato ASSINADO, que é o mais importante de conseguir abrir.
+ * O `mimeType` da linha só pode mentir nas linhas LEGADAS. Desde o FIX-0771 o
+ * webhook do Autentique (`AutentiqueWebhookService`) grava o PDF assinado num objeto
+ * `.pdf` e atualiza `mime_type`. Antes dele, o backend sobrescrevia o MESMO objeto
+ * `.docx` do storage com o PDF assinado e nunca atualizava `mime_type`: um contrato
+ * AUTO assinado nessa época se declara DOCX pra sempre, e essas linhas continuam no
+ * banco. Decidir pelo MIME jogaria bytes de PDF num parser de DOCX e quebraria
+ * justamente o contrato ASSINADO, que é o mais importante de conseguir abrir. Por
+ * isso os bytes continuam sendo a autoridade, mesmo para as linhas novas.
  */
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d];
 
@@ -119,10 +121,10 @@ function isPdfBytes(head: Uint8Array): boolean {
               </span>
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                  <!-- Sem extensão de propósito: o mimeType da linha mente pra
-                       contrato AUTO assinado (vira PDF sem o backend atualizar o
-                       MIME), e o formato REAL só é conhecido depois de ler os
-                       bytes — tarde demais pra rotular o card. -->
+                  <!-- Sem extensão de propósito: em contrato AUTO assinado LEGADO o
+                       mimeType da linha ainda diz DOCX (o arquivo virou PDF sem o
+                       backend atualizar o MIME), e o formato REAL só é conhecido
+                       depois de ler os bytes — tarde demais pra rotular o card. -->
                   <p class="text-sm font-semibold text-neutral-900 truncate">Contrato</p>
                   @if (signatureBadge(); as b) {
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
@@ -461,8 +463,9 @@ export class RentalContractCard implements OnInit, OnDestroy {
   });
 
   /**
-   * Rótulo do formato. Depois de SIGNED o backend sobrescreve o arquivo com o
-   * PDF assinado sem atualizar o `mimeType` da linha, então SIGNED sempre é PDF.
+   * Rótulo do formato. SIGNED sempre é PDF. Nas linhas novas o `mimeType` já acompanha
+   * o PDF assinado, mas nas LEGADAS o backend sobrescreveu o arquivo com o PDF assinado
+   * sem atualizá-lo; o rótulo não pode depender disso.
    */
   protected readonly fileTypeLabel = computed(() => {
     if (this.signatureStatus() === 'SIGNED') return 'PDF';
@@ -658,10 +661,10 @@ export class RentalContractCard implements OnInit, OnDestroy {
             this.error.set('Contrato não encontrado. Faça upload novamente.');
             return;
           }
-          // A extensão vem dos BYTES, nunca do `mimeType` da linha (que mente
-          // pra contrato AUTO assinado — ver {@link PDF_MAGIC}). Fixar `.pdf`
-          // salvava o contrato AUTO (um .docx) com nome .pdf e o Windows não
-          // abria; confiar no MIME salvaria o contrato ASSINADO (um PDF de
+          // A extensão vem dos BYTES, nunca do `mimeType` da linha (que, em contrato
+          // AUTO assinado LEGADO, ainda diz DOCX — ver {@link PDF_MAGIC}). Fixar
+          // `.pdf` salvava o contrato AUTO (um .docx) com nome .pdf e o Windows não
+          // abria; confiar no MIME salvaria o contrato ASSINADO legado (um PDF de
           // verdade) como .docx, com o mesmo sintoma invertido.
           const head = new Uint8Array(await blob.slice(0, PDF_MAGIC.length).arrayBuffer());
           const filename = `Contrato-${this.rentalId()}.${isPdfBytes(head) ? 'pdf' : 'docx'}`;
