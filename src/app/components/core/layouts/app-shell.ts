@@ -21,11 +21,12 @@ import { NotificationBell } from '../../notification-bell/notification-bell';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { TourSpotlight } from '../../tour/tour-spotlight';
 import { TourService } from '../../tour/tour.service';
+import { DriverTopBar } from '../../sidebar/driver-top-bar';
 
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell, TourSpotlight],
+  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell, TourSpotlight, DriverTopBar],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -43,10 +44,23 @@ import { TourService } from '../../tour/tour.service';
       100dvh e é o CONTEÚDO que encolhe — sem isso a barra cobriria o topo da
       sidebar e o botão do menu no mobile.
     -->
-    <div class="flex h-dvh overflow-hidden bg-gray-50" [class.pt-14]="impersonating()">
+    <!--
+      Motorista abaixo de lg: coluna com a barra de topo do protótipo NO FLUXO e o conteúdo
+      embaixo. \`--page-top\` troca a folga que o default-page-layout reserva para o ☰
+      flutuante (que o motorista não tem) pelo respiro do protótipo.
+    -->
+    <div
+      class="flex h-dvh overflow-hidden bg-gray-50"
+      [class.pt-14]="impersonating()"
+      [class.flex-col]="layout.driverTopBar()"
+      [style.--page-top]="layout.driverTopBar() ? '1.25rem' : null"
+    >
+      @if (layout.driverTopBar()) {
+        <app-driver-top-bar />
+      }
       <app-sidebar />
       <main
-        class="relative flex-1 overflow-y-auto transition-none"
+        class="relative min-h-0 flex-1 overflow-y-auto transition-none"
         [@contentMargin]="contentState()"
       >
         @if (showBell()) {

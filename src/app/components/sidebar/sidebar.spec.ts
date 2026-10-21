@@ -194,6 +194,25 @@ describe('Sidebar', () => {
       }
     });
 
+    it('no celular o motorista não tem o ☰ flutuante (o dele mora na barra de topo)', () => {
+      const host = signInDriver();
+      layout.setMobile(true);
+      fixture.detectChanges();
+      expect(host.querySelector('button[aria-label="Abrir menu"]')).toBeNull();
+      expect(layout.driverTopBar()).toBe(true);
+    });
+
+    it('no celular o dono continua com o ☰ flutuante e sem barra de topo', () => {
+      signInAs('OWNER');
+      layout.tenants.set([tenant('OWNER')]);
+      layout.selectedTenant.set(tenant('OWNER'));
+      layout.setMobile(true);
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('button[aria-label="Abrir menu"]')).not.toBeNull();
+      expect(layout.driverTopBar()).toBe(false);
+    });
+
     it('não mexe no menu do dono nem no do gerente', () => {
       for (const role of ['OWNER', 'MANAGER']) {
         signInAs(role);

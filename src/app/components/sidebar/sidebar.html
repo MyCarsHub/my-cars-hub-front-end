@@ -4,7 +4,8 @@
 }
 
 <!-- ==================== MOBILE HAMBURGER ==================== -->
-@if (layout.isMobile() && !layout.isMobileOpen()) {
+<!-- O motorista não tem o ☰ flutuante: o dele mora na barra de topo (`DriverTopBar`). -->
+@if (layout.isMobile() && !layout.isMobileOpen() && !isDriverMenu()) {
 <button class="fixed top-[calc(1rem+env(safe-area-inset-top))] left-4 z-50 flex items-center justify-center w-10 h-10
            rounded-lg bg-white shadow-md border border-gray-200
            text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
