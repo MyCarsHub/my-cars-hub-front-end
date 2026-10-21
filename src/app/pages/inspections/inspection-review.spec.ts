@@ -729,7 +729,8 @@ describe('InspectionReview — detalhes da vistoria', () => {
       role = 'DRIVER';
       const fixture = render();
 
-      open(fixture, 'Frente');
+      host(fixture).querySelector<HTMLButtonElement>('[aria-label="Ver foto: Frente"]')?.click();
+      fixture.detectChanges();
 
       expect(previewOpen).toHaveBeenCalledTimes(1);
       expect(gallery().items.length).toBe(14);
@@ -933,10 +934,36 @@ describe('InspectionReview — detalhes da vistoria', () => {
       configure();
       const fixture = render();
 
+      expect(q(fixture, 'app-driver-inspection-detail')).not.toBeNull();
       expect(q(fixture, '[data-decision]')).toBeNull();
       expect(approveBtn(fixture)).toBeNull();
       expect(q(fixture, '[data-start-reject]')).toBeNull();
-      expect(frames(fixture).length).toBe(14);
+      expect(host(fixture).querySelectorAll('[data-driver-photo]').length).toBe(14);
+    });
+
+    it('o motorista ve o resumo do prototipo: veiculo, cor e ano, tipo e hodometro', () => {
+      role = 'DRIVER';
+      configure();
+      const fixture = renderWith({ odometerKm: 42318 });
+      const values = Array.from(host(fixture).querySelectorAll('[data-driver-field]')).map((el) =>
+        (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      );
+
+      expect(values).toHaveLength(4);
+      expect(values[3]).toBe('42.318 km');
+    });
+
+    it('o motorista na aprovada abre o laudo no visualizador do app', () => {
+      role = 'DRIVER';
+      configure();
+      const fixture = renderWith({ status: 'APPROVED' });
+
+      q<HTMLButtonElement>(fixture, '[data-driver-open-report]')!.click();
+
+      expect(previewOpen).toHaveBeenCalledTimes(1);
+      expect(previewOpen.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ title: 'Laudo da vistoria' }),
+      );
     });
 
     it('o motorista na vistoria recusada tem o atalho para ler o motivo e refazer', () => {
@@ -944,8 +971,9 @@ describe('InspectionReview — detalhes da vistoria', () => {
       configure();
       const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
 
-      expect(q<HTMLAnchorElement>(fixture, '[data-redo]')?.getAttribute('href')).toBe(
-        '/vistorias/insp-1/captura',
+      expect(q(fixture, '[data-driver-rejected]')?.textContent).toContain('Motivo: Refaça.');
+      expect(q<HTMLAnchorElement>(fixture, '[data-driver-redo]')?.getAttribute('href')).toBe(
+        '/vistorias/insp-1/captura?refazer=1',
       );
     });
 
@@ -960,7 +988,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
       configure();
       const fixture = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 5));
 
-      expect(q<HTMLAnchorElement>(fixture, '[data-continue]')?.getAttribute('href')).toBe(
+      expect(q<HTMLAnchorElement>(fixture, '[data-driver-continue]')?.getAttribute('href')).toBe(
         '/vistorias/insp-1/captura',
       );
     });

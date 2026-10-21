@@ -96,7 +96,7 @@
             <button
               type="button"
               data-driver-hero-cta
-              (click)="start.emit(vehicleId)"
+              (click)="startInspection.emit(vehicleId)"
               class="mt-3 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-white text-neutral-900
                      text-[15px] font-bold inline-flex items-center justify-center gap-2.5
                      active:scale-[0.98] focus:outline-none focus-visible:ring-2
@@ -140,9 +140,10 @@
                 class="rounded-2xl border border-neutral-200 bg-white p-3 flex gap-3 min-w-0"
               >
                 <div
-                  class="relative shrink-0 w-24 @min-[592px]:w-[132px] self-stretch min-h-24
-                         @min-[592px]:min-h-[132px] rounded-xl overflow-hidden bg-neutral-100 flex
-                         items-center justify-center text-neutral-400"
+                  data-driver-thumb
+                  class="relative shrink-0 self-start aspect-square size-[104px] @min-[592px]:size-[148px]
+                         rounded-xl overflow-hidden bg-neutral-100 flex items-center justify-center
+                         text-neutral-400"
                 >
                   @if (item.photoUrl; as url) {
                     <img

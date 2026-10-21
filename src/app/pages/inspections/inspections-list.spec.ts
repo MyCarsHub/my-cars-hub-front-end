@@ -52,6 +52,7 @@ describe('InspectionsList', () => {
   let vehiclesList: ReturnType<typeof vi.fn>;
   let rentalsList: ReturnType<typeof vi.fn>;
   let scheduleList: ReturnType<typeof vi.fn>;
+  let getOneSpy: ReturnType<typeof vi.fn>;
 
   /** O token com o papel — a mesma fonte que o `roleGuard` e a tela leem. */
   function signInAs(role: string): void {
@@ -82,6 +83,7 @@ describe('InspectionsList', () => {
     );
     rentalsList = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
     scheduleList = vi.fn().mockReturnValue(of([]));
+    getOneSpy = vi.fn().mockReturnValue(of({ rejectionReason: 'painel tremido' }));
 
     TestBed.configureTestingModule({
       imports: [InspectionsList],
@@ -100,6 +102,7 @@ describe('InspectionsList', () => {
             loading,
             list: listSpy,
             summary: summarySpy,
+            getOne: getOneSpy,
           },
         },
         { provide: InspectionScheduleService, useValue: { listForCompany: scheduleList } },
@@ -935,7 +938,7 @@ describe('InspectionsList', () => {
    * escopa), com o MESMO cartao, sem nada da empresa — tiles, agendamento, revisao — e com
    * uma porta propria, o carro do aluguel ATIVO.
    */
-  describe('motorista', () => {
+  describe('motorista (prototipo "Motorista Vistorias")', () => {
     const rental = {
       id: 'r-1',
       vehicleId: 'veh-9',
@@ -953,6 +956,11 @@ describe('InspectionsList', () => {
       rentalsList.mockReturnValue(of({ content: [rental], page: 0, size: 20, total: 1 }));
     });
 
+    const hero = (fixture: ReturnType<typeof render>) =>
+      host(fixture).querySelector<HTMLElement>('[data-driver-hero]');
+    const driverCards = (fixture: ReturnType<typeof render>) =>
+      Array.from(host(fixture).querySelectorAll<HTMLElement>('[data-driver-card]'));
+
     it('NAO chama a lista de veiculos da empresa nem o resumo: sao da empresa', () => {
       render();
 
@@ -960,90 +968,127 @@ describe('InspectionsList', () => {
       expect(summarySpy).not.toHaveBeenCalled();
     });
 
-    it('esconde o que e da empresa: tiles, agendamento e a porta por carro', () => {
-      const fixture = render();
-
-      expect(host(fixture).querySelector('[data-kpi]')).toBeNull();
-      expect(host(fixture).querySelector('app-inspection-schedules-block')).toBeNull();
-      expect(host(fixture).querySelector('[data-schedule-card]')).toBeNull();
-      expect(host(fixture).querySelector('[data-start-inspection]')).toBeNull();
-      // CONTROLE POSITIVO: a tela existe, com os filtros que servem a ele.
-      expect(host(fixture).querySelector('[data-filter-status]')).not.toBeNull();
-      expect(host(fixture).querySelector<HTMLInputElement>('[data-search]')?.placeholder).toBe(
-        'Buscar por placa ou modelo…',
-      );
-    });
-
-    it('usa o mesmo cartao, mas nao oferece revisar nem na vistoria enviada', () => {
+    it('troca a tela do dono pela do prototipo: sem tiles, agendamento, filtros nem revisar', () => {
       items.set([{ ...item, status: 'SUBMITTED' }]);
       total.set(1);
       const fixture = render();
-      const link = cards(fixture)[0].querySelector<HTMLAnchorElement>('[data-open-inspection]')!;
 
-      expect(cards(fixture)[0].querySelector('[data-plate]')?.textContent?.trim()).toBe('ABC1D23');
-      expect(link.textContent?.trim()).toBe('Ver detalhes');
+      expect(host(fixture).querySelector('app-driver-inspections-home')).not.toBeNull();
+      expect(host(fixture).querySelector('[data-kpi]')).toBeNull();
+      expect(host(fixture).querySelector('app-inspection-schedules-block')).toBeNull();
+      expect(host(fixture).querySelector('[data-start-inspection]')).toBeNull();
+      expect(host(fixture).querySelector('[data-filter-status]')).toBeNull();
       expect(text(fixture)).not.toContain('Revisar vistoria');
+      // CONTROLE POSITIVO: o cartao dele esta la, com placa e situacao.
+      expect(driverCards(fixture)[0].querySelector('[data-driver-plate]')?.textContent?.trim()).toBe(
+        'ABC1D23',
+      );
+      expect(driverCards(fixture)[0].querySelector('[data-driver-chip]')?.textContent?.trim()).toBe(
+        'Aguardando aprovação',
+      );
     });
 
-    it('o dono, na mesma linha, ve "Revisar vistoria"', () => {
+    it('o dono, na mesma linha, continua vendo a tela dele com "Revisar vistoria"', () => {
       sessionStorage.clear();
       signInAs('OWNER');
       items.set([{ ...item, status: 'SUBMITTED' }]);
       total.set(1);
       const fixture = render();
 
+      expect(host(fixture).querySelector('app-driver-inspections-home')).toBeNull();
       expect(text(fixture)).toContain('Revisar vistoria');
     });
 
-    it('continuar a em andamento e ler a recusa levam a captura; o resto, aos detalhes', () => {
+    it('a em andamento volta para a captura; o resto abre os detalhes', () => {
       items.set([
-        { ...item, id: 'a', status: 'PENDING' },
+        { ...item, id: 'a', status: 'PENDING', photoCount: 5 },
         { ...item, id: 'b', status: 'REJECTED' },
         { ...item, id: 'c', status: 'APPROVED' },
       ]);
       total.set(3);
       const fixture = render();
-      const links = cards(fixture).map(
-        (c) => c.querySelector<HTMLAnchorElement>('[data-open-inspection]')!,
+      const links = driverCards(fixture).map(
+        (c) => c.querySelector<HTMLAnchorElement>('[data-driver-open]')!,
       );
 
       expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
         ['Continuar vistoria', '/vistorias/a/captura'],
-        ['Ver recusa e refazer', '/vistorias/b/captura'],
+        ['Ver detalhes', '/vistorias/b'],
         ['Ver detalhes', '/vistorias/c'],
       ]);
+      const notes = driverCards(fixture).map(
+        (c) => c.querySelector('[data-driver-note]')?.textContent?.trim() ?? null,
+      );
+      expect(notes).toEqual([null, 'Precisa refazer', 'Laudo em PDF disponível']);
     });
 
-    it('oferece FAZER vistoria no carro do aluguel ativo, nomeando o carro', () => {
+    it('sem vistoria aberta, o hero oferece COMEÇAR no carro do aluguel ativo', () => {
       const fixture = render();
-      const button = host(fixture).querySelector<HTMLButtonElement>(
-        '[data-driver-start-inspection]',
-      );
 
       expect(rentalsList).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACTIVE' }));
-      expect(button).not.toBeNull();
-      expect(button?.textContent).toContain('XYZ9K88 · VW Gol');
+      expect(hero(fixture)?.getAttribute('data-tone')).toBe('primary');
+      expect(hero(fixture)?.textContent).toContain('Vistoria do XYZ9K88');
+      expect(
+        hero(fixture)?.querySelector('[data-driver-hero-cta]')?.textContent?.trim(),
+      ).toBe('Começar vistoria');
     });
 
-    it('o botao abre a captura com o veiculo do aluguel', () => {
+    it('o botao do hero abre a captura com o veiculo do aluguel', () => {
       const fixture = render();
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
 
-      host(fixture).querySelector<HTMLButtonElement>('[data-driver-start-inspection]')?.click();
+      hero(fixture)?.querySelector<HTMLButtonElement>('[data-driver-hero-cta]')?.click();
 
       expect(navigate).toHaveBeenCalledWith(['/vistorias', 'nova'], {
         queryParams: { vehicleId: 'veh-9' },
       });
     });
 
+    it('com uma em andamento, o hero manda continuar (e nao abre outra)', () => {
+      items.set([{ ...item, id: 'a', status: 'PENDING', photoCount: 5 }]);
+      total.set(1);
+      const fixture = render();
+      const cta = hero(fixture)?.querySelector<HTMLAnchorElement>('[data-driver-hero-cta]');
+
+      expect(hero(fixture)?.textContent).toContain('5 de 14 fotos tiradas');
+      expect(cta?.textContent?.trim()).toBe('Continuar vistoria');
+      expect(cta?.getAttribute('href')).toBe('/vistorias/a/captura');
+    });
+
+    it('com a ultima recusada, o hero mostra o motivo e refaz em um toque', () => {
+      items.set([
+        { ...item, id: 'b', status: 'REJECTED' },
+        { ...item, id: 'c', status: 'APPROVED' },
+      ]);
+      total.set(2);
+      const fixture = render();
+      const cta = hero(fixture)?.querySelector<HTMLAnchorElement>('[data-driver-hero-cta]');
+
+      expect(getOneSpy).toHaveBeenCalledWith('b');
+      expect(hero(fixture)?.getAttribute('data-tone')).toBe('rose');
+      expect(hero(fixture)?.querySelector('[data-driver-hero-sub]')?.textContent).toContain(
+        'Motivo: painel tremido',
+      );
+      expect(cta?.textContent?.trim()).toBe('Refazer vistoria');
+      expect(cta?.getAttribute('href')).toBe('/vistorias/b/captura?refazer=1');
+    });
+
+    it('com a ultima enviada, o hero diz que aguarda a locadora, sem acao', () => {
+      items.set([{ ...item, status: 'SUBMITTED' }]);
+      total.set(1);
+      const fixture = render();
+
+      expect(hero(fixture)?.getAttribute('data-tone')).toBe('emerald');
+      expect(hero(fixture)?.textContent).toContain('Aguardando a locadora');
+      expect(hero(fixture)?.querySelector('[data-driver-hero-cta]')).toBeNull();
+    });
+
     it('sem aluguel ativo explica por que nao ha o que fotografar', () => {
       rentalsList.mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
       const fixture = render();
 
-      expect(host(fixture).querySelector('[data-driver-start-inspection]')).toBeNull();
-      expect(host(fixture).querySelector('[data-driver-no-rental]')?.textContent).toContain(
-        'aluguel ativo',
-      );
+      expect(hero(fixture)?.querySelector('[data-driver-hero-cta]')).toBeNull();
+      expect(hero(fixture)?.textContent).toContain('aluguel ativo');
     });
 
     it('falha ao achar o aluguel oferece tentar de novo, e o retry chama de novo', () => {
@@ -1052,22 +1097,47 @@ describe('InspectionsList', () => {
 
       expect(text(fixture)).toContain('Não conseguimos achar o seu aluguel ativo');
       rentalsList.mockReturnValue(of({ content: [rental], page: 0, size: 20, total: 1 }));
-      host(fixture).querySelector<HTMLButtonElement>('[data-driver-retry]')?.click();
+      host(fixture)
+        .querySelector('[data-driver-hero-error]')
+        ?.querySelector<HTMLButtonElement>('button')
+        ?.click();
       fixture.detectChanges();
 
       expect(rentalsList).toHaveBeenCalledTimes(2);
-      expect(host(fixture).querySelector('[data-driver-start-inspection]')).not.toBeNull();
+      expect(hero(fixture)?.querySelector('[data-driver-hero-cta]')).not.toBeNull();
     });
 
-    it('o estado vazio dele nao manda para uma captura sem carro', () => {
+    it('os quatro estados: skeleton, erro com tentar de novo, vazio sem cartao vazio', () => {
+      loading.set(true);
       const fixture = render();
+      expect(host(fixture).querySelector('[data-driver-skeleton]')).not.toBeNull();
 
-      expect(text(fixture)).toContain('Você ainda não fez nenhuma vistoria');
-      expect(
-        Array.from(host(fixture).querySelectorAll('a')).some(
-          (a) => a.getAttribute('href') === '/vistorias/nova',
-        ),
-      ).toBe(false);
+      loading.set(false);
+      error.set('Não foi possível carregar as vistorias.');
+      fixture.detectChanges();
+      const retryButton = host(fixture).querySelector<HTMLButtonElement>('[data-driver-retry-list]');
+      expect(retryButton).not.toBeNull();
+      const before = listSpy.mock.calls.length;
+      retryButton!.click();
+      expect(listSpy.mock.calls.length).toBe(before + 1);
+
+      error.set(null);
+      fixture.detectChanges();
+      expect(host(fixture).querySelector('[data-driver-empty]')?.textContent).toContain(
+        'Você ainda não fez nenhuma vistoria',
+      );
+      expect(host(fixture).querySelector('[data-driver-list]')).toBeNull();
+    });
+
+    it('a miniatura e um quadrado preso ao topo do cartao', () => {
+      items.set([{ ...item, frontPhotoUrl: 'https://x/front.jpg' }]);
+      total.set(1);
+      const fixture = render();
+      const thumb = driverCards(fixture)[0].querySelector<HTMLElement>('[data-driver-thumb]')!;
+
+      expect(thumb.className).toContain('aspect-square');
+      expect(thumb.className).toContain('self-start');
+      expect(thumb.querySelector('img')?.className).toContain('object-cover');
     });
   });
 });

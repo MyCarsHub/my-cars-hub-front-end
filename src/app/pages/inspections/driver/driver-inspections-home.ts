@@ -72,7 +72,7 @@ export class DriverInspectionsHome {
 
   readonly retry = output<void>();
   readonly retryHero = output<void>();
-  readonly start = output<string>();
+  readonly startInspection = output<string>();
   readonly prev = output<void>();
   readonly next = output<void>();
   readonly photoError = output<string>();
