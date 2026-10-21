@@ -102,6 +102,8 @@ describe('InspectionReview — detalhes da vistoria', () => {
   let reject: ReturnType<typeof vi.fn>;
   let reportUrl: ReturnType<typeof vi.fn>;
   let previewOpen: ReturnType<typeof vi.fn>;
+  let list: ReturnType<typeof vi.fn>;
+  let peek: ReturnType<typeof vi.fn>;
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let notifications: NotificationService;
   let role: string;
@@ -114,6 +116,8 @@ describe('InspectionReview — detalhes da vistoria', () => {
     reject = vi.fn().mockReturnValue(of(REJECTED));
     reportUrl = vi.fn().mockReturnValue(of({ url: 'https://storage.example/laudo.pdf?sig=1' }));
     previewOpen = vi.fn();
+    list = vi.fn().mockReturnValue(of({ content: [], page: 0, size: 20, total: 0 }));
+    peek = vi.fn().mockReturnValue(of({ content: [{ id: 'insp-1' }], page: 0, size: 1, total: 1 }));
     params = new BehaviorSubject(convertToParamMap({ id: 'insp-1' }));
 
     TestBed.configureTestingModule({
@@ -124,7 +128,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
         ApiErrorService,
         {
           provide: InspectionsService,
-          useValue: { getOne, photos, approve, reject, reportUrl },
+          useValue: { getOne, photos, approve, reject, reportUrl, list, peek },
         },
         { provide: SessionService, useValue: { getCompanyRoleFromToken: () => role } },
         { provide: DocumentPreviewService, useValue: { open: previewOpen } },
@@ -729,7 +733,8 @@ describe('InspectionReview — detalhes da vistoria', () => {
       role = 'DRIVER';
       const fixture = render();
 
-      open(fixture, 'Frente');
+      host(fixture).querySelector<HTMLButtonElement>('[aria-label="Ver foto: Frente"]')?.click();
+      fixture.detectChanges();
 
       expect(previewOpen).toHaveBeenCalledTimes(1);
       expect(gallery().items.length).toBe(14);
@@ -933,10 +938,36 @@ describe('InspectionReview — detalhes da vistoria', () => {
       configure();
       const fixture = render();
 
+      expect(q(fixture, 'app-driver-inspection-detail')).not.toBeNull();
       expect(q(fixture, '[data-decision]')).toBeNull();
       expect(approveBtn(fixture)).toBeNull();
       expect(q(fixture, '[data-start-reject]')).toBeNull();
-      expect(frames(fixture).length).toBe(14);
+      expect(host(fixture).querySelectorAll('[data-driver-photo]').length).toBe(14);
+    });
+
+    it('o motorista ve o resumo do prototipo: veiculo, cor e ano, tipo e hodometro', () => {
+      role = 'DRIVER';
+      configure();
+      const fixture = renderWith({ odometerKm: 42318 });
+      const values = Array.from(host(fixture).querySelectorAll('[data-driver-field]')).map((el) =>
+        (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      );
+
+      expect(values).toHaveLength(4);
+      expect(values[3]).toBe('42.318 km');
+    });
+
+    it('o motorista na aprovada abre o laudo no visualizador do app', () => {
+      role = 'DRIVER';
+      configure();
+      const fixture = renderWith({ status: 'APPROVED' });
+
+      q<HTMLButtonElement>(fixture, '[data-driver-open-report]')!.click();
+
+      expect(previewOpen).toHaveBeenCalledTimes(1);
+      expect(previewOpen.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ title: 'Laudo da vistoria' }),
+      );
     });
 
     it('o motorista na vistoria recusada tem o atalho para ler o motivo e refazer', () => {
@@ -944,9 +975,72 @@ describe('InspectionReview — detalhes da vistoria', () => {
       configure();
       const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
 
-      expect(q<HTMLAnchorElement>(fixture, '[data-redo]')?.getAttribute('href')).toBe(
+      expect(q(fixture, '[data-driver-rejected]')?.textContent).toContain('Motivo: Refaça.');
+      expect(peek).toHaveBeenCalledWith(
+        expect.objectContaining({ vehicleId: DETAIL.vehicleId, page: 0, size: 1, sort: 'date,desc' }),
+      );
+      // `list` would overwrite the Vistorias page's state (items, loading, error).
+      expect(list).not.toHaveBeenCalled();
+      expect(q<HTMLAnchorElement>(fixture, '[data-driver-redo]')?.getAttribute('href')).toBe(
         '/vistorias/insp-1/captura',
       );
+    });
+
+    it('recusada ANTIGA (ja existe uma mais recente do carro) nao oferece refazer', () => {
+      role = 'DRIVER';
+      configure();
+      peek.mockReturnValue(of({ content: [{ id: 'insp-9' }], page: 0, size: 1, total: 2 }));
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+      expect(q(fixture, '[data-driver-redo]')).toBeNull();
+      expect(q(fixture, '[data-driver-redo-elsewhere]')).not.toBeNull();
+    });
+
+    it('checagem que falhou nao afirma nada: aponta para Vistorias, sem botao', () => {
+      role = 'DRIVER';
+      configure();
+      peek.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      const fixture = renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+      expect(q(fixture, '[data-driver-redo]')).toBeNull();
+      expect(q(fixture, '[data-driver-redo-elsewhere]')).toBeNull();
+      expect(
+        q<HTMLAnchorElement>(fixture, '[data-driver-redo-unknown] a')?.getAttribute('href'),
+      ).toBe('/vistorias');
+    });
+
+    it('resposta atrasada da vistoria anterior nao decide o refazer da atual', () => {
+      role = 'DRIVER';
+      configure();
+      const slow = new Subject<{ content: { id: string }[]; page: number; size: number; total: number }>();
+      peek.mockReturnValue(slow);
+      getOne.mockReturnValue(of({ ...DETAIL, status: 'REJECTED', rejectionReason: 'Refaça.' }));
+      const fixture = render();
+
+      // Same instance, another id (the route reuses it), whose own check has not answered.
+      peek.mockReturnValue(new Subject());
+      getOne.mockReturnValue(
+        of({ ...DETAIL, id: 'insp-2', status: 'REJECTED', rejectionReason: 'Outra.' }),
+      );
+      params.next(convertToParamMap({ id: 'insp-2' }));
+      fixture.detectChanges();
+
+      // insp-1's answer arrives late and says "insp-1 is the latest".
+      slow.next({ content: [{ id: 'insp-1' }], page: 0, size: 1, total: 1 });
+      fixture.detectChanges();
+
+      expect(q(fixture, '[data-driver-redo]')).toBeNull();
+      expect(q(fixture, '[data-driver-redo-elsewhere]')).toBeNull();
+    });
+
+    it('OWNER e MANAGER nao fazem a checagem do motorista', () => {
+      for (const actor of ['OWNER', 'MANAGER']) {
+        role = actor;
+        configure();
+        renderWith({ status: 'REJECTED', rejectionReason: 'Refaça.' });
+
+        expect(peek, actor).not.toHaveBeenCalled();
+      }
     });
 
     it('o dono na vistoria recusada nao ve o atalho de refazer', () => {
@@ -960,7 +1054,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
       configure();
       const fixture = renderWith({ status: 'PENDING' }, ALL_PHOTOS.slice(0, 5));
 
-      expect(q<HTMLAnchorElement>(fixture, '[data-continue]')?.getAttribute('href')).toBe(
+      expect(q<HTMLAnchorElement>(fixture, '[data-driver-continue]')?.getAttribute('href')).toBe(
         '/vistorias/insp-1/captura',
       );
     });

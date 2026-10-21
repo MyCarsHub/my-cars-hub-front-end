@@ -1,3 +1,27 @@
+<!--
+  THE DRIVER sees the owner's prototype ("Motorista Vistorias"): a hero with the one thing to
+  do now and "Minhas vistorias". Same data and actions as below; OWNER/MANAGER keep this page.
+-->
+@if (isDriver) {
+  <app-driver-inspections-home
+    [state]="driverState()"
+    [errorMessage]="error()"
+    [hero]="driverHero()"
+    [heroError]="driverHeroError()"
+    [startError]="startError()"
+    [items]="driverItems()"
+    [countLabel]="countLabel()"
+    [pageLabel]="driverPageLabel()"
+    [hasPrev]="hasPrev()"
+    [hasNext]="hasNext()"
+    (retry)="retry()"
+    (retryHero)="loadDriverVehicles()"
+    (startInspection)="startDriverInspection($event)"
+    (prev)="prev()"
+    (next)="next()"
+    (photoError)="onPhotoError($event)"
+  />
+} @else {
 <app-default-page-layout title="Vistorias" [description]="pageDescription">
   <!--
     ORDEM (README do handoff): banner de erro -> tiles -> "Vistorias automaticas" -> "Lista".
@@ -50,78 +74,6 @@
       </section>
 
       <app-inspection-schedules-block [vehicleOptions]="vehicleOptions()" class="block" />
-    }
-
-    @if (isDriver) {
-      <!--
-        A PORTA DO MOTORISTA. Ele nao escolhe carro: faz a vistoria do carro do aluguel
-        ATIVO dele, que o servidor tambem exige. O carro vem dos alugueis dele — a lista de
-        veiculos da empresa e 403 para ele — e o botao ja nomeia o carro.
-      -->
-      <section
-        data-driver-start
-        aria-labelledby="driver-start-title"
-        class="rounded-2xl border border-primary-200 bg-primary-50 p-4 sm:p-6 space-y-3"
-      >
-        <h2 id="driver-start-title" class="text-base font-semibold text-neutral-900">
-          Fazer vistoria
-        </h2>
-
-        @switch (driverVehiclesState()) {
-          @case ('loading') {
-            <p class="text-sm text-neutral-700" role="status">
-              Procurando o carro do seu aluguel ativo…
-            </p>
-          }
-          @case ('error') {
-            <app-alert-banner
-              variant="error"
-              message="Não conseguimos achar o seu aluguel ativo agora."
-            />
-            <button
-              type="button"
-              data-driver-retry
-              (click)="loadDriverVehicles()"
-              class="w-full min-h-[44px] inline-flex items-center justify-center rounded-xl
-                     border border-neutral-200 bg-white text-sm font-semibold text-neutral-800
-                     hover:bg-neutral-50 transition-colors focus:outline-none
-                     focus-visible:ring-2 focus-visible:ring-primary-400"
-            >
-              Tentar de novo
-            </button>
-          }
-          @default {
-            @if (driverVehicles().length === 0) {
-              <p data-driver-no-rental class="text-sm text-neutral-700">
-                Você não tem um aluguel ativo no momento. A vistoria é feita no carro de um
-                aluguel ativo — fale com o dono ou o gerente da empresa.
-              </p>
-            } @else {
-              <p class="text-sm text-neutral-700">
-                Fotografe o carro do seu aluguel ativo. Cada foto é enviada na hora.
-              </p>
-              @for (car of driverVehicles(); track car.vehicleId) {
-                <button
-                  type="button"
-                  data-driver-start-inspection
-                  (click)="startDriverInspection(car.vehicleId)"
-                  class="w-full min-h-14 inline-flex items-center justify-center rounded-xl
-                         bg-primary-500 px-5 text-base font-semibold text-white
-                         hover:bg-primary-600 transition-colors focus:outline-none
-                         focus-visible:ring-2 focus-visible:ring-primary-400
-                         focus-visible:ring-offset-2"
-                >
-                  Fazer vistoria · {{ car.label }}
-                </button>
-              }
-            }
-          }
-        }
-
-        @if (startError(); as message) {
-          <app-alert-banner variant="error" [message]="message" />
-        }
-      </section>
     }
 
     <app-page-card title="Lista">
@@ -319,10 +271,6 @@
                 Limpar filtros
               </button>
             </div>
-          } @else if (isDriver) {
-            <p data-empty class="py-8 text-center text-sm text-neutral-600">
-              Você ainda não fez nenhuma vistoria.
-            </p>
           } @else {
             <p
               data-empty
@@ -489,3 +437,4 @@
     </app-page-card>
   </div>
 </app-default-page-layout>
+}

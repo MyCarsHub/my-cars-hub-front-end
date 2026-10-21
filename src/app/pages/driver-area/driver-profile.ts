@@ -12,7 +12,7 @@ import { AlertBanner } from '../../components/alert-banner/alert-banner';
 import { PageCard } from '../../components/core/page-card/page-card';
 import { FieldControl, FormField } from '../../components/form-field/form-field';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
-import { PageLoader } from '../../components/page-loader/page-loader';
+import { DRIVER_NAV_ROUTES } from '../../components/sidebar/driver-nav';
 import { ApiErrorService } from '../../services/api-error.service';
 import { clearServerErrors } from '../../services/api-error';
 import { AuthService } from '../../services/auth.service';
@@ -35,13 +35,15 @@ export function phoneDigitsValidator(control: AbstractControl): ValidationErrors
 }
 
 /**
- * `/perfil` for a DRIVER: his own record, the two things he may edit about it, his company
- * and rental, and — at the bottom, where a thumb finds it — Sair.
+ * `/perfil` for a DRIVER, drawn from the owner's prototype (`Motorista Perfil.dc.html`): his
+ * read-only record, the two things he may edit about it, his account (help, Sair) and the
+ * active rental. Without a rental the rental card is NOT drawn — no empty cards (owner).
  *
  * ## What is NOT here, on purpose
  *
- * No plan, no billing, no list of "empresas vinculadas" with a switch, no tour: none of that
- * is a driver's, and the generic profile's plan block called `/v1/billing/**`, which a
+ * No plan, no billing, no list of "empresas vinculadas" with a switch, and no "Rever o tour"
+ * row although the prototype has one: `TOUR_STEPS` is the FLEET tour, none of its anchors is
+ * on the driver's menu, so the button would open nothing. None of that is a driver's, and the generic profile's plan block called `/v1/billing/**`, which a
  * driver cannot read. This page reads `/v1/driver/profile` and nothing else.
  *
  * ## Edit
@@ -61,7 +63,6 @@ export function phoneDigitsValidator(control: AbstractControl): ValidationErrors
     FieldControl,
     FormField,
     PageCard,
-    PageLoader,
   ],
   templateUrl: './driver-profile.html',
 })
@@ -75,7 +76,12 @@ export class DriverProfile implements OnInit {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
 
+  private readonly navRoutes = inject(DRIVER_NAV_ROUTES);
+
   protected readonly ufs = BR_UFS;
+  /** Where "Ver aluguel" and "Falar com o suporte" go — the menu's own map, so the demo follows. */
+  protected readonly rentalBase = this.navRoutes.aluguel ?? '/alugueis';
+  protected readonly supportRoute = this.navRoutes.suporte ?? '/suporte';
   protected readonly roleLabel = companyRoleLabel('DRIVER');
 
   protected readonly profile = signal<DriverProfileData | null>(null);
@@ -153,6 +159,11 @@ export class DriverProfile implements OnInit {
 
   /** `true` once any address field has text: from then on the address is all-or-nothing. */
   protected readonly addressStarted = signal(false);
+
+  /** A read-only value drawn as a field, as in the prototype — the eye reads it as "not mine to edit". */
+  protected readonly readonlyClass =
+    'min-h-12 flex items-center rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-2 ' +
+    'text-base text-neutral-700 break-words';
 
   protected readonly inputClass =
     'w-full min-h-12 bg-white border rounded-xl px-3 text-base text-neutral-800 ' +

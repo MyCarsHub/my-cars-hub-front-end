@@ -5,12 +5,45 @@
     description="Estamos buscando o roteiro e as fotos desta vistoria."
     [fullScreen]="false"
   />
+} @else if (isDriver && !error() && inspection()) {
+  <!--
+    THE DRIVER: the owner's guided capture (one angle per screen, odometer, review, send).
+    Same component underneath: the shutter opens the live camera below, and each photo is
+    compressed and uploaded the moment it is taken, exactly as in the grid.
+  -->
+  <app-driver-inspection-wizard
+    [inspectionId]="inspection()!.id"
+    [plate]="inspection()!.vehiclePlate ?? null"
+    [status]="status()"
+    [slots]="wizardSlots()"
+    [busy]="uploading()"
+    [previousKm]="previousKm()"
+    [submitting]="submitting()"
+    [submitError]="submitError()"
+    [pageError]="uploadError()"
+    [rejectionReason]="rejectionReason()"
+    [recapturing]="recapturing()"
+    [recaptureError]="recaptureError()"
+    [listLink]="root"
+    (shoot)="openCamera($event)"
+    (retry)="retryUpload($event)"
+    (send)="submitFromWizard($event)"
+    (redo)="recapture()"
+    (leave)="leaveWizard()"
+  />
+  @if (activeAngle()) {
+    <app-live-camera-sheet
+      [label]="activeLabel()"
+      (captured)="onCaptured($event)"
+      (cancelled)="closeCamera()"
+    />
+  }
 } @else {
 <app-default-page-layout [title]="pageTitle()" [description]="pageDescription()">
   @if (error(); as message) {
     <app-alert-banner variant="error" [message]="message" />
     <a
-      routerLink="/vistorias"
+      [routerLink]="root"
       class="mt-4 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
              border-neutral-200 text-sm font-semibold text-neutral-700 px-5 py-3
              hover:bg-neutral-50 transition-colors focus:outline-none
@@ -416,7 +449,7 @@
       </div>
     } @else {
       <a
-        routerLink="/vistorias"
+        [routerLink]="root"
         class="mt-4 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
                border-neutral-200 text-sm font-semibold text-neutral-700 px-5 py-3
                hover:bg-neutral-50 transition-colors focus:outline-none

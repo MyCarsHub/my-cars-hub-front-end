@@ -235,10 +235,14 @@ describe('Vistorias — menu -> rota -> lista', () => {
     expect(routeFromMenu('MANAGER')).toBe('/vistorias');
   });
 
-  it('o DRIVER recebe o item no primeiro nivel, e o guard da rota o admite', () => {
-    // Fora do grupo Frota: ele nao tem frota.
+  it('o DRIVER recebe o item no grupo Veiculo do menu dele, e o guard da rota o admite', () => {
+    // Fora do grupo Frota (ele nao tem frota): o menu do motorista e o do prototipo do
+    // dono (`driver-nav.ts`), e Vistorias mora em "Veiculo", ao lado de "Meu aluguel".
     expect(routeFromMenu('DRIVER')).toBeUndefined();
-    const item = topLevelRoutes('DRIVER').find((i) => i.label === 'Vistorias');
+    const vehicle = topLevelRoutes('DRIVER').find((i) => i.label === 'Veículo') as
+      | { children?: { route?: string; label: string }[] }
+      | undefined;
+    const item = vehicle?.children?.find((c) => c.label === 'Vistorias');
     expect(item?.route).toBe('/vistorias');
 
     signInAs('DRIVER');

@@ -38,12 +38,15 @@ import {
   carName,
   colorAndYear,
   firstName,
+  formatDate,
   formatDateTime,
   formatPhone,
   kindLabel,
   kindWord,
   odometerView,
 } from './inspection-view';
+import { INSPECTIONS_ROOT } from './driver/driver-inspection-guide';
+import { DetailField, DriverInspectionDetail } from './driver/driver-inspection-detail';
 
 /** Motivo em branco e motivo vazio sao a mesma coisa para quem vai ler. */
 function notBlank(control: AbstractControl): ValidationErrors | null {
@@ -83,6 +86,7 @@ function notBlank(control: AbstractControl): ValidationErrors | null {
     ConfirmDialog,
     FormField,
     FieldControl,
+    DriverInspectionDetail,
   ],
   templateUrl: './inspection-review.html',
 })
@@ -94,6 +98,8 @@ export class InspectionReview implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly preview = inject(DocumentPreviewService);
   private readonly destroyRef = inject(DestroyRef);
+  /** Where the inspection screens live (`/vistorias`; the local demo mounts them elsewhere). */
+  protected readonly root = inject(INSPECTIONS_ROOT);
 
   // ----------------------------------------------------------------- estado
 
@@ -257,6 +263,7 @@ export class InspectionReview implements OnInit {
       const id = params.get('id') ?? '';
       if (!id || id === this.id()) return;
       this.id.set(id);
+      this.canRedo.set(null);
       this.resetDecision();
       this.load();
     });
@@ -272,6 +279,7 @@ export class InspectionReview implements OnInit {
         this.inspection.set(found);
         this.loading.set(false);
         this.loadPhotos();
+        if (this.isDriver) this.checkRedo(found);
       },
       error: (err: unknown) => {
         this.loading.set(false);
@@ -501,5 +509,57 @@ export class InspectionReview implements OnInit {
       caption: this.pdfName(),
       errorMessage: 'Não foi possível abrir o laudo agora. Tente de novo.',
     });
+  }
+
+  // ------------------------------------------------------- motorista (prototipo)
+
+  /** "Retirada · 04/08/2026." — the driver's subtitle, as in the prototype. */
+  protected readonly driverSubtitle = computed(() => {
+    const current = this.inspection();
+    if (!current) return '';
+    const when = formatDate(current.performedAt);
+    return `${kindLabel(current.kind)}${when ? ` · ${when}` : ''}.`;
+  });
+
+  /** "Resumo": vehicle, colour and year, kind, odometer. Absent data reads "—", never zero. */
+  protected readonly driverFields = computed<DetailField[]>(() => {
+    const current = this.inspection();
+    if (!current) return [];
+    const vehicle = [this.plate(), this.vehicle()].filter(Boolean).join(' · ');
+    return [
+      { label: 'Veículo', value: vehicle || '—' },
+      { label: 'Cor e ano', value: this.colorYear() ?? '—' },
+      { label: 'Tipo', value: kindLabel(current.kind) },
+      { label: 'Hodômetro informado', value: this.odometer()?.value ?? '—' },
+    ];
+  });
+
+  protected readonly captureLink = computed(() => [this.root, this.id(), 'captura']);
+
+  /**
+   * May the driver redo THIS refused inspection? Only when it is still the most recent one of
+   * its vehicle: once a newer one exists (redone, or approved since), redoing an old refusal
+   * would open a duplicate. `null` = still checking; `'unknown'` = the check failed (the
+   * detail points to Vistorias, whose hero offers the redo of the most recent one).
+   */
+  protected readonly canRedo = signal<'yes' | 'no' | 'unknown' | null>(null);
+
+  private checkRedo(found: Inspection): void {
+    this.canRedo.set(null);
+    if (found.status !== 'REJECTED') return;
+    // `peek`, not `list`: this answer must not overwrite the list state the Vistorias page owns.
+    this.service
+      .peek({ vehicleId: found.vehicleId, page: 0, size: 1, sort: 'date,desc' })
+      .subscribe({
+        // The instance is reused across ids: an answer about another inspection is dropped.
+        next: (res) => {
+          if (this.id() !== found.id) return;
+          this.canRedo.set(res?.content?.[0]?.id === found.id ? 'yes' : 'no');
+        },
+        error: (err: unknown) => {
+          this.apiErrors.claim(err);
+          if (this.id() === found.id) this.canRedo.set('unknown');
+        },
+      });
   }
 }

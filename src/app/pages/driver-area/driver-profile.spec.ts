@@ -110,6 +110,20 @@ describe('DriverProfile', () => {
       expect(text()).toContain('Motorista');
     });
 
+    // AXE `definition-list`: um <dl> só pode ter dt, dd e div como filhos diretos.
+    it('os <dl> só têm dt, dd e div como filhos diretos', () => {
+      const lists = Array.from(root().querySelectorAll('dl'));
+      expect(lists.length).toBeGreaterThan(0);
+      for (const dl of lists) {
+        for (const child of Array.from(dl.children)) {
+          expect(['DT', 'DD', 'DIV'], `<${child.tagName.toLowerCase()}> dentro de <dl>`).toContain(
+            child.tagName,
+          );
+        }
+      }
+      expect(q('[data-readonly-note]')?.textContent).toContain('cadastrados pela locadora');
+    });
+
     it('não tem plano, assinatura, cobrança nem tour', () => {
       const t = text().toLowerCase();
       for (const word of ['assinatura', 'plano', 'cobrança', 'billing', 'tour', 'empresas vinculadas']) {
@@ -117,9 +131,11 @@ describe('DriverProfile', () => {
       }
     });
 
-    it('sem aluguel ativo diz isso', () => {
-      expect(q('[data-no-rental]')).not.toBeNull();
+    // Decisão do dono: nada de card vazio. Sem aluguel, o cartão do aluguel não é desenhado.
+    it('sem aluguel ativo, o cartão do aluguel não aparece', () => {
       expect(q('[data-active-rental]')).toBeNull();
+      expect(text()).not.toContain('Aluguel ativo');
+      expect(text()).not.toContain('Ver aluguel');
     });
   });
 
@@ -144,15 +160,17 @@ describe('DriverProfile', () => {
       const card = q('[data-active-rental]')!;
       expect(card.textContent).toContain('ABC1D23');
       expect(card.textContent).toContain('Fiat Argo');
-      expect(card.textContent).toContain('desde 01/09/2026');
+      expect(card.textContent).toContain('Desde');
+      expect(card.textContent).toContain('01/09/2026');
+      expect(card.textContent).toContain('Ver aluguel');
       expect(card.querySelector('a')!.getAttribute('href')).toBe('/alugueis/r-5');
     });
   });
 
   describe('carga', () => {
-    it('enquanto carrega mostra o carregador da página', () => {
+    it('enquanto carrega mostra o skeleton da página, sem o formulário', () => {
       build(() => new Subject<DriverProfileData>());
-      expect(q('app-page-loader')).not.toBeNull();
+      expect(q('[data-skeleton]')?.getAttribute('aria-busy')).toBe('true');
       expect(q('[data-edit-form]')).toBeNull();
     });
 
@@ -308,15 +326,13 @@ describe('DriverProfile', () => {
       expect(navigate).toHaveBeenCalledWith('/login', { replaceUrl: true });
     });
 
-    it('Sair tem 48px, respeita a área segura e é o ÚLTIMO controle da página', () => {
+    // Protótipo do dono: Sair mora no cartão "Sua conta", ao lado de Ajuda — não mais no
+    // pé da página. Continua com alvo de 44px e com a cor de ação destrutiva.
+    it('Sair fica no cartão Sua conta, com alvo de 44px e cor destrutiva', () => {
       const button = q<HTMLButtonElement>('[data-logout]')!;
-      expect(button.className).toContain('min-h-12');
-      expect(button.className).toContain('env(safe-area-inset-bottom)');
-
-      const controls = Array.from(
-        root().querySelectorAll<HTMLElement>('button, a[href], input, select'),
-      );
-      expect(controls.at(-1)).toBe(button);
+      expect(button.closest('section')?.textContent).toContain('Sua conta');
+      expect(button.className).toContain('min-h-11');
+      expect(button.className).toContain('text-rose-700');
     });
 
     it('leva ao suporte', () => {

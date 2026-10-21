@@ -5,7 +5,8 @@
   (keydown)="onKeydown($event)"
   class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none">
   <div #panel tabindex="-1"
-    class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-lg
+    [class]="panelWidth()"
+    class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full
            max-h-[90dvh] flex flex-col pointer-events-auto overflow-hidden focus:outline-none">
 
     <div class="flex items-start gap-3 px-4 sm:px-6 pt-5 sm:pt-6 pb-3">
@@ -31,11 +32,15 @@
       <ng-content />
     </div>
 
-    <div class="flex justify-end px-4 sm:px-6 py-3 sm:py-4 bg-neutral-50 border-t border-neutral-100">
+    <div class="flex justify-end gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-neutral-50 border-t border-neutral-100">
+      <!-- Ações de quem abriu (opcional). Sem elas, o rodapé é só o botão de fechar. -->
+      <ng-content select="[dialogActions]" />
+      @if (showCloseAction()) {
       <button type="button" (click)="onClose()"
         class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-white border border-neutral-200 hover:bg-neutral-100 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 cursor-pointer">
         {{ closeLabel() }}
       </button>
+      }
     </div>
   </div>
 </div>

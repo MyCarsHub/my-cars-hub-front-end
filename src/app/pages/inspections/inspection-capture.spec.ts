@@ -219,20 +219,6 @@ describe('InspectionCapture', () => {
    * A REGRA DO DONO, 21/09: "O motorista deve somente tirar foto NO MOMENTO. O dono e o
    * gerenciador podem tirar foto OU escolher da galeria."
    */
-  it('MOTORISTA nao tem galeria — so camera', () => {
-    role = 'DRIVER';
-    configure({}, { vehicleId: 'veh-1' });
-    const fixture = render();
-
-    expect(galleryInputs(fixture)).toBe(0);
-    // A camera continua disponivel: o alvo de cada quadro nomeia o angulo no `aria-label`,
-    // porque o rotulo visivel agora e a propria miniatura.
-    const alvos = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('button[aria-label]'),
-    ).map((b) => b.getAttribute('aria-label'));
-    expect(alvos.some((l) => (l ?? '').startsWith('Fotografar: '))).toBe(true);
-  });
-
   it('OWNER e MANAGER tem galeria em cada angulo', () => {
     for (const actor of ['OWNER', 'MANAGER']) {
       role = actor;
@@ -443,25 +429,6 @@ describe('InspectionCapture', () => {
       expect(shown).not.toContain('Vistoria enviada');
       // O botao FICA: falha de envio e retentavel, e o trabalho nao se perdeu.
       expect(submitButton(fixture)).not.toBeNull();
-    });
-
-    /**
-     * O backend ainda recusa o MOTORISTA em `submit` enquanto o recorte dele nao
-     * sobe. Isso e ESPERADO — a tela explica a regra em vez de mascarar o 403 ou
-     * fingir que enviou.
-     */
-    it('403 no envio explica a regra em vez de erro cru', () => {
-      role = 'DRIVER';
-      const fixture = renderComplete();
-      submit.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
-
-      typeOdometer(fixture);
-      submitButton(fixture)?.click();
-      fixture.detectChanges();
-
-      const shown = text(fixture);
-      expect(shown).not.toContain('Vistoria enviada');
-      expect(shown.toLowerCase()).toContain('permiss');
     });
 
     // ================= O HODOMETRO ATUAL, pedido antes de enviar =================
@@ -1130,6 +1097,275 @@ describe('InspectionCapture', () => {
       expect(
         (fixture.nativeElement as HTMLElement).querySelector('[data-retry-upload]'),
       ).toBeNull();
+    });
+  });
+
+  // ============ MOTORISTA: a captura guiada do prototipo ("Motorista Vistorias") ============
+  /**
+   * O motorista ve UM angulo por tela, depois o hodometro, a revisao e o envio. Por baixo e
+   * o mesmo componente: o disparo abre a camera ao vivo e cada foto sobe na hora.
+   */
+  describe('motorista: captura guiada', () => {
+    const el = (fixture: ComponentFixture<InspectionCapture>) =>
+      fixture.nativeElement as HTMLElement;
+    const q = <T extends Element = HTMLElement>(
+      fixture: ComponentFixture<InspectionCapture>,
+      selector: string,
+    ) => el(fixture).querySelector<T>(selector);
+
+    function open(detail: Partial<Inspection> = {}, query: Record<string, string> = {}) {
+      role = 'DRIVER';
+      configure({ id: 'insp-1' }, query);
+      getOne.mockReturnValue(of({ ...inspection, ...detail }));
+      return render();
+    }
+
+    function typeKm(fixture: ComponentFixture<InspectionCapture>, value: string): void {
+      const input = q<HTMLInputElement>(fixture, '[data-wizard-km]')!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
+
+    it('mostra um angulo por tela, comecando pelo primeiro sem foto', () => {
+      const fixture = open({ capturedAngles: ['FRONT'] });
+
+      expect(q(fixture, 'app-driver-inspection-wizard')).not.toBeNull();
+      expect(q(fixture, '[data-wizard-step]')?.textContent?.trim()).toBe('Foto 2 de 3');
+      expect(q(fixture, '[data-wizard-angle]')?.textContent?.trim()).toBe('Traseira');
+      expect(q(fixture, '[data-wizard-title]')?.textContent?.trim()).toBe('Vistoria');
+      // A grade do dono nao aparece para ele.
+      expect(q(fixture, '[data-submit-inspection]')).toBeNull();
+    });
+
+    it('o disparo abre a camera ao vivo do angulo da tela', () => {
+      const fixture = open();
+
+      q<HTMLButtonElement>(fixture, '[data-shutter]')!.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, 'app-live-camera-sheet')).not.toBeNull();
+      expect(q(fixture, 'app-live-camera-sheet [role="dialog"]')?.getAttribute('aria-label')).toBe(
+        'Frente',
+      );
+    });
+
+    it('a foto tirada sobe na hora e "Usar foto" leva ao proximo angulo', async () => {
+      const fixture = open();
+      uploadPhoto.mockReturnValue(of({ ...inspection, capturedAngles: ['FRONT'] }));
+      q<HTMLButtonElement>(fixture, '[data-shutter]')!.click();
+      fixture.detectChanges();
+
+      fixture.debugElement
+        .query((d) => d.name === 'app-live-camera-sheet')
+        .triggerEventHandler('captured', new File(['x'], 'f.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+
+      expect(uploadPhoto).toHaveBeenCalledWith('insp-1', 'FRONT', expect.any(File));
+      expect(q(fixture, '[data-use-photo]')).not.toBeNull();
+      q<HTMLButtonElement>(fixture, '[data-use-photo]')!.click();
+      fixture.detectChanges();
+      expect(q(fixture, '[data-wizard-angle]')?.textContent?.trim()).toBe('Traseira');
+    });
+
+    it('com todas as fotos, pede o hodometro e recusa valor menor que o ultimo registro', () => {
+      const fixture = open({
+        capturedAngles: ['FRONT', 'BACK', 'LEFT'],
+        previousOdometerKm: 41250,
+      });
+
+      expect(q(fixture, '[data-wizard-km]')).not.toBeNull();
+      expect(el(fixture).textContent).toContain('41.250');
+
+      q<HTMLButtonElement>(fixture, '[data-wizard-continue]')!.click();
+      fixture.detectChanges();
+      expect(q(fixture, '[data-wizard-km-error]')?.textContent).toContain(
+        'Informe a quilometragem',
+      );
+
+      typeKm(fixture, '40000');
+      q<HTMLButtonElement>(fixture, '[data-wizard-continue]')!.click();
+      fixture.detectChanges();
+      expect(q(fixture, '[data-wizard-km-error]')?.textContent).toContain('menor que o último');
+      expect(submit).not.toHaveBeenCalled();
+    });
+
+    it('a revisao envia pelo MESMO submit, com o hodometro em km inteiros', () => {
+      const fixture = open({ capturedAngles: ['FRONT', 'BACK', 'LEFT'], previousOdometerKm: 41250 });
+
+      typeKm(fixture, '42318');
+      expect(q<HTMLInputElement>(fixture, '[data-wizard-km]')!.value).toBe('42.318');
+      q<HTMLButtonElement>(fixture, '[data-wizard-continue]')!.click();
+      fixture.detectChanges();
+
+      expect(el(fixture).querySelectorAll('[data-review-tile]').length).toBe(3);
+      expect(q(fixture, '[data-review-km]')?.textContent?.trim()).toBe('42.318 km');
+      q<HTMLButtonElement>(fixture, '[data-wizard-send]')!.click();
+      fixture.detectChanges();
+
+      expect(submit).toHaveBeenCalledWith('insp-1', { odometerKm: 42318 });
+      expect(q(fixture, '[data-wizard-done]')?.textContent).toContain('Vistoria enviada.');
+    });
+
+    it('MOTORISTA nao tem galeria — so camera', () => {
+      const fixture = open();
+
+      expect(galleryInputs(fixture)).toBe(0);
+      expect(q(fixture, '[data-shutter]')?.getAttribute('aria-label')).toBe('Tirar foto: Frente');
+    });
+
+    it('403 no envio explica a regra em vez de erro cru', () => {
+      const fixture = open({ capturedAngles: ['FRONT', 'BACK', 'LEFT'] });
+      submit.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+
+      typeKm(fixture, '82109');
+      q<HTMLButtonElement>(fixture, '[data-wizard-continue]')!.click();
+      fixture.detectChanges();
+      q<HTMLButtonElement>(fixture, '[data-wizard-send]')!.click();
+      fixture.detectChanges();
+
+      expect(text(fixture)).not.toContain('Vistoria enviada.');
+      expect(text(fixture).toLowerCase()).toContain('permiss');
+      expect(q(fixture, '[data-wizard-send]')).not.toBeNull();
+    });
+
+    it('recusada: mostra o motivo e "Refazer vistoria" chama o MESMO recapture', () => {
+      const fixture = open({ status: 'REJECTED', rejectionReason: 'Painel tremido.' });
+
+      expect(q(fixture, '[data-wizard-reason]')?.textContent).toContain('Painel tremido.');
+      q<HTMLButtonElement>(fixture, '[data-wizard-redo]')!.click();
+
+      expect(recapture).toHaveBeenCalledWith('insp-1');
+    });
+
+    it('abrir a recusada (mesmo com ?refazer=1 velho na URL) NAO refaz sozinho', () => {
+      const fixture = open({ status: 'REJECTED' }, { refazer: '1' });
+
+      expect(recapture).not.toHaveBeenCalled();
+      expect(q(fixture, '[data-wizard-redo]')).not.toBeNull();
+    });
+
+    it('sem ?refazer=1 a recusada NAO e refeita sozinha', () => {
+      open({ status: 'REJECTED' });
+
+      expect(recapture).not.toHaveBeenCalled();
+    });
+
+    it('sair pede confirmacao e o foco fica em continuar', () => {
+      const fixture = open({ capturedAngles: ['FRONT'] });
+
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, '[data-exit-dialog]')?.textContent).toContain('Sua foto já foi enviada');
+      expect(document.activeElement).toBe(q(fixture, '[data-exit-stay]'));
+      q<HTMLButtonElement>(fixture, '[data-exit-stay]')!.click();
+      fixture.detectChanges();
+      expect(q(fixture, '[data-exit-dialog]')).toBeNull();
+    });
+
+    it('Esc fecha o dialogo de saida com o foco em qualquer lugar, e o foco volta ao X', async () => {
+      const fixture = open({ capturedAngles: ['FRONT'] });
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+      const section = q(fixture, '[data-wizard]')!.closest('section')!;
+      expect(section.hasAttribute('inert')).toBe(true);
+
+      // jsdom does not implement `inert`, so "did the focus land?" is not enough: record
+      // whether the X was still inside the inert section WHEN it was focused. A focus call
+      // made before change detection (a microtask, in this zoneless app) is lost on a phone.
+      const exit = q<HTMLButtonElement>(fixture, '[data-exit]')!;
+      const inertAtFocus: boolean[] = [];
+      const realFocus = exit.focus.bind(exit);
+      exit.focus = (options?: FocusOptions) => {
+        inertAtFocus.push(section.hasAttribute('inert'));
+        realFocus(options);
+      };
+
+      (document.activeElement as HTMLElement | null)?.blur();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      // No detectChanges here: the app's own scheduler decides the order, as in production.
+      await fixture.whenStable();
+
+      expect(q(fixture, '[data-exit-dialog]')).toBeNull();
+      expect(section.hasAttribute('inert')).toBe(false);
+      expect(inertAtFocus).toEqual([false]);
+      expect(document.activeElement).toBe(exit);
+    });
+
+    it('Tab fica preso no dialogo de saida', () => {
+      const fixture = open({ capturedAngles: ['FRONT'] });
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+      const leave = q<HTMLButtonElement>(fixture, '[data-exit-leave]')!;
+      leave.focus();
+
+      q(fixture, '[data-exit-dialog]')!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
+      );
+
+      expect(document.activeElement).toBe(q(fixture, '[data-exit-stay]'));
+    });
+
+    it('sair avisa que a foto que falhou no envio vai se perder', async () => {
+      const fixture = open();
+      uploadPhoto.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+      q<HTMLButtonElement>(fixture, '[data-shutter]')!.click();
+      fixture.detectChanges();
+      fixture.debugElement
+        .query((dbg) => dbg.name === 'app-live-camera-sheet')
+        .triggerEventHandler('captured', new File(['x'], 'f.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+      expect(q(fixture, '[data-wizard-retry]')).not.toBeNull();
+
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, '[data-exit-lost]')?.textContent).toContain(
+        'A foto de Frente não foi enviada e será perdida se você sair.',
+      );
+    });
+
+    it('sair com uma foto ainda subindo avisa que ela pode se perder', async () => {
+      const fixture = open();
+      uploadPhoto.mockReturnValue(new Subject());
+      q<HTMLButtonElement>(fixture, '[data-shutter]')!.click();
+      fixture.detectChanges();
+      fixture.debugElement
+        .query((dbg) => dbg.name === 'app-live-camera-sheet')
+        .triggerEventHandler('captured', new File(['x'], 'f.jpg', { type: 'image/jpeg' }));
+      await flush(fixture);
+
+      q<HTMLButtonElement>(fixture, '[data-exit]')!.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, '[data-exit-lost]')?.textContent).toContain(
+        'A foto de Frente ainda está sendo enviada e pode se perder se você sair agora.',
+      );
+    });
+
+    it('colar "42318.5" no hodometro vira 42.318, nao 423.185', () => {
+      const fixture = open({ capturedAngles: ['FRONT', 'BACK', 'LEFT'] });
+      const input = q<HTMLInputElement>(fixture, '[data-wizard-km]')!;
+      const paste = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, 'clipboardData', {
+        value: { getData: () => '42318.5' },
+      });
+
+      input.dispatchEvent(paste);
+      fixture.detectChanges();
+
+      expect(paste.defaultPrevented).toBe(true);
+      expect(input.value).toBe('42.318');
+    });
+
+    it('o dono continua com a grade de sempre', () => {
+      role = 'OWNER';
+      configure({ id: 'insp-1' }, {});
+      const fixture = render();
+
+      expect(q(fixture, 'app-driver-inspection-wizard')).toBeNull();
+      expect(text(fixture)).toContain('0 de 3 fotos');
     });
   });
 });

@@ -66,6 +66,9 @@
         Ver aluguel
       </a>
     </section>
+
+    <!-- "Aluguel da semana": a próxima cobrança e "Como pagar", que leva ao aluguel (onde se paga). -->
+    <app-driver-next-charge [rentalId]="rental.rentalId" />
   }
 
   @if (isEmpty()) {

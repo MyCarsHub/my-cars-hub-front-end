@@ -259,6 +259,29 @@ describe('RentalProgressChecklist step derivation', () => {
     fixture.detectChanges();
     expect(rentalService.loadRentalState).toHaveBeenCalledWith('rid');
   });
+
+  describe('passo "Iniciar locação" para o motorista (canActivateAction = false)', () => {
+    const activate = (fixture: any) =>
+      (fixture.componentInstance as any).steps().find((s: any) => s.key === 'ACTIVATE');
+
+    it('aguardando pagamento: texto sem nome de provedor e sem "marque como ativo"', () => {
+      const fixture = makeComponent('RESERVED', true);
+      fixture.componentRef.setInput('canActivateAction', false);
+      fixture.detectChanges();
+
+      expect(activate(fixture).description).toBe('Ativa sozinho quando o pagamento for confirmado.');
+      expect(activate(fixture).showActionButton).toBe(false);
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Asaas');
+    });
+
+    it('o operador segue com o texto de sempre, nome do provedor e botão', () => {
+      const fixture = makeComponent('RESERVED', true);
+      fixture.detectChanges();
+
+      expect(activate(fixture).description).toContain('confirmado no Asaas');
+      expect(activate(fixture).showActionButton).toBe(true);
+    });
+  });
 });
 
 describe('RentalProgressChecklist accordion behavior', () => {

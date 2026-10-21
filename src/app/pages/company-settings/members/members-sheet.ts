@@ -120,9 +120,10 @@ export class MembersSheet {
   /**
    * Largura da folha a partir de `sm`: `md` (448px, a das folhas de membros), `lg` (520px,
    * o dialogo de agendamento de vistorias) e `xl` (560px, o visualizador de fotos). Abaixo
-   * de `sm` a folha e sempre a largura toda.
+   * de `sm` a folha e sempre a largura toda. `form` (480px) e o popup de lancamento do
+   * motorista (Ganhos, Custos e o Lancar do Dashboard), medida do prototipo do dono.
    */
-  readonly size = input<'md' | 'lg' | 'xl'>('md');
+  readonly size = input<'md' | 'lg' | 'xl' | 'form'>('md');
   /** `strong` escurece mais o fundo — o visualizador de foto, que quer a imagem em foco. */
   readonly scrim = input<'default' | 'strong'>('default');
 
@@ -133,6 +134,8 @@ export class MembersSheet {
         return 'sm:max-w-[560px]';
       case 'lg':
         return 'sm:max-w-[520px]';
+      case 'form':
+        return 'sm:max-w-[480px]';
       default:
         return 'sm:max-w-md';
     }

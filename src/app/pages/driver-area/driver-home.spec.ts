@@ -7,6 +7,7 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiErrorService } from '../../services/api-error.service';
 import { DriverLedgerService } from '../../services/driver-ledger.service';
+import { DriverRentalChargesService } from '../../services/driver-rental-charges.service';
 import { DriverDashboard, LedgerEntry } from '../../types/driver-ledger.types';
 import { DriverEntryEditor } from './driver-entry-editor';
 import { DriverHome } from './driver-home';
@@ -69,6 +70,7 @@ describe('DriverHome', () => {
   let fixture: ComponentFixture<DriverHome>;
   let dashboardCall: ReturnType<typeof vi.fn>;
   let listCall: ReturnType<typeof vi.fn>;
+  let chargesCall: ReturnType<typeof vi.fn>;
 
   const root = () => fixture.nativeElement as HTMLElement;
   const text = () => (root().textContent ?? '').replace(/\s+/g, ' ');
@@ -81,12 +83,14 @@ describe('DriverHome', () => {
   } = {}): void {
     dashboardCall = vi.fn(opts.dashboard ?? (() => of(dashboard())));
     listCall = vi.fn(opts.list ?? (() => of(page([entry()]))));
+    chargesCall = vi.fn(() => of([]));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         provideNoopAnimations(),
         ApiErrorService,
         { provide: DriverLedgerService, useValue: { dashboard: dashboardCall, list: listCall } },
+        { provide: DriverRentalChargesService, useValue: { list: chargesCall } },
       ],
     });
     fixture = TestBed.createComponent(DriverHome);
@@ -241,6 +245,41 @@ describe('DriverHome', () => {
       expect(flat(card)).toContain('Fiat Argo');
       expect(flat(card)).toContain('desde 01/09/2026');
       expect(card.querySelector('a')!.getAttribute('href')).toBe('/alugueis/r-7');
+    });
+
+    it('traz o card "Aluguel da semana" do aluguel ativo, pelo endpoint do motorista', () => {
+      build({
+        dashboard: () =>
+          of(
+            dashboard({
+              activeRental: {
+                rentalId: 'r-7',
+                vehicleId: 'v-1',
+                plate: 'ABC1D23',
+                brand: 'Fiat',
+                model: 'Argo',
+                startDate: '2026-09-01',
+                endDate: null,
+              },
+            }),
+          ),
+      });
+
+      const card = q('[data-driver-next-charge]')!;
+      expect(card).not.toBeNull();
+      expect(flat(card)).toContain('Aluguel da semana');
+      expect(chargesCall).toHaveBeenCalledTimes(1);
+      expect(chargesCall).toHaveBeenCalledWith('r-7');
+      // Sem cobrança em aberto: diz isso e leva ao aluguel, nunca paga daqui.
+      expect(flat(card)).toContain('Nenhuma cobrança em aberto');
+      expect(card.querySelector('[data-how-to-pay]')!.getAttribute('href')).toBe('/alugueis/r-7');
+    });
+
+    it('sem aluguel ativo, não há card de cobrança nem chamada', () => {
+      build();
+
+      expect(q('[data-driver-next-charge]')).toBeNull();
+      expect(chargesCall).not.toHaveBeenCalled();
     });
 
     it('sem aluguel ativo o cartão não existe', () => {

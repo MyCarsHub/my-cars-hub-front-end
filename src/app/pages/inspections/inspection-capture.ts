@@ -41,6 +41,8 @@ import { formatKm } from './inspection-view';
 // exatamente o que esta tela precisa.
 import { LiveCameraSheet } from '../rentals/documents/live-camera-sheet';
 import { angleLabel } from './angle-label';
+import { DriverInspectionWizard, WizardSlot } from './driver/driver-inspection-wizard';
+import { INSPECTIONS_ROOT } from './driver/driver-inspection-guide';
 
 /**
  * Teto de uma foto, igual ao do backend (8 MB). A compressao no cliente reduz uma
@@ -129,6 +131,7 @@ const STATUS_TITLES: Readonly<Record<InspectionStatus, string>> = {
     LiveCameraSheet,
     FormField,
     FieldControl,
+    DriverInspectionWizard,
   ],
   templateUrl: './inspection-capture.html',
 })
@@ -140,6 +143,15 @@ export class InspectionCapture implements OnInit, OnDestroy {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly compression = inject(ImageCompressionService);
   private readonly destroyRef = inject(DestroyRef);
+  /** Where the inspection screens live (`/vistorias`; the local demo mounts them elsewhere). */
+  protected readonly root = inject(INSPECTIONS_ROOT);
+
+  /**
+   * The DRIVER gets the guided, one-angle-per-screen capture of the owner's prototype
+   * (`DriverInspectionWizard`). It is a PRESENTATION over this same component: the camera,
+   * the compression, the upload, the redo and the submit below are the ones both roles use.
+   */
+  protected readonly isDriver = this.session.getCompanyRoleFromToken() === 'DRIVER';
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -347,6 +359,40 @@ export class InspectionCapture implements OnInit, OnDestroy {
     return angle ? angleLabel(angle) : '';
   });
 
+  /** The same slots, in the shape the driver's guided capture draws. */
+  protected readonly wizardSlots = computed<WizardSlot[]>(() =>
+    this.slots().map((slot) => ({
+      angle: slot.angle,
+      label: slot.label,
+      done: slot.done,
+      thumbUrl: slot.previewUrl || slot.signedUrl,
+      uploading: slot.uploading,
+      phase: slot.phase,
+      failure: slot.failure,
+      canRetry: slot.canRetry,
+    })),
+  );
+
+  /** The vehicle's last odometer record, when the server knows it. */
+  protected readonly previousKm = computed(() => {
+    const value = this.inspection()?.previousOdometerKm;
+    return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
+  });
+
+  /**
+   * The driver's send: the guided capture already validated the reading, and it goes through
+   * the SAME field and the SAME `submitInspection` as the other roles.
+   */
+  protected submitFromWizard(km: number): void {
+    this.odometerControl.setValue(String(km));
+    this.submitInspection();
+  }
+
+  /** "Sair e continuar depois": every photo is already on the server, so leaving loses nothing. */
+  protected leaveWizard(): void {
+    void this.router.navigateByUrl(this.root);
+  }
+
   ngOnInit(): void {
     // O id vem do OBSERVAVEL e nao so do snapshot: depois de `recapture` a URL troca de
     // `/vistorias/A/captura` para `/vistorias/B/captura`, e o Angular REUSA esta
@@ -399,7 +445,7 @@ export class InspectionCapture implements OnInit, OnDestroy {
    */
   private goTo(id: string): void {
     this.router
-      .navigate(['/vistorias', id, 'captura'], { replaceUrl: true })
+      .navigate([this.root, id, 'captura'], { replaceUrl: true })
       .then((ok) => {
         if (!ok) this.uploadError.set(NAV_FAILED_MESSAGE);
       })

@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { AppShell } from './app-shell';
+import { LayoutStore } from './layout.store';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { SessionService } from '../../../services/session.service';
 import { NotificationFeedService } from '../../../services/notification-feed.service';
@@ -212,5 +213,112 @@ describe('AppShell — paywall por papel', () => {
     configure('MANAGER', false);
     const fixture = render();
     expect(dialog(fixture.nativeElement as HTMLElement)).toBeNull();
+  });
+});
+
+/**
+ * A barra de topo do MOTORISTA abaixo de lg (protótipo do dono). O que mais pode regredir o
+ * dono e o gerente mora aqui — `flex-col`, `--page-top`, a barra montada — então os dois lados
+ * são medidos no shell de verdade, não só no `Sidebar`.
+ */
+describe('AppShell — barra de topo do motorista', () => {
+  function configure(role: string): void {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [AppShell],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: () => null,
+            setItem: () => void 0,
+            isOnboardingCompleted: () => true,
+            isPlatformAdmin: () => false,
+            getCompanyRoleFromToken: () => role,
+          },
+        },
+        { provide: ImpersonationService, useValue: { active: signal(false) } },
+        {
+          provide: BillingAccessService,
+          useValue: {
+            load: () => of(null),
+            isBlocked: signal(false),
+            reason: signal<string | null>(null),
+          },
+        },
+        {
+          provide: NotificationFeedService,
+          useValue: {
+            items: signal([]),
+            loading: signal(false),
+            error: signal<string | null>(null),
+            unreadCount: signal(0),
+            list: vi.fn().mockReturnValue(of({ content: [], page: 0, size: 10, total: 0 })),
+            markRead: vi.fn().mockReturnValue(of(void 0)),
+            markAllRead: vi.fn().mockReturnValue(of({ count: 0 })),
+            refreshUnreadCount: vi.fn().mockReturnValue(of({ count: 0 })),
+            startPolling: vi.fn(),
+            stopPolling: vi.fn(),
+          },
+        },
+      ],
+    });
+  }
+
+  /** O shell no celular: `ngOnInit` mede a janela, então o modo é forçado DEPOIS dele. */
+  function renderMobile(): HTMLElement {
+    const fixture = TestBed.createComponent(AppShell);
+    fixture.detectChanges();
+    TestBed.inject(LayoutStore).setMobile(true);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  const frame = (host: HTMLElement) => host.querySelector<HTMLElement>(':scope > div')!;
+  const bellRow = (host: HTMLElement) => host.querySelector<HTMLElement>('[data-bell-row]')!;
+
+  beforeEach(() => TestBed.resetTestingModule());
+
+  it('motorista no celular: barra no fluxo, coluna, --page-top do protótipo', () => {
+    configure('DRIVER');
+    const host = renderMobile();
+
+    expect(host.querySelector('app-driver-top-bar')).not.toBeNull();
+    expect(frame(host).classList.contains('flex-col')).toBe(true);
+    expect(frame(host).style.getPropertyValue('--page-top')).toBe('1.25rem');
+    // A barra é irmã ANTERIOR do <main>: o conteúdo começa abaixo dela.
+    expect(host.querySelector('app-driver-top-bar + app-sidebar + main')).not.toBeNull();
+  });
+
+  it('motorista no celular: o sino não soma o recorte de novo — alinha à --page-top', () => {
+    configure('DRIVER');
+    const host = renderMobile();
+    expect(bellRow(host).style.paddingTop).toBe('var(--page-top)');
+    // ...e reserva a coluna do sino (44px + 8px) no cabeçalho da página.
+    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('3.25rem');
+  });
+
+  it('dono no celular: sem barra, sem coluna, sem --page-top, sino como antes', () => {
+    configure('OWNER');
+    const host = renderMobile();
+
+    expect(host.querySelector('app-driver-top-bar')).toBeNull();
+    expect(frame(host).classList.contains('flex-col')).toBe(false);
+    expect(frame(host).style.getPropertyValue('--page-top')).toBe('');
+    expect(bellRow(host).style.paddingTop).toBe('');
+    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('');
+  });
+
+  it('motorista no desktop: sem barra (a sidebar de 260px é o menu)', () => {
+    configure('DRIVER');
+    const fixture = TestBed.createComponent(AppShell);
+    fixture.detectChanges();
+    TestBed.inject(LayoutStore).setMobile(false);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('app-driver-top-bar')).toBeNull();
+    expect(frame(host).style.getPropertyValue('--page-top')).toBe('');
   });
 });
