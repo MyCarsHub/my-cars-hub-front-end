@@ -75,8 +75,22 @@ function rentAccrued(rental: DriverRentalContext | null, from: string, to: strin
   return Math.round((daysBetween(first, last) + 1) * rentPerDay(rental.periodAmount, rental.periodDays));
 }
 
+/** RENTAL_FEE costs typed by the driver inside `from..to`. */
+function rentalFees(items: readonly LedgerItem[], from: string, to: string): number {
+  return items
+    .filter((i) => i.type === 'EXPENSE' && i.category === 'RENTAL_FEE' && i.date >= from && i.date <= to)
+    .reduce((s, i) => s + i.amount, 0);
+}
+
+/** The server's rent rule (faebbb59): max(estimate, typed RENTAL_FEE), never the sum. */
+function effectiveRent(items: readonly LedgerItem[], rental: DriverRentalContext | null, from: string, to: string, today: string): number {
+  return Math.max(rentAccrued(rental, from, to, today), rentalFees(items, from, to));
+}
+
+/** `rent` is the effective rent; the typed RENTAL_FEE leaves the costs so it counts once. */
 function efficiency(items: readonly LedgerItem[], from: string, to: string, today: string, rent: number): DriverEfficiency {
   const t = totals(items, from, to, today);
+  const fees = rentalFees(items, from, to);
   const income = items.filter((i) => i.type === 'INCOME' && i.date >= from && i.date <= to);
   const withRides = income.filter((i) => (i.rides ?? 0) > 0);
   const withHours = income.filter((i) => (i.hours ?? 0) > 0);
@@ -89,7 +103,7 @@ function efficiency(items: readonly LedgerItem[], from: string, to: string, toda
     avgPerRideCents: t.rides ? Math.round(sum(withRides) / t.rides) : null,
     perHourCents: t.hours ? Math.round(sum(withHours) / t.hours) : null,
     perKmCents: t.km ? Math.round(sum(withKm) / t.km) : null,
-    profitPerKmCents: t.km ? Math.round((t.gross - t.expenses - rent) / t.km) : null,
+    profitPerKmCents: t.km ? Math.round((t.gross - (t.expenses - fees) - rent) / t.km) : null,
   };
 }
 
@@ -116,9 +130,11 @@ export function simulateDashboard(
 ): DriverDashboardData {
   const cur = totals(items, from, to, today);
   const { from: prevFrom, to: prevTo } = previousWindow(from, to);
-  const rent = rentAccrued(rental, from, to, today);
+  const rent = effectiveRent(items, rental, from, to, today);
+  const fees = rentalFees(items, from, to);
   const td = totals(items, today, today, today);
-  const rentToday = rentAccrued(rental, today, today, today);
+  const rentToday = effectiveRent(items, rental, today, today, today);
+  const todayOther = totals(items, today, today, today).expenses - rentalFees(items, today, today);
   const inWindow = items.filter((i) => i.date >= from && i.date <= to);
 
   const byCategory = new Map<string, { totalCents: number; entryCount: number }>();
@@ -179,9 +195,9 @@ export function simulateDashboard(
     today: {
       date: today,
       incomeCents: td.gross,
-      expenseCents: td.expenses,
+      expenseCents: todayOther,
       rentAccruedCents: rentToday,
-      profitCents: td.gross - td.expenses - rentToday,
+      profitCents: td.gross - todayOther - rentToday,
       rides: td.rides,
       hours: td.hours,
       km: td.km,
@@ -189,12 +205,12 @@ export function simulateDashboard(
     },
     goals: simulateGoals(items, goal, today),
     efficiency: efficiency(items, from, to, today, rent),
-    previousEfficiency: efficiency(items, prevFrom, prevTo, today, rentAccrued(rental, prevFrom, prevTo, today)),
+    previousEfficiency: efficiency(items, prevFrom, prevTo, today, effectiveRent(items, rental, prevFrom, prevTo, today)),
     breakdown: {
       incomeCents: cur.gross,
-      expenseCents: cur.expenses,
+      expenseCents: cur.expenses - fees,
       rentAccruedCents: rent,
-      leftCents: cur.gross - cur.expenses - rent,
+      leftCents: cur.gross - (cur.expenses - fees) - rent,
     },
     incomeByApp: apps.filter((a) => a.entryCount > 0),
     weekdays: {
@@ -252,5 +268,5 @@ export function simulateCalendar(
     }
   }
   totalsOut.balanceCents = totalsOut.incomeCents - totalsOut.outflowCents - totalsOut.dueCents;
-  return { month: first, totals: totalsOut, days };
+  return { month: first, totals: totalsOut, days, truncated: false };
 }

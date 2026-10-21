@@ -203,4 +203,9 @@ export interface DriverCalendarData {
       status: string | null;
     }[];
   }[];
+  /**
+   * The month has more ledger entries than the server lists: `days[].items` (and the
+   * per-day sums) are partial; `totals` are still the whole month.
+   */
+  truncated: boolean;
 }

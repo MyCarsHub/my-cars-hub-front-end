@@ -436,6 +436,7 @@ export function toCalendar(raw: unknown, month: string): DriverCalendarData {
       dueCents: int(totals['dueCents']),
       balanceCents: int(totals['balanceCents']),
     },
+    truncated: r['truncated'] === true,
     days: arr(r['days']).map((d) => {
       const x = obj(d);
       return {
@@ -462,7 +463,8 @@ export function toCalendar(raw: unknown, month: string): DriverCalendarData {
 
 // ---------------------------------------------------------------- rental
 
-const PAID = new Set(['PAID']);
+/** Settled charges: PAID, and DISPUTED (the money already left — the server's rule too). */
+const PAID = new Set(['PAID', 'DISPUTED']);
 const RENT_KINDS = new Set(['RENTAL_PERIOD', 'RENTAL_TOTAL']);
 
 /**

@@ -229,12 +229,10 @@ function delta(current: number | null, previous: number | null) {
 const isoToJs = (iso: number) => iso % 7;
 
 /**
- * «Como estão seus números» from `/v1/driver/dashboard`.
- *
- * One correction on top of the server: when the driver typed the rent as a `RENTAL_FEE`
- * cost, the server's `breakdown` holds it in `expenseCents` AND accrues the estimated rent
- * in `rentAccruedCents`. The split shows the rent once — the larger of the two — and moves
- * the typed rent out of "Despesas".
+ * «Como estão seus números» from `/v1/driver/dashboard`, read AS SENT. The rent rule (the
+ * estimate versus a rent the driver typed as `RENTAL_FEE`) lives only on the server: its
+ * `breakdown` already keeps that cost out of `expenseCents` and puts the larger of the two
+ * in `rentAccruedCents`. Correcting it here too would subtract it twice.
  */
 export function periodModel(dash: DriverDashboardData) {
   const eff = dash.efficiency;
@@ -254,11 +252,9 @@ export function periodModel(dash: DriverDashboardData) {
   ];
 
   const b = dash.breakdown;
-  const fee =
-    dash.expenseByCategory.find((c) => c.category === RENT_EXPENSE_CATEGORY)?.totalCents ?? 0;
-  const otherExpenses = b.expenseCents - fee;
-  const rent = Math.max(fee, b.rentAccruedCents);
-  const net = b.incomeCents - otherExpenses - rent;
+  const otherExpenses = b.expenseCents;
+  const rent = b.rentAccruedCents;
+  const net = b.leftCents;
   const base = Math.max(b.incomeCents, otherExpenses + rent, 1);
   const per100 = (v: number) => (b.incomeCents ? `R$ ${Math.round((v / b.incomeCents) * 100)}` : '—');
   const rows = [
@@ -364,6 +360,7 @@ export function calendarModel(cal: DriverCalendarData | null, month: string, tod
     totalIn: t.incomeCents,
     totalOut: t.outflowCents + t.dueCents,
     balance: t.balanceCents,
+    truncated: cal?.truncated ?? false,
   };
 }
 
@@ -385,11 +382,22 @@ export function dayModel(cal: DriverCalendarData | null, date: string, rental: D
       case 'LEDGER_EXPENSE':
         return { kind: 'Despesa', label: expenseLabel(item.label), value: `- ${brl(item.amountCents)}`, tone: 'out', ledgerId: item.id };
       case 'CHARGE_PAID':
-        return { kind: 'Aluguel pago', label: rentLabel(rental), value: `- ${brl(item.amountCents)}`, tone: 'out', ledgerId: null };
+        return {
+          kind: item.status === 'DISPUTED' ? 'Pagamento em contestação' : 'Pago',
+          label: chargeLabel(item.label, rental),
+          value: `- ${brl(item.amountCents)}`,
+          tone: 'out',
+          ledgerId: null,
+        };
       case 'CHARGE_DUE':
         return {
-          kind: item.status === 'PAST_DUE' ? 'Cobrança em atraso' : 'Cobrança a vencer',
-          label: rentLabel(rental),
+          kind:
+            item.status === 'PAST_DUE'
+              ? 'Cobrança em atraso'
+              : item.status === 'FAILED'
+                ? 'Cobrança não emitida'
+                : 'Cobrança a vencer',
+          label: chargeLabel(item.label, rental),
           value: `- ${brl(item.amountCents)}`,
           tone: 'due',
           ledgerId: null,
@@ -406,7 +414,9 @@ export function dayModel(cal: DriverCalendarData | null, date: string, rental: D
   };
 }
 
-function rentLabel(rental: DriverRentalContext | null): string {
+/** `RENT` is the rent of the period; `OVERDUE_FEE` the late fee the rental company charges. */
+function chargeLabel(label: string, rental: DriverRentalContext | null): string {
+  if (label === 'OVERDUE_FEE') return 'Multa por atraso do aluguel';
   return rental ? `Aluguel · ${rental.vehicleLabel}` : 'Aluguel';
 }
 

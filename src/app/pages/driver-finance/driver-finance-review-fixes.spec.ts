@@ -6,7 +6,7 @@ import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { environment } from '../../../environments/environment';
 import { DriverDashboard } from './driver-dashboard';
-import { periodModel } from './driver-dashboard.model';
+import { calendarModel, dayModel, periodModel } from './driver-dashboard.model';
 import { previousWindow, simulateDashboard } from './driver-finance.simulator';
 import { DriverEarnings } from './driver-earnings';
 import { DriverExpenses } from './driver-expenses';
@@ -16,6 +16,8 @@ import {
   DriverFinanceSource,
   HttpDriverFinanceSource,
   LEDGER_PAGE_SIZE,
+  toCalendar,
+  toDashboard,
 } from './driver-finance.source';
 import { DriverGoalsPage } from './driver-goals';
 import { DriverRentalContext, LedgerItem } from './driver-finance.types';
@@ -259,6 +261,69 @@ describe('driver finance — review fixes', () => {
     it('N9 · a whole month is compared with the previous calendar month', () => {
       expect(previousWindow('2026-10-01', '2026-10-31')).toEqual({ from: '2026-09-01', to: '2026-09-30' });
       expect(previousWindow('2026-10-04', '2026-10-10')).toEqual({ from: '2026-09-27', to: '2026-10-03' });
+    });
+  });
+
+  describe('re-review N1, N2 — the rent rule lives on the server (backend faebbb59)', () => {
+    it('N1 · the split reads breakdown as sent: a RENTAL_FEE is not subtracted again', () => {
+      const dash = toDashboard(
+        {
+          totals: { incomeCents: 100000, expenseCents: 70000, netCents: 30000, entryCount: 2 },
+          expenseByCategory: [{ category: 'RENTAL_FEE', totalCents: 70000, entryCount: 1 }],
+          breakdown: { incomeCents: 100000, expenseCents: 0, rentAccruedCents: 70000, leftCents: 30000 },
+        },
+        '2026-10-01',
+        '2026-10-31',
+      );
+      const model = periodModel(dash);
+      const row = (key: string) => model.split.rows.find((r) => r.key === key)?.value;
+      expect(row('exp')).toBe('R$ 0,00');
+      expect(row('rent')).toBe('R$ 700,00');
+      expect(model.split.net).toBe('R$ 300,00');
+    });
+
+    it('N2 · the hero shows the server profit, rent counted once on a RENTAL_FEE day', () => {
+      source.contextValue = {
+        firstName: 'Carlos',
+        licenseExpiry: null,
+        rental: { vehicleLabel: 'Mobi', plate: null, periodAmount: 70000, periodDays: 7, startDate: '2026-10-01', nextCharge: null, charges: [] },
+      };
+      source.items = [income({ amount: 100000 }), expense({ category: 'RENTAL_FEE', amount: 70000, odometerKm: null })];
+      mount(DriverDashboard);
+      expect(text(q('[data-hero-net]'))).toBe('R$ 300,00');
+    });
+
+    it('calendar: OVERDUE_FEE, FAILED and DISPUTED read in Portuguese; truncated is flagged', () => {
+      const cal = toCalendar(
+        {
+          month: '2026-10-01',
+          totals: { incomeCents: 0, outflowCents: 0, dueCents: 0, balanceCents: 0 },
+          truncated: true,
+          days: [
+            {
+              date: '2026-10-13',
+              incomeCents: 0,
+              outflowCents: 1000,
+              dueCents: 2000,
+              items: [
+                { id: 'a', type: 'CHARGE_DUE', label: 'OVERDUE_FEE', amountCents: 1000, status: 'PENDING' },
+                { id: 'b', type: 'CHARGE_DUE', label: 'RENT', amountCents: 1000, status: 'FAILED' },
+                { id: 'c', type: 'CHARGE_PAID', label: 'RENT', amountCents: 1000, status: 'DISPUTED' },
+              ],
+            },
+          ],
+        },
+        '2026-10',
+      );
+      expect(cal.truncated).toBe(true);
+      expect(calendarModel(cal, '2026-10-01', TODAY).truncated).toBe(true);
+      const events = dayModel(cal, '2026-10-13', null).events;
+      expect(events.map((e) => `${e.kind} / ${e.label}`)).toEqual([
+        'Cobrança a vencer / Multa por atraso do aluguel',
+        'Cobrança não emitida / Aluguel',
+        'Pagamento em contestação / Aluguel',
+      ]);
+      expect(events.some((e) => e.label.includes('OVERDUE_FEE'))).toBe(false);
     });
   });
 
