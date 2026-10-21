@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { PLATFORM_ID } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -475,5 +476,63 @@ describe('LayoutStore durante uma sessão de impersonação', () => {
     await Promise.resolve();
 
     expect(navigateByUrl).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Quem decide se o shell é o do motorista: o papel do TOKEN (a fonte do menu e do
+ * `roleGuard`), nunca o espelho do tenant — e a barra de topo só abaixo de lg.
+ */
+describe('LayoutStore — shell do motorista', () => {
+  function storeFor(tokenRole: string | null, mirroredRole = 'OWNER'): LayoutStore {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: (key: string) =>
+              key === 'userCompanies'
+                ? JSON.stringify([{ companyId: 'c', companyName: 'X', role: mirroredRole }])
+                : key === 'selectedCompanyId'
+                  ? 'c'
+                  : null,
+            setItem: () => void 0,
+            removeItem: () => void 0,
+            isPlatformAdmin: () => false,
+            getCompanyRoleFromToken: () => tokenRole,
+          },
+        },
+      ],
+    });
+    return TestBed.inject(LayoutStore);
+  }
+
+  it('DRIVER no token: shell do motorista; barra só no celular', () => {
+    const layout = storeFor('DRIVER');
+    expect(layout.isDriverShell()).toBe(true);
+    layout.setMobile(false);
+    expect(layout.driverTopBar()).toBe(false);
+    layout.setMobile(true);
+    expect(layout.driverTopBar()).toBe(true);
+  });
+
+  it('OWNER, MANAGER ou sem papel: nunca a barra do motorista', () => {
+    for (const role of ['OWNER', 'MANAGER', null]) {
+      const layout = storeFor(role);
+      layout.setMobile(true);
+      expect(layout.isDriverShell()).toBe(false);
+      expect(layout.driverTopBar()).toBe(false);
+    }
+  });
+
+  it('o espelho do tenant dizendo DRIVER não decide: vale o token', () => {
+    const layout = storeFor('OWNER', 'DRIVER');
+    layout.setMobile(true);
+    expect(layout.selectedTenant().role).toBe('DRIVER');
+    expect(layout.driverTopBar()).toBe(false);
   });
 });

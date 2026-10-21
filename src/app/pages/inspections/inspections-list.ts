@@ -29,7 +29,13 @@ import {
 } from '../../types/inspection.types';
 import { INSPECTION_STATUS_META } from '../../utils/status-maps';
 import { InspectionSchedulesBlock } from './inspection-schedules-block/inspection-schedules-block';
-import { InspectionCardView, pluralize, toCardView } from './inspection-view';
+import { InspectionCardView, INSPECTION_ANGLE_TOTAL, pluralize, toCardView } from './inspection-view';
+import { INSPECTIONS_ROOT } from './driver/driver-inspection-guide';
+import {
+  DriverInspectionHero,
+  DriverInspectionItem,
+  DriverInspectionsHome,
+} from './driver/driver-inspections-home';
 
 /** O que cada filtro oferece. `ALL` nao vai para a query. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: InspectionStatus | 'ALL'; label: string }> = [
@@ -70,6 +76,7 @@ const VEHICLE_MAX_PAGES = 20;
 interface DriverVehicle {
   readonly vehicleId: string;
   readonly label: string;
+  readonly plate: string | null;
 }
 
 /** Os quatro tiles, na ordem do desenho. */
@@ -110,6 +117,7 @@ const KPI_TILES: readonly KpiTile[] = [
     AlertBanner,
     KpiCard,
     InspectionSchedulesBlock,
+    DriverInspectionsHome,
   ],
   templateUrl: './inspections-list.html',
 })
@@ -121,6 +129,8 @@ export class InspectionsList implements OnInit {
   private readonly session = inject(SessionService);
   private readonly rentals = inject(RentalService);
   private readonly destroyRef = inject(DestroyRef);
+  /** Where the inspection screens live (`/vistorias`; the local demo mounts them elsewhere). */
+  private readonly root = inject(INSPECTIONS_ROOT);
 
   /**
    * O MOTORISTA. Lido do TOKEN uma vez: o papel nao muda sem trocar de empresa, e trocar
@@ -319,6 +329,7 @@ export class InspectionsList implements OnInit {
           const car = [rental.vehicleBrand, rental.vehicleModel].filter(Boolean).join(' ');
           found.push({
             vehicleId: rental.vehicleId,
+            plate: rental.vehiclePlate?.trim() || null,
             label: [rental.vehiclePlate, car].filter(Boolean).join(' · ') || 'Veículo do aluguel',
           });
         }
@@ -353,7 +364,21 @@ export class InspectionsList implements OnInit {
       })
       // O servico ja grava a falha no signal `error` (banner inline) — reivindica o erro
       // para a rede de seguranca nao disparar toast duplo.
-      .subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+      .subscribe({
+        next: () => {
+          // The hero reads ONLY the first page (the most recent ones): page 2 holds old,
+          // already redone inspections and must not drive "what to do now".
+          if (this.isDriver && page === 0) {
+            this.heroCards.set(this.cards());
+            this.loadRejectionReason();
+          }
+        },
+        error: (err: unknown) => {
+          // Unknown is not "nothing open": without page 0 the hero offers nothing.
+          if (page === 0) this.heroCards.set(null);
+          this.apiErrors.claim(err);
+        },
+      });
   }
 
   // ---------------------------------------------------------------- eventos
@@ -420,7 +445,7 @@ export class InspectionsList implements OnInit {
    * motivo de uma recusa para refazer — as duas moram na tela de captura, nao no detalhe.
    */
   protected action(card: InspectionCardView): { label: string; link: string[] } {
-    const detail = ['/vistorias', card.id];
+    const detail = [this.root, card.id];
     if (this.isDriver) {
       if (card.status === 'PENDING') {
         return { label: 'Continuar vistoria', link: [...detail, 'captura'] };
@@ -487,10 +512,176 @@ export class InspectionsList implements OnInit {
     // A promessa NAO e descartada: guard que recusa deixaria a pessoa olhando uma tela que
     // nao mudou, sem nada a fazer.
     this.router
-      .navigate(['/vistorias', 'nova'], { queryParams: { vehicleId } })
+      .navigate([this.root, 'nova'], { queryParams: { vehicleId } })
       .then((ok) => {
         if (!ok) this.startError.set('Não foi possível abrir a tela de vistoria.');
       })
       .catch(() => this.startError.set('Não foi possível abrir a tela de vistoria.'));
   }
+
+  // ------------------------------------------------------- motorista (prototipo)
+
+  /**
+   * The refusal reason of the driver's LATEST inspection, for the hero. The list does not
+   * carry it, so it comes from the detail — only when the latest one is refused.
+   */
+  protected readonly latestRejection = signal<{ id: string; reason: string | null } | null>(null);
+
+  /**
+   * The cards of PAGE 0 — the driver's most recent inspections, newest first — as of the
+   * last successful load of that page. `null` = not known (never loaded, or that load failed).
+   */
+  protected readonly heroCards = signal<InspectionCardView[] | null>(null);
+
+  private loadRejectionReason(): void {
+    const latest = this.heroCards()?.[0];
+    if (!latest || latest.status !== 'REJECTED') {
+      this.latestRejection.set(null);
+      return;
+    }
+    if (this.latestRejection()?.id === latest.id) return;
+    this.latestRejection.set({ id: latest.id, reason: null });
+    this.service.getOne(latest.id).subscribe({
+      next: (found) =>
+        this.latestRejection.set({ id: latest.id, reason: found.rejectionReason?.trim() || null }),
+      // Without the reason the hero still says what to do; the capture screen shows it.
+      error: (err: unknown) => this.apiErrors.claim(err),
+    });
+  }
+
+  protected readonly driverState = computed<'loading' | 'error' | 'ready'>(() =>
+    this.loading() ? 'loading' : this.error() ? 'error' : 'ready',
+  );
+
+  /** The cards of "Minhas vistorias", in the prototype's shape. */
+  protected readonly driverItems = computed<DriverInspectionItem[]>(() =>
+    this.cards().map((card) => {
+      const act = this.driverAction(card);
+      const meta = [card.kind, card.date].filter(Boolean).join(' · ');
+      const photos =
+        card.status === 'PENDING' && card.photos
+          ? ` · ${card.photos.got}/${card.photos.total} fotos`
+          : '';
+      return {
+        id: card.id,
+        plate: card.plate,
+        model: card.model,
+        statusLabel: this.statusLabel(card.status),
+        chipClass: this.chipClass(card.status),
+        meta: meta + photos,
+        note:
+          card.status === 'REJECTED'
+            ? 'Precisa refazer'
+            : card.status === 'APPROVED'
+              ? 'Laudo em PDF disponível'
+              : null,
+        noteTone:
+          card.status === 'REJECTED' ? 'rose' : card.status === 'APPROVED' ? 'emerald' : null,
+        photoUrl: this.photoFor(card),
+        actionLabel: act.label,
+        actionLink: act.link,
+      };
+    }),
+  );
+
+  /** The driver opens the details; the one in progress goes straight back to the camera. */
+  private driverAction(card: InspectionCardView): { label: string; link: string[] } {
+    return card.status === 'PENDING'
+      ? { label: 'Continuar vistoria', link: [this.root, card.id, 'captura'] }
+      : { label: 'Ver detalhes', link: [this.root, card.id] };
+  }
+
+  /**
+   * The ONE thing to do now, in this order: continue the one in progress, redo the refused
+   * one, wait for the company, start one for the active rental's car, or nothing.
+   * `null` = still loading what the answer depends on.
+   */
+  protected readonly driverHero = computed<DriverInspectionHero | null>(() => {
+    // Unknown while the first page is loading or failed: the list's error banner (with
+    // "Tentar novamente") is the state. Never "Começar" over an inspection we could not see.
+    const cards = this.heroCards();
+    if (cards === null) return null;
+    const total = INSPECTION_ANGLE_TOTAL;
+
+    const pending = cards.find((c) => c.status === 'PENDING');
+    if (pending) {
+      const got = pending.photos?.got;
+      return {
+        tone: 'primary',
+        label: 'Vistoria em andamento',
+        title: `Vistoria do ${pending.plate}`,
+        sub:
+          typeof got === 'number'
+            ? `${got} de ${total} fotos tiradas. Continue de onde parou.`
+            : 'Continue de onde parou.',
+        actions: [{ label: 'Continuar vistoria', link: [this.root, pending.id, 'captura'] }],
+      };
+    }
+
+    const latest = cards[0];
+    if (latest?.status === 'REJECTED') {
+      const rejection = this.latestRejection();
+      const reason = rejection?.id === latest.id ? rejection.reason : null;
+      return {
+        tone: 'rose',
+        label: 'Vistoria recusada',
+        title: `Refaça a vistoria do ${latest.plate}`,
+        sub: reason
+          ? `Motivo: ${reason}`
+          : 'A locadora pediu para refazer as fotos. Comece de novo pelo botão abaixo.',
+        actions: [
+          // Opens the refused inspection in the guided capture; the redo itself is one more,
+          // deliberate tap there ("Refazer vistoria"), never a side effect of the link.
+          { label: 'Refazer vistoria', link: [this.root, latest.id, 'captura'] },
+        ],
+      };
+    }
+    if (latest?.status === 'SUBMITTED') {
+      return {
+        tone: 'emerald',
+        label: 'Vistoria enviada',
+        title: 'Aguardando a locadora',
+        sub: 'Você recebe um aviso assim que ela aprovar ou pedir ajustes.',
+        actions: [],
+      };
+    }
+
+    if (this.driverVehiclesState() !== 'ready') return null;
+    const cars = this.driverVehicles();
+    if (cars.length === 0) {
+      return {
+        tone: 'neutral',
+        label: 'Sem aluguel ativo',
+        title: 'Nenhuma vistoria para fazer agora',
+        sub:
+          'A vistoria é feita no carro de um aluguel ativo. Quando a locadora liberar o carro, ' +
+          'ela aparece aqui.',
+        actions: [],
+      };
+    }
+    const single = cars.length === 1;
+    return {
+      tone: 'primary',
+      label: 'Vistoria do seu aluguel',
+      title: single && cars[0].plate ? `Vistoria do ${cars[0].plate}` : 'Vistoria do seu carro',
+      sub: `São ${total} fotos e o número do hodômetro. Leva uns 5 minutos.`,
+      actions: cars.map((car) => ({
+        label: single ? 'Começar vistoria' : `Começar vistoria · ${car.plate ?? car.label}`,
+        vehicleId: car.vehicleId,
+      })),
+    };
+  });
+
+  /** The hero's own failure: only when the answer depended on the active rental. */
+  protected readonly driverHeroError = computed(() =>
+    this.driverHero() === null &&
+    this.heroCards() !== null &&
+    this.driverVehiclesState() === 'error'
+      ? 'Não conseguimos achar o seu aluguel ativo agora.'
+      : null,
+  );
+
+  protected readonly driverPageLabel = computed(
+    () => `${this.countLabel()} — página ${this.pageNumber()} de ${this.totalPages()}`,
+  );
 }

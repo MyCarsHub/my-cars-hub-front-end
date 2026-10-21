@@ -114,6 +114,18 @@ export class LayoutStore {
       this.pendingInvites().length > 0,
   );
 
+  /**
+   * O shell é o do MOTORISTA? Papel do TOKEN, a mesma fonte do menu (`sidebar.ts`) e do
+   * `roleGuard`; o tenant é lido só como gatilho para reavaliar depois de trocar de empresa.
+   */
+  readonly isDriverShell = computed(() => {
+    this.selectedTenant();
+    return this.sessionService.getCompanyRoleFromToken() === 'DRIVER';
+  });
+
+  /** Abaixo de `lg` o motorista tem a barra de topo do protótipo (`DriverTopBar`). */
+  readonly driverTopBar = computed(() => this.isMobile() && this.isDriverShell());
+
   /** Current sidebar width token for animations */
   readonly sidebarWidth = computed(() => (this.isCollapsed() ? '72px' : '260px'));
 

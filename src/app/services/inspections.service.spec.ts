@@ -215,6 +215,38 @@ describe('InspectionsService — vistorias v2', () => {
   const sentParams = (): HttpParams =>
     (get.mock.calls.at(-1)?.[1] as { params: HttpParams }).params;
 
+  describe('peek', () => {
+    it('le a MESMA rota com os mesmos filtros, sem reescrever o estado da lista', () => {
+      get.mockReturnValue(
+        of({ content: [{ id: 'x' }], page: 0, size: 1, total: 9 }),
+      );
+      let answer: unknown;
+
+      service.peek({ vehicleId: 'veh-1', page: 0, size: 1, sort: 'date,desc' }).subscribe((r) => {
+        answer = r;
+      });
+
+      expect(get.mock.calls.at(-1)?.[0]).toMatch(/\/inspections$/);
+      expect(sentParams().get('vehicleId')).toBe('veh-1');
+      expect(sentParams().get('size')).toBe('1');
+      expect(sentParams().get('sort')).toBe('date,desc');
+      expect(answer).toEqual(expect.objectContaining({ total: 9 }));
+      expect(service.items()).toEqual([]);
+      expect(service.total()).toBe(0);
+      expect(service.loading()).toBe(false);
+      expect(service.error()).toBeNull();
+    });
+
+    it('falha sem gravar erro no estado da lista', () => {
+      get.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      service.peek({ vehicleId: 'veh-1' }).subscribe({ error: () => undefined });
+
+      expect(service.error()).toBeNull();
+      expect(service.loading()).toBe(false);
+    });
+  });
+
   describe('list — q e sort', () => {
     it('leva a busca aparada como q', () => {
       service.list({ q: '  abc1d23  ' }).subscribe();

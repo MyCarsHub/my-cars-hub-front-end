@@ -1,0 +1,106 @@
+<app-detail-dialog
+  [open]="charge() !== null"
+  title="Pagar cobrança"
+  [subtitle]="subtitle()"
+  size="compact"
+  [showCloseAction]="false"
+  (closed)="close()"
+>
+  <div class="flex flex-col gap-4 pt-2" data-pay-sheet>
+    <div class="flex flex-col gap-0.5">
+      <span class="text-xs uppercase tracking-wide text-neutral-500">Valor a pagar</span>
+      <span class="text-3xl font-semibold leading-tight tracking-tight tabular-nums text-neutral-900" data-pay-value>
+        {{ amount() }}
+      </span>
+      @if (overdue()) {
+        <span class="text-[13px] leading-relaxed text-rose-700" data-pay-late>
+          Pode incluir multa e juros por atraso.
+        </span>
+      }
+    </div>
+
+    @if (pixPayload(); as payload) {
+        @if (pixQr(); as qr) {
+          <!-- O QR só aparece onde cabe e faz sentido (tela de tablet/computador): no celular, quem paga
+               é o próprio aparelho, e o copia e cola é o que importa. -->
+          <img [src]="qr" alt="QR code do Pix" width="160" height="160"
+            class="mx-auto hidden sm:block w-40 h-40 rounded-xl border border-neutral-200 bg-white p-2"
+            data-pix-qr />
+        }
+        <div role="group" aria-labelledby="driver-pix-label" class="flex flex-col gap-2">
+          <span id="driver-pix-label" class="text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Pix copia e cola
+          </span>
+          <p
+            #pixCode
+            class="m-0 rounded-xl border border-neutral-200 bg-neutral-50 p-3 font-mono text-xs leading-relaxed text-neutral-700 break-all"
+            data-pix-code
+          >{{ payload }}</p>
+          @if (pixValidUntil(); as until) {
+            <span class="text-xs text-neutral-500 tabular-nums" data-pix-valid>{{ until }}</span>
+          }
+          @if (copyHint(); as hint) {
+            <p role="status" class="text-sm text-neutral-800" data-copy-hint>{{ hint }}</p>
+          }
+        </div>
+    } @else if (pixError(); as message) {
+        <div class="flex flex-col gap-2" data-pix-error>
+          <app-alert-banner variant="error" [message]="message" />
+          @if (retryable()) {
+            <button type="button" (click)="retry()" [disabled]="retryIn() > 0"
+              class="self-start min-h-11 px-3 rounded-lg text-sm font-semibold text-primary-700 underline underline-offset-2 disabled:text-neutral-500 disabled:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer disabled:cursor-not-allowed"
+              data-pix-retry>
+              {{ retryIn() > 0 ? 'Tentar de novo em ' + retryIn() + ' s' : 'Tentar de novo' }}
+            </button>
+          }
+        </div>
+    } @else {
+        <div class="flex flex-col gap-2" role="status" aria-label="Gerando o código Pix" data-pix-loading>
+          <span class="text-xs font-medium uppercase tracking-wide text-neutral-500">Pix copia e cola</span>
+          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+        </div>
+    }
+
+    <p class="text-xs leading-relaxed text-neutral-500">
+      O pagamento é confirmado em até 1 minuto e o aluguel segue em dia. Pagou por fora? Avise a
+      locadora.
+    </p>
+  </div>
+
+  <div dialogActions class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+    @if (checkoutUrl() && !pixError()) {
+      <button
+        type="button"
+        (click)="openCheckout()"
+        [disabled]="linkLocked()"
+        class="min-h-12 w-full sm:w-auto px-5 rounded-xl border border-rule-contrast bg-white text-base font-semibold text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-60 cursor-pointer"
+        data-invoice
+      >
+        Ver fatura
+      </button>
+    }
+    @if (pixError()) {
+      @if (checkoutUrl()) {
+        <button
+          type="button"
+          (click)="openCheckout()"
+          [disabled]="linkLocked()"
+          class="min-h-12 w-full sm:w-auto px-5 rounded-xl bg-primary-500 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 cursor-pointer"
+          data-open-checkout
+        >
+          Abrir página de pagamento
+        </button>
+      }
+    } @else {
+      <button
+        type="button"
+        (click)="copy()"
+        [disabled]="!pixPayload()"
+        class="min-h-12 w-full sm:w-auto px-5 rounded-xl bg-primary-500 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 cursor-pointer"
+        data-copy
+      >
+        Copiar código Pix
+      </button>
+    }
+  </div>
+</app-detail-dialog>

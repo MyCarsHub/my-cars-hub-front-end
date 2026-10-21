@@ -56,9 +56,14 @@ const activatedRouteStub = {
  * fotos, assinatura). Todos são tolerantes a erro na tela; só o SHAPE importa —
  * as listas precisam ser arrays porque o service faz `.some()` nelas.
  */
+/** Os GETs que o último `flushAncillary` respondeu — para afirmar QUAL endpoint a tela chamou. */
+let lastAncillaryUrls: string[] = [];
+
 function flushAncillary(http: HttpTestingController): void {
+  lastAncillaryUrls = [];
   for (const req of http.match(() => true)) {
     if (req.request.method !== 'GET') continue;
+    lastAncillaryUrls.push(req.request.url);
     req.flush(req.request.url.includes('signature') ? null : []);
   }
 }
@@ -1678,10 +1683,69 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       expect(triggers(canceled.fixture).length).toBe(0);
     });
 
-    it('motorista não vê Conferir nem Sincronizar', async () => {
+    it('motorista (defesa: a rota dele é outra tela) não vê menu, cronograma nem caução do operador', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
 
-      expect(openFirstMenu(fixture)).toEqual(['Pagar (abrir cobrança)', 'Compartilhar']);
+      expect(triggers(fixture).length).toBe(0);
+      expect(text(fixture)).not.toContain('Cronograma de cobrança');
+      expect(text(fixture)).not.toContain('Conferir');
+      expect(text(fixture)).not.toContain('Sincronizar');
+      // As cobranças dele moram em `DriverRentalDetail` (FEAT-0361); esta tela não as pede.
+      expect(lastAncillaryUrls).not.toContain(`${BASE}/${RENTAL_ID}/charges`);
+    });
+
+    describe('o detalhe para o motorista é só de consulta', () => {
+      const labeled = (fixture: ComponentFixture<RentalDetail>, label: string) =>
+        Array.from(fixture.nativeElement.querySelectorAll('button, a') as NodeListOf<HTMLElement>)
+          .filter((el) => (el.textContent ?? '').trim() === label);
+
+      const WITH_NOTES = { notes: 'Obs do operador: cliente difícil' };
+
+      it('não vê as observações do operador, mas o dono vê', async () => {
+        const driver = await mountDetail(ACTIVE_AUTO([OPEN()], WITH_NOTES), { role: 'DRIVER' });
+        expect(text(driver.fixture)).not.toContain('Obs do operador');
+
+        const owner = await mountDetail(ACTIVE_AUTO([OPEN()], WITH_NOTES));
+        expect(text(owner.fixture)).toContain('Obs do operador');
+      });
+
+      it('não vê o nome do provedor: nem o chip da cobrança automática nem o texto do cabeçalho', async () => {
+        const driver = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
+        expect(text(driver.fixture)).not.toContain('Asaas');
+        expect(text(driver.fixture)).toContain('Contrato, pagamentos e histórico do seu aluguel.');
+
+        const owner = await mountDetail(ACTIVE_AUTO([OPEN()]));
+        expect(text(owner.fixture)).toContain('Cobrança automática via Asaas');
+        expect(text(owner.fixture)).toContain('Contrato, cobranças Asaas');
+      });
+
+      it('não vê Editar, Excluir, Cancelar, Concluir nem Marcar como ativo (o backend recusa)', async () => {
+        const reserved = await mountDetail({ ...RESERVED_BASE, status: 'RESERVED' }, { role: 'DRIVER' });
+        const active = await mountDetail(ACTIVE_AUTO([OPEN()]), { role: 'DRIVER' });
+
+        for (const { fixture } of [reserved, active]) {
+          for (const label of ['Editar', 'Excluir', 'Cancelar aluguel', 'Concluir aluguel', 'Marcar como ativo']) {
+            expect(labeled(fixture, label).length, label).toBe(0);
+          }
+        }
+      });
+
+      it('o dono segue vendo as ações do ciclo de vida', async () => {
+        const reserved = await mountDetail({ ...RESERVED_BASE, status: 'RESERVED' });
+        expect(labeled(reserved.fixture, 'Cancelar aluguel').length).toBe(1);
+        expect(labeled(reserved.fixture, 'Marcar como ativo').length).toBeGreaterThan(0);
+        expect(labeled(reserved.fixture, 'Editar').length).toBeGreaterThan(0);
+
+        const active = await mountDetail(ACTIVE_AUTO([OPEN()]));
+        expect(labeled(active.fixture, 'Concluir aluguel').length).toBe(1);
+      });
+    });
+
+    it('o dono segue com o cronograma e sem a chamada do motorista', async () => {
+      const { fixture } = await mountDetail(ACTIVE_AUTO([OPEN()]));
+
+      expect(text(fixture)).toContain('Cronograma de cobrança');
+      expect(lastAncillaryUrls).not.toContain(`${BASE}/${RENTAL_ID}/charges`);
     });
 
     it('Cancelar cobrança só existe na caução aberta, nunca na parcela do cronograma', async () => {

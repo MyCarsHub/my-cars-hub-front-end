@@ -5,6 +5,7 @@ import {
   DestroyRef,
   ElementRef,
   PLATFORM_ID,
+  computed,
   effect,
   inject,
   input,
@@ -93,6 +94,19 @@ export class DetailDialog {
 
   /** Rótulo do botão que fecha. */
   readonly closeLabel = input<string>('Fechar');
+
+  /**
+   * `false` tira o botão de fechar do rodapé — para quem projeta as próprias ações em
+   * `[dialogActions]`. O X do topo, o backdrop e o `Escape` continuam fechando.
+   */
+  readonly showCloseAction = input<boolean>(true);
+
+  /** `compact` = caixa de 480px a partir de `sm` (o popup de pagamento). Padrão: 512px. */
+  readonly size = input<'default' | 'compact'>('default');
+
+  protected readonly panelWidth = computed(() =>
+    this.size() === 'compact' ? 'max-w-[480px]' : 'max-w-lg',
+  );
 
   /** Emitido no backdrop, no botão de fechar e no `Escape`. */
   readonly closed = output<void>();

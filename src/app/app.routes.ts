@@ -214,15 +214,43 @@ export const routes: Routes = [
                         path: 'meu-painel',
                         canActivate: [roleGuard(['DRIVER'])],
                         children: [
+                            // ---- driver finance screens (feat/driver-finance-screens) ----
+                            // Dashboard, Ganhos, Custos e Metas do prototipo do dono
+                            // (design_handoff_motorista). Bloco contiguo para o merge.
                             {
                                 path: '',
                                 pathMatch: 'full',
                                 loadComponent: () =>
-                                    import('./pages/driver-area/driver-home').then(
-                                        (m) => m.DriverHome
+                                    import('./pages/driver-finance/driver-dashboard').then(
+                                        (m) => m.DriverDashboard
                                     ),
-                                data: { pageTitle: 'Meu painel' },
+                                data: { pageTitle: 'Dashboard' },
                             },
+                            {
+                                path: 'ganhos',
+                                loadComponent: () =>
+                                    import('./pages/driver-finance/driver-earnings').then(
+                                        (m) => m.DriverEarnings
+                                    ),
+                                data: { pageTitle: 'Ganhos' },
+                            },
+                            {
+                                path: 'custos',
+                                loadComponent: () =>
+                                    import('./pages/driver-finance/driver-expenses').then(
+                                        (m) => m.DriverExpenses
+                                    ),
+                                data: { pageTitle: 'Custos' },
+                            },
+                            {
+                                path: 'metas',
+                                loadComponent: () =>
+                                    import('./pages/driver-finance/driver-goals').then(
+                                        (m) => m.DriverGoalsPage
+                                    ),
+                                data: { pageTitle: 'Metas' },
+                            },
+                            // ---- end driver finance screens ----
                             {
                                 path: 'lancamentos',
                                 loadComponent: () =>
@@ -370,6 +398,21 @@ export const routes: Routes = [
                         canActivate: [roleGuard(['OWNER', 'MANAGER', 'DRIVER'])],
                         children: [
                             {
+                                // FEAT-0361 — o MOTORISTA tem a propria lista e o proprio
+                                // detalhe ("Meus aluguéis" / "Meu aluguel"), do prototipo do
+                                // dono. Mesma URL, dois componentes: `canMatch` escolhe pelo
+                                // papel do TOKEN e a rota do motorista vem PRIMEIRO (como em
+                                // `/perfil`).
+                                path: '',
+                                pathMatch: 'full',
+                                canMatch: [driverRoleMatch],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/driver-area/rental/driver-rentals-list'
+                                    ).then((m) => m.DriverRentalsList),
+                                data: { pageTitle: 'Meus aluguéis' },
+                            },
+                            {
                                 path: '',
                                 pathMatch: 'full',
                                 loadComponent: () =>
@@ -390,6 +433,15 @@ export const routes: Routes = [
                                         './pages/rentals/rental-form'
                                     ).then((m) => m.RentalForm),
                                 data: { pageTitle: 'Novo aluguel' },
+                            },
+                            {
+                                path: ':id',
+                                canMatch: [driverRoleMatch],
+                                loadComponent: () =>
+                                    import(
+                                        './pages/driver-area/rental/driver-rental-detail'
+                                    ).then((m) => m.DriverRentalDetail),
+                                data: { pageTitle: 'Meu aluguel' },
                             },
                             {
                                 path: ':id',

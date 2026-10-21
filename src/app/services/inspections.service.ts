@@ -239,6 +239,17 @@ export class InspectionsService {
     return this.http.post<InspectionReviewResult>(`${BASE}/${id}/reject`, { reason });
   }
 
+  /**
+   * The SAME `GET /v1/inspections`, as a plain read: no `items`/`loading`/`error` written.
+   * For a screen that needs one answer from the list (e.g. "is this the vehicle's latest?")
+   * without overwriting the list state another screen owns.
+   */
+  peek(filters: InspectionFilters = {}): Observable<PagedResponse<InspectionListItem>> {
+    return this.http.get<PagedResponse<InspectionListItem>>(BASE, {
+      params: this.toParams(filters),
+    });
+  }
+
   list(filters: InspectionFilters = {}): Observable<PagedResponse<InspectionListItem>> {
     this._loading.set(true);
     this._error.set(null);

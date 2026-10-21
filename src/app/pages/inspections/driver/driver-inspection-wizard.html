@@ -1,0 +1,457 @@
+<!--
+  The phone flow inside the shell: one column of at most 520px. Same top/bottom spacing as
+  `app-default-page-layout` (the floating menu button sits over the first 4.5rem on phones),
+  without its title: the step itself is the heading.
+-->
+<section
+  [attr.inert]="exitOpen() ? '' : null"
+  class="w-full min-h-full px-4 sm:px-6 pt-[calc(4.5rem+env(safe-area-inset-top))] lg:pt-10
+         pb-[env(safe-area-inset-bottom)] bg-white"
+>
+  <div data-wizard class="mx-auto w-full max-w-[520px] flex flex-col min-h-[calc(100dvh-5rem)]">
+    <div class="flex items-center gap-2">
+      <button
+        #exitButton
+        type="button"
+        data-exit
+        (click)="askExit()"
+        aria-label="Sair da vistoria"
+        class="shrink-0 size-11 inline-flex items-center justify-center rounded-xl text-neutral-800
+               hover:bg-neutral-100 focus:outline-none focus-visible:ring-2
+               focus-visible:ring-primary-400"
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
+      <p data-wizard-title class="flex-1 mr-11 text-center text-sm font-semibold text-neutral-600 truncate">
+        {{ title() }}
+      </p>
+    </div>
+
+    @if (topError(); as message) {
+      <div class="mt-3"><app-alert-banner variant="error" [message]="message" /></div>
+    }
+
+    @if (rejected()) {
+      <!-- REFUSED: the reason and the redo. Redo opens a NEW inspection; this one stays. -->
+      <div data-wizard-rejected class="flex-1 py-4 flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs font-semibold uppercase tracking-wider text-rose-700">Vistoria recusada</span>
+          <h2 class="text-[26px] font-bold tracking-tight leading-tight text-neutral-900">
+            A locadora pediu para refazer
+          </h2>
+        </div>
+        <div role="alert" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 flex flex-col gap-1.5">
+          @if (rejectionReason(); as reason) {
+            <p class="text-sm font-semibold text-rose-900">Motivo</p>
+            <p data-wizard-reason class="text-sm leading-relaxed text-rose-900 whitespace-pre-line break-words">{{ reason }}</p>
+          } @else {
+            <p class="text-sm leading-relaxed text-rose-900">
+              A locadora não informou o motivo. Se precisar entender o que ajustar, fale com ela.
+            </p>
+          }
+        </div>
+        <p class="text-[15px] leading-relaxed text-neutral-600">
+          Ao refazer, abrimos uma vistoria nova com as {{ total() || 14 }} fotos em branco.
+          Esta fica guardada como recusada.
+        </p>
+        @if (recaptureError(); as message) {
+          <app-alert-banner variant="error" [message]="message" />
+        }
+      </div>
+      <div class="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 pt-3 pb-5 border-t border-neutral-100 bg-white">
+        <button
+          type="button"
+          data-wizard-redo
+          (click)="redo.emit()"
+          [disabled]="recapturing()"
+          class="w-full min-h-12 rounded-xl bg-primary-500 px-6 text-[15px] font-semibold text-white
+                 active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        >
+          {{ recapturing() ? 'Abrindo nova vistoria…' : 'Refazer vistoria' }}
+        </button>
+      </div>
+    } @else if (sent()) {
+      <div data-wizard-done class="flex-1 py-6 flex flex-col items-center justify-center gap-3 text-center">
+        <span class="size-[72px] rounded-full bg-success-500 text-white inline-flex items-center justify-center">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        </span>
+        <h2 class="mt-2 text-[26px] font-bold tracking-tight text-neutral-900" role="status">
+          {{ status() === 'APPROVED' ? 'Vistoria aprovada.' : 'Vistoria enviada.' }}
+        </h2>
+        <p class="max-w-[34ch] text-[15px] leading-relaxed text-neutral-600">
+          @if (status() === 'APPROVED') {
+            A locadora aprovou esta vistoria. O laudo em PDF está nos detalhes.
+          } @else {
+            Suas {{ total() }} fotos e o hodômetro foram para a locadora. Você recebe um aviso
+            quando ela aprovar ou pedir ajustes.
+          }
+        </p>
+      </div>
+      <div class="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 pt-3 pb-5 border-t border-neutral-100 bg-white">
+        <a
+          data-wizard-finish
+          [routerLink]="listLink()"
+          class="w-full min-h-12 inline-flex items-center justify-center rounded-xl bg-primary-500
+                 px-6 text-[15px] font-semibold text-white active:scale-[0.98] focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+        >
+          Voltar às vistorias
+        </a>
+      </div>
+    } @else {
+      @switch (view()) {
+        @case ('cap') {
+          <div class="pt-2">
+            <div
+              role="progressbar"
+              aria-label="Progresso da vistoria"
+              aria-valuemin="0"
+              [attr.aria-valuemax]="total()"
+              [attr.aria-valuenow]="doneCount()"
+              [attr.aria-valuetext]="doneCount() + ' de ' + total() + ' fotos'"
+              class="flex gap-[3px]"
+            >
+              @for (seg of segments(); track seg.angle) {
+                <span class="flex-1 h-1 rounded-sm" [class]="seg.tone"></span>
+              }
+            </div>
+          </div>
+
+          @if (current(); as slot) {
+            <div class="flex-1 py-4 flex flex-col gap-4">
+              <div class="flex flex-col gap-1">
+                <span data-wizard-step class="text-xs font-semibold uppercase tracking-wider text-primary-700">
+                  Foto {{ step() + 1 }} de {{ total() }}
+                </span>
+                <h2 data-wizard-angle class="text-[26px] font-bold tracking-tight leading-tight text-neutral-900">
+                  {{ slot.label }}
+                </h2>
+                <p class="text-[15px] leading-relaxed text-neutral-600">{{ guide()?.tip }}</p>
+              </div>
+
+              <div
+                data-viewfinder
+                class="relative w-full aspect-[4/3] max-h-[46vh] rounded-2xl overflow-hidden flex
+                       items-center justify-center"
+                [class.bg-neutral-800]="!shot()"
+                [class.bg-neutral-100]="shot()"
+              >
+                @if (!shot()) {
+                  <span aria-hidden="true" class="absolute top-3.5 left-3.5 size-7 border-t-[3px] border-l-[3px] border-white rounded-tl-md"></span>
+                  <span aria-hidden="true" class="absolute top-3.5 right-3.5 size-7 border-t-[3px] border-r-[3px] border-white rounded-tr-md"></span>
+                  <span aria-hidden="true" class="absolute bottom-3.5 left-3.5 size-7 border-b-[3px] border-l-[3px] border-white rounded-bl-md"></span>
+                  <span aria-hidden="true" class="absolute bottom-3.5 right-3.5 size-7 border-b-[3px] border-r-[3px] border-white rounded-br-md"></span>
+                  <div class="flex flex-col items-center gap-2 px-6 text-center text-neutral-300">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+                      <circle cx="12" cy="13" r="3.5" />
+                    </svg>
+                    <span class="text-[13px] leading-snug">Enquadre {{ guide()?.frame }} dentro das marcas</span>
+                  </div>
+                } @else {
+                  @if (slot.thumbUrl; as url) {
+                    <img data-wizard-photo [src]="url" [alt]="'Foto: ' + slot.label"
+                      class="absolute inset-0 w-full h-full object-cover" />
+                  }
+                  @if (slot.uploading) {
+                    <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 px-6 text-center"
+                      role="status">
+                      <span class="text-sm font-semibold text-neutral-900">
+                        {{ slot.phase === 'compressing' ? 'Preparando a foto…' : 'Enviando a foto…' }}
+                      </span>
+                      <span class="w-1/2 h-1 rounded-full bg-neutral-200 overflow-hidden">
+                        <span class="block h-full w-1/2 bg-primary-500 animate-pulse"></span>
+                      </span>
+                    </div>
+                  } @else if (slot.done && slot.thumbUrl) {
+                    <span
+                      data-captured
+                      class="absolute left-3 bottom-3 inline-flex items-center gap-2 rounded-full bg-white/95
+                             px-3 py-1.5 shadow-sm text-sm font-semibold text-neutral-900"
+                    >
+                      <span class="size-6 rounded-full bg-success-500 text-white inline-flex items-center justify-center">
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+                          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      </span>
+                      Foto capturada
+                    </span>
+                  } @else if (slot.done) {
+                    <div data-captured class="flex flex-col items-center gap-2 px-6 text-center">
+                      <span class="size-14 rounded-full bg-success-500 text-white inline-flex items-center justify-center">
+                        <svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+                          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      </span>
+                      <span class="text-base font-semibold text-neutral-900">Foto capturada</span>
+                      <span class="text-[13px] text-neutral-600">A foto está salva; a prévia não carregou agora.</span>
+                    </div>
+                  }
+                }
+              </div>
+
+              @if (shot()) {
+                @if (slot.failure) {
+                  <app-alert-banner variant="error" [message]="slot.failure" />
+                } @else {
+                  <p class="text-[13px] leading-snug text-neutral-600">
+                    Confira se está nítida e sem reflexo. Se não estiver, refaça.
+                  </p>
+                }
+              }
+            </div>
+
+            <div class="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 pt-3 pb-5 border-t border-neutral-100 bg-white flex flex-col gap-2">
+              @if (!shot()) {
+                <div class="flex items-center justify-center py-1">
+                  <button
+                    type="button"
+                    data-shutter
+                    (click)="takePhoto()"
+                    [disabled]="busy()"
+                    [attr.aria-label]="'Tirar foto: ' + slot.label"
+                    class="size-[76px] rounded-full border-4 border-primary-500 bg-white p-0 inline-flex
+                           items-center justify-center active:scale-95 disabled:opacity-50
+                           disabled:cursor-wait focus:outline-none focus-visible:ring-4
+                           focus-visible:ring-primary-200"
+                  >
+                    <span class="size-14 rounded-full bg-primary-500"></span>
+                  </button>
+                </div>
+                @if (step() > 0) {
+                  <button
+                    type="button"
+                    data-wizard-back
+                    (click)="previous()"
+                    class="min-h-11 text-sm font-medium text-neutral-600 hover:text-neutral-900
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-xl"
+                  >
+                    Voltar à foto anterior
+                  </button>
+                }
+              } @else {
+                @if (slot.failure && slot.canRetry) {
+                  <button
+                    type="button"
+                    data-wizard-retry
+                    (click)="retryUpload()"
+                    [disabled]="busy()"
+                    class="w-full min-h-12 rounded-xl bg-primary-500 px-6 text-[15px] font-semibold
+                           text-white active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                           focus-visible:ring-offset-2"
+                  >
+                    Reenviar esta foto
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    data-use-photo
+                    (click)="usePhoto()"
+                    [disabled]="!slot.done"
+                    class="w-full min-h-12 rounded-xl bg-primary-500 px-6 text-[15px] font-semibold
+                           text-white active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                           focus-visible:ring-offset-2"
+                  >
+                    {{ slot.uploading ? 'Enviando…' : useLabel() }}
+                  </button>
+                }
+                <button
+                  type="button"
+                  data-retake
+                  (click)="takePhoto()"
+                  [disabled]="busy()"
+                  class="w-full min-h-12 rounded-xl border border-neutral-200 bg-white px-6 text-[15px]
+                         font-semibold text-neutral-900 hover:bg-neutral-50 disabled:opacity-60
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >
+                  Refazer esta foto
+                </button>
+              }
+            </div>
+          }
+        }
+
+        @case ('odo') {
+          <div class="flex-1 py-4 flex flex-col gap-4">
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-semibold uppercase tracking-wider text-primary-700">Último passo</span>
+              <h2 class="text-[26px] font-bold tracking-tight leading-tight text-neutral-900">Quilometragem atual</h2>
+              <p class="text-[15px] leading-relaxed text-neutral-600">
+                Digite o número que aparece no hodômetro. A foto dele você já tirou.
+              </p>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label for="driver-km" class="text-xs font-medium uppercase tracking-wider text-neutral-600">
+                Hodômetro (km) <span class="text-primary-700" aria-hidden="true">*</span>
+              </label>
+              <input
+                id="driver-km"
+                data-wizard-km
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                enterkeyhint="done"
+                placeholder="Ex.: 42.318"
+                required
+                [value]="km()"
+                (input)="onKm($event)"
+                (paste)="onKmPaste($event)"
+                (keydown.enter)="goReview()"
+                [attr.aria-invalid]="kmError() ? 'true' : null"
+                [attr.aria-describedby]="kmError() ? 'driver-km-error driver-km-hint' : 'driver-km-hint'"
+                class="w-full min-h-16 rounded-xl border bg-white px-4 font-mono text-[28px] font-semibold
+                       tracking-wide text-neutral-900 placeholder:text-neutral-300 focus:outline-none
+                       focus:ring-2 focus:ring-primary-400"
+                [class.border-rose-400]="!!kmError()"
+                [class.border-neutral-200]="!kmError()"
+              />
+              @if (kmError(); as message) {
+                <span id="driver-km-error" role="alert" data-wizard-km-error class="text-xs leading-snug text-rose-700">{{ message }}</span>
+              }
+              <span id="driver-km-hint" class="text-[13px] text-neutral-600">
+                @if (previousKmLabel(); as previous) {
+                  Último registro do veículo: <span class="font-mono">{{ previous }}</span> km.
+                } @else {
+                  Use só os números, sem a casa decimal.
+                }
+              </span>
+            </div>
+          </div>
+          <div class="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 pt-3 pb-5 border-t border-neutral-100 bg-white">
+            <button
+              type="button"
+              data-wizard-continue
+              (click)="goReview()"
+              class="w-full min-h-12 rounded-xl bg-primary-500 px-6 text-[15px] font-semibold text-white
+                     active:scale-[0.98] focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              Continuar
+            </button>
+          </div>
+        }
+
+        @case ('review') {
+          <div class="flex-1 py-4 flex flex-col gap-4">
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-semibold uppercase tracking-wider text-primary-700">Revisão</span>
+              <h2 class="text-[26px] font-bold tracking-tight leading-tight text-neutral-900">Tudo certo para enviar?</h2>
+              <p class="text-[15px] leading-relaxed text-neutral-600">
+                Toque em uma foto para refazer. Depois do envio, a locadora confere.
+              </p>
+            </div>
+            <div data-review-grid class="grid grid-cols-3 gap-2.5">
+              @for (slot of slots(); track slot.angle; let i = $index) {
+                <button
+                  type="button"
+                  data-review-tile
+                  (click)="redoAngle(i)"
+                  [attr.aria-label]="'Refazer foto: ' + slot.label"
+                  class="aspect-square rounded-xl border border-emerald-200 bg-emerald-50 p-1.5 flex
+                         flex-col items-center justify-center gap-1 text-center hover:border-emerald-400
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >
+                  <span class="text-emerald-700">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </span>
+                  <span class="text-xs leading-tight text-emerald-900">{{ slot.label }}</span>
+                </button>
+              }
+            </div>
+            <div class="rounded-xl bg-neutral-100 px-4 py-3 flex items-center justify-between gap-3">
+              <span class="flex flex-col">
+                <span class="text-xs uppercase tracking-wider text-neutral-600">Hodômetro</span>
+                <span data-review-km class="font-mono text-lg font-semibold text-neutral-900">{{ km() }} km</span>
+              </span>
+              <button
+                type="button"
+                data-edit-km
+                (click)="editKm()"
+                class="min-h-11 px-3 rounded-xl text-sm font-semibold text-primary-700 hover:bg-white
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                Alterar
+              </button>
+            </div>
+            @if (submitError(); as message) {
+              <app-alert-banner variant="error" [message]="message" />
+            }
+          </div>
+          <div class="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 pt-3 pb-5 border-t border-neutral-100 bg-white">
+            <button
+              type="button"
+              data-wizard-send
+              (click)="submit()"
+              [disabled]="submitting()"
+              class="w-full min-h-12 rounded-xl bg-primary-500 px-6 text-[15px] font-semibold text-white
+                     active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait focus:outline-none
+                     focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            >
+              {{ submitting() ? 'Enviando…' : 'Enviar vistoria' }}
+            </button>
+          </div>
+        }
+      }
+    }
+  </div>
+</section>
+
+@if (exitOpen()) {
+  <div class="fixed inset-0 z-[55] bg-black/40" (click)="stay()" aria-hidden="true"></div>
+  <div
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="wizard-exit-title"
+    aria-describedby="wizard-exit-text"
+    data-exit-dialog
+    (keydown.tab)="trapTab($event)"
+    class="fixed z-[56] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(400px,calc(100vw-32px))]
+           rounded-2xl bg-white p-6 flex flex-col gap-3 shadow-xl"
+  >
+    <h2 id="wizard-exit-title" class="text-lg font-bold text-neutral-900">Sair da vistoria?</h2>
+    <p id="wizard-exit-text" class="text-sm leading-relaxed text-neutral-600">
+      {{ exitMessage() }}
+      @if (lostOnExit(); as warning) {
+        <span data-exit-lost class="block mt-2 font-semibold text-rose-700">{{ warning }}</span>
+      }
+    </p>
+    <div class="mt-2 flex flex-col gap-2">
+      <button
+        #stayButton
+        type="button"
+        data-exit-stay
+        (click)="stay()"
+        class="w-full min-h-11 rounded-xl bg-primary-500 px-5 text-sm font-semibold text-white
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+      >
+        Continuar a vistoria
+      </button>
+      <button
+        #leaveButton
+        type="button"
+        data-exit-leave
+        (click)="exit()"
+        class="w-full min-h-11 rounded-xl border border-neutral-200 bg-white px-5 text-sm font-semibold
+               text-neutral-900 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+               focus-visible:ring-primary-400"
+      >
+        Sair e continuar depois
+      </button>
+    </div>
+  </div>
+}

@@ -13,6 +13,7 @@ import { routes } from '../../app.routes';
 import { SessionService } from '../../services/session.service';
 import { isRoleGuard } from '../../services/role.guard';
 import { NAV_ITEMS, NavItem } from './sidebar';
+import { DRIVER_PROD_ROUTES } from './driver-nav';
 
 /**
  * FIX-0607 · FEAT-0228 — o menu e os guards de rota como UM contrato.
@@ -244,6 +245,26 @@ describe('paridade nav x guard de rota', () => {
         .filter((route) => guardAllows(route, 'DRIVER'));
 
       expect(allowed).toEqual([...DRIVER_MENU]);
+    });
+
+    /**
+     * O motorista NAO ve `NAV_ITEMS`: tem o menu proprio do prototipo (`driver-nav.ts`). A
+     * mesma paridade vale para ele — toda URL que aquele menu oferece, os guards liberam.
+     * Uma chave que ganhar URL (Ganhos, Custos, Metas, Configuracoes) entra aqui sozinha.
+     */
+    it('o menu proprio do motorista so oferece rota que os guards liberam a ele', () => {
+      const offered = Object.values(DRIVER_PROD_ROUTES).filter((r): r is string => r !== null);
+      expect(offered.length).toBeGreaterThan(0);
+      for (const route of offered) {
+        expect(guardAllows(route, 'DRIVER'), `${route} nao abre para o DRIVER`).toBe(true);
+      }
+    });
+
+    it('Multas e Alertas da frota ficam fora do menu do motorista', () => {
+      expect(DRIVER_PROD_ROUTES.multas).toBeNull();
+      expect(DRIVER_PROD_ROUTES.alertas).toBeNull();
+      expect(guardAllows('/multas', 'DRIVER')).toBe(false);
+      expect(guardAllows('/alertas', 'DRIVER')).toBe(false);
     });
 
     it('o painel e o suporte sao dele E o suporte tambem do dono e do gerente', () => {

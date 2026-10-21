@@ -1,6 +1,6 @@
 <app-default-page-layout
   title="Detalhes do aluguel"
-  description="Contrato, cobranças Asaas e ações do ciclo de vida."
+  [description]="pageDescription"
 >
   @if (loading() && !rental()) {
     <div class="space-y-3">
@@ -62,7 +62,8 @@
           </button>
         </app-alert-banner>
       }
-      <!-- Desktop actions (top-right) -->
+      <!-- Desktop actions (top-right). O motorista só consulta: o backend recusa editar/excluir. -->
+      @if (!isDriver) {
       <div class="hidden lg:flex justify-end">
         <app-detail-actions
           [editRouterLink]="['/alugueis', r.id, 'editar']"
@@ -76,8 +77,10 @@
           </p>
         }
       </div>
+      }
 
       <app-rental-progress-checklist
+        [canActivateAction]="!isDriver"
         [rentalId]="r.id"
         [status]="r.status"
         [automaticCharge]="r.automaticCharge"
@@ -105,7 +108,7 @@
               </span>
             }
             <!-- Integração Asaas: cobrança gerada/baixada automaticamente. -->
-            @if (r.automaticCharge) {
+            @if (r.automaticCharge && !isDriver) {
               <span
                 title="Cobrança automática via Asaas"
                 class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs
@@ -256,6 +259,11 @@
         </div>
       </div>
 
+      <!--
+        Caução e cobranças do OPERADOR. O motorista não chega a esta tela (a rota `/alugueis/:id`
+        dele é `DriverRentalDetail`, escolhida por `driverRoleMatch`); o corte fica como defesa.
+      -->
+      @if (!isDriver) {
       <!-- Caução — card dedicado ACIMA do cronograma. -->
       <app-page-card
         title="Caução"
@@ -535,6 +543,7 @@
           }
         </div>
       </app-page-card>
+      }
 
       <!--
         Multa por devolução em atraso (V53). Só aparece quando existe: a
@@ -575,6 +584,7 @@
         </app-page-card>
       }
 
+      @if (!isDriver) {
       <!-- Cronograma de cobrança (RENTAL_PERIOD + RENTAL_TOTAL, sem CAUCAO) -->
       <app-page-card
         title="Cronograma de cobrança"
@@ -736,6 +746,7 @@
           }
         </div>
       </app-page-card>
+      }
 
       <!-- Histórico de status -->
       <app-page-card
@@ -861,7 +872,7 @@
         />
       }
 
-      @if (r.notes) {
+      @if (r.notes && !isDriver) {
         <app-page-card title="Observações">
           <div class="p-4 sm:p-6 text-sm text-neutral-700 whitespace-pre-line">
             {{ r.notes }}
@@ -870,6 +881,7 @@
       }
 
       <!-- Mobile actions (bottom) -->
+      @if (!isDriver) {
       <div class="lg:hidden">
         <app-detail-actions
           [editRouterLink]="['/alugueis', r.id, 'editar']"
@@ -883,6 +895,7 @@
           </p>
         }
       </div>
+      }
     </div>
 
     <app-back-link link="/alugueis" label="Voltar para a lista" />
