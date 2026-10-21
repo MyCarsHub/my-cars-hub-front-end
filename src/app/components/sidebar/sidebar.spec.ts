@@ -4,6 +4,7 @@ import { Router, Routes, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { LayoutStore, Tenant } from '../core/layouts/layout.store';
 import { NavItem, Sidebar } from './sidebar';
+import { DRIVER_NAV_KEYS, DRIVER_NAV_ROUTES, DriverNavRoutes } from './driver-nav';
 
 const tenant = (role: string, name = 'MyCarsHub'): Tenant => ({
   id: `t-${role || 'none'}`,
@@ -112,140 +113,152 @@ describe('Sidebar', () => {
   });
 
   /**
-   * FEAT-0108 — o menu do motorista.
-   *
-   * O nó nasceu de um sintoma ("o app parece quebrado"), mas o defeito estava
-   * AQUI, e nos dois sentidos: o menu OFERECIA ao motorista duas telas que são
-   * 403 inteiras para ele (`/v1/dashboard/**` e `/v1/alerts` estão fora da
-   * lista de permitidos do FIX-0360) e ESCONDIA a única que o escopo dele
-   * libera (`/v1/rentals`). Um motorista via um menu onde nada do que aparecia
-   * funcionava e o que funcionava não aparecia.
+   * O menu do MOTORISTA — o do protótipo do dono (`driver-nav.ts`), não mais um recorte de
+   * `NAV_ITEMS`. Continua valendo o que o FEAT-0108 fixou: nada de tela que é 403 para ele
+   * (Dashboard da frota, Alertas, Multas da frota) e a área do aluguel à vista.
    */
-  describe('menu do DRIVER (FEAT-0108)', () => {
-    function labelsFor(role: string): string[] {
-      // O papel do menu vem do TOKEN desde o FIX-0363 — `selectedTenant` sozinho
-      // NAO decide mais (ver `sidebar-role-source.spec.ts`). Esta versao do
-      // helper ficou parada antes daquela mudanca e setava so o tenant, o que
-      // deixava o papel vazio e escondia todo item com `roles`: o teste media um
-      // menu sem papel nenhum e parecia acusar a feature.
-      signInAs(role);
-      // O tenant continua sendo setado porque `allowedItems` tambem depende de
-      // haver empresa selecionada para oferecer item de tenant.
-      layout.tenants.set([tenant(role)]);
-      layout.selectedTenant.set(tenant(role));
+  describe('menu do DRIVER (protótipo do dono)', () => {
+    function signInDriver(): HTMLElement {
+      signInAs('DRIVER');
+      layout.tenants.set([tenant('DRIVER')]);
+      layout.selectedTenant.set(tenant('DRIVER'));
       fixture.detectChanges();
-      const host: HTMLElement = fixture.nativeElement;
-      return Array.from(host.querySelectorAll('a.nav-link')).map(
-        (a) => a.getAttribute('aria-label') ?? (a.textContent ?? '').trim(),
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    function topLabels(): string[] {
+      return (component as unknown as { navItems: () => NavItem[] })
+        .navItems()
+        .map((item) => item.label);
+    }
+
+    function links(host: HTMLElement): Map<string, string | null> {
+      return new Map(
+        Array.from(host.querySelectorAll('a.nav-link')).map((a) => [
+          a.getAttribute('aria-label') ?? '',
+          a.getAttribute('href'),
+        ]),
       );
     }
 
-    it('oferece Aluguéis ao motorista — a área que o escopo dele alcança', () => {
-      expect(labelsFor('DRIVER').join(' | ')).toContain('Aluguéis');
+    it('na ordem do protótipo, só com o que tem rota para ele', () => {
+      signInDriver();
+      // Financeiro some por inteiro enquanto Ganhos/Custos/Metas não têm rota; Multas e
+      // Alertas são da frota; Configurações espera o endpoint de preferências.
+      expect(topLabels()).toEqual(['Dashboard', 'Veículo', 'Roadmap', 'Suporte', 'Perfil']);
     });
 
-    it('não oferece Dashboard nem Alertas ao motorista', () => {
-      const labels = labelsFor('DRIVER').join(' | ');
-      expect(labels).not.toContain('Dashboard');
-      expect(labels).not.toContain('Alertas');
+    it('Dashboard é o painel dele (/meu-painel), não o da frota', () => {
+      const host = signInDriver();
+      expect(links(host).get('Dashboard')).toBe('/meu-painel');
+      expect(host.querySelector('a.nav-link[aria-label="Dashboard"]')?.hasAttribute('data-tour')).toBe(
+        false,
+      );
     });
 
-    it('não oferece nenhuma área de frota ao motorista', () => {
-      const labels = labelsFor('DRIVER').join(' | ');
-      for (const area of ['Veículos', 'Motoristas', 'Relatórios', 'Assinatura', 'Multas']) {
+    it('Veículo agrupa Meu aluguel e Vistorias, sem Multas', () => {
+      const host = signInDriver();
+      host.querySelector<HTMLButtonElement>('button[aria-label="Veículo"]')!.click();
+      fixture.detectChanges();
+      const map = links(host);
+      expect(map.get('Meu aluguel')).toBe('/alugueis');
+      expect(map.get('Vistorias')).toBe('/vistorias');
+      expect(map.has('Multas')).toBe(false);
+    });
+
+    it('não oferece nenhuma área de frota nem tela 403', () => {
+      const host = signInDriver();
+      host.querySelector<HTMLButtonElement>('button[aria-label="Veículo"]')!.click();
+      fixture.detectChanges();
+      const labels = [...links(host).keys()].join(' | ');
+      for (const area of ['Veículos', 'Motoristas', 'Relatórios', 'Assinatura', 'Multas', 'Alertas']) {
         expect(labels).not.toContain(area);
+      }
+      expect(links(host).get('Dashboard')).not.toBe('/dashboard');
+    });
+
+    it('Suporte vem depois de uma linha divisória, e Perfil fecha o menu', () => {
+      const host = signInDriver();
+      const nav = host.querySelector('nav')!;
+      const children = Array.from(nav.children);
+      const hr = children.findIndex((el) => el.tagName === 'HR');
+      expect(hr).toBeGreaterThan(-1);
+      expect(children[hr + 1].getAttribute('aria-label')).toBe('Suporte');
+      expect(topLabels().at(-1)).toBe('Perfil');
+    });
+
+    it('todo item do motorista tem alvo de 44px', () => {
+      const host = signInDriver();
+      for (const el of Array.from(host.querySelectorAll('nav .nav-link'))) {
+        expect(el.classList.contains('min-h-11')).toBe(true);
       }
     });
 
-    /** Utilitários sem tenant continuam de pé: perfil lê `/v1/auth/me`. */
-    it('mantém Perfil para o motorista', () => {
-      expect(labelsFor('DRIVER').join(' | ')).toContain('Perfil');
+    it('não mexe no menu do dono nem no do gerente', () => {
+      for (const role of ['OWNER', 'MANAGER']) {
+        signInAs(role);
+        layout.tenants.set([tenant(role)]);
+        layout.selectedTenant.set(tenant(role));
+        fixture.detectChanges();
+        const host = fixture.nativeElement as HTMLElement;
+        expect(topLabels()).toContain('Frota');
+        expect(links(host).get('Dashboard')).toBe('/dashboard');
+        expect(host.querySelector('hr')).toBeNull();
+        expect(host.querySelector('nav .nav-link.min-h-11')).toBeNull();
+      }
     });
+  });
 
-    /**
-     * Suporte VOLTOU ao menu do motorista: o backend liberou a ele abrir e ler os
-     * PROPRIOS tickets (`/v1/support/tickets`). A rota tem o mesmo guard — a paridade
-     * em `sidebar-guard-parity.spec.ts` mede a igualdade. O nome deste caso era "nao
-     * oferece Suporte ao motorista" e afirmava o contrario do que vale agora.
-     */
-    it('oferece Suporte ao motorista, como ao dono e ao gerente', () => {
-      expect(labelsFor('DRIVER').join(' | ')).toContain('Suporte');
-      expect(labelsFor('OWNER').join(' | ')).toContain('Suporte');
-      expect(labelsFor('MANAGER').join(' | ')).toContain('Suporte');
-    });
+  /**
+   * O grupo com `defaultOpen` nasce aberto e fecha no toque — e o mapa de URLs vem do token,
+   * que é o que a demo e as próximas rotas (Ganhos, Custos, Metas) trocam.
+   */
+  describe('menu do DRIVER com todas as rotas (DRIVER_NAV_ROUTES)', () => {
+    it('Financeiro nasce aberto com Ganhos, Custos e Metas, e fecha no toque', async () => {
+      TestBed.resetTestingModule();
+      const routes = Object.fromEntries(
+        DRIVER_NAV_KEYS.map((key) => [key, `/x/${key}`]),
+      ) as DriverNavRoutes;
+      await TestBed.configureTestingModule({
+        imports: [Sidebar],
+        providers: [
+          provideRouter([]),
+          provideNoopAnimations(),
+          { provide: DRIVER_NAV_ROUTES, useValue: routes },
+        ],
+      }).compileComponents();
+      signInAs('DRIVER');
+      const f = TestBed.createComponent(Sidebar);
+      f.detectChanges();
+      const host = f.nativeElement as HTMLElement;
 
-    /**
-     * O menu do motorista, inteiro e na ordem: o painel dele no topo, a area do aluguel
-     * e das vistorias, o roadmap em leitura, e Suporte e Perfil fixados embaixo.
-     */
-    it('o menu do motorista e Painel, Aluguéis, Vistorias, Roadmap, Suporte e Perfil', () => {
-      expect(labelsFor('DRIVER')).toEqual([
-        'Painel',
-        'Aluguéis',
-        'Vistorias',
+      const labels = (f.componentInstance as unknown as { navItems: () => NavItem[] })
+        .navItems()
+        .map((item) => item.label);
+      expect(labels).toEqual([
+        'Dashboard',
+        'Financeiro',
+        'Veículo',
+        'Alertas',
         'Roadmap',
+        'Configurações',
         'Suporte',
         'Perfil',
       ]);
-    });
 
-    it('o Painel do motorista aponta para /meu-painel e nao existe no menu do dono nem do gerente', () => {
-      expect(labelsFor('OWNER')).not.toContain('Painel');
-      expect(labelsFor('MANAGER')).not.toContain('Painel');
+      const finance = host.querySelector<HTMLButtonElement>('button[aria-label="Financeiro"]')!;
+      expect(finance.getAttribute('aria-expanded')).toBe('true');
+      expect(host.querySelector('a[aria-label="Ganhos"]')?.getAttribute('href')).toBe('/x/ganhos');
+      expect(host.querySelector('a[aria-label="Metas"]')).not.toBeNull();
+      expect(host.querySelector<HTMLButtonElement>('button[aria-label="Veículo"]')!
+        .getAttribute('aria-expanded')).toBe('false');
 
-      signInAs('DRIVER');
-      layout.tenants.set([tenant('DRIVER')]);
-      layout.selectedTenant.set(tenant('DRIVER'));
-      fixture.detectChanges();
-      const painel = (fixture.nativeElement as HTMLElement).querySelector(
-        'a.nav-link[aria-label="Painel"]',
-      );
-      expect(painel?.getAttribute('href')).toBe('/meu-painel');
-    });
-
-    /** Item de menu NAO e promessa de tour: o tour da frota nao comeca no painel dele. */
-    it('o Painel nao carrega ancora de tour', () => {
-      signInAs('DRIVER');
-      layout.tenants.set([tenant('DRIVER')]);
-      layout.selectedTenant.set(tenant('DRIVER'));
-      fixture.detectChanges();
-      const painel = (fixture.nativeElement as HTMLElement).querySelector(
-        'a.nav-link[aria-label="Painel"]',
-      );
-      expect(painel?.hasAttribute('data-tour')).toBe(false);
-    });
-
-    /**
-     * O motorista FAZ vistoria (o dono pediu) e o menu é a porta: Vistorias e Roadmap
-     * (só leitura) entram ao lado de Aluguéis.
-     */
-    it('oferece Vistorias e Roadmap ao motorista', () => {
-      const labels = labelsFor('DRIVER').join(' | ');
-      expect(labels).toContain('Vistorias');
-      expect(labels).toContain('Roadmap');
-    });
-
-    /**
-     * "Frota" com um filho só dizia ao motorista que ele tem uma frota. O filho sobe
-     * para o primeiro nível — e o menu do dono continua com o grupo.
-     */
-    it('Vistorias aparece no primeiro nível do motorista, sem grupo Frota', () => {
-      signInAs('DRIVER');
-      layout.tenants.set([tenant('DRIVER')]);
-      layout.selectedTenant.set(tenant('DRIVER'));
-      fixture.detectChanges();
-
-      const top = (component as unknown as { navItems: () => NavItem[] }).navItems();
-      expect(top.map((item) => item.label)).not.toContain('Frota');
-      expect(top.find((item) => item.route === '/vistorias')).toBeDefined();
-    });
-
-    /** O OWNER não perde nada — a mudança é só sobre quem o menu exclui. */
-    it('não muda o menu do OWNER', () => {
-      const labels = labelsFor('OWNER').join(' | ');
-      expect(labels).toContain('Dashboard');
-      expect(labels).toContain('Alertas');
-      expect(labels).toContain('Aluguéis');
+      finance.click();
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+      expect(finance.getAttribute('aria-expanded')).toBe('false');
+      expect(host.querySelector('a[aria-label="Ganhos"]')).toBeNull();
     });
   });
 
