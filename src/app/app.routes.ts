@@ -214,15 +214,43 @@ export const routes: Routes = [
                         path: 'meu-painel',
                         canActivate: [roleGuard(['DRIVER'])],
                         children: [
+                            // ---- driver finance screens (feat/driver-finance-screens) ----
+                            // Dashboard, Ganhos, Custos e Metas do prototipo do dono
+                            // (design_handoff_motorista). Bloco contiguo para o merge.
                             {
                                 path: '',
                                 pathMatch: 'full',
                                 loadComponent: () =>
-                                    import('./pages/driver-area/driver-home').then(
-                                        (m) => m.DriverHome
+                                    import('./pages/driver-finance/driver-dashboard').then(
+                                        (m) => m.DriverDashboard
                                     ),
-                                data: { pageTitle: 'Meu painel' },
+                                data: { pageTitle: 'Dashboard' },
                             },
+                            {
+                                path: 'ganhos',
+                                loadComponent: () =>
+                                    import('./pages/driver-finance/driver-earnings').then(
+                                        (m) => m.DriverEarnings
+                                    ),
+                                data: { pageTitle: 'Ganhos' },
+                            },
+                            {
+                                path: 'custos',
+                                loadComponent: () =>
+                                    import('./pages/driver-finance/driver-expenses').then(
+                                        (m) => m.DriverExpenses
+                                    ),
+                                data: { pageTitle: 'Custos' },
+                            },
+                            {
+                                path: 'metas',
+                                loadComponent: () =>
+                                    import('./pages/driver-finance/driver-goals').then(
+                                        (m) => m.DriverGoalsPage
+                                    ),
+                                data: { pageTitle: 'Metas' },
+                            },
+                            // ---- end driver finance screens ----
                             {
                                 path: 'lancamentos',
                                 loadComponent: () =>
