@@ -1,0 +1,231 @@
+<app-default-page-layout
+  title="Vistorias"
+  description="Tire as 14 fotos do carro pelo celular. A locadora confere e aprova."
+>
+  <!-- `@container`: the cards go to two columns by the CONTENT width (900px in the prototype). -->
+  <div class="@container flex flex-col gap-4">
+    <p class="sr-only" role="status" aria-live="polite">
+      {{ state() === 'loading' ? 'Carregando vistorias…' : countLabel() }}
+    </p>
+
+    @if (state() === 'error') {
+      <div data-driver-load-error>
+        <app-alert-banner variant="error">
+          {{ errorMessage() || 'Não foi possível carregar suas vistorias.' }}
+          <button
+            type="button"
+            data-driver-retry-list
+            (click)="retry.emit()"
+            class="ml-1 min-h-11 inline-flex items-center underline font-medium rounded-sm
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+          >
+            Tentar novamente
+          </button>
+        </app-alert-banner>
+      </div>
+    }
+
+    @if (state() === 'loading' || (!hero() && !heroError())) {
+      <div data-driver-skeleton aria-hidden="true" class="flex flex-col gap-4">
+        <div class="h-40 rounded-2xl bg-neutral-200 animate-pulse"></div>
+        @if (state() === 'loading') {
+          <div class="h-32 rounded-2xl bg-neutral-200 animate-pulse"></div>
+        }
+      </div>
+    } @else if (heroError(); as message) {
+      <div data-driver-hero-error>
+        <app-alert-banner variant="error">
+          {{ message }}
+          <button
+            type="button"
+            (click)="retryHero.emit()"
+            class="ml-1 min-h-11 inline-flex items-center underline font-medium rounded-sm
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+          >
+            Tentar novamente
+          </button>
+        </app-alert-banner>
+      </div>
+    } @else if (hero(); as h) {
+      <section
+        data-driver-hero
+        [attr.data-tone]="h.tone"
+        aria-labelledby="driver-hero-title"
+        class="rounded-2xl px-4 py-5 sm:p-6 flex flex-col gap-1.5"
+        [class]="heroClass(h.tone)"
+      >
+        <span
+          class="text-xs uppercase tracking-wider"
+          [class.text-white]="h.tone !== 'neutral'"
+          [class.text-neutral-600]="h.tone === 'neutral'"
+        >
+          {{ h.label }}
+        </span>
+        <h2
+          id="driver-hero-title"
+          class="text-2xl sm:text-3xl font-bold tracking-tight leading-tight break-words"
+        >
+          {{ h.title }}
+        </h2>
+        <p
+          data-driver-hero-sub
+          class="text-sm leading-relaxed max-w-[60ch] break-words"
+          [class.text-neutral-600]="h.tone === 'neutral'"
+        >
+          {{ h.sub }}
+        </p>
+        @for (action of h.actions; track action.label) {
+          @if (action.link) {
+            <a
+              data-driver-hero-cta
+              [routerLink]="action.link"
+              [queryParams]="action.queryParams ?? null"
+              class="mt-3 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-white text-neutral-900
+                     text-[15px] font-bold inline-flex items-center justify-center gap-2.5
+                     active:scale-[0.98] focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+                <circle cx="12" cy="13" r="3.5" />
+              </svg>
+              {{ action.label }}
+            </a>
+          } @else if (action.vehicleId; as vehicleId) {
+            <button
+              type="button"
+              data-driver-hero-cta
+              (click)="start.emit(vehicleId)"
+              class="mt-3 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-white text-neutral-900
+                     text-[15px] font-bold inline-flex items-center justify-center gap-2.5
+                     active:scale-[0.98] focus:outline-none focus-visible:ring-2
+                     focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+                <circle cx="12" cy="13" r="3.5" />
+              </svg>
+              {{ action.label }}
+            </button>
+          }
+        }
+      </section>
+      @if (startError(); as message) {
+        <app-alert-banner variant="error" [message]="message" />
+      }
+    }
+
+    @if (state() === 'ready') {
+      @if (items().length === 0) {
+        <!-- EMPTY: a sentence, not an empty card. -->
+        <p data-driver-empty class="py-6 text-center text-sm text-neutral-600">
+          Você ainda não fez nenhuma vistoria. Quando fizer, ela aparece aqui.
+        </p>
+      } @else {
+        <section
+          data-driver-list
+          aria-labelledby="driver-list-title"
+          class="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden"
+        >
+          <div class="flex items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-3">
+            <h2 id="driver-list-title" class="text-base font-semibold text-neutral-800">Minhas vistorias</h2>
+            <span data-driver-count class="text-xs text-neutral-600 tabular-nums">{{ countLabel() }}</span>
+          </div>
+          <div class="grid grid-cols-1 @min-[820px]:grid-cols-2 gap-3 px-4 sm:px-6 pb-4 sm:pb-6">
+            @for (item of items(); track item.id) {
+              <article
+                data-driver-card
+                class="rounded-2xl border border-neutral-200 bg-white p-3 flex gap-3 min-w-0"
+              >
+                <div
+                  class="relative shrink-0 w-24 @min-[592px]:w-[132px] self-stretch min-h-24
+                         @min-[592px]:min-h-[132px] rounded-xl overflow-hidden bg-neutral-100 flex
+                         items-center justify-center text-neutral-400"
+                >
+                  @if (item.photoUrl; as url) {
+                    <img
+                      data-driver-card-photo
+                      [src]="url"
+                      alt=""
+                      loading="lazy"
+                      (error)="photoError.emit(item.id)"
+                      class="absolute inset-0 w-full h-full object-cover"
+                    />
+                  } @else {
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+                      <circle cx="12" cy="13" r="3.5" />
+                    </svg>
+                  }
+                </div>
+                <div class="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <span class="flex flex-wrap items-center gap-2">
+                    <span data-driver-plate class="font-mono text-base font-semibold tracking-wide text-neutral-900">
+                      {{ item.plate }}
+                    </span>
+                    <span
+                      data-driver-chip
+                      class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+                      [class]="item.chipClass"
+                    >
+                      {{ item.statusLabel }}
+                    </span>
+                  </span>
+                  @if (item.model) {
+                    <span class="text-sm text-neutral-600 truncate">{{ item.model }}</span>
+                  }
+                  <span data-driver-meta class="text-[13px] text-neutral-600">{{ item.meta }}</span>
+                  @if (item.note; as note) {
+                    <span
+                      data-driver-note
+                      class="text-[13px] font-semibold"
+                      [class.text-rose-700]="item.noteTone === 'rose'"
+                      [class.text-emerald-700]="item.noteTone === 'emerald'"
+                    >
+                      {{ note }}
+                    </span>
+                  }
+                  <span class="flex-1 min-h-2"></span>
+                  <a
+                    data-driver-open
+                    [routerLink]="item.actionLink"
+                    [attr.aria-label]="item.actionLabel + ' do veículo ' + item.plate"
+                    class="w-full min-h-11 inline-flex items-center justify-center rounded-full border
+                           border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-900
+                           hover:border-primary-500 hover:bg-neutral-50 transition-colors
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  >
+                    {{ item.actionLabel }}
+                  </a>
+                </div>
+              </article>
+            }
+          </div>
+          @if (hasPrev() || hasNext()) {
+            <div class="flex flex-col @min-[592px]:flex-row @min-[592px]:items-center @min-[592px]:justify-between
+                        gap-3 px-4 sm:px-6 py-4 border-t border-neutral-100">
+              <p class="text-sm text-neutral-600 tabular-nums">{{ pageLabel() }}</p>
+              <div class="flex gap-2">
+                <button type="button" data-driver-prev (click)="prev.emit()" [disabled]="!hasPrev()"
+                  class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
+                         text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50
+                         disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                  Anterior
+                </button>
+                <button type="button" data-driver-next (click)="next.emit()" [disabled]="!hasNext()"
+                  class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
+                         text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50
+                         disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                  Próxima
+                </button>
+              </div>
+            </div>
+          }
+        </section>
+      }
+    }
+  </div>
+</app-default-page-layout>

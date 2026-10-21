@@ -38,12 +38,15 @@ import {
   carName,
   colorAndYear,
   firstName,
+  formatDate,
   formatDateTime,
   formatPhone,
   kindLabel,
   kindWord,
   odometerView,
 } from './inspection-view';
+import { INSPECTIONS_ROOT } from './driver/driver-inspection-guide';
+import { DetailField, DriverInspectionDetail } from './driver/driver-inspection-detail';
 
 /** Motivo em branco e motivo vazio sao a mesma coisa para quem vai ler. */
 function notBlank(control: AbstractControl): ValidationErrors | null {
@@ -83,6 +86,7 @@ function notBlank(control: AbstractControl): ValidationErrors | null {
     ConfirmDialog,
     FormField,
     FieldControl,
+    DriverInspectionDetail,
   ],
   templateUrl: './inspection-review.html',
 })
@@ -94,6 +98,8 @@ export class InspectionReview implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly preview = inject(DocumentPreviewService);
   private readonly destroyRef = inject(DestroyRef);
+  /** Where the inspection screens live (`/vistorias`; the local demo mounts them elsewhere). */
+  protected readonly root = inject(INSPECTIONS_ROOT);
 
   // ----------------------------------------------------------------- estado
 
@@ -502,4 +508,29 @@ export class InspectionReview implements OnInit {
       errorMessage: 'Não foi possível abrir o laudo agora. Tente de novo.',
     });
   }
+
+  // ------------------------------------------------------- motorista (prototipo)
+
+  /** "Retirada · 04/08/2026." — the driver's subtitle, as in the prototype. */
+  protected readonly driverSubtitle = computed(() => {
+    const current = this.inspection();
+    if (!current) return '';
+    const when = formatDate(current.performedAt);
+    return `${kindLabel(current.kind)}${when ? ` · ${when}` : ''}.`;
+  });
+
+  /** "Resumo": vehicle, colour and year, kind, odometer. Absent data reads "—", never zero. */
+  protected readonly driverFields = computed<DetailField[]>(() => {
+    const current = this.inspection();
+    if (!current) return [];
+    const vehicle = [this.plate(), this.vehicle()].filter(Boolean).join(' · ');
+    return [
+      { label: 'Veículo', value: vehicle || '—' },
+      { label: 'Cor e ano', value: this.colorYear() ?? '—' },
+      { label: 'Tipo', value: kindLabel(current.kind) },
+      { label: 'Hodômetro informado', value: this.odometer()?.value ?? '—' },
+    ];
+  });
+
+  protected readonly captureLink = computed(() => [this.root, this.id(), 'captura']);
 }
