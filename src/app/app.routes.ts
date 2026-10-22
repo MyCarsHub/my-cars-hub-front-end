@@ -251,13 +251,11 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Metas' },
                             },
                             // ---- end driver finance screens ----
+                            // Old driver ledger page, removed; keep saved links alive.
                             {
                                 path: 'lancamentos',
-                                loadComponent: () =>
-                                    import('./pages/driver-area/driver-entries').then(
-                                        (m) => m.DriverEntries
-                                    ),
-                                data: { pageTitle: 'Meus lançamentos' },
+                                pathMatch: 'full',
+                                redirectTo: 'ganhos',
                             },
                         ],
                     },
