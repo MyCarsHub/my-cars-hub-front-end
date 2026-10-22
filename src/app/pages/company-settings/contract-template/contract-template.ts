@@ -9,6 +9,7 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 import { ContractEsteira } from './contract-esteira';
+import { ContractIcon } from './contract-icon';
 import { saveBlob } from './steps/word-step';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -22,7 +23,7 @@ type LoadState = 'loading' | 'ready' | 'error';
   selector: 'app-contract-template',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  imports: [DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, ContractEsteira],
+  imports: [DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, ContractEsteira, ContractIcon],
   template: `
     <app-default-page-layout
       title="Contrato"
@@ -62,10 +63,8 @@ type LoadState = 'loading' | 'ready' | 'error';
                 @if (template(); as t) {
                   <div class="flex flex-col gap-4 rounded-2xl border border-neutral-200 p-4 @3xl:flex-row @3xl:items-center">
                     <div class="flex min-w-0 flex-1 items-center gap-4">
-                      <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <app-contract-icon name="file" [size]="22" />
                       </span>
                       <div class="flex min-w-0 flex-col gap-0.5">
                         <span class="text-base font-semibold text-neutral-900 break-all">{{ t.filename }}</span>

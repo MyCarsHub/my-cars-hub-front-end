@@ -4,6 +4,7 @@ import { AlertBanner } from '../../../../components/alert-banner/alert-banner';
 import { ApiErrorService } from '../../../../services/api-error.service';
 import { NotificationService } from '../../../../services/notification.service';
 import { ContractTemplateDto, ContractTemplateService } from '../contract-template-service';
+import { ContractDropzone } from '../contract-dropzone';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -15,7 +16,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
   selector: 'app-contract-word-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
-  imports: [AlertBanner],
+  imports: [AlertBanner, ContractDropzone],
   template: `
     <ol class="m-0 flex flex-col gap-2 pl-5 text-[15px] leading-relaxed text-neutral-800">
       <li>
@@ -43,15 +44,12 @@ const MAX_BYTES = 5 * 1024 * 1024;
         class="min-h-[48px] rounded-xl border border-neutral-200 bg-white px-5 text-base font-semibold text-primary-700 hover:bg-primary-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
         {{ aiBusy() ? 'Copiando…' : 'Copiar instruções para IA' }}
       </button>
-      <label
-        class="relative flex min-h-[48px] cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-neutral-300 bg-white px-4 text-base font-semibold text-neutral-800 hover:border-primary-500 focus-within:ring-2 focus-within:ring-primary-400"
-        [class.opacity-60]="uploading()"
-      >
-        <input type="file" class="sr-only" [disabled]="uploading()"
-          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          (change)="onFile($event)" />
-        {{ uploading() ? 'Enviando…' : 'Enviar .docx pronto' }}
-      </label>
+      <app-contract-dropzone
+        title="Enviar .docx pronto"
+        [busy]="uploading()"
+        [compact]="true"
+        (picked)="onFile($event)"
+      />
     </div>
   `,
 })
@@ -68,11 +66,7 @@ export class ContractWordStep {
   protected readonly aiBusy = signal(false);
   protected readonly uploading = signal(false);
 
-  protected onFile(event: Event): void {
-    const el = event.target as HTMLInputElement;
-    const file = el.files?.[0];
-    el.value = '';
-    if (!file) return;
+  protected onFile(file: File): void {
     this.error.set(null);
     if (!file.name.toLowerCase().endsWith('.docx')) {
       this.error.set('Este arquivo não é do Word. Escolha o arquivo do contrato que termina em .docx.');

@@ -31,6 +31,7 @@ import {
 } from './contract-paper.model';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 import { readDocxParagraphs } from './docx-text';
+import { formatFileSize } from './contract-dropzone';
 import { ContractClausesStep } from './steps/clauses-step';
 import { ContractConsentStep } from './steps/consent-step';
 import { ContractQuestionsStep } from './steps/questions-step';
@@ -570,6 +571,11 @@ export class ContractEsteira {
   protected readonly fileName = computed(() => {
     const f = this.file();
     return f ? safeText(f.name) : null;
+  });
+
+  protected readonly fileSize = computed(() => {
+    const f = this.file();
+    return f ? formatFileSize(f.size) : null;
   });
 
   protected useCurrent(): void {

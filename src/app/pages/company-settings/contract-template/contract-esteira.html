@@ -148,6 +148,7 @@
         @case ('upload') {
           <app-contract-upload-step
             [fileName]="fileName()"
+            [fileSize]="fileSize()"
             [currentName]="template()?.filename ?? null"
             [error]="fileError()"
             [busy]="fetchingCurrent()"
