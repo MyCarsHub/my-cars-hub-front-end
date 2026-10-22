@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { ContractIcon, ContractIconName } from '../contract-icon';
 import { AI_SEND_NOTICE } from '../ai/contract-ai.messages';
+import { AiProviderView } from '../ai/contract-ai.types';
 
 /**
  * «Ajustar o meu contrato», etapa 2: o consentimento v2 (provedor, país, o que vai escondido e o
@@ -20,6 +21,23 @@ import { AI_SEND_NOTICE } from '../ai/contract-ai.messages';
       <p class="m-0 text-[15px] leading-relaxed text-neutral-600">{{ notice.sent }}</p>
       <p class="m-0 text-[15px] leading-relaxed text-neutral-600">{{ notice.transfer }}</p>
     </div>
+    @if (reason()) {
+      <p role="alert" class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[15px] leading-normal text-amber-900">
+        <app-contract-icon name="alert" [size]="18" class="mt-0.5 text-amber-700" />
+        <span>{{ reason() }}</span>
+      </p>
+    }
+    @if (providers().length > 0) {
+      <div data-ai-route class="flex flex-col gap-1 rounded-xl border border-neutral-200 bg-white px-3.5 py-3">
+        <span class="text-[13px] font-semibold uppercase tracking-wide text-neutral-500">Quem recebe o texto</span>
+        @for (p of providers(); track p.provider) {
+          <span class="text-[15px] leading-normal text-neutral-800">
+            <span class="font-semibold">{{ p.label }}</span>
+            <span class="break-words text-neutral-600"> · {{ modelsText(p.models) }}</span>
+          </span>
+        }
+      </div>
+    }
     <ul class="m-0 flex list-none flex-col gap-2 p-0">
       @for (row of rows; track row.text) {
         <li class="flex items-start gap-3 rounded-xl bg-neutral-50 px-3.5 py-3 text-[15px] leading-normal text-neutral-800">
@@ -56,7 +74,7 @@ import { AI_SEND_NOTICE } from '../ai/contract-ai.messages';
       />
       <span class="flex flex-col gap-0.5">
         <span class="text-base font-semibold leading-normal text-neutral-900">
-          Li o texto {{ where() }} e as informações acima e autorizo o envio deste texto à Anthropic,
+          Li o texto {{ where() }} e as informações acima e autorizo o envio deste texto à {{ recipients() }},
           nos Estados Unidos, para análise.
         </span>
         @if (disabled()) {
@@ -73,7 +91,22 @@ export class ContractConsentStep {
   readonly where = input('ao lado');
   /** Rótulos do que o backend avisou que NÃO conseguiu mascarar. */
   readonly notMasked = input<readonly string[]>([]);
+  /** Provedores e modelos da rota que o servidor vai usar (o aceite vale só para eles). */
+  readonly providers = input<readonly AiProviderView[]>([]);
+  /** Por que a autorização foi pedida de novo (ex.: o provedor mudou); null = primeira vez. */
+  readonly reason = input<string | null>(null);
   readonly agreedChange = output<boolean>();
+
+  /** Nomes dos provedores na frase da autorização; sem rota ainda, o do texto v2. */
+  protected readonly recipients = computed(() => {
+    const names = this.providers().map((p) => p.label);
+    return names.length > 0 ? names.join(' e ') : 'Anthropic';
+  });
+
+  protected modelsText(models: readonly string[]): string {
+    const label = models.length > 1 ? 'modelos' : 'modelo';
+    return `${label} ${models.join(' e ')}`;
+  }
 
   protected readonly notice = AI_SEND_NOTICE;
 

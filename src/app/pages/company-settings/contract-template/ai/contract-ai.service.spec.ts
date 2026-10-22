@@ -303,6 +303,35 @@ describe('ContractAiService', () => {
     expect(cap.state()).toBe('off');
   });
 
+  it('o consentimento manda a rota exibida; 409 CONSENT_PROVIDER_CHANGED recarrega texto e rota', () => {
+    svc.draftId.set(ID);
+    svc.draft.set(draft({ status: 'AWAITING_CONSENT' }));
+    svc.loadMaskedText();
+    find(`/drafts/${ID}/masked-text`, 'GET').flush({
+      draftId: ID,
+      paragraphs: [],
+      maskedTextSha256: 'a'.repeat(64),
+      consentVersion: '2',
+      notMasked: [],
+      aiRoute: 'anthropic:claude-haiku-5-5',
+      aiProviders: [{ provider: 'anthropic', label: 'Anthropic', models: ['claude-haiku-5-5'] }],
+    });
+
+    svc.consent();
+    const post = find(`/drafts/${ID}/consent`, 'POST');
+    expect(post.request.body).toEqual({
+      consentVersion: '2',
+      maskedTextSha256: 'a'.repeat(64),
+      aiRoute: 'anthropic:claude-haiku-5-5',
+    });
+    post.flush({ code: 'CONSENT_PROVIDER_CHANGED' }, { status: 409, statusText: 'Conflict' });
+
+    expect(svc.error()).toContain('O serviço de IA que vai ler o contrato mudou');
+    // Reabre a tela com a rota nova: o aceite antigo não é reaproveitado.
+    find(`/drafts/${ID}/masked-text`, 'GET');
+    expect(svc.masked()).toBeNull();
+  });
+
   it('503 AI_BUSY mostra o Retry-After em segundos', () => {
     svc.submit(new File(['x'], 'a.docx'));
     find('/drafts', 'POST').flush(

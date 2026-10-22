@@ -55,6 +55,19 @@ export interface MaskedTextResponse {
   maskedTextSha256: string;
   consentVersion: string;
   notMasked: { code: string; label: string }[];
+  /**
+   * A quem o texto vai (provedor:modelo[>escalonamento], vírgula entre provedores). Volta no
+   * POST do consentimento EXATAMENTE como veio: o aceite só vale para esses provedores e modelos.
+   */
+  aiRoute: string;
+  /** A mesma rota, legível: um item por provedor com os modelos. */
+  aiProviders: AiProviderView[];
+}
+
+export interface AiProviderView {
+  provider: string;
+  label: string;
+  models: string[];
 }
 
 export interface DraftDecision {

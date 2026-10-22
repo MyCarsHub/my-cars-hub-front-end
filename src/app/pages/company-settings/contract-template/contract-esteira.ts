@@ -20,7 +20,7 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { LoggerService } from '../../../services/logger.service';
 import { ContractAiCapability } from './ai/contract-ai-capability';
 import { ContractAiService } from './ai/contract-ai.service';
-import { errorCode, httpErrorMessage, safeText } from './ai/contract-ai.messages';
+import { errorCode, failureMessage, httpErrorMessage, safeText } from './ai/contract-ai.messages';
 import { ContractBase } from './base/contract-base.types';
 import { ContractBaseService } from './base/contract-base.service';
 import { ContractIcon } from './contract-icon';
@@ -288,6 +288,20 @@ export class ContractEsteira {
   protected readonly notMaskedLabels = computed(() =>
     (this.ai.masked()?.notMasked ?? []).map((n) => safeText(n.label)),
   );
+  /** Provedor e modelos que vão receber o texto (o aceite vale só para eles). */
+  protected readonly aiProviders = computed(() =>
+    (this.ai.masked()?.aiProviders ?? []).map((p) => ({
+      provider: safeText(p.provider),
+      label: safeText(p.label),
+      models: (p.models ?? []).map((m) => safeText(m)),
+    })),
+  );
+  /** O servidor devolveu o rascunho ao consentimento porque o provedor mudou: diz por quê. */
+  protected readonly consentReason = computed(() =>
+    this.ai.draft()?.failureCode === 'CONSENT_PROVIDER_CHANGED'
+      ? failureMessage('CONSENT_PROVIDER_CHANGED')
+      : null,
+  );
 
   // ---- contrato ao vivo
   private readonly zeroDoc = computed<PaperDocument>(() => {
@@ -529,7 +543,15 @@ export class ContractEsteira {
     // Autorizar: pede o texto exato (mascarado) uma vez por rascunho.
     effect(() => {
       const id = this.ai.draftId();
-      if (this.view() !== 'consent' || !id) return;
+      const view = this.view();
+      if (view === 'reading') {
+        // A análise pode devolver o rascunho ao consentimento (provedor de IA mudou): aí o texto,
+        // a rota e o aceite são pedidos de novo.
+        this.maskedRequestedFor = null;
+        untracked(() => this.agreed.set(false));
+        return;
+      }
+      if (view !== 'consent' || !id) return;
       if (this.maskedRequestedFor === id) return;
       this.maskedRequestedFor = id;
       untracked(() => this.ai.loadMaskedText());
