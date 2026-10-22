@@ -55,11 +55,19 @@ describe('AuthService — initial company after login', () => {
     expect(sessionStorage.getItem('selectedRole')).toBe('OWNER');
   });
 
-  it('uses defaultCompanyId when it names one of the companies', () => {
+  it('a defaultCompanyId of a lower role does not pull an owner out of their company', () => {
     login({ companies: [owner, manager, driver], defaultCompanyId: 'co-drv' });
-    http.expectOne(`${environment.apiUrl}/auth/select-company/co-drv`).flush({ token: 't' });
-    expect(sessionStorage.getItem('selectedCompanyId')).toBe('co-drv');
-    expect(sessionStorage.getItem('selectedRole')).toBe('DRIVER');
+    http.expectOne(`${environment.apiUrl}/auth/select-company/co-owner`).flush({ token: 't' });
+    expect(sessionStorage.getItem('selectedCompanyId')).toBe('co-owner');
+    expect(sessionStorage.getItem('selectedRole')).toBe('OWNER');
+  });
+
+  it('uses defaultCompanyId when it names a company of the top role', () => {
+    const owner2 = { ...owner, companyId: 'co-owner-2', companyName: 'Segunda' };
+    login({ companies: [owner, owner2, driver], defaultCompanyId: 'co-owner-2' });
+    http.expectOne(`${environment.apiUrl}/auth/select-company/co-owner-2`).flush({ token: 't' });
+    expect(sessionStorage.getItem('selectedCompanyId')).toBe('co-owner-2');
+    expect(sessionStorage.getItem('selectedRole')).toBe('OWNER');
   });
 
   it('ignores a defaultCompanyId that is not in the list and falls back to OWNER first', () => {

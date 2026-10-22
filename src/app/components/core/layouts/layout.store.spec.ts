@@ -13,6 +13,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { BillingAccessService } from '../../../services/billing-access.service';
 import { DriverService } from '../../../services/driver.service';
 import { VehiclesService } from '../../../services/vehicles.service';
+import { MembershipsService } from '../../../services/memberships.service';
 import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 import { environment } from '../../../../environments/environment';
 
@@ -235,6 +236,47 @@ describe('LayoutStore — troca de tenant', () => {
 
     expect(unreadCountCalls()).toBe(ticksBefore);
     expect(feed.items()).toHaveLength(1);
+  });
+
+  describe('ordem da lista de empresas: as de dono primeiro', () => {
+    function membership(companyId: string, role: 'OWNER' | 'MANAGER' | 'DRIVER', status: 'ACTIVE' | 'ONBOARDING' = 'ACTIVE') {
+      return {
+        companyId,
+        companyName: companyId,
+        role,
+        roleLabel: '',
+        status,
+        lastSelectedAt: null,
+        needsOnboarding: status === 'ONBOARDING',
+      };
+    }
+
+    it('vínculos de /auth/memberships: OWNER > MANAGER > DRIVER, ordem do backend dentro do papel', () => {
+      TestBed.inject(MembershipsService).seedFromMe({
+        memberships: [
+          membership('d-1', 'DRIVER'),
+          membership('m-1', 'MANAGER', 'ONBOARDING'),
+          membership('o-1', 'OWNER'),
+          membership('d-2', 'DRIVER'),
+          membership('o-2', 'OWNER'),
+        ],
+        pendingInvites: [],
+        defaultCompanyId: 'd-1',
+      });
+
+      expect(layout.switcherEntries().map((e) => e.id)).toEqual(['o-1', 'o-2', 'm-1', 'd-1', 'd-2']);
+    });
+
+    it('snapshot de userCompanies (sem /auth/memberships): mesma ordem', () => {
+      store['userCompanies'] = JSON.stringify([
+        { companyId: 'd-1', companyName: 'D', role: 'DRIVER' },
+        { companyId: 'm-1', companyName: 'M', role: 'MANAGER' },
+        { companyId: 'o-1', companyName: 'O', role: 'OWNER' },
+      ]);
+      layout.refreshTenants();
+
+      expect(layout.switcherEntries().map((e) => e.id)).toEqual(['o-1', 'm-1', 'd-1']);
+    });
   });
 
   /**
