@@ -3,7 +3,8 @@ import { InjectionToken } from '@angular/core';
 /**
  * Menu do MOTORISTA, na ordem do protótipo do dono (handoff `design_handoff_motorista`):
  * Dashboard · Financeiro (Ganhos, Custos, Metas) · Veículo (Meu aluguel, Vistorias, Multas) ·
- * Alertas · Roadmap · Configurações · Suporte · Perfil. Sem badges numéricos.
+ * Alertas · Roadmap · Configurações e, no rodapé (como no menu do dono), Suporte · Perfil.
+ * Sem badges numéricos.
  *
  * Cada item é uma CHAVE; a URL vem de um mapa à parte (`DRIVER_NAV_ROUTES`). Chave sem URL
  * (`null`) não aparece: é como o menu esconde o que o motorista ainda não pode abrir — Multas
@@ -62,8 +63,11 @@ export interface DriverNavEntry {
   icon: DriverNavIcon;
   /** Grupo aberto na primeira visita (Financeiro, pelo protótipo). */
   defaultOpen?: boolean;
-  /** Linha divisória antes do item (Suporte, pelo protótipo). */
-  separatorBefore?: boolean;
+  /**
+   * Vai para o rodapé da sidebar, acima de "Recolher" — o MESMO lugar (e o mesmo bloco do
+   * template) em que dono e gerente têm Suporte e Perfil. Só vale para item de primeiro nível.
+   */
+  pinBottom?: boolean;
   exactMatch?: boolean;
   children?: DriverNavEntry[];
 }
@@ -109,6 +113,7 @@ export const DRIVER_NAV: readonly DriverNavEntry[] = [
   { key: 'alertas', label: 'Alertas', icon: 'alerts' },
   { key: 'roadmap', label: 'Roadmap', icon: 'roadmap' },
   { key: 'configuracoes', label: 'Configurações', icon: 'settings', exactMatch: true },
-  { key: 'suporte', label: 'Suporte', icon: 'support', separatorBefore: true },
-  { key: 'perfil', label: 'Perfil', icon: 'profile' },
+  // Rodapé, como no menu do dono: pedido do dono depois do lançamento do app do motorista.
+  { key: 'suporte', label: 'Suporte', icon: 'support', pinBottom: true },
+  { key: 'perfil', label: 'Perfil', icon: 'profile', pinBottom: true },
 ];

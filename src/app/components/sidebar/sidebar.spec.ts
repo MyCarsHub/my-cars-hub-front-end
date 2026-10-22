@@ -132,6 +132,19 @@ describe('Sidebar', () => {
         .map((item) => item.label);
     }
 
+    function bottomLabels(): string[] {
+      return (component as unknown as { bottomNavItems: () => NavItem[] })
+        .bottomNavItems()
+        .map((item) => item.label);
+    }
+
+    /** Rótulos renderizados no rodapé fixo (o bloco acima de "Recolher"), na ordem do DOM. */
+    function footerLinks(host: HTMLElement): string[] {
+      return Array.from(host.querySelectorAll('[data-nav-bottom] a.nav-link')).map(
+        (a) => a.getAttribute('aria-label') ?? '',
+      );
+    }
+
     function links(host: HTMLElement): Map<string, string | null> {
       return new Map(
         Array.from(host.querySelectorAll('a.nav-link')).map((a) => [
@@ -144,14 +157,8 @@ describe('Sidebar', () => {
     it('na ordem do protótipo, só com o que tem rota para ele', () => {
       signInDriver();
       // Multas e Alertas são da frota; Configurações espera o endpoint de preferências.
-      expect(topLabels()).toEqual([
-        'Dashboard',
-        'Financeiro',
-        'Veículo',
-        'Roadmap',
-        'Suporte',
-        'Perfil',
-      ]);
+      expect(topLabels()).toEqual(['Dashboard', 'Financeiro', 'Veículo', 'Roadmap']);
+      expect(bottomLabels()).toEqual(['Suporte', 'Perfil']);
     });
 
     it('Financeiro leva a Ganhos, Custos e Metas dentro de /meu-painel', () => {
@@ -196,20 +203,41 @@ describe('Sidebar', () => {
       expect(links(host).get('Dashboard')).not.toBe('/dashboard');
     });
 
-    it('Suporte vem depois de uma linha divisória, e Perfil fecha o menu', () => {
+    /*
+     * Pedido do dono em produção: "suporte e perfil devem ficar em baixo, igual de
+     * dono/gerenciador". Antes ficavam no MEIO da lista rolável, depois de um <hr>.
+     */
+    it('Suporte e Perfil ficam no rodapé fixo, fora da lista rolável (desktop)', () => {
       const host = signInDriver();
+      expect(footerLinks(host)).toEqual(['Suporte', 'Perfil']);
       const nav = host.querySelector('nav')!;
-      const children = Array.from(nav.children);
-      const hr = children.findIndex((el) => el.tagName === 'HR');
-      expect(hr).toBeGreaterThan(-1);
-      expect(children[hr + 1].getAttribute('aria-label')).toBe('Suporte');
-      expect(topLabels().at(-1)).toBe('Perfil');
+      expect(nav.querySelector('a[aria-label="Suporte"]')).toBeNull();
+      expect(nav.querySelector('a[aria-label="Perfil"]')).toBeNull();
+      expect(nav.querySelector('hr')).toBeNull();
+      // O rodapé vem DEPOIS da lista e ANTES do "Recolher", como no menu do dono.
+      const footer = host.querySelector('[data-nav-bottom]')!;
+      const collapse = host.querySelector('button[aria-label="Recolher sidebar"]')!;
+      expect(nav.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(footer.compareDocumentPosition(collapse) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('todo item do motorista tem alvo de 44px', () => {
+    it('no drawer do celular, Suporte e Perfil também ficam no rodapé', () => {
       const host = signInDriver();
-      for (const el of Array.from(host.querySelectorAll('nav .nav-link'))) {
-        expect(el.classList.contains('min-h-11')).toBe(true);
+      layout.setMobile(true);
+      layout.openMobile();
+      fixture.detectChanges();
+      expect(footerLinks(host)).toEqual(['Suporte', 'Perfil']);
+      expect(host.querySelector('nav a[aria-label="Suporte"]')).toBeNull();
+      expect(links(host).get('Suporte')).toBe('/suporte');
+      expect(links(host).get('Perfil')).toBe('/perfil');
+    });
+
+    it('todo item do motorista tem alvo de 44px, inclusive os do rodapé', () => {
+      const host = signInDriver();
+      const all = Array.from(host.querySelectorAll('.nav-link'));
+      expect(all.length).toBeGreaterThan(footerLinks(host).length);
+      for (const el of all) {
+        expect(el.classList.contains('min-h-11'), el.getAttribute('aria-label') ?? '').toBe(true);
       }
     });
 
@@ -274,9 +302,14 @@ describe('Sidebar', () => {
         fixture.detectChanges();
         const host = fixture.nativeElement as HTMLElement;
         expect(topLabels()).toContain('Frota');
+        expect(topLabels()).not.toContain('Suporte');
+        expect(topLabels()).not.toContain('Perfil');
         expect(links(host).get('Dashboard')).toBe('/dashboard');
         expect(host.querySelector('hr')).toBeNull();
-        expect(host.querySelector('nav .nav-link.min-h-11')).toBeNull();
+        expect(host.querySelector('.nav-link.min-h-11')).toBeNull();
+        // O rodapé do dono/gerente é o de sempre: Suporte e Perfil, no mesmo bloco.
+        expect(bottomLabels()).toEqual(['Suporte', 'Perfil']);
+        expect(footerLinks(host)).toEqual(['Suporte', 'Perfil']);
       }
     });
   });
@@ -314,9 +347,11 @@ describe('Sidebar', () => {
         'Alertas',
         'Roadmap',
         'Configurações',
-        'Suporte',
-        'Perfil',
       ]);
+      const bottom = (f.componentInstance as unknown as { bottomNavItems: () => NavItem[] })
+        .bottomNavItems()
+        .map((item) => item.label);
+      expect(bottom).toEqual(['Suporte', 'Perfil']);
 
       const finance = host.querySelector<HTMLButtonElement>('button[aria-label="Financeiro"]')!;
       expect(finance.getAttribute('aria-expanded')).toBe('true');
