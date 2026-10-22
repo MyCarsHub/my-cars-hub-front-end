@@ -121,7 +121,10 @@ describe('ContractEsteira', () => {
     expect(paperText()).not.toContain('CAUÇÃO');
 
     click('Com o nome dos campos');
-    expect(paperText()).toContain('{{franchiseKm}}');
+    // O cliente vê o nome do campo em português, nunca a chave em inglês.
+    expect(paperText()).toContain('Km de franquia');
+    expect(paperText()).not.toContain('{{');
+    expect(paperText()).not.toContain('franchiseKm');
 
     click('Conferir contrato');
     expect(host.textContent).toContain('Confira e salve');
@@ -418,7 +421,9 @@ describe('ContractEsteira', () => {
 
     expect(host.textContent).toContain('Confira e salve');
     click('Com o nome dos campos');
-    expect(paperText()).toContain('{{totalAmount}}');
-    expect(paperText()).toContain('{{driverCpf}}');
+    expect(paperText()).toContain('Valor total');
+    expect(paperText()).toContain('CPF do motorista');
+    expect(paperText()).not.toContain('{{');
+    expect(paperText()).not.toMatch(/totalAmount|driverCpf/);
   });
 });

@@ -1,4 +1,4 @@
-import { FIELD_LABELS } from './ai/contract-ai.messages';
+import { FIELD_LABELS, fieldLabel } from './ai/contract-ai.messages';
 
 /**
  * Catálogo dos campos do contrato para a tela. Os rótulos são os do fluxo com IA
@@ -99,12 +99,14 @@ const HIDDEN_LABELS: Readonly<Record<string, string>> = {
 
 export const MASK_TOKEN = /\[([A-Z]+)_\d+\]/g;
 
+/** A chave como se digita no Word. Só o caminho «Já sei colocar os campos no Word» a mostra. */
 export function fieldCode(field: string): string {
   return `{{${field}}}`;
 }
 
+/** Sem exemplo, cai no nome em português: a chave em inglês nunca aparece ao cliente. */
 export function fieldExample(field: string): string {
-  return FIELD_EXAMPLES[field] ?? fieldCode(field);
+  return FIELD_EXAMPLES[field] ?? fieldLabel(field);
 }
 
 export function plainFieldLabel(field: string, apiLabel?: string | null): string {
