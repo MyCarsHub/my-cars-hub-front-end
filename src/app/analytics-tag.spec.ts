@@ -111,6 +111,18 @@ describe('CSP de producao em vercel.json', () => {
     expect(directive('connect-src')).toContain('https://*.google-analytics.com');
   });
 
+  /**
+   * O service worker (`ngsw-worker.js`) intercepta TODA requisicao GET da pagina e a refaz
+   * com `fetch()` — e o `fetch()` de dentro do worker obedece ao `connect-src`, nao ao
+   * `font-src`/`style-src`. Sem as duas origens aqui, a partir da segunda visita (worker
+   * ativo) o CSS do Google Fonts e os .woff2 voltam 504 do proprio worker, e o app inteiro
+   * cai na fonte do sistema. Medido em WebKit (iPhone 13) e Chromium.
+   */
+  it('connect-src permite o Google Fonts, que o service worker busca com fetch()', () => {
+    expect(directive('connect-src')).toContain('https://fonts.googleapis.com');
+    expect(directive('connect-src')).toContain('https://fonts.gstatic.com');
+  });
+
   it('img-src permite o pixel de fallback do GA', () => {
     expect(directive('img-src')).toContain('https://*.google-analytics.com');
   });

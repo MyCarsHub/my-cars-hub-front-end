@@ -113,6 +113,24 @@ describe('Sidebar', () => {
   });
 
   /**
+   * A sidebar fixa é da altura do shell, que termina acima do banner de cookies: em
+   * `h-dvh` o rodapé dela (Suporte, Perfil, Recolher) ficava por baixo do banner.
+   */
+  it('desktop e drawer terminam acima do banner de cookies', () => {
+    signInAs('DRIVER');
+    const banner = 'h-[calc(100dvh-var(--consent-banner-h,0px))]';
+    layout.setMobile(false);
+    fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.querySelector('aside')!.classList.contains(banner)).toBe(true);
+    layout.setMobile(true);
+    layout.openMobile();
+    fixture.detectChanges();
+    expect(host.querySelector('aside')!.classList.contains(banner)).toBe(true);
+    expect(host.querySelector('aside')!.classList.contains('h-dvh')).toBe(false);
+  });
+
+  /**
    * O menu do MOTORISTA — o do protótipo do dono (`driver-nav.ts`), não mais um recorte de
    * `NAV_ITEMS`. Continua valendo o que o FEAT-0108 fixou: nada de tela que é 403 para ele
    * (Dashboard da frota, Alertas, Multas da frota) e a área do aluguel à vista.

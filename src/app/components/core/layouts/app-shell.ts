@@ -40,9 +40,13 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
   template: `
     <!--
       pt-14 reserva os 56px da barra de impersonação (fixed no topo, montada na
-      raiz da aplicação). Com box-sizing border-box, o h-dvh continua valendo
-      100dvh e é o CONTEÚDO que encolhe — sem isso a barra cobriria o topo da
+      raiz da aplicação). Com box-sizing border-box, a altura do quadro continua
+      valendo e é o CONTEÚDO que encolhe — sem isso a barra cobriria o topo da
       sidebar e o botão do menu no mobile.
+
+      A altura é 100dvh MENOS a faixa do banner de cookies (\`--consent-banner-h\`, que o
+      próprio banner publica): aqui dentro o body não rola, então o respiro que o banner
+      dá ao body não chega ao <main>, e o fim de toda tela ficava por baixo dele.
     -->
     <!--
       Motorista abaixo de lg: coluna com a barra de topo do protótipo NO FLUXO e o conteúdo
@@ -52,11 +56,11 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
       ocupa a altura toda (captura guiada da vistoria) desconta isso e cabe sem rolar.
     -->
     <div
-      class="flex h-dvh overflow-hidden bg-gray-50"
+      class="flex h-[calc(100dvh-var(--consent-banner-h,0px))] overflow-hidden bg-gray-50"
       [class.pt-14]="impersonating()"
       [class.flex-col]="layout.driverTopBar()"
       [style.--page-top]="layout.driverTopBar() ? '1.25rem' : null"
-      [style.--page-fill-offset]="layout.driverTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom))' : null"
+      [style.--page-fill-offset]="layout.driverTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px))' : null"
       [style.--page-header-end]="layout.driverTopBar() && showBell() ? '3.25rem' : null"
     >
       @if (layout.driverTopBar()) {
