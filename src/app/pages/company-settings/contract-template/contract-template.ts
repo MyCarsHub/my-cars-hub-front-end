@@ -11,6 +11,7 @@ import { ContractTemplateDto, ContractTemplateService } from './contract-templat
 import { ContractEsteira } from './contract-esteira';
 import { ContractIcon } from './contract-icon';
 import { saveBlob } from './steps/word-step';
+import { safeText } from './ai/contract-ai.messages';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -195,7 +196,7 @@ export class ContractTemplate implements OnInit {
     this.state.set('loading');
     this.service.get().subscribe({
       next: (tpl) => {
-        this.template.set(tpl);
+        this.template.set(cleanName(tpl));
         this.state.set('ready');
       },
       error: (err: HttpErrorResponse) => {
@@ -217,7 +218,7 @@ export class ContractTemplate implements OnInit {
   }
 
   protected onSaved(tpl: ContractTemplateDto): void {
-    this.template.set(tpl);
+    this.template.set(cleanName(tpl));
     this.error.set(null);
     // O cartão «Contrato salvo!» (role=status) é o aviso; um toast junto repetiria a frase.
     this.savedNow.set(true);
@@ -283,4 +284,12 @@ export class ContractTemplate implements OnInit {
   protected formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString('pt-BR');
   }
+}
+
+/**
+ * O nome vem do upload original, gravado como veio: sem caracteres de controle e bidi (um
+ * RLO faria «cod.exe» parecer «exe.docx») na tela, nos avisos e no nome do download.
+ */
+function cleanName(tpl: ContractTemplateDto): ContractTemplateDto {
+  return { ...tpl, filename: safeText(tpl.filename) || 'contrato.docx' };
 }

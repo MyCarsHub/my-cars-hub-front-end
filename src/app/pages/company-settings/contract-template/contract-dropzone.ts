@@ -107,6 +107,36 @@ export class ContractDropzone {
   }
 }
 
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+/**
+ * Tipos que o seletor do sistema costuma dar para um .docx: vazio (Windows sem Office),
+ * o do Word, ou genérico (Android, Drive: octet-stream/zip). A assinatura ZIP decide o resto.
+ */
+const DOCX_LIKE_TYPES = new Set([
+  '',
+  DOCX_MIME,
+  'application/octet-stream',
+  'application/zip',
+  'application/x-zip-compressed',
+]);
+
+/** Termina em .docx e o tipo informado não é de outra coisa (PDF, imagem…). */
+export function isDocxFile(file: File): boolean {
+  return /\.docx$/i.test(file.name) && DOCX_LIKE_TYPES.has(file.type);
+}
+
+/** DOCX é um ZIP: os 4 primeiros bytes são PK 03 04. */
+export function hasZipSignature(file: Blob): Promise<boolean> {
+  return file
+    .slice(0, 4)
+    .arrayBuffer()
+    .then((buf) => {
+      const b = new Uint8Array(buf);
+      return b.length === 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
+    })
+    .catch(() => false);
+}
+
 /** «40,5 KB» / «1,2 MB». */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

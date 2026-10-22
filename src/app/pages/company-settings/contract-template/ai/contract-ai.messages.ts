@@ -35,8 +35,26 @@ export function failureMessage(code: string | null): string {
 const HTTP_MESSAGES: Record<string, string> = {
   AI_DISABLED: 'A análise com IA está indisponível no momento. Você pode montar o contrato do zero.',
   AI_BUSY: 'A análise está com muita fila agora. Tente de novo em alguns segundos.',
-  DRAFT_LIMIT:
+  DRAFT_LIMIT_REACHED:
     'Você já tem análises em andamento. Termine ou aguarde uma delas expirar antes de enviar outro arquivo.',
+  PDF_NOT_SUPPORTED:
+    'Arquivo em PDF ainda não dá para ler. Envie o contrato em Word (.docx) ou monte do zero.',
+  INVALID_FILE_TYPE: 'Este arquivo não é do Word. Envie o contrato que termina em .docx.',
+  FILE_REQUIRED: 'Escolha o arquivo do contrato antes de continuar.',
+  FILE_TOO_LARGE: 'O arquivo é maior que 5 MB.',
+  SUPPORT_SESSION_NOT_ALLOWED:
+    'Em modo de suporte não dá para enviar o contrato da empresa para a IA.',
+  CONTRACT_BASE_VERSION_CHANGED:
+    'O modelo de contrato foi atualizado enquanto você montava. Já carregamos a versão nova: confira e salve de novo.',
+  CONTRACT_BASE_UNKNOWN_CLAUSE:
+    'Algumas cláusulas mudaram no modelo. Já atualizamos a lista: confira e salve de novo.',
+  CONTRACT_BASE_FIXED_CLAUSE:
+    'Algumas cláusulas mudaram no modelo. Já atualizamos a lista: confira e salve de novo.',
+  CONTRACT_BASE_DUPLICATE_CLAUSE:
+    'Algumas cláusulas mudaram no modelo. Já atualizamos a lista: confira e salve de novo.',
+  CONTRACT_BASE_INVALID_REQUEST: 'Não foi possível salvar estas escolhas. Volte, confira as cláusulas e tente de novo.',
+  CONTRACT_BASE_FORBIDDEN:
+    'Só o dono ou o gerente da empresa pode salvar o contrato. Em modo de suporte, o contrato não pode ser alterado.',
   DOUBTS_PENDING: 'Ainda há dúvidas sem resposta.',
   DRAFT_ALREADY_SAVED: 'Este contrato já foi salvo.',
   DRAFT_FAILED: 'A análise deste arquivo falhou. Envie o arquivo de novo.',

@@ -20,7 +20,8 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { LoggerService } from '../../../services/logger.service';
 import { ContractAiCapability } from './ai/contract-ai-capability';
 import { ContractAiService } from './ai/contract-ai.service';
-import { httpErrorMessage, safeText } from './ai/contract-ai.messages';
+import { errorCode, httpErrorMessage, safeText } from './ai/contract-ai.messages';
+import { ContractBase } from './base/contract-base.types';
 import { ContractBaseService } from './base/contract-base.service';
 import { ContractIcon } from './contract-icon';
 import { ContractPaper, PaperMode } from './contract-paper';
@@ -33,7 +34,7 @@ import {
 } from './contract-paper.model';
 import { ContractTemplateDto, ContractTemplateService } from './contract-template-service';
 import { readDocxParagraphs } from './docx-text';
-import { formatFileSize } from './contract-dropzone';
+import { formatFileSize, hasZipSignature, isDocxFile } from './contract-dropzone';
 import { ContractClausesStep } from './steps/clauses-step';
 import { ContractConsentStep } from './steps/consent-step';
 import { ContractQuestionsStep } from './steps/questions-step';
@@ -64,6 +65,13 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 const SPLIT_MIN_PX = 900;
 /** Celular: área principal < 640 px no protótipo = cartão < 608 px aqui (`px-4`). */
 const NARROW_MAX_PX = 608;
+/** Erros do «Salvar» do zero em que o modelo do servidor não é mais o da tela. */
+const BASE_RELOAD_CODES = new Set([
+  'CONTRACT_BASE_VERSION_CHANGED',
+  'CONTRACT_BASE_UNKNOWN_CLAUSE',
+  'CONTRACT_BASE_FIXED_CLAUSE',
+  'CONTRACT_BASE_DUPLICATE_CLAUSE',
+]);
 const READING_TEXTS = ['Abrindo o arquivo', 'Procurando nomes, valores e datas', 'Quase pronto'];
 const READING_PCT = ['25%', '60%', '90%'];
 const STEPS: Record<EsteiraPath, string[]> = {
@@ -166,8 +174,14 @@ export class ContractEsteira {
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly zeroSaving = signal(false);
   protected readonly zeroError = signal<string | null>(null);
+  /** Versão do modelo de onde saíram as escolhas atuais (`null` = ainda não semeadas). */
+  private zeroSeededVersion: string | null = null;
+  /** Escolha de arquivo mais recente: uma validação lenta não sobrescreve a seguinte. */
+  private pickToken = 0;
 
   // ---- «Fazer no Word»
+  /** Envio do arquivo pronto em voo: «Cancelar» espera (o servidor já pode ter trocado). */
+  protected readonly wordBusy = signal(false);
   private readonly exampleMd = signal<string | null>(null);
   private readonly exampleLoading = signal(false);
 
@@ -469,7 +483,7 @@ export class ContractEsteira {
    * o caminho. Nos dois casos o botão espera.
    */
   protected readonly canCancel = computed(
-    () => this.view() !== 'reading' && !this.ai.busy() && !this.zeroSaving(),
+    () => this.view() !== 'reading' && !this.ai.busy() && !this.zeroSaving() && !this.wordBusy(),
   );
 
   /** Há trabalho a perder? Decide se «Cancelar» pede confirmação. */
@@ -502,6 +516,14 @@ export class ContractEsteira {
     effect(() => {
       const id = this.ai.draftId();
       if (id && untracked(this.path) === null) this.path.set('mine');
+    });
+
+    // «Montar do zero»: semeia as escolhas quando o modelo está carregado (antes ou depois
+    // do clique) e de novo quando ele volta numa versão nova.
+    effect(() => {
+      const base = this.baseSvc.base();
+      if (this.path() !== 'zero' || !base) return;
+      untracked(() => this.seedZero(base));
     });
 
     // Autorizar: pede o texto exato (mascarado) uma vez por rascunho.
@@ -586,7 +608,6 @@ export class ContractEsteira {
     if (path === 'zero' && this.baseState() === 'off') return;
     this.resetLocal();
     this.path.set(path);
-    if (path === 'zero') this.initZero();
     if (path === 'word') this.loadExample();
     this.scrollIntoView();
   }
@@ -606,6 +627,15 @@ export class ContractEsteira {
     }
     this.resetLocal();
     this.path.set(null);
+    this.focusTitle();
+  }
+
+  /** Depois de sair, o foco volta ao título (o botão focado deixou de existir). */
+  private focusTitle(): void {
+    afterNextRender(
+      () => this.host.nativeElement.querySelector<HTMLElement>('#contract-esteira-title')?.focus({ preventScroll: true }),
+      { injector: this.injector },
+    );
   }
 
   private resetLocal(): void {
@@ -622,6 +652,8 @@ export class ContractEsteira {
     this.fallbackRequestedFor = null;
     this.zeroStep.set(0);
     this.zeroError.set(null);
+    this.zeroSeededVersion = null;
+    this.selected.set(new Set());
   }
 
   private finish(tpl: ContractTemplateDto): void {
@@ -632,15 +664,17 @@ export class ContractEsteira {
 
   // ---- «Ajustar o meu contrato»
   protected async pickFile(file: File): Promise<void> {
+    const token = ++this.pickToken;
     this.file.set(null);
     this.uploadLines.set(null);
     const reject = (msg: string): void => this.fileError.set(msg);
-    // MIME vazio é comum (Windows sem Office); MIME de outro tipo, não.
-    if (!/\.docx$/i.test(file.name) || (file.type !== '' && file.type !== DOCX_MIME)) {
+    if (!isDocxFile(file)) {
       return reject('Este arquivo não é do Word. Escolha o arquivo do contrato que termina em .docx.');
     }
     if (file.size > MAX_BYTES) return reject('O arquivo é maior que 5 MB.');
-    if (!(await hasZipSignature(file))) {
+    const zip = await hasZipSignature(file);
+    if (token !== this.pickToken) return; // outra escolha chegou enquanto esta era conferida
+    if (!zip) {
       return reject('Este arquivo não parece ser um documento do Word. Escolha outro arquivo.');
     }
     this.fileError.set(null);
@@ -677,8 +711,10 @@ export class ContractEsteira {
   }
 
   protected clearFile(): void {
+    this.pickToken++;
     this.file.set(null);
     this.uploadLines.set(null);
+    this.uploadReading.set(false);
   }
 
   private async readUpload(file: File): Promise<void> {
@@ -692,7 +728,8 @@ export class ContractEsteira {
       this.logger.error('contract upload text failed', err);
       if (this.file() === file) this.uploadLines.set([]);
     } finally {
-      this.uploadReading.set(false);
+      // Só a leitura do arquivo atual desliga o «carregando»; uma antiga não.
+      if (this.file() === file) this.uploadReading.set(false);
     }
   }
 
@@ -734,17 +771,34 @@ export class ContractEsteira {
     this.resetLocal();
   }
 
+  /** O texto mascarado não veio (rede/5xx): pede de novo para o mesmo rascunho. */
+  protected retryMasked(): void {
+    this.ai.error.set(null);
+    this.maskedRequestedFor = this.ai.draftId();
+    this.ai.loadMaskedText();
+  }
+
   protected retryReading(): void {
     this.ai.error.set(null);
     this.ai.startPolling();
   }
 
   // ---- «Montar do zero»
-  private initZero(): void {
-    const base = this.baseSvc.base();
-    this.selected.set(
-      new Set((base?.clauses ?? []).filter((c) => !c.fixed && c.defaultOn).map((c) => c.id)),
-    );
+  /**
+   * Escolhas do «Montar do zero» a partir do modelo carregado. Primeira vez: as cláusulas
+   * padrão. Modelo de outra versão (recarregado após o 409): mantém o que a pessoa escolheu e
+   * ainda existe. Roda quando o modelo chega, então o clique antes da carga não perde nada.
+   */
+  private seedZero(base: ContractBase): void {
+    if (this.zeroSeededVersion === base.version) return;
+    const optional = base.clauses.filter((c) => !c.fixed);
+    if (this.zeroSeededVersion === null) {
+      this.selected.set(new Set(optional.filter((c) => c.defaultOn).map((c) => c.id)));
+    } else {
+      const ids = new Set(optional.map((c) => c.id));
+      this.selected.update((cur) => new Set([...cur].filter((id) => ids.has(id))));
+    }
+    this.zeroSeededVersion = base.version;
   }
 
   protected retryBase(): void {
@@ -776,6 +830,9 @@ export class ContractEsteira {
       error: (err: HttpErrorResponse) => {
         this.zeroSaving.set(false);
         this.zeroError.set(httpErrorMessage(err, 'Não foi possível salvar o contrato. Tente de novo.'));
+        // Modelo mudou ou a lista não bate mais com o servidor: relê o modelo; as escolhas
+        // que ainda existem continuam marcadas (seedZero) e o próximo «Salvar» leva a versão nova.
+        if (BASE_RELOAD_CODES.has(errorCode(err) ?? '')) this.baseSvc.load(true);
       },
     });
   }
@@ -797,6 +854,7 @@ export class ContractEsteira {
   }
 
   protected wordUploaded(tpl: ContractTemplateDto): void {
+    this.wordBusy.set(false);
     this.finish(tpl);
   }
 
@@ -885,14 +943,4 @@ export class ContractEsteira {
   }
 }
 
-/** DOCX é um ZIP: os 4 primeiros bytes são PK 03 04. */
-export function hasZipSignature(file: Blob): Promise<boolean> {
-  return file
-    .slice(0, 4)
-    .arrayBuffer()
-    .then((buf) => {
-      const b = new Uint8Array(buf);
-      return b.length === 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
-    })
-    .catch(() => false);
-}
+export { hasZipSignature } from './contract-dropzone';

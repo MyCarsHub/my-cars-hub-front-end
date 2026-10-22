@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { environment } from '../../../../environments/environment';
 import { ContractEsteira } from './contract-esteira';
@@ -52,7 +53,7 @@ describe('ContractEsteira', () => {
     mocks.renderAsync.mockReset();
     TestBed.configureTestingModule({
       imports: [ContractEsteira],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
     });
     http = TestBed.inject(HttpTestingController);
   });
@@ -145,6 +146,157 @@ describe('ContractEsteira', () => {
     fixture.detectChanges();
     expect(host.querySelector('[role=alert]')?.textContent).toContain('Não foi possível salvar');
     expect(host.textContent).toContain('Confira e salve');
+  });
+
+  it('montar do zero: modelo que chega DEPOIS do clique ainda marca as cláusulas padrão', () => {
+    fixture = TestBed.createComponent(ContractEsteira);
+    host = fixture.nativeElement;
+    fixture.detectChanges();
+    http.expectOne(`${ROOT}/ai-capability`).flush({ enabled: true });
+    http.expectOne(`${ROOT}/base`).flush({ code: 'X' }, { status: 500, statusText: 'err' });
+    fixture.detectChanges();
+
+    click('Montar do zero'); // habilitado no estado de erro
+    click('Tentar novamente');
+    http.expectOne(`${ROOT}/base`).flush(BASE);
+    fixture.detectChanges();
+
+    const boxes = Array.from(host.querySelectorAll<HTMLInputElement>('input[type=checkbox]'));
+    expect(boxes.map((b) => b.checked)).toEqual([true, false]); // caução (padrão), km
+    expect(paperText()).toContain('DA CAUÇÃO');
+  });
+
+  it('montar do zero: 409 de versão relê o modelo, mantém as escolhas e salva com a versão nova', () => {
+    mount();
+    click('Montar do zero');
+    click('Conferir contrato');
+    click('Salvar contrato');
+    http
+      .expectOne(`${ROOT}/base/save`)
+      .flush({ code: 'CONTRACT_BASE_VERSION_CHANGED' }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+    expect(host.querySelector('[role=alert]')?.textContent).toContain('O modelo de contrato foi atualizado');
+
+    http.expectOne(`${ROOT}/base`).flush({ ...BASE, version: 'base-v8' });
+    fixture.detectChanges();
+    click('Salvar contrato');
+    const again = http.expectOne(`${ROOT}/base/save`);
+    expect(again.request.body).toEqual({ version: 'base-v8', optionalClauseIds: ['caucao'] });
+  });
+
+  it('montar do zero: 403 sem permissão explica quem pode salvar e não relê o modelo', () => {
+    mount();
+    click('Montar do zero');
+    click('Conferir contrato');
+    click('Salvar contrato');
+    http
+      .expectOne(`${ROOT}/base/save`)
+      .flush({ code: 'CONTRACT_BASE_FORBIDDEN' }, { status: 403, statusText: 'Forbidden' });
+    fixture.detectChanges();
+    expect(host.querySelector('[role=alert]')?.textContent).toContain(
+      'Só o dono ou o gerente da empresa pode salvar o contrato.',
+    );
+    http.expectNone(`${ROOT}/base`);
+  });
+
+  it('fazer no Word: com contrato em uso, pede confirmação antes de substituir', async () => {
+    fixture = TestBed.createComponent(ContractEsteira);
+    fixture.componentRef.setInput('template', { ...SAVED, filename: 'atual.docx' });
+    host = fixture.nativeElement;
+    fixture.detectChanges();
+    http.expectOne(`${ROOT}/ai-capability`).flush({ enabled: true });
+    http.expectOne(`${ROOT}/base`).flush(BASE);
+    fixture.detectChanges();
+
+    click('Já sei colocar os campos no Word');
+    http.expectOne(`${ROOT}/example`).flush('# CONTRATO');
+    fixture.detectChanges();
+
+    const input = host.querySelector<HTMLInputElement>('app-contract-word-step input[type=file]')!;
+    const file = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], 'novo.docx', { type: DOCX_MIME });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(host.querySelector('[role=dialog]')?.textContent).toContain(
+        '«novo.docx» vai substituir «atual.docx» nos próximos aluguéis.',
+      );
+    });
+    http.expectNone(ROOT); // nada sobe antes do «Substituir»
+
+    const confirm = Array.from(host.querySelectorAll<HTMLButtonElement>('[role=dialog] button')).find(
+      (b) => b.textContent?.trim() === 'Substituir',
+    )!;
+    confirm.click();
+    fixture.detectChanges();
+    const up = http.expectOne((r) => r.method === 'POST' && r.url === ROOT);
+    expect((up.request.body as FormData).get('file')).toBe(file);
+    expect(button('Cancelar')!.disabled).toBe(true); // envio em voo
+    up.flush(SAVED);
+  });
+
+  it('fazer no Word: arquivo sem assinatura de Word é recusado sem enviar nada', async () => {
+    mount();
+    click('Já sei colocar os campos no Word');
+    http.expectOne(`${ROOT}/example`).flush('# CONTRATO');
+    fixture.detectChanges();
+    const input = host.querySelector<HTMLInputElement>('app-contract-word-step input[type=file]')!;
+    const fake = new File(['nao e zip'], 'contrato.docx', { type: DOCX_MIME });
+    Object.defineProperty(input, 'files', { value: [fake], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(host.textContent).toContain('Este arquivo não parece ser um documento do Word.');
+    });
+    http.expectNone((r) => r.method === 'POST');
+  });
+
+  it('ajustar o meu: texto mascarado que falha oferece «Tentar de novo» e pede de novo', async () => {
+    mount();
+    click('Ajustar o meu contrato');
+    const input = host.querySelector<HTMLInputElement>('input[type=file]')!;
+    const file = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], 'meu.docx', { type: DOCX_MIME });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button('Continuar')!.disabled).toBe(false);
+    });
+    click('Continuar');
+    http.expectOne(`${ROOT}/drafts`).flush({ draftId: DRAFT, status: 'AWAITING_CONSENT' });
+    fixture.detectChanges();
+    http
+      .expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`)
+      .flush({ code: 'X' }, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+
+    click('Tentar de novo');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`).flush({
+      draftId: DRAFT,
+      paragraphs: [{ id: 'p1', text: 'CPF [CPF_1].' }],
+      maskedTextSha256: 'abc',
+      consentVersion: 'v3',
+      notMasked: [],
+    });
+    fixture.detectChanges();
+    expect(button('Tentar de novo')).toBeUndefined();
+    expect(paperText()).toContain('CPF escondido');
+  });
+
+  it('ajustar o meu: .docx do Android (octet-stream) com assinatura de Word é aceito', async () => {
+    mount();
+    click('Ajustar o meu contrato');
+    const input = host.querySelector<HTMLInputElement>('input[type=file]')!;
+    const file = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], 'meu.docx', {
+      type: 'application/octet-stream',
+    });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button('Continuar')!.disabled).toBe(false);
+    });
+    expect(host.textContent).not.toContain('Este arquivo não é do Word');
   });
 
   it('ajustar o meu: recusa arquivo que não é Word, sem enviar nada', async () => {

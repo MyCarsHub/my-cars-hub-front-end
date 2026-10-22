@@ -96,6 +96,14 @@ describe('ContractTemplate', () => {
     expect(host.textContent).not.toContain('Contrato salvo!');
   });
 
+  it('nome de arquivo do servidor sem caracteres bidi/controle na tela', () => {
+    service.get.mockReturnValue(of({ ...tpl, filename: 'contrato\u202Excod.docx' }));
+    const fixture = makeFixture();
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.textContent).toContain('contratoxcod.docx');
+    expect(host.textContent).not.toContain('\u202E');
+  });
+
   it('404 = sem contrato: frase de estado vazio, sem erro', () => {
     service.get.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
     const fixture = makeFixture();

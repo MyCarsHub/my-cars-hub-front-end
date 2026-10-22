@@ -21,6 +21,25 @@ const SUPPORTED_VARIABLES = [
 ];
 
 describe('contract-ai.messages', () => {
+  it('códigos do backend têm mensagem própria (DRAFT_LIMIT_REACHED, envio, montar do zero)', () => {
+    const err = (code: string, status = 409) =>
+      new HttpErrorResponse({ status, error: { code, message: 'x' } });
+    expect(httpErrorMessage(err('DRAFT_LIMIT_REACHED'), 'fallback')).toContain(
+      'Você já tem análises em andamento',
+    );
+    expect(httpErrorMessage(err('PDF_NOT_SUPPORTED', 400), 'fallback')).toContain('PDF');
+    expect(httpErrorMessage(err('SUPPORT_SESSION_NOT_ALLOWED', 403), 'fallback')).toContain(
+      'modo de suporte',
+    );
+    expect(httpErrorMessage(err('CONTRACT_BASE_VERSION_CHANGED'), 'fallback')).toContain(
+      'O modelo de contrato foi atualizado',
+    );
+    expect(httpErrorMessage(err('CONTRACT_BASE_FORBIDDEN', 403), 'fallback')).toContain(
+      'Só o dono ou o gerente',
+    );
+    expect(httpErrorMessage(err('DRAFT_LIMIT'), 'fallback')).toBe('fallback'); // código antigo não existe mais
+  });
+
   it('toda variável suportada tem rótulo pt-BR sem nome técnico', () => {
     for (const v of SUPPORTED_VARIABLES) {
       const label = fieldLabel(v);
@@ -49,7 +68,7 @@ describe('contract-ai.messages', () => {
       new HttpErrorResponse({ status, error: code ? { code, message: 'x' } : null });
     expect(httpErrorMessage(e(503, 'AI_BUSY'), 'f')).toContain('fila');
     expect(httpErrorMessage(e(503, 'AI_DISABLED'), 'f')).toContain('indisponível');
-    expect(httpErrorMessage(e(409, 'DRAFT_LIMIT'), 'f')).toContain('em andamento');
+    expect(httpErrorMessage(e(409, 'DRAFT_LIMIT_REACHED'), 'f')).toContain('em andamento');
     expect(httpErrorMessage(e(413), 'f')).toContain('5 MB');
     expect(httpErrorMessage(e(429), 'f')).toContain('Aguarde');
     expect(httpErrorMessage(e(418), 'fallback')).toBe('fallback');

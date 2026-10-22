@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
 import { AlertBanner } from '../../../../components/alert-banner/alert-banner';
+import { ConfirmDialog } from '../../../../components/core/confirm-dialog/confirm-dialog';
 import { ApiErrorService } from '../../../../services/api-error.service';
 import { NotificationService } from '../../../../services/notification.service';
 import { ContractTemplateDto, ContractTemplateService } from '../contract-template-service';
-import { ContractDropzone } from '../contract-dropzone';
+import { ContractDropzone, hasZipSignature, isDocxFile } from '../contract-dropzone';
+import { safeText } from '../ai/contract-ai.messages';
 import { ContractIcon } from '../contract-icon';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -17,7 +19,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
   selector: 'app-contract-word-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
-  imports: [AlertBanner, ContractDropzone, ContractIcon],
+  imports: [AlertBanner, ConfirmDialog, ContractDropzone, ContractIcon],
   template: `
     <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-neutral-900 focus:outline-none">
       Coloque os campos no seu arquivo
@@ -67,6 +69,19 @@ const MAX_BYTES = 5 * 1024 * 1024;
         (picked)="onFile($event)"
       />
     </div>
+
+    <app-confirm-dialog
+      [open]="!!pending()"
+      title="Substituir o contrato atual?"
+      [message]="replaceMessage()"
+      confirmLabel="Substituir"
+      cancelLabel="Não substituir"
+      variant="warning"
+      size="large"
+      [busy]="uploading()"
+      (confirmed)="confirmReplace()"
+      (cancelled)="pending.set(null)"
+    />
   `,
 })
 export class ContractWordStep {
@@ -74,7 +89,13 @@ export class ContractWordStep {
   private readonly notifications = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
 
+  /** Nome do contrato em uso (já saneado); com ele, enviar pede confirmação antes. */
+  readonly currentName = input<string | null>(null);
   readonly uploaded = output<ContractTemplateDto>();
+  /** Envio em voo: a esteira segura o «Cancelar» (o servidor pode já ter trocado). */
+  readonly busyChange = output<boolean>();
+  /** Arquivo escolhido aguardando o «Substituir». */
+  protected readonly pending = signal<File | null>(null);
 
   protected readonly driverCode = '{{driverName}}';
   protected readonly error = signal<string | null>(null);
@@ -82,9 +103,16 @@ export class ContractWordStep {
   protected readonly aiBusy = signal(false);
   protected readonly uploading = signal(false);
 
-  protected onFile(file: File): void {
+  protected replaceMessage(): string {
+    const file = this.pending();
+    const name = file ? safeText(file.name) : '';
+    return `«${name}» vai substituir «${this.currentName() ?? ''}» nos próximos aluguéis. Os contratos já gerados não mudam.`;
+  }
+
+  /** Mesmas checagens do «Ajustar o meu contrato»: Word, até 5 MB, assinatura ZIP. */
+  protected async onFile(file: File): Promise<void> {
     this.error.set(null);
-    if (!file.name.toLowerCase().endsWith('.docx')) {
+    if (!isDocxFile(file)) {
       this.error.set('Este arquivo não é do Word. Escolha o arquivo do contrato que termina em .docx.');
       return;
     }
@@ -92,14 +120,34 @@ export class ContractWordStep {
       this.error.set('O arquivo é maior que 5 MB.');
       return;
     }
+    if (!(await hasZipSignature(file))) {
+      this.error.set('Este arquivo não parece ser um documento do Word. Escolha outro arquivo.');
+      return;
+    }
+    if (this.currentName()) this.pending.set(file);
+    else this.send(file);
+  }
+
+  protected confirmReplace(): void {
+    const file = this.pending();
+    if (file) this.send(file);
+  }
+
+  private send(file: File): void {
+    if (this.uploading()) return;
     this.uploading.set(true);
+    this.busyChange.emit(true);
     this.service.upload(file).subscribe({
       next: (tpl) => {
         this.uploading.set(false);
+        this.pending.set(null);
+        this.busyChange.emit(false);
         this.uploaded.emit(tpl);
       },
       error: (err: HttpErrorResponse) => {
         this.uploading.set(false);
+        this.pending.set(null);
+        this.busyChange.emit(false);
         this.error.set(this.apiErrors.messageFor(err, 'Não foi possível enviar o arquivo.'));
       },
     });
@@ -129,12 +177,18 @@ export class ContractWordStep {
     this.service.aiInstructions().subscribe({
       next: (md) => {
         this.aiBusy.set(false);
+        const fallback = (): void => {
+          saveMarkdown(md, 'mycarshub-contrato-instrucoes.md');
+          this.notifications.success('Não deu para copiar; as instruções foram baixadas.');
+        };
+        // Sem contexto seguro não existe `navigator.clipboard`: baixa o arquivo direto.
+        if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+          fallback();
+          return;
+        }
         navigator.clipboard.writeText(md).then(
           () => this.notifications.success('Instruções copiadas. Cole no ChatGPT, Claude ou Gemini.'),
-          () => {
-            saveMarkdown(md, 'mycarshub-contrato-instrucoes.md');
-            this.notifications.success('Não deu para copiar; as instruções foram baixadas.');
-          },
+          fallback,
         );
       },
       error: (err: HttpErrorResponse) => {

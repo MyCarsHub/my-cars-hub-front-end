@@ -16,7 +16,7 @@
           </span>
         }
         <div class="flex min-w-0 flex-col gap-1">
-          <h2 id="contract-esteira-title" class="m-0 text-xl font-bold leading-tight text-neutral-900 sm:text-[22px]">{{ title() }}</h2>
+          <h2 id="contract-esteira-title" tabindex="-1" class="m-0 focus:outline-none text-xl font-bold leading-tight text-neutral-900 sm:text-[22px]">{{ title() }}</h2>
           <p class="m-0 text-[15px] leading-normal text-neutral-600">{{ subtitle() }}</p>
         </div>
       </div>
@@ -195,6 +195,12 @@
             [notMasked]="notMaskedLabels()"
             (agreedChange)="agreed.set($event)"
           />
+          @if (!ai.masked() && !ai.maskedLoading() && ai.error()) {
+            <button type="button" (click)="retryMasked()" [class]="secondaryBtn" class="sm:w-auto sm:self-start">
+              <app-contract-icon name="refresh" [size]="18" />
+              Tentar de novo
+            </button>
+          }
         }
 
         @case ('reading') {
@@ -328,7 +334,11 @@
         }
 
         @case ('word') {
-          <app-contract-word-step (uploaded)="wordUploaded($event)" />
+          <app-contract-word-step
+            [currentName]="template()?.filename ?? null"
+            (busyChange)="wordBusy.set($event)"
+            (uploaded)="wordUploaded($event)"
+          />
         }
       }
       </div>
