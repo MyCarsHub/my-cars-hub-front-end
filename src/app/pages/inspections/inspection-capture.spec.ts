@@ -1127,6 +1127,66 @@ describe('InspectionCapture', () => {
       fixture.detectChanges();
     }
 
+    /*
+     * Defeito de producao ("o carregamento para entrar em uma vistoria ta quebrado"): o
+     * motorista esperava num loader de PAGINA (gradiente, anel no meio de 70dvh) e, quando a
+     * vistoria chegava, a captura guiada entrava num quadro com 72px vazios sob a barra de
+     * topo e mais alto que a tela — o obturador ia para baixo da dobra. Agora a espera ja
+     * tem o quadro da captura, e o quadro segue a --page-top do shell.
+     */
+    it('enquanto a vistoria abre, espera no quadro da captura — nao no loader de pagina', () => {
+      role = 'DRIVER';
+      configure({ id: 'insp-1' }, {});
+      const pending = new Subject<Inspection>();
+      getOne.mockReturnValue(pending);
+      const fixture = render();
+
+      expect(q(fixture, '[data-driver-capture-skeleton]')).not.toBeNull();
+      expect(q(fixture, 'app-page-loader')).toBeNull();
+      expect(q(fixture, '[data-driver-capture-skeleton] [role="status"]')?.textContent).toContain(
+        'Abrindo vistoria',
+      );
+
+      pending.next({ ...inspection, capturedAngles: ['FRONT'] });
+      fixture.detectChanges();
+      expect(q(fixture, '[data-driver-capture-skeleton]')).toBeNull();
+      expect(q(fixture, '[data-wizard-angle]')?.textContent?.trim()).toBe('Traseira');
+    });
+
+    it('o quadro da captura e o da espera usam a --page-top e cabem na altura do shell', () => {
+      role = 'DRIVER';
+      configure({ id: 'insp-1' }, {});
+      const pending = new Subject<Inspection>();
+      getOne.mockReturnValue(pending);
+      const fixture = render();
+      const topRule = 'pt-[var(--page-top,calc(4.5rem+env(safe-area-inset-top)))]';
+      const fillRule = 'min-h-[calc(100dvh-var(--page-fill-offset,5rem))]';
+
+      const skeleton = q(fixture, '[data-driver-capture-skeleton]')!;
+      expect(skeleton.classList.contains(topRule)).toBe(true);
+      expect(skeleton.querySelector(`[class~="${fillRule}"]`)).not.toBeNull();
+
+      pending.next(inspection);
+      fixture.detectChanges();
+      const frame = q(fixture, '[data-wizard-frame]')!;
+      expect(frame.classList.contains(topRule)).toBe(true);
+      // A folga fixa do ☰ flutuante (que o motorista nao tem) era o defeito.
+      expect(frame.classList.contains('pt-[calc(4.5rem+env(safe-area-inset-top))]')).toBe(false);
+      expect(q(fixture, '[data-wizard]')!.classList.contains(fillRule)).toBe(true);
+      expect(q(fixture, '[data-wizard]')!.classList.contains('min-h-[calc(100dvh-5rem)]')).toBe(
+        false,
+      );
+    });
+
+    it('dono e gerente continuam com o loader de pagina', () => {
+      role = 'OWNER';
+      configure({ id: 'insp-1' }, {});
+      getOne.mockReturnValue(new Subject<Inspection>());
+      const fixture = render();
+      expect(q(fixture, 'app-page-loader')).not.toBeNull();
+      expect(q(fixture, '[data-driver-capture-skeleton]')).toBeNull();
+    });
+
     it('mostra um angulo por tela, comecando pelo primeiro sem foto', () => {
       const fixture = open({ capturedAngles: ['FRONT'] });
 

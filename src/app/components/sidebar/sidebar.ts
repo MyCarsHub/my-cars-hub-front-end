@@ -37,8 +37,6 @@ export interface NavItem {
   tourKey?: string;
   /** Grupo que nasce aberto antes de qualquer clique (menu do motorista: Financeiro). */
   defaultOpen?: boolean;
-  /** Desenha uma linha divisória antes do item (menu do motorista: Suporte). */
-  separatorBefore?: boolean;
 }
 
 const ICON_ADMIN = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`;
@@ -113,14 +111,8 @@ export function buildDriverNavItems(routes: DriverNavRoutes): NavItem[] {
         .map(toItem)
         .filter((c): c is NavItem => c !== null);
       if (children.length === 0) return null;
-      if (children.length === 1) return { ...children[0], separatorBefore: entry.separatorBefore };
-      return {
-        label: entry.label,
-        icon,
-        children,
-        defaultOpen: entry.defaultOpen,
-        separatorBefore: entry.separatorBefore,
-      };
+      if (children.length === 1) return children[0];
+      return { label: entry.label, icon, children, defaultOpen: entry.defaultOpen };
     }
     const route = entry.key ? routes[entry.key] : null;
     if (!route) return null;
@@ -129,7 +121,8 @@ export function buildDriverNavItems(routes: DriverNavRoutes): NavItem[] {
       label: entry.label,
       icon,
       exactMatch: entry.exactMatch,
-      separatorBefore: entry.separatorBefore,
+      // Mesmo campo do `NAV_ITEMS`: `navItems`/`bottomNavItems` separam os dois menus igual.
+      pinBottom: entry.pinBottom,
     };
   };
   return DRIVER_NAV.map(toItem).filter((i): i is NavItem => i !== null);
