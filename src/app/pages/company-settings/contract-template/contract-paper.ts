@@ -8,9 +8,9 @@ import {
   input,
   output,
 } from '@angular/core';
-import { FIELD_LABELS } from './ai/contract-ai.messages';
 import { PaperParagraph, PaperSegment } from './contract-paper.model';
 import { fieldCode, fieldExample } from './contract-fields';
+import { fieldLabel } from './ai/contract-ai.messages';
 import { ContractIcon, ContractIconName } from './contract-icon';
 
 export type PaperMode = 'example' | 'names';
@@ -158,7 +158,7 @@ export type PaperMode = 'example' | 'names';
               class="m-0 rounded-md doc-serif leading-[1.75] text-neutral-800 break-words transition-colors duration-300"
               [class]="paragraphClass(p)"
               [attr.data-focus]="p.focus ? 'true' : null"
-            ><!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of p.segments; track $index) {<span [class]="segmentClass(s)" [attr.title]="segmentTitle(s)" [attr.data-focus]="isFocused(s) ? 'true' : null">{{ segmentText(s) }}</span>}</p>
+            ><!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of p.segments; track $index) {<span [class]="segmentClass(s)" [attr.title]="segmentTitle(s)" [attr.data-focus]="isFocused(s) ? 'true' : null">{{ segmentText(s) }}@if (segmentCode(s); as code) {<span data-field-code class="ml-1 select-all font-mono text-[12px] font-normal text-neutral-700">{{ code }}</span>}</span>}</p>
           }
         </article>
       </div>
@@ -171,6 +171,11 @@ export class ContractPaper {
   readonly title = input('Contrato');
   readonly paragraphs = input<readonly PaperParagraph[]>([]);
   readonly mode = input<PaperMode>('example');
+  /**
+   * Caminho «Já sei colocar os campos no Word»: além do nome em português, mostra a chave para
+   * copiar, como texto secundário. Fora dele a chave em inglês nunca aparece.
+   */
+  readonly showCodes = input(false);
   readonly showModeSwitch = input(false);
   readonly emptyText = input('');
   readonly loading = input(false);
@@ -246,7 +251,7 @@ export class ContractPaper {
   protected segmentText(s: PaperSegment): string {
     switch (s.kind) {
       case 'field':
-        return this.mode() === 'names' ? fieldCode(s.field) : fieldExample(s.field);
+        return this.mode() === 'names' ? fieldLabel(s.field) : fieldExample(s.field);
       case 'hidden':
         return s.label;
       default:
@@ -255,7 +260,11 @@ export class ContractPaper {
   }
 
   protected segmentTitle(s: PaperSegment): string | null {
-    return s.kind === 'field' ? (FIELD_LABELS[s.field] ?? s.field) : null;
+    return s.kind === 'field' ? fieldLabel(s.field) : null;
+  }
+
+  protected segmentCode(s: PaperSegment): string | null {
+    return s.kind === 'field' && this.mode() === 'names' && this.showCodes() ? fieldCode(s.field) : null;
   }
 
   protected segmentClass(s: PaperSegment): string {
@@ -269,7 +278,7 @@ export class ContractPaper {
           ? 'rounded-[3px] bg-amber-50 outline-2 outline-offset-1 outline-amber-500 [box-decoration-break:clone]'
           : '';
       case 'field': {
-        const font = this.mode() === 'names' ? 'font-mono text-[13px] font-medium' : 'font-semibold';
+        const font = 'font-semibold';
         const color =
           s.tone === 'doubt'
             ? 'border-b-2 border-amber-500 bg-amber-100 text-amber-900'

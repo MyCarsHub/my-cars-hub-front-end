@@ -6,8 +6,9 @@ import { ApiErrorService } from '../../../../services/api-error.service';
 import { NotificationService } from '../../../../services/notification.service';
 import { ContractTemplateDto, ContractTemplateService } from '../contract-template-service';
 import { ContractDropzone, hasZipSignature, isDocxFile } from '../contract-dropzone';
-import { safeText } from '../ai/contract-ai.messages';
+import { fieldLabel, safeText } from '../ai/contract-ai.messages';
 import { ContractIcon } from '../contract-icon';
+import { fieldCode } from '../contract-fields';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -28,8 +29,10 @@ const MAX_BYTES = 5 * 1024 * 1024;
       <li class="flex gap-3">
         <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sm font-bold text-sky-800 ring-1 ring-sky-100">1</span>
         <span>
-          Abra seu contrato no Word e faça <strong>Localizar e substituir</strong>: troque os dados fixos por campos como
-          <code class="rounded bg-neutral-100 px-1.5 py-px font-mono text-[13px] text-neutral-900">{{ driverCode }}</code>.
+          Abra seu contrato no Word e faça <strong>Localizar e substituir</strong>: troque os dados fixos pelos campos. Por exemplo, para
+          <strong data-field-label class="font-semibold text-neutral-900">{{ driverLabel }}</strong> digite
+          <code class="select-all rounded bg-neutral-100 px-1.5 py-px font-mono text-[13px] text-neutral-700">{{ driverCode }}</code>.
+          No contrato exemplo, cada campo mostra o nome e, ao lado, o que digitar.
         </span>
       </li>
       <li class="flex gap-3">
@@ -97,7 +100,8 @@ export class ContractWordStep {
   /** Arquivo escolhido aguardando o «Substituir». */
   protected readonly pending = signal<File | null>(null);
 
-  protected readonly driverCode = '{{driverName}}';
+  protected readonly driverLabel = fieldLabel('driverName');
+  protected readonly driverCode = fieldCode('driverName');
   protected readonly error = signal<string | null>(null);
   protected readonly exampleBusy = signal(false);
   protected readonly aiBusy = signal(false);

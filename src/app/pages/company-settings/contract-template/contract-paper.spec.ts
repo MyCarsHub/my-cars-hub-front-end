@@ -64,7 +64,8 @@ describe('ContractPaper', () => {
     expect(host.querySelector('article p span')?.getAttribute('title')).toBe('Cidade da empresa');
     fixture.componentRef.setInput('mode', 'names');
     fixture.detectChanges();
-    expect(p()).toMatch(/^\{\{companyCity\}\}, /);
+    expect(p()).toMatch(/^Cidade da empresa, /);
+    expect(p()).not.toContain('{{');
   });
 
   it('o texto do contrato continua só interpolado, sem espaço extra entre os pedaços', () => {
@@ -79,6 +80,36 @@ describe('ContractPaper', () => {
       },
     ];
     const { host } = mount({ paragraphs, mode: 'names' });
-    expect(host.querySelector('article p')?.textContent).toBe('{{vehicleBrand}}, ano 2024.');
+    // Nome em português, sem chaves e sem a chave em inglês.
+    expect(host.querySelector('article p')?.textContent).toBe('Marca, ano 2024.');
+    expect(host.querySelector('[data-field-code]')).toBeNull();
+  });
+
+  it('caminho Word (showCodes): nome em português em destaque e a chave como texto secundário', () => {
+    const paragraphs: PaperParagraph[] = [
+      {
+        id: 'p1',
+        role: 'body',
+        segments: [
+          { kind: 'field', field: 'driverName', tone: 'ok' },
+          { kind: 'text', text: ' aluga.' },
+        ],
+      },
+    ];
+    const { host } = mount({ paragraphs, mode: 'names', showCodes: true });
+    const field = host.querySelector('article p > span');
+    expect(field?.textContent).toBe('Nome do motorista{{driverName}}');
+    expect(field?.firstChild?.textContent).toBe('Nome do motorista');
+    expect(host.querySelector('[data-field-code]')?.textContent).toBe('{{driverName}}');
+  });
+
+  it('campo sem exemplo nem rótulo conhecido nunca mostra a chave', () => {
+    const paragraphs: PaperParagraph[] = [
+      { id: 'p1', role: 'body', segments: [{ kind: 'field', field: 'unknownField', tone: 'ok' }] },
+    ];
+    for (const mode of ['example', 'names'] as const) {
+      const { host } = mount({ paragraphs, mode });
+      expect(host.querySelector('article p')?.textContent).toBe('Campo do contrato');
+    }
   });
 });
