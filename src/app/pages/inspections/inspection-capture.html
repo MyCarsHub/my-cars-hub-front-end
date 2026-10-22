@@ -1,4 +1,32 @@
-@if (loading()) {
+@if (loading() && isDriver) {
+  <!--
+    THE DRIVER waits INSIDE the wizard's frame (same padding, same 520px column, same white):
+    the screen does not swap a centred gradient loader for the guided capture when the
+    inspection arrives. The real component is not mounted yet because it needs the script.
+  -->
+  <section
+    data-driver-capture-skeleton
+    aria-busy="true"
+    class="w-full min-h-full px-4 sm:px-6 pt-[var(--page-top,calc(4.5rem+env(safe-area-inset-top)))] lg:pt-10
+           pb-[env(safe-area-inset-bottom)] bg-white"
+  >
+    <div
+      aria-hidden="true"
+      class="mx-auto w-full max-w-[520px] flex flex-col gap-4 min-h-[calc(100dvh-var(--page-fill-offset,5rem))]"
+    >
+      <div class="flex items-center gap-2">
+        <div class="size-11 shrink-0 rounded-xl bg-neutral-100"></div>
+        <div class="flex-1 mr-11 flex justify-center">
+          <div class="h-4 w-36 rounded bg-neutral-200 animate-pulse"></div>
+        </div>
+      </div>
+      <div class="h-1 rounded-full bg-neutral-200"></div>
+      <div class="h-7 w-2/3 rounded-lg bg-neutral-200 animate-pulse"></div>
+      <div class="w-full aspect-[4/3] max-h-[46vh] rounded-2xl bg-neutral-200 animate-pulse"></div>
+    </div>
+    <p class="sr-only" role="status">Abrindo vistoria…</p>
+  </section>
+} @else if (loading()) {
   <!-- Esperar a vistoria abrir e uma espera de PAGINA INTEIRA: o mesmo loader das outras. -->
   <app-page-loader
     title="Abrindo vistoria…"

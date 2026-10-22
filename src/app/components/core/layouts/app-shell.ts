@@ -47,13 +47,16 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
     <!--
       Motorista abaixo de lg: coluna com a barra de topo do protótipo NO FLUXO e o conteúdo
       embaixo. \`--page-top\` troca a folga que o default-page-layout reserva para o ☰
-      flutuante (que o motorista não tem) pelo respiro do protótipo.
+      flutuante (que o motorista não tem) pelo respiro do protótipo. \`--page-fill-offset\` é
+      quanto do 100dvh fica ACIMA do conteúdo (a barra de topo + a \`--page-top\`): a tela que
+      ocupa a altura toda (captura guiada da vistoria) desconta isso e cabe sem rolar.
     -->
     <div
       class="flex h-dvh overflow-hidden bg-gray-50"
       [class.pt-14]="impersonating()"
       [class.flex-col]="layout.driverTopBar()"
       [style.--page-top]="layout.driverTopBar() ? '1.25rem' : null"
+      [style.--page-fill-offset]="layout.driverTopBar() ? '4.75rem' : null"
       [style.--page-header-end]="layout.driverTopBar() && showBell() ? '3.25rem' : null"
     >
       @if (layout.driverTopBar()) {

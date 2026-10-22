@@ -288,6 +288,8 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(host.querySelector('app-driver-top-bar')).not.toBeNull();
     expect(frame(host).classList.contains('flex-col')).toBe(true);
     expect(frame(host).style.getPropertyValue('--page-top')).toBe('1.25rem');
+    // Barra de 56px (3.5rem) + a --page-top: o que a captura guiada desconta de 100dvh.
+    expect(frame(host).style.getPropertyValue('--page-fill-offset')).toBe('4.75rem');
     // A barra é irmã ANTERIOR do <main>: o conteúdo começa abaixo dela.
     expect(host.querySelector('app-driver-top-bar + app-sidebar + main')).not.toBeNull();
   });
@@ -307,6 +309,7 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(host.querySelector('app-driver-top-bar')).toBeNull();
     expect(frame(host).classList.contains('flex-col')).toBe(false);
     expect(frame(host).style.getPropertyValue('--page-top')).toBe('');
+    expect(frame(host).style.getPropertyValue('--page-fill-offset')).toBe('');
     expect(bellRow(host).style.paddingTop).toBe('');
     expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('');
   });

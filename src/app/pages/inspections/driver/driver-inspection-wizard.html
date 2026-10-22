@@ -1,14 +1,19 @@
 <!--
-  The phone flow inside the shell: one column of at most 520px. Same top/bottom spacing as
-  `app-default-page-layout` (the floating menu button sits over the first 4.5rem on phones),
-  without its title: the step itself is the heading.
+  The phone flow inside the shell: one column of at most 520px, without a page title (the step
+  itself is the heading). The top spacing is the SAME rule as `app-default-page-layout`:
+  `--page-top` when the shell sets it (the driver's top bar on phones, which already consumed
+  the notch), the 4.5rem clearance of the floating ☰ otherwise. The column fills what is left
+  of the screen: `--page-fill-offset` is how much of `100dvh` the shell above it takes.
+  Hard-coding 4.5rem here left a 72px empty band under the driver's top bar and pushed the
+  shutter below the fold (FIX driver-prod item 3).
 -->
 <section
+  data-wizard-frame
   [attr.inert]="exitOpen() ? '' : null"
-  class="w-full min-h-full px-4 sm:px-6 pt-[calc(4.5rem+env(safe-area-inset-top))] lg:pt-10
+  class="w-full min-h-full px-4 sm:px-6 pt-[var(--page-top,calc(4.5rem+env(safe-area-inset-top)))] lg:pt-10
          pb-[env(safe-area-inset-bottom)] bg-white"
 >
-  <div data-wizard class="mx-auto w-full max-w-[520px] flex flex-col min-h-[calc(100dvh-5rem)]">
+  <div data-wizard class="mx-auto w-full max-w-[520px] flex flex-col min-h-[calc(100dvh-var(--page-fill-offset,5rem))]">
     <div class="flex items-center gap-2">
       <button
         #exitButton
