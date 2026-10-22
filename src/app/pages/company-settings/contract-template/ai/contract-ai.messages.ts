@@ -35,6 +35,8 @@ const FAILURE_MESSAGES: Record<string, string> = {
   SCANNED_PDF: 'Este arquivo parece ser uma imagem escaneada. Envie o contrato em Word (.docx).',
   FILE_INVALID: 'Não foi possível ler este arquivo. Envie o contrato em Word (.docx).',
   CONSENT_REQUIRED: 'A análise exige a sua autorização. Envie o arquivo de novo e autorize o envio.',
+  CONSENT_PROVIDER_CHANGED:
+    'O serviço de IA que vai ler o contrato mudou depois da sua autorização. Nada foi enviado. Confira quem recebe o texto e autorize de novo.',
   DRAFT_EXPIRED: 'Esta análise expirou. Envie o arquivo de novo.',
 };
 
@@ -75,6 +77,8 @@ const HTTP_MESSAGES: Record<string, string> = {
   CONSENT_VERSION_MISMATCH:
     'O texto de autorização foi atualizado. Leia de novo e autorize para continuar.',
   CONSENT_TEXT_MISMATCH: 'O texto mudou desde que você o viu. Leia de novo e autorize.',
+  CONSENT_PROVIDER_CHANGED:
+    'O serviço de IA que vai ler o contrato mudou. Confira quem recebe o texto e autorize de novo.',
   CONSENT_INCOMPLETE: 'Não foi possível confirmar a autorização. Tente de novo.',
   DRAFT_NOT_AWAITING_CONSENT: 'Este arquivo já foi autorizado ou não está mais disponível.',
   DRAFT_EXPIRING: 'Este rascunho está expirando. Envie o arquivo de novo.',
