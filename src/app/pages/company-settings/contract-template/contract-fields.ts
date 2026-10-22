@@ -15,6 +15,7 @@ export const FIELD_EXAMPLES: Readonly<Record<string, string>> = {
   companyEmail: 'contato@locadoraexemplo.com.br',
   companyAddress: 'Av. Paulista, 1000, São Paulo/SP',
   companyCep: '01310-100',
+  companyCity: 'São Paulo',
   companyRepresentative: 'Ana Lima',
   companyRepresentativeRole: 'sócia-administradora',
   driverName: 'João Pereira',

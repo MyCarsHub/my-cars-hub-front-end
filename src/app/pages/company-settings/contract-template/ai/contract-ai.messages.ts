@@ -117,6 +117,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   companyEmail: 'E-mail da locadora',
   companyAddress: 'Endereço da locadora',
   companyCep: 'CEP da locadora',
+  companyCity: 'Cidade da empresa',
   companyRepresentative: 'Representante da locadora',
   companyRepresentativeRole: 'Cargo do representante',
   driverName: 'Nome do motorista',

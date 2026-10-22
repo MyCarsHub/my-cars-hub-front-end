@@ -15,7 +15,7 @@ export interface ContractBaseClause {
   /** Opcional que já vem marcada. */
   defaultOn: boolean;
   /**
-   * Markdown com campos `{{campo}}` (os mesmos 42 do app). Um `## TÍTULO` marca a cláusula
+   * Markdown com campos `{{campo}}` (os mesmos de `FIELD_LABELS`). Um `## TÍTULO` marca a cláusula
    * como numerada; a tela renumera ao vivo. `# ` é o título do contrato.
    */
   text: string;

@@ -45,6 +45,28 @@ describe('ContractPaper', () => {
     expect(legend(host)).toEqual(['Pergunta da IA']);
   });
 
+  it('«Local e data»: a cidade da empresa aparece como exemplo e como campo', () => {
+    const paragraphs: PaperParagraph[] = [
+      {
+        id: 'local',
+        role: 'body',
+        segments: [
+          { kind: 'field', field: 'companyCity', tone: 'ok' },
+          { kind: 'text', text: ', ' },
+          { kind: 'field', field: 'contractDate', tone: 'ok' },
+          { kind: 'text', text: '.' },
+        ],
+      },
+    ];
+    const { fixture, host } = mount({ paragraphs });
+    const p = () => host.querySelector('article p')?.textContent ?? '';
+    expect(p()).toMatch(/^São Paulo, /);
+    expect(host.querySelector('article p span')?.getAttribute('title')).toBe('Cidade da empresa');
+    fixture.componentRef.setInput('mode', 'names');
+    fixture.detectChanges();
+    expect(p()).toMatch(/^\{\{companyCity\}\}, /);
+  });
+
   it('o texto do contrato continua só interpolado, sem espaço extra entre os pedaços', () => {
     const paragraphs: PaperParagraph[] = [
       {

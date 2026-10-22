@@ -6,10 +6,15 @@ import {
   fieldLabel,
   httpErrorMessage,
 } from './contract-ai.messages';
+import { FIELD_KEYS, fieldCode, fieldExample } from '../contract-fields';
 
-/** Lista fechada do backend (ContractTemplateService.SUPPORTED_VARIABLES @ origin/main). */
+/**
+ * Lista fechada do backend (ContractTemplateService.SUPPORTED_VARIABLES). `companyCity`
+ * (companies.address_city, «Local e data» do Montar do zero) entra junto com o backend.
+ */
 const SUPPORTED_VARIABLES = [
   'companyName', 'companyCnpj', 'companyPhone', 'companyEmail', 'companyAddress', 'companyCep',
+  'companyCity',
   'companyRepresentative', 'companyRepresentativeRole',
   'driverName', 'driverCpf', 'driverRg', 'driverEmail', 'driverPhone',
   'driverLicense', 'driverLicenseCategory', 'driverLicenseExpiry', 'driverAddress', 'driverCep',
@@ -47,7 +52,15 @@ describe('contract-ai.messages', () => {
       expect(label, v).not.toBe(v);
       expect(label, v).not.toMatch(/^[a-z]+[A-Z]/);
     }
-    expect(SUPPORTED_VARIABLES.length).toBe(42);
+    expect(SUPPORTED_VARIABLES.length).toBe(43);
+  });
+
+  it('companyCity («Local e data» do Montar do zero): rótulo, exemplo, código e escolha na lista', () => {
+    expect(FIELD_LABELS['companyCity']).toBe('Cidade da empresa');
+    expect(fieldLabel('companyCity')).toBe('Cidade da empresa');
+    expect(fieldExample('companyCity')).toBe('São Paulo');
+    expect(fieldCode('companyCity')).toBe('{{companyCity}}');
+    expect(FIELD_KEYS).toContain('companyCity');
   });
 
   it('campo desconhecido nunca vaza o identificador cru', () => {
