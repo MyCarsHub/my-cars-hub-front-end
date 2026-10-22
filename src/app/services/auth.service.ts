@@ -9,6 +9,7 @@ import { LoggerService } from './logger.service';
 import { ImpersonationService } from './impersonation.service';
 import { TenantCachesService } from './tenant-caches.service';
 import { MembershipsService } from './memberships.service';
+import { pickLoginCompany } from './company-role-priority';
 
 interface TokenResponse {
     token: string;
@@ -175,14 +176,12 @@ export class AuthService {
         // Do NOT persist `user.document` — CPF/CNPJ is PII. Any consumer that
         // needs it must fetch /auth/me on demand and hold it in component memory.
 
-        // The backend's `defaultCompanyId` (the company used last) wins when it names one of the
-        // ACTIVE companies in this very response; otherwise today's rule: OWNER first.
-        const defaultCompany =
-            (user.defaultCompanyId
-                ? companies.find((company) => company.companyId === user.defaultCompanyId)
-                : undefined) ??
-            companies.find((company) => company.role === 'OWNER') ??
-            companies[0];
+        // getMe() runs when a session STARTS (login, oauth-success, the guard on a tab with no
+        // session). There the role priority decides: OWNER > MANAGER > DRIVER. The backend's
+        // `defaultCompanyId` only breaks ties inside that top role — it no longer lets a
+        // driver/manager profile used last pull an owner out of their own company. A manual
+        // switch during the session goes through select-company and is never re-decided here.
+        const defaultCompany = pickLoginCompany(companies, user.defaultCompanyId);
 
         // Preserve any selection already made by applyFinishResponse if /me
         // couldn't offer a fresh default.
