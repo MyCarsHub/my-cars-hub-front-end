@@ -181,6 +181,30 @@ describe('ContractAiEntry', () => {
     expect(el().textContent).toContain('Dúvida 1 de 1');
   });
 
+  /**
+   * Consentimento v2: é a base da transferência internacional (LGPD art. 33, VIII), que
+   * exige informação PRÉVIA. Sem provedor, país, salvaguarda e o que vai em claro, o aceite
+   * não sustenta a seção 6 da política.
+   */
+  it('consentimento v2: nomeia Anthropic/EUA, a salvaguarda, o que vai em claro e linka a política', async () => {
+    await upload();
+    flushMasked(masked());
+    const text = (el().textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text).toContain('será enviado à Anthropic (serviço de IA Claude), nos Estados Unidos');
+    expect(text).toContain('O texto sai do Brasil');
+    expect(text).toContain('art. 33, VIII');
+    expect(text).toContain('Vão escondidos: CPF, CNPJ');
+    expect(text).toContain('Vão em claro: nomes de pessoas e de empresas, endereços');
+    expect(text).toContain('autorizo o envio deste texto à Anthropic, nos Estados Unidos');
+    expect(text).not.toContain('serviço de inteligência artificial de terceiros');
+
+    const link = q<HTMLAnchorElement>('a[href="/politica-de-privacidade#analise-de-contrato-com-ia"]');
+    expect(link).not.toBeNull();
+    expect(link!.target).toBe('_blank');
+    expect(link!.rel).toContain('noopener');
+  });
+
   it('sem a caixa marcada o botão fica desabilitado e nada é enviado', async () => {
     await upload();
     flushMasked(masked());

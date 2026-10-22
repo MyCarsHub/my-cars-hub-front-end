@@ -30,7 +30,20 @@ import { AI_SEND_NOTICE, TextSegment, revealInvisible } from './contract-ai.mess
         <div class="h-32 rounded-xl bg-neutral-100 animate-pulse" aria-hidden="true"></div>
         <p class="sr-only" role="status">Carregando o texto que será enviado…</p>
       } @else if (svc.masked(); as m) {
-        <p class="text-sm text-neutral-800">{{ notice.sent }}</p>
+        <div class="space-y-2 text-sm text-neutral-800">
+          <p>{{ notice.sent }}</p>
+          <p>{{ notice.transfer }}</p>
+          <p>{{ notice.hidden }}</p>
+          <p>
+            <a
+              [href]="notice.policyHref"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex min-h-[44px] items-center font-medium text-primary-700 underline"
+              >{{ notice.policyLabel }}</a
+            >
+          </p>
+        </div>
 
         <p class="text-xs font-semibold text-neutral-600" aria-live="polite">
           {{ seenCount() }} de {{ rows().length }} parágrafos vistos

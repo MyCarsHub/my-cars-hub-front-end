@@ -1,12 +1,22 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 /**
- * Texto-rascunho do aviso da tela 1. FEAT-0309 (aprovação do dono/advogado) troca por
- * este único ponto; o provedor é nomeado em FEAT-0308.
+ * Texto do consentimento, VERSÃO 2: nomeia o provedor e o país, porque o consentimento é a
+ * base da transferência internacional (LGPD art. 33, VIII) e ela exige informação prévia.
+ * O servidor só aceita a versão de APP_CONTRACTS_AI_CONSENT_VERSION: mudar este texto exige
+ * subir aquela variável junto, senão o aceite fica registrado com a versão do texto antigo.
+ * Tem de bater com a seção 6 da Política de Privacidade.
  */
 export const AI_SEND_NOTICE = {
-  sent: 'Este é o texto exato, já mascarado, que será enviado a um serviço de inteligência artificial de terceiros para localizar nomes, valores e datas.',
-  consent: 'Entendi o que será enviado e autorizo o envio deste texto para análise.',
+  sent: 'Este é o texto exato, já mascarado, que será enviado à Anthropic (serviço de IA Claude), nos Estados Unidos, para localizar nomes, valores e datas.',
+  transfer:
+    'O texto sai do Brasil com base no seu consentimento (LGPD, art. 33, VIII) e nas garantias contratuais da Anthropic, que não usa o texto para treinar modelos e o apaga em até 30 dias.',
+  hidden:
+    'Vão escondidos: CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números. Vão em claro: nomes de pessoas e de empresas, endereços, datas, valores e o resto do texto.',
+  policyLabel: 'Leia a seção 6 da Política de Privacidade',
+  policyHref: '/politica-de-privacidade#analise-de-contrato-com-ia',
+  consent:
+    'Li o texto e as informações acima e autorizo o envio deste texto à Anthropic, nos Estados Unidos, para análise.',
 } as const;
 
 export const LEGAL_DISCLAIMER =
