@@ -142,3 +142,64 @@ describe('PrivacyPolicyComponent — secao de cookies (GA4)', () => {
     expect(document.cookie).not.toContain('_ga=');
   });
 });
+
+/**
+ * A secao 6 descreve o envio do contrato mascarado a Anthropic. Ela nao pode prometer mais
+ * do que o produto faz: o mascarador NAO cobre nomes nem enderecos, e a Anthropic guarda
+ * por ate 30 dias. Estes testes prendem as frases que, se sumirem, tornam a politica falsa.
+ */
+describe('PrivacyPolicyComponent — secao de IA (Ajustar o meu contrato)', () => {
+  async function visit(lang: 'pt' | 'en'): Promise<string> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'politica-de-privacidade', component: PrivacyPolicyComponent }]),
+        { provide: PLATFORM_ID, useValue: 'browser' },
+        ConsentService,
+      ],
+    });
+    const suffix = lang === 'en' ? '?lang=en' : '';
+    const harness = await RouterTestingHarness.create(`/politica-de-privacidade${suffix}`);
+    harness.detectChanges();
+    return ((harness.fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  it('PT: nomeia a Anthropic, a sede e a transferencia do art. 33', async () => {
+    const text = await visit('pt');
+
+    expect(text).toContain('Anthropic, PBC');
+    expect(text).toContain('San Francisco');
+    expect(text).toContain('art. 33 da LGPD');
+  });
+
+  it('PT: diz o que NAO e mascarado, o prazo de 30 dias e que nao treina', async () => {
+    const text = await visit('pt');
+
+    expect(text).toContain('Não são mascarados: nomes de pessoas');
+    expect(text).toContain('30 dias');
+    expect(text).toContain('não é usado para treinar modelos de IA');
+  });
+
+  it('PT: diz que o recurso e opcional e como revogar', async () => {
+    const text = await visit('pt');
+
+    expect(text).toContain('é opcional');
+    expect(text).toContain('sem IA');
+    expect(text).toContain('Descartar arquivo');
+  });
+
+  it('EN: nomeia a Anthropic, o que nao e mascarado e o prazo', async () => {
+    const text = await visit('en');
+
+    expect(text).toContain('Anthropic, PBC');
+    expect(text).toContain('Not masked: names of people');
+    expect(text).toContain('30 days');
+    expect(text).toContain('is not used to train AI models');
+    expect(text).toContain('LGPD art. 33');
+  });
+
+  it('o indice das duas linguas lista a secao nova', async () => {
+    expect(await visit('pt')).toContain('Análise de contrato com IA');
+    expect(await visit('en')).toContain('Contract analysis with AI');
+  });
+});
