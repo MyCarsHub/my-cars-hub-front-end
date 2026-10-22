@@ -291,7 +291,7 @@ describe('paridade nav x guard de rota', () => {
       }
     });
 
-    it('a lista de lancamentos herda o guard do pai', () => {
+    it('o redirect de lancamentos herda o guard do pai', () => {
       expect(guardAllows('/meu-painel/lancamentos', 'DRIVER')).toBe(true);
     });
   });

@@ -89,7 +89,7 @@ export type DriverNavIcon =
   | 'profile';
 
 export const DRIVER_NAV: readonly DriverNavEntry[] = [
-  // `exactMatch`: `/meu-painel/lancamentos` é filha e não deve acender o Dashboard.
+  // `exactMatch`: as rotas filhas (ganhos, custos...) não devem acender o Dashboard.
   { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', exactMatch: true },
   {
     label: 'Financeiro',
