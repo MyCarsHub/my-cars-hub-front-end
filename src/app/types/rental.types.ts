@@ -230,6 +230,8 @@ export interface RentalResponseDto {
   // V32
   franchiseKm: number | null;
   returnFuelPolicy: string | null;
+  /** V113: preço do km além da franquia, em CENTAVOS (`50` = R$ 0,50). `null` = não informado. */
+  extraKmPrice?: number | null;
   charges: RentalChargeDto[];
   /** Só na resposta do create. Ver {@link RentalChargeSyncDto}. */
   chargeSync?: RentalChargeSyncDto | null;
@@ -311,6 +313,11 @@ export interface RentalUpdateRequest {
   // V32
   franchiseKm?: number | null;
   returnFuelPolicy?: string | null;
+  /**
+   * V113, centavos. PUT PARCIAL: `null`/ausente mantém o gravado, `0` limpa, positivo
+   * sobrescreve. No create, `null` ou `0` = não informado.
+   */
+  extraKmPrice?: number | null;
 }
 
 export interface CreateRentalRequest {
@@ -347,6 +354,11 @@ export interface CreateRentalRequest {
   // V32
   franchiseKm?: number | null;
   returnFuelPolicy?: string | null;
+  /**
+   * V113, centavos. PUT PARCIAL: `null`/ausente mantém o gravado, `0` limpa, positivo
+   * sobrescreve. No create, `null` ou `0` = não informado.
+   */
+  extraKmPrice?: number | null;
 }
 
 /**

@@ -212,21 +212,52 @@ export function readPreflightError(
 export const LATE_INTEREST_REQUIRED_CODE = 'LATE_INTEREST_PERCENT_REQUIRED';
 
 export function isLateInterestRequired(error: unknown): boolean {
-  if (!(error instanceof HttpErrorResponse) || error.status !== 400) return false;
+  return hasRefusalCode(error, LATE_INTEREST_REQUIRED_CODE);
+}
+
+/**
+ * O 400 de "campo essencial vazio" na geração do contrato do aluguel (CPF do motorista,
+ * placa, valores, datas…). A `message` do servidor lista o que falta e onde preencher.
+ */
+export const CONTRACT_REQUIRED_FIELD_MISSING_CODE = 'CONTRACT_REQUIRED_FIELD_MISSING';
+
+export function isContractRequiredFieldMissing(error: unknown): boolean {
+  return hasRefusalCode(error, CONTRACT_REQUIRED_FIELD_MISSING_CODE);
+}
+
+/** Campos essenciais que se corrigem na edição do aluguel (os outros: cadastros). */
+const RENTAL_EDIT_FIELDS = new Set(['periodRate', 'totalAmount', 'startDate', 'endDate', 'firstPaymentDate']);
+
+/** O 400 de campo essencial aponta um campo da edição do aluguel? (`field` do corpo) */
+export function isRequiredFieldFixedInRental(error: unknown): boolean {
+  if (!isContractRequiredFieldMissing(error)) return false;
+  const body = refusalBody(error);
+  return typeof body?.field === 'string' && RENTAL_EDIT_FIELDS.has(body.field);
+}
+
+function refusalBody(error: unknown): { code?: unknown; field?: unknown; issues?: { code?: unknown }[] } | null {
+  if (!(error instanceof HttpErrorResponse)) return null;
   let body: unknown = error.error;
-  // Download de contrato vem como Blob/texto: o corpo de erro chega sem parse.
   if (typeof body === 'string') {
     try {
       body = JSON.parse(body);
     } catch {
-      return false;
+      return null;
     }
   }
-  if (typeof body !== 'object' || body === null) return false;
-  const record = body as { code?: unknown; issues?: { code?: unknown }[] };
+  return typeof body === 'object' && body !== null
+    ? (body as { code?: unknown; field?: unknown; issues?: { code?: unknown }[] })
+    : null;
+}
+
+function hasRefusalCode(error: unknown, code: string): boolean {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 400) return false;
+  // Download de contrato vem como Blob/texto: `refusalBody` faz o parse do corpo de erro.
+  const record = refusalBody(error);
+  if (!record) return false;
   return (
-    record.code === LATE_INTEREST_REQUIRED_CODE ||
-    (Array.isArray(record.issues) && record.issues.some((i) => i?.code === LATE_INTEREST_REQUIRED_CODE))
+    record.code === code ||
+    (Array.isArray(record.issues) && record.issues.some((i) => i?.code === code))
   );
 }
 

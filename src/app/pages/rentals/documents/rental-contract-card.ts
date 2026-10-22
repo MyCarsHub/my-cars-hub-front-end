@@ -29,7 +29,11 @@ import {
   SignerRequest,
 } from '../../../types/rental.types';
 import { RentalService } from '../rental.service';
-import { isLateInterestRequired } from '../rental-preflight';
+import {
+  isContractRequiredFieldMissing,
+  isLateInterestRequired,
+  isRequiredFieldFixedInRental,
+} from '../rental-preflight';
 import { DocumentPreviewService } from '../../../components/document-preview/document-preview.service';
 
 interface SignatureBadge {
@@ -99,6 +103,17 @@ function isPdfBytes(head: Uint8Array): boolean {
               class="flex min-h-[44px] w-fit items-center text-base font-medium text-primary-700 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
             >
               Editar aluguel e definir os juros ao mês
+            </a>
+          }
+          <!-- Campo essencial vazio na geração: a mensagem do servidor diz o que e onde; o
+               atalho aparece quando o que falta se corrige na própria edição do aluguel. -->
+          @if (cardError === requiredFieldInRentalMessage()) {
+            <a
+              data-testid="edit-rental-required-shortcut"
+              [routerLink]="['/alugueis', rentalId(), 'editar']"
+              class="flex min-h-[44px] w-fit items-center text-base font-medium text-primary-700 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+            >
+              Editar aluguel
             </a>
           }
         }
@@ -420,10 +435,14 @@ export class RentalContractCard implements OnInit, OnDestroy {
    */
   protected readonly interestRequiredMessage = signal<string | null>(null);
 
+  /** Idem para CONTRACT_REQUIRED_FIELD_MISSING de um campo da edição do aluguel. */
+  protected readonly requiredFieldInRentalMessage = signal<string | null>(null);
+
   /** Falha de operação do cartão: banner com a mensagem do servidor (+ atalho se couber). */
   private fail(err: HttpErrorResponse, fallback: string): void {
     const message = this.apiErrors.messageFor(err, fallback);
     this.interestRequiredMessage.set(isLateInterestRequired(err) ? message : null);
+    this.requiredFieldInRentalMessage.set(isRequiredFieldFixedInRental(err) ? message : null);
     this.error.set(message);
   }
 
@@ -715,7 +734,12 @@ export class RentalContractCard implements OnInit, OnDestroy {
         this.rentalService.documentSignedUrl(this.rentalId(), doc.id).pipe(
           tap({
             error: (err: unknown) => {
-              if (err instanceof HttpErrorResponse && isLateInterestRequired(err)) {
+              // Recusas que se resolvem FORA do visualizador (editar o aluguel ou um
+              // cadastro): o modal fecha e o banner do card mostra a mensagem do servidor.
+              if (
+                err instanceof HttpErrorResponse &&
+                (isLateInterestRequired(err) || isContractRequiredFieldMissing(err))
+              ) {
                 this.preview.close();
                 this.fail(err, 'Não foi possível abrir o contrato.');
               }

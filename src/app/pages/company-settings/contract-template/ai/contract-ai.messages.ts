@@ -1,16 +1,29 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 /**
- * Texto-rascunho do aviso da tela 1. FEAT-0309 (aprovação do dono/advogado) troca por
- * este único ponto; o provedor é nomeado em FEAT-0308.
+ * Texto do consentimento, VERSÃO 2: nomeia o provedor e o país, porque o consentimento é a
+ * base da transferência internacional (LGPD art. 33, VIII) e ela exige informação prévia.
+ * O servidor só aceita a versão de APP_CONTRACTS_AI_CONSENT_VERSION: mudar este texto exige
+ * subir aquela variável junto, senão o aceite fica registrado com a versão do texto antigo.
+ * Tem de bater com a seção 6 da Política de Privacidade.
  */
 export const AI_SEND_NOTICE = {
-  sent: 'Este é o texto exato, já mascarado, que será enviado a um serviço de inteligência artificial de terceiros para localizar nomes, valores e datas.',
-  consent: 'Entendi o que será enviado e autorizo o envio deste texto para análise.',
+  sent: 'Este é o texto exato, já mascarado, que será enviado à Anthropic (serviço de IA Claude), nos Estados Unidos, para localizar nomes, valores e datas.',
+  transfer:
+    'O texto sai do Brasil com base no seu consentimento (LGPD, art. 33, VIII) e nas garantias contratuais da Anthropic, que não usa o texto para treinar modelos e o apaga em até 30 dias.',
+  hidden:
+    'Vão escondidos: CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números. Vão em claro: nomes de pessoas e de empresas, endereços, datas, valores e o resto do texto.',
+  /** As duas metades de `hidden`, para a tela que mostra cada uma numa linha. */
+  masked: 'Vão escondidos: CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números.',
+  inClear: 'Vão em claro: nomes de pessoas e de empresas, endereços, datas, valores e o resto do texto.',
+  policyLabel: 'Leia a seção 6 da Política de Privacidade',
+  policyHref: '/politica-de-privacidade#analise-de-contrato-com-ia',
+  consent:
+    'Li o texto e as informações acima e autorizo o envio deste texto à Anthropic, nos Estados Unidos, para análise.',
 } as const;
 
 export const LEGAL_DISCLAIMER =
-  'O MyCarsHub não valida as cláusulas do contrato. Revise o texto final com o seu advogado.';
+  'O MyCarsHub não valida as cláusulas. Se tiver dúvida, peça para o seu advogado revisar.';
 
 /** Códigos de `failureCode` do rascunho (status FAILED). */
 const FAILURE_MESSAGES: Record<string, string> = {
@@ -18,14 +31,14 @@ const FAILURE_MESSAGES: Record<string, string> = {
   AI_TIMEOUT: 'A análise demorou mais do que o esperado. Tente de novo em instantes.',
   AI_INVALID_RESPONSE: 'Não conseguimos entender a resposta da análise. Tente de novo.',
   NO_VALID_SUGGESTIONS:
-    'Não encontramos nomes, valores ou datas para virar campos neste arquivo. Use o contrato exemplo ou monte sozinho.',
+    'Não encontramos nomes, valores ou datas para virar campos neste arquivo. Tente montar do zero.',
   SCANNED_PDF: 'Este arquivo parece ser uma imagem escaneada. Envie o contrato em Word (.docx).',
   FILE_INVALID: 'Não foi possível ler este arquivo. Envie o contrato em Word (.docx).',
   CONSENT_REQUIRED: 'A análise exige a sua autorização. Envie o arquivo de novo e autorize o envio.',
   DRAFT_EXPIRED: 'Esta análise expirou. Envie o arquivo de novo.',
 };
 
-const FAILURE_FALLBACK = 'Não foi possível analisar este contrato. Tente de novo ou monte sozinho.';
+const FAILURE_FALLBACK = 'Não foi possível ler este contrato. Tente de novo ou monte do zero.';
 
 export function failureMessage(code: string | null): string {
   return (code && FAILURE_MESSAGES[code]) || FAILURE_FALLBACK;
@@ -33,10 +46,28 @@ export function failureMessage(code: string | null): string {
 
 /** Códigos de erro HTTP (corpo `{message, code}`) das chamadas do fluxo. */
 const HTTP_MESSAGES: Record<string, string> = {
-  AI_DISABLED: 'A análise com IA está indisponível no momento. Você pode montar o contrato sozinho.',
+  AI_DISABLED: 'A análise com IA está indisponível no momento. Você pode montar o contrato do zero.',
   AI_BUSY: 'A análise está com muita fila agora. Tente de novo em alguns segundos.',
-  DRAFT_LIMIT:
+  DRAFT_LIMIT_REACHED:
     'Você já tem análises em andamento. Termine ou aguarde uma delas expirar antes de enviar outro arquivo.',
+  PDF_NOT_SUPPORTED:
+    'Arquivo em PDF ainda não dá para ler. Envie o contrato em Word (.docx) ou monte do zero.',
+  INVALID_FILE_TYPE: 'Este arquivo não é do Word. Envie o contrato que termina em .docx.',
+  FILE_REQUIRED: 'Escolha o arquivo do contrato antes de continuar.',
+  FILE_TOO_LARGE: 'O arquivo é maior que 5 MB.',
+  SUPPORT_SESSION_NOT_ALLOWED:
+    'Em modo de suporte não dá para enviar o contrato da empresa para a IA.',
+  CONTRACT_BASE_VERSION_CHANGED:
+    'O modelo de contrato foi atualizado enquanto você montava. Já carregamos a versão nova: confira e salve de novo.',
+  CONTRACT_BASE_UNKNOWN_CLAUSE:
+    'Algumas cláusulas mudaram no modelo. Já atualizamos a lista: confira e salve de novo.',
+  CONTRACT_BASE_FIXED_CLAUSE:
+    'Algumas cláusulas mudaram no modelo. Já atualizamos a lista: confira e salve de novo.',
+  CONTRACT_BASE_DUPLICATE_CLAUSE:
+    'Algumas cláusulas mudaram no modelo. Já atualizamos a lista: confira e salve de novo.',
+  CONTRACT_BASE_INVALID_REQUEST: 'Não foi possível salvar estas escolhas. Volte, confira as cláusulas e tente de novo.',
+  CONTRACT_BASE_FORBIDDEN:
+    'Só o dono ou o gerente da empresa pode salvar o contrato. Em modo de suporte, o contrato não pode ser alterado.',
   DOUBTS_PENDING: 'Ainda há dúvidas sem resposta.',
   DRAFT_ALREADY_SAVED: 'Este contrato já foi salvo.',
   DRAFT_FAILED: 'A análise deste arquivo falhou. Envie o arquivo de novo.',
@@ -99,6 +130,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   companyEmail: 'E-mail da locadora',
   companyAddress: 'Endereço da locadora',
   companyCep: 'CEP da locadora',
+  companyCity: 'Cidade da empresa',
   companyRepresentative: 'Representante da locadora',
   companyRepresentativeRole: 'Cargo do representante',
   driverName: 'Nome do motorista',
@@ -135,6 +167,9 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   lateFine: 'Multa por atraso',
   franchiseKm: 'Km de franquia',
   returnFuelPolicy: 'Combustível na devolução',
+  extraKmPrice: 'Preço do km excedente',
+  lateFineTerms: 'Multa de mora (frase)',
+  kmTerms: 'Cláusula de quilometragem',
 };
 
 /** Rótulo pt-BR; nunca devolve o nome técnico cru. */

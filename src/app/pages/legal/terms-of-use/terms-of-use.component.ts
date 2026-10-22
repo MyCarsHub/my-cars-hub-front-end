@@ -35,7 +35,7 @@ export class TermsOfUseComponent implements OnDestroy {
 
   /** Driven by `?lang` — `pt` when the param is absent. */
   protected readonly lang = this.langSync.lang;
-  protected readonly lastUpdated = '2026-07-21';
+  protected readonly lastUpdated = '2026-10-22';
 
   constructor() {
     effect(() => this.applyHtmlLang(this.lang()));

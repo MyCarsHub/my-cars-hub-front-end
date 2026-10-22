@@ -16,6 +16,7 @@
           <li><a href="#base-legal">Base legal</a></li>
           <li><a href="#compartilhamento">Compartilhamento</a></li>
           <li><a href="#transferencia-internacional">Transferência internacional</a></li>
+          <li><a href="#analise-de-contrato-com-ia">Análise de contrato com IA</a></li>
           <li><a href="#armazenamento-e-seguranca">Armazenamento e segurança</a></li>
           <li><a href="#cookies-e-armazenamento-local">Cookies e armazenamento local</a></li>
           <li><a href="#retencao">Retenção</a></li>
@@ -35,6 +36,7 @@
             <li><a href="#base-legal">Base legal</a></li>
             <li><a href="#compartilhamento">Compartilhamento</a></li>
             <li><a href="#transferencia-internacional">Transferência internacional</a></li>
+            <li><a href="#analise-de-contrato-com-ia">Análise de contrato com IA</a></li>
             <li><a href="#armazenamento-e-seguranca">Armazenamento e segurança</a></li>
             <li><a href="#cookies-e-armazenamento-local">Cookies e armazenamento local</a></li>
             <li><a href="#retencao">Retenção</a></li>
@@ -111,6 +113,11 @@
             <li>
               Identificador de cliente no gateway de pagamento
               (<code>asaas_customer_id</code> e equivalentes).
+            </li>
+            <li>
+              Quando a locadora usa o recurso opcional <em>Ajustar o meu contrato</em>: o
+              arquivo do modelo de contrato enviado (.docx), guardado temporariamente (veja a
+              seção 6).
             </li>
           </ul>
           <p>
@@ -212,6 +219,15 @@
                   <td>Hospedagem do site (SPA)</td>
                   <td>Global (edge)</td>
                 </tr>
+                <tr>
+                  <td>Anthropic (Claude)</td>
+                  <td>
+                    Texto do modelo de contrato com CPF, CNPJ, telefone, e-mail, placa e
+                    outros números mascarados — só quando a locadora autoriza
+                  </td>
+                  <td>Identificar os campos do contrato no recurso opcional <em>Ajustar o meu contrato</em></td>
+                  <td>EUA</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -220,7 +236,7 @@
         <section id="transferencia-internacional">
           <h2>5. Transferência internacional</h2>
           <p>
-            Alguns dos nossos provedores (Stripe, Google e Render) estão sediados nos
+            Alguns dos nossos provedores (Stripe, Google, Render e Anthropic) estão sediados nos
             Estados Unidos. Quando dados pessoais são processados por eles, ocorre uma
             <strong>transferência internacional</strong>.
           </p>
@@ -233,8 +249,111 @@
           </p>
         </section>
 
+        <section id="analise-de-contrato-com-ia">
+          <h2>6. Análise de contrato com inteligência artificial</h2>
+          <p>
+            O recurso <strong>Ajustar o meu contrato</strong> é <strong>opcional</strong>. Ele
+            lê o modelo de contrato que a sua locadora já usa e sugere onde entram os campos
+            preenchidos automaticamente. Você pode montar o contrato <strong>sem IA</strong> — a
+            partir do contrato exemplo ou escrevendo sozinho — sem perder nenhuma funcionalidade.
+          </p>
+
+          <h3>6.1 Finalidade</h3>
+          <p>
+            Identificar, no texto do seu modelo de contrato, os trechos que devem virar campos
+            (nome do motorista, placa, valores, datas etc.). O resultado é uma sugestão: você
+            revisa cada campo antes de salvar. O texto não é usado para nenhuma outra finalidade
+            (art. 6º, I e III, da LGPD).
+          </p>
+
+          <h3>6.2 O que é enviado e o que não é</h3>
+          <ul>
+            <li>
+              O arquivo fica no MyCarsHub. Sai <strong>apenas o texto</strong>, depois que o nosso
+              servidor <strong>mascara</strong> os identificadores: CPF, CNPJ, telefone, e-mail,
+              placa, CEP, chassi, RG, Renavam e as demais sequências de números (ficam em claro
+              só datas, valores em R$, percentuais, numeração de cláusulas e quantidades como
+              "30 dias"). Cada identificador vira um marcador, como <code>[CPF_1]</code>; o valor
+              original nunca sai do nosso servidor. Esse mascaramento é uma das medidas de
+              segurança que adotamos (art. 46 da LGPD).
+            </li>
+            <li>
+              <strong>Não são mascarados</strong>: nomes de pessoas, nomes de empresas, endereços
+              e qualquer outro dado pessoal escrito por extenso. A IA precisa desses trechos para
+              reconhecer os campos. Se o seu modelo tiver dados reais de um cliente, recomendamos
+              trocá-los por exemplos antes de enviar.
+            </li>
+            <li>
+              Antes de qualquer envio, mostramos <strong>o texto exato, já mascarado</strong>, que
+              vai sair, e a lista do que não é mascarado (art. 9º da LGPD).
+            </li>
+          </ul>
+
+          <h3>6.3 Base legal</h3>
+          <p>
+            O envio só acontece com o seu <strong>consentimento específico</strong> (art. 7º, I,
+            e art. 8º da LGPD), dado na própria tela, para aquele texto. Se você não autorizar,
+            nada é enviado.
+          </p>
+
+          <h3>6.4 Quem processa o texto</h3>
+          <p>
+            A análise é feita pelo serviço de IA <strong>Claude</strong>, da
+            <strong>Anthropic, PBC</strong>, com sede em San Francisco, Califórnia, Estados
+            Unidos. A Anthropic atua como <strong>suboperadora</strong>: processa o texto só para
+            devolver a análise, conforme os Termos Comerciais e o Adendo de Processamento de
+            Dados (DPA) dela. A Anthropic, por sua vez, usa provedores de nuvem próprios
+            (subprocessadores), que ela lista publicamente.
+          </p>
+
+          <h3>6.5 Transferência internacional</h3>
+          <p>
+            O texto mascarado é processado fora do Brasil: a Anthropic armazena os dados nos
+            Estados Unidos e pode processar a requisição em infraestrutura nos Estados Unidos, na
+            Europa, na Ásia ou na Austrália. A transferência se apoia no
+            <strong>art. 33 da LGPD</strong>: no seu consentimento específico e destacado para
+            este envio, dado depois desta informação (inciso VIII), e nas garantias contratuais
+            de proteção e segurança do DPA da Anthropic.
+          </p>
+
+          <h3>6.6 Por quanto tempo os dados ficam guardados</h3>
+          <ul>
+            <li>
+              <strong>No MyCarsHub:</strong> o arquivo enviado e o rascunho da análise ficam
+              guardados por até <strong>24 horas</strong>, ou até você descartar, e depois são
+              apagados. Se você salvar, o contrato ajustado passa a ser o modelo de contrato da
+              sua locadora. Como prova do consentimento, a nossa trilha de auditoria guarda quem
+              autorizou, quando, a versão do texto de autorização e uma impressão digital do
+              texto mascarado — nunca o texto.
+            </li>
+            <li>
+              <strong>Na Anthropic:</strong> o texto enviado e a resposta são apagados dos
+              sistemas dela em até <strong>30 dias</strong>. Pelas regras da própria Anthropic, a
+              exceção é o conteúdo que a lei obrigue a guardar ou que os sistemas automáticos de
+              segurança dela sinalizem como possível violação da política de uso, que pode ser
+              guardado por até 2 anos.
+            </li>
+          </ul>
+
+          <h3>6.7 Sem treinamento de IA</h3>
+          <p>
+            Pelos Termos Comerciais da Anthropic, o conteúdo que enviamos
+            <strong>não é usado para treinar modelos de IA</strong>.
+          </p>
+
+          <h3>6.8 Como revogar</h3>
+          <p>
+            Você pode desistir antes do envio (<em>Cancelar</em> ou <em>Descartar arquivo</em>).
+            Depois da análise, <em>Descartar arquivo</em> apaga o rascunho no MyCarsHub. A
+            revogação do consentimento (art. 8º, § 5º, e art. 18, IX, da LGPD) vale para os
+            próximos envios e para o que está guardado conosco; o processamento já feito pela
+            Anthropic segue o prazo do item 6.6. Para revogar ou tirar dúvidas, use os canais da
+            seção 11.
+          </p>
+        </section>
+
         <section id="armazenamento-e-seguranca">
-          <h2>6. Armazenamento e segurança</h2>
+          <h2>7. Armazenamento e segurança</h2>
           <p>
             Aplicamos camadas de proteção proporcionais à sensibilidade de cada dado:
           </p>
@@ -265,7 +384,7 @@
         </section>
 
         <section id="cookies-e-armazenamento-local">
-          <h2>7. Cookies e armazenamento local</h2>
+          <h2>8. Cookies e armazenamento local</h2>
           <p>
             O MyCarsHub usa o <strong>Google Analytics 4</strong> para entender como o
             site é usado — quais páginas são visitadas e por qual caminho — e assim
@@ -305,7 +424,7 @@
         </section>
 
         <section id="retencao">
-          <h2>8. Retenção dos dados</h2>
+          <h2>9. Retenção dos dados</h2>
           <p>
             Enquanto sua conta estiver ativa, os dados são mantidos para operar o serviço.
             Hoje, não temos rotinas automáticas de expiração — dados permanecem armazenados
@@ -320,7 +439,7 @@
         </section>
 
         <section id="seus-direitos">
-          <h2>9. Seus direitos</h2>
+          <h2>10. Seus direitos</h2>
           <p>Como titular de dados, o art. 18 da LGPD garante a você:</p>
           <ul>
             <li><strong>Confirmação</strong> de que tratamos seus dados.</li>
@@ -339,7 +458,7 @@
         </section>
 
         <section id="como-exercer">
-          <h2>10. Como exercer seus direitos</h2>
+          <h2>11. Como exercer seus direitos</h2>
           <p>
             Para exercer qualquer um dos direitos acima, escreva para
             <strong>mycarshubcompany&#64;gmail.com</strong> ou fale no
@@ -354,7 +473,7 @@
         </section>
 
         <section id="alteracoes">
-          <h2>11. Alterações desta política</h2>
+          <h2>12. Alterações desta política</h2>
           <p>
             Podemos atualizar esta política quando mudarmos alguma prática relevante ou
             quando a lei exigir. A data no topo (<em>última atualização</em>) sempre
@@ -362,13 +481,13 @@
           </p>
           <p>
             Se a mudança for material — por exemplo, novo provedor recebendo dados
-            pessoais ou nova base legal — vamos <strong>avisar por e-mail</strong> antes
-            de a mudança entrar em vigor.
+            pessoais ou nova base legal — vamos <strong>avisar por e-mail ou por vídeo de
+            anúncio no Instagram da MyCarsHub</strong> antes de a mudança entrar em vigor.
           </p>
         </section>
 
         <section id="contato">
-          <h2>12. Contato</h2>
+          <h2>13. Contato</h2>
           <div class="legal-contact">
             <p><strong>Controlador:</strong> MyCarsHub</p>
             <p><strong>Contato para dados pessoais:</strong> mycarshubcompany&#64;gmail.com</p>
@@ -386,6 +505,7 @@
           <li><a href="#base-legal">Legal basis</a></li>
           <li><a href="#compartilhamento">Sharing with third parties</a></li>
           <li><a href="#transferencia-internacional">International transfers</a></li>
+          <li><a href="#analise-de-contrato-com-ia">Contract analysis with AI</a></li>
           <li><a href="#armazenamento-e-seguranca">Storage and security</a></li>
           <li><a href="#cookies-e-armazenamento-local">Cookies and local storage</a></li>
           <li><a href="#retencao">Data retention</a></li>
@@ -405,6 +525,7 @@
             <li><a href="#base-legal">Legal basis</a></li>
             <li><a href="#compartilhamento">Sharing with third parties</a></li>
             <li><a href="#transferencia-internacional">International transfers</a></li>
+            <li><a href="#analise-de-contrato-com-ia">Contract analysis with AI</a></li>
             <li><a href="#armazenamento-e-seguranca">Storage and security</a></li>
             <li><a href="#cookies-e-armazenamento-local">Cookies and local storage</a></li>
             <li><a href="#retencao">Data retention</a></li>
@@ -479,6 +600,10 @@
             <li>
               Customer identifier in the payment gateway
               (<code>asaas_customer_id</code> and equivalents).
+            </li>
+            <li>
+              When the rental company uses the optional <em>Adjust my contract</em> feature: the
+              uploaded contract template file (.docx), stored temporarily (see section 6).
             </li>
           </ul>
           <p>
@@ -577,6 +702,15 @@
                   <td>Frontend (SPA) hosting</td>
                   <td>Global (edge)</td>
                 </tr>
+                <tr>
+                  <td>Anthropic (Claude)</td>
+                  <td>
+                    Contract template text with CPF, CNPJ, phone, email, license plate and other
+                    numbers masked — only when the rental company authorizes it
+                  </td>
+                  <td>Identify the contract fields in the optional <em>Adjust my contract</em> feature</td>
+                  <td>USA</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -585,7 +719,7 @@
         <section id="transferencia-internacional">
           <h2>5. International transfers</h2>
           <p>
-            Some of our providers (Stripe, Google and Render) are headquartered in the
+            Some of our providers (Stripe, Google, Render and Anthropic) are headquartered in the
             United States. When personal data is processed by them, an
             <strong>international transfer</strong> takes place.
           </p>
@@ -598,8 +732,107 @@
           </p>
         </section>
 
+        <section id="analise-de-contrato-com-ia">
+          <h2>6. Contract analysis with artificial intelligence</h2>
+          <p>
+            The <strong>Adjust my contract</strong> feature is <strong>optional</strong>. It reads
+            the contract template your rental company already uses and suggests where the
+            automatically filled fields go. You can build the contract <strong>without AI</strong>
+            — from the sample contract or by writing it yourself — without losing any feature.
+          </p>
+
+          <h3>6.1 Purpose</h3>
+          <p>
+            To identify, in the text of your contract template, the passages that should become
+            fields (driver name, license plate, amounts, dates, etc.). The result is a suggestion:
+            you review each field before saving. The text is not used for any other purpose
+            (LGPD art. 6, I and III).
+          </p>
+
+          <h3>6.2 What is sent and what is not</h3>
+          <ul>
+            <li>
+              The file stays in MyCarsHub. <strong>Only the text</strong> leaves, after our server
+              <strong>masks</strong> the identifiers: CPF, CNPJ, phone, email, license plate, ZIP
+              code, chassis, RG, Renavam and any other digit sequences (only dates, R$ amounts,
+              percentages, clause numbering and quantities such as "30 days" stay readable). Each
+              identifier becomes a placeholder, such as <code>[CPF_1]</code>; the original value
+              never leaves our server. This masking is one of our security measures (LGPD
+              art. 46).
+            </li>
+            <li>
+              <strong>Not masked</strong>: names of people, company names, addresses and any other
+              personal data written out in words. The AI needs these passages to recognize the
+              fields. If your template contains a real customer's data, we recommend replacing it
+              with examples before sending.
+            </li>
+            <li>
+              Before anything is sent, we show <strong>the exact masked text</strong> that will
+              leave and the list of what is not masked (LGPD art. 9).
+            </li>
+          </ul>
+
+          <h3>6.3 Legal basis</h3>
+          <p>
+            The text is only sent with your <strong>specific consent</strong> (LGPD art. 7, I, and
+            art. 8), given on the screen itself, for that text. If you do not authorize it,
+            nothing is sent.
+          </p>
+
+          <h3>6.4 Who processes the text</h3>
+          <p>
+            The analysis is performed by the <strong>Claude</strong> AI service from
+            <strong>Anthropic, PBC</strong>, headquartered in San Francisco, California, United
+            States. Anthropic acts as a <strong>sub-processor</strong>: it processes the text only
+            to return the analysis, under its Commercial Terms and Data Processing Addendum (DPA).
+            Anthropic in turn uses its own cloud providers (sub-processors), which it lists
+            publicly.
+          </p>
+
+          <h3>6.5 International transfer</h3>
+          <p>
+            The masked text is processed outside Brazil: Anthropic stores data in the United
+            States and may process the request on infrastructure in the United States, Europe,
+            Asia or Australia. The transfer relies on <strong>LGPD art. 33</strong>: your specific
+            and highlighted consent for this transfer, given after this information (item VIII),
+            and the contractual data protection and security guarantees of Anthropic's DPA.
+          </p>
+
+          <h3>6.6 How long the data is kept</h3>
+          <ul>
+            <li>
+              <strong>At MyCarsHub:</strong> the uploaded file and the analysis draft are kept for
+              up to <strong>24 hours</strong>, or until you discard them, and are then deleted. If
+              you save, the adjusted contract becomes your rental company's contract template. As
+              proof of consent, our audit trail keeps who authorized, when, the version of the
+              authorization text and a fingerprint of the masked text — never the text.
+            </li>
+            <li>
+              <strong>At Anthropic:</strong> the text sent and the response are deleted from its
+              systems within <strong>30 days</strong>. Under Anthropic's own rules, the exception
+              is content the law requires it to keep, or content its automated safety systems flag
+              as a possible usage policy violation, which may be kept for up to 2 years.
+            </li>
+          </ul>
+
+          <h3>6.7 No AI training</h3>
+          <p>
+            Under Anthropic's Commercial Terms, the content we send
+            <strong>is not used to train AI models</strong>.
+          </p>
+
+          <h3>6.8 How to withdraw</h3>
+          <p>
+            You can give up before sending (<em>Cancel</em> or <em>Discard file</em>). After the
+            analysis, <em>Discard file</em> deletes the draft at MyCarsHub. Withdrawing consent
+            (LGPD art. 8, § 5, and art. 18, IX) applies to future submissions and to what we
+            hold; processing already performed by Anthropic follows the period in item 6.6. To
+            withdraw or ask questions, use the channels in section 11.
+          </p>
+        </section>
+
         <section id="armazenamento-e-seguranca">
-          <h2>6. Storage and security</h2>
+          <h2>7. Storage and security</h2>
           <p>We apply protection layers proportional to the sensitivity of each data point:</p>
           <ul>
             <li>
@@ -628,7 +861,7 @@
         </section>
 
         <section id="cookies-e-armazenamento-local">
-          <h2>7. Cookies and local storage</h2>
+          <h2>8. Cookies and local storage</h2>
           <p>
             MyCarsHub uses <strong>Google Analytics 4</strong> to understand how the site
             is used — which pages are visited and through which path — so we can decide
@@ -667,7 +900,7 @@
         </section>
 
         <section id="retencao">
-          <h2>8. Data retention</h2>
+          <h2>9. Data retention</h2>
           <p>
             While your account is active, data is kept to run the service. Today, we do
             not have automatic expiration routines — data remains stored until you (or
@@ -682,7 +915,7 @@
         </section>
 
         <section id="seus-direitos">
-          <h2>9. Your rights</h2>
+          <h2>10. Your rights</h2>
           <p>As a data subject, article 18 of the LGPD grants you:</p>
           <ul>
             <li><strong>Confirmation</strong> that we process your data.</li>
@@ -699,7 +932,7 @@
         </section>
 
         <section id="como-exercer">
-          <h2>10. Exercising your rights</h2>
+          <h2>11. Exercising your rights</h2>
           <p>
             To exercise any of the rights above, write to
             <strong>mycarshubcompany&#64;gmail.com</strong> or reach out via
@@ -715,7 +948,7 @@
         </section>
 
         <section id="alteracoes">
-          <h2>11. Changes to this policy</h2>
+          <h2>12. Changes to this policy</h2>
           <p>
             We may update this policy when we change a relevant practice or when the law
             requires it. The date at the top (<em>last updated</em>) always reflects the
@@ -723,13 +956,14 @@
           </p>
           <p>
             If the change is material — for example, a new provider receiving personal
-            data or a new legal basis — we will <strong>notify you by email</strong>
-            before the change takes effect.
+            data or a new legal basis — we will <strong>notify you by email or by an
+            announcement video on the MyCarsHub Instagram</strong> before the change takes
+            effect.
           </p>
         </section>
 
         <section id="contato">
-          <h2>12. Contact</h2>
+          <h2>13. Contact</h2>
           <div class="legal-contact">
             <p><strong>Controller:</strong> MyCarsHub</p>
             <p><strong>Personal data contact:</strong> mycarshubcompany&#64;gmail.com</p>
