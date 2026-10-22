@@ -22,7 +22,7 @@ const SUPPORTED_VARIABLES = [
   'vehicleRenavam', 'vehicleMileage', 'vehicleFuel',
   'rentalId', 'contractDate', 'startDate', 'endDate', 'totalAmount', 'caucaoAmount', 'periodRate',
   'billingFrequency', 'initialKm', 'pickupDate', 'firstPaymentDate', 'dailyInterest', 'lateFine',
-  'franchiseKm', 'returnFuelPolicy',
+  'franchiseKm', 'returnFuelPolicy', 'extraKmPrice', 'lateFineTerms', 'kmTerms',
 ];
 
 describe('contract-ai.messages', () => {
@@ -52,7 +52,7 @@ describe('contract-ai.messages', () => {
       expect(label, v).not.toBe(v);
       expect(label, v).not.toMatch(/^[a-z]+[A-Z]/);
     }
-    expect(SUPPORTED_VARIABLES.length).toBe(43);
+    expect(SUPPORTED_VARIABLES.length).toBe(46);
   });
 
   it('companyCity («Local e data» do Montar do zero): rótulo, exemplo, código e escolha na lista', () => {
@@ -61,6 +61,18 @@ describe('contract-ai.messages', () => {
     expect(fieldExample('companyCity')).toBe('São Paulo');
     expect(fieldCode('companyCity')).toBe('{{companyCity}}');
     expect(FIELD_KEYS).toContain('companyCity');
+  });
+
+  it('campos da cláusula de km e da multa (V113): rótulos e exemplos iguais aos do backend', () => {
+    expect(fieldLabel('extraKmPrice')).toBe('Preço do km excedente');
+    expect(fieldLabel('lateFineTerms')).toBe('Multa de mora (frase)');
+    expect(fieldLabel('kmTerms')).toBe('Cláusula de quilometragem');
+    expect(fieldExample('extraKmPrice')).toBe('R$ 0,50');
+    expect(fieldExample('lateFineTerms')).toBe(
+      'multa de mora de 2,00% sobre o valor da parcela em atraso, cobrada uma única vez',
+    );
+    expect(fieldExample('kmTerms')).toMatch(/^A franquia de quilometragem é de 300 km\/dia/);
+    expect(fieldExample('kmTerms')).toContain('custa R$ 0,50');
   });
 
   it('campo desconhecido nunca vaza o identificador cru', () => {

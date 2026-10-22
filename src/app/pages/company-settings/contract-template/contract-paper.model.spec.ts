@@ -42,9 +42,9 @@ function text(doc: PaperDocument): string[] {
 }
 
 describe('catálogo de campos', () => {
-  it('todo campo do app (43, com companyCity) tem valor de exemplo, e nenhum a mais', () => {
+  it('todo campo do app (46: + companyCity, extraKmPrice, lateFineTerms, kmTerms) tem valor de exemplo, e nenhum a mais', () => {
     const labels = Object.keys(FIELD_LABELS).sort();
-    expect(labels.length).toBe(43);
+    expect(labels.length).toBe(46);
     expect(Object.keys(FIELD_EXAMPLES).sort()).toEqual(labels);
   });
 });

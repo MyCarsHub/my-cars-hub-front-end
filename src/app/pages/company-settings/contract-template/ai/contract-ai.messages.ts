@@ -154,6 +154,9 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   lateFine: 'Multa por atraso',
   franchiseKm: 'Km de franquia',
   returnFuelPolicy: 'Combustível na devolução',
+  extraKmPrice: 'Preço do km excedente',
+  lateFineTerms: 'Multa de mora (frase)',
+  kmTerms: 'Cláusula de quilometragem',
 };
 
 /** Rótulo pt-BR; nunca devolve o nome técnico cru. */

@@ -1411,6 +1411,8 @@ describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () 
     lateFineType: 'PERCENT',
     lateFineValue: 200,
     status: 'ACTIVE',
+    franchiseKm: 150,
+    extraKmPrice: 50,
   };
 
   function cmp(): MoneyFormLike {
@@ -1529,6 +1531,87 @@ describe('RentalForm — valor do periodo com mascara de milhar (FIX-0261)', () 
     cmp().submit();
     expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(updateSpy.mock.calls[0][1]).toMatchObject({ periodRate: 450_000 });
+  });
+
+  describe('valor do km excedente (V113)', () => {
+    function kmPriceInput(): HTMLInputElement | null {
+      return fixture.nativeElement.querySelector('#rental-extra-km-price') as HTMLInputElement | null;
+    }
+    const base = {
+      vehicleId: 'veh-1',
+      driverId: 'drv-1',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      billingFrequency: 'MONTHLY',
+      periodRateReais: '4.500,00',
+      caucaoReais: '',
+      initialKm: 42_000,
+      pickupDate: '2026-08-01T09:00',
+      firstPaymentDate: '2026-08-05',
+      lateInterestPercent: '1,50',
+      lateFineType: 'PERCENT',
+      lateFineValueInput: 2,
+    };
+
+    it('só aparece com franquia; texto pt-BR de 16 px, alvo de 44 px; o POST leva centavos', () => {
+      mount(null);
+      cmp().form.patchValue({ ...base, franchiseKm: null });
+      fixture.detectChanges();
+      expect(kmPriceInput()).toBeNull();
+
+      cmp().form.patchValue({ franchiseKm: 150 });
+      fixture.detectChanges();
+      const input = kmPriceInput()!;
+      expect(input.type).toBe('text');
+      expect(input.inputMode).toBe('decimal');
+      expect(input.classList).toContain('text-base');
+      expect(input.classList).toContain('min-h-[44px]');
+      expect(fixture.nativeElement.textContent).toContain('Opcional.');
+
+      type(input, '0,50');
+      expect(input.value).toBe('0,50');
+      cmp().submit();
+      expect(createSpy.mock.calls[0][0]).toMatchObject({ franchiseKm: 150, extraKmPrice: 50 });
+    });
+
+    it('vazio = não informado; sem franquia o preço digitado não vai (null)', () => {
+      mount(null);
+      cmp().form.patchValue({ ...base, franchiseKm: 150 });
+      fixture.detectChanges();
+      cmp().submit();
+      expect(createSpy.mock.calls[0][0]).toMatchObject({ extraKmPrice: null });
+
+      mount(null);
+      cmp().form.patchValue({ ...base, franchiseKm: 0, extraKmPriceReais: '1,00' });
+      fixture.detectChanges();
+      cmp().submit();
+      expect(createSpy.mock.calls[0][0]).toMatchObject({ extraKmPrice: null });
+    });
+
+    it('número no controle não vira centavos: o validador pt-BR recusa e nada é enviado', () => {
+      mount(null);
+      cmp().form.patchValue({ ...base, franchiseKm: 150, extraKmPriceReais: 50 });
+      fixture.detectChanges();
+      const control = (
+        cmp().form as unknown as { controls: Record<string, { errors: Record<string, unknown> | null }> }
+      ).controls['extraKmPriceReais'];
+      expect(control.errors).toHaveProperty('moneyFormat');
+      cmp().submit();
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it('edição: semeia o preço formatado; mantido manda os mesmos centavos, apagado manda 0 (limpa)', () => {
+      mount('rental-1');
+      expect(kmPriceInput()!.value).toBe('0,50');
+      cmp().submit();
+      expect(updateSpy.mock.calls[0][1]).toMatchObject({ extraKmPrice: 50 });
+
+      mount('rental-1');
+      cmp().form.patchValue({ extraKmPriceReais: '' });
+      fixture.detectChanges();
+      cmp().submit();
+      expect(updateSpy.mock.calls[0][1]).toMatchObject({ extraKmPrice: 0 });
+    });
   });
   function lateFineInput(): HTMLInputElement {
     const input = fixture.nativeElement.querySelector(

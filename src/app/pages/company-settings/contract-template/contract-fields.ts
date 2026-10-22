@@ -52,6 +52,13 @@ export const FIELD_EXAMPLES: Readonly<Record<string, string>> = {
   lateFine: '2%',
   franchiseKm: '3.000',
   returnFuelPolicy: 'tanque cheio',
+  extraKmPrice: 'R$ 0,50',
+  lateFineTerms:
+    'multa de mora de 2,00% sobre o valor da parcela em atraso, cobrada uma única vez',
+  kmTerms:
+    'A franquia de quilometragem é de 300 km/dia, apurada de forma acumulada a cada período de cobrança. ' +
+    'Cada km além da franquia custa R$ 0,50 e é cobrado junto com a parcela seguinte. ' +
+    'A apuração considera a leitura do hodômetro registrada nas vistorias.',
 };
 
 /** Como a pergunta da IA chama cada campo (quem responde não conhece o nome técnico). */
