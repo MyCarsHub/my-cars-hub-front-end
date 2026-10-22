@@ -2,10 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   DOCUMENT,
+  DestroyRef,
+  ElementRef,
   PLATFORM_ID,
   computed,
   effect,
   inject,
+  viewChild,
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -36,7 +39,8 @@ import { LayoutStore } from '../layouts/layout.store';
   template: `
     @if (visible()) {
       <div
-        class="fixed inset-x-0 bottom-0 z-[90] border-t border-rule-contrast bg-paper px-4 py-4 shadow-[0_-8px_24px_-18px_rgba(10,10,10,0.35)] sm:px-6"
+        #box
+        class="fixed inset-x-0 bottom-0 z-[35] border-t border-rule-contrast bg-paper px-4 py-4 shadow-[0_-8px_24px_-18px_rgba(10,10,10,0.35)] sm:px-6"
         role="dialog"
         aria-modal="false"
         aria-labelledby="consent-title"
@@ -96,11 +100,50 @@ export class ConsentBanner {
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
+  /**
+   * A caixa do banner, quando está na tela. A altura dela vai para `--consent-banner-h` no
+   * `<html>`: dentro do shell autenticado o body NÃO rola, então o respiro do body (acima)
+   * não protege nada — o shell, a sidebar e o FAB descontam esta variável para terminar
+   * acima do banner. O z (35) fica abaixo de diálogos e sheets (40/50), que cobrem o banner
+   * em vez de serem cobertos, e acima do FAB e da sidebar fixa (30).
+   */
+  private readonly box = viewChild<ElementRef<HTMLElement>>('box');
+  private observer: ResizeObserver | null = null;
+
   constructor() {
     effect(() => {
       const open = this.consent.undecided();
       if (!this.isBrowser) return;
       this.document.body.classList.toggle('has-consent-banner', open);
     });
+
+    effect(() => {
+      const el = this.box()?.nativeElement;
+      if (!this.isBrowser) return;
+      this.observer?.disconnect();
+      this.observer = null;
+      if (!el) {
+        this.publishHeight(null);
+        return;
+      }
+      this.publishHeight(el.getBoundingClientRect().height);
+      if (typeof ResizeObserver === 'function') {
+        this.observer = new ResizeObserver(() =>
+          this.publishHeight(el.getBoundingClientRect().height),
+        );
+        this.observer.observe(el);
+      }
+    });
+
+    inject(DestroyRef).onDestroy(() => {
+      this.observer?.disconnect();
+      if (this.isBrowser) this.publishHeight(null);
+    });
+  }
+
+  private publishHeight(px: number | null): void {
+    const style = this.document.documentElement.style;
+    if (px === null) style.removeProperty('--consent-banner-h');
+    else style.setProperty('--consent-banner-h', `${Math.ceil(px)}px`);
   }
 }

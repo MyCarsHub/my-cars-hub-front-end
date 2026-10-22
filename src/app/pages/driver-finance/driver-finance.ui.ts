@@ -37,7 +37,7 @@ export const BTN_OUTLINE =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400';
 /** Floating «Novo …» of phones. Same orange as every primary action — never a darker one. */
 export const FAB =
-  'fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 inline-flex ' +
+  'fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom)+var(--consent-banner-h,0px))] z-30 inline-flex ' +
   'items-center gap-2 min-h-[52px] px-5 rounded-full bg-primary-500 text-[15px] font-semibold ' +
   'text-white shadow-lg cursor-pointer focus:outline-none focus-visible:ring-2 ' +
   'focus-visible:ring-primary-500 focus-visible:ring-offset-2 active:scale-[0.98]';
