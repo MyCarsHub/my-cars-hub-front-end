@@ -40,8 +40,8 @@ describe('contract-ai.messages', () => {
   });
 
   it('códigos de falha desconhecidos caem em mensagem genérica', () => {
-    expect(failureMessage('ALGO_NOVO')).toContain('Não foi possível analisar');
-    expect(failureMessage(null)).toContain('Não foi possível analisar');
+    expect(failureMessage('ALGO_NOVO')).toContain('Não foi possível ler');
+    expect(failureMessage(null)).toContain('Não foi possível ler');
   });
 
   it('mapeia códigos e status HTTP do envio', () => {

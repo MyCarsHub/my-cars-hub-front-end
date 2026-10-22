@@ -151,7 +151,7 @@
             [currentName]="template()?.filename ?? null"
             [error]="fileError()"
             [busy]="fetchingCurrent()"
-            [narrow]="narrow()"
+            [touch]="touch()"
             [where]="where()"
             [zeroAvailable]="baseState() !== 'off'"
             (picked)="pickFile($event)"

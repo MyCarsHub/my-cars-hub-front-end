@@ -53,9 +53,14 @@ export type EsteiraView =
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-/** Conteúdo a partir do qual a etapa e o contrato ficam lado a lado (README). */
-const SPLIT_MIN_PX = 1000;
-const NARROW_MAX_PX = 640;
+/**
+ * Lado a lado a partir de 1000 px de CONTEÚDO (README). O protótipo mede a área principal com
+ * o respiro da página; aqui medimos o cartão, que é essa área menos o respiro (`lg:px-10`).
+ * Com a sidebar, 1280 px de tela dão ~940 px de cartão — no protótipo isso já é lado a lado.
+ */
+const SPLIT_MIN_PX = 900;
+/** Celular: área principal < 640 px no protótipo = cartão < 608 px aqui (`px-4`). */
+const NARROW_MAX_PX = 608;
 const READING_TEXTS = ['Abrindo o arquivo', 'Procurando nomes, valores e datas', 'Quase pronto'];
 const READING_PCT = ['25%', '60%', '90%'];
 const STEPS: Record<EsteiraPath, string[]> = {
@@ -104,6 +109,8 @@ export class ContractEsteira {
   private readonly width = signal(1200);
   protected readonly split = computed(() => this.width() >= SPLIT_MIN_PX);
   protected readonly narrow = computed(() => this.width() < NARROW_MAX_PX);
+  /** Ponteiro grosso (dedo): «Toque para escolher» em vez de «Arraste…». */
+  protected readonly touch = signal(false);
   protected readonly where = computed(() => (this.split() ? 'ao lado' : 'logo abaixo'));
 
   // ---- estado comum
@@ -426,6 +433,7 @@ export class ContractEsteira {
     afterNextRender(() => {
       const el = this.host.nativeElement;
       this.width.set(el.clientWidth || 1200);
+      if (typeof matchMedia === 'function') this.touch.set(matchMedia('(pointer: coarse)').matches);
       if (typeof ResizeObserver === 'undefined') return;
       const ro = new ResizeObserver(([entry]) => {
         const w = entry.contentRect.width;

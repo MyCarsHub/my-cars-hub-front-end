@@ -71,7 +71,7 @@ describe('ContractTemplate', () => {
     expect(host.querySelector('h1')?.textContent?.trim()).toBe('Contrato');
     expect(host.textContent).toContain('my-contract.docx');
     expect(host.textContent).toContain('40,5 KB · Atualizado 25/09/2026');
-    expect(findButton(host, 'Baixar Contrato')).toBeTruthy();
+    expect(findButton(host, 'Baixar contrato')).toBeTruthy();
     expect(findButton(host, 'Abrir contrato')).toBeTruthy();
     expect(findButton(host, 'Remover')).toBeTruthy();
     expect(host.textContent).not.toMatch(/template|placeholder/i);
@@ -98,7 +98,7 @@ describe('ContractTemplate', () => {
     expect(host.textContent).toContain('my-contract.docx');
   });
 
-  it('«Baixar Contrato»: anchor com o nome do arquivo e revoga a URL', () => {
+  it('«Baixar contrato»: anchor com o nome do arquivo e revoga a URL', () => {
     const blob = new Blob(['docx-bytes'], { type: tpl.mimeType });
     service.downloadTemplate.mockReturnValue(of(blob));
     const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
@@ -112,7 +112,7 @@ describe('ContractTemplate', () => {
     });
 
     const fixture = makeFixture();
-    findButton(fixture.nativeElement, 'Baixar Contrato')!.click();
+    findButton(fixture.nativeElement, 'Baixar contrato')!.click();
 
     expect(service.downloadTemplate).toHaveBeenCalledOnce();
     expect(createUrl).toHaveBeenCalledWith(blob);
@@ -123,12 +123,12 @@ describe('ContractTemplate', () => {
     revokeUrl.mockRestore();
   });
 
-  it('«Baixar Contrato» com erro HTTP vira banner inline, nunca toast', () => {
+  it('«Baixar contrato» com erro HTTP vira banner inline, nunca toast', () => {
     service.downloadTemplate.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'boom' } })),
     );
     const fixture = makeFixture();
-    findButton(fixture.nativeElement, 'Baixar Contrato')!.click();
+    findButton(fixture.nativeElement, 'Baixar contrato')!.click();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('[role=alert]')?.textContent).toContain(
       'boom',

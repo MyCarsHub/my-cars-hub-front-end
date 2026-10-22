@@ -90,7 +90,7 @@ const MAX_ANSWERS = 3;
         <button type="button" (click)="open.set(!open())" [attr.aria-expanded]="open()"
           aria-controls="contract-ai-certain"
           class="flex min-h-[52px] w-full items-center gap-2 text-left text-[15px] font-semibold text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-          <span class="flex-1">{{ open() ? 'Esconder' : 'Corrigir' }} os {{ certain().length }} dados que a IA já marcou</span>
+          <span class="flex-1">{{ correctLabel() }}</span>
           <svg class="transition-transform" [class.rotate-180]="open()" xmlns="http://www.w3.org/2000/svg" width="18"
             height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
@@ -140,6 +140,12 @@ export class ContractQuestionsStep {
     const marked = n === 1 ? 'A IA marcou 1 dado sozinha.' : `A IA marcou ${n} dados sozinha.`;
     const left = q === 1 ? 'Só falta 1 pergunta rápida.' : `Só faltam ${q} perguntas rápidas.`;
     return `${marked} ${left}`;
+  });
+
+  protected readonly correctLabel = computed(() => {
+    const verb = this.open() ? 'Esconder' : 'Corrigir';
+    const n = this.certain().length;
+    return n === 1 ? `${verb} o dado que a IA já marcou` : `${verb} os ${n} dados que a IA já marcou`;
   });
 
   protected readonly answers = computed<Answer[]>(() => {

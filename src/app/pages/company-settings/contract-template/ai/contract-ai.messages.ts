@@ -18,14 +18,14 @@ const FAILURE_MESSAGES: Record<string, string> = {
   AI_TIMEOUT: 'A análise demorou mais do que o esperado. Tente de novo em instantes.',
   AI_INVALID_RESPONSE: 'Não conseguimos entender a resposta da análise. Tente de novo.',
   NO_VALID_SUGGESTIONS:
-    'Não encontramos nomes, valores ou datas para virar campos neste arquivo. Use o contrato exemplo ou monte sozinho.',
+    'Não encontramos nomes, valores ou datas para virar campos neste arquivo. Tente montar do zero.',
   SCANNED_PDF: 'Este arquivo parece ser uma imagem escaneada. Envie o contrato em Word (.docx).',
   FILE_INVALID: 'Não foi possível ler este arquivo. Envie o contrato em Word (.docx).',
   CONSENT_REQUIRED: 'A análise exige a sua autorização. Envie o arquivo de novo e autorize o envio.',
   DRAFT_EXPIRED: 'Esta análise expirou. Envie o arquivo de novo.',
 };
 
-const FAILURE_FALLBACK = 'Não foi possível analisar este contrato. Tente de novo ou monte sozinho.';
+const FAILURE_FALLBACK = 'Não foi possível ler este contrato. Tente de novo ou monte do zero.';
 
 export function failureMessage(code: string | null): string {
   return (code && FAILURE_MESSAGES[code]) || FAILURE_FALLBACK;
@@ -33,7 +33,7 @@ export function failureMessage(code: string | null): string {
 
 /** Códigos de erro HTTP (corpo `{message, code}`) das chamadas do fluxo. */
 const HTTP_MESSAGES: Record<string, string> = {
-  AI_DISABLED: 'A análise com IA está indisponível no momento. Você pode montar o contrato sozinho.',
+  AI_DISABLED: 'A análise com IA está indisponível no momento. Você pode montar o contrato do zero.',
   AI_BUSY: 'A análise está com muita fila agora. Tente de novo em alguns segundos.',
   DRAFT_LIMIT:
     'Você já tem análises em andamento. Termine ou aguarde uma delas expirar antes de enviar outro arquivo.',

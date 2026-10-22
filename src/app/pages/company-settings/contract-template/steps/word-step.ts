@@ -75,7 +75,7 @@ export class ContractWordStep {
     if (!file) return;
     this.error.set(null);
     if (!file.name.toLowerCase().endsWith('.docx')) {
-      this.error.set('Este arquivo não é do Word. Escolha o arquivo que termina em .docx.');
+      this.error.set('Este arquivo não é do Word. Escolha o arquivo do contrato que termina em .docx.');
       return;
     }
     if (file.size > MAX_BYTES) {

@@ -49,7 +49,9 @@ type LoadState = 'loading' | 'ready' | 'error';
           }
           @case ('ready') {
             <app-page-card title="Contrato atual">
-              <div class="flex flex-col gap-4 px-4 pb-5 sm:px-6 sm:pb-6">
+              <!-- @container: a linha do arquivo decide pela largura do CARTÃO, não da tela
+                   (com a sidebar, 1024 px de tela deixam ~640 px aqui). -->
+              <div class="@container flex flex-col gap-4 px-4 pb-5 sm:px-6 sm:pb-6">
                 @if (savedNow()) {
                   <app-alert-banner variant="success"
                     message="Contrato salvo. Os próximos aluguéis já usam este contrato." />
@@ -58,7 +60,7 @@ type LoadState = 'loading' | 'ready' | 'error';
                   <app-alert-banner variant="error" [message]="message" />
                 }
                 @if (template(); as t) {
-                  <div class="flex flex-col gap-4 rounded-2xl border border-neutral-200 p-4 sm:flex-row sm:items-center">
+                  <div class="flex flex-col gap-4 rounded-2xl border border-neutral-200 p-4 @3xl:flex-row @3xl:items-center">
                     <div class="flex min-w-0 flex-1 items-center gap-4">
                       <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
@@ -72,17 +74,17 @@ type LoadState = 'loading' | 'ready' | 'error';
                         </span>
                       </div>
                     </div>
-                    <div class="grid shrink-0 grid-cols-2 gap-2.5 sm:flex">
+                    <div class="grid shrink-0 grid-cols-2 gap-2.5 @3xl:flex">
                       <button type="button" (click)="downloadTemplate()" [disabled]="downloading()"
-                        class="min-h-[48px] rounded-xl bg-emerald-700 px-3 leading-tight sm:whitespace-nowrap sm:px-5 text-base font-semibold text-white hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
-                        {{ downloading() ? 'Baixando…' : 'Baixar Contrato' }}
+                        class="min-h-[48px] rounded-xl bg-emerald-700 px-3 leading-tight @3xl:whitespace-nowrap @3xl:px-5 text-base font-semibold text-white hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
+                        {{ downloading() ? 'Baixando…' : 'Baixar contrato' }}
                       </button>
                       <button type="button" (click)="openTemplate()"
-                        class="min-h-[48px] rounded-xl bg-primary-500 px-3 leading-tight sm:whitespace-nowrap sm:px-5 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
+                        class="min-h-[48px] rounded-xl bg-primary-500 px-3 leading-tight @3xl:whitespace-nowrap @3xl:px-5 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
                         Abrir contrato
                       </button>
                       <button type="button" (click)="deleteOpen.set(true)"
-                        class="col-span-2 min-h-[48px] sm:whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-5 text-base font-medium text-neutral-800 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 sm:col-span-1">
+                        class="col-span-2 min-h-[48px] @3xl:whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-5 text-base font-medium text-neutral-800 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @3xl:col-span-1">
                         Remover
                       </button>
                     </div>

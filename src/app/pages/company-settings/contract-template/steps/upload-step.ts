@@ -40,7 +40,7 @@ import { ChangeDetectionStrategy, Component, input, output, signal } from '@angu
           (change)="onInput($event)"
         />
         <span class="text-base font-semibold text-neutral-800">
-          {{ narrow() ? 'Toque para escolher o arquivo do Word' : 'Arraste o arquivo do Word aqui ou clique para escolher' }}
+          {{ touch() ? 'Toque para escolher o arquivo do Word' : 'Arraste o arquivo do Word aqui ou clique para escolher' }}
         </span>
         <span class="text-sm text-neutral-600">Arquivo do Word, até 5 MB.</span>
       </label>
@@ -103,7 +103,8 @@ export class ContractUploadStep {
   readonly currentName = input<string | null>(null);
   readonly error = input<string | null>(null);
   readonly busy = input(false);
-  readonly narrow = input(false);
+  /** Tela de toque (sem «arrastar»): decide pelo tipo de ponteiro, não pela largura. */
+  readonly touch = input(false);
   readonly where = input('ao lado');
   readonly zeroAvailable = input(true);
 
