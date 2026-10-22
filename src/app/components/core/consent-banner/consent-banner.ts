@@ -3,6 +3,7 @@ import {
   Component,
   DOCUMENT,
   PLATFORM_ID,
+  computed,
   effect,
   inject,
 } from '@angular/core';
@@ -10,6 +11,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { ConsentService } from '../../../services/consent.service';
+import { LayoutStore } from '../layouts/layout.store';
 
 /**
  * Banner de consentimento do Google Analytics 4.
@@ -32,7 +34,7 @@ import { ConsentService } from '../../../services/consent.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink],
   template: `
-    @if (consent.undecided()) {
+    @if (visible()) {
       <div
         class="fixed inset-x-0 bottom-0 z-[90] border-t border-rule-contrast bg-paper px-4 py-4 shadow-[0_-8px_24px_-18px_rgba(10,10,10,0.35)] sm:px-6"
         role="dialog"
@@ -79,6 +81,18 @@ import { ConsentService } from '../../../services/consent.service';
 })
 export class ConsentBanner {
   protected readonly consent = inject(ConsentService);
+  private readonly layout = inject(LayoutStore);
+
+  /**
+   * Com o drawer do celular aberto o banner sai da tela: ele fica acima do drawer e cobria o
+   * rodapé dele (Suporte, Perfil). Sair da tela não decide nada — o consentimento continua
+   * pendente e o banner volta quando o drawer fecha. Subir o z do drawer não serviria: o
+   * holofote do tour (mesmo z do drawer, depois no DOM) precisa continuar por cima dele.
+   */
+  protected readonly visible = computed(
+    () => this.consent.undecided() && !this.layout.isMobileOpen(),
+  );
+
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 

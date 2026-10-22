@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConsentBanner } from './consent-banner';
 import { ConsentService } from '../../../services/consent.service';
+import { LayoutStore } from '../layouts/layout.store';
 
 describe('ConsentBanner', () => {
   let fixture: ComponentFixture<ConsentBanner>;
@@ -105,6 +106,27 @@ describe('ConsentBanner', () => {
     fixture.detectChanges();
 
     expect(document.body.classList.contains('has-consent-banner')).toBe(false);
+  });
+
+  /**
+   * O banner (z-[90]) fica acima do drawer do celular (z-50) e cobria o rodape dele —
+   * Suporte e Perfil ficavam sem toque ate a pessoa decidir os cookies. Com o drawer
+   * aberto ele sai da tela SEM registrar decisao nenhuma, e volta quando o drawer fecha.
+   */
+  it('some enquanto o drawer do celular esta aberto, sem decidir nada, e volta ao fechar', () => {
+    render();
+    const layout = TestBed.inject(LayoutStore);
+    layout.setMobile(true);
+    layout.openMobile();
+    fixture.detectChanges();
+
+    expect(el('[data-consent-banner]')).toBeNull();
+    expect(localStorage.getItem('analyticsConsent')).toBeNull();
+    expect(gtag).not.toHaveBeenCalled();
+
+    layout.closeMobile();
+    fixture.detectChanges();
+    expect(el('[data-consent-banner]')).not.toBeNull();
   });
 
   /** Alvo de toque no telefone. */
