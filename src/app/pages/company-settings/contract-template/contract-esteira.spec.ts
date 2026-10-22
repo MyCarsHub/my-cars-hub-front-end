@@ -280,10 +280,81 @@ describe('ContractEsteira', () => {
       maskedTextSha256: 'abc',
       consentVersion: 'v3',
       notMasked: [],
+      aiRoute: 'anthropic:claude-haiku-5-5>claude-opus-5-5',
+      aiProviders: [
+        { provider: 'anthropic', label: 'Anthropic', models: ['claude-haiku-5-5', 'claude-opus-5-5'] },
+      ],
     });
     fixture.detectChanges();
     expect(button('Tentar de novo')).toBeUndefined();
     expect(paperText()).toContain('CPF escondido');
+  });
+
+  it('ajustar o meu: provedor de IA mudou depois do aceite → pede o texto, a rota e o aceite de novo', async () => {
+    mocks.renderAsync.mockImplementation(async (_b: Blob, el: HTMLElement) => {
+      el.innerHTML = '<p>CONTRATO</p>';
+    });
+    mount();
+    click('Ajustar o meu contrato');
+    const input = host.querySelector<HTMLInputElement>('input[type=file]')!;
+    const file = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], 'meu.docx', { type: DOCX_MIME });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button('Continuar')!.disabled).toBe(false);
+    });
+    click('Continuar');
+    http.expectOne(`${ROOT}/drafts`).flush({ draftId: DRAFT, status: 'AWAITING_CONSENT' });
+    fixture.detectChanges();
+    const view = (route: string, label: string, models: string[]) => ({
+      draftId: DRAFT,
+      paragraphs: [{ id: 'p1', text: 'CPF [CPF_1].' }],
+      maskedTextSha256: 'abc',
+      consentVersion: 'v3',
+      notMasked: [],
+      aiRoute: route,
+      aiProviders: [{ provider: label.toLowerCase(), label, models }],
+    });
+    http
+      .expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`)
+      .flush(view('anthropic:claude-haiku-5-5', 'Anthropic', ['claude-haiku-5-5']));
+    fixture.detectChanges();
+    host.querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
+    fixture.detectChanges();
+    click('Autorizar e analisar');
+    http.expectOne(`${ROOT}/drafts/${DRAFT}/consent`).flush({ draftId: DRAFT, status: 'ANALYZING' });
+    fixture.detectChanges();
+
+    // A análise não rodou: o servidor devolve o rascunho ao consentimento com o motivo.
+    http.expectOne(`${ROOT}/drafts/${DRAFT}`).flush({
+      draftId: DRAFT,
+      status: 'AWAITING_CONSENT',
+      failureCode: 'CONSENT_PROVIDER_CHANGED',
+      filename: 'meu.docx',
+      layoutSimplified: false,
+      certain: [],
+      doubts: [],
+    });
+    fixture.detectChanges();
+    http
+      .expectOne(`${ROOT}/drafts/${DRAFT}/masked-text`)
+      .flush(view('anthropic:claude-haiku-5-5>claude-opus-5-5', 'Anthropic', ['claude-haiku-5-5', 'claude-opus-5-5']));
+    fixture.detectChanges();
+
+    expect(host.textContent).toContain('O serviço de IA que vai ler o contrato mudou depois da sua autorização');
+    expect(host.querySelector('[data-ai-route]')?.textContent).toContain('claude-opus-5-5');
+    // O aceite antigo não vale: a caixa volta desmarcada.
+    expect(host.querySelector<HTMLInputElement>('input[type=checkbox]')!.checked).toBe(false);
+    expect(button('Autorizar e analisar')!.disabled).toBe(true);
+    host.querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
+    fixture.detectChanges();
+    click('Autorizar e analisar');
+    expect(http.expectOne(`${ROOT}/drafts/${DRAFT}/consent`).request.body).toEqual({
+      consentVersion: 'v3',
+      maskedTextSha256: 'abc',
+      aiRoute: 'anthropic:claude-haiku-5-5>claude-opus-5-5',
+    });
   });
 
   it('ajustar o meu: .docx do Android (octet-stream) com assinatura de Word é aceito', async () => {
@@ -354,6 +425,10 @@ describe('ContractEsteira', () => {
       maskedTextSha256: 'abc',
       consentVersion: 'v3',
       notMasked: [],
+      aiRoute: 'anthropic:claude-haiku-5-5>claude-opus-5-5',
+      aiProviders: [
+        { provider: 'anthropic', label: 'Anthropic', models: ['claude-haiku-5-5', 'claude-opus-5-5'] },
+      ],
     });
     fixture.detectChanges();
     expect(paperText()).toContain('CPF escondido');
@@ -364,7 +439,14 @@ describe('ContractEsteira', () => {
     fixture.detectChanges();
     click('Autorizar e analisar');
     const consent = http.expectOne(`${ROOT}/drafts/${DRAFT}/consent`);
-    expect(consent.request.body).toEqual({ consentVersion: 'v3', maskedTextSha256: 'abc' });
+    expect(host.querySelector('[data-ai-route]')?.textContent?.replace(/\s+/g, ' ')).toContain(
+      'Anthropic · modelos claude-haiku-5-5 e claude-opus-5-5',
+    );
+    expect(consent.request.body).toEqual({
+      consentVersion: 'v3',
+      maskedTextSha256: 'abc',
+      aiRoute: 'anthropic:claude-haiku-5-5>claude-opus-5-5',
+    });
     consent.flush({ draftId: DRAFT, status: 'ANALYZING' });
     fixture.detectChanges();
     expect(host.textContent).toContain('Lendo o seu contrato');

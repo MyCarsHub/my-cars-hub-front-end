@@ -193,6 +193,8 @@
             [disabled]="!ai.masked()"
             [where]="where()"
             [notMasked]="notMaskedLabels()"
+            [providers]="aiProviders()"
+            [reason]="consentReason()"
             (agreedChange)="agreed.set($event)"
           />
           @if (!ai.masked() && !ai.maskedLoading() && ai.error()) {

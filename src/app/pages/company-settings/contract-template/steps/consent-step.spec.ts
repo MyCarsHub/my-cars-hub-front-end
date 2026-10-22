@@ -59,3 +59,27 @@ describe('ContractConsentStep', () => {
     expect(link!.rel).toContain('noopener');
   });
 });
+
+describe('ContractConsentStep — provedor da rota', () => {
+  it('mostra quem recebe o texto (provedor e modelos) e nomeia o provedor na autorização', () => {
+    const fixture = TestBed.createComponent(ContractConsentStep);
+    fixture.componentRef.setInput('providers', [
+      { provider: 'anthropic', label: 'Anthropic', models: ['claude-haiku-5-5', 'claude-opus-5-5'] },
+    ]);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+    expect(host.querySelector('[data-ai-route]')?.textContent?.replace(/\s+/g, ' ')).toContain(
+      'Anthropic · modelos claude-haiku-5-5 e claude-opus-5-5',
+    );
+    expect(text).toContain('autorizo o envio deste texto à Anthropic, nos Estados Unidos');
+  });
+
+  it('com o motivo do novo pedido, avisa antes da autorização', () => {
+    const fixture = TestBed.createComponent(ContractConsentStep);
+    fixture.componentRef.setInput('reason', 'O serviço de IA mudou.');
+    fixture.detectChanges();
+    const alert = (fixture.nativeElement as HTMLElement).querySelector('[role=alert]');
+    expect(alert?.textContent).toContain('O serviço de IA mudou.');
+  });
+});

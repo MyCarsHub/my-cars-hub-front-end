@@ -278,6 +278,9 @@ export class ContractAiService {
       .post<DraftSubmittedResponse>(`${BASE}/drafts/${id}/consent`, {
         consentVersion: m.consentVersion,
         maskedTextSha256: m.maskedTextSha256,
+        // O aceite vale só para o provedor e os modelos exibidos: volta exatamente como veio.
+        aiRoute: m.aiRoute,
+
       })
       .subscribe({
         next: (res) => {
@@ -292,8 +295,12 @@ export class ContractAiService {
           this.busy.set(false);
           const code = errorCode(err);
           this.error.set(httpErrorMessage(err, 'Não foi possível autorizar o envio. Tente de novo.'));
-          if (code === 'CONSENT_VERSION_MISMATCH' || code === 'CONSENT_TEXT_MISMATCH') {
-            // Reabre a tela com o texto/versão novos.
+          if (
+            code === 'CONSENT_VERSION_MISMATCH' ||
+            code === 'CONSENT_TEXT_MISMATCH' ||
+            code === 'CONSENT_PROVIDER_CHANGED'
+          ) {
+            // Reabre a tela com o texto/versão/provedor novos.
             this.masked.set(null);
             this.loadMaskedText();
           } else if (code === 'DRAFT_NOT_AWAITING_CONSENT' || code === 'DRAFT_EXPIRING') {
