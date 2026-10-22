@@ -416,6 +416,48 @@ describe('RentalContractCard — download & abrir no visualizador', () => {
       expect(shortcut(fixture)).not.toBeNull();
     });
 
+    describe('CONTRACT_REQUIRED_FIELD_MISSING (campo essencial vazio na geração)', () => {
+      const MISSING =
+        'Para gerar o contrato, preencha o CPF do motorista (no cadastro do motorista) e a placa do veículo (no cadastro do veículo).';
+      const requiredShortcut = (fixture: { nativeElement: HTMLElement }): HTMLAnchorElement | null =>
+        fixture.nativeElement.querySelector('[data-testid="edit-rental-required-shortcut"]');
+
+      it('fecha o visualizador e mostra a mensagem do servidor no card; cadastro não ganha atalho', async () => {
+        refuse({ message: MISSING, code: 'CONTRACT_REQUIRED_FIELD_MISSING', field: 'driverCpf' });
+        const fixture = makeFixture();
+        openAndLoad(fixture);
+        await settle();
+        fixture.detectChanges();
+
+        expect(preview.close).toHaveBeenCalledTimes(1);
+        expect(banner(fixture)?.textContent).toContain(MISSING);
+        expect(requiredShortcut(fixture)).toBeNull();
+        expect(shortcut(fixture)).toBeNull();
+      });
+
+      it('campo da edição do aluguel: atalho "Editar aluguel"', async () => {
+        const msg = 'Para gerar o contrato, preencha a data da primeira cobrança (na edição do aluguel).';
+        refuse({ message: msg, code: 'CONTRACT_REQUIRED_FIELD_MISSING', field: 'firstPaymentDate' });
+        const fixture = makeFixture();
+        openAndLoad(fixture);
+        await settle();
+        fixture.detectChanges();
+
+        expect(banner(fixture)?.textContent).toContain(msg);
+        expect(requiredShortcut(fixture)?.getAttribute('href')).toBe(`/alugueis/${RID}/editar`);
+      });
+
+      it('no "Baixar" a mesma recusa vira o banner com a mensagem do servidor', async () => {
+        refuse({ message: MISSING, code: 'CONTRACT_REQUIRED_FIELD_MISSING', field: 'vehiclePlate' });
+        const fixture = makeFixture();
+        (fixture.componentInstance as any).downloadContract();
+        await settle();
+        fixture.detectChanges();
+
+        expect(banner(fixture)?.textContent).toContain(MISSING);
+      });
+    });
+
     it('outra recusa 400 fica no modal: sem fechar, sem banner e sem atalho', async () => {
       refuse({ message: 'Contrato não encontrado.', code: 'NOT_FOUND' });
       const fixture = makeFixture();

@@ -140,10 +140,10 @@ describe('ContractAiService', () => {
     expect(sessionStorage.getItem('contractAiDraftId')).toBeNull();
   });
 
-  it('DRAFT_LIMIT no envio vira mensagem útil e não cria rascunho', () => {
+  it('DRAFT_LIMIT_REACHED no envio vira mensagem útil e não cria rascunho', () => {
     svc.submit(new File(['x'], 'a.docx'));
     find('/drafts', 'POST').flush(
-      { message: 'limite', code: 'DRAFT_LIMIT' },
+      { message: 'limite', code: 'DRAFT_LIMIT_REACHED' },
       { status: 409, statusText: 'Conflict' },
     );
 

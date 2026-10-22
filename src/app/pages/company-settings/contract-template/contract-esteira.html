@@ -1,0 +1,417 @@
+<!--
+  Mesmo visual do app-page-card (branco, rounded-2xl, borda), mas SEM o overflow-hidden
+  dele: com overflow-hidden o rodapé de ações (sticky no celular) não gruda.
+-->
+<section
+  class="rounded-2xl border border-neutral-200 bg-white shadow-md"
+  aria-labelledby="contract-esteira-title"
+>
+  <div class="flex flex-col gap-5 px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
+    <div class="flex items-start justify-between gap-3">
+      <div class="flex min-w-0 items-start gap-3">
+        @if (path(); as p) {
+          <span aria-hidden="true" class="mt-0.5 hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:flex"
+            [class]="p === 'mine' ? 'bg-primary-50 text-primary-700' : p === 'zero' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'">
+            <app-contract-icon [name]="p === 'mine' ? 'sparkles' : p === 'zero' ? 'layers' : 'pen'" [size]="22" />
+          </span>
+        }
+        <div class="flex min-w-0 flex-col gap-1">
+          <h2 id="contract-esteira-title" tabindex="-1" class="m-0 focus:outline-none text-xl font-bold leading-tight text-neutral-900 sm:text-[22px]">{{ title() }}</h2>
+          <p class="m-0 text-[15px] leading-normal text-neutral-600">{{ subtitle() }}</p>
+        </div>
+      </div>
+      @if (path()) {
+        <button
+          type="button"
+          (click)="askExit()"
+          [disabled]="!canCancel()"
+          [attr.aria-describedby]="view() === 'reading' ? 'contract-cancel-wait' : null"
+          class="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl px-3 text-[15px] font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        >
+          <app-contract-icon name="x" [size]="18" />
+          Cancelar
+        </button>
+      }
+    </div>
+
+    @if (steps().length > 0) {
+      <div class="flex flex-col gap-2.5">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+          <span class="text-[15px] text-neutral-900">
+            <span class="font-semibold text-primary-700">Passo {{ stepIndex() + 1 }} de {{ steps().length }}</span>
+            <span aria-hidden="true" class="text-neutral-400"> · </span>
+            <span class="font-semibold">{{ steps()[stepIndex()] }}</span>
+          </span>
+          @if (nextStepName(); as nxt) {
+            <span class="text-[13px] font-medium text-neutral-600">Depois: {{ nxt }}</span>
+          } @else {
+            <span class="inline-flex items-center gap-1 text-[13px] font-medium text-emerald-800">
+              <app-contract-icon name="checkCircle" [size]="14" />
+              Último passo
+            </span>
+          }
+        </div>
+        <ol aria-label="Etapas" class="m-0 grid list-none gap-1.5 p-0"
+          [style.grid-template-columns]="'repeat(' + steps().length + ',minmax(0,1fr))'">
+          @for (s of steps(); track s; let i = $index) {
+            <li class="flex min-w-0 flex-col gap-1.5" [attr.aria-current]="i === stepIndex() ? 'step' : null">
+              <span aria-hidden="true" class="h-2 overflow-hidden rounded-full bg-neutral-200">
+                <span class="block h-full rounded-full transition-all duration-500"
+                  [class]="i < stepIndex() ? 'w-full bg-emerald-500' : i === stepIndex() ? 'w-1/2 bg-primary-500' : 'w-0 bg-neutral-200'"></span>
+              </span>
+              <span class="flex min-w-0 items-center gap-1 text-[13px]"
+                [class]="narrow() ? 'sr-only' : i === stepIndex() ? 'font-semibold text-neutral-900' : i < stepIndex() ? 'font-medium text-emerald-800' : 'font-medium text-neutral-600'">
+                @if (i < stepIndex()) {
+                  <app-contract-icon name="check" [size]="14" [stroke]="2.5" />
+                  <span class="sr-only">Concluída:</span>
+                }
+                <span class="truncate">{{ s }}</span>
+              </span>
+            </li>
+          }
+        </ol>
+      </div>
+    }
+  </div>
+
+  <div
+    class="grid border-t border-neutral-200/70"
+    [class]="split() ? 'grid-cols-[minmax(0,5fr)_minmax(0,7fr)] min-h-[560px]' : 'grid-cols-1'"
+  >
+    <div class="flex min-w-0 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-7" [class.border-r]="split()" [class.border-neutral-200]="split()">
+      @if (ai.error(); as msg) {
+        @if (path() === 'mine') {
+          <app-alert-banner variant="error" [message]="msg" />
+        }
+      }
+
+      @for (k of [stepKey()]; track k) {
+      <div class="step-in flex flex-col gap-5">
+      @switch (view()) {
+        @case ('start') {
+          <div class="flex flex-col gap-3">
+            <button type="button" (click)="start('mine')" [disabled]="!aiReady()"
+              class="group relative box-border flex min-h-[112px] w-full items-center gap-3.5 overflow-hidden rounded-2xl border bg-white px-4 py-4 text-left transition duration-200 sm:gap-4 sm:px-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+              [class]="aiReady() ? cardOn : cardOff"
+              [attr.aria-describedby]="aiReady() ? null : 'path-mine-soon'">
+              <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-2xl sm:h-14 sm:w-14 sm:self-center"
+                [class]="aiReady() ? 'bg-primary-50 text-primary-700' : 'bg-neutral-100 text-neutral-500'">
+                <app-contract-icon name="sparkles" [size]="26" />
+              </span>
+              <span class="flex min-w-0 flex-1 flex-col gap-1">
+                <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span class="text-[17px] font-semibold leading-snug" [class]="aiReady() ? 'text-neutral-900' : 'text-neutral-600'">Ajustar o meu contrato</span>
+                  @if (aiReady()) {
+                    <span class="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-[13px] font-semibold text-primary-700 ring-1 ring-primary-100">
+                      <app-contract-icon name="sparkles" [size]="12" [stroke]="2.5" />Com IA
+                    </span>
+                  } @else if (aiPending()) {
+                    <span class="h-5 w-16 rounded-full bg-neutral-100 motion-safe:animate-pulse" aria-hidden="true"></span>
+                  } @else {
+                    <span id="path-mine-soon" class="rounded-full bg-neutral-100 px-2 py-0.5 text-[13px] font-semibold text-neutral-700">Em breve</span>
+                  }
+                </span>
+                <span class="text-[15px] leading-normal text-neutral-600">
+                  Envie o contrato que você já usa. A IA marca os dados que mudam em cada aluguel e você confere.
+                </span>
+                @if (aiReady()) {
+                  <span class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 whitespace-nowrap text-[13px] font-medium text-neutral-600">
+                    <app-contract-icon name="listChecks" [size]="14" />4 passos curtos
+                    <span aria-hidden="true" class="ml-auto inline-flex items-center gap-1 pl-3 text-[15px] font-semibold text-neutral-900 sm:hidden">Começar<app-contract-icon name="arrowRight" [size]="16" /></span>
+                  </span>
+                }
+              </span>
+              @if (aiReady()) {
+                <span aria-hidden="true" class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-colors sm:flex group-hover:bg-primary-50 group-hover:text-primary-700">
+                  <app-contract-icon name="arrowRight" [size]="18" />
+                </span>
+              }
+            </button>
+
+            <button type="button" (click)="start('zero')" [disabled]="baseState() === 'off'"
+              class="group relative box-border flex min-h-[112px] w-full items-center gap-3.5 overflow-hidden rounded-2xl border bg-white px-4 py-4 text-left transition duration-200 sm:gap-4 sm:px-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+              [class]="baseState() === 'off' ? cardOff : cardOn"
+              [attr.aria-describedby]="baseState() === 'off' ? 'path-zero-soon' : null">
+              <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-2xl sm:h-14 sm:w-14 sm:self-center"
+                [class]="baseState() === 'off' ? 'bg-neutral-100 text-neutral-500' : 'bg-emerald-50 text-emerald-700'">
+                <app-contract-icon name="layers" [size]="26" />
+              </span>
+              <span class="flex min-w-0 flex-1 flex-col gap-1">
+                <span class="flex flex-wrap items-center gap-2">
+                  <span class="text-[17px] font-semibold leading-snug" [class]="baseState() === 'off' ? 'text-neutral-600' : 'text-neutral-900'">Montar do zero</span>
+                  @if (baseState() === 'off') {
+                    <span id="path-zero-soon" class="rounded-full bg-neutral-100 px-2 py-0.5 text-[13px] font-semibold text-neutral-700">Em breve</span>
+                  }
+                </span>
+                <span class="text-[15px] leading-normal text-neutral-600">
+                  Escolha as cláusulas de um modelo pronto. Os dados do aluguel entram sozinhos.
+                </span>
+                @if (baseState() !== 'off') {
+                  <span class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 whitespace-nowrap text-[13px] font-medium text-neutral-600">
+                    <app-contract-icon name="listChecks" [size]="14" />2 passos, sem arquivo
+                    <span aria-hidden="true" class="ml-auto inline-flex items-center gap-1 pl-3 text-[15px] font-semibold text-neutral-900 sm:hidden">Começar<app-contract-icon name="arrowRight" [size]="16" /></span>
+                  </span>
+                }
+              </span>
+              @if (baseState() !== 'off') {
+                <span aria-hidden="true" class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-colors sm:flex group-hover:bg-emerald-50 group-hover:text-emerald-800">
+                  <app-contract-icon name="arrowRight" [size]="18" />
+                </span>
+              }
+            </button>
+
+            <button type="button" (click)="start('word')"
+              class="group mt-1 inline-flex min-h-[48px] items-center gap-2.5 self-start rounded-xl px-2 text-left text-[15px] font-semibold text-neutral-800 transition-colors hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              <span aria-hidden="true" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
+                <app-contract-icon name="pen" [size]="16" />
+              </span>
+              <span class="underline decoration-neutral-300 underline-offset-[5px] group-hover:decoration-neutral-700">Já sei colocar os campos no Word</span>
+            </button>
+          </div>
+        }
+
+        @case ('upload') {
+          <app-contract-upload-step
+            [fileName]="fileName()"
+            [fileSize]="fileSize()"
+            [currentName]="template()?.filename ?? null"
+            [error]="fileError()"
+            [busy]="fetchingCurrent()"
+            [touch]="touch()"
+            [where]="where()"
+            [zeroAvailable]="baseState() !== 'off'"
+            (picked)="pickFile($event)"
+            (useCurrent)="useCurrent()"
+            (cleared)="clearFile()"
+            (goZero)="start('zero')"
+          />
+        }
+
+        @case ('consent') {
+          <app-contract-consent-step
+            [agreed]="agreed()"
+            [disabled]="!ai.masked()"
+            [where]="where()"
+            [notMasked]="notMaskedLabels()"
+            (agreedChange)="agreed.set($event)"
+          />
+          @if (!ai.masked() && !ai.maskedLoading() && ai.error()) {
+            <button type="button" (click)="retryMasked()" [class]="secondaryBtn" class="sm:w-auto sm:self-start">
+              <app-contract-icon name="refresh" [size]="18" />
+              Tentar de novo
+            </button>
+          }
+        }
+
+        @case ('reading') {
+          <div role="status" aria-live="polite" class="flex flex-1 flex-col gap-5 py-2">
+            <div aria-hidden="true" class="relative mx-auto flex h-36 w-28 flex-col gap-2 overflow-hidden rounded-[3px] bg-white px-3.5 py-4 shadow-md ring-1 ring-black/5">
+              <div class="mx-auto mb-1 h-1.5 w-2/3 rounded bg-neutral-300"></div>
+              <div class="flex gap-1"><span class="h-1.5 w-6 rounded bg-neutral-200"></span><span class="h-1.5 flex-1 rounded transition-colors duration-500" [class]="readingTick() >= 1 ? 'bg-emerald-300' : 'bg-neutral-200'"></span></div>
+              <div class="h-1.5 rounded bg-neutral-200"></div>
+              <div class="flex gap-1"><span class="h-1.5 flex-1 rounded bg-neutral-200"></span><span class="h-1.5 w-8 rounded transition-colors duration-500" [class]="readingTick() >= 2 ? 'bg-amber-300' : 'bg-neutral-200'"></span></div>
+              <div class="h-1.5 w-4/5 rounded bg-neutral-200"></div>
+              <div class="flex gap-1"><span class="h-1.5 w-9 rounded transition-colors duration-500" [class]="readingTick() >= 1 ? 'bg-emerald-300' : 'bg-neutral-200'"></span><span class="h-1.5 flex-1 rounded bg-neutral-200"></span></div>
+              <div class="h-1.5 w-3/5 rounded bg-neutral-200"></div>
+              <span class="scan-line absolute inset-x-0 top-0 h-8"></span>
+            </div>
+            <div class="flex flex-col gap-1 text-center">
+              <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold text-neutral-900 focus:outline-none">Lendo o seu contrato</h3>
+              <span class="text-[15px] text-neutral-600">Leva até 1 minuto. Pode deixar esta tela aberta.</span>
+              <span id="contract-cancel-wait" class="text-[13px] text-neutral-600">Dá para cancelar assim que a leitura terminar.</span>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-neutral-100">
+              <div class="h-2 rounded-full bg-primary-500 transition-[width] duration-700" [style.width]="readingPct()"></div>
+            </div>
+            <ul class="m-0 flex list-none flex-col gap-2 p-0">
+              @for (t of readingTexts; track t; let i = $index) {
+                <li class="flex items-center gap-2.5 text-[15px]"
+                  [class]="i < readingTick() ? 'text-neutral-700' : i === readingTick() ? 'font-semibold text-neutral-900' : 'text-neutral-500'">
+                  <span aria-hidden="true" class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                    [class]="i < readingTick() ? 'bg-emerald-600 text-white' : i === readingTick() ? 'border-2 border-primary-500' : 'border-2 border-neutral-200'">
+                    @if (i < readingTick()) {
+                      <app-contract-icon name="check" [size]="14" [stroke]="3" />
+                    } @else if (i === readingTick()) {
+                      <span class="h-2 w-2 rounded-full bg-primary-500 motion-safe:animate-pulse"></span>
+                    }
+                  </span>
+                  {{ t }}
+                </li>
+              }
+            </ul>
+            <span class="sr-only">{{ readingText() }}</span>
+            @if (ai.pollTimedOut()) {
+              <button type="button" (click)="retryReading()"
+                class="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 text-base font-semibold text-neutral-800 hover:bg-neutral-50 sm:w-auto sm:self-start">
+                <app-contract-icon name="refresh" [size]="18" />
+                Tentar novamente
+              </button>
+            }
+          </div>
+        }
+
+        @case ('fields') {
+          <app-contract-questions-step [index]="qIndex()" (focused)="onFocus($event)" />
+        }
+
+        @case ('failed') {
+          <div class="flex flex-col gap-4">
+            <span aria-hidden="true" class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-700">
+              <app-contract-icon name="fileText" [size]="26" />
+            </span>
+            <div class="flex flex-col gap-1.5">
+              <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold text-neutral-900 focus:outline-none">A IA não conseguiu ler este arquivo</h3>
+              <p role="alert" class="m-0 text-[15px] leading-relaxed text-rose-800">{{ ai.failureText() }}</p>
+            </div>
+            <div class="flex flex-col gap-2.5 sm:flex-row">
+              <button type="button" (click)="sendAnother()" [disabled]="ai.busy()"
+                [class]="primaryBtn" class="sm:w-auto">
+                <app-contract-icon name="fileUp" [size]="20" />
+                Enviar outro arquivo
+              </button>
+              @if (baseState() !== 'off') {
+                <button type="button" (click)="start('zero')"
+                  [class]="secondaryBtn" class="sm:w-auto">
+                  <app-contract-icon name="layers" [size]="20" />
+                  Montar do zero
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        @case ('expired') {
+          <div class="flex flex-col gap-4">
+            <span aria-hidden="true" class="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <app-contract-icon name="clock" [size]="26" />
+            </span>
+            <div class="flex flex-col gap-1.5">
+              <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold text-neutral-900 focus:outline-none">Esta leitura expirou</h3>
+              <p role="alert" class="m-0 text-[15px] leading-relaxed text-neutral-700">
+                Por segurança, cada leitura fica guardada só por um tempo. Envie o arquivo de novo para começar outra.
+              </p>
+            </div>
+            <button type="button" (click)="sendAnother()" [class]="primaryBtn" class="sm:w-auto sm:self-start">
+              <app-contract-icon name="fileUp" [size]="20" />
+              Enviar de novo
+            </button>
+          </div>
+        }
+
+        @case ('clauses') {
+          @if (baseState() === 'on') {
+            <app-contract-clauses-step
+              [clauses]="baseSvc.base()?.clauses ?? []"
+              [selected]="selected()"
+              (toggled)="toggleClause($event)"
+              (focused)="onFocus($event)"
+            />
+          } @else if (baseState() === 'error') {
+            <app-alert-banner variant="error" message="Não foi possível carregar o modelo de contrato." />
+            <button type="button" (click)="retryBase()" [class]="secondaryBtn" class="sm:w-auto sm:self-start">
+              <app-contract-icon name="refresh" [size]="18" />
+              Tentar novamente
+            </button>
+          } @else {
+            <div class="flex flex-col gap-3" aria-hidden="true">
+              <div class="h-9 w-2/3 rounded-xl bg-neutral-100 motion-safe:animate-pulse"></div>
+              <div class="h-16 rounded-xl bg-neutral-100 motion-safe:animate-pulse"></div>
+              <div class="h-16 rounded-xl bg-neutral-100 motion-safe:animate-pulse"></div>
+            </div>
+          }
+        }
+
+        @case ('review') {
+          @if (zeroError(); as msg) {
+            <app-alert-banner variant="error" [message]="msg" />
+          }
+          <app-contract-review-step
+            [fields]="reviewCounts().fields"
+            [clauses]="reviewCounts().clauses"
+            [currentName]="template()?.filename ?? null"
+            [where]="where()"
+          />
+        }
+
+        @case ('word') {
+          <app-contract-word-step
+            [currentName]="template()?.filename ?? null"
+            (busyChange)="wordBusy.set($event)"
+            (uploaded)="wordUploaded($event)"
+          />
+        }
+      }
+      </div>
+      }
+
+      @if (showNav() && split()) {
+        <ng-container [ngTemplateOutlet]="nav" />
+      }
+    </div>
+
+    <app-contract-paper
+      [class]="split() ? 'rounded-br-2xl' : 'rounded-b-2xl'"
+      [title]="paper().title"
+      [paragraphs]="paper().doc?.paragraphs ?? []"
+      [emptyText]="paper().empty"
+      [loading]="paper().loading"
+      [mode]="paperMode()"
+      [showModeSwitch]="paper().modeSwitch"
+      [draft]="paperDraft()"
+      [split]="split()"
+      (modeChange)="mode.set($event)"
+    />
+  </div>
+
+  @if (showNav() && !split()) {
+    <div data-contract-actions
+      class="sticky bottom-0 z-10 rounded-b-2xl border-t border-neutral-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] footer-lift sm:px-6">
+      <ng-container [ngTemplateOutlet]="nav" />
+    </div>
+  }
+</section>
+
+<ng-template #nav>
+  <div data-contract-actions class="flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center"
+    [class]="split() ? 'border-t border-neutral-100 pt-5' : ''">
+    @if (showBack()) {
+      <button type="button" (click)="back()" [disabled]="ai.busy() || zeroSaving()"
+        class="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 sm:w-auto"
+        [class.border]="!split()" [class.border-neutral-300]="!split()">
+        <app-contract-icon name="arrowLeft" [size]="18" />
+        Voltar
+      </button>
+    }
+    <span class="hidden flex-1 sm:block"></span>
+    <button type="button" (click)="next()" [disabled]="nextDisabled()" [class]="primaryBtn" class="sm:w-auto">
+      {{ nextLabel() }}
+      @if (!busyNext()) {
+        <app-contract-icon [name]="view() === 'review' ? 'check' : 'arrowRight'" [size]="20" [stroke]="2.25" />
+      }
+    </button>
+  </div>
+</ng-template>
+
+<app-confirm-dialog
+  [open]="exitOpen()"
+  title="Cancelar a montagem?"
+  message="O que você fez até aqui não será salvo. O contrato atual continua igual."
+  confirmLabel="Cancelar montagem"
+  cancelLabel="Continuar montando"
+  variant="danger"
+  size="large"
+  (confirmed)="exit()"
+  (cancelled)="exitOpen.set(false)"
+/>
+
+<app-confirm-dialog
+  [open]="!!ai.overwriteCode()"
+  title="Substituir o contrato atual?"
+  message="O contrato atual mudou enquanto você montava este. Se continuar, ele será substituído por este."
+  confirmLabel="Substituir e salvar"
+  cancelLabel="Não substituir"
+  variant="warning"
+  [busy]="ai.busy()"
+  (confirmed)="confirmOverwrite()"
+  (cancelled)="ai.cancelOverwrite()"
+/>
