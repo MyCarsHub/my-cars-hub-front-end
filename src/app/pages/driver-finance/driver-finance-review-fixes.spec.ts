@@ -23,6 +23,7 @@ import { DriverGoalsPage } from './driver-goals';
 import { DriverRentalContext, LedgerItem } from './driver-finance.types';
 import { FakeFinanceSource, TODAY, expense, income } from './driver-finance.testing';
 import { parseHours, saveErrorMessage } from './ledger-entry-sheet';
+import { FAB } from './driver-finance.ui';
 
 /** One spec per finding of the cold review of 2026-10-21 (items 4–7, 10–14, 16). */
 describe('driver finance — review fixes', () => {
@@ -426,5 +427,15 @@ describe('5 · HttpDriverFinanceSource pages through the window', () => {
       .flush({ content: [], page: 0, size: 100, total: 999 });
     http.verify();
     expect(result).toEqual([]);
+  });
+});
+
+describe('FAB «Lançar» do celular e o banner de cookies', () => {
+  /*
+   * O FAB é `fixed` no rodapé da VIEWPORT. Com o banner de cookies na tela ele ficava por
+   * baixo dele; sobe o tanto que o banner publica em `--consent-banner-h`.
+   */
+  it('sobe acima do banner (soma --consent-banner-h ao bottom)', () => {
+    expect(FAB).toContain('bottom-[calc(1rem+env(safe-area-inset-bottom)+var(--consent-banner-h,0px))]');
   });
 });

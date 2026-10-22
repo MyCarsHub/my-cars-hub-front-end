@@ -289,7 +289,8 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(frame(host).classList.contains('flex-col')).toBe(true);
     expect(frame(host).style.getPropertyValue('--page-top')).toBe('1.25rem');
     // Barra de 56px (3.5rem) + a --page-top: o que a captura guiada desconta de 100dvh.
-    expect(frame(host).style.getPropertyValue('--page-fill-offset')).toBe('calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom))');
+    // ...mais a faixa do banner de cookies, que o shell também desconta da altura.
+    expect(frame(host).style.getPropertyValue('--page-fill-offset')).toBe('calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px))');
     // A barra é irmã ANTERIOR do <main>: o conteúdo começa abaixo dela.
     expect(host.querySelector('app-driver-top-bar + app-sidebar + main')).not.toBeNull();
   });
@@ -312,6 +313,18 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(frame(host).style.getPropertyValue('--page-fill-offset')).toBe('');
     expect(bellRow(host).style.paddingTop).toBe('');
     expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('');
+  });
+
+  /*
+   * O banner de cookies é `fixed` no rodapé, e dentro do shell o body não rola — o respiro
+   * que ele dá ao body não chega ao <main>. Com o shell em `h-dvh` o fim de toda tela (e as
+   * barras `sticky bottom-0` da vistoria) ficava por baixo do banner no celular.
+   */
+  it('o shell termina ACIMA do banner de cookies (desconta --consent-banner-h)', () => {
+    configure('DRIVER');
+    const host = renderMobile();
+    expect(frame(host).classList.contains('h-[calc(100dvh-var(--consent-banner-h,0px))]')).toBe(true);
+    expect(frame(host).classList.contains('h-dvh')).toBe(false);
   });
 
   it('motorista no desktop: sem barra (a sidebar de 260px é o menu)', () => {
