@@ -17,8 +17,8 @@ import { NotificationService } from './services/notification.service';
 import { SessionService } from './services/session.service';
 
 /**
- * A area do MOTORISTA na arvore de rotas: o painel dele (`/meu-painel`), a lista de
- * lancamentos, o perfil proprio e o suporte. Os guards sao EXECUTADOS, com um JWT na
+ * A area do MOTORISTA na arvore de rotas: o painel dele (`/meu-painel`), o redirect
+ * de lancamentos, o perfil proprio e o suporte. Os guards sao EXECUTADOS, com um JWT na
  * sessao — nao se confere o array `canActivate` por inspecao.
  */
 describe('app.routes — area do motorista', () => {
@@ -55,7 +55,7 @@ describe('app.routes — area do motorista', () => {
   afterEach(() => sessionStorage.clear());
 
   describe('/meu-painel', () => {
-    it('existe, e a lista de lancamentos mora debaixo dele', () => {
+    it('existe, e o link antigo de lancamentos mora debaixo dele', () => {
       const [panel] = find('meu-painel');
       expect(panel, 'a rota meu-painel sumiu da arvore').toBeDefined();
       expect(panel.children?.map((c) => c.path)).toEqual([
@@ -67,16 +67,23 @@ describe('app.routes — area do motorista', () => {
       ]);
     });
 
-    it('as duas telas sao carregadas sob demanda', async () => {
+    it('as telas sao carregadas sob demanda', async () => {
       const [panel] = find('meu-painel');
-      for (const child of panel.children ?? []) {
+      for (const child of (panel.children ?? []).filter((c) => !c.redirectTo)) {
         expect(child.component).toBeUndefined();
         expect(typeof child.loadComponent).toBe('function');
       }
       const home = await (panel.children![0].loadComponent as () => Promise<unknown>)();
-      const entries = await (panel.children![1].loadComponent as () => Promise<unknown>)();
+      const earnings = await (panel.children![1].loadComponent as () => Promise<unknown>)();
       expect(home).toBeTruthy();
-      expect(entries).toBeTruthy();
+      expect(earnings).toBeTruthy();
+    });
+
+    it('/meu-painel/lancamentos redireciona para /meu-painel/ganhos', () => {
+      const [panel] = find('meu-painel');
+      const legacy = panel.children!.find((c) => c.path === 'lancamentos')!;
+      expect(legacy.redirectTo).toBe('ganhos');
+      expect(legacy.pathMatch).toBe('full');
     });
 
     it('so o DRIVER entra', () => {
