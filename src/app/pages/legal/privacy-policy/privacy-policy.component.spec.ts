@@ -198,6 +198,15 @@ describe('PrivacyPolicyComponent — secao de IA (Ajustar o meu contrato)', () =
     expect(text).toContain('LGPD art. 33');
   });
 
+  it('alteracoes: aviso de mudanca material por e-mail OU video no Instagram, nas duas linguas', async () => {
+    expect(await visit('pt')).toContain(
+      'avisar por e-mail ou por vídeo de anúncio no Instagram da MyCarsHub',
+    );
+    expect(await visit('en')).toContain(
+      'notify you by email or by an announcement video on the MyCarsHub Instagram',
+    );
+  });
+
   it('o indice das duas linguas lista a secao nova', async () => {
     expect(await visit('pt')).toContain('Análise de contrato com IA');
     expect(await visit('en')).toContain('Contract analysis with AI');
