@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { ContractIcon, ContractIconName } from '../contract-icon';
+import { AI_SEND_NOTICE } from '../ai/contract-ai.messages';
 
 /**
- * «Ajustar o meu contrato», etapa 2: as três frases sobre privacidade e a autorização. O
- * texto exato que a IA lê (já mascarado) está no contrato ao vivo, ao lado/abaixo.
+ * «Ajustar o meu contrato», etapa 2: o consentimento v2 (provedor, país, o que vai escondido e o
+ * que vai em claro) e a autorização. O texto exato que a IA lê (já mascarado) está no contrato
+ * ao vivo, ao lado/abaixo. As frases vêm de AI_SEND_NOTICE, o mesmo texto da seção 6 da Política.
  */
 @Component({
   selector: 'app-contract-consent-step',
@@ -15,9 +17,8 @@ import { ContractIcon, ContractIconName } from '../contract-icon';
       <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-neutral-900 focus:outline-none">
         A IA vai ler o seu contrato
       </h3>
-      <p class="m-0 text-[15px] leading-relaxed text-neutral-600">
-        Ela procura o que muda em cada aluguel, como o nome do motorista, a placa e os valores.
-      </p>
+      <p class="m-0 text-[15px] leading-relaxed text-neutral-600">{{ notice.sent }}</p>
+      <p class="m-0 text-[15px] leading-relaxed text-neutral-600">{{ notice.transfer }}</p>
     </div>
     <ul class="m-0 flex list-none flex-col gap-2 p-0">
       @for (row of rows; track row.text) {
@@ -29,6 +30,13 @@ import { ContractIcon, ContractIconName } from '../contract-icon';
         </li>
       }
     </ul>
+    <a
+      [href]="notice.policyHref"
+      target="_blank"
+      rel="noopener"
+      class="inline-flex min-h-[44px] items-center text-[15px] font-medium text-primary-700 underline"
+      >{{ notice.policyLabel }}</a
+    >
     @if (notMasked().length > 0) {
       <p class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[15px] leading-normal text-amber-900">
         <app-contract-icon name="alert" [size]="18" class="mt-0.5 text-amber-700" />
@@ -48,7 +56,8 @@ import { ContractIcon, ContractIconName } from '../contract-icon';
       />
       <span class="flex flex-col gap-0.5">
         <span class="text-base font-semibold leading-normal text-neutral-900">
-          Vi o texto {{ where() }} e autorizo a IA a ler o meu contrato.
+          Li o texto {{ where() }} e as informações acima e autorizo o envio deste texto à Anthropic,
+          nos Estados Unidos, para análise.
         </span>
         @if (disabled()) {
           <span class="text-[13px] text-neutral-600">Preparando o texto que a IA vai ler…</span>
@@ -66,16 +75,18 @@ export class ContractConsentStep {
   readonly notMasked = input<readonly string[]>([]);
   readonly agreedChange = output<boolean>();
 
+  protected readonly notice = AI_SEND_NOTICE;
+
   protected readonly rows: readonly { icon: ContractIconName; tile: string; text: string }[] = [
     {
       icon: 'eyeOff',
       tile: 'bg-emerald-100 text-emerald-800',
-      text: 'Nome, CPF, CNH, placa e endereços ficam escondidos. No contrato eles aparecem em cinza.',
+      text: AI_SEND_NOTICE.masked,
     },
     {
       icon: 'eye',
       tile: 'bg-white text-neutral-700 ring-1 ring-neutral-200',
-      text: 'Valores, datas e o modelo do carro aparecem como estão.',
+      text: AI_SEND_NOTICE.inClear,
     },
     {
       icon: 'shield',
