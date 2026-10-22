@@ -25,6 +25,14 @@ describe('ContractConsentStep', () => {
     expect(text).toContain('art. 33, VIII');
   });
 
+  it('o prazo de 30 dias vem com a mesma exceção da Política §6.6 (até 2 anos)', () => {
+    const { text } = mount();
+    expect(text).toContain('o apaga em até 30 dias');
+    expect(text).toContain(
+      'Pelas regras da própria Anthropic, a exceção é o conteúdo que a lei obrigue a guardar ou que os sistemas automáticos de segurança dela sinalizem como possível violação da política de uso, que pode ser guardado por até 2 anos.',
+    );
+  });
+
   it('diz o que vai escondido e o que vai em claro, igual ao mascarador e à Política', () => {
     const { text } = mount();
     expect(text).toContain(
