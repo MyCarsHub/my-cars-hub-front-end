@@ -24,6 +24,24 @@ type LoadState = 'loading' | 'ready' | 'error';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   imports: [DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, ContractEsteira, ContractIcon],
+  // O momento «contrato salvo!»: o aviso entra e o selo dá um pulo. Sem movimento se o
+  // sistema pede menos movimento.
+  styles: `
+    @keyframes saved-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes seal-pop {
+      0% { transform: scale(0.4); }
+      60% { transform: scale(1.12); }
+      100% { transform: scale(1); }
+    }
+    .saved-glow { box-shadow: 0 0 0 4px rgb(16 185 129 / 0.25); }
+    @media (prefers-reduced-motion: no-preference) {
+      .saved-in { animation: saved-in 320ms var(--ease-out) both; }
+      .saved-seal { animation: seal-pop 520ms var(--ease-out) 120ms both; }
+    }
+  `,
   template: `
     <app-default-page-layout
       title="Contrato"
@@ -49,50 +67,90 @@ type LoadState = 'loading' | 'ready' | 'error';
             </app-alert-banner>
           }
           @case ('ready') {
+            <div class="rounded-[20px] transition-shadow duration-700"
+              [class]="savedNow() ? 'saved-glow' : ''">
             <app-page-card title="Contrato atual">
+              <span cardIcon aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                <app-contract-icon name="fileText" [size]="18" />
+              </span>
+              @if (template()) {
+                <span cardActions class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[13px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                  <span aria-hidden="true" class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                  Em uso
+                </span>
+              }
               <!-- @container: a linha do arquivo decide pela largura do CARTÃO, não da tela
                    (com a sidebar, 1024 px de tela deixam ~640 px aqui). -->
               <div class="@container flex flex-col gap-4 px-4 pb-5 sm:px-6 sm:pb-6">
                 @if (savedNow()) {
-                  <app-alert-banner variant="success"
-                    message="Contrato salvo. Os próximos aluguéis já usam este contrato." />
+                  <div role="status" class="saved-in flex items-start gap-3.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <span aria-hidden="true" class="saved-seal flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white shadow-md">
+                      <app-contract-icon name="check" [size]="26" [stroke]="3" />
+                    </span>
+                    <div class="flex min-w-0 flex-1 flex-col gap-0.5 pt-0.5">
+                      <p class="m-0 text-lg font-bold text-emerald-900">Contrato salvo!</p>
+                      <p class="m-0 text-[15px] leading-snug text-emerald-900">
+                        Os próximos aluguéis já usam este contrato. Cada um sai preenchido sozinho.
+                      </p>
+                    </div>
+                    <button type="button" (click)="savedNow.set(false)" aria-label="Fechar aviso"
+                      class="-mr-1 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-emerald-800 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                      <app-contract-icon name="x" [size]="18" />
+                    </button>
+                  </div>
                 }
                 @if (error(); as message) {
                   <app-alert-banner variant="error" [message]="message" />
                 }
                 @if (template(); as t) {
-                  <div class="flex flex-col gap-4 rounded-2xl border border-neutral-200 p-4 @3xl:flex-row @3xl:items-center">
+                  <div class="flex flex-col gap-4 @md:rounded-2xl @md:border @md:border-neutral-200 @md:p-4 @3xl:flex-row @3xl:items-center">
                     <div class="flex min-w-0 flex-1 items-center gap-4">
-                      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <app-contract-icon name="file" [size]="22" />
+                      <!-- Miniatura de folha: o contrato em uso, não um ícone genérico. -->
+                      <span aria-hidden="true" class="relative flex h-14 w-11 shrink-0 flex-col gap-1 rounded-[3px] bg-white px-2 py-2.5 shadow-md ring-1 ring-black/5">
+                        <span class="mx-auto h-1 w-4/5 rounded bg-neutral-400"></span>
+                        <span class="h-0.5 rounded bg-neutral-200"></span>
+                        <span class="flex gap-0.5"><span class="h-0.5 w-2 rounded bg-emerald-400"></span><span class="h-0.5 flex-1 rounded bg-neutral-200"></span></span>
+                        <span class="h-0.5 rounded bg-neutral-200"></span>
+                        <span class="flex gap-0.5"><span class="h-0.5 flex-1 rounded bg-neutral-200"></span><span class="h-0.5 w-3 rounded bg-emerald-400"></span></span>
+                        <span class="h-0.5 w-3/4 rounded bg-neutral-200"></span>
                       </span>
                       <div class="flex min-w-0 flex-col gap-0.5">
-                        <span class="text-base font-semibold text-neutral-900 break-all">{{ t.filename }}</span>
+                        <span class="text-base font-semibold text-neutral-900 break-words [overflow-wrap:anywhere]">{{ t.filename }}</span>
                         <span class="text-sm text-neutral-600 tabular-nums">
                           {{ formatSize(t.sizeBytes) }} · Atualizado {{ formatDate(t.uploadedAt) }}
                         </span>
                       </div>
                     </div>
-                    <div class="grid shrink-0 grid-cols-2 gap-2.5 @3xl:flex">
+                    <div class="grid shrink-0 grid-cols-1 gap-2.5 @md:grid-cols-2 @3xl:flex">
                       <button type="button" (click)="downloadTemplate()" [disabled]="downloading()"
-                        class="min-h-[48px] rounded-xl bg-emerald-700 px-3 leading-tight @3xl:whitespace-nowrap @3xl:px-5 text-base font-semibold text-white hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
+                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-700 px-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 @3xl:px-5">
+                        <app-contract-icon name="download" [size]="18" />
                         {{ downloading() ? 'Baixando…' : 'Baixar contrato' }}
                       </button>
                       <button type="button" (click)="openTemplate()"
-                        class="min-h-[48px] rounded-xl bg-primary-500 px-3 leading-tight @3xl:whitespace-nowrap @3xl:px-5 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
+                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-500 px-4 text-base font-semibold text-white shadow-sm hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @3xl:px-5">
+                        <app-contract-icon name="eye" [size]="18" />
                         Abrir contrato
                       </button>
                       <button type="button" (click)="deleteOpen.set(true)"
-                        class="col-span-2 min-h-[48px] @3xl:whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-5 text-base font-medium text-neutral-800 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @3xl:col-span-1">
+                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-neutral-300 bg-white px-5 text-base font-medium text-neutral-800 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @md:col-span-2 @3xl:col-span-1">
+                        <app-contract-icon name="trash" [size]="18" />
                         Remover
                       </button>
                     </div>
                   </div>
                 } @else {
-                  <p class="m-0 text-base text-neutral-600">Nenhum contrato cadastrado. Monte o seu abaixo.</p>
+                  <div class="flex items-center gap-3.5 rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 px-4 py-4">
+                    <span aria-hidden="true" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-neutral-500 ring-1 ring-neutral-200">
+                      <app-contract-icon name="file" [size]="20" />
+                    </span>
+                    <p class="m-0 flex-1 text-base text-neutral-700">Nenhum contrato cadastrado. Monte o seu abaixo.</p>
+                    <app-contract-icon name="arrowRight" [size]="20" class="rotate-90 text-neutral-500" />
+                  </div>
                 }
               </div>
             </app-page-card>
+            </div>
 
             <app-contract-esteira [template]="template()" (saved)="onSaved($event)" />
           }
@@ -161,8 +219,8 @@ export class ContractTemplate implements OnInit {
   protected onSaved(tpl: ContractTemplateDto): void {
     this.template.set(tpl);
     this.error.set(null);
+    // O cartão «Contrato salvo!» (role=status) é o aviso; um toast junto repetiria a frase.
     this.savedNow.set(true);
-    this.notifications.success('Contrato salvo.');
     if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

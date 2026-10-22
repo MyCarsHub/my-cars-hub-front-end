@@ -5,6 +5,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  Injector,
   afterNextRender,
   computed,
   effect,
@@ -21,6 +22,7 @@ import { ContractAiCapability } from './ai/contract-ai-capability';
 import { ContractAiService } from './ai/contract-ai.service';
 import { httpErrorMessage, safeText } from './ai/contract-ai.messages';
 import { ContractBaseService } from './base/contract-base.service';
+import { ContractIcon } from './contract-icon';
 import { ContractPaper, PaperMode } from './contract-paper';
 import {
   PaperDocument,
@@ -90,8 +92,29 @@ const STEPS: Record<EsteiraPath, string[]> = {
     ContractClausesStep,
     ContractReviewStep,
     ContractWordStep,
+    ContractIcon,
   ],
   templateUrl: './contract-esteira.html',
+  // Entrada de cada etapa e a varredura da leitura: só com movimento liberado pelo sistema.
+  styles: `
+    @keyframes step-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes scan {
+      0% { transform: translateY(-2rem); }
+      100% { transform: translateY(9rem); }
+    }
+    .footer-lift { box-shadow: 0 -10px 24px -14px rgb(16 16 16 / 0.25); }
+    .scan-line {
+      display: none;
+      background: linear-gradient(to bottom, transparent, rgb(255 182 153 / 0.6), transparent);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .step-in { animation: step-in 240ms var(--ease-out) both; }
+      .scan-line { display: block; animation: scan 1.8s ease-in-out infinite; }
+    }
+  `,
 })
 export class ContractEsteira {
   protected readonly ai = inject(ContractAiService);
@@ -101,6 +124,7 @@ export class ContractEsteira {
   private readonly logger = inject(LoggerService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
 
   /** Contrato em uso (ou `null`). */
   readonly template = input<ContractTemplateDto | null>(null);
@@ -210,20 +234,41 @@ export class ContractEsteira {
       case 'word':
         return 'Fazer no Word';
       default:
-        return this.template() ? 'Montar ou ajustar o contrato' : 'Monte o seu contrato';
+        return this.template() ? 'Quer mudar o contrato?' : 'Vamos montar o seu contrato';
     }
   });
 
   protected readonly subtitle = computed(() => {
     const path = this.path();
     if (!path) {
-      return this.split()
-        ? 'Escolha como quer começar. Você vê o contrato ao lado durante todo o processo.'
-        : 'Escolha como quer começar. Você pode ver o contrato a cada passo.';
+      return `Escolha um caminho. O contrato aparece ${this.split() ? 'ao lado' : 'logo abaixo'} e nada muda até você salvar.`;
     }
     if (path === 'word') return 'Troque os dados fixos pelos campos e envie o arquivo do Word.';
-    return `Veja o contrato ${this.where()} a cada passo.`;
+    return `O contrato ${this.where()} muda a cada passo. Nada é salvo antes do fim.`;
   });
+
+  /** Nome do passo seguinte («Depois: Conferir»); `null` no último. */
+  protected readonly nextStepName = computed(() => this.steps()[this.stepIndex() + 1] ?? null);
+
+  /** Chave da tela da etapa: muda a cada etapa e a cada pergunta (dispara a entrada). */
+  protected readonly stepKey = computed(() => {
+    const v = this.view();
+    return v === 'fields' ? `fields-${this.qIndex()}` : `${this.path() ?? 'none'}-${v}`;
+  });
+
+  protected readonly readingTexts = READING_TEXTS;
+
+  /** Enquanto o primário está ocupado («Salvando…»), sai a seta. */
+  protected readonly busyNext = computed(() => this.ai.busy() || this.zeroSaving());
+
+  // ---- classes repetidas (botões e cartões de caminho)
+  protected readonly primaryBtn =
+    'inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 text-[17px] font-semibold text-white shadow-md transition hover:bg-primary-600 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+  protected readonly secondaryBtn =
+    'inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 text-base font-semibold text-neutral-800 transition-colors hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
+  protected readonly cardOn =
+    'border-neutral-200 shadow-sm hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-lg active:translate-y-0 motion-reduce:hover:translate-y-0';
+  protected readonly cardOff = 'border-dashed border-neutral-300 bg-neutral-50/60';
 
   protected readonly doubts = computed(() => this.ai.draft()?.doubts ?? []);
   protected readonly notMaskedLabels = computed(() =>
@@ -418,6 +463,15 @@ export class ContractEsteira {
     () => READING_PCT[Math.min(this.readingTick(), READING_PCT.length - 1)],
   );
 
+  /**
+   * «Cancelar» só quando o servidor deixa descartar: durante a leitura da IA o DELETE do
+   * rascunho dá 409 (ANALYZING) e, com um envio em voo, o 202 chegaria depois e reabriria
+   * o caminho. Nos dois casos o botão espera.
+   */
+  protected readonly canCancel = computed(
+    () => this.view() !== 'reading' && !this.ai.busy() && !this.zeroSaving(),
+  );
+
   /** Há trabalho a perder? Decide se «Cancelar» pede confirmação. */
   private readonly hasWork = computed(() => {
     const v = this.view();
@@ -497,6 +551,32 @@ export class ContractEsteira {
       });
     });
 
+    // Etapa nova: o foco vai para o título dela (teclado e leitor de tela acompanham), e
+    // se o título ficou fora da tela (celular, botão no rodapé) a página sobe até ele.
+    let firstKey = true;
+    effect(() => {
+      this.stepKey();
+      if (firstKey) {
+        firstKey = false;
+        return;
+      }
+      afterNextRender(
+        () => {
+          const h = this.host.nativeElement.querySelector<HTMLElement>('[data-step-heading]');
+          if (!h || typeof h.focus !== 'function') return;
+          h.focus({ preventScroll: true });
+          const r = h.getBoundingClientRect();
+          const vh = typeof window === 'undefined' ? 0 : window.innerHeight;
+          if ((r.top < 0 || r.top > vh * 0.6) && typeof h.scrollIntoView === 'function') {
+            const reduce =
+              typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+            h.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+          }
+        },
+        { injector: this.injector },
+      );
+    });
+
     this.destroyRef.onDestroy(() => this.stopReading());
   }
 
@@ -512,6 +592,7 @@ export class ContractEsteira {
   }
 
   protected askExit(): void {
+    if (!this.canCancel()) return;
     if (this.hasWork()) this.exitOpen.set(true);
     else this.exit();
   }

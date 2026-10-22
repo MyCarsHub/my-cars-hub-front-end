@@ -77,6 +77,25 @@ describe('ContractTemplate', () => {
     expect(host.textContent).not.toMatch(/template|placeholder/i);
   });
 
+  it('salvar pela esteira: cartão «Contrato salvo!» com o arquivo novo, sem toast repetido', () => {
+    const fixture = makeFixture();
+    const host: HTMLElement = fixture.nativeElement;
+    const esteira = fixture.debugElement.query((d) => d.name === 'app-contract-esteira');
+    const saved = { ...tpl, filename: 'novo.docx' };
+    (esteira.componentInstance as { saved: { emit(t: ContractTemplateDto): void } }).saved.emit(saved);
+    fixture.detectChanges();
+
+    const status = host.querySelector('[role=status]');
+    expect(status?.textContent).toContain('Contrato salvo!');
+    expect(status?.textContent).toContain('Os próximos aluguéis já usam este contrato.');
+    expect(host.textContent).toContain('novo.docx');
+    expect(notifications.success).not.toHaveBeenCalled();
+
+    host.querySelector<HTMLButtonElement>('[aria-label="Fechar aviso"]')!.click();
+    fixture.detectChanges();
+    expect(host.textContent).not.toContain('Contrato salvo!');
+  });
+
   it('404 = sem contrato: frase de estado vazio, sem erro', () => {
     service.get.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
     const fixture = makeFixture();

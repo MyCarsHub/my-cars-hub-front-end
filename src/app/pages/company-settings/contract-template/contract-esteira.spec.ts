@@ -182,6 +182,9 @@ describe('ContractEsteira', () => {
     click('Continuar');
     const up = http.expectOne(`${ROOT}/drafts`);
     expect(up.request.method).toBe('POST');
+    // Envio em voo: cancelar agora deixaria o 202 reabrir o caminho depois.
+    fixture.detectChanges();
+    expect(button('Cancelar')!.disabled).toBe(true);
     expect((up.request.body as FormData).get('file')).toBe(file);
     up.flush({ draftId: DRAFT, status: 'AWAITING_CONSENT' });
     fixture.detectChanges();
@@ -209,6 +212,14 @@ describe('ContractEsteira', () => {
     expect(consent.request.body).toEqual({ consentVersion: 'v3', maskedTextSha256: 'abc' });
     consent.flush({ draftId: DRAFT, status: 'ANALYZING' });
     fixture.detectChanges();
+    expect(host.textContent).toContain('Lendo o seu contrato');
+    // Lendo (ANALYZING): o servidor recusa o DELETE com 409; «Cancelar» espera e nem o
+    // método da tela, chamado direto, descarta o rascunho.
+    expect(button('Cancelar')!.disabled).toBe(true);
+    (fixture.componentInstance as unknown as { askExit(): void }).askExit();
+    fixture.detectChanges();
+    http.expectNone((r) => r.method === 'DELETE');
+    expect(host.textContent).not.toContain('Cancelar a montagem?');
     expect(host.textContent).toContain('Lendo o seu contrato');
 
     http.expectOne(`${ROOT}/drafts/${DRAFT}`).flush({

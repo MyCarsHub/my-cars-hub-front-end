@@ -13,6 +13,7 @@ import { FIELD_LABELS, safeText } from '../ai/contract-ai.messages';
 import { SuggestionView } from '../ai/contract-ai.types';
 import { FIELD_KEYS, plainFieldLabel } from '../contract-fields';
 import { humanizeMasked } from '../contract-paper.model';
+import { ContractIcon } from '../contract-icon';
 
 export const KEEP_TEXT = '__none__';
 
@@ -34,29 +35,46 @@ const MAX_ANSWERS = 3;
   selector: 'app-contract-questions-step',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
-  imports: [FormField, FieldControl],
+  imports: [FormField, FieldControl, ContractIcon],
+  // Trecho citado com a mesma fonte de documento do contrato ao vivo.
+  styles: `
+    .doc-serif {
+      font-family: Cambria, 'Times New Roman', 'Noto Serif', serif;
+    }
+  `,
   template: `
     @if (index() === 0 && doubts().length > 0) {
-      <div role="status" class="flex items-center gap-2.5 rounded-xl bg-emerald-50 px-4 py-3 text-[15px] text-emerald-900">
-        <svg class="shrink-0" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="20 6 9 17 4 12" /></svg>
-        <span>{{ foundText() }}</span>
+      <div role="status" class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-[15px] leading-snug text-emerald-900">
+        <span aria-hidden="true" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+          <app-contract-icon name="sparkles" [size]="18" />
+        </span>
+        <span class="pt-1.5">{{ foundText() }}</span>
       </div>
     }
 
     @if (current(); as d) {
-      <div class="flex flex-col gap-1.5">
-        <span aria-live="polite" class="text-sm font-semibold text-neutral-600">
-          Pergunta {{ index() + 1 }} de {{ doubts().length }}
-        </span>
-        <h3 class="m-0 text-xl font-bold leading-snug text-neutral-900 break-words">
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-3">
+          <span aria-live="polite" class="text-sm font-semibold text-primary-700">
+            Pergunta {{ index() + 1 }} de {{ doubts().length }}
+          </span>
+          <span aria-hidden="true" class="flex gap-1">
+            @for (q of doubts(); track q.id; let i = $index) {
+              <span class="h-1.5 rounded-full transition-all duration-300"
+                [class]="i < index() ? 'w-3 bg-emerald-500' : i === index() ? 'w-6 bg-primary-500' : 'w-3 bg-neutral-200'"></span>
+            }
+          </span>
+        </div>
+        <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-neutral-900 break-words focus:outline-none sm:text-2xl">
           O que é «{{ quote().hit }}» no seu contrato?
         </h3>
       </div>
-      <p class="m-0 border-l-4 border-amber-200 py-1 pl-3.5 text-base leading-relaxed text-neutral-700 break-words">
-        {{ quote().before }}<mark class="rounded bg-amber-100 px-1 font-bold text-neutral-900">{{ quote().hit }}</mark>{{ quote().after }}
-      </p>
+      <figure class="m-0 flex flex-col gap-1.5">
+        <figcaption class="text-[13px] font-semibold text-neutral-600">Está assim no seu contrato:</figcaption>
+        <blockquote class="m-0 rounded-r-xl border-l-4 border-amber-400 bg-amber-50/50 py-2.5 pl-3.5 pr-3 doc-serif text-base leading-relaxed text-neutral-800 break-words">
+          {{ quote().before }}<mark class="rounded-[3px] border-b-2 border-amber-500 bg-amber-100 px-0.5 font-bold text-neutral-900">{{ quote().hit }}</mark>{{ quote().after }}
+        </blockquote>
+      </figure>
       <div role="radiogroup" aria-label="Escolha uma resposta" class="flex flex-col gap-2.5">
         @for (a of answers(); track a.value) {
           <button
@@ -64,20 +82,20 @@ const MAX_ANSWERS = 3;
             role="radio"
             [attr.aria-checked]="choice() === a.value"
             (click)="pick(d, a.value)"
-            class="flex min-h-[60px] w-full items-center gap-3.5 rounded-2xl border-2 px-4 py-3 text-left hover:border-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-            [class]="choice() === a.value ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 bg-white'"
+            class="flex min-h-[60px] w-full items-center gap-3.5 rounded-2xl border-2 px-4 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            [class]="choice() === a.value ? 'border-primary-500 bg-white shadow-sm' : 'border-neutral-200 bg-white hover:border-neutral-400'"
           >
             <span aria-hidden="true"
-              class="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border-2"
-              [class]="choice() === a.value ? 'border-primary-500' : 'border-neutral-400'">
+              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors"
+              [class]="choice() === a.value ? 'border-primary-500 bg-primary-500' : 'border-neutral-400 bg-white'">
               @if (choice() === a.value) {
-                <span class="h-2.5 w-2.5 rounded-full bg-primary-500"></span>
+                <span class="h-2.5 w-2.5 rounded-full bg-white"></span>
               }
             </span>
-            <span class="flex flex-1 flex-col gap-0.5">
+            <span class="flex flex-1 flex-wrap items-center gap-x-2 gap-y-1">
               <span class="text-base font-semibold text-neutral-900">{{ a.label }}</span>
               @if (a.suggested) {
-                {{ ' ' }}<span class="text-[13px] font-semibold text-primary-700">Mais provável</span>
+                {{ ' ' }}<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[13px] font-semibold text-amber-900 ring-1 ring-amber-200"><app-contract-icon name="sparkles" [size]="12" [stroke]="2.5" />Mais provável</span>
               }
             </span>
           </button>
@@ -86,19 +104,18 @@ const MAX_ANSWERS = 3;
     }
 
     @if (certain().length > 0) {
-      <div class="border-t border-neutral-100 pt-1">
+      <div class="rounded-2xl bg-neutral-50 px-1">
         <button type="button" (click)="open.set(!open())" [attr.aria-expanded]="open()"
           aria-controls="contract-ai-certain"
-          class="flex min-h-[52px] w-full items-center gap-2 text-left text-[15px] font-semibold text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          class="flex min-h-[52px] w-full items-center gap-2.5 rounded-2xl px-3 text-left text-[15px] font-semibold text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          <app-contract-icon name="pen" [size]="18" class="text-neutral-600" />
           <span class="flex-1">{{ correctLabel() }}</span>
-          <svg class="transition-transform" [class.rotate-180]="open()" xmlns="http://www.w3.org/2000/svg" width="18"
-            height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+          <app-contract-icon name="chevronDown" [size]="18" class="text-neutral-600 transition-transform" [class.rotate-180]="open()" />
         </button>
         @if (open()) {
-          <div id="contract-ai-certain" class="flex flex-col">
+          <div id="contract-ai-certain" class="flex flex-col px-3 pb-2">
             @for (s of certain(); track s.id) {
-              <div class="border-t border-neutral-100 py-2.5" (mouseenter)="focused.emit(s.id)">
+              <div class="border-t border-neutral-200 py-2.5" (mouseenter)="focused.emit(s.id)">
                 <app-form-field [label]="excerpt(s)">
                   <select
                     appFieldControl

@@ -18,18 +18,22 @@ export const DOCX_ACCEPT =
   template: `
     @if (fileName(); as name) {
       <!-- Estreito (celular, painel lado a lado): «Trocar arquivo» desce e ocupa a linha toda. -->
-      <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
-        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-700">
-          <app-contract-icon name="file" [size]="22" />
+      <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 shadow-sm">
+        <span class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-100">
+          <app-contract-icon name="fileText" [size]="22" />
+          <span class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white ring-2 ring-emerald-50">
+            <app-contract-icon name="check" [size]="12" [stroke]="3" />
+          </span>
         </span>
         <div class="flex min-w-0 flex-1 basis-40 flex-col gap-0.5">
-          <span class="text-[15px] font-semibold text-emerald-900 break-all">{{ name }}</span>
+          <span class="text-[15px] font-semibold text-emerald-900 break-words [overflow-wrap:anywhere]">{{ name }}</span>
           <span class="text-[13px] text-emerald-800">
             @if (fileSize()) { {{ fileSize() }} · }{{ hint() }}
           </span>
         </div>
         <button type="button" (click)="cleared.emit()" [disabled]="busy()"
-          class="min-h-[44px] w-full shrink-0 rounded-xl border border-emerald-200 bg-white px-3 text-base font-semibold text-emerald-900 hover:bg-emerald-100 @md:w-auto @md:border-transparent @md:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-60">
+          class="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 text-base font-semibold text-emerald-900 hover:bg-emerald-100 @lg:w-auto @lg:border-transparent @lg:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:opacity-60">
+          <app-contract-icon name="refresh" [size]="16" />
           Trocar arquivo
         </button>
       </div>
@@ -39,9 +43,9 @@ export const DOCX_ACCEPT =
         (dragover)="onDragOver($event)"
         (dragleave)="drag.set(false)"
         (drop)="onDrop($event)"
-        class="group relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-center transition-colors hover:border-primary-500 hover:bg-primary-50/60 focus-within:ring-2 focus-within:ring-primary-400"
+        class="group relative flex cursor-pointer flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed text-center transition-colors hover:border-primary-500 hover:bg-primary-50/60 focus-within:ring-2 focus-within:ring-primary-400"
         [class]="(drag() ? 'border-primary-500 bg-primary-50/60 ' : 'border-neutral-300 bg-white ') +
-          (compact() ? 'min-h-[56px] flex-row gap-3 px-4 py-3 sm:flex-col sm:min-h-[150px] sm:py-5' : 'min-h-[180px] px-4 py-6 sm:min-h-[200px]')"
+          (compact() ? 'min-h-[56px] flex-row gap-3 px-4 py-3 sm:flex-col sm:min-h-[150px] sm:py-5' : 'min-h-[200px] px-4 py-7 sm:min-h-[220px]')"
         [class.opacity-60]="busy()"
       >
         <input type="file" class="sr-only" [accept]="accept" [disabled]="busy()" (change)="onInput($event)" />
@@ -56,6 +60,12 @@ export const DOCX_ACCEPT =
           <span class="text-base font-semibold text-neutral-800">{{ busy() ? busyTitle() : title() }}</span>
           <span class="text-sm text-neutral-600">Arquivo do Word, até 5 MB.</span>
         </span>
+        @if (!compact() && !busy()) {
+          <span aria-hidden="true" class="mt-1 inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-neutral-300 bg-white px-4 text-[15px] font-semibold text-neutral-800 shadow-sm transition-colors group-hover:border-primary-300">
+            <app-contract-icon name="fileUp" [size]="16" />
+            Escolher arquivo
+          </span>
+        }
       </label>
     }
   `,
