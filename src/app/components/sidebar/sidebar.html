@@ -3,21 +3,7 @@
 <div class="fixed inset-0 bg-black/50 z-40" @overlayFade (click)="onMobileOverlayClick()" aria-hidden="true"></div>
 }
 
-<!-- ==================== MOBILE HAMBURGER ==================== -->
-<!-- O motorista não tem o ☰ flutuante: o dele mora na barra de topo (`DriverTopBar`). -->
-@if (layout.isMobile() && !layout.isMobileOpen() && !isDriverMenu()) {
-<button class="fixed top-[calc(1rem+env(safe-area-inset-top))] left-4 z-50 flex items-center justify-center w-10 h-10
-           rounded-lg bg-white shadow-md border border-gray-200
-           text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
-  (click)="layout.openMobile()" aria-label="Abrir menu" type="button">
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="3" y1="12" x2="21" y2="12" />
-    <line x1="3" y1="6" x2="21" y2="6" />
-    <line x1="3" y1="18" x2="21" y2="18" />
-  </svg>
-</button>
-}
+<!-- O ☰ do celular mora na barra de topo NO FLUXO (`DriverTopBar`, montada pelo shell): um botão fixed flutuava sobre o conteúdo ao rolar. -->
 
 <!-- ==================== SIDEBAR (DESKTOP) ==================== -->
 @if (!layout.isMobile()) {
