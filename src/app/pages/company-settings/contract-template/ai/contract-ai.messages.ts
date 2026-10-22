@@ -10,7 +10,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 export const AI_SEND_NOTICE = {
   sent: 'Este é o texto exato, já mascarado, que será enviado à Anthropic (serviço de IA Claude), nos Estados Unidos, para localizar nomes, valores e datas.',
   transfer:
-    'O texto sai do Brasil com base no seu consentimento (LGPD, art. 33, VIII) e nas garantias contratuais da Anthropic, que não usa o texto para treinar modelos e o apaga em até 30 dias.',
+    'O texto sai do Brasil com base no seu consentimento (LGPD, art. 33, VIII) e nas garantias contratuais da Anthropic, que não usa o texto para treinar modelos e o apaga em até 30 dias. Pelas regras da própria Anthropic, a exceção é o conteúdo que a lei obrigue a guardar ou que os sistemas automáticos de segurança dela sinalizem como possível violação da política de uso, que pode ser guardado por até 2 anos.',
   hidden:
     'Vão escondidos: CPF, CNPJ, telefone, e-mail, placa, CEP, chassi, RG, Renavam e outros números. Vão em claro: nomes de pessoas e de empresas, endereços, datas, valores e o resto do texto.',
   /** As duas metades de `hidden`, para a tela que mostra cada uma numa linha. */
