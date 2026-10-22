@@ -303,16 +303,36 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('3.25rem');
   });
 
-  it('dono no celular: sem barra, sem coluna, sem --page-top, sino como antes', () => {
-    configure('OWNER');
+  /*
+   * O ☰ do dono era `fixed` e rolava POR CIMA do conteúdo (cobria o «Abrir contrato»). Agora o
+   * dono tem a MESMA barra no fluxo do motorista: o conteúdo começa abaixo dela e não existe
+   * nenhum botão de menu fixed.
+   */
+  it.each(['OWNER', 'MANAGER'])('%s no celular: mesma barra no fluxo do motorista, nenhum ☰ fixed', (role) => {
+    configure(role);
     const host = renderMobile();
 
+    expect(host.querySelector('app-driver-top-bar')).not.toBeNull();
+    expect(host.querySelector('app-driver-top-bar + app-sidebar + main')).not.toBeNull();
+    expect(frame(host).classList.contains('flex-col')).toBe(true);
+    expect(frame(host).style.getPropertyValue('--page-top')).toBe('1.25rem');
+    expect(bellRow(host).style.paddingTop).toBe('var(--page-top)');
+    const menus = host.querySelectorAll('button[aria-label="Abrir menu"]');
+    expect(menus.length).toBe(1);
+    expect(menus[0].closest('app-driver-top-bar')).not.toBeNull();
+    expect(host.querySelector('button.fixed')).toBeNull();
+  });
+
+  it('dono no desktop: sem barra, sem coluna, sem --page-top', () => {
+    configure('OWNER');
+    const fixture = TestBed.createComponent(AppShell);
+    fixture.detectChanges();
+    TestBed.inject(LayoutStore).setMobile(false);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelector('app-driver-top-bar')).toBeNull();
     expect(frame(host).classList.contains('flex-col')).toBe(false);
     expect(frame(host).style.getPropertyValue('--page-top')).toBe('');
-    expect(frame(host).style.getPropertyValue('--page-fill-offset')).toBe('');
-    expect(bellRow(host).style.paddingTop).toBe('');
-    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('');
   });
 
   /*
@@ -338,3 +358,4 @@ describe('AppShell — barra de topo do motorista', () => {
     expect(frame(host).style.getPropertyValue('--page-top')).toBe('');
   });
 });
+

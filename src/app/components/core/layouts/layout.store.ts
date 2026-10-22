@@ -129,8 +129,13 @@ export class LayoutStore {
     return this.sessionService.getCompanyRoleFromToken() === 'DRIVER';
   });
 
-  /** Abaixo de `lg` o motorista tem a barra de topo do protótipo (`DriverTopBar`). */
-  readonly driverTopBar = computed(() => this.isMobile() && this.isDriverShell());
+  /**
+   * Abaixo de `lg` TODO papel tem a barra de topo NO FLUXO (`DriverTopBar`, protótipo do
+   * dono para o motorista). O ☰ flutuante do dono/gerente rolava POR CIMA do conteúdo
+   * (cobria o «Abrir contrato»): `fixed` não reserva área, e nenhuma folga no topo da página
+   * impede isso depois que ela rola. Uma barra no fluxo reserva a área por construção.
+   */
+  readonly mobileTopBar = computed(() => this.isMobile());
 
   /** Current sidebar width token for animations */
   readonly sidebarWidth = computed(() => (this.isCollapsed() ? '72px' : '260px'));

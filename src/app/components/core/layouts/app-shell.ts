@@ -49,21 +49,21 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
       dá ao body não chega ao <main>, e o fim de toda tela ficava por baixo dele.
     -->
     <!--
-      Motorista abaixo de lg: coluna com a barra de topo do protótipo NO FLUXO e o conteúdo
+      Abaixo de lg (qualquer papel): coluna com a barra de topo do protótipo NO FLUXO e o conteúdo
       embaixo. \`--page-top\` troca a folga que o default-page-layout reserva para o ☰
-      flutuante (que o motorista não tem) pelo respiro do protótipo. \`--page-fill-offset\` é
+      flutuante (que o motorista não tem) pelo respiro do protótipo (o ☰ não flutua mais sobre a página). \`--page-fill-offset\` é
       quanto do 100dvh fica ACIMA do conteúdo (a barra de topo + a \`--page-top\`): a tela que
       ocupa a altura toda (captura guiada da vistoria) desconta isso e cabe sem rolar.
     -->
     <div
       class="flex h-[calc(100dvh-var(--consent-banner-h,0px))] overflow-hidden bg-gray-50"
       [class.pt-14]="impersonating()"
-      [class.flex-col]="layout.driverTopBar()"
-      [style.--page-top]="layout.driverTopBar() ? '1.25rem' : null"
-      [style.--page-fill-offset]="layout.driverTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px))' : null"
-      [style.--page-header-end]="layout.driverTopBar() && showBell() ? '3.25rem' : null"
+      [class.flex-col]="layout.mobileTopBar()"
+      [style.--page-top]="layout.mobileTopBar() ? '1.25rem' : null"
+      [style.--page-fill-offset]="layout.mobileTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px))' : null"
+      [style.--page-header-end]="layout.mobileTopBar() && showBell() ? '3.25rem' : null"
     >
-      @if (layout.driverTopBar()) {
+      @if (layout.mobileTopBar()) {
         <app-driver-top-bar />
       }
       <app-sidebar />
@@ -82,7 +82,7 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
             páginas.
           -->
           <!--
-            Motorista abaixo de lg: o <main> já começa ABAIXO da barra de topo, que consumiu o
+            Abaixo de lg: o <main> já começa ABAIXO da barra de topo, que consumiu o
             recorte do aparelho. Somar o safe-area aqui de novo derrubaria o sino sobre a
             descrição; ele se alinha à mesma --page-top do título, e --page-header-end (no
             frame) reserva a coluna dele para o título e a descrição não correrem por baixo.
@@ -90,7 +90,7 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
           <header class="pointer-events-none absolute inset-x-0 top-0 z-10">
             <div
               class="max-w-8xl mx-auto flex justify-end px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 lg:px-10 lg:pt-10"
-              [style.padding-top]="layout.driverTopBar() ? 'var(--page-top)' : null"
+              [style.padding-top]="layout.mobileTopBar() ? 'var(--page-top)' : null"
               data-bell-row
             >
               <app-notification-bell class="pointer-events-auto" />
