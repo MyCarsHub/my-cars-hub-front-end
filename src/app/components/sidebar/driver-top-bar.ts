@@ -2,11 +2,11 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { LayoutStore } from '../core/layouts/layout.store';
 
 /**
- * Barra de topo do MOTORISTA abaixo de `lg` (protótipo do dono): 56px, fundo branco, borda
+ * Barra de topo abaixo de `lg`, para TODOS os papéis (protótipo do dono): 56px, fundo branco, borda
  * inferior e só o ☰. O logo NÃO entra aqui (pedido do dono): ele mora no cabeçalho do
- * sidebar/drawer, e repeti-lo na barra o mostrava duas vezes com o menu aberto. Fica NO FLUXO, acima do conteúdo — não flutua sobre o título como o
- * botão ☰ do menu do dono. Quem a monta é o shell (`AppShell`, e a demo), só quando
- * `LayoutStore.driverTopBar()` é verdadeiro; o `Sidebar` então não desenha o ☰ flutuante.
+ * sidebar/drawer, e repeti-lo na barra o mostrava duas vezes com o menu aberto. Fica NO FLUXO, acima do conteúdo — o ☰ flutuante do dono rolava por cima
+ * dos botões da página. Quem a monta é o shell (`AppShell`, e a demo), quando
+ * `LayoutStore.mobileTopBar()` é verdadeiro; o `Sidebar` não desenha mais ☰ nenhum.
  */
 @Component({
   selector: 'app-driver-top-bar',

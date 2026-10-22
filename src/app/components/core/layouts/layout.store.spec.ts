@@ -557,17 +557,19 @@ describe('LayoutStore — shell do motorista', () => {
     const layout = storeFor('DRIVER');
     expect(layout.isDriverShell()).toBe(true);
     layout.setMobile(false);
-    expect(layout.driverTopBar()).toBe(false);
+    expect(layout.mobileTopBar()).toBe(false);
     layout.setMobile(true);
-    expect(layout.driverTopBar()).toBe(true);
+    expect(layout.mobileTopBar()).toBe(true);
   });
 
-  it('OWNER, MANAGER ou sem papel: nunca a barra do motorista', () => {
+  it('OWNER, MANAGER ou sem papel: a barra de topo também existe no celular, e só nele', () => {
     for (const role of ['OWNER', 'MANAGER', null]) {
       const layout = storeFor(role);
       layout.setMobile(true);
       expect(layout.isDriverShell()).toBe(false);
-      expect(layout.driverTopBar()).toBe(false);
+      expect(layout.mobileTopBar()).toBe(true);
+      layout.setMobile(false);
+      expect(layout.mobileTopBar()).toBe(false);
     }
   });
 
@@ -575,6 +577,6 @@ describe('LayoutStore — shell do motorista', () => {
     const layout = storeFor('OWNER', 'DRIVER');
     layout.setMobile(true);
     expect(layout.selectedTenant().role).toBe('DRIVER');
-    expect(layout.driverTopBar()).toBe(false);
+    expect(layout.isDriverShell()).toBe(false);
   });
 });

@@ -264,7 +264,7 @@ describe('Sidebar', () => {
       layout.setMobile(true);
       fixture.detectChanges();
       expect(host.querySelector('button[aria-label="Abrir menu"]')).toBeNull();
-      expect(layout.driverTopBar()).toBe(true);
+      expect(layout.mobileTopBar()).toBe(true);
     });
 
     it('no drawer, o Fechar do motorista tem 44px e cabe no cabeçalho do logo', () => {
@@ -301,15 +301,16 @@ describe('Sidebar', () => {
       expect((close as HTMLElement).style.top).toBe('');
     });
 
-    it('no celular o dono continua com o ☰ flutuante e sem barra de topo', () => {
+    it('no celular o dono também não tem ☰ flutuante: o dele mora na barra de topo no fluxo', () => {
       signInAs('OWNER');
       layout.tenants.set([tenant('OWNER')]);
       layout.selectedTenant.set(tenant('OWNER'));
       layout.setMobile(true);
       fixture.detectChanges();
       const host = fixture.nativeElement as HTMLElement;
-      expect(host.querySelector('button[aria-label="Abrir menu"]')).not.toBeNull();
-      expect(layout.driverTopBar()).toBe(false);
+      expect(host.querySelector('button[aria-label="Abrir menu"]')).toBeNull();
+      expect(host.querySelector('button.fixed')).toBeNull();
+      expect(layout.mobileTopBar()).toBe(true);
     });
 
     it('não mexe no menu do dono nem no do gerente', () => {
