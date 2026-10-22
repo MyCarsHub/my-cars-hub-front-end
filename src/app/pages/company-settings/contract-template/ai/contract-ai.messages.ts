@@ -10,7 +10,7 @@ export const AI_SEND_NOTICE = {
 } as const;
 
 export const LEGAL_DISCLAIMER =
-  'O MyCarsHub não valida as cláusulas do contrato. Revise o texto final com o seu advogado.';
+  'O MyCarsHub não valida as cláusulas. Se tiver dúvida, peça para o seu advogado revisar.';
 
 /** Códigos de `failureCode` do rascunho (status FAILED). */
 const FAILURE_MESSAGES: Record<string, string> = {

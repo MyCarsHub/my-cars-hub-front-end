@@ -1,0 +1,325 @@
+<!--
+  Mesmo visual do app-page-card (branco, rounded-2xl, borda, sombra), mas SEM o
+  overflow-hidden dele: com overflow-hidden o rodapé de ações (sticky no celular) não gruda.
+-->
+<section class="rounded-2xl border border-neutral-200 bg-white shadow-sm" aria-labelledby="contract-esteira-title">
+  <div class="flex flex-col gap-5 px-4 py-5 sm:px-6 sm:py-6">
+    <div class="flex items-start justify-between gap-3">
+      <div class="flex min-w-0 flex-col gap-1">
+        <h2 id="contract-esteira-title" class="m-0 text-xl font-semibold text-neutral-900">{{ title() }}</h2>
+        <p class="m-0 text-[15px] text-neutral-600">{{ subtitle() }}</p>
+      </div>
+      @if (path()) {
+        <button
+          type="button"
+          (click)="askExit()"
+          class="min-h-[44px] shrink-0 rounded-xl px-3 text-[15px] font-semibold text-neutral-600 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        >
+          Cancelar
+        </button>
+      }
+    </div>
+
+    @if (steps().length > 0) {
+      @if (narrow()) {
+        <div class="flex flex-col gap-2">
+          <span class="text-[15px] font-semibold text-neutral-900">
+            Etapa {{ stepIndex() + 1 }} de {{ steps().length }} · {{ steps()[stepIndex()] }}
+          </span>
+          <div class="grid gap-1" [style.grid-template-columns]="'repeat(' + steps().length + ',minmax(0,1fr))'" aria-hidden="true">
+            @for (s of steps(); track s; let i = $index) {
+              <span class="h-1.5 rounded-full"
+                [class]="i < stepIndex() ? 'bg-emerald-500' : i === stepIndex() ? 'bg-primary-500' : 'bg-neutral-200'"></span>
+            }
+          </div>
+        </div>
+      } @else {
+        <ol aria-label="Etapas" class="m-0 grid list-none gap-3 p-0"
+          [style.grid-template-columns]="'repeat(' + steps().length + ',minmax(0,1fr))'">
+          @for (s of steps(); track s; let i = $index; let last = $last) {
+            <li class="flex min-w-0 items-center gap-2.5" [attr.aria-current]="i === stepIndex() ? 'step' : null">
+              <span
+                class="box-border flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold"
+                [class]="i < stepIndex() ? 'border-emerald-600 bg-emerald-600 text-white' : i === stepIndex() ? 'border-primary-500 bg-primary-500 text-white' : 'border-neutral-300 bg-white text-neutral-600'"
+              >
+                @if (i < stepIndex()) {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" /></svg>
+                  <span class="sr-only">Concluída:</span>
+                } @else {
+                  {{ i + 1 }}
+                }
+              </span>
+              <span class="truncate text-[15px]"
+                [class]="i === stepIndex() ? 'font-semibold text-neutral-900' : i < stepIndex() ? 'font-medium text-emerald-800' : 'font-medium text-neutral-600'">
+                {{ s }}
+              </span>
+              @if (!last) {
+                <span aria-hidden="true" class="h-0.5 min-w-2 flex-1 rounded-full"
+                  [class]="i < stepIndex() ? 'bg-emerald-500' : 'bg-neutral-200'"></span>
+              }
+            </li>
+          }
+        </ol>
+      }
+    }
+  </div>
+
+  <div
+    class="grid border-t border-neutral-100"
+    [class]="split() ? 'grid-cols-[minmax(0,5fr)_minmax(0,7fr)] min-h-[560px]' : 'grid-cols-1'"
+  >
+    <div class="flex min-w-0 flex-col gap-5 px-4 py-5 sm:px-6 sm:py-7" [class.border-r]="split()" [class.border-neutral-100]="split()">
+      @if (ai.error(); as msg) {
+        @if (path() === 'mine') {
+          <app-alert-banner variant="error" [message]="msg" />
+        }
+      }
+
+      @switch (view()) {
+        @case ('start') {
+          <div class="flex flex-col gap-3">
+            <button type="button" (click)="start('mine')" [disabled]="!aiReady()"
+              class="box-border flex min-h-[96px] w-full items-center gap-4 rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-left transition-colors hover:border-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:hover:border-neutral-200"
+              [attr.aria-describedby]="aiReady() ? null : 'path-mine-soon'">
+              <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+                [class]="aiReady() ? 'bg-primary-low text-primary-700' : 'bg-neutral-100 text-neutral-500'">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+              </span>
+              <span class="flex min-w-0 flex-1 flex-col gap-1">
+                <span class="flex flex-wrap items-center gap-2">
+                  <span class="text-[17px] font-semibold" [class]="aiReady() ? 'text-neutral-900' : 'text-neutral-600'">Ajustar o meu contrato</span>
+                  @if (aiReady()) {
+                    <span class="rounded-full bg-primary-low px-2 py-0.5 text-[13px] font-semibold text-primary-700">Com IA</span>
+                  } @else if (aiPending()) {
+                    <span class="h-5 w-16 rounded-full bg-neutral-100 animate-pulse" aria-hidden="true"></span>
+                  } @else {
+                    <span id="path-mine-soon" class="rounded-full bg-neutral-100 px-2 py-0.5 text-[13px] font-semibold text-neutral-700">Em breve</span>
+                  }
+                </span>
+                <span class="text-[15px] leading-normal text-neutral-600">
+                  Envie o contrato que você já usa. A IA marca os dados que mudam em cada aluguel e você confere.
+                </span>
+              </span>
+              @if (aiReady()) {
+                <svg class="shrink-0 text-neutral-400" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6" /></svg>
+              }
+            </button>
+
+            <button type="button" (click)="start('zero')" [disabled]="baseState() === 'off'"
+              class="box-border flex min-h-[96px] w-full items-center gap-4 rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-left transition-colors hover:border-primary-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:hover:border-neutral-200"
+              [attr.aria-describedby]="baseState() === 'off' ? 'path-zero-soon' : null">
+              <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+                [class]="baseState() === 'off' ? 'bg-neutral-100 text-neutral-500' : 'bg-emerald-50 text-emerald-700'">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </span>
+              <span class="flex min-w-0 flex-1 flex-col gap-1">
+                <span class="flex flex-wrap items-center gap-2">
+                  <span class="text-[17px] font-semibold" [class]="baseState() === 'off' ? 'text-neutral-600' : 'text-neutral-900'">Montar do zero</span>
+                  @if (baseState() === 'off') {
+                    <span id="path-zero-soon" class="rounded-full bg-neutral-100 px-2 py-0.5 text-[13px] font-semibold text-neutral-700">Em breve</span>
+                  }
+                </span>
+                <span class="text-[15px] leading-normal text-neutral-600">
+                  Escolha as cláusulas de um modelo pronto. Os dados do aluguel entram sozinhos.
+                </span>
+              </span>
+              @if (baseState() !== 'off') {
+                <svg class="shrink-0 text-neutral-400" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6" /></svg>
+              }
+            </button>
+
+            <button type="button" (click)="start('word')"
+              class="min-h-[44px] self-start px-1 text-[15px] font-semibold text-neutral-700 underline underline-offset-[3px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+              Já sei colocar os campos no Word
+            </button>
+          </div>
+        }
+
+        @case ('upload') {
+          <app-contract-upload-step
+            [fileName]="fileName()"
+            [currentName]="template()?.filename ?? null"
+            [error]="fileError()"
+            [busy]="fetchingCurrent()"
+            [narrow]="narrow()"
+            [where]="where()"
+            [zeroAvailable]="baseState() !== 'off'"
+            (picked)="pickFile($event)"
+            (useCurrent)="useCurrent()"
+            (cleared)="clearFile()"
+            (goZero)="start('zero')"
+          />
+        }
+
+        @case ('consent') {
+          <app-contract-consent-step
+            [agreed]="agreed()"
+            [disabled]="!ai.masked()"
+            [where]="where()"
+            [notMasked]="notMaskedLabels()"
+            (agreedChange)="agreed.set($event)"
+          />
+        }
+
+        @case ('reading') {
+          <div role="status" aria-live="polite" class="flex flex-1 flex-col justify-center gap-4 py-6">
+            <h3 class="m-0 text-lg font-semibold text-neutral-900">Lendo o seu contrato</h3>
+            <div class="h-2.5 overflow-hidden rounded-full bg-neutral-100">
+              <div class="h-2.5 rounded-full bg-primary-500 transition-[width] duration-700" [style.width]="readingPct()"></div>
+            </div>
+            <span class="text-[15px] text-neutral-700">{{ readingText() }}</span>
+            <span class="text-[13px] text-neutral-600">Leva até 1 minuto.</span>
+            @if (ai.pollTimedOut()) {
+              <button type="button" (click)="retryReading()"
+                class="min-h-[48px] w-full rounded-xl border border-neutral-200 bg-white px-5 text-base font-semibold text-neutral-700 hover:bg-neutral-50 sm:w-auto sm:self-start">
+                Tentar novamente
+              </button>
+            }
+          </div>
+        }
+
+        @case ('fields') {
+          <app-contract-questions-step [index]="qIndex()" (focused)="onFocus($event)" />
+        }
+
+        @case ('failed') {
+          <div class="flex flex-col gap-3">
+            <app-alert-banner variant="error" [message]="ai.failureText()" />
+            <button type="button" (click)="sendAnother()" [disabled]="ai.busy()"
+              class="min-h-[48px] w-full rounded-xl bg-primary-500 px-5 text-base font-semibold text-white shadow-sm hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 sm:w-auto sm:self-start">
+              Enviar outro arquivo
+            </button>
+            @if (baseState() !== 'off') {
+              <button type="button" (click)="start('zero')"
+                class="min-h-[48px] w-full rounded-xl border border-neutral-200 bg-white px-5 text-base font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-auto sm:self-start">
+                Montar do zero
+              </button>
+            }
+          </div>
+        }
+
+        @case ('expired') {
+          <div class="flex flex-col gap-3">
+            <app-alert-banner variant="warning" message="Esta leitura expirou. Envie o arquivo de novo para começar outra." />
+            <button type="button" (click)="sendAnother()"
+              class="min-h-[48px] w-full rounded-xl bg-primary-500 px-5 text-base font-semibold text-white shadow-sm hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 sm:w-auto sm:self-start">
+              Enviar de novo
+            </button>
+          </div>
+        }
+
+        @case ('clauses') {
+          @if (baseState() === 'on') {
+            <app-contract-clauses-step
+              [clauses]="baseSvc.base()?.clauses ?? []"
+              [selected]="selected()"
+              (toggled)="toggleClause($event)"
+              (focused)="onFocus($event)"
+            />
+          } @else if (baseState() === 'error') {
+            <app-alert-banner variant="error" message="Não foi possível carregar o modelo de contrato." />
+            <button type="button" (click)="retryBase()"
+              class="min-h-[48px] w-full rounded-xl border border-neutral-200 bg-white px-5 text-base font-semibold text-neutral-700 hover:bg-neutral-50 sm:w-auto sm:self-start">
+              Tentar novamente
+            </button>
+          } @else {
+            <div class="flex flex-col gap-3" aria-hidden="true">
+              <div class="h-9 w-2/3 rounded-xl bg-neutral-100 animate-pulse"></div>
+              <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+              <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+            </div>
+          }
+        }
+
+        @case ('review') {
+          @if (zeroError(); as msg) {
+            <app-alert-banner variant="error" [message]="msg" />
+          }
+          <app-contract-review-step
+            [fields]="reviewCounts().fields"
+            [clauses]="reviewCounts().clauses"
+            [currentName]="template()?.filename ?? null"
+            [where]="where()"
+          />
+        }
+
+        @case ('word') {
+          <app-contract-word-step (uploaded)="wordUploaded($event)" />
+        }
+      }
+
+      @if (showNav() && split()) {
+        <ng-container [ngTemplateOutlet]="nav" />
+      }
+    </div>
+
+    <app-contract-paper
+      [class]="split() ? 'rounded-br-2xl' : 'rounded-b-2xl'"
+      [title]="paper().title"
+      [paragraphs]="paper().doc?.paragraphs ?? []"
+      [emptyText]="paper().empty"
+      [loading]="paper().loading"
+      [mode]="paperMode()"
+      [showModeSwitch]="paper().modeSwitch"
+      [draft]="paperDraft()"
+      [split]="split()"
+      (modeChange)="mode.set($event)"
+    />
+  </div>
+
+  @if (showNav() && !split()) {
+    <div data-contract-actions class="sticky bottom-0 z-10 border-t border-neutral-100 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6">
+      <ng-container [ngTemplateOutlet]="nav" />
+    </div>
+  }
+</section>
+
+<ng-template #nav>
+  <div class="mt-auto flex flex-col-reverse gap-2.5 sm:flex-row" [class.pt-2]="split()">
+    @if (showBack()) {
+      <button type="button" (click)="back()" [disabled]="ai.busy() || zeroSaving()"
+        class="min-h-[48px] w-full rounded-xl border border-neutral-200 bg-white px-5 text-base font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 sm:w-auto">
+        Voltar
+      </button>
+    }
+    <span class="hidden flex-1 sm:block"></span>
+    <button type="button" (click)="next()" [disabled]="nextDisabled()"
+      class="min-h-[48px] w-full rounded-xl bg-primary-500 px-5 text-base font-semibold text-white shadow-sm hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+      {{ nextLabel() }}
+    </button>
+  </div>
+</ng-template>
+
+<app-confirm-dialog
+  [open]="exitOpen()"
+  title="Cancelar a montagem?"
+  message="O que você fez até aqui não será salvo. O contrato atual continua igual."
+  confirmLabel="Cancelar montagem"
+  cancelLabel="Continuar montando"
+  variant="danger"
+  size="large"
+  (confirmed)="exit()"
+  (cancelled)="exitOpen.set(false)"
+/>
+
+<app-confirm-dialog
+  [open]="!!ai.overwriteCode()"
+  title="Substituir o contrato atual?"
+  message="O contrato atual mudou enquanto você montava este. Se continuar, ele será substituído por este."
+  confirmLabel="Substituir e salvar"
+  cancelLabel="Não substituir"
+  variant="warning"
+  [busy]="ai.busy()"
+  (confirmed)="confirmOverwrite()"
+  (cancelled)="ai.cancelOverwrite()"
+/>
