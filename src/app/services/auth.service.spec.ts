@@ -316,6 +316,120 @@ describe('AuthService', () => {
   });
 
   /**
+   * Regra do dono da MyCarsHub: no login, dono de alguma empresa entra como dono; gerente que
+   * não é dono entra como gerente; só motorista entra como motorista. O `defaultCompanyId` do
+   * backend (última usada) só desempata DENTRO do papel mais alto — um backend ainda no deploy
+   * antigo que mande a empresa de motorista como padrão não pode tirar o dono da empresa dele.
+   */
+  describe('empresa do login — prioridade OWNER > MANAGER > DRIVER', () => {
+    function me(companies: MeResponse['companies'], defaultCompanyId?: string): MeResponse {
+      return {
+        id: 'u-1',
+        name: 'Lorran',
+        email: 'l@x.com',
+        document: null,
+        onboardingCompleted: true,
+        hasCompletedOnboarding: true,
+        systemRole: 'USER',
+        companies,
+        defaultCompanyId,
+      } as MeResponse;
+    }
+
+    function loginWith(response: MeResponse): void {
+      httpGet.mockReturnValue(of(response));
+      service.hydrateSession().subscribe();
+    }
+
+    it('DRIVER + OWNER entra como OWNER, mesmo com a empresa de motorista usada por último', () => {
+      loginWith(
+        me(
+          [
+            { companyId: 'c-driver', companyName: 'Frota X', role: 'DRIVER' },
+            { companyId: 'c-owner', companyName: 'Minha', role: 'OWNER' },
+          ],
+          'c-driver',
+        ),
+      );
+
+      expect(store['selectedCompanyId']).toBe('c-owner');
+      expect(store['selectedRole']).toBe('OWNER');
+      expect(store['selectedCompanyName']).toBe('Minha');
+    });
+
+    it('MANAGER + DRIVER entra como MANAGER, mesmo com a empresa de motorista usada por último', () => {
+      loginWith(
+        me(
+          [
+            { companyId: 'c-driver', companyName: 'Frota X', role: 'DRIVER' },
+            { companyId: 'c-manager', companyName: 'Frota Y', role: 'MANAGER' },
+          ],
+          'c-driver',
+        ),
+      );
+
+      expect(store['selectedCompanyId']).toBe('c-manager');
+      expect(store['selectedRole']).toBe('MANAGER');
+    });
+
+    it('só DRIVER entra como DRIVER', () => {
+      loginWith(me([{ companyId: 'c-driver', companyName: 'Frota X', role: 'DRIVER' }], 'c-driver'));
+
+      expect(store['selectedCompanyId']).toBe('c-driver');
+      expect(store['selectedRole']).toBe('DRIVER');
+    });
+
+    it('com duas empresas próprias, o padrão do backend desempata dentro do papel', () => {
+      loginWith(
+        me(
+          [
+            { companyId: 'c-owner-1', companyName: 'Um', role: 'OWNER' },
+            { companyId: 'c-owner-2', companyName: 'Dois', role: 'OWNER' },
+            { companyId: 'c-driver', companyName: 'Frota X', role: 'DRIVER' },
+          ],
+          'c-owner-2',
+        ),
+      );
+
+      expect(store['selectedCompanyId']).toBe('c-owner-2');
+    });
+
+    it('sem padrão do backend, a primeira do papel mais alto na ordem recebida', () => {
+      loginWith(
+        me([
+          { companyId: 'c-driver', companyName: 'Frota X', role: 'DRIVER' },
+          { companyId: 'c-owner-1', companyName: 'Um', role: 'OWNER' },
+          { companyId: 'c-owner-2', companyName: 'Dois', role: 'OWNER' },
+        ]),
+      );
+
+      expect(store['selectedCompanyId']).toBe('c-owner-1');
+    });
+
+    it('getMe() pede o token da empresa de dono, não o da última usada', () => {
+      const httpPost = TestBed.inject(HttpClient).post as ReturnType<typeof vi.fn>;
+      httpPost.mockReturnValue(of({ token: 'jwt-owner', kind: 'ACCESS' }));
+      httpGet.mockReturnValue(
+        of(
+          me(
+            [
+              { companyId: 'c-driver', companyName: 'Frota X', role: 'DRIVER' },
+              { companyId: 'c-owner', companyName: 'Minha', role: 'OWNER' },
+            ],
+            'c-driver',
+          ),
+        ),
+      );
+
+      service.getMe().subscribe();
+
+      expect(httpPost).toHaveBeenCalledTimes(1);
+      expect(String(httpPost.mock.calls[0][0])).toMatch(/\/auth\/select-company\/c-owner$/);
+      expect(store['token']).toBe('jwt-owner');
+    });
+  });
+
+  /**
    * CRÍTICO: `logout()` não recarrega a página, então os serviços root
    * sobrevivem na mesma aba. Sem os `reset()` o próximo usuário a logar veria
    * o cache do anterior (títulos de notificação carregam placa/nome) antes do

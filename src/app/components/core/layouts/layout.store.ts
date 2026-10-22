@@ -7,6 +7,7 @@ import { CompanySelectionService } from '../../../services/company-selection.ser
 import { NotificationService } from '../../../services/notification.service';
 import { MembershipsService } from '../../../services/memberships.service';
 import { companyRoleLabel } from '../../../utils/role-labels';
+import { sortByRolePriority } from '../../../services/company-role-priority';
 import { homeRouteForRole } from '../../../utils/home-route';
 import { IMPERSONATION_STATE_KEY } from '../../../services/impersonation.context';
 
@@ -71,16 +72,21 @@ export class LayoutStore {
 
   /**
    * Company the SESSION is in (`selectedCompanyId`, written together with the token). The
-   * switcher's 'current' marker reads this — never the position in a list, which the
-   * backend orders by last use and which changes under the person's feet.
+   * switcher's 'current' marker reads this — never the position in a list, which is ordered
+   * by role (owned companies first), not by which one is in use.
    */
   readonly currentCompanyId = signal<string | null>(this.sessionService.getItem('selectedCompanyId'));
 
   /**
    * Rows of the switcher: memberships when the endpoint answered, else the `userCompanies`
-   * snapshot from /auth/me (today's behaviour).
+   * snapshot from /auth/me (today's behaviour). Ordered OWNER > MANAGER > DRIVER, keeping the
+   * backend order (oldest membership first) inside each role.
    */
-  readonly switcherEntries = computed<SwitcherEntry[]>(() => {
+  readonly switcherEntries = computed<SwitcherEntry[]>(() =>
+    sortByRolePriority(this.unsortedSwitcherEntries(), (entry) => entry.role),
+  );
+
+  private readonly unsortedSwitcherEntries = computed<SwitcherEntry[]>(() => {
     // `tenants` is read first on purpose: `refreshTenants()` runs on entering/leaving an
     // impersonation, and re-evaluating here is what drops the admin's own memberships then.
     const tenants = this.tenants();
