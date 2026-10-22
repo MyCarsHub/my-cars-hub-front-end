@@ -56,7 +56,7 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
       [class.pt-14]="impersonating()"
       [class.flex-col]="layout.driverTopBar()"
       [style.--page-top]="layout.driverTopBar() ? '1.25rem' : null"
-      [style.--page-fill-offset]="layout.driverTopBar() ? '4.75rem' : null"
+      [style.--page-fill-offset]="layout.driverTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom))' : null"
       [style.--page-header-end]="layout.driverTopBar() && showBell() ? '3.25rem' : null"
     >
       @if (layout.driverTopBar()) {
