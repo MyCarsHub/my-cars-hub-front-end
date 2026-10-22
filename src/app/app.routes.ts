@@ -794,7 +794,7 @@ export const routes: Routes = [
                                     import(
                                         './pages/company-settings/contract-template/contract-template'
                                     ).then((m) => m.ContractTemplate),
-                                data: { pageTitle: 'Template de contrato' },
+                                data: { pageTitle: 'Contrato' },
                             },
                             {
                                 path: 'convites',

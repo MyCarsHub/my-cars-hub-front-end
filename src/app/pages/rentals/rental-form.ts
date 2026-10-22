@@ -195,6 +195,9 @@ export class RentalForm implements OnInit {
   protected readonly franchiseKmMessages: Readonly<Record<string, string>> = {
     min: 'A franquia não pode ser negativa.',
   };
+  protected readonly extraKmPriceMessages: Readonly<Record<string, string>> = {
+    moneyFormat: 'Informe um valor válido (ex.: 0,50).',
+  };
 
   protected readonly vehicles = signal<VehicleListItem[]>([]);
   protected readonly drivers = signal<DriverListItem[]>([]);
@@ -263,6 +266,9 @@ export class RentalForm implements OnInit {
 
       // V32: franquia e política de combustível — opcionais.
       franchiseKm: [null as number | null, [Validators.min(0)]],
+      // V113: preço do km além da franquia. TEXTO pt-BR no form (o validador lê número
+      // como vazio), centavos no payload. Só vale com franquia (`hasKmLimit`).
+      extraKmPriceReais: ['', [ptBrMoneyValidator({ optional: true })]],
       returnFuelPolicy: [''],
 
       // V29: gerar contrato do template (só ativa se hasContractTemplate).
@@ -731,6 +737,9 @@ export class RentalForm implements OnInit {
     () => (ptBrMoneyCents(this.formValue()?.caucaoReais) ?? 0) > 0,
   );
 
+  /** Há limite de km (franquia > 0)? Só então o preço do km excedente aparece e vale. */
+  protected readonly hasKmLimit = computed(() => (Number(this.formValue()?.franchiseKm) || 0) > 0);
+
   /** Estado ligado do toggle, para o cartão (ícone e confirmação) refletirem o controle. */
   protected readonly caucaoPaidOn = computed(() => this.formValue()?.caucaoPaid === true);
 
@@ -880,6 +889,7 @@ export class RentalForm implements OnInit {
             lateFineType,
             lateFineValueInput,
             franchiseKm: r.franchiseKm ?? null,
+            extraKmPriceReais: r.extraKmPrice ? formatPtBrMoney(r.extraKmPrice) : '',
             returnFuelPolicy: r.returnFuelPolicy ?? '',
             useContractTemplate: r.contractSource === 'AUTO',
           });
@@ -1083,7 +1093,10 @@ export class RentalForm implements OnInit {
       : [Validators.required, Validators.min(0)];
   }
 
-  protected onMoneyInput(event: Event, name: 'periodRateReais' | 'caucaoReais' | 'lateInterestPercent'): void {
+  protected onMoneyInput(
+    event: Event,
+    name: 'periodRateReais' | 'caucaoReais' | 'lateInterestPercent' | 'extraKmPriceReais',
+  ): void {
     applyPtBrMoneyMaskToControl(event, this.form.controls[name]);
   }
 
@@ -1181,7 +1194,17 @@ export class RentalForm implements OnInit {
       ...this.lateFineFields(),
       franchiseKm: raw.franchiseKm ?? null,
       returnFuelPolicy: raw.returnFuelPolicy?.trim() || null,
+      // PUT parcial: o form sempre sabe o valor, então manda explícito — vazio ou sem
+      // franquia vira 0 (limpa); nunca `null`, que manteria um preço que a tela não mostra.
+      extraKmPrice: this.extraKmPriceCents() ?? 0,
     };
+  }
+
+  /** Centavos do km excedente, ou `null` sem franquia/sem valor (o campo nem aparece). */
+  private extraKmPriceCents(): number | null {
+    if (!this.hasKmLimit()) return null;
+    const cents = ptBrMoneyCents(this.form.getRawValue().extraKmPriceReais);
+    return cents && cents > 0 ? cents : null;
   }
 
   /** Corpo do preflight: o do create, ou o da edição acrescido do `rentalId`. */
@@ -1240,6 +1263,7 @@ export class RentalForm implements OnInit {
       ...this.lateFineFields(),
       franchiseKm: raw.franchiseKm ?? null,
       returnFuelPolicy: raw.returnFuelPolicy?.trim() || null,
+      extraKmPrice: this.extraKmPriceCents(),
       contractSource: raw.useContractTemplate ? 'AUTO' : 'MANUAL',
     };
   }

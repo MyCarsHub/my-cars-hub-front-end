@@ -543,6 +543,28 @@
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
+            <!-- V113: só existe com limite de km; texto pt-BR, centavos no payload. -->
+            @if (hasKmLimit()) {
+              <app-form-field
+                label="Valor do km excedente (R$)"
+                controlId="rental-extra-km-price"
+                hint="Opcional. Cobrado por km além da franquia e impresso na cláusula de quilometragem do contrato."
+                [control]="form.controls.extraKmPriceReais"
+                [messages]="extraKmPriceMessages"
+              >
+                <input
+                  appFieldControl
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="0,50"
+                  formControlName="extraKmPriceReais"
+                  (input)="onMoneyInput($event, 'extraKmPriceReais')"
+                  class="w-full min-h-[44px] text-base bg-neutral-50 border rounded-xl px-4 py-2.5 text-neutral-800 tabular-nums
+                         focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+              </app-form-field>
+            }
+
             <app-form-field
               label="Política de devolução (combustível)"
               controlId="rental-return-fuel"
