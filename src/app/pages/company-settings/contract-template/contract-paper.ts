@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { FIELD_LABELS } from './ai/contract-ai.messages';
-import { PaperParagraph } from './contract-paper.model';
+import { PaperParagraph, PaperSegment } from './contract-paper.model';
 import { fieldCode, fieldExample } from './contract-fields';
 
 export type PaperMode = 'example' | 'names';
@@ -75,40 +75,7 @@ export type PaperMode = 'example' | 'names';
           <p
             class="m-0 rounded-md font-serif leading-[1.7] text-neutral-800 break-words transition-colors"
             [class]="paragraphClass(p)"
-          >
-            @for (s of p.segments; track $index) {
-              @switch (s.kind) {
-                @case ('text') {
-                  <span [class.font-bold]="s.bold">{{ s.text }}</span>
-                }
-                @case ('field') {
-                  @if (mode() === 'names') {
-                    <span
-                      [title]="label(s.field)"
-                      class="rounded px-1 py-px font-mono text-[13px] font-semibold"
-                      [class]="fieldClass(s.tone, s.focus)"
-                    >{{ code(s.field) }}</span>
-                  } @else {
-                    <span
-                      [title]="label(s.field)"
-                      class="rounded px-1 py-px font-semibold"
-                      [class]="fieldClass(s.tone, s.focus)"
-                    >{{ example(s.field) }}</span>
-                  }
-                }
-                @case ('hidden') {
-                  <span class="rounded bg-neutral-200 px-1.5 py-px text-[13px] text-neutral-700">{{
-                    s.label
-                  }}</span>
-                }
-                @case ('kept') {
-                  <span [class]="s.focus ? 'rounded outline-2 outline-amber-500' : ''">{{
-                    s.text
-                  }}</span>
-                }
-              }
-            }
-          </p>
+          ><!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of p.segments; track $index) {<span [class]="segmentClass(s)" [attr.title]="segmentTitle(s)">{{ segmentText(s) }}</span>}</p>
         }
       </article>
     }
@@ -135,22 +102,38 @@ export class ContractPaper {
     return p.focus ? `${base} bg-primary-50 outline-2 outline-offset-4 outline-primary-200` : base;
   }
 
-  protected fieldClass(tone: 'ok' | 'doubt', focus = false): string {
-    const color =
-      tone === 'doubt' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800';
-    if (!focus) return color;
-    return `${color} outline-2 ${tone === 'doubt' ? 'outline-amber-500' : 'outline-emerald-500'}`;
+  protected segmentText(s: PaperSegment): string {
+    switch (s.kind) {
+      case 'field':
+        return this.mode() === 'names' ? fieldCode(s.field) : fieldExample(s.field);
+      case 'hidden':
+        return s.label;
+      default:
+        return s.text;
+    }
   }
 
-  protected code(field: string): string {
-    return fieldCode(field);
+  protected segmentTitle(s: PaperSegment): string | null {
+    return s.kind === 'field' ? (FIELD_LABELS[s.field] ?? s.field) : null;
   }
 
-  protected example(field: string): string {
-    return fieldExample(field);
-  }
-
-  protected label(field: string): string {
-    return FIELD_LABELS[field] ?? field;
+  protected segmentClass(s: PaperSegment): string {
+    switch (s.kind) {
+      case 'text':
+        return s.bold ? 'font-bold' : '';
+      case 'hidden':
+        return 'rounded bg-neutral-200 px-1.5 py-px text-[13px] text-neutral-700';
+      case 'kept':
+        return s.focus ? 'rounded outline-2 outline-amber-500' : '';
+      case 'field': {
+        const font = this.mode() === 'names' ? 'font-mono text-[13px]' : '';
+        const color =
+          s.tone === 'doubt' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800';
+        const ring = s.focus
+          ? `outline-2 ${s.tone === 'doubt' ? 'outline-amber-500' : 'outline-emerald-500'}`
+          : '';
+        return `rounded px-1 py-px font-semibold ${font} ${color} ${ring}`.trim();
+      }
+    }
   }
 }

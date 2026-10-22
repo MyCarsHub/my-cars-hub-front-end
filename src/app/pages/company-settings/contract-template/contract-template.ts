@@ -74,15 +74,15 @@ type LoadState = 'loading' | 'ready' | 'error';
                     </div>
                     <div class="grid shrink-0 grid-cols-2 gap-2.5 sm:flex">
                       <button type="button" (click)="downloadTemplate()" [disabled]="downloading()"
-                        class="min-h-[48px] whitespace-nowrap rounded-xl bg-emerald-700 px-5 text-base font-semibold text-white hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
+                        class="min-h-[48px] rounded-xl bg-emerald-700 px-3 leading-tight sm:whitespace-nowrap sm:px-5 text-base font-semibold text-white hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
                         {{ downloading() ? 'Baixando…' : 'Baixar Contrato' }}
                       </button>
                       <button type="button" (click)="openTemplate()"
-                        class="min-h-[48px] whitespace-nowrap rounded-xl bg-primary-500 px-5 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
+                        class="min-h-[48px] rounded-xl bg-primary-500 px-3 leading-tight sm:whitespace-nowrap sm:px-5 text-base font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
                         Abrir contrato
                       </button>
                       <button type="button" (click)="deleteOpen.set(true)"
-                        class="col-span-2 min-h-[48px] whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-5 text-base font-medium text-neutral-800 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 sm:col-span-1">
+                        class="col-span-2 min-h-[48px] sm:whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-5 text-base font-medium text-neutral-800 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 sm:col-span-1">
                         Remover
                       </button>
                     </div>
