@@ -219,11 +219,13 @@ describe('EndRentalDialog — devolução da caução por estado', () => {
       [open]="open()"
       [rental]="rental()"
       [intent]="'complete'"
+      [allowAutomaticRefund]="allowAutomatic()"
       (confirmed)="last.set($event)"
     />`,
   })
   class RefundHost {
     readonly open = signal(true);
+    readonly allowAutomatic = signal(true);
     readonly rental = signal<RentalResponseDto>(baseRental);
     readonly last = signal<EndRentalDialogPayload | null>(null);
   }
@@ -345,6 +347,35 @@ describe('EndRentalDialog — devolução da caução por estado', () => {
       method: 'NONE',
       amount: 0,
     });
+  });
+
+  it('modo edição — caução estornável pelo Asaas NÃO oferece o estorno automático', () => {
+    const fixture = TestBed.createComponent(RefundHost);
+    fixture.componentInstance.allowAutomatic.set(false);
+    fixture.componentInstance.rental.set(gatewayRental);
+    fixture.detectChanges();
+    const el = root(fixture);
+
+    expect(el.textContent).toContain('Devolução da caução');
+    expect(radio(el, 'AUTOMATIC')).toBeNull();
+    expect(el.textContent).not.toContain('Devolve via Asaas');
+    expect(el.textContent).toContain('No modo edição o estorno automático pelo Asaas não está disponível');
+    expect(radio(el, 'MANUAL')).not.toBeNull();
+    expect(radio(el, 'NONE')?.checked).toBe(true);
+  });
+
+  it('modo edição — MANUAL continua emitindo a devolução registrada, nunca AUTOMATIC', () => {
+    const fixture = TestBed.createComponent(RefundHost);
+    fixture.componentInstance.allowAutomatic.set(false);
+    fixture.componentInstance.rental.set(gatewayRental);
+    fixture.detectChanges();
+    const el = root(fixture);
+
+    pick(el, 'MANUAL');
+    fixture.detectChanges();
+    confirm(el);
+
+    expect(fixture.componentInstance.last()?.caucaoRefund?.method).toBe('MANUAL');
   });
 
   it('sem caução, a seção não aparece', () => {
