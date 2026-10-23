@@ -27,10 +27,11 @@ import { UserCompanies } from '../../types/user-companies';
 import { MeResponse, UserDocument } from '../../types/me-response.type';
 import { TourService } from '../../components/tour/tour.service';
 import { companyRoleLabel } from '../../utils/role-labels';
+import { ThemePicker } from '../../components/theme-picker/theme-picker';
 
 @Component({
   selector: 'app-profile',
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, PrimaryInput],
+  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, PrimaryInput, ThemePicker],
   templateUrl: './profile.html',
   styleUrl: './profile.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

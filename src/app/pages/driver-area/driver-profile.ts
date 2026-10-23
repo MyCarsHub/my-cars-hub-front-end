@@ -26,6 +26,7 @@ import { BR_UFS } from '../../utils/br-ufs';
 import { applyMaskedCepInput, maskCep } from '../../utils/cep-mask';
 import { applyMaskedPhoneInput, maskPhone, normalizePhone } from '../../utils/phone-mask';
 import { companyRoleLabel } from '../../utils/role-labels';
+import { ThemePicker } from '../../components/theme-picker/theme-picker';
 
 /** DDD + number: 10 (landline) or 11 (mobile) digits — the server's own rule. */
 export function phoneDigitsValidator(control: AbstractControl): ValidationErrors | null {
@@ -63,6 +64,7 @@ export function phoneDigitsValidator(control: AbstractControl): ValidationErrors
     FieldControl,
     FormField,
     PageCard,
+    ThemePicker,
   ],
   templateUrl: './driver-profile.html',
 })
