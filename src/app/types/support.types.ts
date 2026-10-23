@@ -123,9 +123,9 @@ export interface SupportCompanyOption {
 }
 
 export const SUPPORT_STATUS_META: Record<SupportTicketStatus, { label: string; chip: string }> = {
-  OPEN: { label: 'Aberto', chip: 'bg-amber-100 text-amber-800' },
-  IN_PROGRESS: { label: 'Em atendimento', chip: 'bg-blue-100 text-blue-800' },
-  RESOLVED: { label: 'Resolvido', chip: 'bg-emerald-100 text-emerald-800' },
+  OPEN: { label: 'Aberto', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+  IN_PROGRESS: { label: 'Em atendimento', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200' },
+  RESOLVED: { label: 'Resolvido', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' },
 };
 
 export const SUPPORT_CHANNEL_LABEL: Record<SupportTicketChannel, string> = {
@@ -144,12 +144,12 @@ export const SUPPORT_REPLY_EMAIL_STATUS_META: Record<
 > = {
   QUEUED: {
     label: 'E-mail despachado',
-    chip: 'bg-sky-100 text-sky-800',
+    chip: 'bg-sky-100 dark:bg-sky-500/15 text-sky-800 dark:text-sky-200',
     hint: 'Entregue ao serviço de envio. Não confirma que chegou à caixa de entrada do autor.',
   },
   SKIPPED: {
     label: 'Sem e-mail do autor',
-    chip: 'bg-neutral-200 text-neutral-800',
+    chip: 'bg-surface-strong text-fg-body',
     hint: 'O autor não tem endereço conhecido, então nada foi despachado. A resposta ficou registrada aqui.',
   },
 };

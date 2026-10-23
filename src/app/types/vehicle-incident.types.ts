@@ -215,25 +215,25 @@ export const INSURANCE_DIMENSION_LABEL = 'Seguro';
 export const INCIDENT_RESOLUTION_META: Record<IncidentResolutionStatus, IncidentStatusMeta> = {
   OPEN: {
     label: 'Em aberto',
-    chip: 'bg-amber-100 text-amber-900 border-amber-300',
+    chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-500/40',
     icon: '●',
     terminal: false,
   },
   IN_REPAIR: {
     label: 'Em reparo',
-    chip: 'bg-blue-100 text-blue-900 border-blue-300',
+    chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-500/40',
     icon: '◐',
     terminal: false,
   },
   RESOLVED: {
     label: 'Resolvido',
-    chip: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-500/40',
     icon: '✓',
     terminal: true,
   },
   WRITTEN_OFF: {
     label: 'Perda total',
-    chip: 'bg-neutral-200 text-neutral-900 border-neutral-400',
+    chip: 'bg-surface-strong text-fg border-neutral-400 dark:border-neutral-500',
     icon: '✕',
     terminal: true,
   },
@@ -242,31 +242,31 @@ export const INCIDENT_RESOLUTION_META: Record<IncidentResolutionStatus, Incident
 export const INCIDENT_INSURANCE_META: Record<IncidentInsuranceStatus, IncidentStatusMeta> = {
   NOT_FILED: {
     label: 'Não acionado',
-    chip: 'bg-neutral-100 text-neutral-800 border-neutral-300',
+    chip: 'bg-surface-sunken text-fg-body border-edge-strong',
     icon: '—',
     terminal: false,
   },
   FILED: {
     label: 'Aberto na seguradora',
-    chip: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+    chip: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-500/40',
     icon: '▶',
     terminal: false,
   },
   APPROVED: {
     label: 'Aprovado',
-    chip: 'bg-sky-100 text-sky-900 border-sky-300',
+    chip: 'bg-sky-100 dark:bg-sky-500/15 text-sky-900 dark:text-sky-200 border-sky-300 dark:border-sky-500/40',
     icon: '✓',
     terminal: false,
   },
   DENIED: {
     label: 'Negado',
-    chip: 'bg-rose-100 text-rose-900 border-rose-300',
+    chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-500/40',
     icon: '✕',
     terminal: true,
   },
   PAID: {
     label: 'Indenizado',
-    chip: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-500/40',
     icon: '★',
     terminal: true,
   },

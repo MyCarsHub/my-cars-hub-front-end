@@ -18,7 +18,7 @@
             (click)="load()"
             [disabled]="loading()"
             class="mt-3 w-full sm:w-auto min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center
-                   justify-center gap-2 border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50
+                   justify-center gap-2 border border-edge bg-surface text-fg-soft hover:bg-surface-muted
                    disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                    focus-visible:ring-offset-2"
           >
@@ -48,7 +48,7 @@
         <app-page-card title="Lista">
           <div class="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3" role="status" aria-label="Carregando membros">
             @for (i of [1, 2, 3]; track i) {
-              <div data-skeleton class="h-[150px] lg:h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+              <div data-skeleton class="h-[150px] lg:h-14 rounded-xl bg-surface-sunken animate-pulse"></div>
             }
           </div>
         </app-page-card>
@@ -79,7 +79,7 @@
                   <div class="relative flex-1 min-w-0">
                     <label for="members-search" class="sr-only">Buscar por nome ou e-mail</label>
                     <span
-                      class="absolute inset-y-0 left-3 flex items-center text-neutral-400"
+                      class="absolute inset-y-0 left-3 flex items-center text-fg-faint"
                       aria-hidden="true"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
@@ -95,8 +95,8 @@
                       placeholder="Buscar por nome ou e-mail…"
                       [value]="query()"
                       (input)="onSearchInput($event)"
-                      class="w-full min-h-[44px] pl-9 pr-3 text-base lg:text-sm border border-neutral-200 rounded-xl
-                             bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                      class="w-full min-h-[44px] pl-9 pr-3 text-base lg:text-sm border border-edge rounded-xl
+                             bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                     />
                   </div>
                   <label class="sr-only" for="members-access">Acesso</label>
@@ -104,8 +104,8 @@
                     id="members-access"
                     data-filter-access
                     (change)="onAccessChange($event)"
-                    class="min-h-[44px] px-3 text-base lg:text-sm border border-neutral-200 rounded-xl bg-white
-                           text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    class="min-h-[44px] px-3 text-base lg:text-sm border border-edge rounded-xl bg-surface
+                           text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                   >
                     @for (opt of accessOptions; track opt.value) {
                       <option [value]="opt.value" [selected]="opt.value === access()">
@@ -118,8 +118,8 @@
                     id="members-status"
                     data-filter-status
                     (change)="onStatusChange($event)"
-                    class="min-h-[44px] px-3 text-base lg:text-sm border border-neutral-200 rounded-xl bg-white
-                           text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    class="min-h-[44px] px-3 text-base lg:text-sm border border-edge rounded-xl bg-surface
+                           text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                   >
                     @for (opt of statusOptions; track opt.value) {
                       <option [value]="opt.value" [selected]="opt.value === status()">
@@ -134,7 +134,7 @@
                       type="button"
                       data-clear-filters
                       (click)="clearFilters()"
-                      class="min-h-[44px] px-3 text-sm font-semibold text-neutral-600 hover:text-primary-700
+                      class="min-h-[44px] px-3 text-sm font-semibold text-fg-muted hover:text-primary-700 dark:hover:text-primary-400
                              rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                     >
                       Limpar filtros
@@ -142,7 +142,7 @@
                   </div>
                 }
 
-                <p data-results role="status" aria-live="polite" class="text-xs text-neutral-500">
+                <p data-results role="status" aria-live="polite" class="text-xs text-fg-subtle">
                   {{ resultsText() }}
                 </p>
               </div>
@@ -151,10 +151,10 @@
             @if (visiblePeople().length === 0) {
               <div
                 data-empty-search
-                class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+                class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3"
               >
-                <p class="text-sm font-semibold text-neutral-900">Nenhum resultado.</p>
-                <p class="text-sm text-neutral-600">
+                <p class="text-sm font-semibold text-fg">Nenhum resultado.</p>
+                <p class="text-sm text-fg-muted">
                   Ninguém corresponde à busca e aos filtros escolhidos.
                 </p>
                 <button
@@ -162,7 +162,7 @@
                   data-clear-filters
                   (click)="clearFilters()"
                   class="min-h-[44px] w-full sm:w-auto px-5 rounded-xl text-sm font-semibold inline-flex items-center
-                         justify-center border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50
+                         justify-center border border-edge bg-surface text-fg-soft hover:bg-surface-muted
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                          focus-visible:ring-offset-2"
                 >
@@ -197,20 +197,20 @@
             @if (isEmpty()) {
               <div
                 data-empty
-                class="rounded-xl border border-dashed border-neutral-300 p-5 text-center space-y-3"
+                class="rounded-xl border border-dashed border-edge-strong p-5 text-center space-y-3"
               >
-                <span class="inline-flex text-neutral-500"><app-members-icon name="users" [size]="24" /></span>
-                <p class="text-sm font-semibold text-neutral-900">Só você tem acesso por enquanto.</p>
-                <p class="text-sm text-neutral-600">
+                <span class="inline-flex text-fg-subtle"><app-members-icon name="users" [size]="24" /></span>
+                <p class="text-sm font-semibold text-fg">Só você tem acesso por enquanto.</p>
+                <p class="text-sm text-fg-muted">
                   Convide um gerenciador para dividir a operação. Motoristas recebem o convite
                   quando você os cadastra.
                 </p>
                 <ng-container [ngTemplateOutlet]="emptyAction" />
               </div>
             } @else {
-              <p class="text-xs text-neutral-500 pt-1">{{ roleChangeNote }}</p>
+              <p class="text-xs text-fg-subtle pt-1">{{ roleChangeNote }}</p>
               @if (inviteRows().length > 0) {
-                <p class="text-xs text-neutral-500">
+                <p class="text-xs text-fg-subtle">
                   Convites valem {{ ttlLabel }}. Motoristas recebem o convite ao serem cadastrados em
                   Motoristas.
                 </p>

@@ -8,7 +8,7 @@ export type RowActionsTarget =
   | { kind: 'invite'; row: InviteRow };
 
 const ITEM =
-  'w-full min-h-14 flex items-center gap-3 px-4 py-3 text-left focus:outline-none focus-visible:bg-neutral-100';
+  'w-full min-h-14 flex items-center gap-3 px-4 py-3 text-left focus:outline-none focus-visible:bg-surface-sunken';
 
 /**
  * The row actions on phones: a bottom sheet naming WHO the actions apply to, then one
@@ -27,16 +27,16 @@ const ITEM =
         (closed)="closed.emit()"
       >
         @if (t.kind === 'member') {
-          <div class="flex items-center gap-3 px-4 pb-3 border-b border-neutral-100">
+          <div class="flex items-center gap-3 px-4 pb-3 border-b border-edge-soft">
             <div
-              class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold bg-neutral-200 text-neutral-700"
+              class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold bg-surface-strong text-fg-soft"
               aria-hidden="true"
             >
               {{ t.row.initial }}
             </div>
             <div class="min-w-0">
-              <p class="text-sm font-semibold text-neutral-900 truncate">{{ t.row.name }}</p>
-              <p class="text-xs text-neutral-500 truncate">
+              <p class="text-sm font-semibold text-fg truncate">{{ t.row.name }}</p>
+              <p class="text-xs text-fg-subtle truncate">
                 {{ t.row.email }} · {{ t.row.roleLabel }}
               </p>
             </div>
@@ -45,13 +45,13 @@ const ITEM =
             <button
               type="button"
               data-remove-member
-              [class]="item + ' text-rose-700 hover:bg-rose-50'"
+              [class]="item + ' text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10'"
               (click)="remove.emit(t.row)"
             >
-              <span class="text-rose-600"><app-members-icon name="userMinus" /></span>
+              <span class="text-rose-600 dark:text-rose-300"><app-members-icon name="userMinus" /></span>
               <span class="flex-1 min-w-0">
                 <span class="block text-sm font-semibold">{{ t.row.removeLabel }}</span>
-                <span class="block text-xs text-rose-700">
+                <span class="block text-xs text-rose-700 dark:text-rose-300">
                   {{
                     t.row.isSelf
                       ? 'Você deixa de entrar nesta empresa na hora.'
@@ -61,18 +61,18 @@ const ITEM =
               </span>
             </button>
           </div>
-          <p class="px-4 pb-5 pt-1 text-xs text-neutral-500">{{ note }}</p>
+          <p class="px-4 pb-5 pt-1 text-xs text-fg-subtle">{{ note }}</p>
         } @else {
-          <div class="flex items-center gap-3 px-4 pb-3 border-b border-neutral-100">
+          <div class="flex items-center gap-3 px-4 pb-3 border-b border-edge-soft">
             <div
-              class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold bg-white border-2 border-dashed border-neutral-300 text-neutral-500"
+              class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold bg-surface border-2 border-dashed border-edge-strong text-fg-subtle"
               aria-hidden="true"
             >
               {{ t.row.initial }}
             </div>
             <div class="min-w-0">
-              <p class="text-sm font-semibold text-neutral-900 truncate">{{ t.row.title }}</p>
-              <p class="text-xs text-neutral-500 truncate">
+              <p class="text-sm font-semibold text-fg truncate">{{ t.row.title }}</p>
+              <p class="text-xs text-fg-subtle truncate">
                 {{ t.row.email }} · {{ t.row.roleLabel }}
               </p>
             </div>
@@ -81,13 +81,13 @@ const ITEM =
             <button
               type="button"
               data-resend-invite
-              [class]="item + ' text-neutral-800 hover:bg-neutral-50'"
+              [class]="item + ' text-fg-body hover:bg-surface-muted'"
               (click)="resend.emit(t.row)"
             >
-              <span class="text-neutral-500"><app-members-icon name="resend" /></span>
+              <span class="text-fg-subtle"><app-members-icon name="resend" /></span>
               <span class="flex-1 min-w-0">
                 <span class="block text-sm font-semibold">Reenviar convite</span>
-                <span class="block text-xs text-neutral-500">
+                <span class="block text-xs text-fg-subtle">
                   Manda um link novo para o mesmo e-mail. O anterior deixa de valer.
                 </span>
               </span>
@@ -95,13 +95,13 @@ const ITEM =
             <button
               type="button"
               data-copy-invite-link
-              [class]="item + ' text-neutral-800 hover:bg-neutral-50'"
+              [class]="item + ' text-fg-body hover:bg-surface-muted'"
               (click)="copyLink.emit(t.row)"
             >
-              <span class="text-neutral-500"><app-members-icon name="link" /></span>
+              <span class="text-fg-subtle"><app-members-icon name="link" /></span>
               <span class="flex-1 min-w-0">
                 <span class="block text-sm font-semibold">Copiar link</span>
-                <span class="block text-xs text-neutral-500">
+                <span class="block text-xs text-fg-subtle">
                   Gera um link novo e copia. O anterior deixa de valer.
                 </span>
               </span>
@@ -109,13 +109,13 @@ const ITEM =
             <button
               type="button"
               data-whatsapp-invite-link
-              [class]="item + ' text-neutral-800 hover:bg-neutral-50'"
+              [class]="item + ' text-fg-body hover:bg-surface-muted'"
               (click)="sendWhatsApp.emit(t.row)"
             >
-              <span class="text-neutral-500"><app-members-icon name="message" /></span>
+              <span class="text-fg-subtle"><app-members-icon name="message" /></span>
               <span class="flex-1 min-w-0">
                 <span class="block text-sm font-semibold">Enviar pelo WhatsApp</span>
-                <span class="block text-xs text-neutral-500">
+                <span class="block text-xs text-fg-subtle">
                   Gera um link novo e abre o WhatsApp. O anterior deixa de valer.
                 </span>
               </span>
@@ -123,13 +123,13 @@ const ITEM =
             <button
               type="button"
               data-cancel-invite
-              [class]="item + ' text-rose-700 hover:bg-rose-50'"
+              [class]="item + ' text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10'"
               (click)="cancel.emit(t.row)"
             >
-              <span class="text-rose-600"><app-members-icon name="xCircle" /></span>
+              <span class="text-rose-600 dark:text-rose-300"><app-members-icon name="xCircle" /></span>
               <span class="flex-1 min-w-0">
                 <span class="block text-sm font-semibold">Cancelar convite</span>
-                <span class="block text-xs text-rose-700">O link deixa de funcionar na hora.</span>
+                <span class="block text-xs text-rose-700 dark:text-rose-300">O link deixa de funcionar na hora.</span>
               </span>
             </button>
           </div>

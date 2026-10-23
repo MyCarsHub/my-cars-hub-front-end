@@ -104,19 +104,19 @@ interface SentInvite {
               type="button"
               data-role-option="MANAGER"
               (click)="chooseManager()"
-              class="w-full text-left flex items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 min-h-[72px]
-                     hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+              class="w-full text-left flex items-start gap-3 rounded-xl border border-edge bg-surface p-4 min-h-[72px]
+                     hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
             >
-              <span class="shrink-0 p-2 rounded-lg bg-primary-low text-primary-700">
+              <span class="shrink-0 p-2 rounded-lg bg-primary-low dark:bg-primary-500/15 text-primary-700 dark:text-primary-400">
                 <app-members-icon name="briefcase" />
               </span>
               <span class="flex-1 min-w-0">
-                <span class="block text-sm font-semibold text-neutral-900">{{ managerLabel }}</span>
-                <span class="block text-xs text-neutral-600 mt-0.5 leading-relaxed">
+                <span class="block text-sm font-semibold text-fg">{{ managerLabel }}</span>
+                <span class="block text-xs text-fg-muted mt-0.5 leading-relaxed">
                   Cuida da operação: veículos, aluguéis, motoristas, multas e vistorias.
                 </span>
               </span>
-              <span class="shrink-0 self-center text-neutral-400"><app-members-icon name="chevR" /></span>
+              <span class="shrink-0 self-center text-fg-faint"><app-members-icon name="chevR" /></span>
             </button>
           }
           <button
@@ -128,19 +128,19 @@ interface SentInvite {
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
             [class]="
               driverChosen()
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
+                : 'border-edge bg-surface hover:bg-surface-muted'
             "
           >
             <span
-              class="shrink-0 p-2 rounded-lg text-primary-700"
-              [class]="driverChosen() ? 'bg-white' : 'bg-primary-low'"
+              class="shrink-0 p-2 rounded-lg text-primary-700 dark:text-primary-400"
+              [class]="driverChosen() ? 'bg-surface' : 'bg-primary-low dark:bg-primary-500/15'"
             >
               <app-members-icon name="car" />
             </span>
             <span class="flex-1 min-w-0">
-              <span class="block text-sm font-semibold text-neutral-900">{{ driverLabel }}</span>
-              <span class="block text-xs text-neutral-600 mt-0.5 leading-relaxed">
+              <span class="block text-sm font-semibold text-fg">{{ driverLabel }}</span>
+              <span class="block text-xs text-fg-muted mt-0.5 leading-relaxed">
                 Vê os próprios aluguéis e faz as vistorias do carro dele.
               </span>
             </span>
@@ -150,7 +150,7 @@ interface SentInvite {
                   <app-members-icon name="check" [size]="14" />
                 </span>
               } @else {
-                <span class="text-neutral-400"><app-members-icon name="chevR" /></span>
+                <span class="text-fg-faint"><app-members-icon name="chevR" /></span>
               }
             </span>
           </button>
@@ -158,9 +158,9 @@ interface SentInvite {
             <div
               data-driver-banner
               role="status"
-              class="rounded-xl border p-3 text-sm flex items-start gap-2 bg-blue-50 border-blue-200 text-blue-900"
+              class="rounded-xl border p-3 text-sm flex items-start gap-2 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200"
             >
-              <span class="shrink-0 mt-0.5 text-blue-600"><app-members-icon name="info" [size]="18" /></span>
+              <span class="shrink-0 mt-0.5 text-blue-600 dark:text-blue-300"><app-members-icon name="info" [size]="18" /></span>
               <div class="flex-1 min-w-0 break-words">
                 <p class="font-semibold">Motoristas são convidados ao cadastrar o motorista.</p>
                 <p class="text-xs mt-0.5 leading-relaxed">
@@ -243,7 +243,7 @@ interface SentInvite {
 
       <div sheetFooter>
         @if (step() === 'manager') {
-          <div class="border-t border-neutral-100 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-2">
+          <div class="border-t border-edge-soft px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-2">
             <button
               type="submit"
               form="invite-manager-form"
@@ -255,10 +255,10 @@ interface SentInvite {
             >
               <app-members-icon name="mail" [size]="18" />{{ sending() ? 'Enviando…' : 'Enviar convite' }}
             </button>
-            <p class="text-xs text-neutral-500 leading-relaxed">Enviaremos um link por e-mail.</p>
+            <p class="text-xs text-fg-subtle leading-relaxed">Enviaremos um link por e-mail.</p>
           </div>
         } @else if (step() === 'sent') {
-          <div class="border-t border-neutral-100 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div class="border-t border-edge-soft px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <button
               type="button"
               data-invite-done
@@ -271,7 +271,7 @@ interface SentInvite {
             </button>
           </div>
         } @else if (driverChosen()) {
-          <div class="border-t border-neutral-100 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div class="border-t border-edge-soft px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <a
               data-driver-create
               [routerLink]="driverRoute"
@@ -335,8 +335,8 @@ export class InviteSheet {
 
   /** §4.2 control at 16px (`text-base`): below 16px iOS zooms the page on focus. */
   protected readonly inputClass =
-    'w-full min-h-[44px] bg-white border rounded-xl px-3 text-base text-neutral-800 ' +
-    'placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 ' +
+    'w-full min-h-[44px] bg-surface border rounded-xl px-3 text-base text-fg-body ' +
+    'placeholder:text-fg-faint focus:outline-none focus:ring-2 focus:ring-primary-400 ' +
     'focus:border-primary-400 disabled:opacity-60 disabled:cursor-not-allowed';
 
   protected readonly form = this.fb.nonNullable.group({
