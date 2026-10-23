@@ -118,14 +118,14 @@ export class FinancingDetail implements OnInit {
 
   protected readonly statusBadge = computed<{ label: string; chip: string }>(() => {
     const f = this.financing();
-    if (!f) return { label: '—', chip: 'bg-neutral-100 text-neutral-700' };
+    if (!f) return { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
     if (f.status === 'PAID_OFF') {
-      return { label: 'Quitado', chip: 'bg-emerald-100 text-emerald-800' };
+      return { label: 'Quitado', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
     }
     if (this.overdueCount() > 0) {
-      return { label: 'Atrasado', chip: 'bg-rose-100 text-rose-700' };
+      return { label: 'Atrasado', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
     }
-    return { label: 'Em dia', chip: 'bg-blue-100 text-blue-700' };
+    return { label: 'Em dia', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' };
   });
 
   ngOnInit(): void {
@@ -268,11 +268,11 @@ export class FinancingDetail implements OnInit {
   } {
     switch (status) {
       case 'PAID':
-        return { label: 'Paga', chip: 'bg-emerald-100 text-emerald-800' };
+        return { label: 'Paga', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
       case 'OVERDUE':
-        return { label: 'Atrasada', chip: 'bg-rose-100 text-rose-700' };
+        return { label: 'Atrasada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
       default:
-        return { label: 'Prevista', chip: 'bg-neutral-100 text-neutral-600' };
+        return { label: 'Prevista', chip: 'bg-surface-sunken text-fg-muted' };
     }
   }
 

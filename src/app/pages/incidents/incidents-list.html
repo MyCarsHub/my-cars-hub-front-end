@@ -28,7 +28,7 @@
               id="incidents-vehicle"
               [ngModel]="vehicleFilter()"
               (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
-              class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+              class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             >
               <option value="">Veículo: Todos</option>
@@ -45,7 +45,7 @@
             id="incidents-type"
             [ngModel]="typeFilter()"
             (ngModelChange)="typeFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of typeOptions; track opt.value) {
@@ -62,7 +62,7 @@
             id="incidents-resolution"
             [ngModel]="resolutionFilter()"
             (ngModelChange)="resolutionFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of resolutionOptions; track opt.value) {
@@ -77,7 +77,7 @@
             id="incidents-insurance"
             [ngModel]="insuranceFilter()"
             (ngModelChange)="insuranceFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of insuranceOptions; track opt.value) {
@@ -87,25 +87,25 @@
         </div>
 
         <div>
-          <label class="block text-[11px] text-neutral-500 mb-1" for="incidents-from">De</label>
+          <label class="block text-[11px] text-fg-subtle mb-1" for="incidents-from">De</label>
           <input
             id="incidents-from"
             type="date"
             [ngModel]="from()"
             (ngModelChange)="from.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           />
         </div>
 
         <div>
-          <label class="block text-[11px] text-neutral-500 mb-1" for="incidents-to">Até</label>
+          <label class="block text-[11px] text-fg-subtle mb-1" for="incidents-to">Até</label>
           <input
             id="incidents-to"
             type="date"
             [ngModel]="to()"
             (ngModelChange)="to.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           />
         </div>
@@ -116,7 +116,7 @@
             id="incidents-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {
@@ -129,7 +129,7 @@
           <button
             type="button"
             (click)="clearFilters()"
-            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+            class="text-sm font-medium text-fg-subtle hover:text-fg-body px-3 py-2.5 rounded-lg"
           >
             Limpar filtros
           </button>
@@ -145,26 +145,26 @@
 
       @if (loading() && items().length === 0) {
         <div class="space-y-2">
-          <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-          <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-          <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
         </div>
       }
 
       @if (!loading() && items().length === 0) {
         <div class="text-center py-12 space-y-3">
-          <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+          <div class="w-14 h-14 rounded-full bg-surface-sunken flex items-center justify-center mx-auto"
             aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="text-neutral-500">
+              class="text-fg-subtle">
               <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
               <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
           </div>
-          <p class="text-sm text-neutral-500">Nenhum sinistro encontrado com esses filtros.</p>
+          <p class="text-sm text-fg-subtle">Nenhum sinistro encontrado com esses filtros.</p>
           <a routerLink="/sinistros/novo"
-            class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
+            class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400">
             Registrar o primeiro sinistro
           </a>
         </div>
@@ -175,8 +175,8 @@
         <div class="space-y-3 lg:hidden">
           @for (incident of items(); track incident.id) {
             <article
-              class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 cursor-pointer
-                     hover:border-primary-300 transition-colors"
+              class="rounded-xl border border-edge bg-surface p-4 space-y-3 cursor-pointer
+                     hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors"
               (click)="openDetail(incident)"
               (keydown.enter)="openDetail(incident)"
               (keydown.space)="$event.preventDefault(); openDetail(incident)"
@@ -189,14 +189,14 @@
             >
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider">
+                  <p class="text-sm font-semibold text-fg tabular-nums tracking-wider">
                     {{ vehiclePlate(incident.vehicleId) }}
                   </p>
-                  <p class="text-xs text-neutral-500 mt-0.5 truncate">
+                  <p class="text-xs text-fg-subtle mt-0.5 truncate">
                     {{ vehicleModel(incident.vehicleId) }}
                   </p>
                 </div>
-                <span class="text-xs font-medium text-neutral-700 shrink-0">
+                <span class="text-xs font-medium text-fg-soft shrink-0">
                   {{ incident.incidentTypeLabel }}
                 </span>
               </div>
@@ -220,40 +220,40 @@
                 </span>
               </div>
 
-              <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
+              <div class="grid grid-cols-2 gap-2 text-xs text-fg-muted">
                 <div>
-                  <span class="text-neutral-500 uppercase tracking-wide text-[10px]">Ocorrido em</span>
+                  <span class="text-fg-subtle uppercase tracking-wide text-[10px]">Ocorrido em</span>
                   <p class="tabular-nums">{{ formatDateTime(incident.occurredAt) }}</p>
                 </div>
                 <div>
-                  <span class="text-neutral-500 uppercase tracking-wide text-[10px]">Local</span>
+                  <span class="text-fg-subtle uppercase tracking-wide text-[10px]">Local</span>
                   <p class="truncate">{{ incident.location || '—' }}</p>
                 </div>
                 <div>
-                  <span class="text-neutral-500 uppercase tracking-wide text-[10px]">Estimado</span>
+                  <span class="text-fg-subtle uppercase tracking-wide text-[10px]">Estimado</span>
                   <p class="tabular-nums">{{ formatCurrency(incident.estimatedCostCents) }}</p>
                 </div>
                 <div>
-                  <span class="text-neutral-500 uppercase tracking-wide text-[10px]">Custo real</span>
-                  <p class="font-semibold text-neutral-900 tabular-nums">
+                  <span class="text-fg-subtle uppercase tracking-wide text-[10px]">Custo real</span>
+                  <p class="font-semibold text-fg tabular-nums">
                     {{ formatCurrency(incident.actualCostCents) }}
                   </p>
                 </div>
               </div>
 
-              <div class="flex items-center justify-end gap-2 pt-1 border-t border-neutral-50">
+              <div class="flex items-center justify-end gap-2 pt-1 border-t border-edge-faint">
                 <app-actions-menu label="Ações do sinistro">
                   <a
                     role="menuitem"
                     [routerLink]="['/sinistros', incident.id, 'editar']"
-                    class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                    class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]">
                     Editar
                   </a>
                   <button
                     type="button"
                     role="menuitem"
                     (click)="askDelete(incident, $event)"
-                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] text-left border-t border-neutral-100">
+                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 min-h-[44px] text-left border-t border-edge-soft">
                     Excluir
                   </button>
                 </app-actions-menu>
@@ -266,7 +266,7 @@
         <div class="hidden lg:block overflow-x-auto">
           <table class="min-w-full text-sm">
             <thead>
-              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+              <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                 <th class="py-2 pr-4 font-medium">Veículo</th>
                 <th class="py-2 pr-4 font-medium">Tipo</th>
                 <th class="py-2 pr-4 font-medium">Ocorrido em</th>
@@ -279,7 +279,7 @@
             </thead>
             <tbody>
               @for (incident of items(); track incident.id) {
-                <tr class="border-b border-neutral-50 hover:bg-neutral-50/60 cursor-pointer"
+                <tr class="border-b border-edge-faint hover:bg-surface-muted/60 cursor-pointer"
                   (click)="openDetail(incident)"
                   (keydown.enter)="openDetail(incident)"
                   (keydown.space)="$event.preventDefault(); openDetail(incident)"
@@ -289,13 +289,13 @@
                     ' do veículo ' + vehiclePlate(incident.vehicleId)
                   ">
                   <td class="py-3 pr-4">
-                    <p class="font-semibold text-neutral-900 tabular-nums tracking-wider">
+                    <p class="font-semibold text-fg tabular-nums tracking-wider">
                       {{ vehiclePlate(incident.vehicleId) }}
                     </p>
-                    <p class="text-xs text-neutral-500">{{ vehicleModel(incident.vehicleId) }}</p>
+                    <p class="text-xs text-fg-subtle">{{ vehicleModel(incident.vehicleId) }}</p>
                   </td>
-                  <td class="py-3 pr-4 text-neutral-700">{{ incident.incidentTypeLabel }}</td>
-                  <td class="py-3 pr-4 text-neutral-700 tabular-nums">
+                  <td class="py-3 pr-4 text-fg-soft">{{ incident.incidentTypeLabel }}</td>
+                  <td class="py-3 pr-4 text-fg-soft tabular-nums">
                     {{ formatDateTime(incident.occurredAt) }}
                   </td>
                   <td class="py-3 pr-4">
@@ -316,10 +316,10 @@
                       {{ insuranceDimensionLabel }}: {{ incident.insuranceStatusLabel }}
                     </span>
                   </td>
-                  <td class="py-3 pr-4 text-neutral-700 tabular-nums">
+                  <td class="py-3 pr-4 text-fg-soft tabular-nums">
                     {{ formatCurrency(incident.estimatedCostCents) }}
                   </td>
-                  <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums">
+                  <td class="py-3 pr-4 font-semibold text-fg tabular-nums">
                     {{ formatCurrency(incident.actualCostCents) }}
                   </td>
                   <td class="py-3 pr-4">
@@ -328,14 +328,14 @@
                         <a
                           role="menuitem"
                           [routerLink]="['/sinistros', incident.id, 'editar']"
-                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-fg-soft hover:bg-surface-muted text-left">
                           Editar
                         </a>
                         <button
                           type="button"
                           role="menuitem"
                           (click)="askDelete(incident, $event)"
-                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 hover:bg-rose-50 text-left border-t border-neutral-100">
+                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-left border-t border-edge-soft">
                           Excluir
                         </button>
                       </app-actions-menu>
@@ -348,19 +348,19 @@
         </div>
 
         <!-- Paginação -->
-        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-neutral-100 text-sm">
-          <p class="text-neutral-500">
+        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-edge-soft text-sm">
+          <p class="text-fg-subtle">
             {{ total() }} sinistro(s) — página {{ pageNumber() }} de {{ totalPages() }}
           </p>
           <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              class="px-3 py-2 rounded-lg border border-edge hover:bg-surface-muted disabled:opacity-50"
               [disabled]="page() === 0 || loading()"
               (click)="prev()">
               Anterior
             </button>
             <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              class="px-3 py-2 rounded-lg border border-edge hover:bg-surface-muted disabled:opacity-50"
               [disabled]="page() + 1 >= totalPages() || loading()"
               (click)="next()">
               Próxima

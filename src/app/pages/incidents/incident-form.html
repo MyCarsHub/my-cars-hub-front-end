@@ -4,7 +4,7 @@
 >
   @if (loading()) {
     <div
-      class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm"
+      class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm"
     >
       Carregando…
     </div>
@@ -26,7 +26,7 @@
             <select
               appFieldControl
               formControlName="vehicleId"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                      disabled:opacity-60"
             >
@@ -46,7 +46,7 @@
             <select
               appFieldControl
               formControlName="incidentType"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               @for (opt of typeOptions; track opt.value) {
@@ -67,7 +67,7 @@
               type="datetime-local"
               formControlName="occurredAt"
               [max]="maxOccurredAt"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -79,7 +79,7 @@
               formControlName="location"
               maxlength="200"
               placeholder="Av. Paulista, 1000 — São Paulo/SP"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -97,7 +97,7 @@
               rows="4"
               maxlength="1000"
               placeholder="Descreva o ocorrido: como aconteceu, o que foi danificado, se houve vítimas."
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             ></textarea>
           </app-form-field>
@@ -110,7 +110,7 @@
             <select
               appFieldControl
               formControlName="atFaultParty"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               @for (opt of faultPartyOptions; track opt.value) {
@@ -123,7 +123,7 @@
             <select
               appFieldControl
               formControlName="driverId"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Nenhum / não se aplica</option>
@@ -149,7 +149,7 @@
               min="0"
               step="0.01"
               formControlName="estimatedCostReais"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -166,7 +166,7 @@
               min="0"
               step="0.01"
               formControlName="deductibleReais"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -188,7 +188,7 @@
               formControlName="thirdPartyName"
               maxlength="150"
               autocomplete="off"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -200,7 +200,7 @@
               formControlName="thirdPartyDocument"
               maxlength="30"
               autocomplete="off"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -212,7 +212,7 @@
               formControlName="thirdPartyPhone"
               maxlength="30"
               autocomplete="off"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -227,7 +227,7 @@
               formControlName="thirdPartyPlate"
               maxlength="10"
               autocomplete="off"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 uppercase
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body uppercase
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
@@ -241,23 +241,23 @@
               appFieldControl
               formControlName="notes"
               rows="3"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             ></textarea>
           </app-form-field>
 
           @if (!isEdit()) {
-            <div class="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+            <div class="rounded-xl border border-edge bg-surface-muted p-3">
               <label class="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   formControlName="takeVehicleOutOfService"
-                  class="mt-0.5 h-5 w-5 rounded border-neutral-300 text-primary-600
+                  class="mt-0.5 h-5 w-5 rounded border-edge-strong text-primary-600 dark:text-primary-400
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
-                <span class="text-sm text-neutral-800">
+                <span class="text-sm text-fg-body">
                   Tirar o veículo de circulação agora
-                  <span class="block text-xs text-neutral-600 mt-0.5">
+                  <span class="block text-xs text-fg-muted mt-0.5">
                     Move o veículo para "Em manutenção". Só funciona se ele estiver disponível —
                     um carro alugado nunca é alterado automaticamente.
                   </span>
@@ -273,8 +273,8 @@
           type="button"
           (click)="cancel()"
           [disabled]="saving()"
-          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-neutral-700
-                 min-h-[48px] bg-white border border-neutral-200 hover:bg-neutral-50
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-fg-soft
+                 min-h-[48px] bg-surface border border-edge hover:bg-surface-muted
                  disabled:opacity-60
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
         >

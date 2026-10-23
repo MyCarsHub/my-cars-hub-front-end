@@ -27,7 +27,7 @@
               id="maint-vehicle"
               [ngModel]="vehicleFilter()"
               (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
-              class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+              class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             >
               <option value="">Veículo: Todos</option>
@@ -44,7 +44,7 @@
             id="maint-type"
             [ngModel]="typeFilter()"
             (ngModelChange)="typeFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of typeOptions; track opt.value) {
@@ -59,7 +59,7 @@
             id="maint-status"
             [ngModel]="statusFilter()"
             (ngModelChange)="statusFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of statusOptions; track opt.value) {
@@ -74,7 +74,7 @@
             id="maint-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white
+            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {
@@ -87,7 +87,7 @@
           <button
             type="button"
             (click)="clearFilters()"
-            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+            class="text-sm font-medium text-fg-subtle hover:text-fg-body px-3 py-2.5 rounded-lg"
           >
             Limpar filtros
           </button>
@@ -103,25 +103,25 @@
 
       @if (loading() && items().length === 0) {
         <div class="space-y-2">
-          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
-          <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
         </div>
       }
 
       @if (!loading() && items().length === 0) {
         <div class="text-center py-12 space-y-3">
-          <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+          <div class="w-14 h-14 rounded-full bg-surface-sunken flex items-center justify-center mx-auto"
             aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="text-neutral-400">
+              class="text-fg-faint">
               <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
             </svg>
           </div>
-          <p class="text-sm text-neutral-500">Nenhuma manutenção encontrada com esses filtros.</p>
+          <p class="text-sm text-fg-subtle">Nenhuma manutenção encontrada com esses filtros.</p>
           <a routerLink="/manutencoes/novo"
-            class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
+            class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400">
             Cadastrar primeira manutenção
           </a>
         </div>
@@ -131,18 +131,18 @@
         <div class="space-y-3 lg:hidden">
           @for (m of items(); track m.id) {
             <article
-              class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 cursor-pointer
-                     hover:border-primary-300 transition-colors"
+              class="rounded-xl border border-edge bg-surface p-4 space-y-3 cursor-pointer
+                     hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors"
               (click)="openDetail(m)"
               (keydown.enter)="openDetail(m)"
               tabindex="0"
             >
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider">
+                  <p class="text-sm font-semibold text-fg tabular-nums tracking-wider">
                     {{ vehiclePlate(m.vehicleId) }}
                   </p>
-                  <p class="text-xs text-neutral-500 mt-0.5 truncate">{{ vehicleModel(m.vehicleId) }}</p>
+                  <p class="text-xs text-fg-subtle mt-0.5 truncate">{{ vehicleModel(m.vehicleId) }}</p>
                 </div>
                 <div class="flex flex-col items-end gap-1 shrink-0">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
@@ -158,11 +158,11 @@
                 </div>
               </div>
 
-              <p class="text-sm text-neutral-700 line-clamp-2">{{ m.description }}</p>
+              <p class="text-sm text-fg-soft line-clamp-2">{{ m.description }}</p>
 
-              <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
+              <div class="grid grid-cols-2 gap-2 text-xs text-fg-muted">
                 <div>
-                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Tipo</span>
+                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Tipo</span>
                   <p>
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold mt-0.5"
                       [class]="typeInfo(m.type).chip">
@@ -171,25 +171,25 @@
                   </p>
                 </div>
                 <div>
-                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Custo</span>
-                  <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(m.costCents) }}</p>
+                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Custo</span>
+                  <p class="font-semibold text-fg tabular-nums">{{ formatCurrency(m.costCents) }}</p>
                 </div>
                 <div>
-                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Serviço</span>
+                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Serviço</span>
                   <p class="tabular-nums">{{ formatDate(m.serviceDate) }}</p>
                 </div>
                 <div>
-                  <span class="text-neutral-400 uppercase tracking-wide text-[10px]">Próximo</span>
+                  <span class="text-fg-faint uppercase tracking-wide text-[10px]">Próximo</span>
                   <p class="tabular-nums">{{ formatDate(m.nextServiceDate) }}</p>
                 </div>
               </div>
 
-              <div class="flex items-center justify-end gap-2 pt-1 border-t border-neutral-50">
+              <div class="flex items-center justify-end gap-2 pt-1 border-t border-edge-faint">
                 <app-actions-menu label="Ações da manutenção">
                   <a
                     role="menuitem"
                     [routerLink]="['/manutencoes', m.id, 'editar']"
-                    class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                    class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]">
                     Editar
                   </a>
                   @if (canTransition(m)) {
@@ -197,14 +197,14 @@
                       type="button"
                       role="menuitem"
                       (click)="askConclude(m)"
-                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-emerald-700 hover:bg-emerald-50 min-h-[44px] text-left border-t border-neutral-100">
+                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 min-h-[44px] text-left border-t border-edge-soft">
                       Concluir
                     </button>
                     <button
                       type="button"
                       role="menuitem"
                       (click)="askCancel(m)"
-                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-700 hover:bg-amber-50 min-h-[44px] text-left border-t border-neutral-100">
+                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 min-h-[44px] text-left border-t border-edge-soft">
                       Cancelar manutenção
                     </button>
                   }
@@ -212,7 +212,7 @@
                     type="button"
                     role="menuitem"
                     (click)="askDelete(m, $event)"
-                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] text-left border-t border-neutral-100">
+                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 min-h-[44px] text-left border-t border-edge-soft">
                     Excluir
                   </button>
                 </app-actions-menu>
@@ -224,7 +224,7 @@
         <div class="hidden lg:block overflow-x-auto">
           <table class="min-w-full text-sm">
             <thead>
-              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+              <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                 <th class="py-2 pr-4 font-medium">Veículo</th>
                 <th class="py-2 pr-4 font-medium">Tipo</th>
                 <th class="py-2 pr-4 font-medium">Descrição</th>
@@ -237,15 +237,15 @@
             </thead>
             <tbody>
               @for (m of items(); track m.id) {
-                <tr class="border-b border-neutral-50 hover:bg-neutral-50/60 cursor-pointer"
+                <tr class="border-b border-edge-faint hover:bg-surface-muted/60 cursor-pointer"
                   (click)="openDetail(m)"
                   (keydown.enter)="openDetail(m)"
                   tabindex="0">
                   <td class="py-3 pr-4">
-                    <p class="font-semibold text-neutral-900 tabular-nums tracking-wider">
+                    <p class="font-semibold text-fg tabular-nums tracking-wider">
                       {{ vehiclePlate(m.vehicleId) }}
                     </p>
-                    <p class="text-xs text-neutral-500">{{ vehicleModel(m.vehicleId) }}</p>
+                    <p class="text-xs text-fg-subtle">{{ vehicleModel(m.vehicleId) }}</p>
                   </td>
                   <td class="py-3 pr-4">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
@@ -253,7 +253,7 @@
                       {{ typeInfo(m.type).label }}
                     </span>
                   </td>
-                  <td class="py-3 pr-4 text-neutral-700 max-w-xs truncate">{{ m.description }}</td>
+                  <td class="py-3 pr-4 text-fg-soft max-w-xs truncate">{{ m.description }}</td>
                   <td class="py-3 pr-4 tabular-nums">{{ formatDate(m.serviceDate) }}</td>
                   <td class="py-3 pr-4 tabular-nums">
                     <div class="flex items-center gap-2">
@@ -266,7 +266,7 @@
                       }
                     </div>
                   </td>
-                  <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(m.costCents) }}</td>
+                  <td class="py-3 pr-4 font-semibold text-fg tabular-nums">{{ formatCurrency(m.costCents) }}</td>
                   <td class="py-3 pr-4">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
                       [class]="statusInfo(m.status).chip">
@@ -279,7 +279,7 @@
                         <a
                           role="menuitem"
                           [routerLink]="['/manutencoes', m.id, 'editar']"
-                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
+                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-fg-soft hover:bg-surface-muted text-left">
                           Editar
                         </a>
                         @if (canTransition(m)) {
@@ -287,14 +287,14 @@
                             type="button"
                             role="menuitem"
                             (click)="askConclude(m)"
-                            class="w-full px-3 py-2 min-h-[44px] text-xs text-emerald-700 hover:bg-emerald-50 text-left border-t border-neutral-100">
+                            class="w-full px-3 py-2 min-h-[44px] text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-left border-t border-edge-soft">
                             Concluir
                           </button>
                           <button
                             type="button"
                             role="menuitem"
                             (click)="askCancel(m)"
-                            class="w-full px-3 py-2 min-h-[44px] text-xs text-amber-700 hover:bg-amber-50 text-left border-t border-neutral-100">
+                            class="w-full px-3 py-2 min-h-[44px] text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left border-t border-edge-soft">
                             Cancelar manutenção
                           </button>
                         }
@@ -302,7 +302,7 @@
                           type="button"
                           role="menuitem"
                           (click)="askDelete(m, $event)"
-                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 hover:bg-rose-50 text-left border-t border-neutral-100">
+                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-left border-t border-edge-soft">
                           Excluir
                         </button>
                       </app-actions-menu>
@@ -314,19 +314,19 @@
           </table>
         </div>
 
-        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-neutral-100 text-sm">
-          <p class="text-neutral-500">
+        <div class="flex flex-col-reverse sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-edge-soft text-sm">
+          <p class="text-fg-subtle">
             {{ total() }} manutenção(ões) — página {{ pageNumber() }} de {{ totalPages() }}
           </p>
           <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              class="px-3 py-2 rounded-lg border border-edge hover:bg-surface-muted disabled:opacity-50"
               [disabled]="page() === 0 || loading()"
               (click)="prev()">
               Anterior
             </button>
             <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+              class="px-3 py-2 rounded-lg border border-edge hover:bg-surface-muted disabled:opacity-50"
               [disabled]="page() + 1 >= totalPages() || loading()"
               (click)="next()">
               Próxima

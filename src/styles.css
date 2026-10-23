@@ -412,6 +412,17 @@ body {
   --color-border: #2E2E33;
 }
 
+/* `border` sem cor herda `currentColor` (padrão do Tailwind v4). No claro isso dá a borda
+   escura que alguns campos sempre tiveram; no escuro, o texto claro viraria uma moldura
+   branca. Na camada base, então qualquer `border-*` de cor declarado continua vencendo. */
+@layer base {
+  .dark *,
+  .dark ::before,
+  .dark ::after {
+    border-color: var(--color-edge-strong);
+  }
+}
+
 /* A ilha clara: papel do contrato, prévias de documento, fotos e PDFs. */
 .theme-paper {
   color-scheme: light;

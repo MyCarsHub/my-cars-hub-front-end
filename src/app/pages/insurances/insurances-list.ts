@@ -227,7 +227,7 @@ export class InsurancesList implements OnInit {
 
   protected statusInfo(s: InsuranceStatus): { label: string; chip: string } {
     const o = STATUS_OPTIONS.find((x) => x.value === s);
-    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-neutral-100' };
+    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-surface-sunken' };
   }
 
   protected coverageLabel(c: InsuranceCoverage): string {
@@ -251,13 +251,13 @@ export class InsurancesList implements OnInit {
       return this.statusInfo(i.status);
     }
     if (days < 0) {
-      return { label: 'Vencida', chip: 'bg-rose-100 text-rose-700' };
+      return { label: 'Vencida', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
     }
     if (days <= 7) {
-      return { label: `Vence em ${days}d`, chip: 'bg-rose-100 text-rose-700' };
+      return { label: `Vence em ${days}d`, chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
     }
     if (days <= 30) {
-      return { label: `Vence em ${days}d`, chip: 'bg-amber-100 text-amber-800' };
+      return { label: `Vence em ${days}d`, chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
     }
     return this.statusInfo(i.status);
   }
@@ -266,8 +266,8 @@ export class InsurancesList implements OnInit {
   protected rowHighlight(i: InsuranceListItem): string {
     const days = i.daysToExpiry;
     if (i.status !== 'ACTIVE' || days == null) return '';
-    if (days <= 7) return 'bg-rose-50/60';
-    if (days <= 30) return 'bg-amber-50/50';
+    if (days <= 7) return 'bg-rose-50/60 dark:bg-rose-500/10';
+    if (days <= 30) return 'bg-amber-50/50 dark:bg-amber-500/10';
     return '';
   }
 

@@ -164,7 +164,7 @@ export class FinancingsList implements OnInit {
 
   protected statusInfo(s: FinancingStatus): { label: string; chip: string } {
     const o = STATUS_OPTIONS.find((x) => x.value === s);
-    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-neutral-100' };
+    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-surface-sunken' };
   }
 
   protected formatPlate(plate: string): string {
@@ -253,11 +253,11 @@ export class FinancingsList implements OnInit {
    */
   protected progressBadge(f: FinancingListItem): { label: string; chip: string } {
     if (f.status === 'PAID_OFF') {
-      return { label: 'Quitado', chip: 'bg-emerald-100 text-emerald-800' };
+      return { label: 'Quitado', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
     }
     if ((f.overdueInstallments ?? 0) > 0) {
-      return { label: 'Atrasado', chip: 'bg-rose-100 text-rose-700' };
+      return { label: 'Atrasado', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
     }
-    return { label: 'Em dia', chip: 'bg-blue-100 text-blue-700' };
+    return { label: 'Em dia', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' };
   }
 }

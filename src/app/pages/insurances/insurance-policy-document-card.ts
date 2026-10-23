@@ -55,19 +55,19 @@ const MAX_POLICY_LABEL = '20MB';
         @if (uploading()) {
           <div
             class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl
-                   border border-primary-200 bg-primary-50 p-3"
+                   border border-primary-200 dark:border-primary-500/30 bg-primary-50 dark:bg-primary-500/10 p-3"
             role="status"
             aria-live="polite"
           >
-            <p class="text-sm font-medium text-primary-800">
+            <p class="text-sm font-medium text-primary-800 dark:text-primary-400">
               Enviando o PDF da apólice… Mantenha esta tela aberta.
             </p>
             <button
               type="button"
               (click)="cancelUpload()"
               class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
-                     border border-neutral-300 bg-white text-sm font-medium text-neutral-700
-                     hover:bg-neutral-50 transition-colors min-h-[44px]
+                     border border-edge-strong bg-surface text-sm font-medium text-fg-soft
+                     hover:bg-surface-muted transition-colors min-h-[44px]
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
             >
               Cancelar envio
@@ -76,12 +76,12 @@ const MAX_POLICY_LABEL = '20MB';
         } @else if (document(); as doc) {
           <div
             class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl
-                   border border-neutral-200 bg-white p-3"
+                   border border-edge bg-surface p-3"
           >
             <div class="flex items-center gap-3 min-w-0">
               <span
-                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50
-                       text-rose-700 shrink-0"
+                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-500/10
+                       text-rose-700 dark:text-rose-300 shrink-0"
                 aria-hidden="true"
               >
                 <svg
@@ -100,8 +100,8 @@ const MAX_POLICY_LABEL = '20MB';
                 </svg>
               </span>
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-neutral-900">Apólice (PDF)</p>
-                <p class="text-xs text-neutral-500 tabular-nums">
+                <p class="text-sm font-semibold text-fg">Apólice (PDF)</p>
+                <p class="text-xs text-fg-subtle tabular-nums">
                   {{ sizeText() }} · Enviada {{ uploadedAtText() }}
                 </p>
               </div>
@@ -123,8 +123,8 @@ const MAX_POLICY_LABEL = '20MB';
                 type="button"
                 (click)="picker.click()"
                 class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
-                       border border-neutral-300 text-neutral-700 text-sm font-medium
-                       hover:bg-neutral-50 transition-colors min-h-[44px]
+                       border border-edge-strong text-fg-soft text-sm font-medium
+                       hover:bg-surface-muted transition-colors min-h-[44px]
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
               >
                 Substituir
@@ -134,8 +134,8 @@ const MAX_POLICY_LABEL = '20MB';
                 (click)="askDelete()"
                 [disabled]="deleting()"
                 class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
-                       border border-rose-300 text-rose-700 text-sm font-medium
-                       hover:bg-rose-50 transition-colors min-h-[44px]
+                       border border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-sm font-medium
+                       hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors min-h-[44px]
                        disabled:opacity-60 disabled:cursor-not-allowed
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
               >
@@ -145,9 +145,9 @@ const MAX_POLICY_LABEL = '20MB';
           </div>
         } @else {
           <div
-            class="rounded-xl border-2 border-dashed border-neutral-300 p-6 sm:p-8 text-center space-y-3"
+            class="rounded-xl border-2 border-dashed border-edge-strong p-6 sm:p-8 text-center space-y-3"
           >
-            <p class="text-sm text-neutral-600">
+            <p class="text-sm text-fg-muted">
               Nenhuma apólice anexada. Envie o PDF recebido da seguradora para tê-lo à mão
               em qualquer dispositivo.
             </p>

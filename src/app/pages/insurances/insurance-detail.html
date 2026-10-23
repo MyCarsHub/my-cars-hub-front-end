@@ -1,12 +1,12 @@
 <app-default-page-layout title="Detalhes da apólice">
   @if (loading()) {
-    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
     </div>
   } @else if (error(); as loadError) {
-    <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
-      <p class="text-rose-700 text-sm" role="alert">{{ loadError }}</p>
-      <a routerLink="/seguros" class="inline-block text-sm text-primary-700 hover:text-primary-800 font-medium">
+    <div class="rounded-2xl bg-surface border border-rose-200 dark:border-rose-500/30 p-8 text-center space-y-3">
+      <p class="text-rose-700 dark:text-rose-300 text-sm" role="alert">{{ loadError }}</p>
+      <a routerLink="/seguros" class="inline-block text-sm text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 font-medium">
         Voltar para lista
       </a>
     </div>
@@ -24,9 +24,9 @@
         <div class="p-4 sm:p-6 space-y-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Seguradora</p>
-              <p class="text-base font-semibold text-neutral-900 truncate">{{ i.insurer }}</p>
-              <p class="text-sm text-neutral-600 tabular-nums">Apólice {{ i.policyNumber }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Seguradora</p>
+              <p class="text-base font-semibold text-fg truncate">{{ i.insurer }}</p>
+              <p class="text-sm text-fg-muted tabular-nums">Apólice {{ i.policyNumber }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 shrink-0">
               @if (expiryBadge(); as badge) {
@@ -46,43 +46,43 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm border-t border-neutral-100 pt-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm border-t border-edge-soft pt-4">
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Cobertura</p>
-              <p class="font-medium text-neutral-800">{{ coverageText() }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Cobertura</p>
+              <p class="font-medium text-fg-body">{{ coverageText() }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Prêmio</p>
-              <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(i.premiumAmount) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Prêmio</p>
+              <p class="font-semibold text-fg tabular-nums">{{ formatCurrency(i.premiumAmount) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Franquia</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatCurrency(i.deductibleAmount) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Franquia</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatCurrency(i.deductibleAmount) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Início da vigência</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(i.startDate) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Início da vigência</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatDate(i.startDate) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Fim da vigência</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(i.endDate) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Fim da vigência</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatDate(i.endDate) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Forma de pagamento</p>
-              <p class="font-medium text-neutral-800">{{ paymentMethodText() }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Forma de pagamento</p>
+              <p class="font-medium text-fg-body">{{ paymentMethodText() }}</p>
             </div>
             @if (i.cancelledDate) {
               <div>
-                <p class="text-xs uppercase tracking-wide text-neutral-400">Cancelada em</p>
-                <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(i.cancelledDate) }}</p>
+                <p class="text-xs uppercase tracking-wide text-fg-faint">Cancelada em</p>
+                <p class="font-medium text-fg-body tabular-nums">{{ formatDate(i.cancelledDate) }}</p>
               </div>
             }
           </div>
 
           @if (i.notes) {
-            <div class="border-t border-neutral-100 pt-4">
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Observações</p>
-              <p class="text-sm text-neutral-700 whitespace-pre-line">{{ i.notes }}</p>
+            <div class="border-t border-edge-soft pt-4">
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Observações</p>
+              <p class="text-sm text-fg-soft whitespace-pre-line">{{ i.notes }}</p>
             </div>
           }
         </div>
@@ -109,8 +109,8 @@
             type="button"
             (click)="askAction('cancel')"
             class="w-full lg:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                   bg-white text-amber-800 border border-amber-300 hover:bg-amber-50 transition-colors
-                   focus:outline-none focus:ring-2 focus:ring-amber-200"
+                   bg-surface text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/40 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors
+                   focus:outline-none focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-500/30"
           >
             Cancelar apólice
           </button>

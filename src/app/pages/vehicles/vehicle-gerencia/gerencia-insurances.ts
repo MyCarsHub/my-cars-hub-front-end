@@ -15,7 +15,7 @@ import { InsurancesList } from '../../insurances/insurances-list';
     <div class="mb-3">
       <a
         [routerLink]="['/veiculos', vehicleId(), 'gerencia']"
-        class="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-800 font-medium"
+        class="inline-flex items-center gap-1 text-sm text-fg-subtle hover:text-fg-body font-medium"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

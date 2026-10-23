@@ -50,9 +50,9 @@ const MAX_INSTALLMENTS = 120;
           <!-- Geração do cronograma. Mobile-first: campos empilhados, botão
                full-width; só a partir de sm vira linha. -->
           <form [formGroup]="form" (ngSubmit)="generate()" class="space-y-4">
-            <p class="text-sm text-neutral-600">
+            <p class="text-sm text-fg-muted">
               Nenhum cronograma gerado. Divida o prêmio de
-              <strong class="text-neutral-900 tabular-nums">{{
+              <strong class="text-fg tabular-nums">{{
                 formatCurrency(premiumAmount())
               }}</strong>
               em parcelas para acompanhar os pagamentos.
@@ -62,7 +62,7 @@ const MAX_INSTALLMENTS = 120;
               <div>
                 <label
                   for="insurance-installments-count"
-                  class="block text-xs font-medium text-neutral-700 mb-1"
+                  class="block text-xs font-medium text-fg-soft mb-1"
                 >
                   Número de parcelas
                 </label>
@@ -80,20 +80,20 @@ const MAX_INSTALLMENTS = 120;
                       ? 'insurance-installments-count-error'
                       : 'insurance-installments-count-hint'
                   "
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+                  class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums
                          min-h-[48px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600
                          transition-colors"
                 />
                 @if (countInvalid()) {
                   <p
                     id="insurance-installments-count-error"
-                    class="text-xs text-rose-700 mt-1"
+                    class="text-xs text-rose-700 dark:text-rose-300 mt-1"
                     role="alert"
                   >
                     Informe um número inteiro entre 1 e {{ maxInstallments }}.
                   </p>
                 } @else {
-                  <p id="insurance-installments-count-hint" class="text-xs text-neutral-500 mt-1">
+                  <p id="insurance-installments-count-hint" class="text-xs text-fg-subtle mt-1">
                     De 1 a {{ maxInstallments }} parcelas.
                   </p>
                 }
@@ -102,7 +102,7 @@ const MAX_INSTALLMENTS = 120;
               <div>
                 <label
                   for="insurance-installments-first-due"
-                  class="block text-xs font-medium text-neutral-700 mb-1"
+                  class="block text-xs font-medium text-fg-soft mb-1"
                 >
                   Vencimento da 1ª parcela
                 </label>
@@ -111,20 +111,20 @@ const MAX_INSTALLMENTS = 120;
                   type="date"
                   formControlName="firstDueDate"
                   aria-describedby="insurance-installments-first-due-hint"
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                  class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                          min-h-[48px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600
                          transition-colors"
                 />
                 <p
                   id="insurance-installments-first-due-hint"
-                  class="text-xs text-neutral-500 mt-1"
+                  class="text-xs text-fg-subtle mt-1"
                 >
                   Opcional. Em branco, o sistema decide a partir da vigência.
                 </p>
               </div>
             </div>
 
-            <p class="text-xs text-neutral-500">
+            <p class="text-xs text-fg-subtle">
               As parcelas são calculadas automaticamente. Quando a divisão não é exata, os
               centavos que sobram entram nas primeiras parcelas — a soma fecha o prêmio.
             </p>
@@ -148,39 +148,39 @@ const MAX_INSTALLMENTS = 120;
         } @else {
           <!-- Totais em duas colunas já no mobile: quatro números legíveis em 375px. -->
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div class="rounded-2xl border border-neutral-200 bg-white p-3">
-              <p class="text-xs uppercase tracking-wide text-neutral-500">Total parcelado</p>
-              <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+            <div class="rounded-2xl border border-edge bg-surface p-3">
+              <p class="text-xs uppercase tracking-wide text-fg-subtle">Total parcelado</p>
+              <p class="mt-1 text-base font-semibold text-fg tabular-nums">
                 {{ formatCurrency(totalCents()) }}
               </p>
             </div>
-            <div class="rounded-2xl border border-neutral-200 bg-white p-3">
-              <p class="text-xs uppercase tracking-wide text-neutral-500">Pago</p>
-              <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+            <div class="rounded-2xl border border-edge bg-surface p-3">
+              <p class="text-xs uppercase tracking-wide text-fg-subtle">Pago</p>
+              <p class="mt-1 text-base font-semibold text-fg tabular-nums">
                 {{ formatCurrency(paidCents()) }}
               </p>
             </div>
             @if (hasOverpayment()) {
-              <div class="rounded-2xl border border-amber-300 bg-amber-50 p-3">
-                <p class="text-xs uppercase tracking-wide text-amber-800">Pago a mais</p>
-                <p class="mt-1 text-base font-semibold text-amber-900 tabular-nums">
+              <div class="rounded-2xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3">
+                <p class="text-xs uppercase tracking-wide text-amber-800 dark:text-amber-200">Pago a mais</p>
+                <p class="mt-1 text-base font-semibold text-amber-900 dark:text-amber-200 tabular-nums">
                   {{ formatCurrency(overpaidCents()) }}
                 </p>
               </div>
             } @else {
-              <div class="rounded-2xl border border-neutral-200 bg-white p-3">
-                <p class="text-xs uppercase tracking-wide text-neutral-500">Em aberto</p>
-                <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+              <div class="rounded-2xl border border-edge bg-surface p-3">
+                <p class="text-xs uppercase tracking-wide text-fg-subtle">Em aberto</p>
+                <p class="mt-1 text-base font-semibold text-fg tabular-nums">
                   {{ formatCurrency(openCents()) }}
                 </p>
               </div>
             }
-            <div class="rounded-2xl border border-neutral-200 bg-white p-3">
-              <p class="text-xs uppercase tracking-wide text-neutral-500">Progresso</p>
-              <p class="mt-1 text-base font-semibold text-neutral-900 tabular-nums">
+            <div class="rounded-2xl border border-edge bg-surface p-3">
+              <p class="text-xs uppercase tracking-wide text-fg-subtle">Progresso</p>
+              <p class="mt-1 text-base font-semibold text-fg tabular-nums">
                 {{ paidCount() }}/{{ totalCount() }}
               </p>
-              <div class="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+              <div class="mt-2 h-1.5 rounded-full bg-surface-sunken overflow-hidden">
                 <div
                   class="h-full bg-primary-600"
                   [style.width.%]="progressPct()"
@@ -192,14 +192,14 @@ const MAX_INSTALLMENTS = 120;
 
           <!-- Conferência com o prêmio: o operador precisa ver que fecha. -->
           @if (totalMatchesPremium()) {
-            <p class="text-xs text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
+            <p class="text-xs text-fg-muted bg-surface-muted border border-edge rounded-lg px-3 py-2">
               A soma das {{ totalCount() }} parcelas confere com o prêmio de
               <strong class="tabular-nums">{{ formatCurrency(premiumAmount()) }}</strong
               >. Diferenças de centavos entre parcelas são do arredondamento e são esperadas.
             </p>
           } @else {
             <p
-              class="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
+              class="text-xs text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3 py-2"
               role="status"
             >
               A soma das parcelas ({{ formatCurrency(totalCents()) }}) não bate com o prêmio
@@ -212,7 +212,7 @@ const MAX_INSTALLMENTS = 120;
                na tabela do desktop. -->
           @if (hasOverpayment()) {
             <p
-              class="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
+              class="text-xs text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3 py-2"
               role="status"
             >
               O total pago ({{ formatCurrency(paidCents()) }}) passa o total parcelado
@@ -225,17 +225,17 @@ const MAX_INSTALLMENTS = 120;
           <!-- Mobile: cards. A tabela abaixo só entra a partir de lg. -->
           <ul class="space-y-2 lg:hidden" role="list">
             @for (row of installments(); track row.id) {
-              <li class="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 space-y-2">
+              <li class="rounded-xl border border-edge bg-surface px-3 py-2.5 space-y-2">
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex items-center gap-3 min-w-0">
-                    <span class="text-xs text-neutral-500 tabular-nums w-8 shrink-0">
+                    <span class="text-xs text-fg-subtle tabular-nums w-8 shrink-0">
                       {{ row.number }}/{{ totalCount() }}
                     </span>
                     <div class="min-w-0">
-                      <p class="text-sm font-medium text-neutral-900 tabular-nums">
+                      <p class="text-sm font-medium text-fg tabular-nums">
                         {{ formatCurrency(row.amountCents) }}
                       </p>
-                      <p class="text-xs text-neutral-500 tabular-nums">
+                      <p class="text-xs text-fg-subtle tabular-nums">
                         Vence {{ formatDate(row.dueDate) }}
                         @if (row.paid) {
                           · Paga {{ formatDate(row.paidDate) }}
@@ -268,7 +268,7 @@ const MAX_INSTALLMENTS = 120;
                     (click)="askUnpay(row)"
                     [attr.aria-label]="'Desfazer pagamento da parcela ' + row.number"
                     class="w-full inline-flex items-center justify-center px-3 rounded-lg text-xs
-                           font-medium border border-neutral-300 text-neutral-700 hover:bg-neutral-50
+                           font-medium border border-edge-strong text-fg-soft hover:bg-surface-muted
                            transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                   >
@@ -300,7 +300,7 @@ const MAX_INSTALLMENTS = 120;
                 Parcelas do prêmio do seguro
               </caption>
               <thead>
-                <tr class="text-left text-xs text-neutral-600 uppercase border-b border-neutral-200">
+                <tr class="text-left text-xs text-fg-muted uppercase border-b border-edge">
                   <th scope="col" class="py-2 pr-4 font-medium">#</th>
                   <th scope="col" class="py-2 pr-4 font-medium">Vencimento</th>
                   <th scope="col" class="py-2 pr-4 font-medium">Valor</th>
@@ -312,13 +312,13 @@ const MAX_INSTALLMENTS = 120;
               </thead>
               <tbody>
                 @for (row of installments(); track row.id) {
-                  <tr class="border-b border-neutral-100">
-                    <td class="py-2.5 pr-4 tabular-nums text-neutral-600">{{ row.number }}</td>
+                  <tr class="border-b border-edge-soft">
+                    <td class="py-2.5 pr-4 tabular-nums text-fg-muted">{{ row.number }}</td>
                     <td class="py-2.5 pr-4 tabular-nums">{{ formatDate(row.dueDate) }}</td>
                     <td class="py-2.5 pr-4 tabular-nums font-medium">
                       {{ formatCurrency(row.amountCents) }}
                     </td>
-                    <td class="py-2.5 pr-4 tabular-nums text-neutral-600">
+                    <td class="py-2.5 pr-4 tabular-nums text-fg-muted">
                       {{ formatDate(row.paidDate) }}
                     </td>
                     <td class="py-2.5 pr-4 tabular-nums" [class]="paidAmountClass(row)">
@@ -343,8 +343,8 @@ const MAX_INSTALLMENTS = 120;
                           [disabled]="busyId() === row.id"
                           (click)="askUnpay(row)"
                           [attr.aria-label]="'Desfazer pagamento da parcela ' + row.number"
-                          class="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300
-                                 text-neutral-700 hover:bg-neutral-50 transition-colors
+                          class="px-3 py-1.5 rounded-lg text-xs font-medium border border-edge-strong
+                                 text-fg-soft hover:bg-surface-muted transition-colors
                                  disabled:opacity-60 disabled:cursor-not-allowed
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                         >
@@ -378,7 +378,7 @@ const MAX_INSTALLMENTS = 120;
               [disabled]="deletingSchedule()"
               (click)="askDeleteSchedule()"
               class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
-                     border border-rose-300 text-rose-700 text-sm font-medium hover:bg-rose-50
+                     border border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-500/10
                      transition-colors min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
             >
@@ -709,13 +709,13 @@ export class InsuranceInstallmentsCard {
   }
 
   protected paidAmountClass(row: InsuranceInstallment): string {
-    return this.paidAmountDiverges(row) ? 'text-amber-800 font-semibold' : 'text-neutral-600';
+    return this.paidAmountDiverges(row) ? 'text-amber-800 dark:text-amber-200 font-semibold' : 'text-fg-muted';
   }
 
   protected chipFor(row: InsuranceInstallment): { label: string; chip: string } {
-    if (row.paid) return { label: 'Paga', chip: 'bg-emerald-100 text-emerald-800' };
-    if (row.dueDate < this.today) return { label: 'Atrasada', chip: 'bg-rose-100 text-rose-700' };
-    return { label: 'Prevista', chip: 'bg-neutral-100 text-neutral-700' };
+    if (row.paid) return { label: 'Paga', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
+    if (row.dueDate < this.today) return { label: 'Atrasada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
+    return { label: 'Prevista', chip: 'bg-surface-sunken text-fg-soft' };
   }
 
   protected formatDate(iso: string | null | undefined): string {

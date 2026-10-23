@@ -3,7 +3,7 @@
   description="Registre uma infração para um veículo da frota."
 >
   @if (loading()) {
-    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
     </div>
   } @else {
@@ -25,7 +25,7 @@
             <select
               appFieldControl
               formControlName="vehicleId"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                      disabled:opacity-60"
             >
@@ -44,7 +44,7 @@
             <select
               appFieldControl
               formControlName="driverId"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Não informado</option>
@@ -72,7 +72,7 @@
               maxlength="300"
               formControlName="description"
               placeholder="Ex: Excesso de velocidade em rodovia"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -83,7 +83,7 @@
               maxlength="20"
               formControlName="infractionCode"
               placeholder="Ex: 745-50"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -98,7 +98,7 @@
               appFieldControl
               type="datetime-local"
               formControlName="infractionDate"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -114,7 +114,7 @@
               maxlength="200"
               formControlName="location"
               placeholder="Ex: Av. Paulista, km 5"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
         </div>
@@ -139,7 +139,7 @@
               placeholder="1.200,00"
               formControlName="amountReais"
               (input)="onMoneyInput($event)"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -153,7 +153,7 @@
               appFieldControl
               formControlName="severity"
               (change)="onSeverityChange()"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of severityOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }} ({{ opt.defaultPoints }} pts)</option>
@@ -172,7 +172,7 @@
               type="number"
               min="0"
               formControlName="points"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
         </div>
@@ -185,7 +185,7 @@
               appFieldControl
               type="date"
               formControlName="dueDate"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -198,7 +198,7 @@
             <select
               appFieldControl
               formControlName="status"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of statusOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
@@ -215,7 +215,7 @@
               appFieldControl
               type="date"
               formControlName="paidDate"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -229,7 +229,7 @@
               appFieldControl
               rows="3"
               formControlName="notes"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"></textarea>
           </app-form-field>
         </div>
@@ -239,8 +239,8 @@
         <button
           type="button"
           (click)="cancel()"
-          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-neutral-700
-                 bg-white border border-neutral-200 hover:bg-neutral-50">
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-fg-soft
+                 bg-surface border border-edge hover:bg-surface-muted">
           Cancelar
         </button>
         <button

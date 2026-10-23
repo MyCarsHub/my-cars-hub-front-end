@@ -3,7 +3,7 @@
   description="Preencha as informações do veículo."
 >
   @if (loading()) {
-    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
     </div>
   } @else {
@@ -20,7 +20,7 @@
             type="button"
             (click)="skipActivation()"
             class="inline-flex items-center mt-1 min-h-11 px-3 py-2 -ml-3 text-sm font-medium
-                   underline underline-offset-2 text-sky-800 hover:text-sky-900
+                   underline underline-offset-2 text-sky-800 dark:text-sky-200 hover:text-sky-900 dark:hover:text-sky-200
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded"
           >
             Pular por enquanto
@@ -37,12 +37,12 @@
            quebra — sem scroll horizontal no mobile. -->
       @if (soldLockReason(); as lockReason) {
         <div
-          class="rounded-xl border border-neutral-300 bg-neutral-50 p-4"
+          class="rounded-xl border border-edge-strong bg-surface-muted p-4"
           role="status"
           data-sold-notice
         >
-          <p class="text-sm font-semibold text-neutral-900 break-words">{{ lockReason }}</p>
-          <p class="mt-1 text-sm text-neutral-600 break-words">
+          <p class="text-sm font-semibold text-fg break-words">{{ lockReason }}</p>
+          <p class="mt-1 text-sm text-fg-muted break-words">
             Os campos ficam somente para consulta e o salvamento está desabilitado. Para editar,
             abra o veículo e desfaça a venda.
           </p>
@@ -70,7 +70,7 @@
                 [value]="plateDisplay()"
                 (input)="onPlateInput($event)"
                 [disabled]="sold()"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-widest tabular-nums
+                class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tracking-widest tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </app-form-field>
 
@@ -86,7 +86,7 @@
                 [disabled]="plateLookupDisabled()"
                 [attr.aria-busy]="plateLookupBusy()"
                 class="mt-1 inline-flex items-center gap-1.5 min-h-11 px-3 py-2 -ml-3 rounded-lg text-sm
-                       font-medium text-primary-700 hover:text-primary-800 hover:bg-primary-50
+                       font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10
                        transition-colors focus:outline-none focus-visible:ring-2
                        focus-visible:ring-primary-500 disabled:opacity-50"
                 [class]="plateLookupBusy() ? 'disabled:cursor-wait' : 'disabled:cursor-not-allowed'"
@@ -116,8 +116,8 @@
               data-plate-lookup-note
               role="status"
               class="mt-1 text-xs"
-              [class.text-neutral-500]="plateLookupNote()?.kind !== 'success'"
-              [class.text-success-900]="plateLookupNote()?.kind === 'success'"
+              [class.text-fg-subtle]="plateLookupNote()?.kind !== 'success'"
+              [class.text-success-900]="plateLookupNote()?.kind === 'success'" [class.dark:text-emerald-300]="plateLookupNote()?.kind === 'success'"
             >
               {{ plateLookupNote()?.text ?? '' }}
             </p>
@@ -125,12 +125,12 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-type">Tipo <span class="text-primary-700" aria-hidden="true">*</span></label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-type">Tipo <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span></label>
             <select
               id="veiculo-type"
               formControlName="type"
               aria-required="true"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of typeOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
@@ -139,14 +139,14 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-color">Cor</label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-color">Cor</label>
             <input
               id="veiculo-color"
               type="text"
               formControlName="color"
               placeholder="Ex: Prata"
               list="veiculo-color-options"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             <datalist id="veiculo-color-options">
               <option value="Branco"></option>
@@ -161,13 +161,13 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-fuel">
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-fuel">
               Combustível
             </label>
             <select
               id="veiculo-fuel"
               formControlName="fuel"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Selecione…</option>
@@ -195,8 +195,8 @@
                verdade do submit não muda. -->
           @if (catalogMode() === 'fipe') {
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-fipe-brand">
-                Marca <span class="text-primary-700" aria-hidden="true">*</span>
+              <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-fipe-brand">
+                Marca <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span>
               </label>
               <select
                 id="veiculo-fipe-brand"
@@ -208,7 +208,7 @@
                 [value]="fipeBrandCode()"
                 (change)="onFipeBrandChange($event)"
                 [disabled]="sold() || fipeLoading() === 'brands'"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
                 <option value="">
                   {{ fipeLoading() === 'brands' ? 'Carregando marcas…' : 'Selecione a marca…' }}
@@ -218,15 +218,15 @@
                 }
               </select>
               @if (fieldInvalid(['brand'])) {
-                <p id="veiculo-fipe-brand-error" role="alert" class="text-xs text-rose-600 mt-1">
+                <p id="veiculo-fipe-brand-error" role="alert" class="text-xs text-rose-600 dark:text-rose-300 mt-1">
                   Informe a marca.
                 </p>
               }
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-fipe-model">
-                Modelo <span class="text-primary-700" aria-hidden="true">*</span>
+              <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-fipe-model">
+                Modelo <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span>
               </label>
               <select
                 id="veiculo-fipe-model"
@@ -238,7 +238,7 @@
                 [value]="fipeModelCode()"
                 (change)="onFipeModelChange($event)"
                 [disabled]="sold() || !fipeBrandCode() || fipeLoading() === 'models'"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                        disabled:opacity-60">
                 <option value="">
@@ -250,14 +250,14 @@
                 }
               </select>
               @if (fieldInvalid(['model'])) {
-                <p id="veiculo-fipe-model-error" role="alert" class="text-xs text-rose-600 mt-1">
+                <p id="veiculo-fipe-model-error" role="alert" class="text-xs text-rose-600 dark:text-rose-300 mt-1">
                   Informe o modelo.
                 </p>
               }
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-fipe-year">
+              <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-fipe-year">
                 Ano (tabela FIPE)
               </label>
               <select
@@ -267,7 +267,7 @@
                 [value]="fipeYearCode()"
                 (change)="onFipeYearChange($event)"
                 [disabled]="sold() || !fipeModelCode() || fipeLoading() === 'years'"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                        disabled:opacity-60">
                 <option value="">
@@ -278,21 +278,21 @@
                   <option [value]="year.code">{{ year.name }}</option>
                 }
               </select>
-              <p class="text-xs text-neutral-500 mt-1">Preenche os campos de ano abaixo.</p>
+              <p class="text-xs text-fg-subtle mt-1">Preenche os campos de ano abaixo.</p>
             </div>
 
           } @else {
             <div>
               <app-primary-input label="Marca" [required]="true" placeholder="Ex: Fiat" formControlName="brand" />
               @if (fieldInvalid(['brand'])) {
-                <p class="text-xs text-rose-600 mt-1">Informe a marca.</p>
+                <p class="text-xs text-rose-600 dark:text-rose-300 mt-1">Informe a marca.</p>
               }
             </div>
 
             <div>
               <app-primary-input label="Modelo" [required]="true" placeholder="Ex: Uno" formControlName="model" />
               @if (fieldInvalid(['model'])) {
-                <p class="text-xs text-rose-600 mt-1">Informe o modelo.</p>
+                <p class="text-xs text-rose-600 dark:text-rose-300 mt-1">Informe o modelo.</p>
               }
             </div>
           }
@@ -307,8 +307,8 @@
                   data-fipe-manual-toggle
                   (click)="useManualMode()"
                   class="inline-flex items-center min-h-11 px-3 py-2 -ml-3 rounded-lg text-sm font-medium
-                         text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 transition-colors
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
+                         text-fg-subtle hover:text-fg-body hover:bg-surface-sunken transition-colors
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500"
                 >
                   Não achou na lista? Digitar manualmente
                 </button>
@@ -318,7 +318,7 @@
                   data-fipe-catalog-toggle
                   (click)="enterFipeMode()"
                   class="inline-flex items-center min-h-11 px-3 py-2 -ml-3 rounded-lg text-sm font-medium
-                         text-primary-700 hover:text-primary-800 hover:bg-primary-50 transition-colors
+                         text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 >
                   Selecionar da tabela FIPE
@@ -326,7 +326,7 @@
               }
               <!-- Nota do catálogo (ex.: FIPE respondeu vazio) — container
                    sempre presente para a live region anunciar a mudança. -->
-              <p data-fipe-note role="status" class="text-xs text-neutral-500">
+              <p data-fipe-note role="status" class="text-xs text-fg-subtle">
                 {{ fipeCatalogNote() ?? '' }}
               </p>
             </div>
@@ -334,7 +334,7 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-year-manufacture">Ano fabricação <span class="text-primary-700" aria-hidden="true">*</span></label>
+              <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-year-manufacture">Ano fabricação <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span></label>
               <input
                 id="veiculo-year-manufacture"
                 type="number"
@@ -342,11 +342,11 @@
                 min="1900"
                 max="2100"
                 aria-required="true"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-3 text-neutral-800 tabular-nums
+                class="w-full bg-surface-muted border border-edge rounded-xl px-3 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-year-model">Ano modelo <span class="text-primary-700" aria-hidden="true">*</span></label>
+              <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-year-model">Ano modelo <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span></label>
               <input
                 id="veiculo-year-model"
                 type="number"
@@ -354,13 +354,13 @@
                 min="1900"
                 max="2100"
                 aria-required="true"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-3 text-neutral-800 tabular-nums
+                class="w-full bg-surface-muted border border-edge rounded-xl px-3 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
           </div>
 
           @if (hasYearRangeError()) {
-            <p class="text-xs text-rose-600 md:col-span-3 -mt-2">
+            <p class="text-xs text-rose-600 dark:text-rose-300 md:col-span-3 -mt-2">
               Modelo pode ser no máximo 1 ano após fabricação.
             </p>
           }
@@ -386,7 +386,7 @@
               [value]="form.controls.chassis.value"
               (input)="onChassisInput($event)"
               [disabled]="isEdit() || sold()"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-wider tabular-nums
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tracking-wider tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60" />
           </app-form-field>
 
@@ -406,7 +406,7 @@
               [value]="form.controls.renavam.value"
               (input)="onRenavamInput($event)"
               [disabled]="isEdit() || sold()"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60" />
           </app-form-field>
         </div>
@@ -416,44 +416,44 @@
       <app-page-card title="Operacional">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-hodometer">Hodômetro (km) <span class="text-primary-700" aria-hidden="true">*</span></label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-hodometer">Hodômetro (km) <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span></label>
             <input
               id="veiculo-hodometer"
               type="number"
               formControlName="hodometer"
               min="0"
               aria-required="true"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800 tabular-nums
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             @if (fieldInvalid(['hodometer'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe um valor válido (≥ 0).</p>
+              <p class="text-xs text-rose-600 dark:text-rose-300 mt-1">Informe um valor válido (≥ 0).</p>
             }
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-licensing-expiration">Licenciamento vence em</label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-licensing-expiration">Licenciamento vence em</label>
             <input
               id="veiculo-licensing-expiration"
               type="date"
               formControlName="licensingExpiration"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-purchase-date">Data da compra</label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-purchase-date">Data da compra</label>
             <input
               id="veiculo-purchase-date"
               type="date"
               formControlName="purchaseDate"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-purchase-price">Valor total (R$)</label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-purchase-price">Valor total (R$)</label>
             <div class="relative">
-              <span class="absolute inset-y-0 left-3 flex items-center text-neutral-400 text-sm" aria-hidden="true">R$</span>
+              <span class="absolute inset-y-0 left-3 flex items-center text-fg-faint text-sm" aria-hidden="true">R$</span>
               <!-- type="text" + inputmode: `type="number"` recusa a vírgula do
                    teclado pt-BR, reinterpreta "45.000" como 45 e não deixa a
                    máscara de milhar escrever no campo. -->
@@ -465,13 +465,13 @@
                 formControlName="purchasePrice"
                 (input)="onMoneyInput($event)"
                 placeholder="45.000,00"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl pl-10 pr-4 py-3 text-neutral-800 tabular-nums
+                class="w-full bg-surface-muted border border-edge rounded-xl pl-10 pr-4 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
             @if (fieldInvalid(['purchasePrice'])) {
-              <p class="text-xs text-rose-600 mt-1">Informe um valor válido (ex.: 45.000,00).</p>
+              <p class="text-xs text-rose-600 dark:text-rose-300 mt-1">Informe um valor válido (ex.: 45.000,00).</p>
             }
-            <p class="text-xs text-neutral-500 mt-1">
+            <p class="text-xs text-fg-subtle mt-1">
               Valor pago pelo veículo. Entra no resultado da Gerência como custo de aquisição.
             </p>
           </div>
@@ -482,9 +482,9 @@
       <app-page-card title="IPVA (opcional)">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-ipva-amount">Valor (R$)</label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-ipva-amount">Valor (R$)</label>
             <div class="relative">
-              <span class="absolute inset-y-0 left-3 flex items-center text-neutral-400 text-sm" aria-hidden="true">R$</span>
+              <span class="absolute inset-y-0 left-3 flex items-center text-fg-faint text-sm" aria-hidden="true">R$</span>
               <input
                 id="veiculo-ipva-amount"
                 type="number"
@@ -493,37 +493,37 @@
                 inputmode="decimal"
                 formControlName="ipvaAmount"
                 placeholder="0,00"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl pl-10 pr-4 py-3 text-neutral-800 tabular-nums
+                class="w-full bg-surface-muted border border-edge rounded-xl pl-10 pr-4 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
             @if (fieldInvalid(['ipvaAmount'])) {
-              <p class="text-xs text-rose-600 mt-1">Valor inválido.</p>
+              <p class="text-xs text-rose-600 dark:text-rose-300 mt-1">Valor inválido.</p>
             }
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-ipva-due">Vencimento</label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-ipva-due">Vencimento</label>
             <input
               id="veiculo-ipva-due"
               type="date"
               formControlName="ipvaDueDate"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="veiculo-ipva-status">Status</label>
+            <label class="block text-sm font-medium text-fg-soft mb-1.5" for="veiculo-ipva-status">Status</label>
             <select
               id="veiculo-ipva-status"
               formControlName="ipvaStatus"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               <option value="">Automático</option>
               @for (opt of ipvaStatusOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
               }
             </select>
-            <p class="text-xs text-neutral-400 mt-1">Deixe em "Automático" para o sistema definir com base no vencimento.</p>
+            <p class="text-xs text-fg-faint mt-1">Deixe em "Automático" para o sistema definir com base no vencimento.</p>
           </div>
         </div>
       </app-page-card>
@@ -535,19 +535,19 @@
             <!-- Já existe um ativo: o backend não aceita um segundo nem expõe edição aqui. -->
             <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-sm">
               <div>
-                <dt class="text-neutral-500">Contrato</dt>
-                <dd class="text-neutral-800 tabular-nums">{{ formatDate(fin.contractDate) }}</dd>
+                <dt class="text-fg-subtle">Contrato</dt>
+                <dd class="text-fg-body tabular-nums">{{ formatDate(fin.contractDate) }}</dd>
               </div>
               <div>
-                <dt class="text-neutral-500">Valor de compra</dt>
-                <dd class="text-neutral-800 tabular-nums">{{ formatCurrency(fin.purchasePrice) }}</dd>
+                <dt class="text-fg-subtle">Valor de compra</dt>
+                <dd class="text-fg-body tabular-nums">{{ formatCurrency(fin.purchasePrice) }}</dd>
               </div>
               <div>
-                <dt class="text-neutral-500">Parcelas</dt>
-                <dd class="text-neutral-800 tabular-nums">
+                <dt class="text-fg-subtle">Parcelas</dt>
+                <dd class="text-fg-body tabular-nums">
                   {{ fin.installments ?? '—' }}
                   @if (fin.installmentAmount) {
-                    <span class="text-neutral-500">× {{ formatCurrency(fin.installmentAmount) }}</span>
+                    <span class="text-fg-subtle">× {{ formatCurrency(fin.installmentAmount) }}</span>
                   }
                 </dd>
               </div>
@@ -555,7 +555,7 @@
             <a
               [routerLink]="['/financiamentos', fin.id]"
               class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-                     border border-neutral-200 text-sm font-medium text-neutral-700 hover:bg-neutral-50
+                     border border-edge text-sm font-medium text-fg-soft hover:bg-surface-muted
                      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500">
               Ver financiamento
             </a>
@@ -566,9 +566,9 @@
               [attr.aria-expanded]="showFinancing()"
               [disabled]="sold()"
               [attr.title]="soldLockReason()"
-              class="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200
-                     text-sm font-medium text-neutral-700 hover:bg-neutral-50
-                     disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white">
+              class="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-edge
+                     text-sm font-medium text-fg-soft hover:bg-surface-muted
+                     disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 @if (showFinancing()) {
@@ -597,9 +597,9 @@
             aria-controls="veiculo-insurance-block"
             [disabled]="sold()"
             [attr.title]="soldLockReason()"
-            class="w-full sm:w-auto inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-neutral-200
-                   text-sm font-medium text-neutral-700 hover:bg-neutral-50
-                   disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white">
+            class="w-full sm:w-auto inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-edge
+                   text-sm font-medium text-fg-soft hover:bg-surface-muted
+                   disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-surface">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               @if (showInsurance()) {
@@ -615,7 +615,7 @@
           <div id="veiculo-insurance-block" class="space-y-4">
             @if (showInsurance()) {
               <app-insurance-form-fields [formGroup]="insuranceForm" />
-              <p class="text-xs text-neutral-400">
+              <p class="text-xs text-fg-faint">
                 O veículo aceita apenas uma apólice ativa por vez. Se já houver uma,
                 o cadastro é recusado e a mensagem aparece acima.
               </p>
@@ -649,8 +649,8 @@
         <button
           type="button"
           (click)="cancel()"
-          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-neutral-700
-                 bg-white border border-neutral-200 hover:bg-neutral-50">
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-fg-soft
+                 bg-surface border border-edge hover:bg-surface-muted">
           Cancelar
         </button>
         <!-- Desabilitado, NÃO escondido: o motivo viaja no `title` e no aviso

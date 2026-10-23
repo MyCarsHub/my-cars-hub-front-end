@@ -268,9 +268,9 @@ export class VehicleGerenciaHub implements OnInit {
 
   /** Sign-aware currency: negative results shown in red, positive in green. */
   protected resultClass(cents: number): string {
-    if (cents > 0) return 'text-emerald-700';
-    if (cents < 0) return 'text-rose-700';
-    return 'text-neutral-900';
+    if (cents > 0) return 'text-emerald-700 dark:text-emerald-300';
+    if (cents < 0) return 'text-rose-700 dark:text-rose-300';
+    return 'text-fg';
   }
 
   /**
@@ -283,10 +283,10 @@ export class VehicleGerenciaHub implements OnInit {
   protected receivedClass(finance: GerenciaFinanceChunk): string {
     const rev = finance.totalRentalRevenueCents;
     const recv = finance.totalRentalReceivedCents;
-    if (rev === 0 && recv === 0) return 'text-neutral-900';
-    if (recv === 0) return 'text-neutral-500';
-    if (recv >= rev) return 'text-emerald-700';
-    return 'text-amber-700';
+    if (rev === 0 && recv === 0) return 'text-fg';
+    if (recv === 0) return 'text-fg-subtle';
+    if (recv >= rev) return 'text-emerald-700 dark:text-emerald-300';
+    return 'text-amber-700 dark:text-amber-300';
   }
 
   protected licensingChipLabel(): { label: string; chip: string } | null {
