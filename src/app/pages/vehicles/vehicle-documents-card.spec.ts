@@ -206,11 +206,11 @@ describe('VehicleDocumentsCard', () => {
 
   // -------------------------------------------------------------------- tipos
 
-  /** São só DOIS tipos, e não há portão de perfil que esconda qualquer um. */
-  it('mostra exatamente os slots de CRLV e Outro, sem seletor de tipo', async () => {
+  /** TRÊS tipos (V115 trouxe a foto), e não há portão de perfil que esconda qualquer um. */
+  it('mostra exatamente os slots de CRLV, Outro e Foto do veículo, sem seletor de tipo', async () => {
     await setup();
 
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER']);
+    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
     expect(host().querySelector('select')).toBeNull();
     expect(host().textContent).not.toContain('Anexar documento');
   });
@@ -221,6 +221,9 @@ describe('VehicleDocumentsCard', () => {
     expect(slotEl('CRLV').getAttribute('data-filled')).toBe('false');
     expect(slotText('CRLV')).toContain('Falta anexar');
     expect(slotText('OTHER')).not.toContain('Falta anexar');
+    // A foto é OPCIONAL: a lista fica boa sem ela, então o card não a cobra.
+    expect(slotText('PHOTO')).not.toContain('Falta anexar');
+    expect(slotText('PHOTO')).toContain('Opcional');
   });
 
   it('resume quantos tipos essenciais faltam, sem contar o opcional', async () => {
@@ -668,7 +671,7 @@ describe('VehicleDocumentsCard', () => {
 
     await setup();
 
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER']);
+    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
     expect(slotFileRows('CRLV')).toHaveLength(0);
     expect(state().documents()).toEqual([]);
   });
@@ -687,7 +690,7 @@ describe('VehicleDocumentsCard', () => {
 
     expect(state().documents()).toEqual([]);
     expect(host().textContent).toContain('Não foi possível carregar os documentos.');
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER']);
+    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
   });
 
   /**

@@ -57,7 +57,19 @@ export interface VehicleListItem {
   sold: boolean;
   ipvaStatus?: IpvaStatus | null;
   ipvaExpired?: boolean;
+  /**
+   * URL ASSINADA da miniatura do card (só vem quando a lista pede
+   * `includePhoto`). Foto do veículo; senão a frente da última vistoria
+   * aprovada; `null` = sem foto, o card mostra o placeholder. Reassinada a cada
+   * carga: nunca use como chave de `@for`.
+   */
+  photoUrl?: string | null;
+  /** De onde a miniatura veio. `null` quando não há foto. */
+  photoSource?: VehiclePhotoSource | null;
 }
+
+/** Espelha `VehicleListItemDto.PHOTO_SOURCE_*`. */
+export type VehiclePhotoSource = 'VEHICLE' | 'INSPECTION';
 
 export interface Financing {
   id: string;
@@ -218,6 +230,11 @@ export interface MarkPaidOffRequest {
 export interface VehicleFilters {
   q?: string;
   /**
+   * Pede a miniatura de cada item (`photoUrl`/`photoSource`). Opt-in porque
+   * cada foto custa uma assinatura no storage: só a tela de veículos manda.
+   */
+  includePhoto?: boolean;
+  /**
    * Recorte de vendidos (FEAT-0072). AUSENTE = listagem operacional, que
    * esconde os vendidos; `true` = só os vendidos. O default é ausência de
    * propósito: a tela do dia a dia não deve carregar carro que saiu da frota.
@@ -339,7 +356,7 @@ export interface FinancingFilters {
  * convivem. Não existe unicidade por tipo, e enviar um CRLV novo NÃO
  * substitui o anterior.
  */
-export type VehicleDocumentKind = 'CRLV' | 'OTHER';
+export type VehicleDocumentKind = 'CRLV' | 'OTHER' | 'PHOTO';
 
 /** Espelha `VehicleDocumentDto`. Sem `storagePath`: o bucket é privado. */
 export interface VehicleDocument {
@@ -364,6 +381,8 @@ export interface VehicleDocumentUrl {
 export const VEHICLE_DOCUMENT_KIND_META: Record<VehicleDocumentKind, string> = {
   CRLV: 'CRLV',
   OTHER: 'Outro',
+  // V115 — a foto opcional do veículo, que vira a miniatura da lista. Só imagem.
+  PHOTO: 'Foto do veículo',
 };
 
 export const VEHICLE_DOCUMENT_KIND_OPTIONS: ReadonlyArray<{
