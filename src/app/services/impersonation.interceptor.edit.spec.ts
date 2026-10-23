@@ -82,6 +82,7 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/inspections/i-1/reject'],
     ['POST', '/inspections/i-1/recapture'],
     ['POST', '/rentals/r-1/activate'],
+    ['POST', '/rentals/r-1/complete'],
     ['POST', '/rentals/r-1/inspections/CHECKIN/generate-pdf'],
     ['POST', '/rentals/r-1/inspections/CHECKOUT/upload-pdf'],
   ])('deixa passar %s %s', (method, path) => {
@@ -104,7 +105,9 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['PUT', '/rentals/r-1/cancel'],
     ['POST', '/rentals/r-1/cancel/extra'],
     ['POST', '/rentals/preflight/extra'],
-    ['POST', '/rentals/r-1/complete'],
+    ['PUT', '/rentals/r-1/complete'],
+    ['POST', '/rentals/r-1/complete/extra'],
+    ['POST', '/rentals/complete'],
     ['POST', '/rentals/r-1/activate/extra'],
     ['POST', '/rentals/r-1/inspections/CHECKIN/other-pdf'],
     ['POST', '/rentals/r-1/inspections/generate-pdf'],
@@ -163,6 +166,7 @@ describe('impersonationInterceptor — sessão de EDIÇÃO', () => {
     ['POST', '/inspections/i-1/reject'],
     ['POST', '/inspections/i-1/recapture'],
     ['POST', '/rentals/r-1/activate'],
+    ['POST', '/rentals/r-1/complete'],
     ['POST', '/rentals/r-1/inspections/CHECKIN/generate-pdf'],
     ['POST', '/rentals/r-1/inspections/CHECKOUT/upload-pdf'],
   ])('barra %s %s na sessão de LEITURA', async (method, path) => {

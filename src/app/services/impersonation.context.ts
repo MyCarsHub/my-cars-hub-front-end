@@ -97,6 +97,8 @@ export const SUPPORT_EDIT_WRITE_ROUTES: ReadonlyArray<{ method: string; path: Re
   { method: 'POST', path: /^\/rentals\/[^/]+\/photos$/ },
   { method: 'DELETE', path: /^\/rentals\/[^/]+\/photos\/[^/]+$/ },
   { method: 'POST', path: /^\/rentals\/[^/]+\/activate$/ },
+  // Concluir aluguel (espelho do backend: só remove no Asaas as cobranças abertas; sem estorno).
+  { method: 'POST', path: /^\/rentals\/[^/]+\/complete$/ },
   { method: 'POST', path: /^\/rentals\/[^/]+\/inspections\/[^/]+\/(generate|upload)-pdf$/ },
   { method: 'POST', path: /^\/inspections$/ },
   { method: 'POST', path: /^\/inspections\/[^/]+\/photos\/[^/]+$/ },
