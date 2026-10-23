@@ -13,7 +13,7 @@ import { FakeFinanceSource, TODAY } from './driver-finance.testing';
  */
 describe('DriverDashboard — «Aluguel da semana»', () => {
   let source: FakeFinanceSource;
-  const charges = { list: vi.fn(() => of([])) };
+  const charges = { list: vi.fn((_id: string) => of([] as unknown[])) };
 
   function mount() {
     TestBed.configureTestingModule({
@@ -57,8 +57,49 @@ describe('DriverDashboard — «Aluguel da semana»', () => {
     expect(charges.list).toHaveBeenCalledWith('rental-1');
   });
 
+  it('com cobrança atrasada, o aviso rose abre a tela, antes do resto', () => {
+    charges.list.mockReturnValue(
+      of([
+        {
+          id: 'c1',
+          kind: 'RENTAL_PERIOD',
+          amount: 65000,
+          status: 'PAST_DUE',
+          dueDate: '2026-09-01',
+          periodIndex: 1,
+          paidAt: null,
+          checkoutUrl: 'https://pay.example/i/1',
+        },
+      ]),
+    );
+    source.contextValue = {
+      firstName: 'Carlos',
+      licenseExpiry: null,
+      rental: {
+        rentalId: 'rental-1',
+        vehicleLabel: 'Mobi',
+        plate: null,
+        periodAmount: 70000,
+        periodDays: 7,
+        startDate: '2026-08-01',
+        nextCharge: null,
+        charges: [],
+      },
+    };
+    const host = mount();
+    const notice = host.querySelector('app-driver-overdue-notice');
+    expect(notice).not.toBeNull();
+    expect(notice!.querySelector('[data-pay-now]')).not.toBeNull();
+    const hero = host.querySelector('[data-hero]');
+    expect(
+      notice!.compareDocumentPosition(hero!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    charges.list.mockReturnValue(of([]));
+  });
+
   it('sem aluguel, não há card', () => {
     const host = mount();
+    expect(host.querySelector('app-driver-overdue-notice')).toBeNull();
     expect(host.querySelector('app-driver-next-charge')).toBeNull();
     expect(charges.list).not.toHaveBeenCalled();
   });

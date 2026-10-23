@@ -40,6 +40,12 @@ export interface AlertsDto {
      * Opcional pelo mesmo motivo de `expiringInsurance30d`.
      */
     docsExpiring7d?: CountDto;
+    /**
+     * Cobranças de aluguel em atraso (quantidade e valor somado), por empresa.
+     * Opcional pelo mesmo motivo de `expiringInsurance30d`: um backend anterior
+     * à entrega do alerta não o envia.
+     */
+    overdueCharges?: CountAmountDto;
 }
 
 export interface FleetDto {

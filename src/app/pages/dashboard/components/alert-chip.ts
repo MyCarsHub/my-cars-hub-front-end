@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-export type AlertVariant = 'danger' | 'warning' | 'info';
+export type AlertVariant = 'rose' | 'danger' | 'warning' | 'info';
 
 interface Palette {
     bg: string;
@@ -11,6 +11,14 @@ interface Palette {
 }
 
 const PALETTES: Record<AlertVariant, Palette> = {
+    // O mais urgente da faixa (dinheiro vencido): rose, mais forte que o `danger` das multas.
+    rose: {
+        bg: 'bg-rose-50 dark:bg-rose-500/10',
+        text: 'text-rose-800 dark:text-rose-200',
+        border: 'border-rose-200 dark:border-rose-500/30',
+        iconBg: 'bg-rose-100 dark:bg-rose-500/15',
+        iconText: 'text-rose-600 dark:text-rose-300',
+    },
     danger: {
         bg: 'bg-red-50 dark:bg-red-500/10',
         text: 'text-red-800 dark:text-red-200',
