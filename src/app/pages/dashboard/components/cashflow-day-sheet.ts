@@ -13,11 +13,11 @@ interface KindMeta {
 }
 
 const KIND_META: Record<CashflowEventDto['kind'], KindMeta> = {
-    RENTAL_RECEIPT: { label: 'Recebimento de aluguel', color: 'text-emerald-700' },
-    MAINTENANCE_PAID: { label: 'Manutenção paga', color: 'text-red-700' },
-    MAINTENANCE_SCHEDULED: { label: 'Manutenção agendada', color: 'text-amber-700' },
-    FINE_PAID: { label: 'Multa paga', color: 'text-red-700' },
-    FINE_DUE: { label: 'Multa a vencer', color: 'text-amber-700' },
+    RENTAL_RECEIPT: { label: 'Recebimento de aluguel', color: 'text-emerald-700 dark:text-emerald-300' },
+    MAINTENANCE_PAID: { label: 'Manutenção paga', color: 'text-red-700 dark:text-red-300' },
+    MAINTENANCE_SCHEDULED: { label: 'Manutenção agendada', color: 'text-amber-700 dark:text-amber-300' },
+    FINE_PAID: { label: 'Multa paga', color: 'text-red-700 dark:text-red-300' },
+    FINE_DUE: { label: 'Multa a vencer', color: 'text-amber-700 dark:text-amber-300' },
 };
 
 /**
@@ -40,21 +40,21 @@ const KIND_META: Record<CashflowEventDto['kind'], KindMeta> = {
                 <div
                     role="dialog"
                     aria-modal="true"
-                    class="relative z-10 bg-white w-full sm:w-96 sm:h-full max-h-[85vh]
+                    class="relative z-10 bg-surface w-full sm:w-96 sm:h-full max-h-[85vh]
                            rounded-t-2xl sm:rounded-t-none sm:rounded-l-2xl shadow-2xl
                            overflow-hidden flex flex-col"
                 >
-                    <header class="p-4 border-b border-gray-100 flex items-start justify-between gap-2">
+                    <header class="p-4 border-b border-gray-100 dark:border-edge-soft flex items-start justify-between gap-2">
                         <div class="min-w-0">
-                            <p class="text-xs text-gray-500 uppercase tracking-wide">Detalhes do dia</p>
-                            <p class="text-base font-semibold text-gray-900 truncate">
+                            <p class="text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide">Detalhes do dia</p>
+                            <p class="text-base font-semibold text-gray-900 dark:text-fg truncate">
                                 {{ formattedDate() }}
                             </p>
                         </div>
                         <button
                             type="button"
-                            class="min-h-[44px] min-w-[44px] rounded-lg hover:bg-gray-100 flex
-                                   items-center justify-center text-gray-500"
+                            class="min-h-[44px] min-w-[44px] rounded-lg hover:bg-gray-100 dark:hover:bg-surface-sunken flex
+                                   items-center justify-center text-gray-500 dark:text-fg-subtle"
                             aria-label="Fechar"
                             (click)="close.emit()"
                         >
@@ -66,16 +66,16 @@ const KIND_META: Record<CashflowEventDto['kind'], KindMeta> = {
                         </button>
                     </header>
 
-                    <div class="px-4 py-3 grid grid-cols-2 gap-3 border-b border-gray-100">
+                    <div class="px-4 py-3 grid grid-cols-2 gap-3 border-b border-gray-100 dark:border-edge-soft">
                         <div>
-                            <p class="text-[10px] text-gray-500 uppercase tracking-wide">A receber</p>
-                            <p class="text-sm font-semibold text-emerald-600 tabular-nums truncate">
+                            <p class="text-[10px] text-gray-500 dark:text-fg-subtle uppercase tracking-wide">A receber</p>
+                            <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-300 tabular-nums truncate">
                                 {{ inTotalLabel() }}
                             </p>
                         </div>
                         <div>
-                            <p class="text-[10px] text-gray-500 uppercase tracking-wide">A pagar</p>
-                            <p class="text-sm font-semibold text-red-600 tabular-nums truncate">
+                            <p class="text-[10px] text-gray-500 dark:text-fg-subtle uppercase tracking-wide">A pagar</p>
+                            <p class="text-sm font-semibold text-red-600 dark:text-red-300 tabular-nums truncate">
                                 {{ outTotalLabel() }}
                             </p>
                         </div>
@@ -83,7 +83,7 @@ const KIND_META: Record<CashflowEventDto['kind'], KindMeta> = {
 
                     <ul class="overflow-y-auto p-4 space-y-3">
                         @for (e of events(); track $index) {
-                            <li class="rounded-xl border border-gray-100 p-3">
+                            <li class="rounded-xl border border-gray-100 dark:border-edge-soft p-3">
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="min-w-0">
                                         <p
@@ -92,19 +92,19 @@ const KIND_META: Record<CashflowEventDto['kind'], KindMeta> = {
                                         >
                                             {{ kindMeta(e).label }}
                                         </p>
-                                        <p class="text-sm text-gray-900 truncate">{{ e.label }}</p>
+                                        <p class="text-sm text-gray-900 dark:text-fg truncate">{{ e.label }}</p>
                                     </div>
                                     <p
                                         class="text-sm font-semibold tabular-nums whitespace-nowrap"
-                                        [class.text-emerald-600]="e.direction === 'IN'"
-                                        [class.text-red-600]="e.direction === 'OUT'"
+                                        [class.text-emerald-600]="e.direction === 'IN'" [class.dark:text-emerald-300]="e.direction === 'IN'"
+                                        [class.text-red-600]="e.direction === 'OUT'" [class.dark:text-red-300]="e.direction === 'OUT'"
                                     >
                                         {{ e.direction === 'IN' ? '+ ' : '- ' }}{{ money(e.amountCents) }}
                                     </p>
                                 </div>
                             </li>
                         } @empty {
-                            <li class="text-sm text-gray-500 text-center py-6">
+                            <li class="text-sm text-gray-500 dark:text-fg-subtle text-center py-6">
                                 Nenhum evento neste dia.
                             </li>
                         }
@@ -134,7 +134,7 @@ export class CashflowDaySheet {
     );
 
     protected kindMeta(e: CashflowEventDto): KindMeta {
-        return KIND_META[e.kind] ?? { label: e.kind, color: 'text-gray-700' };
+        return KIND_META[e.kind] ?? { label: e.kind, color: 'text-gray-700 dark:text-fg-soft' };
     }
 
     protected money(cents: number): string {

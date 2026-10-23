@@ -15,10 +15,10 @@ export interface StatusBucketRow {
             @for (bar of bars(); track bar.status) {
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span class="text-gray-600">{{ bar.label }}</span>
-                        <span class="text-gray-900 font-medium tabular-nums">{{ bar.count }}</span>
+                        <span class="text-gray-600 dark:text-fg-muted">{{ bar.label }}</span>
+                        <span class="text-gray-900 dark:text-fg font-medium tabular-nums">{{ bar.count }}</span>
                     </div>
-                    <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div class="h-2 rounded-full bg-gray-100 dark:bg-surface-sunken overflow-hidden">
                         <div
                             class="h-full rounded-full transition-all duration-500"
                             [style.width.%]="bar.percent"
@@ -27,7 +27,7 @@ export interface StatusBucketRow {
                     </div>
                 </div>
             } @empty {
-                <p class="text-sm text-gray-500 text-center py-6">Nada por aqui.</p>
+                <p class="text-sm text-gray-500 dark:text-fg-subtle text-center py-6">Nada por aqui.</p>
             }
         </div>
     `,
