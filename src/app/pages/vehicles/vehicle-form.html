@@ -367,6 +367,58 @@
         </div>
       </app-page-card>
 
+      <!-- ====== Foto do veículo (opcional) — só dono/gerente. Sobe DEPOIS de o veículo
+           existir (anexo PHOTO); se falhar, o veículo fica e o aviso oferece o reenvio. ====== -->
+      @if (canManagePhoto) {
+        <app-page-card title="Foto do veículo (opcional)">
+          <app-vehicle-photo-field
+            [file]="photoFile()"
+            [currentUrl]="photoCurrentUrl()"
+            [hasCurrent]="photoHasCurrent()"
+            [disabled]="saving() || sold() || photoLoadFailed() || photoLoading()"
+            (filePicked)="onPhotoPicked($event)"
+            (removed)="onPhotoRemoved()"
+          />
+          @if (photoLoadFailed()) {
+            <div class="px-4 pb-4 sm:px-6 sm:pb-6">
+              <app-alert-banner
+                variant="warning"
+                message="Não foi possível carregar a foto atual. Recarregue a página para trocá-la ou removê-la."
+              />
+            </div>
+          }
+          @if (photoFailure(); as failure) {
+            <div class="px-4 pb-4 sm:px-6 sm:pb-6 space-y-2" data-photo-failure>
+              <app-alert-banner variant="warning" [message]="failure" />
+              <div class="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  data-photo-retry
+                  (click)="retryPhoto()"
+                  [disabled]="saving()"
+                  class="inline-flex items-center justify-center min-h-11 px-4 rounded-xl text-base
+                         font-semibold bg-primary-500 text-white hover:bg-primary-600
+                         disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {{ photoRetryLabel() }}
+                </button>
+                <button
+                  type="button"
+                  data-photo-skip
+                  (click)="continueWithoutPhoto()"
+                  [disabled]="saving()"
+                  class="inline-flex items-center justify-center min-h-11 px-4 rounded-xl text-base
+                         font-medium text-fg-soft bg-surface border border-edge hover:bg-surface-muted
+                         disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Continuar sem a foto
+                </button>
+              </div>
+            </div>
+          }
+        </app-page-card>
+      }
+
       <!-- ====== Documentação ====== -->
       <app-page-card title="Documentação">
         <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">

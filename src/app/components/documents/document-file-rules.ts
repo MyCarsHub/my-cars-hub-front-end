@@ -59,6 +59,28 @@ export function isAllowedDocumentFile(file: File): boolean {
   return ALLOWED_DOCUMENT_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
+/**
+ * Foto do veículo (kind PHOTO, V115): sai da MESMA allowlist e do MESMO teto
+ * dos documentos, estreitada ao que o servidor aceita para PHOTO e a `<img>`
+ * desenha — JPG, PNG e WebP. PDF e HEIC/HEIF são recusados lá
+ * (`MSG_PHOTO_NOT_IMAGE`); recusar aqui antes poupa a franquia de dados de quem
+ * escolheu o arquivo no celular e, na TROCA, evita apagar a foto atual para só
+ * então descobrir que a nova não serve.
+ */
+export const PHOTO_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+export const PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+export const PHOTO_ACCEPT = [
+  ...PHOTO_MIME_TYPES.filter((m) => m !== 'image/jpg'),
+  ...PHOTO_EXTENSIONS,
+].join(',');
+
+export function isAllowedPhotoFile(file: File): boolean {
+  if (PHOTO_MIME_TYPES.includes(file.type)) return true;
+  // `type` vazio em alguns Android: cai no nome do arquivo.
+  const name = file.name.toLowerCase();
+  return PHOTO_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
 export function formatDocumentSize(bytes: number | null | undefined): string {
   if (bytes == null) return '—';
   if (bytes < 1024) return `${bytes} B`;

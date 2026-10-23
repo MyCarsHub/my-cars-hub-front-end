@@ -404,7 +404,7 @@ describe('VehicleForm — financiamento na edição', () => {
     const html = fixture.nativeElement.innerHTML as string;
     expect(html).not.toContain('Documentos (opcional)');
     expect(fixture.nativeElement.querySelector('[data-doc-slot]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-pending-documents-block input[type="file"]')).toBeNull();
   });
 
   it('mostra no banner o 409 de apólice ativa vindo do servidor', async () => {
@@ -652,7 +652,7 @@ describe('VehicleForm — documentos no cadastro', () => {
     if (!slot) throw new Error(`slot ${kind} não está na tela`);
     slot.click();
     fixture.detectChanges();
-    const input = host.querySelector<HTMLInputElement>('input[type="file"]');
+    const input = host.querySelector<HTMLInputElement>('app-pending-documents-block input[type="file"]');
     if (!input) throw new Error('o seletor de arquivos não está na tela');
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     input.dispatchEvent(new Event('change'));
