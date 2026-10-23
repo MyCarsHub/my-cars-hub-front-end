@@ -14,11 +14,11 @@
     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
   >
     <div
-      class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-hidden"
+      class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full max-w-md pointer-events-auto overflow-hidden"
     >
       <div class="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 pb-3 sm:pb-4">
         <div
-          class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50"
+          class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50 dark:bg-emerald-500/10"
           aria-hidden="true"
         >
           <svg
@@ -31,17 +31,17 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="text-emerald-700"
+            class="text-emerald-700 dark:text-emerald-300"
           >
             <path d="M20 6 9 17l-5-5" />
           </svg>
         </div>
         <div class="flex-1 min-w-0">
-          <h2 id="conclude-maint-title" class="text-base font-semibold text-neutral-900 leading-snug">
+          <h2 id="conclude-maint-title" class="text-base font-semibold text-fg leading-snug">
             Concluir manutenção
           </h2>
           @if (entityLabel()) {
-            <p class="mt-1 text-sm text-neutral-500 leading-relaxed break-words">
+            <p class="mt-1 text-sm text-fg-subtle leading-relaxed break-words">
               {{ entityLabel() }}
             </p>
           }
@@ -49,7 +49,7 @@
       </div>
 
       <div class="px-4 sm:px-6 pb-2">
-        <label for="conclude-maint-hodometer" class="block text-sm font-medium text-neutral-700 mb-1.5">
+        <label for="conclude-maint-hodometer" class="block text-sm font-medium text-fg-soft mb-1.5">
           Hodômetro atual (km)
         </label>
         <!-- type="text" (não "number"): com number o browser devolve '' para
@@ -67,22 +67,22 @@
           [disabled]="busy()"
           [attr.aria-invalid]="invalid() || errorMessage() ? 'true' : null"
           [attr.aria-describedby]="describedBy()"
-          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 min-h-[44px] text-neutral-800
+          class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 min-h-[44px] text-fg-body
                  tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
                  focus-visible:border-primary-500 transition-colors disabled:opacity-60"
         />
         @if (invalid()) {
-          <p id="conclude-maint-error" role="alert" class="mt-1.5 text-sm text-rose-700">
+          <p id="conclude-maint-error" role="alert" class="mt-1.5 text-sm text-rose-700 dark:text-rose-300">
             Informe um número inteiro de quilômetros (0 ou maior).
           </p>
         } @else {
-          <p id="conclude-maint-hint" class="mt-1.5 text-sm text-neutral-500">{{ hint() }}</p>
+          <p id="conclude-maint-hint" class="mt-1.5 text-sm text-fg-subtle">{{ hint() }}</p>
         }
         @if (errorMessage(); as serverError) {
           <p
             id="conclude-maint-server-error"
             role="alert"
-            class="mt-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700"
+            class="mt-2 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 px-3 py-2 text-sm text-rose-700 dark:text-rose-300"
           >
             {{ serverError }}
           </p>
@@ -96,9 +96,9 @@
           type="button"
           (click)="onCancel()"
           [disabled]="busy()"
-          class="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-sm font-medium text-neutral-700 bg-neutral-100
-                 hover:bg-neutral-200 rounded-xl transition-colors focus-visible:outline-none
-                 focus-visible:ring-2 focus-visible:ring-neutral-400 disabled:opacity-60 cursor-pointer"
+          class="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-sm font-medium text-fg-soft bg-surface-sunken
+                 hover:bg-surface-strong rounded-xl transition-colors focus-visible:outline-none
+                 focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500 disabled:opacity-60 cursor-pointer"
         >
           Voltar
         </button>

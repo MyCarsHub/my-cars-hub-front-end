@@ -54,7 +54,7 @@ let nextSheetId = 0;
         <div
           #panel
           tabindex="-1"
-          class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full
+          class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full
                  max-h-[calc(100dvh-1.5rem)] flex flex-col pointer-events-auto
                  overflow-hidden focus:outline-none"
           [class]="widthClass()"
@@ -66,7 +66,7 @@ let nextSheetId = 0;
                 aria-label="Voltar"
                 (click)="back.emit()"
                 class="w-11 h-11 -ml-2 shrink-0 inline-flex items-center justify-center rounded-lg
-                       text-neutral-500 hover:bg-neutral-100 focus:outline-none
+                       text-fg-subtle hover:bg-surface-sunken focus:outline-none
                        focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -77,11 +77,11 @@ let nextSheetId = 0;
               </button>
             }
             <div class="flex-1 min-w-0" [class.pt-2]="showBack()">
-              <h2 [id]="titleId" class="text-lg font-bold text-neutral-900 leading-snug">
+              <h2 [id]="titleId" class="text-lg font-bold text-fg leading-snug">
                 {{ title() }}
               </h2>
               @if (subtitle()) {
-                <p class="mt-0.5 text-sm text-neutral-600">{{ subtitle() }}</p>
+                <p class="mt-0.5 text-sm text-fg-muted">{{ subtitle() }}</p>
               }
             </div>
             <button
@@ -89,7 +89,7 @@ let nextSheetId = 0;
               aria-label="Fechar"
               (click)="closed.emit()"
               class="shrink-0 min-h-[44px] min-w-[44px] -mr-2 -mt-1 inline-flex items-center
-                     justify-center rounded-xl text-neutral-500 hover:bg-neutral-50
+                     justify-center rounded-xl text-fg-subtle hover:bg-surface-muted
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                      focus-visible:ring-offset-2"
             >

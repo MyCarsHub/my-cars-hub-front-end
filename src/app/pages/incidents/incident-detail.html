@@ -4,8 +4,8 @@
 >
   @if (loading()) {
     <div class="space-y-3">
-      <div class="h-28 rounded-xl bg-neutral-100 animate-pulse"></div>
-      <div class="h-40 rounded-xl bg-neutral-100 animate-pulse"></div>
+      <div class="h-28 rounded-xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-40 rounded-xl bg-surface-sunken animate-pulse"></div>
     </div>
   }
 
@@ -32,40 +32,40 @@
         <div class="p-4 sm:p-6 space-y-4">
           <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Tipo</dt>
-              <dd class="text-neutral-900 font-medium">{{ i.incidentTypeLabel }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Tipo</dt>
+              <dd class="text-fg font-medium">{{ i.incidentTypeLabel }}</dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Quando</dt>
-              <dd class="text-neutral-900 tabular-nums">{{ formatDateTime(i.occurredAt) }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Quando</dt>
+              <dd class="text-fg tabular-nums">{{ formatDateTime(i.occurredAt) }}</dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Local</dt>
-              <dd class="text-neutral-900">{{ i.location || '—' }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Local</dt>
+              <dd class="text-fg">{{ i.location || '—' }}</dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Quem responde</dt>
-              <dd class="text-neutral-900">{{ faultPartyLabel() }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Quem responde</dt>
+              <dd class="text-fg">{{ faultPartyLabel() }}</dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Motorista envolvido</dt>
-              <dd class="text-neutral-900">{{ driverName() || '—' }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Motorista envolvido</dt>
+              <dd class="text-fg">{{ driverName() || '—' }}</dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Encerrado em</dt>
-              <dd class="text-neutral-900 tabular-nums">{{ formatDateTime(i.resolvedAt) }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Encerrado em</dt>
+              <dd class="text-fg tabular-nums">{{ formatDateTime(i.resolvedAt) }}</dd>
             </div>
           </dl>
 
           <div>
-            <h3 class="text-xs uppercase tracking-wide text-neutral-500 mb-1">Descrição</h3>
-            <p class="text-sm text-neutral-800 whitespace-pre-line">{{ i.description }}</p>
+            <h3 class="text-xs uppercase tracking-wide text-fg-subtle mb-1">Descrição</h3>
+            <p class="text-sm text-fg-body whitespace-pre-line">{{ i.description }}</p>
           </div>
 
           @if (i.notes) {
             <div>
-              <h3 class="text-xs uppercase tracking-wide text-neutral-500 mb-1">Notas</h3>
-              <p class="text-sm text-neutral-800 whitespace-pre-line">{{ i.notes }}</p>
+              <h3 class="text-xs uppercase tracking-wide text-fg-subtle mb-1">Notas</h3>
+              <p class="text-sm text-fg-body whitespace-pre-line">{{ i.notes }}</p>
             </div>
           }
         </div>
@@ -75,35 +75,35 @@
         <div class="p-4 sm:p-6">
           <dl class="grid grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Estimado</dt>
-              <dd class="text-neutral-900 tabular-nums">{{ formatCurrency(i.estimatedCostCents) }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Estimado</dt>
+              <dd class="text-fg tabular-nums">{{ formatCurrency(i.estimatedCostCents) }}</dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Custo real</dt>
-              <dd class="text-neutral-900 font-semibold tabular-nums">
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Custo real</dt>
+              <dd class="text-fg font-semibold tabular-nums">
                 {{ formatCurrency(i.actualCostCents) }}
               </dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Franquia</dt>
-              <dd class="text-neutral-900 tabular-nums">{{ formatCurrency(i.deductibleCents) }}</dd>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Franquia</dt>
+              <dd class="text-fg tabular-nums">{{ formatCurrency(i.deductibleCents) }}</dd>
             </div>
             <div>
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Indenizado</dt>
-              <dd class="text-neutral-900 tabular-nums">
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Indenizado</dt>
+              <dd class="text-fg tabular-nums">
                 {{ formatCurrency(i.indemnifiedAmountCents) }}
               </dd>
             </div>
             <div class="col-span-2 lg:col-span-1">
-              <dt class="text-xs uppercase tracking-wide text-neutral-500">Prejuízo líquido</dt>
-              <dd class="text-neutral-900 font-semibold tabular-nums">
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Prejuízo líquido</dt>
+              <dd class="text-fg font-semibold tabular-nums">
                 {{ formatCurrency(i.netCostCents) }}
               </dd>
             </div>
           </dl>
           @if (i.insuranceClaimNumber) {
-            <p class="text-sm text-neutral-700 mt-4">
-              <span class="text-xs uppercase tracking-wide text-neutral-500">
+            <p class="text-sm text-fg-soft mt-4">
+              <span class="text-xs uppercase tracking-wide text-fg-subtle">
                 Nº do sinistro na seguradora:
               </span>
               <span class="font-medium tabular-nums">{{ i.insuranceClaimNumber }}</span>
@@ -122,20 +122,20 @@
             </app-alert-banner>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
-                <dt class="text-xs uppercase tracking-wide text-neutral-500">Nome</dt>
-                <dd class="text-neutral-900">{{ i.thirdPartyName || '—' }}</dd>
+                <dt class="text-xs uppercase tracking-wide text-fg-subtle">Nome</dt>
+                <dd class="text-fg">{{ i.thirdPartyName || '—' }}</dd>
               </div>
               <div>
-                <dt class="text-xs uppercase tracking-wide text-neutral-500">Documento</dt>
-                <dd class="text-neutral-900 tabular-nums">{{ i.thirdPartyDocument || '—' }}</dd>
+                <dt class="text-xs uppercase tracking-wide text-fg-subtle">Documento</dt>
+                <dd class="text-fg tabular-nums">{{ i.thirdPartyDocument || '—' }}</dd>
               </div>
               <div>
-                <dt class="text-xs uppercase tracking-wide text-neutral-500">Telefone</dt>
-                <dd class="text-neutral-900 tabular-nums">{{ i.thirdPartyPhone || '—' }}</dd>
+                <dt class="text-xs uppercase tracking-wide text-fg-subtle">Telefone</dt>
+                <dd class="text-fg tabular-nums">{{ i.thirdPartyPhone || '—' }}</dd>
               </div>
               <div>
-                <dt class="text-xs uppercase tracking-wide text-neutral-500">Placa</dt>
-                <dd class="text-neutral-900 tabular-nums tracking-wider">
+                <dt class="text-xs uppercase tracking-wide text-fg-subtle">Placa</dt>
+                <dd class="text-fg tabular-nums tracking-wider">
                   {{ i.thirdPartyPlate || '—' }}
                 </dd>
               </div>

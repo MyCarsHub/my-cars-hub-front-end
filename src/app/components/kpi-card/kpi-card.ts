@@ -39,11 +39,11 @@ const LOOKS: Record<KpiCardVariant, KpiCardLook> = {
     skeleton: 'h-8 mt-2 w-16 rounded bg-white/20 animate-pulse',
   },
   white: {
-    card: 'block min-w-0 rounded-2xl bg-white border border-gray-200 p-4',
-    label: 'text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate',
-    value: 'text-xl sm:text-2xl font-semibold text-gray-900 mt-1 tabular-nums truncate',
-    detail: 'text-[11px] sm:text-xs text-gray-500 mt-1 truncate',
-    skeleton: 'h-8 mt-2 w-16 rounded bg-gray-100 animate-pulse',
+    card: 'block min-w-0 rounded-2xl bg-surface border border-gray-200 dark:border-edge p-4',
+    label: 'text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate',
+    value: 'text-xl sm:text-2xl font-semibold text-gray-900 dark:text-fg mt-1 tabular-nums truncate',
+    detail: 'text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate',
+    skeleton: 'h-8 mt-2 w-16 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse',
   },
 };
 

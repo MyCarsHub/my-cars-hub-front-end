@@ -22,30 +22,30 @@ const MAX_BYTES = 5 * 1024 * 1024;
   host: { class: 'flex flex-col gap-4' },
   imports: [AlertBanner, ConfirmDialog, ContractDropzone, ContractIcon],
   template: `
-    <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-neutral-900 focus:outline-none">
+    <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg focus:outline-none">
       Coloque os campos no seu arquivo
     </h3>
-    <ol class="m-0 flex list-none flex-col gap-3 p-0 text-[15px] leading-relaxed text-neutral-800">
+    <ol class="m-0 flex list-none flex-col gap-3 p-0 text-[15px] leading-relaxed text-fg-body">
       <li class="flex gap-3">
-        <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sm font-bold text-sky-800 ring-1 ring-sky-100">1</span>
+        <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-500/10 text-sm font-bold text-sky-800 dark:text-sky-200 ring-1 ring-sky-100 dark:ring-sky-500/20">1</span>
         <span>
           Abra seu contrato no Word e faça <strong>Localizar e substituir</strong>: troque os dados fixos pelos campos. Por exemplo, para
-          <strong data-field-label class="font-semibold text-neutral-900">{{ driverLabel }}</strong> digite
-          <code class="select-all rounded bg-neutral-100 px-1.5 py-px font-mono text-[13px] text-neutral-700">{{ driverCode }}</code>.
+          <strong data-field-label class="font-semibold text-fg">{{ driverLabel }}</strong> digite
+          <code class="select-all rounded bg-surface-sunken px-1.5 py-px font-mono text-[13px] text-fg-soft">{{ driverCode }}</code>.
           No contrato exemplo, cada campo mostra o nome e, ao lado, o que digitar.
         </span>
       </li>
       <li class="flex gap-3">
-        <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sm font-bold text-sky-800 ring-1 ring-sky-100">2</span>
+        <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-500/10 text-sm font-bold text-sky-800 dark:text-sky-200 ring-1 ring-sky-100 dark:ring-sky-500/20">2</span>
         <span class="pt-0.5">Salve como .docx e envie aqui.</span>
       </li>
       <li class="flex gap-3">
-        <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"><app-contract-icon name="check" [size]="14" [stroke]="3" /></span>
+        <span aria-hidden="true" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-100 dark:ring-emerald-500/20"><app-contract-icon name="check" [size]="14" [stroke]="3" /></span>
         <span class="pt-0.5">Ao criar um aluguel, o contrato sai preenchido.</span>
       </li>
     </ol>
-    <p role="note" class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm leading-normal text-amber-900">
-      <app-contract-icon name="alert" [size]="18" class="mt-px text-amber-700" />
+    <p role="note" class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-sm leading-normal text-amber-900 dark:text-amber-200">
+      <app-contract-icon name="alert" [size]="18" class="mt-px text-amber-700 dark:text-amber-300" />
       <span><strong>Importante:</strong> digite cada campo de uma vez, sem trocar formatação no meio das chaves. Senão o
       Word quebra o texto e a substituição falha.</span>
     </p>
@@ -61,7 +61,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
         {{ exampleBusy() ? 'Baixando…' : 'Baixar contrato exemplo (.md)' }}
       </button>
       <button type="button" (click)="copyInstructions()" [disabled]="aiBusy()"
-        class="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 text-base font-semibold text-neutral-800 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
+        class="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-edge-strong bg-surface px-5 text-base font-semibold text-fg-body hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60">
         <app-contract-icon name="copy" [size]="18" />
         {{ aiBusy() ? 'Copiando…' : 'Copiar instruções para IA' }}
       </button>

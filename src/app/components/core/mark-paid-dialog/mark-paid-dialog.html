@@ -15,11 +15,11 @@
     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
   >
     <div
-      class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-hidden"
+      class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full max-w-md pointer-events-auto overflow-hidden"
     >
       <div class="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 pb-3 sm:pb-4">
         <div
-          class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50"
+          class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50 dark:bg-emerald-500/10"
           aria-hidden="true"
         >
           <svg
@@ -32,19 +32,19 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="text-emerald-500"
+            class="text-emerald-500 dark:text-emerald-300"
           >
             <path d="M20 6 9 17l-5-5" />
           </svg>
         </div>
         <div class="flex-1 min-w-0">
-          <h2 id="mark-paid-title" class="text-base font-semibold text-neutral-900 leading-snug">
+          <h2 id="mark-paid-title" class="text-base font-semibold text-fg leading-snug">
             {{ title() }}
           </h2>
-          <p id="mark-paid-description" class="mt-1 text-sm text-neutral-500 leading-relaxed">
+          <p id="mark-paid-description" class="mt-1 text-sm text-fg-subtle leading-relaxed">
             @if (entityLabel()) {
-              <span class="text-neutral-700 font-medium">{{ entityLabel() }}</span>
-              <span class="text-neutral-400"> · </span>
+              <span class="text-fg-soft font-medium">{{ entityLabel() }}</span>
+              <span class="text-fg-faint"> · </span>
             }
             <span class="tabular-nums">{{ formattedAmount() }}</span>
           </p>
@@ -54,7 +54,7 @@
       <div class="px-4 sm:px-6 pb-2">
         <label
           for="mark-paid-date"
-          class="block text-sm font-medium text-neutral-700 mb-1.5"
+          class="block text-sm font-medium text-fg-soft mb-1.5"
         >
           Data do pagamento
         </label>
@@ -66,7 +66,7 @@
           [attr.min]="effectiveMin() || null"
           [attr.max]="effectiveMax() || null"
           [disabled]="busy()"
-          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+          class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400
                  focus-visible:border-emerald-400 transition-colors disabled:opacity-60"
         />
@@ -79,9 +79,9 @@
           type="button"
           (click)="onCancel()"
           [disabled]="busy()"
-          class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-neutral-100
-                 hover:bg-neutral-200 rounded-xl transition-colors focus-visible:outline-none
-                 focus-visible:ring-2 focus-visible:ring-neutral-300 disabled:opacity-60 cursor-pointer"
+          class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-fg-muted bg-surface-sunken
+                 hover:bg-surface-strong rounded-xl transition-colors focus-visible:outline-none
+                 focus-visible:ring-2 focus-visible:ring-edge-strong disabled:opacity-60 cursor-pointer"
         >
           Cancelar
         </button>

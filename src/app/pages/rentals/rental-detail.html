@@ -4,9 +4,9 @@
 >
   @if (loading() && !rental()) {
     <div class="space-y-3">
-      <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-      <div class="h-40 rounded-xl bg-neutral-100 animate-pulse"></div>
-      <div class="h-40 rounded-xl bg-neutral-100 animate-pulse"></div>
+      <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-40 rounded-xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-40 rounded-xl bg-surface-sunken animate-pulse"></div>
     </div>
   }
 
@@ -16,7 +16,7 @@
       <app-alert-banner variant="error">
         {{ loadError }}
         <button type="button" (click)="backToList()"
-          class="ml-2 underline font-medium text-rose-800 rounded
+          class="ml-2 underline font-medium text-rose-800 dark:text-rose-200 rounded
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2">
           Voltar para a lista
         </button>
@@ -72,7 +72,7 @@
           (delete)="askDelete()"
         />
         @if (editSession()) {
-          <p class="mt-2 text-base text-neutral-700" data-testid="owner-delete-disabled-reason">
+          <p class="mt-2 text-base text-fg-soft" data-testid="owner-delete-disabled-reason">
             No modo edição, use "Excluir aluguel" no bloco de ações do administrador.
           </p>
         }
@@ -92,13 +92,13 @@
       <app-page-card title="Identificação">
         <div class="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Veículo</p>
-            <p class="text-lg font-semibold text-neutral-900 tabular-nums tracking-wider">
+            <p class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Veículo</p>
+            <p class="text-lg font-semibold text-fg tabular-nums tracking-wider">
               {{ vehiclePlate() }}
             </p>
-            <p class="text-sm text-neutral-500 truncate">{{ vehicleLabel() }}</p>
-            <p class="mt-2 text-xs uppercase tracking-wide text-neutral-400 font-semibold">Motorista</p>
-            <p class="text-sm text-neutral-800">{{ driverNameSig() }}</p>
+            <p class="text-sm text-fg-subtle truncate">{{ vehicleLabel() }}</p>
+            <p class="mt-2 text-xs uppercase tracking-wide text-fg-faint font-semibold">Motorista</p>
+            <p class="text-sm text-fg-body">{{ driverNameSig() }}</p>
           </div>
           <div class="shrink-0 flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
             @if (statusInfo(); as s) {
@@ -112,7 +112,7 @@
               <span
                 title="Cobrança automática via Asaas"
                 class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs
-                       font-semibold bg-neutral-100 text-neutral-700">
+                       font-semibold bg-surface-sunken text-fg-soft">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -125,40 +125,40 @@
         </div>
 
         @if (isTerminal()) {
-          <div class="border-t border-neutral-100 px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-2 text-xs">
+          <div class="border-t border-edge-soft px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-2 text-xs">
             <div class="flex items-baseline gap-1.5">
-              <span class="uppercase tracking-wide text-neutral-400 font-semibold">
+              <span class="uppercase tracking-wide text-fg-faint font-semibold">
                 {{ r.status === 'CANCELED' ? 'Cancelado em' : 'Concluído em' }}
               </span>
-              <span class="tabular-nums text-neutral-700">{{ endDateLabel() }}</span>
+              <span class="tabular-nums text-fg-soft">{{ endDateLabel() }}</span>
             </div>
 
             @if (r.endedEarly) {
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 text-[11px] font-semibold">
                 Encerrado antes do prazo
               </span>
             }
 
             @if (r.caucaoAmount > 0) {
               <div class="flex items-baseline gap-1.5">
-                <span class="uppercase tracking-wide text-neutral-400 font-semibold">Caução</span>
+                <span class="uppercase tracking-wide text-fg-faint font-semibold">Caução</span>
                 @if (r.caucaoRefundMethod === 'NONE') {
-                  <span class="text-neutral-700">Retida pelo locador</span>
+                  <span class="text-fg-soft">Retida pelo locador</span>
                 } @else if (r.caucaoRefundedAmount != null && r.caucaoRefundedAmount > 0) {
-                  <span class="tabular-nums text-neutral-700">
+                  <span class="tabular-nums text-fg-soft">
                     {{ formatCurrency(r.caucaoRefundedAmount) }}
-                    <span class="text-neutral-400">· {{ refundMethodLabel() }}</span>
+                    <span class="text-fg-faint">· {{ refundMethodLabel() }}</span>
                   </span>
                 } @else {
-                  <span class="text-neutral-500">—</span>
+                  <span class="text-fg-subtle">—</span>
                 }
               </div>
             }
 
             @if (r.endReason) {
               <div class="basis-full sm:basis-auto sm:flex-1 min-w-0">
-                <span class="uppercase tracking-wide text-neutral-400 font-semibold">Motivo</span>
-                <span class="ml-1.5 text-neutral-700">{{ r.endReason }}</span>
+                <span class="uppercase tracking-wide text-fg-faint font-semibold">Motivo</span>
+                <span class="ml-1.5 text-fg-soft">{{ r.endReason }}</span>
               </div>
             }
           </div>
@@ -169,16 +169,16 @@
         <app-page-card title="Período">
           <div class="p-4 sm:p-6 space-y-2">
             <div class="flex items-baseline justify-between">
-              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Início</span>
-              <span class="tabular-nums text-neutral-800">{{ formatDate(r.startDate) }}</span>
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Início</span>
+              <span class="tabular-nums text-fg-body">{{ formatDate(r.startDate) }}</span>
             </div>
             <div class="flex items-baseline justify-between">
-              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Fim</span>
-              <span class="tabular-nums text-neutral-800">{{ formatDate(r.endDate) }}</span>
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Fim</span>
+              <span class="tabular-nums text-fg-body">{{ formatDate(r.endDate) }}</span>
             </div>
-            <div class="flex items-baseline justify-between pt-2 border-t border-neutral-100">
-              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Total</span>
-              <span class="text-lg font-semibold text-neutral-900 tabular-nums">
+            <div class="flex items-baseline justify-between pt-2 border-t border-edge-soft">
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Total</span>
+              <span class="text-lg font-semibold text-fg tabular-nums">
                 {{ totalDays() }} dia(s)
               </span>
             </div>
@@ -188,26 +188,26 @@
         <app-page-card title="Valores">
           <div class="p-4 sm:p-6 space-y-2">
             <div class="flex items-baseline justify-between">
-              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Cobrança</span>
-              <span class="tabular-nums text-neutral-800">{{ billingFrequencyLabel(r.billingFrequency) }}</span>
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Cobrança</span>
+              <span class="tabular-nums text-fg-body">{{ billingFrequencyLabel(r.billingFrequency) }}</span>
             </div>
             <div class="flex items-baseline justify-between">
-              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">{{ rateLabel(r.billingFrequency) }}</span>
-              <span class="tabular-nums text-neutral-800">{{ formatCurrency(r.periodRate) }}</span>
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">{{ rateLabel(r.billingFrequency) }}</span>
+              <span class="tabular-nums text-fg-body">{{ formatCurrency(r.periodRate) }}</span>
             </div>
             <div class="flex items-baseline justify-between">
-              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Caução</span>
-              <span class="tabular-nums text-neutral-800">
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Caução</span>
+              <span class="tabular-nums text-fg-body">
                 @if (r.caucaoAmount > 0) {
                   {{ formatCurrency(r.caucaoAmount) }}
                 } @else {
-                  <span class="text-neutral-400">—</span>
+                  <span class="text-fg-faint">—</span>
                 }
               </span>
             </div>
-            <div class="flex items-baseline justify-between pt-2 border-t border-neutral-100">
-              <span class="text-xs uppercase tracking-wide text-neutral-400 font-semibold">Total</span>
-              <span class="text-lg font-semibold text-primary-700 tabular-nums">
+            <div class="flex items-baseline justify-between pt-2 border-t border-edge-soft">
+              <span class="text-xs uppercase tracking-wide text-fg-faint font-semibold">Total</span>
+              <span class="text-lg font-semibold text-primary-700 dark:text-primary-400 tabular-nums">
                 {{ formatCurrency(r.totalAmount) }}
               </span>
             </div>
@@ -218,42 +218,42 @@
 
       <!-- KPI cards — mesmo shell/estilo do financing-detail -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor recebido</p>
-          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Valor recebido</p>
+          <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(paidCents()) }}
           </p>
         </div>
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor restante</p>
-          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Valor restante</p>
+          <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(remainingCents()) }}
           </p>
         </div>
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Próximo recebimento</p>
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Próximo recebimento</p>
           @if (nextCharge(); as n) {
-            <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+            <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
               {{ formatDate(n.dueDate) }}
             </p>
-            <p class="text-xs text-neutral-500 tabular-nums mt-0.5">
+            <p class="text-xs text-fg-subtle tabular-nums mt-0.5">
               {{ formatCurrency(n.amount) }}
             </p>
           } @else {
-            <p class="mt-1 text-lg font-semibold text-neutral-400 tabular-nums">—</p>
+            <p class="mt-1 text-lg font-semibold text-fg-faint tabular-nums">—</p>
           }
         </div>
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Progresso</p>
-          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">{{ progressPct() }}%</p>
-          <div class="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Progresso</p>
+          <p class="mt-1 text-lg font-semibold text-fg tabular-nums">{{ progressPct() }}%</p>
+          <div class="mt-2 h-1.5 rounded-full bg-surface-sunken overflow-hidden">
             <div
               class="h-full bg-primary-500"
               [style.width.%]="progressPct()"
               aria-hidden="true"
             ></div>
           </div>
-          <p class="mt-1 text-xs text-neutral-500 tabular-nums">
+          <p class="mt-1 text-xs text-fg-subtle tabular-nums">
             {{ paidCount() }} / {{ totalCount() }} períodos
           </p>
         </div>
@@ -277,24 +277,24 @@
             <!-- Mobile -->
             <ul class="space-y-2 lg:hidden" role="list">
               <li
-                class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge bg-surface px-3 py-2.5"
               >
                 <div class="flex items-center gap-3 min-w-0">
-                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 font-semibold">C</span>
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 dark:text-primary-400 font-semibold">C</span>
                   <div class="min-w-0">
-                    <p class="text-sm text-neutral-800 tabular-nums">
+                    <p class="text-sm text-fg-body tabular-nums">
                       @if (cc.dueDate) {
                         {{ formatDate(cc.dueDate) }}
                       } @else {
-                        <span class="text-neutral-400">—</span>
+                        <span class="text-fg-faint">—</span>
                       }
                     </p>
-                    <p class="text-xs text-neutral-500 tabular-nums">
+                    <p class="text-xs text-fg-subtle tabular-nums">
                       {{ formatCurrency(cc.amount) }}
-                      <span class="text-neutral-400"> · Caução</span>
+                      <span class="text-fg-faint"> · Caução</span>
                     </p>
                     @if (cc.paidAt) {
-                      <p class="text-[11px] text-neutral-400 tabular-nums">
+                      <p class="text-[11px] text-fg-faint tabular-nums">
                         Pago em {{ formatDateTime(cc.paidAt) }}
                       </p>
                     }
@@ -323,7 +323,7 @@
             <div class="hidden lg:block overflow-x-auto">
               <table class="min-w-full text-sm">
                 <thead>
-                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                  <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                     <th class="py-2 pr-4 font-medium">#</th>
                     <th class="py-2 pr-4 font-medium">Vencimento</th>
                     <th class="py-2 pr-4 font-medium">Tipo</th>
@@ -334,22 +334,22 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr class="border-b border-neutral-50">
-                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 font-semibold">C</td>
+                  <tr class="border-b border-edge-faint">
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 dark:text-primary-400 font-semibold">C</td>
                     <td class="py-2.5 pr-4 tabular-nums">
                       @if (cc.dueDate) {
                         {{ formatDate(cc.dueDate) }}
                       } @else {
-                        <span class="text-neutral-400">—</span>
+                        <span class="text-fg-faint">—</span>
                       }
                     </td>
-                    <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
+                    <td class="py-2.5 pr-4 text-fg-muted">Caução</td>
                     <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(cc.amount) }}</td>
-                    <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
+                    <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">
                       @if (cc.paidAt) {
                         {{ formatDateTime(cc.paidAt) }}
                       } @else {
-                        <span class="text-neutral-400">—</span>
+                        <span class="text-fg-faint">—</span>
                       }
                     </td>
                     <td class="py-2.5 pr-4">
@@ -377,24 +377,24 @@
             <!-- Mobile -->
             <ul class="space-y-2 lg:hidden" role="list">
               <li
-                class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-primary-300 bg-primary-50/40 px-3 py-2.5"
+                class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-primary-300 dark:border-primary-500/40 bg-primary-50/40 dark:bg-primary-500/10 px-3 py-2.5"
               >
                 <div class="flex items-center gap-3 min-w-0">
-                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 font-semibold">C</span>
+                  <span class="text-xs tabular-nums w-6 text-right shrink-0 text-primary-700 dark:text-primary-400 font-semibold">C</span>
                   <div class="min-w-0">
-                    <p class="text-sm text-neutral-800 tabular-nums">
-                      <span class="text-neutral-400">—</span>
+                    <p class="text-sm text-fg-body tabular-nums">
+                      <span class="text-fg-faint">—</span>
                     </p>
-                    <p class="text-xs text-neutral-500 tabular-nums">
+                    <p class="text-xs text-fg-subtle tabular-nums">
                       {{ formatCurrency(r.caucaoAmount) }}
-                      <span class="text-neutral-400"> · Caução</span>
+                      <span class="text-fg-faint"> · Caução</span>
                     </p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   <span
                     class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                    [class]="caucaoReceivedOutside() ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-600'"
+                    [class]="caucaoReceivedOutside() ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : 'bg-surface-sunken text-fg-muted'"
                   >
                     {{ caucaoReceivedOutside() ? 'Recebida por fora' : 'Não gerada' }}
                   </span>
@@ -430,7 +430,7 @@
             <div class="hidden lg:block overflow-x-auto">
               <table class="min-w-full text-sm">
                 <thead>
-                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                  <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                     <th class="py-2 pr-4 font-medium">#</th>
                     <th class="py-2 pr-4 font-medium">Vencimento</th>
                     <th class="py-2 pr-4 font-medium">Tipo</th>
@@ -441,15 +441,15 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr class="border-b border-neutral-50">
-                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 font-semibold">C</td>
-                    <td class="py-2.5 pr-4 tabular-nums"><span class="text-neutral-400">—</span></td>
-                    <td class="py-2.5 pr-4 text-neutral-600">Caução</td>
+                  <tr class="border-b border-edge-faint">
+                    <td class="py-2.5 pr-4 tabular-nums text-primary-700 dark:text-primary-400 font-semibold">C</td>
+                    <td class="py-2.5 pr-4 tabular-nums"><span class="text-fg-faint">—</span></td>
+                    <td class="py-2.5 pr-4 text-fg-muted">Caução</td>
                     <td class="py-2.5 pr-4 tabular-nums font-medium">{{ formatCurrency(r.caucaoAmount) }}</td>
-                    <td class="py-2.5 pr-4 tabular-nums text-neutral-500"><span class="text-neutral-400">—</span></td>
+                    <td class="py-2.5 pr-4 tabular-nums text-fg-subtle"><span class="text-fg-faint">—</span></td>
                     <td class="py-2.5 pr-4">
                       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
-                        [class]="caucaoReceivedOutside() ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-600'">
+                        [class]="caucaoReceivedOutside() ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : 'bg-surface-sunken text-fg-muted'">
                         {{ caucaoReceivedOutside() ? 'Recebida por fora' : 'Não gerada' }}
                       </span>
                     </td>
@@ -485,18 +485,18 @@
             </div>
 
             @if (!caucaoReceivedOutside()) {
-              <p class="text-[11px] text-neutral-500 mt-1">
+              <p class="text-[11px] text-fg-subtle mt-1">
                 Marque como paga quando receber o valor da caução por fora (dinheiro, PIX, transferência).
               </p>
             }
           } @else {
-            <p class="text-sm text-neutral-500 text-center py-6">
+            <p class="text-sm text-fg-subtle text-center py-6">
               Sem caução configurada para este aluguel.
             </p>
           }
 
           @if (readOnlySession() && caucaoCharge()) {
-            <p class="text-xs text-neutral-500" data-testid="cancel-charge-readonly-note">
+            <p class="text-xs text-fg-subtle" data-testid="cancel-charge-readonly-note">
               Sessão somente leitura: para cancelar ou gerar a cobrança da caução, abra o modo edição
               na página da empresa.
             </p>
@@ -514,8 +514,8 @@
               type="button"
               (click)="generateCaucaoCharge()"
               [disabled]="generatingCaucao()"
-              class="min-h-11 w-full sm:w-auto px-4 rounded-xl border border-neutral-200 bg-white
-                     text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none
+              class="min-h-11 w-full sm:w-auto px-4 rounded-xl border border-edge bg-surface
+                     text-sm font-semibold text-fg-soft hover:bg-surface-muted focus:outline-none
                      focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
                      disabled:opacity-60"
               data-testid="generate-caucao-charge"
@@ -524,16 +524,16 @@
             </button>
           }
           @if (caucaoReceivedOutside()) {
-            <p class="text-[11px] text-neutral-500" data-testid="caucao-received-note">
+            <p class="text-[11px] text-fg-subtle" data-testid="caucao-received-note">
               Caução marcada como recebida — nenhuma cobrança será feita no Asaas.
             </p>
           }
           @if (caucaoStaleOpenCharge()) {
             <div data-testid="caucao-open-charge-banner"
-              class="rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm p-3 flex items-start gap-2">
+              class="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200 text-sm p-3 flex items-start gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" class="shrink-0 mt-0.5 text-blue-600" aria-hidden="true">
+                stroke-linejoin="round" class="shrink-0 mt-0.5 text-blue-600 dark:text-blue-300" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
               </svg>
               <div class="min-w-0 text-xs leading-relaxed">
@@ -553,17 +553,17 @@
       @if (overdueFee(); as fee) {
         <app-page-card title="Multa por devolução em atraso">
           <div class="p-3 sm:p-4">
-            <div class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 space-y-2">
+            <div class="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-3 space-y-2">
               <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <p class="text-sm font-semibold text-amber-900">Cobrança lançada</p>
-                <p class="text-base font-bold text-amber-900 tabular-nums">
+                <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">Cobrança lançada</p>
+                <p class="text-base font-bold text-amber-900 dark:text-amber-200 tabular-nums">
                   {{ formatCurrency(fee.amount) }}
                 </p>
               </div>
 
-              <p class="text-sm text-amber-900 tabular-nums">{{ overdueFeeFormula() }}</p>
+              <p class="text-sm text-amber-900 dark:text-amber-200 tabular-nums">{{ overdueFeeFormula() }}</p>
 
-              <dl class="text-xs text-amber-800 space-y-0.5">
+              <dl class="text-xs text-amber-800 dark:text-amber-200 space-y-0.5">
                 <div class="flex flex-wrap gap-x-1">
                   <dt class="font-medium">
                     Prazo (fim do aluguel + {{ overdueFeeGraceLabel() }}):
@@ -594,19 +594,19 @@
       >
         <div class="p-3 sm:p-4 space-y-3">
           @if (!hasSchedule()) {
-            <p class="text-sm text-neutral-500 text-center py-6">
+            <p class="text-sm text-fg-subtle text-center py-6">
               Nenhuma cobrança gerada ainda.
             </p>
           } @else {
-            <div class="text-xs text-neutral-500 flex items-center justify-between">
+            <div class="text-xs text-fg-subtle flex items-center justify-between">
               <span>
-                <strong class="text-neutral-800 tabular-nums">{{ paidCount() }}</strong>
+                <strong class="text-fg-body tabular-nums">{{ paidCount() }}</strong>
                 de
-                <strong class="text-neutral-800 tabular-nums">{{ totalCount() }}</strong>
+                <strong class="text-fg-body tabular-nums">{{ totalCount() }}</strong>
                 períodos pagos
               </span>
               @if (overdueCount() > 0) {
-                <span class="text-rose-700 font-medium">
+                <span class="text-rose-700 dark:text-rose-300 font-medium">
                   {{ overdueCount() }} atrasada(s)
                 </span>
               }
@@ -616,31 +616,31 @@
             <ul class="space-y-2 lg:hidden" role="list">
               @for (charge of scheduleCharges(); track trackCharge($index, charge); let i = $index) {
                 <li
-                  class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+                  class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge bg-surface px-3 py-2.5"
                 >
                   <div class="flex items-center gap-3 min-w-0">
                     <span
                       class="text-xs tabular-nums w-6 text-right shrink-0"
-                      [class.text-primary-700]="charge.kind === 'CAUCAO'"
+                      [class.text-primary-700]="charge.kind === 'CAUCAO'" [class.dark:text-primary-400]="charge.kind === 'CAUCAO'"
                       [class.font-semibold]="charge.kind === 'CAUCAO'"
-                      [class.text-neutral-400]="charge.kind !== 'CAUCAO'"
+                      [class.text-fg-faint]="charge.kind !== 'CAUCAO'"
                     >
                       {{ rowBadge(charge, i) }}
                     </span>
                     <div class="min-w-0">
-                      <p class="text-sm text-neutral-800 tabular-nums">
+                      <p class="text-sm text-fg-body tabular-nums">
                         @if (charge.dueDate) {
                           {{ formatDate(charge.dueDate) }}
                         } @else {
-                          <span class="text-neutral-400">—</span>
+                          <span class="text-fg-faint">—</span>
                         }
                       </p>
-                      <p class="text-xs text-neutral-500 tabular-nums">
+                      <p class="text-xs text-fg-subtle tabular-nums">
                         {{ formatCurrency(charge.amount) }}
-                        <span class="text-neutral-400"> · {{ chargeKindLabel(charge.kind) }}</span>
+                        <span class="text-fg-faint"> · {{ chargeKindLabel(charge.kind) }}</span>
                       </p>
                       @if (charge.paidAt) {
-                        <p class="text-[11px] text-neutral-400 tabular-nums">
+                        <p class="text-[11px] text-fg-faint tabular-nums">
                           Pago em {{ formatDateTime(charge.paidAt) }}
                         </p>
                       }
@@ -675,7 +675,7 @@
             <div class="hidden lg:block overflow-x-auto">
               <table class="min-w-full text-sm">
                 <thead>
-                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                  <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                     <th class="py-2 pr-4 font-medium">#</th>
                     <th class="py-2 pr-4 font-medium">Vencimento</th>
                     <th class="py-2 pr-4 font-medium">Tipo</th>
@@ -687,12 +687,12 @@
                 </thead>
                 <tbody>
                   @for (charge of scheduleCharges(); track trackCharge($index, charge); let i = $index) {
-                    <tr class="border-b border-neutral-50">
+                    <tr class="border-b border-edge-faint">
                       <td
                         class="py-2.5 pr-4 tabular-nums"
-                        [class.text-primary-700]="charge.kind === 'CAUCAO'"
+                        [class.text-primary-700]="charge.kind === 'CAUCAO'" [class.dark:text-primary-400]="charge.kind === 'CAUCAO'"
                         [class.font-semibold]="charge.kind === 'CAUCAO'"
-                        [class.text-neutral-500]="charge.kind !== 'CAUCAO'"
+                        [class.text-fg-subtle]="charge.kind !== 'CAUCAO'"
                       >
                         {{ rowBadge(charge, i) }}
                       </td>
@@ -700,20 +700,20 @@
                         @if (charge.dueDate) {
                           {{ formatDate(charge.dueDate) }}
                         } @else {
-                          <span class="text-neutral-400">—</span>
+                          <span class="text-fg-faint">—</span>
                         }
                       </td>
-                      <td class="py-2.5 pr-4 text-neutral-600">
+                      <td class="py-2.5 pr-4 text-fg-muted">
                         {{ chargeKindLabel(charge.kind) }}
                       </td>
                       <td class="py-2.5 pr-4 tabular-nums font-medium">
                         {{ formatCurrency(charge.amount) }}
                       </td>
-                      <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
+                      <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">
                         @if (charge.paidAt) {
                           {{ formatDateTime(charge.paidAt) }}
                         } @else {
-                          <span class="text-neutral-400">—</span>
+                          <span class="text-fg-faint">—</span>
                         }
                       </td>
                       <td class="py-2.5 pr-4">
@@ -759,20 +759,20 @@
           <div>
             @if (historyLoading()) {
               <div class="space-y-3">
-                <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
-                <div class="h-14 rounded-xl bg-neutral-100 animate-pulse"></div>
+                <div class="h-14 rounded-xl bg-surface-sunken animate-pulse"></div>
+                <div class="h-14 rounded-xl bg-surface-sunken animate-pulse"></div>
               </div>
             } @else if (history().length === 0) {
-              <p class="text-sm text-neutral-500 text-center py-6">
+              <p class="text-sm text-fg-subtle text-center py-6">
                 Nenhum evento registrado.
               </p>
             } @else {
-              <ol class="relative border-l-2 border-neutral-200 pl-5 space-y-4">
+              <ol class="relative border-l-2 border-edge pl-5 space-y-4">
                 @for (entry of history(); track entry.id) {
                   <li class="relative">
                     <!-- Bolinha colorida pelo status destino -->
                     <span
-                      class="absolute -left-[27px] top-1 inline-flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white"
+                      class="absolute -left-[27px] top-1 inline-flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-surface"
                       [style.background-color]="historyStatusMeta(entry.toStatus).color"
                       aria-hidden="true"
                     ></span>
@@ -786,9 +786,9 @@
                           >
                             {{ historyStatusMeta(entry.fromStatus).label }}
                           </span>
-                          <span class="text-neutral-400 text-xs" aria-hidden="true">→</span>
+                          <span class="text-fg-faint text-xs" aria-hidden="true">→</span>
                         } @else {
-                          <span class="text-xs text-neutral-500 font-medium">Criado como</span>
+                          <span class="text-xs text-fg-subtle font-medium">Criado como</span>
                         }
                         <span
                           class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
@@ -798,7 +798,7 @@
                         </span>
                       </div>
 
-                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle">
                         <span class="tabular-nums">{{ formatDateTime(entry.createdAt) }}</span>
                         @if (entry.changedByName) {
                           <span class="inline-flex items-center gap-1">
@@ -814,7 +814,7 @@
                       </div>
 
                       @if (entry.reason) {
-                        <p class="text-xs text-neutral-600 mt-1">{{ entry.reason }}</p>
+                        <p class="text-xs text-fg-muted mt-1">{{ entry.reason }}</p>
                       }
                     </div>
                   </li>
@@ -831,8 +831,8 @@
           @if (canCancel()) {
             <button type="button"
               (click)="askCancel()"
-              class="w-full sm:w-auto px-4 py-3 rounded-xl border border-rose-200 text-rose-700
-                     hover:bg-rose-50 text-sm font-semibold">
+              class="w-full sm:w-auto px-4 py-3 rounded-xl border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300
+                     hover:bg-rose-50 dark:hover:bg-rose-500/10 text-sm font-semibold">
               Cancelar aluguel
             </button>
           }
@@ -874,7 +874,7 @@
 
       @if (r.notes && !isDriver) {
         <app-page-card title="Observações">
-          <div class="p-4 sm:p-6 text-sm text-neutral-700 whitespace-pre-line">
+          <div class="p-4 sm:p-6 text-sm text-fg-soft whitespace-pre-line">
             {{ r.notes }}
           </div>
         </app-page-card>
@@ -890,7 +890,7 @@
           (delete)="askDelete()"
         />
         @if (editSession()) {
-          <p class="mt-2 text-base text-neutral-700" data-testid="owner-delete-disabled-reason">
+          <p class="mt-2 text-base text-fg-soft" data-testid="owner-delete-disabled-reason">
             No modo edição, use "Excluir aluguel" no bloco de ações do administrador.
           </p>
         }
@@ -915,7 +915,7 @@
     <p
       data-testid="charge-failure-reason"
       [title]="charge.failureReason"
-      class="text-rose-700 leading-snug"
+      class="text-rose-700 dark:text-rose-300 leading-snug"
       [class.basis-full]="compact"
       [class.line-clamp-3]="compact"
       [class.text-base]="compact"
@@ -930,7 +930,7 @@
 
 <ng-template #reconcileLine let-charge let-name="name">
   @if (reconcileNote()?.chargeId === charge.id) {
-    <div class="basis-full border-t border-neutral-100 pt-1">
+    <div class="basis-full border-t border-edge-soft pt-1">
       <ng-container
         [ngTemplateOutlet]="reconcileNoteTpl"
         [ngTemplateOutletContext]="{ $implicit: charge }"
@@ -950,53 +950,53 @@
       @if (canPayCharge(charge)) {
         <button type="button" role="menuitem" (click)="payCharge(charge)"
           title="Abre a fatura para pagar"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
           Pagar (abrir cobrança)
         </button>
       }
       @if (canViewChargeAtGateway(charge)) {
         <button type="button" role="menuitem" (click)="viewChargeAtGateway(charge)"
           title="Abre a cobrança no site do Asaas para conferir"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
           Conferir no Asaas
         </button>
       }
       @if (canShareCharge(charge)) {
         <button type="button" role="menuitem" (click)="shareCharge(charge)"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
           Compartilhar
         </button>
       }
       @if (canReconcileCharge(charge)) {
         <button type="button" role="menuitem" (click)="reconcileCharge(charge)"
           [disabled]="reconciling() !== null"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted disabled:opacity-60">
           {{ reconciling() === charge.id ? 'Sincronizando…' : 'Sincronizar com o Asaas' }}
         </button>
       }
       @if (canRetryCharge(charge)) {
         <button type="button" role="menuitem" (click)="retryCharge(charge)"
           [disabled]="retrying() === charge.id"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted disabled:opacity-60">
           {{ retrying() === charge.id ? 'Regerando…' : 'Regerar' }}
         </button>
       }
       @if (canMarkPaidFromMenu(charge)) {
         <button type="button" role="menuitem" (click)="askMarkPaid(charge)"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
           Marcar como paga
         </button>
       }
       @if (canUnmarkAsPaid(charge)) {
         <button type="button" role="menuitem" (click)="askUnmarkPaid(charge)"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-neutral-700 hover:bg-neutral-50">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted">
           Desmarcar como paga
         </button>
       }
       @if (canCancelCaucaoCharge(charge)) {
         <button type="button" role="menuitem" (click)="askCancelCharge(charge)"
           data-testid="cancel-charge-item"
-          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-rose-700 hover:bg-rose-50 border-t border-neutral-100">
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 border-t border-edge-soft">
           Cancelar cobrança
         </button>
       }
@@ -1011,9 +1011,9 @@
       <p
         class="mt-1 text-xs leading-relaxed"
         [attr.role]="note.tone === 'error' ? 'alert' : 'status'"
-        [class.text-rose-700]="note.tone === 'error'"
-        [class.text-emerald-700]="note.tone === 'success'"
-        [class.text-neutral-600]="note.tone === 'info'"
+        [class.text-rose-700]="note.tone === 'error'" [class.dark:text-rose-300]="note.tone === 'error'"
+        [class.text-emerald-700]="note.tone === 'success'" [class.dark:text-emerald-300]="note.tone === 'success'"
+        [class.text-fg-muted]="note.tone === 'info'"
       >
         {{ note.message }}
       </p>
@@ -1123,7 +1123,7 @@
   (cancelled)="closeCancelCharge()"
 >
   <div class="px-4 sm:px-6 pb-2">
-    <label for="cancel-charge-note" class="block text-xs font-medium text-neutral-600">
+    <label for="cancel-charge-note" class="block text-xs font-medium text-fg-muted">
       Observação (opcional)
     </label>
     <textarea
@@ -1132,8 +1132,8 @@
       maxlength="500"
       [value]="cancelChargeNote()"
       (input)="onCancelChargeNote($event)"
-      class="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-base
-             text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-400
+      class="mt-1 w-full rounded-xl border border-edge-field bg-surface px-3 py-2 text-base
+             text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-400
              focus:border-primary-400"
     ></textarea>
   </div>

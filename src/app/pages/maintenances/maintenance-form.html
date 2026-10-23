@@ -4,7 +4,7 @@
 >
   @if (loading()) {
     <div
-      class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm"
+      class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm"
     >
       Carregando…
     </div>
@@ -27,7 +27,7 @@
             <select
               appFieldControl
               formControlName="vehicleId"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60"
             >
               <option value="">Selecione…</option>
               @for (v of vehicles(); track v.id) {
@@ -46,7 +46,7 @@
             <select
               appFieldControl
               formControlName="type"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               @for (opt of typeOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
@@ -68,7 +68,7 @@
               maxlength="300"
               formControlName="description"
               placeholder="Ex: Troca de óleo e filtros"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
 
@@ -83,7 +83,7 @@
               appFieldControl
               type="date"
               formControlName="serviceDate"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
 
@@ -97,7 +97,7 @@
             <select
               appFieldControl
               formControlName="status"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               @for (opt of statusOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
@@ -130,7 +130,7 @@
               inputmode="numeric"
               autocomplete="off"
               formControlName="hodometerReading"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
 
@@ -145,7 +145,7 @@
               maxlength="120"
               formControlName="provider"
               placeholder="Ex: Oficina do Zé"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
 
@@ -160,7 +160,7 @@
               maxlength="60"
               formControlName="invoiceNumber"
               placeholder="Ex: NF-12345"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
         </div>
@@ -174,15 +174,15 @@
           -->
           <div formArrayName="items" class="space-y-3">
             <div class="flex items-baseline justify-between gap-3">
-              <h3 class="text-sm font-semibold text-neutral-800">Peças</h3>
-              <p class="text-xs text-neutral-500 tabular-nums">Subtotal {{ itemsTotalLabel() }}</p>
+              <h3 class="text-sm font-semibold text-fg-body">Peças</h3>
+              <p class="text-xs text-fg-subtle tabular-nums">Subtotal {{ itemsTotalLabel() }}</p>
             </div>
 
             <!-- Cabeçalho de tabela: só a partir de lg, onde os rótulos dos campos somem. -->
             @if (hasItems()) {
               <div
                 aria-hidden="true"
-                class="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_7rem_10rem_9rem_3.5rem] lg:gap-3 px-1 text-xs uppercase tracking-wide text-neutral-400"
+                class="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_7rem_10rem_9rem_3.5rem] lg:gap-3 px-1 text-xs uppercase tracking-wide text-fg-faint"
               >
                 <span>Peça</span>
                 <span>Qtd.</span>
@@ -201,7 +201,7 @@
               -->
               <div
                 [formGroupName]="i"
-                class="rounded-xl border border-neutral-200 p-4 space-y-3 lg:rounded-none lg:border-0 lg:border-b lg:border-neutral-100 lg:p-0 lg:pb-3 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_7rem_10rem_9rem_3.5rem] lg:gap-3 lg:items-start lg:[&_label]:sr-only"
+                class="rounded-xl border border-edge p-4 space-y-3 lg:rounded-none lg:border-0 lg:border-b lg:border-edge-soft lg:p-0 lg:pb-3 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_7rem_10rem_9rem_3.5rem] lg:gap-3 lg:items-start lg:[&_label]:sr-only"
               >
                 <app-form-field
                   label="Peça"
@@ -215,7 +215,7 @@
                     maxlength="120"
                     formControlName="name"
                     placeholder="Ex: Filtro de óleo"
-                    class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                    class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
                   />
                 </app-form-field>
 
@@ -238,7 +238,7 @@
                     autocomplete="off"
                     formControlName="quantity"
                     placeholder="1"
-                    class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                    class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
                   />
                 </app-form-field>
 
@@ -261,16 +261,16 @@
                     inputmode="decimal"
                     autocomplete="off"
                     formControlName="unitPriceReais"
-                    class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                    class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
                   />
                 </app-form-field>
 
                 <div class="flex items-center justify-between gap-2 lg:block lg:pt-3">
-                  <span class="text-xs uppercase tracking-wide text-neutral-400 lg:hidden">
+                  <span class="text-xs uppercase tracking-wide text-fg-faint lg:hidden">
                     Total da peça
                   </span>
                   <span
-                    class="text-sm font-semibold text-neutral-900 tabular-nums lg:block lg:text-right"
+                    class="text-sm font-semibold text-fg tabular-nums lg:block lg:text-right"
                   >
                     {{ lineTotalLabels()[i] }}
                   </span>
@@ -281,7 +281,7 @@
                     type="button"
                     (click)="removeItem(i)"
                     [attr.aria-label]="'Remover peça ' + (i + 1)"
-                    class="w-full lg:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 rounded-xl text-sm font-medium text-neutral-600 border border-neutral-200 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-rose-400 lg:border-0"
+                    class="w-full lg:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3 rounded-xl text-sm font-medium text-fg-muted border border-edge hover:text-rose-600 dark:hover:text-rose-300 hover:border-rose-200 dark:hover:border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none focus:ring-2 focus:ring-rose-400 lg:border-0"
                   >
                     <span aria-hidden="true">✕</span>
                     <span class="lg:sr-only">Remover</span>
@@ -290,7 +290,7 @@
               </div>
             } @empty {
               <p
-                class="rounded-xl border border-dashed border-neutral-300 p-4 text-center text-sm text-neutral-500"
+                class="rounded-xl border border-dashed border-edge-strong p-4 text-center text-sm text-fg-subtle"
               >
                 Nenhuma peça lançada. Manutenção só de mão de obra pode ser salva assim mesmo.
               </p>
@@ -300,7 +300,7 @@
               <button
                 type="button"
                 (click)="addItem()"
-                class="w-full min-h-[44px] py-3 rounded-xl border border-dashed border-neutral-300 text-sm font-medium text-neutral-600 hover:border-primary-400 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                class="w-full min-h-[44px] py-3 rounded-xl border border-dashed border-edge-strong text-sm font-medium text-fg-muted hover:border-primary-400 hover:text-primary-700 dark:hover:text-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-600"
               >
                 + Adicionar peça
               </button>
@@ -308,7 +308,7 @@
           </div>
 
           <div
-            class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 border-t border-neutral-100 pt-5"
+            class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 border-t border-edge-soft pt-5"
           >
             <app-form-field
               label="Mão de obra (R$)"
@@ -323,7 +323,7 @@
                 inputmode="decimal"
                 autocomplete="off"
                 formControlName="labourReais"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
               />
             </app-form-field>
 
@@ -340,7 +340,7 @@
                 inputmode="decimal"
                 autocomplete="off"
                 formControlName="discountReais"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
               />
             </app-form-field>
 
@@ -357,7 +357,7 @@
                 inputmode="decimal"
                 autocomplete="off"
                 formControlName="surchargeReais"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
               />
             </app-form-field>
 
@@ -374,30 +374,30 @@
                 maxlength="120"
                 formControlName="surchargeNote"
                 placeholder="Ex: Taxa de urgência"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+                class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
               />
             </app-form-field>
           </div>
 
           <!-- Total ao vivo: calculado a cada tecla, nunca digitado. -->
           <div
-            class="rounded-xl border border-primary-100 bg-primary-50/40 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+            class="rounded-xl border border-primary-100 dark:border-primary-500/20 bg-primary-50/40 dark:bg-primary-500/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
           >
             <div>
-              <p class="text-xs uppercase tracking-wide text-primary-700 font-semibold">
+              <p class="text-xs uppercase tracking-wide text-primary-700 dark:text-primary-400 font-semibold">
                 Custo total
               </p>
-              <p class="text-xs text-neutral-500 mt-0.5">
+              <p class="text-xs text-fg-subtle mt-0.5">
                 Peças + mão de obra − desconto + acréscimos
               </p>
             </div>
-            <p class="text-2xl font-semibold text-primary-700 tabular-nums" aria-live="polite">
+            <p class="text-2xl font-semibold text-primary-700 dark:text-primary-400 tabular-nums" aria-live="polite">
               {{ totalLabel() }}
             </p>
           </div>
 
           @if (discountExceedsBase()) {
-            <p class="text-xs text-rose-600" role="alert">
+            <p class="text-xs text-rose-600 dark:text-rose-300" role="alert">
               O desconto não pode ser maior que peças + mão de obra + acréscimos.
             </p>
           }
@@ -415,7 +415,7 @@
               appFieldControl
               type="date"
               formControlName="nextServiceDate"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
 
@@ -433,7 +433,7 @@
               inputmode="numeric"
               autocomplete="off"
               formControlName="nextServiceHodometer"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tabular-nums focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             />
           </app-form-field>
 
@@ -447,7 +447,7 @@
               appFieldControl
               rows="3"
               formControlName="notes"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             ></textarea>
           </app-form-field>
         </div>
@@ -482,7 +482,7 @@
         <button
           type="button"
           (click)="cancel()"
-          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-neutral-700 bg-white border border-neutral-200 hover:bg-neutral-50"
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-fg-soft bg-surface border border-edge hover:bg-surface-muted"
         >
           Cancelar
         </button>

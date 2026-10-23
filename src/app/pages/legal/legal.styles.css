@@ -240,3 +240,22 @@
   .legal-toc-desktop a:hover { color: var(--brand); }
   .legal-content section { scroll-margin-top: 96px; }
 }
+
+/* Modo escuro: mesmos papéis, valores escuros. `brand-strong` (#b52d00, texto pequeno)
+   cai para ~3:1 no escuro; #FA602E dá 5,9:1 sobre o papel escuro. */
+:host-context(.dark) {
+  --brand-strong: #FA602E;
+  --ink: #F4F4F5;
+  --ink-70: rgba(244, 244, 245, 0.72);
+  --ink-50: rgba(244, 244, 245, 0.56);
+  --paper: #0F0F10;
+  --paper-alt: #18181A;
+  --rule: #2E2E33;
+  --rule-strong: #3A3A40;
+}
+
+:host-context(.dark) .legal-toc-mobile,
+:host-context(.dark) .legal-table-wrap,
+:host-context(.dark) .legal-contact {
+  background: var(--paper-alt);
+}

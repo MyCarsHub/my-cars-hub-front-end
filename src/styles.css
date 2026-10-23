@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* ==========================================================
+   MODO ESCURO — a variante e a escolha manual.
+   O tema é uma CLASSE no <html> (`.dark`), posta antes da primeira pintura por
+   `public/theme-init.js` e mantida por `ThemeService` (Claro · Escuro · Automático).
+   Não há `@media (prefers-color-scheme)` aqui: o Automático é resolvido em JS,
+   e uma fonte só evita o caso "o sistema diz escuro, a pessoa escolheu claro".
+
+   `.theme-paper` é a ilha que NÃO escurece (papel do contrato, prévias de
+   documento, fotos e PDFs): os tokens voltam ao valor claro lá dentro e a
+   variante `dark:` deixa de casar — um `dark:` esquecido dentro do papel não
+   o pinta de escuro.
+   ========================================================== */
+@custom-variant dark {
+  &:where(.dark, .dark *):not(:where(.theme-paper, .theme-paper *)) {
+    @slot;
+  }
+}
+
 @theme {
   /* ==========================================================
      Rampa laranja canônica — guia de identidade visual §03 +
@@ -29,6 +47,38 @@
   --color-black: #101010; /* Carbon */
   --color-white: #FFFFFF;
   --color-gray-50: #F0F0F0; /* Hub Gray — canvas padrão */
+
+  /* ==========================================================
+     TOKENS SEMÂNTICOS DE TEMA (modo escuro).
+     O VALOR CLARO DE CADA UM É O DEGRAU EXATO DA RAMPA QUE ELE SUBSTITUI
+     (`bg-white` → `bg-surface`, `text-neutral-500` → `text-fg-subtle`, …):
+     a migração troca o nome da classe e o tema claro não muda um pixel.
+     O valor escuro mora no bloco `.dark` mais abaixo.
+       superfícies  canvas · surface · surface-muted · surface-sunken · surface-strong
+       bordas       edge-faint · edge-soft · edge · edge-strong
+       texto        fg-strong · fg · fg-body · fg-soft · fg-muted · fg-subtle · fg-faint
+     Cor de estado (emerald, amber, rose, sky, primary…) continua na rampa e
+     ganha um gêmeo `dark:` (tinta translúcida no fundo, degrau claro no texto).
+     ========================================================== */
+  --color-canvas: var(--color-gray-50);
+  --color-surface: var(--color-white);
+  --color-surface-muted: var(--color-neutral-50);
+  --color-surface-sunken: var(--color-neutral-100);
+  --color-surface-strong: var(--color-neutral-200);
+  --color-edge-faint: var(--color-neutral-50);
+  --color-edge-soft: var(--color-neutral-100);
+  --color-edge: var(--color-neutral-200);
+  --color-edge-strong: var(--color-neutral-300);
+  /* Borda de CAMPO (input/select/textarea): mesmo valor claro do `edge`; no escuro ela
+     identifica o controle e precisa de 3:1 (WCAG 1.4.11) — ver o bloco `.dark`. */
+  --color-edge-field: var(--color-neutral-200);
+  --color-fg-strong: var(--color-neutral-950);
+  --color-fg: var(--color-neutral-900);
+  --color-fg-body: var(--color-neutral-800);
+  --color-fg-soft: var(--color-neutral-700);
+  --color-fg-muted: var(--color-neutral-600);
+  --color-fg-subtle: var(--color-neutral-500);
+  --color-fg-faint: var(--color-neutral-400);
 
   /* Line — o #DDDDDD que o guia de identidade chama de borda de card.
      PRECEDÊNCIA (ver o bloco de `rule-contrast` lá embaixo): sobre `gray-50`
@@ -317,6 +367,155 @@ body {
   --brand-gradient-radial-hero-soft: radial-gradient(ellipse 55% 40% at 50% 0%, rgba(246,59,4,0.05), transparent 65%);
   --brand-gradient-shine: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
 }
+
+/* ==========================================================
+   VALORES ESCUROS DOS TOKENS (ver `@custom-variant dark` no topo).
+   Medidos contra a superfície onde o par realmente aparece (WCAG AA):
+     fg #F4F4F5 16,13:1 · fg-body 14,37 · fg-soft 12,00 · fg-muted 8,99 ·
+     fg-subtle #A1A1AA 6,92 (5,88 sobre surface-sunken, 4,97 sobre
+     surface-strong) — todos sobre surface #18181A.
+     fg-faint #8E8E97: 5,46:1 sobre surface, 4,64 sobre surface-sunken — passa como texto.
+     rule-contrast #75757E: 3,89 surface · 4,20 canvas · 3,30 sunken.
+     edge-field #75757E (borda de campo): os mesmos 3,89 / 3,30 — passa 3:1.
+     edge-strong #6E6E78: 3,52:1 sobre surface (borda que identifica componente).
+     edge #2E2E33 é só divisória/moldura de card (decorativa).
+   Laranja: `text-primary-700` (#C22F00) cai para 3,0:1 no escuro; o gêmeo
+   `dark:text-primary-400` (#FA602E) dá 5,72:1 sobre surface e 4,98:1 sobre a
+   tinta `primary-500/15`. O preenchimento `bg-primary-500` com texto branco
+   não muda entre temas.
+   ========================================================== */
+.dark {
+  color-scheme: dark;
+  --color-canvas: #0F0F10;
+  --color-surface: #18181A;
+  --color-surface-muted: #1E1E21;
+  --color-surface-sunken: #26262A;
+  --color-surface-strong: #323237;
+  --color-edge-faint: #1E1E21;
+  --color-edge-soft: #242428;
+  --color-edge: #2E2E33;
+  --color-edge-strong: #6E6E78;
+  --color-edge-field: #75757E;
+  --color-fg-strong: #FAFAFA;
+  --color-fg: #F4F4F5;
+  --color-fg-body: #E7E7EA;
+  --color-fg-soft: #D4D4D8;
+  --color-fg-muted: #B8B8BF;
+  --color-fg-subtle: #A1A1AA;
+  --color-fg-faint: #8E8E97;
+
+  /* Tokens neutros da landing / blog / legais, expostos como utilities
+     (`bg-paper`, `text-ink`, `border-rule`…): mesmo papel, valor escuro. */
+  --color-paper: #18181A;
+  --color-paper-alt: #1E1E21;
+  --color-paper-2: #26262A;
+  --color-rule: #2E2E33;
+  --color-rule-strong: #3A3A40;
+  --color-rule-contrast: #75757E;
+  --color-line: #3A3A40;
+  --color-ink: #F4F4F5;
+  --color-ink-dark: #FAFAFA;
+  --color-muted: #A1A1AA;
+  --color-border: #2E2E33;
+}
+
+/* `border` sem cor herda `currentColor` (padrão do Tailwind v4). No claro isso dá a borda
+   escura que alguns campos sempre tiveram; no escuro, o texto claro viraria uma moldura
+   branca. Na camada base, então qualquer `border-*` de cor declarado continua vencendo. */
+@layer base {
+  .dark *,
+  .dark ::before,
+  .dark ::after {
+    border-color: var(--color-edge-strong);
+  }
+}
+
+/* Landing, blog, legais e o escopo de preços usam variáveis próprias (`--paper`, `--ink`…,
+   declaradas em `.landing-root` / `.pricing-scope` mais abaixo). Mesmo papel, valor escuro.
+   As faixas de marca (laranja, carbono) têm cor própria e não mudam. */
+.dark .landing-root,
+.dark .pricing-scope {
+  --paper: #0F0F10;
+  --paper-alt: #18181A;
+  --paper-2: #1E1E21;
+  --rule: #2E2E33;
+  --rule-strong: #3A3A40;
+  --ink: #F4F4F5;
+  --ink-80: rgba(244, 244, 245, 0.85);
+  --ink-70: rgba(244, 244, 245, 0.72);
+  --ink-50: rgba(244, 244, 245, 0.56);
+  --ink-30: rgba(244, 244, 245, 0.34);
+  --muted: #A1A1AA;
+  --ink-dark: #FAFAFA;
+  --brand-strong: #FA602E;
+  --brand-soft: rgba(246, 59, 4, 0.28);
+  --brand-tint: rgba(246, 59, 4, 0.14);
+}
+
+/* Troca de tema feita pela pessoa: fundo, texto e borda mudam em 250ms. A classe só existe
+   durante a troca (ThemeService) — nunca no carregamento — e nada disto roda com
+   `prefers-reduced-motion`. `!important` porque precisa vencer as transições próprias dos
+   componentes só nesses 300ms. */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition-property: background-color, border-color, color, fill, stroke, outline-color !important;
+    transition-duration: 250ms !important;
+    transition-timing-function: ease-out !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* A ilha clara: papel do contrato, prévias de documento, fotos e PDFs. */
+.theme-paper {
+  color-scheme: light;
+  --color-canvas: var(--color-gray-50);
+  --color-surface: var(--color-white);
+  --color-surface-muted: var(--color-neutral-50);
+  --color-surface-sunken: var(--color-neutral-100);
+  --color-surface-strong: var(--color-neutral-200);
+  --color-edge-faint: var(--color-neutral-50);
+  --color-edge-soft: var(--color-neutral-100);
+  --color-edge: var(--color-neutral-200);
+  --color-edge-strong: var(--color-neutral-300);
+  --color-edge-field: var(--color-neutral-200);
+  --color-fg-strong: var(--color-neutral-950);
+  --color-fg: var(--color-neutral-900);
+  --color-fg-body: var(--color-neutral-800);
+  --color-fg-soft: var(--color-neutral-700);
+  --color-fg-muted: var(--color-neutral-600);
+  --color-fg-subtle: var(--color-neutral-500);
+  --color-fg-faint: var(--color-neutral-400);
+  --color-paper: #FFFFFF;
+  --color-paper-alt: #FAFAFA;
+  --color-paper-2: #F5F5F5;
+  --color-rule: #ECECEC;
+  --color-rule-strong: #D6D6D6;
+  --color-rule-contrast: #888888;
+  --color-line: #DDDDDD;
+  --color-ink: #0A0A0A;
+  --color-ink-dark: #050505;
+  --color-muted: #6E6E6E;
+  --color-border: #E8E4E0;
+  --paper: #FFFFFF;
+  --paper-alt: #FAFAFA;
+  --paper-2: #F5F5F5;
+  --rule: #ECECEC;
+  --rule-strong: #D6D6D6;
+  --ink: #0A0A0A;
+  --ink-80: rgba(10, 10, 10, 0.85);
+  --ink-70: rgba(10, 10, 10, 0.68);
+  --ink-50: rgba(10, 10, 10, 0.52);
+  --ink-30: rgba(10, 10, 10, 0.30);
+  --muted: #666666;
+  --ink-dark: #050505;
+  --brand-strong: #C22F00;
+  --brand-soft: #FFD9C9;
+  --brand-tint: #FFF0EA;
+}
+
 
 /* =========================================================
    Pricing scope — mesmos tokens de landing-root SEM o

@@ -184,9 +184,9 @@ describe('VehiclesList — menu de ações', () => {
     expect(open.getAttribute('aria-label')).toContain('ABC1D23');
     expect(open.className).toContain('min-h-11');
 
-    expect(card.querySelectorAll('.text-neutral-500').length).toBeGreaterThan(0);
+    expect(card.querySelectorAll('.text-fg-subtle').length).toBeGreaterThan(0);
     // Nada de neutral-400 (2,98:1) dentro do card — nem no placeholder da miniatura.
-    expect(card.querySelector('.text-neutral-400')).toBeNull();
+    expect(card.querySelector('.text-fg-faint')).toBeNull();
   });
 
   /**

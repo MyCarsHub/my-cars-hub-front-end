@@ -26,6 +26,7 @@ import { BR_UFS } from '../../utils/br-ufs';
 import { applyMaskedCepInput, maskCep } from '../../utils/cep-mask';
 import { applyMaskedPhoneInput, maskPhone, normalizePhone } from '../../utils/phone-mask';
 import { companyRoleLabel } from '../../utils/role-labels';
+import { ThemePicker } from '../../components/theme-picker/theme-picker';
 
 /** DDD + number: 10 (landline) or 11 (mobile) digits — the server's own rule. */
 export function phoneDigitsValidator(control: AbstractControl): ValidationErrors | null {
@@ -63,6 +64,7 @@ export function phoneDigitsValidator(control: AbstractControl): ValidationErrors
     FieldControl,
     FormField,
     PageCard,
+    ThemePicker,
   ],
   templateUrl: './driver-profile.html',
 })
@@ -162,12 +164,12 @@ export class DriverProfile implements OnInit {
 
   /** A read-only value drawn as a field, as in the prototype — the eye reads it as "not mine to edit". */
   protected readonly readonlyClass =
-    'min-h-12 flex items-center rounded-xl border border-neutral-200 bg-neutral-50 px-3.5 py-2 ' +
-    'text-base text-neutral-700 break-words';
+    'min-h-12 flex items-center rounded-xl border border-edge bg-surface-muted px-3.5 py-2 ' +
+    'text-base text-fg-soft break-words';
 
   protected readonly inputClass =
-    'w-full min-h-12 bg-white border rounded-xl px-3 text-base text-neutral-800 ' +
-    'placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 ' +
+    'w-full min-h-12 bg-surface border rounded-xl px-3 text-base text-fg-body ' +
+    'placeholder:text-fg-faint focus:outline-none focus:ring-2 focus:ring-primary-400 ' +
     'focus:border-primary-400 disabled:opacity-60 disabled:cursor-not-allowed';
 
   ngOnInit(): void {

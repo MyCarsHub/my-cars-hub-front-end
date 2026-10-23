@@ -1,12 +1,12 @@
 <app-default-page-layout title="Detalhes da multa">
   @if (loading()) {
-    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
     </div>
   } @else if (error(); as loadError) {
-    <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
-      <p class="text-rose-700 text-sm" role="alert">{{ loadError }}</p>
-      <a routerLink="/multas" class="inline-block text-sm text-primary-700 hover:text-primary-800 font-medium">
+    <div class="rounded-2xl bg-surface border border-rose-200 dark:border-rose-500/30 p-8 text-center space-y-3">
+      <p class="text-rose-700 dark:text-rose-300 text-sm" role="alert">{{ loadError }}</p>
+      <a routerLink="/multas" class="inline-block text-sm text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 font-medium">
         Voltar para lista
       </a>
     </div>
@@ -20,7 +20,7 @@
             (click)="openPay()"
             class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
                    bg-emerald-600 hover:bg-emerald-700 text-white transition-colors
-                   focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                   focus:outline-none focus:ring-2 focus:ring-emerald-300 dark:focus:ring-emerald-500/40">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="20 6 9 17 4 12"/>
@@ -54,54 +54,54 @@
                 [class]="s.chip">{{ s.label }}</span>
             }
             @if (overdue()) {
-              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300">
                 Vencida
               </span>
             }
           </div>
 
           <div>
-            <p class="text-xs uppercase tracking-wide text-neutral-400 mb-0.5">Descrição</p>
-            <p class="text-base text-neutral-900">{{ f.description }}</p>
+            <p class="text-xs uppercase tracking-wide text-fg-faint mb-0.5">Descrição</p>
+            <p class="text-base text-fg">{{ f.description }}</p>
           </div>
 
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Valor</p>
-              <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(f.amountCents) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Valor</p>
+              <p class="font-semibold text-fg tabular-nums">{{ formatCurrency(f.amountCents) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Pontos</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ f.points ?? '—' }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Pontos</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ f.points ?? '—' }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Código</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ f.infractionCode || '—' }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Código</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ f.infractionCode || '—' }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Data da infração</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDateTime(f.infractionDate) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Data da infração</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatDateTime(f.infractionDate) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Vencimento</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.dueDate) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Vencimento</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatDate(f.dueDate) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Data do pagamento</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.paidDate) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Data do pagamento</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatDate(f.paidDate) }}</p>
             </div>
             <div class="col-span-2 sm:col-span-3">
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Local</p>
-              <p class="font-medium text-neutral-800">{{ f.location || '—' }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Local</p>
+              <p class="font-medium text-fg-body">{{ f.location || '—' }}</p>
             </div>
             <div class="col-span-2 sm:col-span-3">
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Motorista</p>
-              <p class="font-medium text-neutral-800">{{ driverName() || '—' }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Motorista</p>
+              <p class="font-medium text-fg-body">{{ driverName() || '—' }}</p>
             </div>
             @if (f.notes) {
               <div class="col-span-2 sm:col-span-3">
-                <p class="text-xs uppercase tracking-wide text-neutral-400">Observações</p>
-                <p class="text-neutral-700 whitespace-pre-wrap">{{ f.notes }}</p>
+                <p class="text-xs uppercase tracking-wide text-fg-faint">Observações</p>
+                <p class="text-fg-soft whitespace-pre-wrap">{{ f.notes }}</p>
               </div>
             }
           </div>
@@ -116,7 +116,7 @@
             (click)="openPay()"
             class="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium
                    bg-emerald-600 hover:bg-emerald-700 text-white transition-colors
-                   focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                   focus:outline-none focus:ring-2 focus:ring-emerald-300 dark:focus:ring-emerald-500/40">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="20 6 9 17 4 12"/>
@@ -149,30 +149,30 @@
 @if (payOpen()) {
   <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
     <div
-      class="absolute inset-0 bg-neutral-900/50"
+      class="absolute inset-0 bg-neutral-900/50 dark:bg-neutral-700/50"
       @sheetBackdrop
       (click)="closePay()"
       aria-hidden="true"
     ></div>
     <div
-      class="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-neutral-200 p-5 space-y-4"
+      class="relative w-full sm:max-w-md bg-surface rounded-t-2xl sm:rounded-2xl shadow-xl border border-edge p-5 space-y-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="pay-title"
       @sheet
     >
-      <h3 id="pay-title" class="text-base font-semibold text-neutral-900">Marcar multa como paga</h3>
-      <p class="text-sm text-neutral-500">
+      <h3 id="pay-title" class="text-base font-semibold text-fg">Marcar multa como paga</h3>
+      <p class="text-sm text-fg-subtle">
         Informe a data em que o pagamento foi efetuado. Deixe em branco para usar a data de hoje.
       </p>
       <div>
-        <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="pay-date">Data do pagamento</label>
+        <label class="block text-sm font-medium text-fg-soft mb-1.5" for="pay-date">Data do pagamento</label>
         <input
           id="pay-date"
           type="date"
           [ngModel]="payDate()"
           (ngModelChange)="payDate.set($event)"
-          class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+          class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                  focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
       </div>
       @if (payError(); as payMessage) {
@@ -183,8 +183,8 @@
           type="button"
           (click)="closePay()"
           [disabled]="paying()"
-          class="w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-medium text-neutral-700
-                 bg-white border border-neutral-200 hover:bg-neutral-50 disabled:opacity-60">
+          class="w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-medium text-fg-soft
+                 bg-surface border border-edge hover:bg-surface-muted disabled:opacity-60">
           Cancelar
         </button>
         <button

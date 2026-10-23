@@ -90,17 +90,17 @@ function registrationRow(label: string, value: string | null | undefined): Regis
 }
 
 const COMPANY_STATUS: Record<AdminCompanyStatus, ChipStyle> = {
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-700' },
-  SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 text-red-700' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
+  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
+  CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
 };
 
 const SUB_STATUS: Record<AdminCompanySubscriptionStatus, ChipStyle> = {
-  TRIALING: { label: 'Trial', chip: 'bg-blue-100 text-blue-700' },
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-700' },
-  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 text-amber-700' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 text-red-700' },
+  TRIALING: { label: 'Trial', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
+  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
 };
 
 const CONFIRMATION_WORD = 'SUSPENDER';
@@ -155,13 +155,13 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   protected readonly companyChip = computed<ChipStyle | null>(() => {
     const status = this.detail()?.status;
     if (!status) return null;
-    return COMPANY_STATUS[status] ?? { label: status, chip: 'bg-neutral-100 text-neutral-700' };
+    return COMPANY_STATUS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
   });
 
   protected readonly subscriptionChip = computed<ChipStyle | null>(() => {
     const status = this.detail()?.subscription?.status;
     if (!status) return null;
-    return SUB_STATUS[status] ?? { label: status, chip: 'bg-neutral-100 text-neutral-700' };
+    return SUB_STATUS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
   });
 
   /**
@@ -473,12 +473,12 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    */
   protected undoStateChip(state: string): ChipStyle {
     if (state === 'UNDO_REFUSED') {
-      return { label: 'Recusado', chip: 'bg-amber-100 text-amber-800' };
+      return { label: 'Recusado', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
     }
     if (state === 'ACTIVE') {
-      return { label: 'Desfeita', chip: 'bg-neutral-100 text-neutral-700' };
+      return { label: 'Desfeita', chip: 'bg-surface-sunken text-fg-soft' };
     }
-    return { label: state || 'Desconhecido', chip: 'bg-neutral-100 text-neutral-600' };
+    return { label: state || 'Desconhecido', chip: 'bg-surface-sunken text-fg-muted' };
   }
 
   protected formatMoney(cents: number): string {
@@ -490,9 +490,9 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   }
 
   protected memberStatusChip(status: string): string {
-    if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-700';
-    if (status === 'INVITED') return 'bg-blue-100 text-blue-700';
-    return 'bg-neutral-100 text-neutral-700';
+    if (status === 'ACTIVE') return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+    if (status === 'INVITED') return 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300';
+    return 'bg-surface-sunken text-fg-soft';
   }
 
   /**

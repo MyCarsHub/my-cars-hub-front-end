@@ -225,7 +225,7 @@ describe('IncidentsList', () => {
     const fixture = render();
     const host = fixture.nativeElement as HTMLElement;
 
-    expect(host.querySelectorAll('article span.text-neutral-500').length).toBeGreaterThan(0);
-    expect(host.querySelector('.text-neutral-400')).toBeNull();
+    expect(host.querySelectorAll('article span.text-fg-subtle').length).toBeGreaterThan(0);
+    expect(host.querySelector('.text-fg-faint')).toBeNull();
   });
 });

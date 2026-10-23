@@ -6,14 +6,14 @@
 <section
   data-schedule-card
   aria-labelledby="schedule-card-title"
-  class="rounded-2xl bg-white border border-neutral-200 shadow-sm px-4 sm:px-6 py-4
+  class="rounded-2xl bg-surface border border-edge shadow-sm px-4 sm:px-6 py-4
          flex flex-col @min-[592px]:flex-row @min-[592px]:items-center
          @min-[592px]:justify-between gap-3"
 >
   <div class="flex items-start gap-3 min-w-0">
     <span
       class="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center"
-      [class]="active() ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'"
+      [class]="active() ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-surface-sunken text-fg-subtle'"
       aria-hidden="true"
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -24,14 +24,14 @@
 
     <div class="min-w-0 flex flex-col gap-0.5">
       <div class="flex flex-wrap items-center gap-2">
-        <h2 id="schedule-card-title" class="text-base font-semibold text-neutral-900">
+        <h2 id="schedule-card-title" class="text-base font-semibold text-fg">
           Vistorias automáticas
         </h2>
         @if (!loading() && !loadFailed()) {
           <span
             data-schedule-chip
             class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-            [class]="active() ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-700'"
+            [class]="active() ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : 'bg-surface-sunken text-fg-soft'"
           >
             {{ active() ? 'Ativo' : 'Desligado' }}
           </span>
@@ -39,14 +39,14 @@
       </div>
 
       @if (loading()) {
-        <div class="mt-1 h-4 w-56 max-w-full rounded bg-neutral-100 animate-pulse" aria-hidden="true"></div>
+        <div class="mt-1 h-4 w-56 max-w-full rounded bg-surface-sunken animate-pulse" aria-hidden="true"></div>
         <p class="sr-only" role="status">Carregando o agendamento automático…</p>
       } @else if (loadFailed()) {
-        <p data-schedule-load-error class="text-sm text-neutral-600 leading-relaxed" role="alert">
+        <p data-schedule-load-error class="text-sm text-fg-muted leading-relaxed" role="alert">
           Não foi possível carregar o agendamento automático.
         </p>
       } @else {
-        <p data-schedule-text class="text-sm text-neutral-600 leading-relaxed">{{ summaryText() }}</p>
+        <p data-schedule-text class="text-sm text-fg-muted leading-relaxed">{{ summaryText() }}</p>
       }
     </div>
   </div>
@@ -56,8 +56,8 @@
       type="button"
       data-schedule-retry
       (click)="load()"
-      class="shrink-0 w-full @min-[592px]:w-auto min-h-[44px] px-5 rounded-xl border border-neutral-200 bg-white
-             text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+      class="shrink-0 w-full @min-[592px]:w-auto min-h-[44px] px-5 rounded-xl border border-edge bg-surface
+             text-sm font-semibold text-fg-soft hover:bg-surface-muted transition-colors
              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
              focus-visible:ring-offset-2"
     >
@@ -69,8 +69,8 @@
       data-schedule-open
       (click)="openDialog()"
       [attr.aria-label]="active() ? 'Editar vistorias automáticas' : 'Configurar vistorias automáticas'"
-      class="shrink-0 w-full @min-[592px]:w-auto min-h-[44px] px-5 rounded-xl border border-neutral-200 bg-white
-             text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+      class="shrink-0 w-full @min-[592px]:w-auto min-h-[44px] px-5 rounded-xl border border-edge bg-surface
+             text-sm font-semibold text-fg-soft hover:bg-surface-muted transition-colors
              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
              focus-visible:ring-offset-2"
     >
@@ -103,7 +103,7 @@
     novalidate
   >
     <div class="space-y-2">
-      <p id="sch-scope" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+      <p id="sch-scope" class="text-xs font-medium text-fg-subtle uppercase tracking-wide">
         Quais veículos
       </p>
       <app-filter-chip-group
@@ -112,7 +112,7 @@
         ariaLabelledby="sch-scope"
         (selectionChange)="setScope($event)"
       />
-      <p data-scope-hint class="text-xs text-neutral-500">{{ scopeHint() }}</p>
+      <p data-scope-hint class="text-xs text-fg-subtle">{{ scopeHint() }}</p>
     </div>
 
     @if (isOneVehicle()) {
@@ -126,8 +126,8 @@
         <select
           appFieldControl
           formControlName="vehicleId"
-          class="w-full min-h-[44px] bg-white border rounded-xl px-3 text-base lg:text-sm
-                 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-400
+          class="w-full min-h-[44px] bg-surface border rounded-xl px-3 text-base lg:text-sm
+                 text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-400
                  focus:border-primary-400"
         >
           <option value="">Selecione o veículo</option>
@@ -139,7 +139,7 @@
     }
 
     <div class="space-y-2">
-      <p id="sch-freq" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+      <p id="sch-freq" class="text-xs font-medium text-fg-subtle uppercase tracking-wide">
         Repetir
       </p>
       <app-filter-chip-group
@@ -163,14 +163,14 @@
         formControlName="startDate"
         type="date"
         [attr.min]="minDate()"
-        class="w-full min-h-[44px] bg-white border rounded-xl px-3 text-base lg:text-sm
-               text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-400
+        class="w-full min-h-[44px] bg-surface border rounded-xl px-3 text-base lg:text-sm
+               text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-400
                focus:border-primary-400"
       />
     </app-form-field>
 
     <div class="space-y-2">
-      <p id="sch-notice" class="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+      <p id="sch-notice" class="text-xs font-medium text-fg-subtle uppercase tracking-wide">
         Avisar o motorista
       </p>
       <app-filter-chip-group
@@ -183,14 +183,14 @@
 
     <p
       data-schedule-preview
-      class="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700
+      class="rounded-xl border border-edge bg-surface-muted px-4 py-3 text-sm text-fg-soft
              leading-relaxed"
     >
       {{ preview() }}
     </p>
 
     @if (replaceNotice(); as notice) {
-      <p data-replace-notice class="text-xs text-neutral-500">{{ notice }}</p>
+      <p data-replace-notice class="text-xs text-fg-subtle">{{ notice }}</p>
     }
 
     @if (formError(); as message) {
@@ -201,7 +201,7 @@
   <div
     sheetFooter
     class="flex flex-col-reverse sm:flex-row sm:items-center gap-2 px-4 sm:px-6 py-4
-           border-t border-neutral-100"
+           border-t border-edge-soft"
   >
     @if (canTurnOff()) {
       <button
@@ -209,7 +209,7 @@
         data-schedule-off
         (click)="askTurnOff()"
         [disabled]="saving()"
-        class="min-h-[44px] px-2 sm:mr-auto text-sm font-medium text-rose-600 hover:text-rose-700
+        class="min-h-[44px] px-2 sm:mr-auto text-sm font-medium text-rose-600 dark:text-rose-300 hover:text-rose-700 dark:hover:text-rose-300
                text-center sm:text-left disabled:opacity-60 focus:outline-none
                focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
                rounded-xl"
@@ -221,8 +221,8 @@
       type="button"
       data-schedule-cancel
       (click)="closeDialog()"
-      class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-neutral-200 bg-white
-             text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+      class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-edge bg-surface
+             text-sm font-semibold text-fg-soft hover:bg-surface-muted transition-colors
              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
              focus-visible:ring-offset-2"
     >

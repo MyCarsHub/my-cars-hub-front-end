@@ -6,10 +6,10 @@
     <app-back-link link="/admin/blog" label="Voltar" placement="top" />
     @if (editing()) {
       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-        [class.bg-emerald-100]="status() === 'PUBLISHED'"
-        [class.text-emerald-800]="status() === 'PUBLISHED'"
-        [class.bg-neutral-200]="status() !== 'PUBLISHED'"
-        [class.text-neutral-700]="status() !== 'PUBLISHED'">
+        [class.bg-emerald-100]="status() === 'PUBLISHED'" [class.dark:bg-emerald-500/15]="status() === 'PUBLISHED'"
+        [class.text-emerald-800]="status() === 'PUBLISHED'" [class.dark:text-emerald-200]="status() === 'PUBLISHED'"
+        [class.bg-surface-strong]="status() !== 'PUBLISHED'"
+        [class.text-fg-soft]="status() !== 'PUBLISHED'">
         {{ status() === 'PUBLISHED' ? 'Publicado' : 'Rascunho' }}
       </span>
     }
@@ -19,7 +19,7 @@
     @if (loadError(); as msg) {
       <app-alert-banner variant="error" [message]="msg" />
     } @else if (loading()) {
-      <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+      <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
         Carregando…
       </div>
     } @else {
@@ -92,7 +92,7 @@
                 formControlName="excerpt"
                 placeholder="Resumo curto que aparece no card da listagem."
                 class="w-full px-3 py-2 rounded-lg border text-sm resize-y"></textarea>
-              <small class="block text-[11px] text-neutral-500">
+              <small class="block text-[11px] text-fg-subtle">
                 {{ form.controls.excerpt.value.length }}/400
               </small>
             </app-form-field>
@@ -125,7 +125,7 @@
                 formControlName="metaDescription"
                 placeholder="Descrição usada em resultados de busca."
                 class="w-full px-3 py-2 rounded-lg border text-sm resize-y"></textarea>
-              <small class="block text-[11px] text-neutral-500">
+              <small class="block text-[11px] text-fg-subtle">
                 {{ form.controls.metaDescription.value.length }}/300
               </small>
             </app-form-field>
@@ -147,7 +147,7 @@
                 formControlName="bodyMarkdown"
                 placeholder="# Título&#10;&#10;Escreva em markdown. Suporte a **negrito**, *itálico*, [links](https://exemplo.com), listas, blockquotes, `código` e blocos ```..."
                 class="w-full px-3 py-3 rounded-lg border text-sm font-mono resize-y min-h-[400px]"></textarea>
-              <small class="block text-[11px] text-neutral-500">
+              <small class="block text-[11px] text-fg-subtle">
                 {{ form.controls.bodyMarkdown.value.length }} caracteres — mínimo 50
               </small>
             </app-form-field>
@@ -156,9 +156,10 @@
 
         @if (editing() && bodyHtmlPreview()) {
           <app-page-card title="Preview do último salvo">
-            <div class="p-4 sm:p-6">
+            <!-- Ilha clara: o .prose do preview tem cores fixas de papel (admin-blog-form.css). -->
+            <div class="theme-paper bg-surface p-4 sm:p-6">
               <div class="prose max-w-none" [innerHTML]="bodyHtmlPreview()"></div>
-              <p class="text-[11px] text-neutral-500 mt-4">
+              <p class="text-[11px] text-fg-subtle mt-4">
                 Salve pra regenerar o preview com as últimas alterações do markdown.
               </p>
             </div>
@@ -167,11 +168,11 @@
 
         <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
           <a routerLink="/admin/blog"
-            class="text-center px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium">
+            class="text-center px-4 py-3 rounded-xl border border-edge hover:bg-surface-muted text-fg-soft text-sm font-medium">
             Cancelar
           </a>
           <button type="button" (click)="save(false)" [disabled]="saving() || publishing()"
-            class="px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-semibold disabled:opacity-50">
+            class="px-4 py-3 rounded-xl border border-edge hover:bg-surface-muted text-fg-soft text-sm font-semibold disabled:opacity-50">
             @if (saving()) { Salvando… } @else { Salvar rascunho }
           </button>
           <button type="submit" [disabled]="saving() || publishing()"

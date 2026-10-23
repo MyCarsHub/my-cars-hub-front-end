@@ -2,21 +2,21 @@
 <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-4" @backdropFade
   role="presentation">
   <!-- Card -->
-  <div class="onboarding-card bg-white rounded-2xl w-full max-w-[500px] max-h-[92vh] flex flex-col shadow-2xl"
+  <div class="onboarding-card bg-surface rounded-2xl w-full max-w-[500px] max-h-[92vh] flex flex-col shadow-2xl"
     @cardEnter role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
     <!-- Header (sticky) -->
-    <div class="px-5 sm:px-8 pt-6 sm:pt-7 pb-4 sm:pb-5 border-b border-gray-100">
+    <div class="px-5 sm:px-8 pt-6 sm:pt-7 pb-4 sm:pb-5 border-b border-gray-100 dark:border-edge-soft">
       <div class="flex items-center gap-2 mb-5">
         <img src="svg/logo-my-cars-hub.svg" alt="" aria-hidden="true" class="h-5" />
-        <span class="text-base font-bold text-gray-900" id="onboarding-title">MyCarsHub</span>
+        <span class="text-base font-bold text-gray-900 dark:text-fg" id="onboarding-title">MyCarsHub</span>
       </div>
 
       <!-- A escolha feita na landing, devolvida para a pessoa. Só aparece quando
            houve escolha PAGA: o trial apaga a intenção em vez de gravá-la, porque
            escolher o gratuito é dizer "não vou pagar agora" (FIX-0291). -->
       @if (chosenPlanLabel(); as planoEscolhido) {
-      <p class="text-sm text-gray-600 mb-4" data-plan-intent>
-        Você escolheu o plano <strong class="text-gray-900">{{ planoEscolhido }}</strong>. Vamos
+      <p class="text-sm text-gray-600 dark:text-fg-muted mb-4" data-plan-intent>
+        Você escolheu o plano <strong class="text-gray-900 dark:text-fg">{{ planoEscolhido }}</strong>. Vamos
         criar sua conta primeiro — você ativa o plano depois, quando quiser.
       </p>
       }
@@ -27,10 +27,10 @@
       <!-- Progress bar skeleton -->
       <div class="flex gap-1.5 mb-5">
         @for (n of [1, 2, 3, 4, 5]; track n) {
-        <div class="h-1.5 flex-1 rounded-full bg-gray-200 animate-pulse"></div>
+        <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-surface-strong animate-pulse"></div>
         }
       </div>
-      <div class="h-4 w-40 rounded bg-gray-100 animate-pulse"></div>
+      <div class="h-4 w-40 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
       }
     </div>
 
@@ -39,12 +39,12 @@
 
       <!-- Saving overlay (shows while POST is in flight) -->
       @if (loading() && loaded()) {
-      <div class="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-b-2xl"
+      <div class="absolute inset-0 bg-surface/70 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-b-2xl"
         aria-live="polite" aria-label="Salvando...">
         <div class="flex flex-col items-center gap-3">
           <div class="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin"
             aria-hidden="true"></div>
-          <span class="text-xs text-gray-500 font-medium">Salvando...</span>
+          <span class="text-xs text-gray-500 dark:text-fg-subtle font-medium">Salvando...</span>
         </div>
       </div>
       }
@@ -57,13 +57,13 @@
       <!-- Initial loading skeleton (while GET /onboarding is in flight) -->
       @if (!loaded()) {
       <div class="space-y-4 animate-pulse">
-        <div class="h-6 w-48 bg-gray-200 rounded"></div>
-        <div class="h-4 w-64 bg-gray-100 rounded"></div>
+        <div class="h-6 w-48 bg-gray-200 dark:bg-surface-strong rounded"></div>
+        <div class="h-4 w-64 bg-gray-100 dark:bg-surface-sunken rounded"></div>
         <div class="space-y-3 pt-2">
           @for (n of [1, 2, 3]; track n) {
           <div>
-            <div class="h-3.5 w-24 bg-gray-100 rounded mb-1.5"></div>
-            <div class="h-10 w-full bg-gray-100 rounded-lg"></div>
+            <div class="h-3.5 w-24 bg-gray-100 dark:bg-surface-sunken rounded mb-1.5"></div>
+            <div class="h-10 w-full bg-gray-100 dark:bg-surface-sunken rounded-lg"></div>
           </div>
           }
         </div>
@@ -97,10 +97,10 @@
     <!-- Footer navigation (sticky). Rendered on every step: the last step keeps "Voltar"
          (its own CTA lives inside app-step-welcome). -->
     @if (!isFirstStep() || !isLastStep()) {
-    <div class="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100">
+    <div class="px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100 dark:border-edge-soft">
       <!-- Why "Próximo" is blocked — referenced by aria-describedby, announced politely -->
       @if (nextBlockedReason(); as blockedReason) {
-      <p id="onboarding-next-hint" class="text-xs text-gray-500 mb-3" aria-live="polite">
+      <p id="onboarding-next-hint" class="text-xs text-gray-500 dark:text-fg-subtle mb-3" aria-live="polite">
         {{ blockedReason }}
       </p>
       }
@@ -108,10 +108,10 @@
       <div class="flex items-center gap-2" [class.justify-between]="!isFirstStep() && !isLastStep()"
         [class.justify-end]="isFirstStep()">
         @if (!isFirstStep()) {
-        <button type="button" class="flex items-center gap-2 min-h-11 text-sm font-medium text-gray-500
-                   hover:text-gray-800 transition-colors px-3 py-2 rounded-lg
-                   hover:bg-gray-100 focus:outline-none focus-visible:ring-2
-                   focus-visible:ring-gray-400 disabled:opacity-40" (click)="onBack()" [disabled]="busy()"
+        <button type="button" class="flex items-center gap-2 min-h-11 text-sm font-medium text-gray-500 dark:text-fg-subtle
+                   hover:text-gray-800 dark:hover:text-fg-body transition-colors px-3 py-2 rounded-lg
+                   hover:bg-gray-100 dark:hover:bg-surface-sunken focus:outline-none focus-visible:ring-2
+                   focus-visible:ring-gray-400 dark:focus-visible:ring-neutral-500 disabled:opacity-40" (click)="onBack()" [disabled]="busy()"
           aria-label="Voltar para o passo anterior">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -129,7 +129,7 @@
           [class.bg-primary-500]="stepValid() && !busy() && loaded()"
           [class.hover:bg-primary-600]="stepValid() && !busy() && loaded()"
           [class.shadow-sm]="stepValid() && !busy() && loaded()"
-          [class.bg-gray-300]="!stepValid() || busy() || !loaded()"
+          [class.bg-gray-300]="!stepValid() || busy() || !loaded()" [class.dark:bg-neutral-600]="!stepValid() || busy() || !loaded()"
           [class.cursor-not-allowed]="!stepValid() || busy() || !loaded()"
           [disabled]="busy() || !loaded()" (click)="onNext()" [attr.aria-busy]="busy()"
           [attr.aria-disabled]="!stepValid() || busy() || !loaded()"

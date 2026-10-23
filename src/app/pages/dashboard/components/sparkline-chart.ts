@@ -51,13 +51,13 @@ interface Spark {
                     }
                 }
             </svg>
-            <div class="flex justify-between items-center gap-2 text-[10px] sm:text-xs text-gray-400 mt-2 tabular-nums">
+            <div class="flex justify-between items-center gap-2 text-[10px] sm:text-xs text-gray-400 dark:text-fg-faint mt-2 tabular-nums">
                 <span class="truncate">{{ dayLabel(s.points[0].raw.date) }}</span>
                 <span class="hidden sm:inline truncate">pico: {{ formatCents(s.max) }}</span>
                 <span class="truncate">{{ dayLabel(s.points[s.points.length - 1].raw.date) }}</span>
             </div>
         } @else {
-            <p class="text-sm text-gray-500 text-center py-10">Sem dados no período.</p>
+            <p class="text-sm text-gray-500 dark:text-fg-subtle text-center py-10">Sem dados no período.</p>
         }
     `,
 })

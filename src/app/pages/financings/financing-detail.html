@@ -1,12 +1,12 @@
 <app-default-page-layout title="Detalhes do financiamento">
   @if (loading()) {
-    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
     </div>
   } @else if (error(); as loadError) {
-    <div class="rounded-2xl bg-white border border-rose-200 p-8 text-center space-y-3">
-      <p class="text-rose-700 text-sm" role="alert">{{ loadError }}</p>
-      <a routerLink="/financiamentos" class="inline-block text-sm text-primary-700 hover:text-primary-800 font-medium">
+    <div class="rounded-2xl bg-surface border border-rose-200 dark:border-rose-500/30 p-8 text-center space-y-3">
+      <p class="text-rose-700 dark:text-rose-300 text-sm" role="alert">{{ loadError }}</p>
+      <a routerLink="/financiamentos" class="inline-block text-sm text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 font-medium">
         Voltar para lista
       </a>
     </div>
@@ -21,17 +21,17 @@
         <div class="p-4 sm:p-6 space-y-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Veículo</p>
-              <p class="text-base font-semibold text-neutral-900 tabular-nums tracking-wider">
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Veículo</p>
+              <p class="text-base font-semibold text-fg tabular-nums tracking-wider">
                 {{ formatPlate(f.vehiclePlate) }}
               </p>
-              <p class="text-sm text-neutral-600 truncate">
+              <p class="text-sm text-fg-muted truncate">
                 {{ f.vehicleBrand }} {{ f.vehicleModel }}
-                @if (f.vehicleYearModel) { <span class="text-neutral-400">· {{ f.vehicleYearModel }}</span> }
+                @if (f.vehicleYearModel) { <span class="text-fg-faint">· {{ f.vehicleYearModel }}</span> }
               </p>
               <a
                 [routerLink]="['/veiculos', f.vehicleId, 'gerencia']"
-                class="inline-block mt-1 text-xs font-medium text-primary-700 hover:text-primary-800"
+                class="inline-block mt-1 text-xs font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400"
               >
                 Ver veículo →
               </a>
@@ -44,39 +44,39 @@
             </span>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm border-t border-neutral-100 pt-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm border-t border-edge-soft pt-4">
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Valor de compra</p>
-              <p class="font-semibold text-neutral-900 tabular-nums">{{ formatCurrency(f.purchasePrice) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Valor de compra</p>
+              <p class="font-semibold text-fg tabular-nums">{{ formatCurrency(f.purchasePrice) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Entrada</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatCurrency(f.downPayment) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Entrada</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatCurrency(f.downPayment) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Financiado</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatCurrency(f.totalFinanced) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Financiado</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatCurrency(f.totalFinanced) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Nº de parcelas</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ f.installments ?? '—' }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Nº de parcelas</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ f.installments ?? '—' }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Valor da parcela</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatCurrency(f.installmentAmount) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Valor da parcela</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatCurrency(f.installmentAmount) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Data do contrato</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.contractDate) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Data do contrato</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatDate(f.contractDate) }}</p>
             </div>
             <div>
-              <p class="text-xs uppercase tracking-wide text-neutral-400">Última parcela prevista</p>
-              <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(lastInstallmentDate()) }}</p>
+              <p class="text-xs uppercase tracking-wide text-fg-faint">Última parcela prevista</p>
+              <p class="font-medium text-fg-body tabular-nums">{{ formatDate(lastInstallmentDate()) }}</p>
             </div>
             @if (f.paidOffDate) {
               <div>
-                <p class="text-xs uppercase tracking-wide text-neutral-400">Quitado em</p>
-                <p class="font-medium text-neutral-800 tabular-nums">{{ formatDate(f.paidOffDate) }}</p>
+                <p class="text-xs uppercase tracking-wide text-fg-faint">Quitado em</p>
+                <p class="font-medium text-fg-body tabular-nums">{{ formatDate(f.paidOffDate) }}</p>
               </div>
             }
           </div>
@@ -85,28 +85,28 @@
 
       <!-- Summary cards -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor pago</p>
-          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Valor pago</p>
+          <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(paidCents()) }}
           </p>
         </div>
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Valor restante</p>
-          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Valor restante</p>
+          <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatCurrency(remainingCents()) }}
           </p>
         </div>
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Próximo vencimento</p>
-          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Próximo vencimento</p>
+          <p class="mt-1 text-lg font-semibold text-fg tabular-nums">
             {{ formatDate(nextDueDate()) }}
           </p>
         </div>
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p class="text-xs uppercase tracking-wide text-neutral-400">Progresso</p>
-          <p class="mt-1 text-lg font-semibold text-neutral-900 tabular-nums">{{ progressPct() }}%</p>
-          <div class="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+        <div class="rounded-2xl border border-edge bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-fg-faint">Progresso</p>
+          <p class="mt-1 text-lg font-semibold text-fg tabular-nums">{{ progressPct() }}%</p>
+          <div class="mt-2 h-1.5 rounded-full bg-surface-sunken overflow-hidden">
             <div
               class="h-full bg-primary-500"
               [style.width.%]="progressPct()"
@@ -120,23 +120,23 @@
       <app-page-card title="Cronograma">
         <div class="p-3 sm:p-4 space-y-3">
           @if (!hasSchedule()) {
-            <p class="text-xs text-neutral-500 bg-amber-50 border border-amber-100 text-amber-800 rounded-lg px-3 py-2">
+            <p class="text-xs text-fg-subtle bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 text-amber-800 dark:text-amber-200 rounded-lg px-3 py-2">
               Este financiamento foi cadastrado antes do controle de parcelas por linha e
               não possui cronograma real disponível.
             </p>
-            <p class="text-sm text-neutral-500 text-center py-6">
+            <p class="text-sm text-fg-subtle text-center py-6">
               Sem parcelas cadastradas.
             </p>
           } @else {
-            <div class="text-xs text-neutral-500 flex items-center justify-between">
+            <div class="text-xs text-fg-subtle flex items-center justify-between">
               <span>
-                <strong class="text-neutral-800 tabular-nums">{{ paidCount() }}</strong>
+                <strong class="text-fg-body tabular-nums">{{ paidCount() }}</strong>
                 de
-                <strong class="text-neutral-800 tabular-nums">{{ totalCount() }}</strong>
+                <strong class="text-fg-body tabular-nums">{{ totalCount() }}</strong>
                 parcelas pagas
               </span>
               @if (overdueCount() > 0) {
-                <span class="text-rose-700 font-medium">
+                <span class="text-rose-700 dark:text-rose-300 font-medium">
                   {{ overdueCount() }} atrasada(s)
                 </span>
               }
@@ -146,15 +146,15 @@
             <ul class="space-y-2 lg:hidden" role="list">
               @for (r of installments(); track trackInstallment($index, r)) {
                 <li
-                  class="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5"
+                  class="flex items-center justify-between gap-2 rounded-xl border border-edge bg-surface px-3 py-2.5"
                 >
                   <div class="flex items-center gap-3 min-w-0">
-                    <span class="text-xs text-neutral-400 tabular-nums w-6 text-right">
+                    <span class="text-xs text-fg-faint tabular-nums w-6 text-right">
                       {{ r.number }}
                     </span>
                     <div class="min-w-0">
-                      <p class="text-sm text-neutral-800 tabular-nums">{{ formatDate(r.dueDate) }}</p>
-                      <p class="text-xs text-neutral-500 tabular-nums">
+                      <p class="text-sm text-fg-body tabular-nums">{{ formatDate(r.dueDate) }}</p>
+                      <p class="text-xs text-fg-subtle tabular-nums">
                         {{ formatCurrency(r.amountCents) }}
                       </p>
                     </div>
@@ -200,7 +200,7 @@
             <div class="hidden lg:block overflow-x-auto">
               <table class="min-w-full text-sm">
                 <thead>
-                  <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
+                  <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                     <th class="py-2 pr-4 font-medium">#</th>
                     <th class="py-2 pr-4 font-medium">Vencimento</th>
                     <th class="py-2 pr-4 font-medium">Valor</th>
@@ -211,13 +211,13 @@
                 </thead>
                 <tbody>
                   @for (r of installments(); track trackInstallment($index, r)) {
-                    <tr class="border-b border-neutral-50">
-                      <td class="py-2.5 pr-4 tabular-nums text-neutral-500">{{ r.number }}</td>
+                    <tr class="border-b border-edge-faint">
+                      <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">{{ r.number }}</td>
                       <td class="py-2.5 pr-4 tabular-nums">{{ formatDate(r.dueDate) }}</td>
                       <td class="py-2.5 pr-4 tabular-nums font-medium">
                         {{ formatCurrency(r.amountCents) }}
                       </td>
-                      <td class="py-2.5 pr-4 tabular-nums text-neutral-500">
+                      <td class="py-2.5 pr-4 tabular-nums text-fg-subtle">
                         {{ formatDate(r.paidDate) }}
                       </td>
                       <td class="py-2.5 pr-4">

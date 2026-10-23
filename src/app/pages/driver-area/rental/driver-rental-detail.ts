@@ -57,7 +57,7 @@ const HERO_BG: Record<HeroTone, string> = {
   overdue: 'bg-rose-700',
   next: 'bg-primary-500',
   clear: 'bg-success-800',
-  ended: 'bg-neutral-800',
+  ended: 'bg-neutral-800 dark:bg-neutral-700',
 };
 
 const DOC_NAMES: Record<RentalDocumentKind, string> = {

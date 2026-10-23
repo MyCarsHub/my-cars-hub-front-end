@@ -37,16 +37,16 @@ interface RenderedBar {
             @for (bar of bars(); track bar.label) {
                 <div class="min-w-0">
                     <div class="flex justify-between items-baseline gap-2 text-xs mb-1 min-w-0">
-                        <span class="text-gray-700 truncate min-w-0">{{ bar.label }}</span>
-                        <span class="text-gray-900 font-medium tabular-nums shrink-0">
+                        <span class="text-gray-700 dark:text-fg-soft truncate min-w-0">{{ bar.label }}</span>
+                        <span class="text-gray-900 dark:text-fg font-medium tabular-nums shrink-0">
                             {{ bar.primaryValue }}
                         </span>
                     </div>
                     @if (bar.hint) {
-                        <p class="text-[10px] text-gray-500 mb-1 truncate">{{ bar.hint }}</p>
+                        <p class="text-[10px] text-gray-500 dark:text-fg-subtle mb-1 truncate">{{ bar.hint }}</p>
                     }
                     <div
-                        class="h-2 rounded-full bg-gray-100 overflow-hidden"
+                        class="h-2 rounded-full bg-gray-100 dark:bg-surface-sunken overflow-hidden"
                         [attr.aria-label]="bar.label + ': ' + bar.primaryValue"
                     >
                         <div
@@ -56,26 +56,26 @@ interface RenderedBar {
                     </div>
                     @if (bar.hasSecondary) {
                         <div class="flex justify-between items-baseline gap-2 text-[11px] mt-1 min-w-0">
-                            <span class="text-gray-500 truncate">Recebido</span>
-                            <span class="text-emerald-600 tabular-nums font-medium shrink-0">
+                            <span class="text-gray-500 dark:text-fg-subtle truncate">Recebido</span>
+                            <span class="text-emerald-600 dark:text-emerald-300 tabular-nums font-medium shrink-0">
                                 {{ bar.secondaryValue }}
                             </span>
                         </div>
-                        <div class="h-2 rounded-full bg-gray-100 overflow-hidden mt-1">
+                        <div class="h-2 rounded-full bg-gray-100 dark:bg-surface-sunken overflow-hidden mt-1">
                             <div
                                 class="h-full rounded-full bg-emerald-500 transition-all duration-500"
                                 [style.width.%]="bar.secondaryPct"
                             ></div>
                         </div>
                         @if (bar.gapValue) {
-                            <p class="text-[11px] text-red-600 mt-1 tabular-nums">
+                            <p class="text-[11px] text-red-600 dark:text-red-300 mt-1 tabular-nums">
                                 Inadimplência: {{ bar.gapValue }}
                             </p>
                         }
                     }
                 </div>
             } @empty {
-                <p class="text-sm text-gray-500 text-center py-6">Sem dados no período.</p>
+                <p class="text-sm text-gray-500 dark:text-fg-subtle text-center py-6">Sem dados no período.</p>
             }
         </div>
     `,

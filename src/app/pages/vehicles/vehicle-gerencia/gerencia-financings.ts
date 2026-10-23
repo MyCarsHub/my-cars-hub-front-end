@@ -13,7 +13,7 @@ import { FinancingsList } from '../../financings/financings-list';
     <div class="mb-3">
       <a
         [routerLink]="['/veiculos', vehicleId(), 'gerencia']"
-        class="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-800 font-medium"
+        class="inline-flex items-center gap-1 text-sm text-fg-subtle hover:text-fg-body font-medium"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

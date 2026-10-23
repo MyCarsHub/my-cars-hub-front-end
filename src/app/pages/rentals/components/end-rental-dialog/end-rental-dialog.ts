@@ -480,7 +480,7 @@ export class EndRentalDialog {
   );
 
   protected readonly iconBgClass = computed(() =>
-    this.intent() === 'cancel' ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500',
+    this.intent() === 'cancel' ? 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-300' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 dark:text-emerald-300',
   );
 
   constructor() {

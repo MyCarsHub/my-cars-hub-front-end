@@ -55,10 +55,10 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
             {{ v.comparison }}
           </p>
         } @else {
-          <p class="text-[11px] sm:text-xs text-neutral-500 uppercase tracking-wide truncate">
+          <p class="text-[11px] sm:text-xs text-fg-subtle uppercase tracking-wide truncate">
             Já entrou em {{ currentMonthLabel() }}
           </p>
-          <p class="text-3xl sm:text-4xl font-semibold text-neutral-900 mt-1 tabular-nums truncate">
+          <p class="text-3xl sm:text-4xl font-semibold text-fg mt-1 tabular-nums truncate">
             {{ v.total }}
           </p>
           <!--
@@ -68,9 +68,9 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
           -->
           <p
             class="text-sm font-medium mt-1"
-            [class.text-emerald-700]="v.trend === 'up'"
-            [class.text-rose-700]="v.trend === 'down'"
-            [class.text-neutral-500]="v.trend === 'flat'"
+            [class.text-emerald-700]="v.trend === 'up'" [class.dark:text-emerald-300]="v.trend === 'up'"
+            [class.text-rose-700]="v.trend === 'down'" [class.dark:text-rose-300]="v.trend === 'down'"
+            [class.text-fg-subtle]="v.trend === 'flat'"
           >
             <span aria-hidden="true">{{ v.trend === 'up' ? '▲' : v.trend === 'down' ? '▼' : '=' }}</span>
             {{ v.comparison }}
@@ -79,7 +79,7 @@ import { cashAccumulationView, monthName } from '../../../utils/cash-accumulatio
 
         @if (v.isEmpty && !compact()) {
           <!-- Zero e zero: explica em vez de sumir. -->
-          <p class="text-xs text-neutral-500 mt-2">
+          <p class="text-xs text-fg-subtle mt-2">
             Nenhuma cobrança paga até o dia {{ v.current.throughDay }}. A linha começa a
             subir na primeira que entrar.
           </p>

@@ -24,8 +24,8 @@
       data-skeleton
     >
       <span class="sr-only">Carregando o seu perfil…</span>
-      <div class="h-[22.5rem] rounded-2xl bg-neutral-200 animate-pulse" aria-hidden="true"></div>
-      <div class="h-[16.25rem] rounded-2xl bg-neutral-200 animate-pulse" aria-hidden="true"></div>
+      <div class="h-[22.5rem] rounded-2xl bg-surface-strong animate-pulse" aria-hidden="true"></div>
+      <div class="h-[16.25rem] rounded-2xl bg-surface-strong animate-pulse" aria-hidden="true"></div>
     </div>
   } @else {
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
@@ -34,8 +34,8 @@
         <app-page-card title="Informações pessoais">
           <span
             cardIcon
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50
-                   text-primary-500"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-500/10
+                   text-primary-500 dark:text-primary-400"
             aria-hidden="true"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -47,15 +47,15 @@
           <div class="px-4 pb-6 sm:px-6">
           <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div class="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-              <dt class="text-sm font-medium text-neutral-600">Nome</dt>
+              <dt class="text-sm font-medium text-fg-muted">Nome</dt>
               <dd [class]="readonlyClass" data-name>{{ name() }}</dd>
             </div>
             <div class="flex min-w-0 flex-col gap-1.5">
-              <dt class="text-sm font-medium text-neutral-600">E-mail</dt>
+              <dt class="text-sm font-medium text-fg-muted">E-mail</dt>
               <dd [class]="readonlyClass">{{ email() }}</dd>
             </div>
             <div class="flex min-w-0 flex-col gap-1.5">
-              <dt class="text-sm font-medium text-neutral-600">
+              <dt class="text-sm font-medium text-fg-muted">
                 {{ profile()?.documentType ?? 'CPF' }}
               </dt>
               <dd [class]="readonlyClass + ' tabular-nums'" data-document>
@@ -64,22 +64,22 @@
             </div>
             @if (license(); as cnh) {
               <div class="flex min-w-0 flex-col gap-1.5">
-                <dt class="text-sm font-medium text-neutral-600">CNH</dt>
+                <dt class="text-sm font-medium text-fg-muted">CNH</dt>
                 <dd [class]="readonlyClass">{{ cnh }}</dd>
               </div>
             }
             @if (profile()?.companyName; as company) {
               <div class="flex min-w-0 flex-col gap-1.5">
-                <dt class="text-sm font-medium text-neutral-600">Locadora</dt>
+                <dt class="text-sm font-medium text-fg-muted">Locadora</dt>
                 <dd [class]="readonlyClass" data-company>{{ company }}</dd>
               </div>
             }
             <div class="flex flex-col gap-1.5">
-              <dt class="text-sm font-medium text-neutral-600">Seu papel</dt>
+              <dt class="text-sm font-medium text-fg-muted">Seu papel</dt>
               <dd>
                 <span
-                  class="inline-flex rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-medium
-                         text-primary-500"
+                  class="inline-flex rounded-full bg-primary-50 dark:bg-primary-500/10 px-2.5 py-0.5 text-xs font-medium
+                         text-primary-500 dark:text-primary-400"
                 >
                   {{ roleLabel }}
                 </span>
@@ -87,7 +87,7 @@
             </div>
           </dl>
           <!-- Fora do <dl>: ele só aceita dt/dd/div (regra definition-list do AXE). -->
-          <p class="mt-4 text-xs leading-normal text-neutral-600" data-readonly-note>
+          <p class="mt-4 text-xs leading-normal text-fg-muted" data-readonly-note>
             Nome, e-mail, CPF e CNH são cadastrados pela locadora. Para corrigir, fale com ela.
           </p>
           </div>
@@ -97,8 +97,8 @@
         <app-page-card title="Contato e endereço">
           <span
             cardIcon
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50
-                   text-blue-600"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10
+                   text-blue-600 dark:text-blue-300"
             aria-hidden="true"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -280,12 +280,15 @@
       </div>
 
       <div class="flex min-w-0 flex-col gap-4">
+        <!-- Aparência: Claro, Escuro ou Automático (vale neste aparelho). -->
+        <app-theme-picker />
+
         <!-- A conta: quem está logado, ajuda e saída. -->
         <section
           aria-labelledby="driver-account-title"
-          class="rounded-2xl border border-neutral-200 bg-white px-4 py-5 shadow-sm sm:px-6"
+          class="rounded-2xl border border-edge bg-surface px-4 py-5 shadow-sm sm:px-6"
         >
-          <h2 id="driver-account-title" class="mb-4 font-semibold text-neutral-800">Sua conta</h2>
+          <h2 id="driver-account-title" class="mb-4 font-semibold text-fg-body">Sua conta</h2>
           <div class="mb-3 flex items-center gap-3">
             <span
               class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-500
@@ -296,41 +299,41 @@
             </span>
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
-                <span class="font-semibold text-neutral-900 break-words">{{ name() }}</span>
+                <span class="font-semibold text-fg break-words">{{ name() }}</span>
                 <span
-                  class="rounded-md bg-primary-50 px-2 py-0.5 text-xs font-bold uppercase
-                         tracking-wider text-primary-500"
+                  class="rounded-md bg-primary-50 dark:bg-primary-500/10 px-2 py-0.5 text-xs font-bold uppercase
+                         tracking-wider text-primary-500 dark:text-primary-400"
                 >
                   {{ roleLabel }}
                 </span>
               </div>
-              <span class="text-sm text-neutral-600 break-words">{{ email() }}</span>
+              <span class="text-sm text-fg-muted break-words">{{ email() }}</span>
             </div>
           </div>
           <div
-            class="flex min-h-11 items-center justify-between gap-3 border-t border-neutral-100 py-3"
+            class="flex min-h-11 items-center justify-between gap-3 border-t border-edge-soft py-3"
           >
-            <span class="text-sm text-neutral-600">Ajuda</span>
+            <span class="text-sm text-fg-muted">Ajuda</span>
             <a
               [routerLink]="supportRoute"
               data-support-link
               class="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium
-                     text-primary-500 hover:bg-primary-50 focus:outline-none
+                     text-primary-500 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 focus:outline-none
                      focus-visible:ring-2 focus-visible:ring-primary-400"
             >
               Falar com o suporte
             </a>
           </div>
           <div
-            class="flex min-h-11 items-center justify-between gap-3 border-t border-neutral-100 py-3"
+            class="flex min-h-11 items-center justify-between gap-3 border-t border-edge-soft py-3"
           >
-            <span class="text-sm text-neutral-600">Encerrar sessão</span>
+            <span class="text-sm text-fg-muted">Encerrar sessão</span>
             <button
               type="button"
               data-logout
               (click)="logout()"
               class="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-medium
-                     text-rose-700 hover:bg-rose-50 focus:outline-none focus-visible:ring-2
+                     text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2
                      focus-visible:ring-rose-500"
             >
               Sair
@@ -342,8 +345,8 @@
         @if (profile()?.activeRental; as rental) {
           <section
             aria-labelledby="driver-rental-title"
-            class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-neutral-800
-                   bg-neutral-900 px-4 py-5 shadow-xl sm:px-6"
+            class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-neutral-800 dark:border-neutral-600
+                   bg-neutral-900 dark:bg-neutral-700 px-4 py-5 shadow-xl sm:px-6"
             data-active-rental
           >
             <span
@@ -354,7 +357,7 @@
             <div class="relative flex min-w-0 flex-col gap-1">
               <h2
                 id="driver-rental-title"
-                class="text-xs font-semibold uppercase tracking-widest text-neutral-400"
+                class="text-xs font-semibold uppercase tracking-widest text-fg-faint"
               >
                 Aluguel ativo
               </h2>
@@ -365,13 +368,13 @@
             <dl class="relative flex flex-col gap-2.5 text-sm">
               @if (rentalVehicle(); as vehicle) {
                 <div class="flex justify-between gap-3">
-                  <dt class="text-neutral-400">Veículo</dt>
+                  <dt class="text-fg-faint">Veículo</dt>
                   <dd class="font-medium text-white text-right">{{ vehicle }}</dd>
                 </div>
               }
               @if (rentalSince(); as since) {
                 <div class="flex justify-between gap-3">
-                  <dt class="text-neutral-400">Desde</dt>
+                  <dt class="text-fg-faint">Desde</dt>
                   <dd class="font-medium text-white tabular-nums">{{ since }}</dd>
                 </div>
               }
@@ -379,9 +382,9 @@
             <a
               [routerLink]="[rentalBase, rental.rentalId]"
               class="relative inline-flex min-h-12 w-full items-center justify-center rounded-xl
-                     bg-white text-[0.9375rem] font-bold text-neutral-950 hover:bg-neutral-100
+                     bg-surface text-[0.9375rem] font-bold text-fg-strong hover:bg-surface-sunken
                      active:scale-[0.98] focus:outline-none focus-visible:ring-2
-                     focus-visible:ring-white focus-visible:ring-offset-2
+                     focus-visible:ring-surface focus-visible:ring-offset-2
                      focus-visible:ring-offset-neutral-900"
             >
               Ver aluguel

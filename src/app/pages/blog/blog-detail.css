@@ -212,3 +212,9 @@
   animation: spin 700ms linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Escuro: o bloco de código é "fundo de tinta" — e a tinta inverte. */
+:host-context(.dark) .prose pre {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+}

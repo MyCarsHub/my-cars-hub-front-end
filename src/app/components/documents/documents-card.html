@@ -4,7 +4,7 @@
       <app-alert-banner variant="error" [message]="cardError" />
     }
 
-    <p class="text-sm text-neutral-600">{{ description() }}</p>
+    <p class="text-sm text-fg-muted">{{ description() }}</p>
 
     <!-- O número que responde "o que ainda falta?" antes de o usuário abrir
          qualquer coisa. Conta só os tipos essenciais; entidade SEM tipo
@@ -12,10 +12,10 @@
     @if (requiredTotal() > 0) {
     <div
       class="flex items-center gap-3 rounded-xl border p-3"
-      [class.border-success-100]="allRequiredFilled()"
-      [class.bg-success-50]="allRequiredFilled()"
-      [class.border-primary-100]="!allRequiredFilled()"
-      [class.bg-primary-50]="!allRequiredFilled()"
+      [class.border-success-100]="allRequiredFilled()" [class.dark:border-success-500/20]="allRequiredFilled()"
+      [class.bg-success-50]="allRequiredFilled()" [class.dark:bg-success-500/10]="allRequiredFilled()"
+      [class.border-primary-100]="!allRequiredFilled()" [class.dark:border-primary-500/20]="!allRequiredFilled()"
+      [class.bg-primary-50]="!allRequiredFilled()" [class.dark:bg-primary-500/10]="!allRequiredFilled()"
       role="status"
       aria-live="polite"
     >
@@ -23,8 +23,8 @@
         class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
         [class.bg-success-700]="allRequiredFilled()"
         [class.text-white]="allRequiredFilled()"
-        [class.bg-primary-100]="!allRequiredFilled()"
-        [class.text-primary-800]="!allRequiredFilled()"
+        [class.bg-primary-100]="!allRequiredFilled()" [class.dark:bg-primary-500/15]="!allRequiredFilled()"
+        [class.text-primary-800]="!allRequiredFilled()" [class.dark:text-primary-400]="!allRequiredFilled()"
         aria-hidden="true"
       >
         @if (allRequiredFilled()) {
@@ -47,8 +47,8 @@
       </span>
       <p
         class="text-sm font-medium"
-        [class.text-success-900]="allRequiredFilled()"
-        [class.text-primary-900]="!allRequiredFilled()"
+        [class.text-success-900]="allRequiredFilled()" [class.dark:text-emerald-300]="allRequiredFilled()"
+        [class.text-primary-900]="!allRequiredFilled()" [class.dark:text-primary-400]="!allRequiredFilled()"
       >
         @if (allRequiredFilled()) {
           Todos os documentos essenciais foram anexados.
@@ -61,9 +61,9 @@
 
     @if (loading()) {
       <div class="space-y-3" aria-hidden="true">
-        <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-20 rounded-xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+        <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+        <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
       </div>
     } @else {
       <!-- Um slot por TIPO. O slot é a afordância: o cabeçalho inteiro é o
@@ -82,14 +82,14 @@
           <li
             class="rounded-xl overflow-hidden transition-colors"
             [class.border]="slot.state !== 'empty'"
-            [class.border-neutral-200]="slot.state === 'gated'"
-            [class.bg-neutral-50]="slot.state === 'gated'"
-            [class.border-success-100]="slot.state === 'filled'"
-            [class.bg-success-50]="slot.state === 'filled'"
+            [class.border-edge]="slot.state === 'gated'"
+            [class.bg-surface-muted]="slot.state === 'gated'"
+            [class.border-success-100]="slot.state === 'filled'" [class.dark:border-success-500/20]="slot.state === 'filled'"
+            [class.bg-success-50]="slot.state === 'filled'" [class.dark:bg-success-500/10]="slot.state === 'filled'"
             [class.border-2]="slot.state === 'empty'"
             [class.border-dashed]="slot.state === 'empty'"
             [class.border-rose-500]="slot.state === 'empty'"
-            [class.bg-rose-50]="slot.state === 'empty'"
+            [class.bg-rose-50]="slot.state === 'empty'" [class.dark:bg-rose-500/10]="slot.state === 'empty'"
             [attr.data-kind]="slot.kind"
             [attr.data-state]="slot.state"
             [attr.data-filled]="slot.files.length > 0 ? 'true' : 'false'"
@@ -103,19 +103,19 @@
                      transition-colors disabled:cursor-not-allowed
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
                      focus-visible:ring-inset"
-              [class.enabled:hover:bg-rose-100]="slot.state === 'empty'"
-              [class.enabled:hover:bg-success-100]="slot.state === 'filled'"
+              [class.enabled:hover:bg-rose-100]="slot.state === 'empty'" [class.dark:enabled:hover:bg-rose-500/15]="slot.state === 'empty'"
+              [class.enabled:hover:bg-success-100]="slot.state === 'filled'" [class.dark:enabled:hover:bg-success-500/15]="slot.state === 'filled'"
               [class.opacity-60]="slot.state === 'gated' || (uploading() && !slot.uploading)"
             >
               <span
                 class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg
-                       bg-white border transition-colors"
-                [class.text-success-700]="slot.state === 'filled'"
-                [class.border-success-100]="slot.state === 'filled'"
-                [class.text-rose-600]="slot.state === 'empty'"
-                [class.border-rose-200]="slot.state === 'empty'"
-                [class.text-neutral-400]="slot.state === 'gated'"
-                [class.border-neutral-200]="slot.state === 'gated'"
+                       bg-surface border transition-colors"
+                [class.text-success-700]="slot.state === 'filled'" [class.dark:text-emerald-300]="slot.state === 'filled'"
+                [class.border-success-100]="slot.state === 'filled'" [class.dark:border-success-500/20]="slot.state === 'filled'"
+                [class.text-rose-600]="slot.state === 'empty'" [class.dark:text-rose-300]="slot.state === 'empty'"
+                [class.border-rose-200]="slot.state === 'empty'" [class.dark:border-rose-500/30]="slot.state === 'empty'"
+                [class.text-fg-faint]="slot.state === 'gated'"
+                [class.border-edge]="slot.state === 'gated'"
                 aria-hidden="true"
               >
                 @if (slot.files.length > 0) {
@@ -144,7 +144,7 @@
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="group-hover:text-rose-700 transition-colors"
+                    class="group-hover:text-rose-700 dark:group-hover:text-rose-300 transition-colors"
                   >
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
@@ -153,19 +153,19 @@
               </span>
 
               <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold text-neutral-900">{{ slot.label }}</span>
-                <span class="block text-xs text-neutral-600">{{ slot.hint }}</span>
+                <span class="block text-sm font-semibold text-fg">{{ slot.label }}</span>
+                <span class="block text-xs text-fg-muted">{{ slot.hint }}</span>
               </span>
 
               <span
                 class="shrink-0 inline-flex items-center rounded-full px-2.5 py-1 text-[11px]
                        font-semibold tabular-nums"
-                [class.bg-success-100]="slot.state === 'filled'"
-                [class.text-success-900]="slot.state === 'filled'"
-                [class.bg-rose-100]="slot.state === 'empty'"
-                [class.text-rose-800]="slot.state === 'empty'"
-                [class.bg-neutral-100]="slot.state === 'gated'"
-                [class.text-neutral-600]="slot.state === 'gated'"
+                [class.bg-success-100]="slot.state === 'filled'" [class.dark:bg-success-500/15]="slot.state === 'filled'"
+                [class.text-success-900]="slot.state === 'filled'" [class.dark:text-emerald-300]="slot.state === 'filled'"
+                [class.bg-rose-100]="slot.state === 'empty'" [class.dark:bg-rose-500/15]="slot.state === 'empty'"
+                [class.text-rose-800]="slot.state === 'empty'" [class.dark:text-rose-200]="slot.state === 'empty'"
+                [class.bg-surface-sunken]="slot.state === 'gated'"
+                [class.text-fg-muted]="slot.state === 'gated'"
               >
                 {{ slotCountLabel(slot) }}
               </span>
@@ -178,19 +178,19 @@
             @if (slot.uploading) {
               <div
                 class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3
-                       border-t border-primary-200 bg-primary-50 p-3"
+                       border-t border-primary-200 dark:border-primary-500/30 bg-primary-50 dark:bg-primary-500/10 p-3"
                 role="status"
                 aria-live="polite"
               >
-                <p class="text-sm font-medium text-primary-800">
+                <p class="text-sm font-medium text-primary-800 dark:text-primary-400">
                   {{ uploadingText() }}
                 </p>
                 <button
                   type="button"
                   (click)="cancelUpload()"
                   class="w-full sm:w-auto inline-flex items-center justify-center px-4 rounded-xl
-                         border border-neutral-300 bg-white text-sm font-medium text-neutral-700
-                         hover:bg-neutral-50 transition-colors min-h-[44px]
+                         border border-edge-strong bg-surface text-sm font-medium text-fg-soft
+                         hover:bg-surface-muted transition-colors min-h-[44px]
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 >
                   Cancelar envio
@@ -201,17 +201,17 @@
             <!-- Os arquivos do tipo, todos listados. Nenhum fica escondido
                  atrás do "mais recente" — dado legado com N por tipo incluso. -->
             @if (slot.files.length > 0) {
-              <ul class="border-t border-neutral-200 divide-y divide-neutral-100 bg-white">
+              <ul class="border-t border-edge divide-y divide-edge-soft bg-surface">
                 @for (doc of slot.files; track doc.id) {
                   <li
                     class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3"
                     data-file-row
                   >
                     <div class="min-w-0">
-                      <p class="text-sm font-medium text-neutral-900 truncate">
+                      <p class="text-sm font-medium text-fg truncate">
                         {{ doc.fileName }}
                       </p>
-                      <p class="text-xs text-neutral-500 tabular-nums">
+                      <p class="text-xs text-fg-subtle tabular-nums">
                         {{ doc.kindLabel }} · {{ sizeText(doc) }} · {{ uploadedAtText(doc) }}
                       </p>
                     </div>
@@ -233,8 +233,8 @@
                         type="button"
                         (click)="askDelete(doc)"
                         class="flex-1 sm:flex-none inline-flex items-center justify-center px-4
-                               rounded-xl border border-rose-300 text-rose-700 text-sm font-medium
-                               hover:bg-rose-50 transition-colors min-h-[44px]
+                               rounded-xl border border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-sm font-medium
+                               hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors min-h-[44px]
                                focus-visible:outline-none focus-visible:ring-2
                                focus-visible:ring-rose-500"
                         [attr.aria-label]="removeAriaLabel(doc)"

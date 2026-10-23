@@ -8,21 +8,21 @@
     data-driver-capture-skeleton
     aria-busy="true"
     class="w-full min-h-full px-4 sm:px-6 pt-[var(--page-top,calc(4.5rem+env(safe-area-inset-top)))] lg:pt-10
-           pb-[env(safe-area-inset-bottom)] bg-white"
+           pb-[env(safe-area-inset-bottom)] bg-surface"
   >
     <div
       aria-hidden="true"
       class="mx-auto w-full max-w-[520px] flex flex-col gap-4 min-h-[calc(100dvh-var(--page-fill-offset,5rem))]"
     >
       <div class="flex items-center gap-2">
-        <div class="size-11 shrink-0 rounded-xl bg-neutral-100"></div>
+        <div class="size-11 shrink-0 rounded-xl bg-surface-sunken"></div>
         <div class="flex-1 mr-11 flex justify-center">
-          <div class="h-4 w-36 rounded bg-neutral-200 animate-pulse"></div>
+          <div class="h-4 w-36 rounded bg-surface-strong animate-pulse"></div>
         </div>
       </div>
-      <div class="h-1 rounded-full bg-neutral-200"></div>
-      <div class="h-7 w-2/3 rounded-lg bg-neutral-200 animate-pulse"></div>
-      <div class="w-full aspect-[4/3] max-h-[46vh] rounded-2xl bg-neutral-200 animate-pulse"></div>
+      <div class="h-1 rounded-full bg-surface-strong"></div>
+      <div class="h-7 w-2/3 rounded-lg bg-surface-strong animate-pulse"></div>
+      <div class="w-full aspect-[4/3] max-h-[46vh] rounded-2xl bg-surface-strong animate-pulse"></div>
     </div>
     <p class="sr-only" role="status">Abrindo vistoria…</p>
   </section>
@@ -73,8 +73,8 @@
     <a
       [routerLink]="root"
       class="mt-4 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
-             border-neutral-200 text-sm font-semibold text-neutral-700 px-5 py-3
-             hover:bg-neutral-50 transition-colors focus:outline-none
+             border-edge text-sm font-semibold text-fg-soft px-5 py-3
+             hover:bg-surface-muted transition-colors focus:outline-none
              focus-visible:ring-2 focus-visible:ring-primary-600"
     >
       Voltar para vistorias
@@ -94,29 +94,29 @@
     @if (rejected()) {
       <div
         data-rejected
-        class="rounded-2xl bg-white border border-rose-200 p-4 sm:p-6 space-y-3"
+        class="rounded-2xl bg-surface border border-rose-200 dark:border-rose-500/30 p-4 sm:p-6 space-y-3"
       >
-        <p class="text-base font-semibold text-rose-800">Esta vistoria foi recusada</p>
+        <p class="text-base font-semibold text-rose-800 dark:text-rose-200">Esta vistoria foi recusada</p>
         @if (reviewedAtLabel(); as when) {
-          <p class="text-xs text-neutral-600">Decidida em {{ when }}</p>
+          <p class="text-xs text-fg-muted">Decidida em {{ when }}</p>
         }
 
         @if (rejectionReason(); as reason) {
-          <div class="rounded-xl bg-rose-50 border border-rose-100 p-3">
-            <p class="text-xs font-semibold uppercase tracking-wide text-rose-800">Motivo</p>
+          <div class="rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-rose-800 dark:text-rose-200">Motivo</p>
             <p
               data-rejection-reason
-              class="mt-1 text-sm text-neutral-900 whitespace-pre-line break-words"
+              class="mt-1 text-sm text-fg whitespace-pre-line break-words"
             >{{ reason }}</p>
           </div>
         } @else {
-          <p class="text-sm text-neutral-700">
+          <p class="text-sm text-fg-soft">
             O motivo da recusa não foi informado. Fale com o dono ou o gerente da empresa
             se precisar entender o que ajustar.
           </p>
         }
 
-        <p class="text-sm text-neutral-600">
+        <p class="text-sm text-fg-muted">
           Ao refazer, abrimos uma vistoria nova com todos os ângulos em branco. Esta fica
           guardada como recusada.
         </p>
@@ -156,17 +156,17 @@
     }
 
     <!--
-      O MESMO INVOLUCRO DO CARD DE ALUGUEL: `app-page-card`, e nao `rounded-2xl bg-white
+      O MESMO INVOLUCRO DO CARD DE ALUGUEL: `app-page-card`, e nao `rounded-2xl bg-surface
       border` escrito a mao.
 
       A barra de progresso de pagina saiu: o card de aluguel nao tem nenhuma. A contagem
       fica no cabecalho, como informacao, e o progresso por foto vive DENTRO do quadro.
     -->
     <app-page-card title="Fotos da vistoria">
-      <div cardActions class="text-xs font-semibold text-neutral-600">
+      <div cardActions class="text-xs font-semibold text-fg-muted">
         {{ doneCount() }} de {{ totalCount() }} fotos
         @if (isComplete()) {
-          <span class="ml-2 text-success-900">· completa</span>
+          <span class="ml-2 text-success-900 dark:text-emerald-300">· completa</span>
         }
       </div>
 
@@ -182,7 +182,7 @@
       }
 
         @if (canCapture()) {
-          <p class="text-sm text-neutral-600">
+          <p class="text-sm text-fg-muted">
             Toque em qualquer ângulo para fotografar. A ordem é sua.
           </p>
         }
@@ -204,7 +204,7 @@
                   (click)="openCamera(slot.angle)"
                   [disabled]="uploading()"
                   class="group relative w-full aspect-square rounded-xl border-2 border-dashed
-                         border-neutral-300 hover:border-primary-400 bg-neutral-50
+                         border-edge-strong hover:border-primary-400 bg-surface-muted
                          overflow-hidden text-left transition-colors disabled:opacity-60
                          disabled:cursor-not-allowed"
                   [attr.aria-label]="(slot.done ? 'Refazer foto: ' : 'Fotografar: ') + slot.label"
@@ -228,10 +228,10 @@
                     -->
                     <div
                       class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-2
-                             text-center bg-success-50"
+                             text-center bg-success-50 dark:bg-success-500/10"
                     >
-                      <span class="text-[11px] font-semibold text-success-900">{{ slot.label }}</span>
-                      <span class="text-[10px] text-neutral-600 leading-tight">
+                      <span class="text-[11px] font-semibold text-success-900 dark:text-emerald-300">{{ slot.label }}</span>
+                      <span class="text-[10px] text-fg-muted leading-tight">
                         Foto enviada; não foi possível exibir agora
                       </span>
                     </div>
@@ -249,7 +249,7 @@
                         stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        class="text-neutral-400 group-hover:text-primary-700 transition-colors"
+                        class="text-fg-faint group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors"
                         aria-hidden="true"
                       >
                         <path
@@ -258,7 +258,7 @@
                         <circle cx="12" cy="13" r="4" />
                       </svg>
                       <span
-                        class="text-[11px] font-medium text-neutral-600 group-hover:text-primary-700 transition-colors"
+                        class="text-[11px] font-medium text-fg-muted group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors"
                       >
                         {{ slot.label }}
                       </span>
@@ -268,12 +268,12 @@
                   @if (slot.uploading) {
                     <!-- O progresso fica DENTRO do quadro, com o passo em que a foto esta. -->
                     <div
-                      class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 p-2"
+                      class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface/85 p-2"
                     >
-                      <p class="text-xs font-medium text-neutral-800">
+                      <p class="text-xs font-medium text-fg-body">
                         {{ slot.phase === 'compressing' ? 'Preparando…' : 'Enviando…' }}
                       </p>
-                      <div class="w-3/4 h-1 rounded-full bg-neutral-200 overflow-hidden">
+                      <div class="w-3/4 h-1 rounded-full bg-surface-strong overflow-hidden">
                         <div class="h-full w-1/2 bg-primary-500 animate-pulse"></div>
                       </div>
                     </div>
@@ -288,8 +288,8 @@
                 @if (canPickFromGallery()) {
                   <label
                     class="absolute top-1.5 right-1.5 min-h-[44px] min-w-[44px] inline-flex
-                           items-center justify-center rounded-lg bg-white/90 border
-                           border-neutral-200 text-neutral-700 cursor-pointer hover:bg-white
+                           items-center justify-center rounded-lg bg-surface/90 border
+                           border-edge text-fg-soft cursor-pointer hover:bg-surface
                            focus-within:ring-2 focus-within:ring-primary-600"
                     [attr.title]="'Escolher da galeria: ' + slot.label"
                   >
@@ -326,7 +326,7 @@
                 -->
                 @if (slot.failure) {
                   <div class="mt-2 space-y-1.5">
-                    <p class="text-xs text-rose-800">Esta foto não foi enviada.</p>
+                    <p class="text-xs text-rose-800 dark:text-rose-200">Esta foto não foi enviada.</p>
                     @if (slot.canRetry) {
                       <button
                         type="button"
@@ -334,7 +334,7 @@
                         (click)="retryUpload(slot.angle)"
                         [disabled]="uploading()"
                         class="w-full min-h-[44px] inline-flex items-center justify-center
-                               rounded-xl bg-neutral-900 text-white text-sm font-semibold px-3
+                               rounded-xl bg-neutral-900 dark:bg-neutral-700 text-white text-sm font-semibold px-3
                                hover:bg-primary-600 transition-colors focus:outline-none
                                focus-visible:ring-2 focus-visible:ring-primary-600
                                focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
@@ -350,8 +350,8 @@
                   alvo de toque — um botao desabilitado prometeria uma camera que nao existe.
                 -->
                 <div
-                  class="relative w-full aspect-square rounded-xl border border-neutral-200
-                         bg-neutral-50 overflow-hidden"
+                  class="relative w-full aspect-square rounded-xl border border-edge
+                         bg-surface-muted overflow-hidden"
                 >
                   @if (slot.previewUrl || slot.signedUrl; as url) {
                     <img
@@ -368,8 +368,8 @@
                     <div
                       class="absolute inset-0 flex flex-col items-center justify-center gap-1 p-2 text-center"
                     >
-                      <span class="text-[11px] font-semibold text-neutral-800">{{ slot.label }}</span>
-                      <span class="text-[10px] text-neutral-600 leading-tight">
+                      <span class="text-[11px] font-semibold text-fg-body">{{ slot.label }}</span>
+                      <span class="text-[10px] text-fg-muted leading-tight">
                         {{ slot.done ? 'Foto enviada; não foi possível exibir agora' : 'Sem foto' }}
                       </span>
                     </div>
@@ -391,11 +391,11 @@
       de caçar o quadrado que sobrou numa grade de 14.
     -->
     @if (canCapture()) {
-      <div class="mt-4 rounded-2xl bg-white border border-neutral-200 p-4 sm:p-6">
-        <p class="text-sm font-semibold text-neutral-900">Finalizar a vistoria</p>
+      <div class="mt-4 rounded-2xl bg-surface border border-edge p-4 sm:p-6">
+        <p class="text-sm font-semibold text-fg">Finalizar a vistoria</p>
 
         @if (isComplete()) {
-          <p class="mt-1 text-sm text-neutral-600">
+          <p class="mt-1 text-sm text-fg-muted">
             Ao enviar, esta vistoria vai para aprovação do dono e você não poderá trocar
             as fotos — a menos que ela seja recusada.
           </p>
@@ -423,8 +423,8 @@
                 enterkeyhint="done"
                 placeholder="Ex.: 82109"
                 [formControl]="odometerControl"
-                class="w-full min-h-12 bg-white border rounded-xl px-3 text-base font-mono
-                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-400
+                class="w-full min-h-12 bg-surface border rounded-xl px-3 text-base font-mono
+                       text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-400
                        focus:border-primary-400"
               />
             </app-form-field>
@@ -450,7 +450,7 @@
             {{ submitting() ? 'Enviando…' : 'Finalizar e enviar vistoria' }}
           </button>
         } @else if (missingSlots().length > 0) {
-          <p data-missing-summary class="mt-1 text-sm text-neutral-600">
+          <p data-missing-summary class="mt-1 text-sm text-fg-muted">
             {{ missingSummary() }} Toque em um ângulo para fotografar:
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
@@ -460,8 +460,8 @@
                 data-missing-angle
                 (click)="openCamera(missing.angle)"
                 [disabled]="uploading()"
-                class="min-h-[44px] inline-flex items-center rounded-xl border border-neutral-300
-                       bg-white px-3 text-sm font-medium text-neutral-800 hover:bg-neutral-50
+                class="min-h-[44px] inline-flex items-center rounded-xl border border-edge-strong
+                       bg-surface px-3 text-sm font-medium text-fg-body hover:bg-surface-muted
                        transition-colors focus:outline-none focus-visible:ring-2
                        focus-visible:ring-primary-600 disabled:opacity-60 disabled:cursor-not-allowed"
               >
@@ -470,7 +470,7 @@
             }
           </div>
         } @else {
-          <p class="mt-1 text-sm text-neutral-600">
+          <p class="mt-1 text-sm text-fg-muted">
             Esta vistoria não tem ângulos no roteiro, então não há o que fotografar.
           </p>
         }
@@ -479,8 +479,8 @@
       <a
         [routerLink]="root"
         class="mt-4 w-full min-h-12 inline-flex items-center justify-center rounded-xl border
-               border-neutral-200 text-sm font-semibold text-neutral-700 px-5 py-3
-               hover:bg-neutral-50 transition-colors focus:outline-none
+               border-edge text-sm font-semibold text-fg-soft px-5 py-3
+               hover:bg-surface-muted transition-colors focus:outline-none
                focus-visible:ring-2 focus-visible:ring-primary-600"
       >
         Voltar para vistorias

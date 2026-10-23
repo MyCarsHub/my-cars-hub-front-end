@@ -72,13 +72,13 @@ const STATUS_LABELS: Readonly<Record<FeedbackStatus, string>> = {
 /**
  * Acento da opção marcada no seletor de ordenação: pill branco sobre o trilho
  * neutral-100. Fundo e sombra vão por `style` porque o `SegmentedToggle` sempre
- * escreve `background`/`box-shadow` inline — classe `bg-white`/`shadow-sm`
+ * escreve `background`/`box-shadow` inline — classe `bg-surface`/`shadow-sm`
  * perderia para o inline. Valor da sombra = `--shadow-sm` do Tailwind v4.
  */
-const SORT_ACTIVE_BACKGROUND = '#ffffff';
+const SORT_ACTIVE_BACKGROUND = 'var(--color-surface)';
 const SORT_ACTIVE_SHADOW = '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)';
 /** Texto escuro do pill claro — substitui o `text-white` default do toggle. */
-const SORT_ACTIVE_CLASS = 'text-neutral-900';
+const SORT_ACTIVE_CLASS = 'text-fg';
 
 const SORT_OPTIONS: readonly SegmentedToggleOption<FeedbackSort>[] = [
   {

@@ -462,14 +462,14 @@ export function rentalStatusInfo(status: RentalStatus): { label: string; chip: s
 }
 
 const CHARGE_STATUS_META: Record<ChargeStatus, { label: string; chip: string }> = {
-  PENDING: { label: 'Pendente', chip: 'bg-amber-100 text-amber-800' },
-  PAID: { label: 'Pago', chip: 'bg-emerald-100 text-emerald-800' },
-  PAST_DUE: { label: 'Atrasada', chip: 'bg-rose-100 text-rose-700' },
-  FAILED: { label: 'Falhou', chip: 'bg-rose-100 text-rose-700' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-  REFUNDED: { label: 'Reembolsado', chip: 'bg-blue-100 text-blue-800' },
-  RELEASED: { label: 'Liberado', chip: 'bg-neutral-200 text-neutral-700' },
-  DISPUTED: { label: 'Contestada', chip: 'bg-purple-100 text-purple-700' },
+  PENDING: { label: 'Pendente', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+  PAID: { label: 'Pago', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' },
+  PAST_DUE: { label: 'Atrasada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' },
+  FAILED: { label: 'Falhou', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  REFUNDED: { label: 'Reembolsado', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200' },
+  RELEASED: { label: 'Liberado', chip: 'bg-surface-strong text-fg-soft' },
+  DISPUTED: { label: 'Contestada', chip: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300' },
 };
 
 /** O par (status, vencimento) — o mínimo pra decidir se uma cobrança atrasou. */

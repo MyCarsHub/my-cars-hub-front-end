@@ -15,32 +15,32 @@ import { AiProviderView } from '../ai/contract-ai.types';
   imports: [ContractIcon],
   template: `
     <div class="flex flex-col gap-1.5">
-      <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-neutral-900 focus:outline-none">
+      <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg focus:outline-none">
         A IA vai ler o seu contrato
       </h3>
-      <p class="m-0 text-[15px] leading-relaxed text-neutral-600">{{ notice.sent }}</p>
-      <p class="m-0 text-[15px] leading-relaxed text-neutral-600">{{ notice.transfer }}</p>
+      <p class="m-0 text-[15px] leading-relaxed text-fg-muted">{{ notice.sent }}</p>
+      <p class="m-0 text-[15px] leading-relaxed text-fg-muted">{{ notice.transfer }}</p>
     </div>
     @if (reason()) {
-      <p role="alert" class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[15px] leading-normal text-amber-900">
-        <app-contract-icon name="alert" [size]="18" class="mt-0.5 text-amber-700" />
+      <p role="alert" class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-[15px] leading-normal text-amber-900 dark:text-amber-200">
+        <app-contract-icon name="alert" [size]="18" class="mt-0.5 text-amber-700 dark:text-amber-300" />
         <span>{{ reason() }}</span>
       </p>
     }
     @if (providers().length > 0) {
-      <div data-ai-route class="flex flex-col gap-1 rounded-xl border border-neutral-200 bg-white px-3.5 py-3">
-        <span class="text-[13px] font-semibold uppercase tracking-wide text-neutral-500">Quem recebe o texto</span>
+      <div data-ai-route class="flex flex-col gap-1 rounded-xl border border-edge bg-surface px-3.5 py-3">
+        <span class="text-[13px] font-semibold uppercase tracking-wide text-fg-subtle">Quem recebe o texto</span>
         @for (p of providers(); track p.provider) {
-          <span class="text-[15px] leading-normal text-neutral-800">
+          <span class="text-[15px] leading-normal text-fg-body">
             <span class="font-semibold">{{ p.label }}</span>
-            <span class="break-words text-neutral-600"> · {{ modelsText(p.models) }}</span>
+            <span class="break-words text-fg-muted"> · {{ modelsText(p.models) }}</span>
           </span>
         }
       </div>
     }
     <ul class="m-0 flex list-none flex-col gap-2 p-0">
       @for (row of rows; track row.text) {
-        <li class="flex items-start gap-3 rounded-xl bg-neutral-50 px-3.5 py-3 text-[15px] leading-normal text-neutral-800">
+        <li class="flex items-start gap-3 rounded-xl bg-surface-muted px-3.5 py-3 text-[15px] leading-normal text-fg-body">
           <span aria-hidden="true" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" [class]="row.tile">
             <app-contract-icon [name]="row.icon" [size]="18" />
           </span>
@@ -52,18 +52,18 @@ import { AiProviderView } from '../ai/contract-ai.types';
       [href]="notice.policyHref"
       target="_blank"
       rel="noopener"
-      class="inline-flex min-h-[44px] items-center text-[15px] font-medium text-primary-700 underline"
+      class="inline-flex min-h-[44px] items-center text-[15px] font-medium text-primary-700 dark:text-primary-400 underline"
       >{{ notice.policyLabel }}</a
     >
     @if (notMasked().length > 0) {
-      <p class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[15px] leading-normal text-amber-900">
-        <app-contract-icon name="alert" [size]="18" class="mt-0.5 text-amber-700" />
+      <p class="m-0 flex items-start gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-[15px] leading-normal text-amber-900 dark:text-amber-200">
+        <app-contract-icon name="alert" [size]="18" class="mt-0.5 text-amber-700 dark:text-amber-300" />
         <span>Não conseguimos esconder: {{ notMasked().join(', ') }}. Confira o texto antes de autorizar.</span>
       </p>
     }
     <label
       class="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-2xl border-2 px-4 py-4 transition-colors focus-within:ring-2 focus-within:ring-primary-400"
-      [class]="agreed() ? 'border-emerald-500 bg-emerald-50' : disabled() ? 'border-neutral-200 bg-neutral-50 cursor-wait' : 'border-neutral-300 bg-white hover:border-neutral-400'"
+      [class]="agreed() ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : disabled() ? 'border-edge bg-surface-muted cursor-wait' : 'border-edge-strong bg-surface hover:border-neutral-400 dark:hover:border-neutral-500'"
     >
       <input
         type="checkbox"
@@ -73,12 +73,12 @@ import { AiProviderView } from '../ai/contract-ai.types';
         (change)="agreedChange.emit($any($event.target).checked)"
       />
       <span class="flex flex-col gap-0.5">
-        <span class="text-base font-semibold leading-normal text-neutral-900">
+        <span class="text-base font-semibold leading-normal text-fg">
           Li o texto {{ where() }} e as informações acima e autorizo o envio deste texto à {{ recipients() }},
           nos Estados Unidos, para análise.
         </span>
         @if (disabled()) {
-          <span class="text-[13px] text-neutral-600">Preparando o texto que a IA vai ler…</span>
+          <span class="text-[13px] text-fg-muted">Preparando o texto que a IA vai ler…</span>
         }
       </span>
     </label>
@@ -113,17 +113,17 @@ export class ContractConsentStep {
   protected readonly rows: readonly { icon: ContractIconName; tile: string; text: string }[] = [
     {
       icon: 'eyeOff',
-      tile: 'bg-emerald-100 text-emerald-800',
+      tile: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
       text: AI_SEND_NOTICE.masked,
     },
     {
       icon: 'eye',
-      tile: 'bg-white text-neutral-700 ring-1 ring-neutral-200',
+      tile: 'bg-surface text-fg-soft ring-1 ring-edge',
       text: AI_SEND_NOTICE.inClear,
     },
     {
       icon: 'shield',
-      tile: 'bg-emerald-100 text-emerald-800',
+      tile: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
       text: 'Nada muda no seu contrato até você salvar.',
     },
   ];

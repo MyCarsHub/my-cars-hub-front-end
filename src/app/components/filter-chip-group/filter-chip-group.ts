@@ -20,7 +20,7 @@ const CHIP_BASE =
   'min-h-[44px] px-4 py-2 rounded-full text-sm font-medium border transition-colors ' +
   'outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
 const CHIP_ACTIVE = 'bg-primary-500 text-white border-primary-500';
-const CHIP_INACTIVE = 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50';
+const CHIP_INACTIVE = 'bg-surface text-gray-700 dark:text-fg-soft border-gray-200 dark:border-edge hover:bg-canvas';
 
 const GROUP_WRAP = 'flex flex-wrap gap-2';
 /** Mobile: carrossel com snap; ≥lg volta a quebrar linha como os demais. */

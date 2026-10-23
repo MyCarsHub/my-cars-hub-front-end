@@ -85,11 +85,11 @@ interface Slot {
         }
         @if (generatedDoc(); as doc) {
           <div
-            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3"
+            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-edge bg-surface p-3"
           >
             <div class="min-w-0 flex items-center gap-3">
               <span
-                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-600 shrink-0"
+                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-300 shrink-0"
                 aria-hidden="true"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -99,8 +99,8 @@ interface Slot {
                 </svg>
               </span>
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-neutral-900 truncate">{{ pdfFileName() }}</p>
-                <p class="text-xs text-neutral-500 tabular-nums">
+                <p class="text-sm font-semibold text-fg truncate">{{ pdfFileName() }}</p>
+                <p class="text-xs text-fg-subtle tabular-nums">
                   {{ formatSize(doc.sizeBytes) }} · Enviado {{ formatDate(doc.createdDate) }}
                 </p>
               </div>
@@ -117,7 +117,7 @@ interface Slot {
                 Abrir PDF
               </button>
               <button type="button" (click)="askDelete()"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-edge hover:bg-surface-muted text-fg-soft text-sm font-medium transition-colors min-h-[44px]"
               >
                 Remover
               </button>
@@ -125,7 +125,7 @@ interface Slot {
           </div>
         }
 
-        <p class="text-sm text-neutral-600">
+        <p class="text-sm text-fg-muted">
           Tire uma foto de cada ângulo do veículo. O laudo em PDF é gerado a partir dessas fotos.
         </p>
 
@@ -135,8 +135,8 @@ interface Slot {
               type="button"
               (click)="openPicker(slot.angle, $event)"
               [disabled]="slot.uploading"
-              class="group relative aspect-square rounded-xl border-2 border-dashed border-neutral-300
-                     hover:border-primary-400 bg-neutral-50 overflow-hidden text-left
+              class="group relative aspect-square rounded-xl border-2 border-dashed border-edge-strong
+                     hover:border-primary-400 bg-surface-muted overflow-hidden text-left
                      transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               [attr.aria-label]="'Enviar foto: ' + slot.label"
             >
@@ -163,28 +163,28 @@ interface Slot {
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="text-neutral-400 group-hover:text-primary-700 transition-colors"
+                    class="text-fg-faint group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors"
                     aria-hidden="true"
                   >
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                     <circle cx="12" cy="13" r="4" />
                   </svg>
-                  <span class="text-[11px] font-medium text-neutral-500 group-hover:text-primary-700 transition-colors">
+                  <span class="text-[11px] font-medium text-fg-subtle group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">
                     {{ slot.label }}
                   </span>
                 </div>
               }
               @if (slot.uploading) {
-                <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 p-2">
-                  <p class="text-xs font-medium text-neutral-800">
+                <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface/85 p-2">
+                  <p class="text-xs font-medium text-fg-body">
                     {{ slot.progress ?? 0 }}%
                   </p>
-                  <div class="w-3/4 h-1 rounded-full bg-neutral-200 overflow-hidden">
+                  <div class="w-3/4 h-1 rounded-full bg-surface-strong overflow-hidden">
                     <div class="h-full bg-primary-500 transition-all"
                          [style.width.%]="slot.progress ?? 0"></div>
                   </div>
                   <button type="button" (click)="cancelUpload(slot.angle); $event.stopPropagation()"
-                    class="text-[10px] text-rose-600 hover:text-rose-700 font-semibold">
+                    class="text-[10px] text-rose-600 dark:text-rose-300 hover:text-rose-700 dark:hover:text-rose-300 font-semibold">
                     Cancelar
                   </button>
                 </div>
@@ -200,8 +200,8 @@ interface Slot {
               (click)="generate()"
               [disabled]="generating() || completedCount() === 0"
               class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5
-                     rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400
-                     text-sm font-medium text-neutral-600 hover:text-primary-700 transition-colors
+                     rounded-xl border-2 border-dashed border-edge-strong hover:border-primary-400
+                     text-sm font-medium text-fg-muted hover:text-primary-700 dark:hover:text-primary-400 transition-colors
                      min-h-[48px] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               @if (generating()) {
@@ -281,9 +281,9 @@ interface Slot {
           [attr.aria-label]="sourceSheetLabel()"
           tabindex="-1"
           (keydown.escape)="closeSourceSheet()"
-          class="relative w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl bg-white p-4 shadow-xl space-y-2"
+          class="relative w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl bg-surface p-4 shadow-xl space-y-2"
         >
-          <p class="text-sm font-semibold text-neutral-900 pb-1">{{ sourceSheetLabel() }}</p>
+          <p class="text-sm font-semibold text-fg pb-1">{{ sourceSheetLabel() }}</p>
           <button
             #sourceSheetFirst
             type="button"
@@ -296,7 +296,7 @@ interface Slot {
           <button
             type="button"
             (click)="pickFromGallery()"
-            class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-800 text-sm font-semibold transition-colors min-h-[48px]"
+            class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-edge hover:bg-surface-muted text-fg-body text-sm font-semibold transition-colors min-h-[48px]"
           >
             Escolher da galeria
           </button>
@@ -305,7 +305,7 @@ interface Slot {
             type="button"
             (click)="closeSourceSheet()"
             (keydown.tab)="focusSheetFirst($event)"
-            class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl text-neutral-500 hover:text-neutral-700 text-sm font-medium transition-colors min-h-[48px]"
+            class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl text-fg-subtle hover:text-fg-soft text-sm font-medium transition-colors min-h-[48px]"
           >
             Cancelar
           </button>

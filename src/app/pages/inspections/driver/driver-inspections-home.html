@@ -55,7 +55,7 @@
         <span
           class="text-xs uppercase tracking-wider"
           [class.text-white]="h.tone !== 'neutral'"
-          [class.text-neutral-600]="h.tone === 'neutral'"
+          [class.text-fg-muted]="h.tone === 'neutral'"
         >
           {{ h.label }}
         </span>
@@ -68,7 +68,7 @@
         <p
           data-driver-hero-sub
           class="text-sm leading-relaxed max-w-[60ch] break-words"
-          [class.text-neutral-600]="h.tone === 'neutral'"
+          [class.text-fg-muted]="h.tone === 'neutral'"
         >
           {{ h.sub }}
         </p>
@@ -78,10 +78,10 @@
               data-driver-hero-cta
               [routerLink]="action.link"
               [queryParams]="action.queryParams ?? null"
-              class="mt-3 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-white text-neutral-900
+              class="mt-3 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-surface text-fg
                      text-[15px] font-bold inline-flex items-center justify-center gap-2.5
                      active:scale-[0.98] focus:outline-none focus-visible:ring-2
-                     focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900"
+                     focus-visible:ring-surface focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -95,10 +95,10 @@
               type="button"
               data-driver-hero-cta
               (click)="startInspection.emit(vehicleId)"
-              class="mt-3 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-white text-neutral-900
+              class="mt-3 w-full sm:w-auto sm:self-start min-h-12 px-6 rounded-xl bg-surface text-fg
                      text-[15px] font-bold inline-flex items-center justify-center gap-2.5
                      active:scale-[0.98] focus:outline-none focus-visible:ring-2
-                     focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900"
+                     focus-visible:ring-surface focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -114,40 +114,40 @@
         <app-alert-banner variant="error" [message]="message" />
       }
     } @else if (state() !== 'error') {
-      <div data-driver-hero-skeleton aria-hidden="true" class="h-40 rounded-2xl bg-neutral-200 animate-pulse"></div>
+      <div data-driver-hero-skeleton aria-hidden="true" class="h-40 rounded-2xl bg-surface-strong animate-pulse"></div>
     }
 
     @if (state() === 'loading') {
-      <div data-driver-skeleton aria-hidden="true" class="h-32 rounded-2xl bg-neutral-200 animate-pulse"></div>
+      <div data-driver-skeleton aria-hidden="true" class="h-32 rounded-2xl bg-surface-strong animate-pulse"></div>
     }
 
     @if (state() === 'ready') {
       @if (items().length === 0) {
         <!-- EMPTY: a sentence, not an empty card. -->
-        <p data-driver-empty class="py-6 text-center text-sm text-neutral-600">
+        <p data-driver-empty class="py-6 text-center text-sm text-fg-muted">
           Você ainda não fez nenhuma vistoria. Quando fizer, ela aparece aqui.
         </p>
       } @else {
         <section
           data-driver-list
           aria-labelledby="driver-list-title"
-          class="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden"
+          class="rounded-2xl border border-edge bg-surface shadow-sm overflow-hidden"
         >
           <div class="flex items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-3">
-            <h2 id="driver-list-title" class="text-base font-semibold text-neutral-800">Minhas vistorias</h2>
-            <span data-driver-count class="text-xs text-neutral-600 tabular-nums">{{ countLabel() }}</span>
+            <h2 id="driver-list-title" class="text-base font-semibold text-fg-body">Minhas vistorias</h2>
+            <span data-driver-count class="text-xs text-fg-muted tabular-nums">{{ countLabel() }}</span>
           </div>
           <div class="grid grid-cols-1 @min-[820px]:grid-cols-2 gap-3 px-4 sm:px-6 pb-4 sm:pb-6">
             @for (item of items(); track item.id) {
               <article
                 data-driver-card
-                class="rounded-2xl border border-neutral-200 bg-white p-3 flex gap-3 min-w-0"
+                class="rounded-2xl border border-edge bg-surface p-3 flex gap-3 min-w-0"
               >
                 <div
                   data-driver-thumb
                   class="relative shrink-0 self-start aspect-square size-[104px] @min-[592px]:size-[148px]
-                         rounded-xl overflow-hidden bg-neutral-100 flex items-center justify-center
-                         text-neutral-400"
+                         rounded-xl overflow-hidden bg-surface-sunken flex items-center justify-center
+                         text-fg-faint"
                 >
                   @if (item.photoUrl; as url) {
                     <img
@@ -168,7 +168,7 @@
                 </div>
                 <div class="flex-1 min-w-0 flex flex-col gap-1.5">
                   <span class="flex flex-wrap items-center gap-2">
-                    <span data-driver-plate class="font-mono text-base font-semibold tracking-wide text-neutral-900">
+                    <span data-driver-plate class="font-mono text-base font-semibold tracking-wide text-fg">
                       {{ item.plate }}
                     </span>
                     <span
@@ -180,15 +180,15 @@
                     </span>
                   </span>
                   @if (item.model) {
-                    <span class="text-sm text-neutral-600 truncate">{{ item.model }}</span>
+                    <span class="text-sm text-fg-muted truncate">{{ item.model }}</span>
                   }
-                  <span data-driver-meta class="text-[13px] text-neutral-600">{{ item.meta }}</span>
+                  <span data-driver-meta class="text-[13px] text-fg-muted">{{ item.meta }}</span>
                   @if (item.note; as note) {
                     <span
                       data-driver-note
                       class="text-[13px] font-semibold"
-                      [class.text-rose-700]="item.noteTone === 'rose'"
-                      [class.text-emerald-700]="item.noteTone === 'emerald'"
+                      [class.text-rose-700]="item.noteTone === 'rose'" [class.dark:text-rose-300]="item.noteTone === 'rose'"
+                      [class.text-emerald-700]="item.noteTone === 'emerald'" [class.dark:text-emerald-300]="item.noteTone === 'emerald'"
                     >
                       {{ note }}
                     </span>
@@ -199,8 +199,8 @@
                     [routerLink]="item.actionLink"
                     [attr.aria-label]="item.actionLabel + ' do veículo ' + item.plate"
                     class="w-full min-h-11 inline-flex items-center justify-center rounded-full border
-                           border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-900
-                           hover:border-primary-500 hover:bg-neutral-50 transition-colors
+                           border-edge bg-surface px-4 text-sm font-medium text-fg
+                           hover:border-primary-500 hover:bg-surface-muted transition-colors
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                   >
                     {{ item.actionLabel }}
@@ -211,18 +211,18 @@
           </div>
           @if (hasPrev() || hasNext()) {
             <div class="flex flex-col @min-[592px]:flex-row @min-[592px]:items-center @min-[592px]:justify-between
-                        gap-3 px-4 sm:px-6 py-4 border-t border-neutral-100">
-              <p class="text-sm text-neutral-600 tabular-nums">{{ pageLabel() }}</p>
+                        gap-3 px-4 sm:px-6 py-4 border-t border-edge-soft">
+              <p class="text-sm text-fg-muted tabular-nums">{{ pageLabel() }}</p>
               <div class="flex gap-2">
                 <button type="button" data-driver-prev (click)="prev.emit()" [disabled]="!hasPrev()"
-                  class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
-                         text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50
+                  class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-edge bg-surface
+                         text-sm font-semibold text-fg-soft hover:bg-surface-muted disabled:opacity-50
                          disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
                   Anterior
                 </button>
                 <button type="button" data-driver-next (click)="next.emit()" [disabled]="!hasNext()"
-                  class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
-                         text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50
+                  class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-edge bg-surface
+                         text-sm font-semibold text-fg-soft hover:bg-surface-muted disabled:opacity-50
                          disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
                   Próxima
                 </button>

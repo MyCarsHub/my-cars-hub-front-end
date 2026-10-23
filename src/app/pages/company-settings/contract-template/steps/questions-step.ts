@@ -44,7 +44,7 @@ const MAX_ANSWERS = 3;
   `,
   template: `
     @if (index() === 0 && doubts().length > 0) {
-      <div role="status" class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-[15px] leading-snug text-emerald-900">
+      <div role="status" class="flex items-start gap-3 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3.5 text-[15px] leading-snug text-emerald-900 dark:text-emerald-200">
         <span aria-hidden="true" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
           <app-contract-icon name="sparkles" [size]="18" />
         </span>
@@ -55,24 +55,24 @@ const MAX_ANSWERS = 3;
     @if (current(); as d) {
       <div class="flex flex-col gap-2">
         <div class="flex items-center gap-3">
-          <span aria-live="polite" class="text-sm font-semibold text-primary-700">
+          <span aria-live="polite" class="text-sm font-semibold text-primary-700 dark:text-primary-400">
             Pergunta {{ index() + 1 }} de {{ doubts().length }}
           </span>
           <span aria-hidden="true" class="flex gap-1">
             @for (q of doubts(); track q.id; let i = $index) {
               <span class="h-1.5 rounded-full transition-all duration-300"
-                [class]="i < index() ? 'w-3 bg-emerald-500' : i === index() ? 'w-6 bg-primary-500' : 'w-3 bg-neutral-200'"></span>
+                [class]="i < index() ? 'w-3 bg-emerald-500' : i === index() ? 'w-6 bg-primary-500' : 'w-3 bg-surface-strong'"></span>
             }
           </span>
         </div>
-        <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-neutral-900 break-words focus:outline-none sm:text-2xl">
+        <h3 data-step-heading tabindex="-1" class="m-0 text-xl font-bold leading-snug text-fg break-words focus:outline-none sm:text-2xl">
           O que é «{{ quote().hit }}» no seu contrato?
         </h3>
       </div>
       <figure class="m-0 flex flex-col gap-1.5">
-        <figcaption class="text-[13px] font-semibold text-neutral-600">Está assim no seu contrato:</figcaption>
-        <blockquote class="m-0 rounded-r-xl border-l-4 border-amber-400 bg-amber-50/50 py-2.5 pl-3.5 pr-3 doc-serif text-base leading-relaxed text-neutral-800 break-words">
-          {{ quote().before }}<mark class="rounded-[3px] border-b-2 border-amber-500 bg-amber-100 px-0.5 font-bold text-neutral-900">{{ quote().hit }}</mark>{{ quote().after }}
+        <figcaption class="text-[13px] font-semibold text-fg-muted">Está assim no seu contrato:</figcaption>
+        <blockquote class="m-0 rounded-r-xl border-l-4 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 py-2.5 pl-3.5 pr-3 doc-serif text-base leading-relaxed text-fg-body break-words">
+          {{ quote().before }}<mark class="rounded-[3px] border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15 px-0.5 font-bold text-fg">{{ quote().hit }}</mark>{{ quote().after }}
         </blockquote>
       </figure>
       <div role="radiogroup" aria-label="Escolha uma resposta" class="flex flex-col gap-2.5">
@@ -83,19 +83,19 @@ const MAX_ANSWERS = 3;
             [attr.aria-checked]="choice() === a.value"
             (click)="pick(d, a.value)"
             class="flex min-h-[60px] w-full items-center gap-3.5 rounded-2xl border-2 px-4 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
-            [class]="choice() === a.value ? 'border-primary-500 bg-white shadow-sm' : 'border-neutral-200 bg-white hover:border-neutral-400'"
+            [class]="choice() === a.value ? 'border-primary-500 bg-surface shadow-sm' : 'border-edge bg-surface hover:border-neutral-400 dark:hover:border-neutral-500'"
           >
             <span aria-hidden="true"
               class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors"
-              [class]="choice() === a.value ? 'border-primary-500 bg-primary-500' : 'border-neutral-400 bg-white'">
+              [class]="choice() === a.value ? 'border-primary-500 bg-primary-500' : 'border-neutral-400 dark:border-neutral-500 bg-surface'">
               @if (choice() === a.value) {
-                <span class="h-2.5 w-2.5 rounded-full bg-white"></span>
+                <span class="h-2.5 w-2.5 rounded-full bg-surface"></span>
               }
             </span>
             <span class="flex flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-              <span class="text-base font-semibold text-neutral-900">{{ a.label }}</span>
+              <span class="text-base font-semibold text-fg">{{ a.label }}</span>
               @if (a.suggested) {
-                {{ ' ' }}<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[13px] font-semibold text-amber-900 ring-1 ring-amber-200"><app-contract-icon name="sparkles" [size]="12" [stroke]="2.5" />Mais provável</span>
+                {{ ' ' }}<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[13px] font-semibold text-amber-900 dark:text-amber-200 ring-1 ring-amber-200 dark:ring-amber-500/30"><app-contract-icon name="sparkles" [size]="12" [stroke]="2.5" />Mais provável</span>
               }
             </span>
           </button>
@@ -104,22 +104,22 @@ const MAX_ANSWERS = 3;
     }
 
     @if (certain().length > 0) {
-      <div class="rounded-2xl bg-neutral-50 px-1">
+      <div class="rounded-2xl bg-surface-muted px-1">
         <button type="button" (click)="open.set(!open())" [attr.aria-expanded]="open()"
           aria-controls="contract-ai-certain"
-          class="flex min-h-[52px] w-full items-center gap-2.5 rounded-2xl px-3 text-left text-[15px] font-semibold text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
-          <app-contract-icon name="pen" [size]="18" class="text-neutral-600" />
+          class="flex min-h-[52px] w-full items-center gap-2.5 rounded-2xl px-3 text-left text-[15px] font-semibold text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+          <app-contract-icon name="pen" [size]="18" class="text-fg-muted" />
           <span class="flex-1">{{ correctLabel() }}</span>
-          <app-contract-icon name="chevronDown" [size]="18" class="text-neutral-600 transition-transform" [class.rotate-180]="open()" />
+          <app-contract-icon name="chevronDown" [size]="18" class="text-fg-muted transition-transform" [class.rotate-180]="open()" />
         </button>
         @if (open()) {
           <div id="contract-ai-certain" class="flex flex-col px-3 pb-2">
             @for (s of certain(); track s.id) {
-              <div class="border-t border-neutral-200 py-2.5" (mouseenter)="focused.emit(s.id)">
+              <div class="border-t border-edge py-2.5" (mouseenter)="focused.emit(s.id)">
                 <app-form-field [label]="excerpt(s)">
                   <select
                     appFieldControl
-                    class="min-h-[44px] w-full rounded-xl border bg-white px-3 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+                    class="min-h-[44px] w-full rounded-xl border bg-surface px-3 text-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
                     (focus)="focused.emit(s.id)"
                     (change)="correct(s, $any($event.target).value)"
                   >

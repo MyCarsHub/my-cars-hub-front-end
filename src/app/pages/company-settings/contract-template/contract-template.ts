@@ -52,8 +52,8 @@ type LoadState = 'loading' | 'ready' | 'error';
         @switch (state()) {
           @case ('loading') {
             <div aria-hidden="true" class="flex flex-col gap-6">
-              <div class="h-[200px] rounded-2xl bg-neutral-100 animate-pulse"></div>
-              <div class="h-[420px] rounded-2xl bg-neutral-100 animate-pulse"></div>
+              <div class="h-[200px] rounded-2xl bg-surface-sunken animate-pulse"></div>
+              <div class="h-[420px] rounded-2xl bg-surface-sunken animate-pulse"></div>
             </div>
           }
           @case ('error') {
@@ -61,7 +61,7 @@ type LoadState = 'loading' | 'ready' | 'error';
               <span class="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <span class="flex-1 text-base">Não foi possível carregar o seu contrato.</span>
                 <button type="button" (click)="reload()"
-                  class="min-h-[48px] w-full rounded-xl border border-neutral-200 bg-white px-5 text-base font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-auto">
+                  class="min-h-[48px] w-full rounded-xl border border-edge bg-surface px-5 text-base font-semibold text-fg-soft hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 sm:w-auto">
                   Tentar novamente
                 </button>
               </span>
@@ -71,11 +71,11 @@ type LoadState = 'loading' | 'ready' | 'error';
             <div class="rounded-[20px] transition-shadow duration-700"
               [class]="savedNow() ? 'saved-glow' : ''">
             <app-page-card title="Contrato atual">
-              <span cardIcon aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+              <span cardIcon aria-hidden="true" class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300">
                 <app-contract-icon name="fileText" [size]="18" />
               </span>
               @if (template()) {
-                <span cardActions class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[13px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                <span cardActions class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[13px] font-semibold text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-200 dark:ring-emerald-500/30">
                   <span aria-hidden="true" class="h-2 w-2 rounded-full bg-emerald-500"></span>
                   Em uso
                 </span>
@@ -84,18 +84,18 @@ type LoadState = 'loading' | 'ready' | 'error';
                    (com a sidebar, 1024 px de tela deixam ~640 px aqui). -->
               <div class="@container flex flex-col gap-4 px-4 pb-5 sm:px-6 sm:pb-6">
                 @if (savedNow()) {
-                  <div role="status" class="saved-in flex items-start gap-3.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div role="status" class="saved-in flex items-start gap-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-4">
                     <span aria-hidden="true" class="saved-seal flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white shadow-md">
                       <app-contract-icon name="check" [size]="26" [stroke]="3" />
                     </span>
                     <div class="flex min-w-0 flex-1 flex-col gap-0.5 pt-0.5">
-                      <p class="m-0 text-lg font-bold text-emerald-900">Contrato salvo!</p>
-                      <p class="m-0 text-[15px] leading-snug text-emerald-900">
+                      <p class="m-0 text-lg font-bold text-emerald-900 dark:text-emerald-200">Contrato salvo!</p>
+                      <p class="m-0 text-[15px] leading-snug text-emerald-900 dark:text-emerald-200">
                         Os próximos aluguéis já usam este contrato. Cada um sai preenchido sozinho.
                       </p>
                     </div>
                     <button type="button" (click)="savedNow.set(false)" aria-label="Fechar aviso"
-                      class="-mr-1 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-emerald-800 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
+                      class="-mr-1 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400">
                       <app-contract-icon name="x" [size]="18" />
                     </button>
                   </div>
@@ -104,20 +104,20 @@ type LoadState = 'loading' | 'ready' | 'error';
                   <app-alert-banner variant="error" [message]="message" />
                 }
                 @if (template(); as t) {
-                  <div class="flex flex-col gap-4 @md:rounded-2xl @md:border @md:border-neutral-200 @md:p-4 @3xl:flex-row @3xl:items-center">
+                  <div class="flex flex-col gap-4 @md:rounded-2xl @md:border @md:border-edge @md:p-4 @3xl:flex-row @3xl:items-center">
                     <div class="flex min-w-0 flex-1 items-center gap-4">
                       <!-- Miniatura de folha: o contrato em uso, não um ícone genérico. -->
-                      <span aria-hidden="true" class="relative flex h-14 w-11 shrink-0 flex-col gap-1 rounded-[3px] bg-white px-2 py-2.5 shadow-md ring-1 ring-black/5">
-                        <span class="mx-auto h-1 w-4/5 rounded bg-neutral-400"></span>
-                        <span class="h-0.5 rounded bg-neutral-200"></span>
-                        <span class="flex gap-0.5"><span class="h-0.5 w-2 rounded bg-emerald-400"></span><span class="h-0.5 flex-1 rounded bg-neutral-200"></span></span>
-                        <span class="h-0.5 rounded bg-neutral-200"></span>
-                        <span class="flex gap-0.5"><span class="h-0.5 flex-1 rounded bg-neutral-200"></span><span class="h-0.5 w-3 rounded bg-emerald-400"></span></span>
-                        <span class="h-0.5 w-3/4 rounded bg-neutral-200"></span>
+                      <span aria-hidden="true" class="relative flex h-14 w-11 shrink-0 flex-col gap-1 rounded-[3px] bg-surface px-2 py-2.5 shadow-md ring-1 ring-black/5">
+                        <span class="mx-auto h-1 w-4/5 rounded bg-neutral-400 dark:bg-neutral-500"></span>
+                        <span class="h-0.5 rounded bg-surface-strong"></span>
+                        <span class="flex gap-0.5"><span class="h-0.5 w-2 rounded bg-emerald-400"></span><span class="h-0.5 flex-1 rounded bg-surface-strong"></span></span>
+                        <span class="h-0.5 rounded bg-surface-strong"></span>
+                        <span class="flex gap-0.5"><span class="h-0.5 flex-1 rounded bg-surface-strong"></span><span class="h-0.5 w-3 rounded bg-emerald-400"></span></span>
+                        <span class="h-0.5 w-3/4 rounded bg-surface-strong"></span>
                       </span>
                       <div class="flex min-w-0 flex-col gap-0.5">
-                        <span class="text-base font-semibold text-neutral-900 break-words [overflow-wrap:anywhere]">{{ t.filename }}</span>
-                        <span class="text-sm text-neutral-600 tabular-nums">
+                        <span class="text-base font-semibold text-fg break-words [overflow-wrap:anywhere]">{{ t.filename }}</span>
+                        <span class="text-sm text-fg-muted tabular-nums">
                           {{ formatSize(t.sizeBytes) }} · Atualizado {{ formatDate(t.uploadedAt) }}
                         </span>
                       </div>
@@ -134,19 +134,19 @@ type LoadState = 'loading' | 'ready' | 'error';
                         Abrir contrato
                       </button>
                       <button type="button" (click)="deleteOpen.set(true)"
-                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-neutral-300 bg-white px-5 text-base font-medium text-neutral-800 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @md:col-span-2 @3xl:col-span-1">
+                        class="inline-flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-edge-strong bg-surface px-5 text-base font-medium text-fg-body hover:border-rose-300 dark:hover:border-rose-500/40 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-800 dark:hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 @md:col-span-2 @3xl:col-span-1">
                         <app-contract-icon name="trash" [size]="18" />
                         Remover
                       </button>
                     </div>
                   </div>
                 } @else {
-                  <div class="flex items-center gap-3.5 rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 px-4 py-4">
-                    <span aria-hidden="true" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-neutral-500 ring-1 ring-neutral-200">
+                  <div class="flex items-center gap-3.5 rounded-2xl border-2 border-dashed border-edge-strong bg-surface-muted px-4 py-4">
+                    <span aria-hidden="true" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface text-fg-subtle ring-1 ring-edge">
                       <app-contract-icon name="file" [size]="20" />
                     </span>
-                    <p class="m-0 flex-1 text-base text-neutral-700">Nenhum contrato cadastrado. Monte o seu abaixo.</p>
-                    <app-contract-icon name="arrowRight" [size]="20" class="rotate-90 text-neutral-500" />
+                    <p class="m-0 flex-1 text-base text-fg-soft">Nenhum contrato cadastrado. Monte o seu abaixo.</p>
+                    <app-contract-icon name="arrowRight" [size]="20" class="rotate-90 text-fg-subtle" />
                   </div>
                 }
               </div>

@@ -404,7 +404,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
       });
 
       expect(q(fixture, '[data-odometer-value]')?.textContent?.trim()).toBe('Aguardando o motorista');
-      expect(q(fixture, '[data-odometer-value]')?.className).toContain('text-neutral-500');
+      expect(q(fixture, '[data-odometer-value]')?.className).toContain('text-fg-subtle');
       expect(q(fixture, '[data-odometer-hint]')?.textContent?.trim()).toBe(
         'O motorista informa o hodômetro ao enviar as fotos.',
       );
@@ -508,7 +508,7 @@ describe('InspectionReview — detalhes da vistoria', () => {
       expect((first.textContent ?? '').trim()).toBe('Porta-malas');
       expect(first.innerHTML).not.toMatch(/text-(red|rose)-/);
       expect(first.innerHTML).not.toContain('bg-black');
-      expect(first.className).toContain('bg-neutral-50');
+      expect(first.className).toContain('bg-surface-muted');
     });
 
     it('resume o que falta: "9 de 14 … Faltam 5 fotos." e "Falta 1 foto." no singular', () => {

@@ -14,7 +14,7 @@ import { STEP_CONFIGS } from '../onboarding.types';
       @for (n of stepsArray(); track n) {
         <div class="h-1.5 flex-1 rounded-full transition-all duration-500 ease-out"
              [class.bg-primary-500]="n <= currentStep()"
-             [class.bg-gray-200]="n > currentStep()">
+             [class.bg-gray-200]="n > currentStep()" [class.dark:bg-surface-strong]="n > currentStep()">
         </div>
       }
     </div>
@@ -22,9 +22,9 @@ import { STEP_CONFIGS } from '../onboarding.types';
     <!-- Step label -->
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center gap-2">
-        <span class="text-sm font-semibold text-gray-800">{{ currentConfig().title }}</span>
+        <span class="text-sm font-semibold text-gray-800 dark:text-fg-body">{{ currentConfig().title }}</span>
       </div>
-      <span class="text-xs text-gray-400 font-medium tabular-nums">
+      <span class="text-xs text-gray-400 dark:text-fg-faint font-medium tabular-nums">
         {{ currentStep() }}/{{ totalSteps() }}
       </span>
     </div>

@@ -29,10 +29,10 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
-    <h2 class="text-xl font-bold text-gray-900 mb-1 focus:outline-none" tabindex="-1">
+    <h2 class="text-xl font-bold text-gray-900 dark:text-fg mb-1 focus:outline-none" tabindex="-1">
       CNPJ da empresa
     </h2>
-    <p class="text-sm text-primary-700 mb-6">
+    <p class="text-sm text-primary-700 dark:text-primary-400 mb-6">
       Caso sua empresa possua CNPJ, informe abaixo. Não é obrigatório.
     </p>
 
@@ -40,10 +40,10 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
       <!-- Toggle checkbox -->
       <label
         class="flex min-h-11 items-center gap-3 px-4 py-3 rounded-lg cursor-pointer border transition-colors"
-        [class.bg-primary-low]="form.get('hasCnpj')?.value"
+        [class.bg-primary-low]="form.get('hasCnpj')?.value" [class.dark:bg-primary-500/15]="form.get('hasCnpj')?.value"
         [class.border-primary-500]="form.get('hasCnpj')?.value"
-        [class.bg-gray-50]="!form.get('hasCnpj')?.value"
-        [class.border-gray-200]="!form.get('hasCnpj')?.value"
+        [class.bg-canvas]="!form.get('hasCnpj')?.value"
+        [class.border-gray-200]="!form.get('hasCnpj')?.value" [class.dark:border-edge]="!form.get('hasCnpj')?.value"
         for="ob-has-cnpj"
       >
         <input
@@ -52,7 +52,7 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
           formControlName="hasCnpj"
           class="w-5 h-5 shrink-0 accent-primary-500 rounded"
         />
-        <span class="text-sm font-medium text-gray-700">Minha empresa possui CNPJ</span>
+        <span class="text-sm font-medium text-gray-700 dark:text-fg-soft">Minha empresa possui CNPJ</span>
       </label>
 
       <!-- Conditional CNPJ field -->

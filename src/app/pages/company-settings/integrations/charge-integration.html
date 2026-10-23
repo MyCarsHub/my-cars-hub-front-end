@@ -10,17 +10,17 @@
     ></div>
 
     @if (connected() && status(); as s) {
-      <article class="mb-8 rounded-[24px] border border-emerald-200 bg-emerald-50/40 p-6 sm:p-8"
+      <article class="mb-8 rounded-[24px] border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-500/10 p-6 sm:p-8"
                style="box-shadow: 0 20px 48px -28px rgba(10,10,10,0.10);">
         <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-3 mb-3">
-              <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-emerald-300 bg-emerald-100 text-emerald-800">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full border border-emerald-300 dark:border-emerald-500/40 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                 Conectado
               </span>
               @if (s.environment === 'SANDBOX') {
-                <span class="inline-flex items-center text-[10.5px] font-bold uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-amber-300 bg-amber-100 text-amber-900">
+                <span class="inline-flex items-center text-[10.5px] font-bold uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200">
                   Sandbox
                 </span>
               }
@@ -47,7 +47,7 @@
         </div>
 
         @if (!s.webhookAutoConfigured) {
-          <div class="mt-5 rounded-xl border border-amber-300 bg-amber-100/60 p-4 text-[13.5px] text-amber-900">
+          <div class="mt-5 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-100/60 dark:bg-amber-500/15 p-4 text-[13.5px] text-amber-900 dark:text-amber-200">
             <p class="font-semibold mb-1 inline-flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
               Webhook não foi registrado automaticamente
@@ -56,12 +56,12 @@
           </div>
         }
 
-        <div class="mt-6 pt-5 border-t border-emerald-200/70">
+        <div class="mt-6 pt-5 border-t border-emerald-200/70 dark:border-emerald-500/30">
           <button
             type="button"
             (click)="askDisconnect()"
             [disabled]="saving()"
-            class="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl border border-rose-200 hover:border-rose-300 text-rose-700 hover:bg-rose-50 text-[13.5px] font-semibold transition-colors disabled:opacity-50"
+            class="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl border border-rose-200 dark:border-rose-500/30 hover:border-rose-300 dark:hover:border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[13.5px] font-semibold transition-colors disabled:opacity-50"
           >
             Desconectar
           </button>
@@ -164,7 +164,7 @@
               </button>
             </div>
             @if (fieldInvalid('accessToken')) {
-              <p class="mt-2 text-[12.5px] text-rose-700 font-medium">Cole a chave completa da API {{ providerLabel() }}.</p>
+              <p class="mt-2 text-[12.5px] text-rose-700 dark:text-rose-300 font-medium">Cole a chave completa da API {{ providerLabel() }}.</p>
             }
             </div>
           </div>
@@ -173,8 +173,8 @@
         <!-- Environment (admin) -->
         @if (isPlatformAdmin()) {
           <section>
-            <div class="rounded-2xl border border-amber-300 bg-amber-50/70 p-5">
-              <p class="text-[10.5px] font-bold uppercase tracking-[0.06em] text-amber-900 mb-3">
+            <div class="rounded-2xl border border-amber-300 dark:border-amber-500/40 bg-amber-50/70 dark:bg-amber-500/10 p-5">
+              <p class="text-[10.5px] font-bold uppercase tracking-[0.06em] text-amber-900 dark:text-amber-200 mb-3">
                 Admin — ambiente
               </p>
               <div role="radiogroup" class="flex flex-wrap gap-2">
@@ -188,8 +188,8 @@
                   [class.text-white]="selectedEnv() === 'PRODUCTION'"
                   [class.border-amber-700]="selectedEnv() === 'PRODUCTION'"
                   [class.bg-paper]="selectedEnv() !== 'PRODUCTION'"
-                  [class.text-amber-900]="selectedEnv() !== 'PRODUCTION'"
-                  [class.border-amber-300]="selectedEnv() !== 'PRODUCTION'"
+                  [class.text-amber-900]="selectedEnv() !== 'PRODUCTION'" [class.dark:text-amber-200]="selectedEnv() !== 'PRODUCTION'"
+                  [class.border-amber-300]="selectedEnv() !== 'PRODUCTION'" [class.dark:border-amber-500/40]="selectedEnv() !== 'PRODUCTION'"
                 >
                   Produção
                 </button>
@@ -203,8 +203,8 @@
                   [class.text-white]="selectedEnv() === 'SANDBOX'"
                   [class.border-amber-700]="selectedEnv() === 'SANDBOX'"
                   [class.bg-paper]="selectedEnv() !== 'SANDBOX'"
-                  [class.text-amber-900]="selectedEnv() !== 'SANDBOX'"
-                  [class.border-amber-300]="selectedEnv() !== 'SANDBOX'"
+                  [class.text-amber-900]="selectedEnv() !== 'SANDBOX'" [class.dark:text-amber-200]="selectedEnv() !== 'SANDBOX'"
+                  [class.border-amber-300]="selectedEnv() !== 'SANDBOX'" [class.dark:border-amber-500/40]="selectedEnv() !== 'SANDBOX'"
                 >
                   Sandbox
                 </button>
@@ -214,7 +214,7 @@
         }
 
         @if (formError()) {
-          <div role="alert" class="p-4 rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-[13.5px] font-medium">
+          <div role="alert" class="p-4 rounded-2xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-200 text-[13.5px] font-medium">
             {{ formError() }}
           </div>
         }

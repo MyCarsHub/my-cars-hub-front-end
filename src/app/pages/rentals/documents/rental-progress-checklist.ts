@@ -68,10 +68,10 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
           @if (step.visible) {
             <li
               class="rounded-xl border transition-colors overflow-hidden"
-              [class.border-emerald-200]="step.state === 'done'"
-              [class.bg-emerald-50]="step.state === 'done'"
-              [class.border-neutral-200]="step.state !== 'done'"
-              [class.bg-white]="step.state !== 'done'"
+              [class.border-emerald-200]="step.state === 'done'" [class.dark:border-emerald-500/30]="step.state === 'done'"
+              [class.bg-emerald-50]="step.state === 'done'" [class.dark:bg-emerald-500/10]="step.state === 'done'"
+              [class.border-edge]="step.state !== 'done'"
+              [class.bg-surface]="step.state !== 'done'"
             >
               <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3">
                 <button
@@ -87,8 +87,8 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                     class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
                     [class.bg-emerald-500]="step.state === 'done'"
                     [class.bg-amber-500]="step.state === 'progress'"
-                    [class.!bg-neutral-200]="step.state === 'pending' || step.state === 'blocked'"
-                    [class.!text-neutral-500]="step.state === 'pending' || step.state === 'blocked'"
+                    [class.!bg-surface-strong]="step.state === 'pending' || step.state === 'blocked'"
+                    [class.!text-fg-subtle]="step.state === 'pending' || step.state === 'blocked'"
                   >
                     @if (step.state === 'done') {
                       <svg
@@ -113,22 +113,22 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                     <div class="flex flex-wrap items-center gap-2">
                       <p
                         class="text-sm font-semibold"
-                        [class.text-emerald-900]="step.state === 'done'"
-                        [class.text-neutral-900]="step.state !== 'done'"
+                        [class.text-emerald-900]="step.state === 'done'" [class.dark:text-emerald-200]="step.state === 'done'"
+                        [class.text-fg]="step.state !== 'done'"
                       >
                         {{ step.title }}
                       </p>
                       @if (step.badge; as badge) {
                         <span
                           class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                          [class.bg-neutral-100]="badge.tone === 'neutral'"
-                          [class.text-neutral-700]="badge.tone === 'neutral'"
-                          [class.bg-amber-100]="badge.tone === 'amber'"
-                          [class.text-amber-800]="badge.tone === 'amber'"
-                          [class.bg-emerald-100]="badge.tone === 'emerald'"
-                          [class.text-emerald-800]="badge.tone === 'emerald'"
-                          [class.bg-rose-100]="badge.tone === 'red'"
-                          [class.text-rose-800]="badge.tone === 'red'"
+                          [class.bg-surface-sunken]="badge.tone === 'neutral'"
+                          [class.text-fg-soft]="badge.tone === 'neutral'"
+                          [class.bg-amber-100]="badge.tone === 'amber'" [class.dark:bg-amber-500/15]="badge.tone === 'amber'"
+                          [class.text-amber-800]="badge.tone === 'amber'" [class.dark:text-amber-200]="badge.tone === 'amber'"
+                          [class.bg-emerald-100]="badge.tone === 'emerald'" [class.dark:bg-emerald-500/15]="badge.tone === 'emerald'"
+                          [class.text-emerald-800]="badge.tone === 'emerald'" [class.dark:text-emerald-200]="badge.tone === 'emerald'"
+                          [class.bg-rose-100]="badge.tone === 'red'" [class.dark:bg-rose-500/15]="badge.tone === 'red'"
+                          [class.text-rose-800]="badge.tone === 'red'" [class.dark:text-rose-200]="badge.tone === 'red'"
                         >
                           {{ badge.label }}
                         </span>
@@ -137,9 +137,9 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                     <p
                       [attr.id]="'desc-' + step.key"
                       class="text-xs mt-0.5"
-                      [class.text-emerald-700]="step.state === 'done'"
-                      [class.text-amber-700]="step.state === 'progress'"
-                      [class.text-neutral-500]="step.state === 'pending' || step.state === 'blocked'"
+                      [class.text-emerald-700]="step.state === 'done'" [class.dark:text-emerald-300]="step.state === 'done'"
+                      [class.text-amber-700]="step.state === 'progress'" [class.dark:text-amber-300]="step.state === 'progress'"
+                      [class.text-fg-subtle]="step.state === 'pending' || step.state === 'blocked'"
                     >
                       {{ step.description }}
                     </p>
@@ -156,7 +156,7 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       aria-hidden="true"
-                      class="shrink-0 text-neutral-400 transition-transform duration-200"
+                      class="shrink-0 text-fg-faint transition-transform duration-200"
                       [style.transform]="isExpanded(step) ? 'rotate(180deg)' : 'rotate(0deg)'"
                     >
                       <polyline points="6 9 12 15 18 9" />
@@ -182,7 +182,7 @@ const STEP_TO_QUERY: Record<StepKey, string> = {
                   [attr.id]="'panel-' + step.key"
                   [attr.aria-labelledby]="'header-' + step.key"
                   role="region"
-                  class="border-t border-neutral-200 bg-white p-3 sm:p-4"
+                  class="border-t border-edge bg-surface p-3 sm:p-4"
                 >
                   @switch (step.panel) {
                     @case ('contract') {

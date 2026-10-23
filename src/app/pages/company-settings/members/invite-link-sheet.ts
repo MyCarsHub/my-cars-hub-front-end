@@ -27,7 +27,7 @@ import { MembersSheet } from './members-sheet';
         <app-invite-share [link]="link()" [companyName]="companyName()" />
       </div>
       <div sheetFooter>
-        <div class="border-t border-neutral-100 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div class="border-t border-edge-soft px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <button
             type="button"
             data-link-done

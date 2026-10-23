@@ -201,3 +201,9 @@
   .cta__particles .p { animation: none; }
   .cta__accent::after { animation: none; }
 }
+
+/* A pílula é sempre BRANCA (sobre a faixa laranja): o texto fica no brand-strong CLARO nos
+   dois temas — o valor escuro (#FA602E) daria 3,1:1 sobre o branco. */
+.cta__button {
+  --brand-strong: #C22F00;
+}

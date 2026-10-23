@@ -42,24 +42,24 @@ import { formatBRL } from '../../../types/dashboard.types';
   imports: [RouterLink],
   template: `
     @if (items().length === 0) {
-      <p class="text-sm text-neutral-500 text-center py-6">
+      <p class="text-sm text-fg-subtle text-center py-6">
         Nenhum veículo para calcular retorno ainda.
       </p>
     } @else {
       <ul class="space-y-3" role="list">
         @for (v of rows(); track v.item.vehicleId) {
           <li
-            class="rounded-xl border bg-white p-4 space-y-3"
-            [class.border-neutral-200]="v.tone !== 'negative'"
-            [class.border-rose-200]="v.tone === 'negative'"
+            class="rounded-xl border bg-surface p-4 space-y-3"
+            [class.border-edge]="v.tone !== 'negative'"
+            [class.border-rose-200]="v.tone === 'negative'" [class.dark:border-rose-500/30]="v.tone === 'negative'"
           >
             <!-- Identificação -->
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-neutral-900 tabular-nums">
+                <p class="text-sm font-semibold text-fg tabular-nums">
                   {{ v.item.plate }}
                 </p>
-                <p class="text-xs text-neutral-500 truncate">
+                <p class="text-xs text-fg-subtle truncate">
                   {{ v.item.brand }} {{ v.item.model }}
                 </p>
               </div>
@@ -72,17 +72,17 @@ import { formatBRL } from '../../../types/dashboard.types';
               <div class="shrink-0 text-right">
                 <p
                   class="text-sm font-semibold tabular-nums"
-                  [class.text-emerald-700]="v.tone === 'positive'"
-                  [class.text-rose-700]="v.tone === 'negative'"
-                  [class.text-neutral-900]="v.tone === 'neutral'"
+                  [class.text-emerald-700]="v.tone === 'positive'" [class.dark:text-emerald-300]="v.tone === 'positive'"
+                  [class.text-rose-700]="v.tone === 'negative'" [class.dark:text-rose-300]="v.tone === 'negative'"
+                  [class.text-fg]="v.tone === 'neutral'"
                 >
                   {{ v.headline }}
                 </p>
                 <p
                   class="text-[11px] font-medium"
-                  [class.text-emerald-700]="v.tone === 'positive'"
-                  [class.text-rose-700]="v.tone === 'negative'"
-                  [class.text-neutral-500]="v.tone === 'neutral'"
+                  [class.text-emerald-700]="v.tone === 'positive'" [class.dark:text-emerald-300]="v.tone === 'positive'"
+                  [class.text-rose-700]="v.tone === 'negative'" [class.dark:text-rose-300]="v.tone === 'negative'"
+                  [class.text-fg-subtle]="v.tone === 'neutral'"
                 >
                   {{ v.caption }}
                 </p>
@@ -92,23 +92,23 @@ import { formatBRL } from '../../../types/dashboard.types';
             <!-- Retornou x custou -->
             <div class="grid grid-cols-2 gap-2">
               <div class="min-w-0">
-                <span class="text-neutral-500 uppercase tracking-wide text-[10px]">
+                <span class="text-fg-subtle uppercase tracking-wide text-[10px]">
                   Já voltou
                 </span>
-                <p class="text-sm font-semibold text-neutral-900 tabular-nums">
+                <p class="text-sm font-semibold text-fg tabular-nums">
                   {{ v.returned }}
                 </p>
                 @if (v.showSplit) {
-                  <p class="text-[11px] text-neutral-500 tabular-nums">
+                  <p class="text-[11px] text-fg-subtle tabular-nums">
                     aluguel {{ v.rental }} · venda {{ v.sale }}
                   </p>
                 }
               </div>
               <div class="min-w-0">
-                <span class="text-neutral-500 uppercase tracking-wide text-[10px]">
+                <span class="text-fg-subtle uppercase tracking-wide text-[10px]">
                   Já custou
                 </span>
-                <p class="text-sm font-semibold text-neutral-900 tabular-nums">
+                <p class="text-sm font-semibold text-fg tabular-nums">
                   {{ v.cost }}
                 </p>
               </div>
@@ -117,27 +117,27 @@ import { formatBRL } from '../../../types/dashboard.types';
             <!-- Payback: o dado mais útil da tela, nunca atrás do expandir -->
             @if (v.indeterminate) {
               <!-- Caso 1: custo zero. Acionável em vez de "—". -->
-              <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-2">
-                <p class="text-xs text-amber-900">
+              <div class="rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 space-y-2">
+                <p class="text-xs text-amber-900 dark:text-amber-200">
                   Sem o preço de compra não dá para dizer se este carro já se pagou.
                 </p>
                 <a
                   [routerLink]="['/veiculos', v.item.vehicleId, 'editar']"
                   class="inline-flex items-center min-h-[44px] text-xs font-semibold
-                         text-amber-900 underline hover:no-underline outline-none
+                         text-amber-900 dark:text-amber-200 underline hover:no-underline outline-none
                          focus-visible:ring-2 focus-visible:ring-amber-500 rounded-sm"
                 >
                   Informar preço de compra
                 </a>
               </div>
             } @else if (v.item.paybackReached) {
-              <p class="text-xs font-medium text-emerald-700">
+              <p class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
                 Já se pagou{{ v.paybackWhen }}
               </p>
             } @else {
-              <p class="text-xs font-medium text-neutral-700">
+              <p class="text-xs font-medium text-fg-soft">
                 Falta
-                <span class="font-semibold tabular-nums text-neutral-900">{{ v.remaining }}</span>
+                <span class="font-semibold tabular-nums text-fg">{{ v.remaining }}</span>
                 para se pagar
               </p>
             }
@@ -146,7 +146,7 @@ import { formatBRL } from '../../../types/dashboard.types';
             <button
               type="button"
               class="w-full min-h-[44px] flex items-center justify-between gap-2 text-xs
-                     font-medium text-neutral-600 hover:text-neutral-900 outline-none
+                     font-medium text-fg-muted hover:text-fg outline-none
                      focus-visible:ring-2 focus-visible:ring-primary-400 rounded-lg px-1"
               [attr.aria-expanded]="isOpen(v.item.vehicleId)"
               [attr.aria-label]="
@@ -159,11 +159,11 @@ import { formatBRL } from '../../../types/dashboard.types';
             </button>
 
             @if (isOpen(v.item.vehicleId)) {
-              <dl class="text-xs text-neutral-600 space-y-1 border-t border-neutral-100 pt-2">
+              <dl class="text-xs text-fg-muted space-y-1 border-t border-edge-soft pt-2">
                 @for (line of v.costLines; track line.label) {
                   <div class="flex items-baseline justify-between gap-3">
-                    <dt class="text-neutral-500">{{ line.label }}</dt>
-                    <dd class="tabular-nums text-neutral-900">{{ line.value }}</dd>
+                    <dt class="text-fg-subtle">{{ line.label }}</dt>
+                    <dd class="tabular-nums text-fg">{{ line.value }}</dd>
                   </div>
                 }
               </dl>

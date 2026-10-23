@@ -47,17 +47,17 @@ export interface StatusMeta {
 export const DRIVER_STATUS_META: Record<DriverStatus, StatusMeta> = {
   AVAILABLE: {
     label: 'Disponível',
-    chip: 'bg-emerald-100 text-emerald-800',
+    chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
     color: '#10b981',
   },
   WORKING: {
     label: 'Em serviço',
-    chip: 'bg-blue-100 text-blue-700',
+    chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
     color: '#3b82f6',
   },
   SUSPENDED: {
     label: 'Suspenso',
-    chip: 'bg-red-100 text-red-700',
+    chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
     color: '#ef4444',
   },
 };
@@ -71,22 +71,22 @@ export function driverStatusMeta(status: DriverStatus): StatusMeta {
 export const RENTAL_STATUS_META: Record<RentalStatus, StatusMeta> = {
   RESERVED: {
     label: 'Reservado',
-    chip: 'bg-amber-100 text-amber-800',
+    chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
     color: '#f59e0b',
   },
   ACTIVE: {
     label: 'Ativo',
-    chip: 'bg-blue-100 text-blue-800',
+    chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200',
     color: '#3b82f6',
   },
   COMPLETED: {
     label: 'Concluído',
-    chip: 'bg-emerald-100 text-emerald-800',
+    chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
     color: '#10b981',
   },
   CANCELED: {
     label: 'Cancelado',
-    chip: 'bg-red-100 text-red-800',
+    chip: 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-200',
     color: '#ef4444',
   },
 };
@@ -100,22 +100,22 @@ export function rentalStatusMeta(status: RentalStatus): StatusMeta {
 export const VEHICLE_STATUS_META: Record<VehicleStatus, StatusMeta> = {
   AVAILABLE: {
     label: 'Disponível',
-    chip: 'bg-emerald-100 text-emerald-800',
+    chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
     color: '#10b981',
   },
   RENTED: {
     label: 'Alugado',
-    chip: 'bg-blue-100 text-blue-700',
+    chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
     color: '#3b82f6',
   },
   MAINTENANCE: {
     label: 'Manutenção',
-    chip: 'bg-amber-100 text-amber-800',
+    chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
     color: '#f59e0b',
   },
   INACTIVE: {
     label: 'Inativo',
-    chip: 'bg-neutral-200 text-neutral-700',
+    chip: 'bg-surface-strong text-fg-soft',
     color: '#6b7280',
   },
 };
@@ -124,7 +124,7 @@ export function vehicleStatusMeta(status: VehicleStatus | string | null | undefi
   if (status && status in VEHICLE_STATUS_META) {
     return VEHICLE_STATUS_META[status as VehicleStatus];
   }
-  return { label: '—', chip: 'bg-neutral-100 text-neutral-700', color: '#6b7280' };
+  return { label: '—', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' };
 }
 
 // --------------------------------------------------- filter option lists
@@ -144,7 +144,7 @@ interface FilterOption<T extends string> {
  * resolve amanha).
  */
 export const DRIVER_STATUS_FILTER_OPTIONS: FilterOption<DriverStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   {
     value: 'AVAILABLE',
     label: DRIVER_STATUS_META.AVAILABLE.label,
@@ -171,7 +171,7 @@ export const DRIVER_STATUS_FILTER_OPTIONS: FilterOption<DriverStatus>[] = [
  * o singular, o teste cai e obriga a decisao a ser consciente.
  */
 export const RENTAL_STATUS_FILTER_OPTIONS: FilterOption<RentalStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   { value: 'RESERVED', label: 'Reservados', chip: RENTAL_STATUS_META.RESERVED.chip },
   { value: 'ACTIVE', label: 'Ativos', chip: RENTAL_STATUS_META.ACTIVE.chip },
   { value: 'COMPLETED', label: 'Concluídos', chip: RENTAL_STATUS_META.COMPLETED.chip },
@@ -180,7 +180,7 @@ export const RENTAL_STATUS_FILTER_OPTIONS: FilterOption<RentalStatus>[] = [
 
 /** Mesma unificacao do filtro de motoristas — ver o comentario la em cima. */
 export const VEHICLE_STATUS_FILTER_OPTIONS: FilterOption<VehicleStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   {
     value: 'AVAILABLE',
     label: VEHICLE_STATUS_META.AVAILABLE.label,
@@ -204,14 +204,14 @@ export const VEHICLE_STATUS_FILTER_OPTIONS: FilterOption<VehicleStatus>[] = [
 // exports there are now `@deprecated` re-exports of these constants.
 
 export const FINE_STATUS_META: Record<FineStatus, StatusMeta> = {
-  PENDING: { label: 'Pendente', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
-  PAID: { label: 'Paga', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
-  CONTESTED: { label: 'Contestada', chip: 'bg-blue-100 text-blue-700', color: '#3b82f6' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700', color: '#6b7280' },
+  PENDING: { label: 'Pendente', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b' },
+  PAID: { label: 'Paga', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
+  CONTESTED: { label: 'Contestada', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300', color: '#3b82f6' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft', color: '#6b7280' },
 };
 
 export const FINE_STATUS_FILTER_OPTIONS: FilterOption<FineStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   { value: 'PENDING', label: FINE_STATUS_META.PENDING.label, chip: FINE_STATUS_META.PENDING.chip },
   { value: 'PAID', label: FINE_STATUS_META.PAID.label, chip: FINE_STATUS_META.PAID.chip },
   { value: 'CONTESTED', label: FINE_STATUS_META.CONTESTED.label, chip: FINE_STATUS_META.CONTESTED.chip },
@@ -223,10 +223,10 @@ export interface FineSeverityMeta extends StatusMeta {
 }
 
 export const FINE_SEVERITY_META: Record<FineSeverity, FineSeverityMeta> = {
-  LEVE: { label: 'Leve', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981', defaultPoints: 3 },
-  MEDIA: { label: 'Média', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b', defaultPoints: 4 },
-  GRAVE: { label: 'Grave', chip: 'bg-orange-100 text-orange-800', color: '#f97316', defaultPoints: 5 },
-  GRAVISSIMA: { label: 'Gravíssima', chip: 'bg-rose-100 text-rose-700', color: '#ef4444', defaultPoints: 7 },
+  LEVE: { label: 'Leve', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981', defaultPoints: 3 },
+  MEDIA: { label: 'Média', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b', defaultPoints: 4 },
+  GRAVE: { label: 'Grave', chip: 'bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-200', color: '#f97316', defaultPoints: 5 },
+  GRAVISSIMA: { label: 'Gravíssima', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300', color: '#ef4444', defaultPoints: 7 },
 };
 
 /**
@@ -252,7 +252,7 @@ export function defaultPointsForSeverity(severity: FineSeverity): number | null 
 export const FINE_SEVERITY_FILTER_OPTIONS: Array<
   FilterOption<FineSeverity> & { defaultPoints: number }
 > = [
-  { value: '', label: 'Todas', chip: 'bg-neutral-100 text-neutral-700', defaultPoints: 0 },
+  { value: '', label: 'Todas', chip: 'bg-surface-sunken text-fg-soft', defaultPoints: 0 },
   // `defaultPoints` vem de `FINE_SEVERITY_META`, como `label` e `chip` — NAO
   // como literal. O rotulo da opcao ("Média (4 pts)") e o numero que o
   // formulario grava saem daqui; enquanto o valor era cravado, a tela podia
@@ -294,10 +294,10 @@ export const FINE_SEVERITY_FILTER_OPTIONS: Array<
  * a palavra "pendente" aqui leria como algo que o DONO deve fazer, e quem deve e o motorista.
  */
 export const INSPECTION_STATUS_META: Record<InspectionStatus, StatusMeta> = {
-  PENDING: { label: 'Em andamento', chip: 'bg-neutral-100 text-neutral-700', color: '#6b7280' },
-  SUBMITTED: { label: 'Aguardando aprovação', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
-  APPROVED: { label: 'Aprovada', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
-  REJECTED: { label: 'Recusada', chip: 'bg-rose-100 text-rose-700', color: '#ef4444' },
+  PENDING: { label: 'Em andamento', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' },
+  SUBMITTED: { label: 'Aguardando aprovação', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b' },
+  APPROVED: { label: 'Aprovada', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
+  REJECTED: { label: 'Recusada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300', color: '#ef4444' },
 };
 
 /**
@@ -315,20 +315,20 @@ export function inspectionStatusMeta(status: InspectionStatus | string | null | 
   if (status && status in INSPECTION_STATUS_META) {
     return INSPECTION_STATUS_META[status as InspectionStatus];
   }
-  return { label: '—', chip: 'bg-neutral-100 text-neutral-700', color: '#6b7280' };
+  return { label: '—', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' };
 }
 
 // ----------------------------------------------------------- maintenance
 
 export const MAINTENANCE_STATUS_META: Record<MaintenanceStatus, StatusMeta> = {
-  SCHEDULED: { label: 'Agendada', chip: 'bg-blue-100 text-blue-700', color: '#3b82f6' },
-  IN_PROGRESS: { label: 'Em andamento', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
-  DONE: { label: 'Concluída', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700', color: '#6b7280' },
+  SCHEDULED: { label: 'Agendada', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300', color: '#3b82f6' },
+  IN_PROGRESS: { label: 'Em andamento', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b' },
+  DONE: { label: 'Concluída', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft', color: '#6b7280' },
 };
 
 export const MAINTENANCE_STATUS_FILTER_OPTIONS: FilterOption<MaintenanceStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   { value: 'SCHEDULED', label: MAINTENANCE_STATUS_META.SCHEDULED.label, chip: MAINTENANCE_STATUS_META.SCHEDULED.chip },
   { value: 'IN_PROGRESS', label: MAINTENANCE_STATUS_META.IN_PROGRESS.label, chip: MAINTENANCE_STATUS_META.IN_PROGRESS.chip },
   { value: 'DONE', label: MAINTENANCE_STATUS_META.DONE.label, chip: MAINTENANCE_STATUS_META.DONE.chip },
@@ -336,16 +336,16 @@ export const MAINTENANCE_STATUS_FILTER_OPTIONS: FilterOption<MaintenanceStatus>[
 ];
 
 export const MAINTENANCE_TYPE_META: Record<MaintenanceType, StatusMeta> = {
-  PREVENTIVE: { label: 'Preventiva', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
-  CORRECTIVE: { label: 'Corretiva', chip: 'bg-rose-100 text-rose-700', color: '#ef4444' },
-  INSPECTION: { label: 'Inspeção', chip: 'bg-blue-100 text-blue-700', color: '#3b82f6' },
-  TIRE: { label: 'Pneus', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
-  OIL: { label: 'Óleo/filtros', chip: 'bg-orange-100 text-orange-800', color: '#f97316' },
-  OTHER: { label: 'Outros', chip: 'bg-neutral-200 text-neutral-700', color: '#6b7280' },
+  PREVENTIVE: { label: 'Preventiva', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
+  CORRECTIVE: { label: 'Corretiva', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300', color: '#ef4444' },
+  INSPECTION: { label: 'Inspeção', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300', color: '#3b82f6' },
+  TIRE: { label: 'Pneus', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b' },
+  OIL: { label: 'Óleo/filtros', chip: 'bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-200', color: '#f97316' },
+  OTHER: { label: 'Outros', chip: 'bg-surface-strong text-fg-soft', color: '#6b7280' },
 };
 
 export const MAINTENANCE_TYPE_FILTER_OPTIONS: FilterOption<MaintenanceType>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   { value: 'PREVENTIVE', label: MAINTENANCE_TYPE_META.PREVENTIVE.label, chip: MAINTENANCE_TYPE_META.PREVENTIVE.chip },
   { value: 'CORRECTIVE', label: MAINTENANCE_TYPE_META.CORRECTIVE.label, chip: MAINTENANCE_TYPE_META.CORRECTIVE.chip },
   { value: 'INSPECTION', label: MAINTENANCE_TYPE_META.INSPECTION.label, chip: MAINTENANCE_TYPE_META.INSPECTION.chip },
@@ -357,9 +357,9 @@ export const MAINTENANCE_TYPE_FILTER_OPTIONS: FilterOption<MaintenanceType>[] = 
 // ------------------------------------------------------------------ ipva
 
 export const IPVA_STATUS_META: Record<IpvaStatus, StatusMeta> = {
-  PAID: { label: 'Pago', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
-  PENDING: { label: 'Pendente', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
-  OVERDUE: { label: 'Vencido', chip: 'bg-rose-100 text-rose-700', color: '#ef4444' },
+  PAID: { label: 'Pago', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
+  PENDING: { label: 'Pendente', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b' },
+  OVERDUE: { label: 'Vencido', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300', color: '#ef4444' },
 };
 
 /**
@@ -375,12 +375,12 @@ export const IPVA_STATUS_OPTIONS: Array<{ value: IpvaStatus; label: string }> = 
 // ------------------------------------------------------------- financing
 
 export const FINANCING_STATUS_META: Record<FinancingStatus, StatusMeta> = {
-  ACTIVE: { label: 'Ativo', chip: 'bg-blue-100 text-blue-700', color: '#3b82f6' },
-  PAID_OFF: { label: 'Quitado', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
+  ACTIVE: { label: 'Ativo', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300', color: '#3b82f6' },
+  PAID_OFF: { label: 'Quitado', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
 };
 
 export const FINANCING_STATUS_FILTER_OPTIONS: FilterOption<FinancingStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   { value: 'ACTIVE', label: FINANCING_STATUS_META.ACTIVE.label, chip: FINANCING_STATUS_META.ACTIVE.chip },
   { value: 'PAID_OFF', label: FINANCING_STATUS_META.PAID_OFF.label, chip: FINANCING_STATUS_META.PAID_OFF.chip },
 ];
@@ -388,14 +388,14 @@ export const FINANCING_STATUS_FILTER_OPTIONS: FilterOption<FinancingStatus>[] = 
 // ------------------------------------------------------------- insurance
 
 export const INSURANCE_STATUS_META: Record<InsuranceStatus, StatusMeta> = {
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-800', color: '#10b981' },
-  EXPIRED: { label: 'Expirada', chip: 'bg-rose-100 text-rose-700', color: '#ef4444' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700', color: '#6b7280' },
-  SUSPENDED: { label: 'Suspensa', chip: 'bg-amber-100 text-amber-800', color: '#f59e0b' },
+  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200', color: '#10b981' },
+  EXPIRED: { label: 'Expirada', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300', color: '#ef4444' },
+  CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft', color: '#6b7280' },
+  SUSPENDED: { label: 'Suspensa', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200', color: '#f59e0b' },
 };
 
 export const INSURANCE_STATUS_FILTER_OPTIONS: FilterOption<InsuranceStatus>[] = [
-  { value: '', label: 'Todos', chip: 'bg-neutral-100 text-neutral-700' },
+  { value: '', label: 'Todos', chip: 'bg-surface-sunken text-fg-soft' },
   { value: 'ACTIVE', label: INSURANCE_STATUS_META.ACTIVE.label, chip: INSURANCE_STATUS_META.ACTIVE.chip },
   { value: 'EXPIRED', label: INSURANCE_STATUS_META.EXPIRED.label, chip: INSURANCE_STATUS_META.EXPIRED.chip },
   { value: 'SUSPENDED', label: INSURANCE_STATUS_META.SUSPENDED.label, chip: INSURANCE_STATUS_META.SUSPENDED.chip },
@@ -469,7 +469,7 @@ export interface LicensingBadge {
  */
 export function licensingBadge(iso: string | null | undefined): LicensingBadge {
   if (!iso) {
-    return { label: 'Sem data', chip: 'bg-neutral-200 text-neutral-700' };
+    return { label: 'Sem data', chip: 'bg-surface-strong text-fg-soft' };
   }
   const raw = iso.length === 10 ? iso + 'T00:00:00' : iso;
   const expiry = new Date(raw).getTime();
@@ -477,11 +477,11 @@ export function licensingBadge(iso: string | null | undefined): LicensingBadge {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const days = Math.round((expiry - today) / 86400000);
   if (days < 0) {
-    return { label: 'Vencido', chip: 'bg-rose-100 text-rose-700' };
+    return { label: 'Vencido', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
   }
   if (days <= 30) {
-    return { label: `Vence em ${days} dias`, chip: 'bg-amber-100 text-amber-800' };
+    return { label: `Vence em ${days} dias`, chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
   }
   const formatted = new Date(raw).toLocaleDateString('pt-BR');
-  return { label: `Em dia até ${formatted}`, chip: 'bg-emerald-100 text-emerald-700' };
+  return { label: `Em dia até ${formatted}`, chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' };
 }

@@ -1,4 +1,4 @@
-<section class="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+<section class="bg-surface rounded-2xl border border-edge shadow-sm overflow-hidden">
 
   <!-- Recuo do header acompanha o do corpo: a esmagadora maioria dos consumidores
        usa `p-4 sm:p-6` (ou `p-4`), então `px-6` fixo deixava o título 8px à direita
@@ -12,7 +12,7 @@
   <div class="px-4 sm:px-6 py-5 flex items-center justify-between gap-2">
     <div class="flex items-center gap-3">
       <ng-content select="[cardIcon]" />
-      <h2 class="font-semibold text-neutral-800">{{ title() }}</h2>
+      <h2 class="font-semibold text-fg-body">{{ title() }}</h2>
     </div>
 
     <div class="flex items-center gap-2 shrink-0">
@@ -22,7 +22,7 @@
           type="button"
           (click)="toggle()"
           class="inline-flex items-center justify-center min-h-[32px] min-w-[32px] px-1 rounded-lg
-                 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition
+                 text-fg-subtle hover:text-fg hover:bg-surface-sunken transition
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
           [attr.aria-expanded]="open()"
           [attr.aria-controls]="contentId"

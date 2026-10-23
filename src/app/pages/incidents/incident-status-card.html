@@ -4,7 +4,7 @@
       <app-alert-banner variant="warning" [message]="conflictMessage" />
     }
 
-    <p class="text-sm text-neutral-600">
+    <p class="text-sm text-fg-muted">
       As duas situações abaixo correm em paralelo e são independentes: o veículo pode voltar a
       rodar antes de a seguradora pagar, e a seguradora pode pagar depois de o reparo terminar.
     </p>
@@ -13,17 +13,17 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <!-- ------------------------------------------------ dimensão 1: veículo -->
       <section
-        class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3"
+        class="rounded-xl border border-edge bg-surface p-4 space-y-3"
         aria-labelledby="incident-resolution-heading"
       >
         <div class="space-y-1">
           <h3
             id="incident-resolution-heading"
-            class="text-xs font-semibold uppercase tracking-wide text-neutral-500"
+            class="text-xs font-semibold uppercase tracking-wide text-fg-subtle"
           >
             Situação do veículo
           </h3>
-          <p class="text-[11px] text-neutral-500">O que aconteceu com o carro.</p>
+          <p class="text-[11px] text-fg-subtle">O que aconteceu com o carro.</p>
         </div>
 
         <p>
@@ -39,7 +39,7 @@
         @if (resolutionOptions().length > 0) {
           <div class="space-y-2">
             <p
-              class="text-[11px] font-medium text-neutral-500"
+              class="text-[11px] font-medium text-fg-subtle"
               id="incident-resolution-actions-label"
             >
               Avançar para:
@@ -54,8 +54,8 @@
                   type="button"
                   (click)="openTransition(option)"
                   class="w-full inline-flex items-center justify-center gap-2 px-4 rounded-xl
-                         border border-neutral-300 bg-white text-sm font-medium text-neutral-800
-                         hover:bg-neutral-50 transition-colors min-h-[44px]
+                         border border-edge-strong bg-surface text-sm font-medium text-fg-body
+                         hover:bg-surface-muted transition-colors min-h-[44px]
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
                          focus-visible:ring-offset-2"
                   [attr.aria-label]="
@@ -69,7 +69,7 @@
             </div>
           </div>
         } @else {
-          <p class="text-xs text-neutral-600">
+          <p class="text-xs text-fg-muted">
             Estado final: a situação do veículo não avança mais. Um novo evento com este carro
             deve ser registrado como outro sinistro.
           </p>
@@ -78,17 +78,17 @@
 
       <!-- ----------------------------------------------- dimensão 2: seguro -->
       <section
-        class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3"
+        class="rounded-xl border border-edge bg-surface p-4 space-y-3"
         aria-labelledby="incident-insurance-heading"
       >
         <div class="space-y-1">
           <h3
             id="incident-insurance-heading"
-            class="text-xs font-semibold uppercase tracking-wide text-neutral-500"
+            class="text-xs font-semibold uppercase tracking-wide text-fg-subtle"
           >
             Processo de seguro
           </h3>
-          <p class="text-[11px] text-neutral-500">O andamento com a seguradora.</p>
+          <p class="text-[11px] text-fg-subtle">O andamento com a seguradora.</p>
         </div>
 
         <p>
@@ -103,7 +103,7 @@
 
         @if (insuranceOptions().length > 0) {
           <div class="space-y-2">
-            <p class="text-[11px] font-medium text-neutral-500" id="incident-insurance-actions-label">
+            <p class="text-[11px] font-medium text-fg-subtle" id="incident-insurance-actions-label">
               Avançar para:
             </p>
             <div
@@ -116,8 +116,8 @@
                   type="button"
                   (click)="openTransition(option)"
                   class="w-full inline-flex items-center justify-center gap-2 px-4 rounded-xl
-                         border border-neutral-300 bg-white text-sm font-medium text-neutral-800
-                         hover:bg-neutral-50 transition-colors min-h-[44px]
+                         border border-edge-strong bg-surface text-sm font-medium text-fg-body
+                         hover:bg-surface-muted transition-colors min-h-[44px]
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600
                          focus-visible:ring-offset-2"
                   [attr.aria-label]="'Mudar processo de seguro para ' + option.targetLabel"
@@ -129,7 +129,7 @@
             </div>
           </div>
         } @else {
-          <p class="text-xs text-neutral-600">
+          <p class="text-xs text-fg-muted">
             Estado final: o processo com a seguradora está encerrado e não avança mais.
           </p>
         }
@@ -143,27 +143,27 @@
 @if (pending(); as transition) {
   <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
     <div
-      class="absolute inset-0 bg-neutral-900/50"
+      class="absolute inset-0 bg-neutral-900/50 dark:bg-neutral-700/50"
       @sheetBackdrop
       (click)="closeSheet()"
       aria-hidden="true"
     ></div>
     <div
-      class="relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-t-2xl
-             sm:rounded-2xl shadow-xl border border-neutral-200 p-5 space-y-4"
+      class="relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto bg-surface rounded-t-2xl
+             sm:rounded-2xl shadow-xl border border-edge p-5 space-y-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="incident-transition-title"
       @sheet
     >
-      <h3 id="incident-transition-title" class="text-base font-semibold text-neutral-900">
+      <h3 id="incident-transition-title" class="text-base font-semibold text-fg">
         {{ sheetTitle() }}
       </h3>
 
       @if (transition.needsActualCost) {
         <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-actual-cost">
-            Custo real <span class="text-primary-700" aria-hidden="true">*</span>
+          <label class="block text-sm font-medium text-fg-soft mb-1.5" for="incident-actual-cost">
+            Custo real <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span>
           </label>
           <input
             id="incident-actual-cost"
@@ -175,17 +175,17 @@
             aria-required="true"
             [ngModel]="actualCostReais()"
             (ngModelChange)="actualCostReais.set($event)"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
           />
-          <p class="text-xs text-neutral-500 mt-1">
+          <p class="text-xs text-fg-subtle mt-1">
             Quanto o reparo (ou a perda) custou de fato, em reais. Encerrar sem esse número
             deixa o fechamento financeiro do sinistro sem resposta.
           </p>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-notes">
+          <label class="block text-sm font-medium text-fg-soft mb-1.5" for="incident-notes">
             Observação do encerramento
           </label>
           <textarea
@@ -193,18 +193,18 @@
             rows="3"
             [ngModel]="notes()"
             (ngModelChange)="notes.set($event)"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
           ></textarea>
-          <p class="text-xs text-neutral-500 mt-1">Opcional. É anexada às notas, não as substitui.</p>
+          <p class="text-xs text-fg-subtle mt-1">Opcional. É anexada às notas, não as substitui.</p>
         </div>
       }
 
       @if (transition.needsClaimNumber) {
         <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-claim-number">
+          <label class="block text-sm font-medium text-fg-soft mb-1.5" for="incident-claim-number">
             Número do sinistro na seguradora
-            <span class="text-primary-700" aria-hidden="true">*</span>
+            <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span>
           </label>
           <input
             id="incident-claim-number"
@@ -214,10 +214,10 @@
             aria-required="true"
             [ngModel]="claimNumber()"
             (ngModelChange)="claimNumber.set($event)"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
           />
-          <p class="text-xs text-neutral-500 mt-1">
+          <p class="text-xs text-fg-subtle mt-1">
             Sem ele o registro não é rastreável do lado da seguradora.
           </p>
         </div>
@@ -225,8 +225,8 @@
 
       @if (transition.needsIndemnified) {
         <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-indemnified">
-            Valor indenizado <span class="text-primary-700" aria-hidden="true">*</span>
+          <label class="block text-sm font-medium text-fg-soft mb-1.5" for="incident-indemnified">
+            Valor indenizado <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span>
           </label>
           <input
             id="incident-indemnified"
@@ -238,16 +238,16 @@
             aria-required="true"
             [ngModel]="indemnifiedReais()"
             (ngModelChange)="indemnifiedReais.set($event)"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
           />
-          <p class="text-xs text-neutral-500 mt-1">Quanto a seguradora devolveu, em reais.</p>
+          <p class="text-xs text-fg-subtle mt-1">Quanto a seguradora devolveu, em reais.</p>
         </div>
       }
 
       @if (transition.dimension === 'INSURANCE') {
         <div>
-          <label class="block text-sm font-medium text-neutral-700 mb-1.5" for="incident-deductible">
+          <label class="block text-sm font-medium text-fg-soft mb-1.5" for="incident-deductible">
             Franquia paga
           </label>
           <input
@@ -258,10 +258,10 @@
             step="0.01"
             [ngModel]="deductibleReais()"
             (ngModelChange)="deductibleReais.set($event)"
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+            class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
           />
-          <p class="text-xs text-neutral-500 mt-1">
+          <p class="text-xs text-fg-subtle mt-1">
             Opcional. Corrija aqui se a seguradora cobrou valor diferente do estimado.
           </p>
         </div>
@@ -279,8 +279,8 @@
           type="button"
           (click)="closeSheet()"
           [disabled]="saving()"
-          class="w-full sm:w-auto px-4 rounded-xl text-sm font-medium text-neutral-700 min-h-[44px]
-                 bg-white border border-neutral-200 hover:bg-neutral-50 disabled:opacity-60
+          class="w-full sm:w-auto px-4 rounded-xl text-sm font-medium text-fg-soft min-h-[44px]
+                 bg-surface border border-edge hover:bg-surface-muted disabled:opacity-60
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
         >
           Cancelar

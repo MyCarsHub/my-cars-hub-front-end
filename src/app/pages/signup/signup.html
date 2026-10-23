@@ -15,7 +15,7 @@
           <img ngSrc="svg/name-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
         </div>
         <input appFieldControl type="text" formControlName="name" placeholder="Digite seu nome completo"
-          autocomplete="name" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+          autocomplete="name" class="w-full bg-surface rounded-xl border pl-12 pr-4 py-3
                  focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
       </div>
     </app-form-field>
@@ -27,7 +27,7 @@
           <img ngSrc="svg/email-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
         </div>
         <input appFieldControl type="email" formControlName="email" placeholder="seu@email.com"
-          autocomplete="email" inputmode="email" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+          autocomplete="email" inputmode="email" class="w-full bg-surface rounded-xl border pl-12 pr-4 py-3
                  focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
       </div>
     </app-form-field>
@@ -39,7 +39,7 @@
           <img ngSrc="svg/password-lock-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
         </div>
         <input appFieldControl type="password" formControlName="password" placeholder="Mínimo 8 caracteres"
-          autocomplete="new-password" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+          autocomplete="new-password" class="w-full bg-surface rounded-xl border pl-12 pr-4 py-3
                  focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
       </div>
     </app-form-field>
@@ -51,19 +51,19 @@
           <img ngSrc="svg/password-lock-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
         </div>
         <input appFieldControl type="password" formControlName="passwordConfirm" placeholder="********"
-          autocomplete="new-password" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+          autocomplete="new-password" class="w-full bg-surface rounded-xl border pl-12 pr-4 py-3
                  focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
       </div>
     </app-form-field>
 
     @if (signupForm.hasError('passwordMismatch') && signupForm.controls.passwordConfirm.dirty) {
-      <p class="text-xs text-rose-600" role="alert">As senhas não coincidem.</p>
+      <p class="text-xs text-rose-600 dark:text-rose-300" role="alert">As senhas não coincidem.</p>
     }
 
     <app-form-field controlId="signup-terms" [control]="signupForm.controls.acceptedTerms"
       [messages]="termsMessages">
       <label
-        class="flex items-start gap-3 py-2.5 min-h-[44px] cursor-pointer select-none text-sm text-neutral-700"
+        class="flex items-start gap-3 py-2.5 min-h-[44px] cursor-pointer select-none text-sm text-fg-soft"
         for="signup-terms">
         <input appFieldControl type="checkbox" formControlName="acceptedTerms"
           class="mt-0.5 h-5 w-5 shrink-0 accent-brand cursor-pointer" />

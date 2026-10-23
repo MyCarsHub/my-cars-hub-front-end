@@ -110,32 +110,32 @@ function rangeForPreset(preset: DateRangePresetKey): DateRange | null {
 
             @if (selected() === 'custom') {
                 <div class="flex flex-col sm:flex-row gap-2">
-                    <label class="flex flex-col text-xs text-gray-500 gap-1 sm:flex-1">
+                    <label class="flex flex-col text-xs text-gray-500 dark:text-fg-subtle gap-1 sm:flex-1">
                         De
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-base sm:text-sm
-                                   text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                            class="min-h-[44px] rounded-lg border border-gray-200 dark:border-edge px-3 py-2 text-base sm:text-sm
+                                   text-gray-900 dark:text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customFrom()"
                             (change)="onCustomFrom($any($event.target).value)"
                         />
                     </label>
-                    <label class="flex flex-col text-xs text-gray-500 gap-1 sm:flex-1">
+                    <label class="flex flex-col text-xs text-gray-500 dark:text-fg-subtle gap-1 sm:flex-1">
                         Até
                         <input
                             type="date"
-                            class="min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-base sm:text-sm
-                                   text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                            class="min-h-[44px] rounded-lg border border-gray-200 dark:border-edge px-3 py-2 text-base sm:text-sm
+                                   text-gray-900 dark:text-fg focus:outline-none focus:ring-2 focus:ring-primary-400"
                             [value]="customTo()"
                             (change)="onCustomTo($any($event.target).value)"
                         />
                     </label>
                 </div>
                 @if (customError()) {
-                    <p class="text-xs text-red-600">{{ customError() }}</p>
+                    <p class="text-xs text-red-600 dark:text-red-300">{{ customError() }}</p>
                 }
             } @else if (currentRange(); as r) {
-                <p class="text-xs text-gray-500">
+                <p class="text-xs text-gray-500 dark:text-fg-subtle">
                     {{ r.from }} — {{ r.to }}
                 </p>
             }

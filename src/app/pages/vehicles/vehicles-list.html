@@ -23,7 +23,7 @@
         <form (ngSubmit)="onSearchSubmit()" class="sm:col-span-2 lg:col-span-2">
           <label for="veiculos-search" class="sr-only">Buscar por placa, marca ou modelo</label>
           <div class="relative">
-            <span class="absolute inset-y-0 left-3 flex items-center text-neutral-400" aria-hidden="true">
+            <span class="absolute inset-y-0 left-3 flex items-center text-fg-faint" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -36,7 +36,7 @@
               [ngModel]="search()"
               (ngModelChange)="search.set($event)"
               name="search"
-              class="w-full pl-9 pr-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
+              class="w-full pl-9 pr-3 py-2.5 min-h-11 text-base sm:text-sm border border-edge-field rounded-xl
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
           </div>
@@ -56,8 +56,8 @@
             aria-controls="veiculos-filtros"
             [attr.aria-label]="filtersButtonLabel()"
             class="flex-1 min-h-[44px] flex items-center justify-between gap-2 px-3 py-2.5
-                   text-sm font-medium text-neutral-700 border border-neutral-200 rounded-xl
-                   hover:bg-neutral-50 transition-colors
+                   text-sm font-medium text-fg-soft border border-edge rounded-xl
+                   hover:bg-surface-muted transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
           >
             <span class="flex items-center gap-2">
@@ -89,7 +89,7 @@
               data-testid="filters-clear-shortcut"
               (click)="clearFilters()"
               class="shrink-0 min-h-[44px] px-3 py-2.5 rounded-xl text-sm font-medium
-                     text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-colors
+                     text-fg-muted hover:text-fg hover:bg-surface-muted transition-colors
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >
               Limpar filtros
@@ -123,7 +123,7 @@
             id="veiculos-type"
             [ngModel]="typeFilter()"
             (ngModelChange)="typeFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of typeOptions; track opt.value) {
@@ -140,9 +140,9 @@
             (ngModelChange)="statusFilter.set($event); onFilterChange()"
             [disabled]="soldFilter()"
             title="No modo Vendidos o status operacional não se aplica"
-            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400
-                   disabled:bg-neutral-50 disabled:text-neutral-400 disabled:cursor-not-allowed"
+                   disabled:bg-surface-muted disabled:text-fg-faint disabled:cursor-not-allowed"
           >
             @for (opt of statusOptions; track opt.value) {
               <option [value]="opt.value">Status: {{ opt.label }}</option>
@@ -158,7 +158,7 @@
             id="veiculos-sold"
             [ngModel]="soldFilter()"
             (ngModelChange)="onSoldFilterChange($event === 'true')"
-            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             <option [value]="false">Frota: atual</option>
@@ -172,7 +172,7 @@
             id="veiculos-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {
@@ -188,7 +188,7 @@
           <button
             type="button"
             (click)="clearFilters()"
-            class="min-h-11 text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+            class="min-h-11 text-sm font-medium text-fg-subtle hover:text-fg-body px-3 py-2.5 rounded-lg"
           >
             Limpar filtros
           </button>
@@ -233,12 +233,12 @@
         @if (loading() && items().length === 0) {
           <div data-vehicles-skeleton aria-hidden="true" class="grid grid-cols-1 @min-[820px]:grid-cols-2 gap-3">
             @for (n of skeletonSlots; track n) {
-              <div class="rounded-2xl border border-neutral-200 bg-white p-3 flex gap-3">
-                <div class="shrink-0 aspect-square size-[104px] @min-[592px]:size-[148px] rounded-xl bg-neutral-100 animate-pulse"></div>
+              <div class="rounded-2xl border border-edge bg-surface p-3 flex gap-3">
+                <div class="shrink-0 aspect-square size-[104px] @min-[592px]:size-[148px] rounded-xl bg-surface-sunken animate-pulse"></div>
                 <div class="flex-1 flex flex-col gap-2 pt-1">
-                  <div class="h-4 w-24 rounded bg-neutral-100 animate-pulse"></div>
-                  <div class="h-3 w-36 rounded bg-neutral-100 animate-pulse"></div>
-                  <div class="h-3 w-28 rounded bg-neutral-100 animate-pulse"></div>
+                  <div class="h-4 w-24 rounded bg-surface-sunken animate-pulse"></div>
+                  <div class="h-3 w-36 rounded bg-surface-sunken animate-pulse"></div>
+                  <div class="h-3 w-28 rounded bg-surface-sunken animate-pulse"></div>
                 </div>
               </div>
             }
@@ -248,11 +248,11 @@
         <!-- VAZIO. Só quando a carga TERMINOU sem erro: lista que falhou não é frota vazia. -->
         @if (!loading() && !error() && items().length === 0) {
           <div class="text-center py-12 space-y-3">
-            <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+            <div class="w-14 h-14 rounded-full bg-surface-sunken flex items-center justify-center mx-auto"
               aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="text-neutral-400">
+                class="text-fg-faint">
                 <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
                 <circle cx="6.5" cy="16.5" r="2.5"/>
                 <circle cx="16.5" cy="16.5" r="2.5"/>
@@ -264,28 +264,28 @@
                    vendido" quando NÃO há busca/tipo ativos: com q/type o vazio
                    pode ser culpa do filtro, não da ausência de vendas. -->
               @if (search().trim() || typeFilter()) {
-                <p data-vehicles-empty-filtered class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
+                <p data-vehicles-empty-filtered class="text-sm text-fg-subtle">Nenhum veículo encontrado com esses filtros.</p>
                 <ng-container *ngTemplateOutlet="clearFiltersButton" />
               } @else {
-                <p data-vehicles-empty class="text-sm text-neutral-500">Nenhum veículo vendido ainda.</p>
+                <p data-vehicles-empty class="text-sm text-fg-subtle">Nenhum veículo vendido ainda.</p>
               }
             } @else {
               <!-- FEAT-0080: frota vazia ≠ filtro sem resultado. Sem q/tipo/status
                    ativos, o vazio é a ausência do primeiro veículo — este é o
                    lembrete persistente de quem pulou o gate de ativação. -->
               @if (search().trim() || typeFilter() || statusFilter()) {
-                <p data-vehicles-empty-filtered class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
+                <p data-vehicles-empty-filtered class="text-sm text-fg-subtle">Nenhum veículo encontrado com esses filtros.</p>
                 <ng-container *ngTemplateOutlet="clearFiltersButton" />
               } @else {
-                <p data-vehicles-empty class="text-sm font-medium text-neutral-700">
+                <p data-vehicles-empty class="text-sm font-medium text-fg-soft">
                   Você ainda não cadastrou nenhum veículo.
                 </p>
-                <p class="text-sm text-neutral-500">
+                <p class="text-sm text-fg-subtle">
                   Cadastre o primeiro para o painel, os alertas e as cobranças trabalharem com a
                   sua frota.
                 </p>
                 <a routerLink="/veiculos/novo"
-                  class="inline-flex items-center min-h-11 gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
+                  class="inline-flex items-center min-h-11 gap-2 text-sm font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400">
                   Cadastrar primeiro veículo
                 </a>
               }
@@ -303,7 +303,7 @@
             @for (vehicle of items(); track vehicle.id) {
               <article
                 data-vehicle-card
-                class="rounded-2xl border border-neutral-200 bg-white p-3 flex gap-3 min-w-0"
+                class="rounded-2xl border border-edge bg-surface p-3 flex gap-3 min-w-0"
               >
                 <!--
                   A miniatura: foto do veículo, senão a frente da última vistoria aprovada
@@ -314,8 +314,8 @@
                   data-vehicle-thumb
                   [attr.data-photo-source]="photoFor(vehicle) ? vehicle.photoSource : null"
                   class="relative shrink-0 self-start aspect-square size-[104px] @min-[592px]:size-[148px]
-                         rounded-xl overflow-hidden bg-neutral-100 flex flex-col items-center justify-center
-                         gap-1.5 text-neutral-500"
+                         rounded-xl overflow-hidden bg-surface-sunken flex flex-col items-center justify-center
+                         gap-1.5 text-fg-subtle"
                 >
                   @if (photoFor(vehicle); as url) {
                     <img
@@ -350,7 +350,7 @@
                       data-vehicle-placeholder-plate
                       aria-hidden="true"
                       class="font-mono text-[11px] @min-[592px]:text-xs font-semibold tracking-wider
-                             rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-neutral-700"
+                             rounded border border-edge-strong bg-surface px-1.5 py-0.5 text-fg-soft"
                     >
                       {{ formatPlate(vehicle.plate) }}
                     </span>
@@ -361,7 +361,7 @@
                   <div class="flex flex-wrap items-center gap-2">
                     <h3
                       data-vehicle-plate
-                      class="font-mono text-base font-semibold tracking-wide text-neutral-900"
+                      class="font-mono text-base font-semibold tracking-wide text-fg"
                     >
                       {{ formatPlate(vehicle.plate) }}
                     </h3>
@@ -377,21 +377,21 @@
                       <span
                         data-sold-chip
                         class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium
-                               bg-neutral-800 text-white"
+                               bg-neutral-800 dark:bg-neutral-700 text-white"
                       >
                         Vendido
                       </span>
                     }
                   </div>
 
-                  <p data-vehicle-model class="text-sm text-neutral-600 truncate">
+                  <p data-vehicle-model class="text-sm text-fg-muted truncate">
                     {{ vehicle.brand }} {{ vehicle.model }}
                   </p>
 
-                  <p data-vehicle-meta class="text-[13px] text-neutral-500 tabular-nums">
+                  <p data-vehicle-meta class="text-[13px] text-fg-subtle tabular-nums">
                     {{ typeLabel(vehicle.type) }} · {{ vehicle.yearModel }}
                   </p>
-                  <p data-vehicle-licensing class="text-[13px] text-neutral-500 tabular-nums">
+                  <p data-vehicle-licensing class="text-[13px] text-fg-subtle tabular-nums">
                     Licenciamento {{ formatDate(vehicle.licensingExpiration) }}
                   </p>
 
@@ -404,7 +404,7 @@
                         </span>
                       }
                       @if (showIpvaOverdue(vehicle)) {
-                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">
+                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-200">
                           IPVA vencido
                         </span>
                       }
@@ -419,8 +419,8 @@
                       [routerLink]="['/veiculos', vehicle.id]"
                       [attr.aria-label]="'Ver detalhes do veículo ' + vehicle.plate"
                       class="flex-1 min-w-0 min-h-11 inline-flex items-center justify-center rounded-full border
-                             border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-900
-                             hover:border-primary-500 hover:bg-neutral-50 transition-colors
+                             border-edge bg-surface px-4 text-sm font-medium text-fg
+                             hover:border-primary-500 hover:bg-surface-muted transition-colors
                              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                     >
                       Ver detalhes
@@ -429,13 +429,13 @@
                       <a
                         role="menuitem"
                         [routerLink]="['/veiculos', vehicle.id, 'gerencia']"
-                        class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                        class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]">
                         Gerenciar
                       </a>
                       <a
                         role="menuitem"
                         [routerLink]="['/veiculos', vehicle.id, 'editar']"
-                        class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                        class="flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]">
                         Editar
                       </a>
                       @if (canGoMaintenance(vehicle)) {
@@ -444,7 +444,7 @@
                           role="menuitem"
                           [disabled]="transitioningId() === vehicle.id"
                           (click)="transitionStatus(vehicle, 'MAINTENANCE', $event)"
-                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-800 hover:bg-amber-50 min-h-[44px] disabled:opacity-50 text-left">
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 min-h-[44px] disabled:opacity-50 text-left">
                           Marcar em manutenção
                         </button>
                       }
@@ -454,7 +454,7 @@
                           role="menuitem"
                           [disabled]="transitioningId() === vehicle.id"
                           (click)="transitionStatus(vehicle, 'AVAILABLE', $event)"
-                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-emerald-800 hover:bg-emerald-50 min-h-[44px] disabled:opacity-50 text-left">
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-emerald-800 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 min-h-[44px] disabled:opacity-50 text-left">
                           Marcar disponível
                         </button>
                       }
@@ -464,7 +464,7 @@
                           role="menuitem"
                           [disabled]="transitioningId() === vehicle.id"
                           (click)="transitionStatus(vehicle, 'INACTIVE', $event)"
-                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50 text-left">
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px] disabled:opacity-50 text-left">
                           Marcar inativo
                         </button>
                       }
@@ -474,7 +474,7 @@
                         [disabled]="deleteDisabledReason(vehicle) !== null"
                         [attr.title]="deleteDisabledReason(vehicle)"
                         (click)="askDelete(vehicle, $event)"
-                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed text-left border-t border-neutral-100">
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed text-left border-t border-edge-soft">
                         Remover
                       </button>
                     </app-actions-menu>
@@ -488,9 +488,9 @@
           <div
             data-vehicles-pagination
             class="mt-4 flex flex-col @min-[592px]:flex-row @min-[592px]:items-center
-                   @min-[592px]:justify-between gap-3 pt-4 border-t border-neutral-100"
+                   @min-[592px]:justify-between gap-3 pt-4 border-t border-edge-soft"
           >
-            <p class="text-sm text-neutral-600 tabular-nums">
+            <p class="text-sm text-fg-muted tabular-nums">
               {{ total() }} veículo(s) — página {{ pageNumber() }} de {{ totalPages() }}
             </p>
             <div class="flex gap-2">
@@ -499,8 +499,8 @@
                 data-vehicles-prev
                 [disabled]="page() === 0 || loading()"
                 (click)="prev()"
-                class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
-                       text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+                class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-edge bg-surface
+                       text-sm font-semibold text-fg-soft hover:bg-surface-muted transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
                        focus-visible:ring-2 focus-visible:ring-primary-400"
               >
@@ -511,8 +511,8 @@
                 data-vehicles-next
                 [disabled]="page() + 1 >= totalPages() || loading()"
                 (click)="next()"
-                class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
-                       text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+                class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-edge bg-surface
+                       text-sm font-semibold text-fg-soft hover:bg-surface-muted transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
                        focus-visible:ring-2 focus-visible:ring-primary-400"
               >
@@ -528,8 +528,8 @@
           type="button"
           data-vehicles-empty-clear
           (click)="clearFilters()"
-          class="min-h-11 px-5 rounded-xl border border-neutral-200 bg-white text-sm
-                 font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+          class="min-h-11 px-5 rounded-xl border border-edge bg-surface text-sm
+                 font-semibold text-fg-soft hover:bg-surface-muted transition-colors
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
         >
           Limpar filtros

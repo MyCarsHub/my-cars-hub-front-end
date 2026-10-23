@@ -22,7 +22,7 @@ const CHIP =
   host: { class: 'block' },
   template: `
     <table class="w-full text-sm">
-      <thead class="text-xs text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
+      <thead class="text-xs text-fg-subtle uppercase tracking-wide border-b border-edge">
         <tr>
           <th scope="col" class="px-3 py-3 font-medium text-left">Nome</th>
           <th scope="col" class="px-3 py-3 font-medium text-left">E-mail</th>
@@ -38,7 +38,7 @@ const CHIP =
       <tbody>
         @for (row of rows(); track row.key) {
           <tr
-            class="border-b border-neutral-100 hover:bg-neutral-50 align-middle"
+            class="border-b border-edge-soft hover:bg-surface-muted align-middle"
             [attr.data-member-row]="row.member ? '' : null"
             [attr.data-invite-row]="row.invite ? '' : null"
           >
@@ -48,22 +48,22 @@ const CHIP =
                   class="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold"
                   [class]="
                     row.invite
-                      ? 'bg-white border-2 border-dashed border-neutral-300 text-neutral-500'
-                      : 'bg-neutral-200 text-neutral-700'
+                      ? 'bg-surface border-2 border-dashed border-edge-strong text-fg-subtle'
+                      : 'bg-surface-strong text-fg-soft'
                   "
                   aria-hidden="true"
                 >
                   {{ row.initial }}
                 </div>
-                <p class="font-medium text-neutral-900 break-words min-w-0">
+                <p class="font-medium text-fg break-words min-w-0">
                   {{ row.name }}
                   @if (row.isSelf) {
-                    <span class="font-normal text-neutral-500">(você)</span>
+                    <span class="font-normal text-fg-subtle">(você)</span>
                   }
                 </p>
               </div>
             </td>
-            <td data-email class="px-3 py-3 text-neutral-700 max-w-[16rem] min-w-[10rem]">
+            <td data-email class="px-3 py-3 text-fg-soft max-w-[16rem] min-w-[10rem]">
               <span class="block truncate" [attr.title]="row.email">{{ row.email }}</span>
             </td>
             <td class="px-3 py-3">
@@ -84,7 +84,7 @@ const CHIP =
                 }
               </div>
             </td>
-            <td class="px-3 py-3 text-neutral-700 tabular-nums whitespace-nowrap">
+            <td class="px-3 py-3 text-fg-soft tabular-nums whitespace-nowrap">
               {{ row.date | date: 'dd/MM/yyyy' }}
             </td>
             <td class="px-3 py-3 whitespace-nowrap">
@@ -93,12 +93,12 @@ const CHIP =
                   invite.validity.label
                 }}</span>
               } @else {
-                <span class="text-neutral-500">—</span>
+                <span class="text-fg-subtle">—</span>
               }
             </td>
             <td class="px-3 py-2 text-right min-w-[14rem]">
               @if (busyId() === row.id) {
-                <span role="status" class="text-xs text-neutral-500">
+                <span role="status" class="text-xs text-fg-subtle">
                   {{ busyLabel(row) }}
                 </span>
               } @else if (row.member; as member) {
@@ -114,16 +114,16 @@ const CHIP =
                       data-remove-member
                       [disabled]="busyId() !== null"
                       (click)="remove.emit(member)"
-                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-700 hover:bg-rose-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-rose-50"
+                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 min-h-[44px] text-left focus:outline-none focus-visible:bg-rose-50 dark:focus-visible:bg-rose-500/10"
                     >
                       <app-members-icon name="userMinus" [size]="16" />{{ member.removeLabel }}
                     </button>
-                    <p class="px-3 pb-2 pt-1 text-xs text-neutral-500 border-t border-neutral-100">
+                    <p class="px-3 pb-2 pt-1 text-xs text-fg-subtle border-t border-edge-soft">
                       {{ note }}
                     </p>
                   </app-actions-menu>
                 } @else {
-                  <span class="text-xs text-neutral-500 block max-w-[14rem] ml-auto text-right">{{
+                  <span class="text-xs text-fg-subtle block max-w-[14rem] ml-auto text-right">{{
                     member.lockedReason
                   }}</span>
                 }
@@ -138,7 +138,7 @@ const CHIP =
                         [attr.aria-label]="'Reenviar convite para ' + invite.title"
                         (click)="resend.emit(invite)"
                         class="min-h-[44px] px-3 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
-                               border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50
+                               border border-edge bg-surface text-fg-soft hover:bg-surface-muted
                                focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
                                disabled:opacity-60"
                       >
@@ -155,7 +155,7 @@ const CHIP =
                         role="menuitem"
                         [disabled]="busyId() !== null"
                         (click)="resend.emit(invite)"
-                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-800 hover:bg-neutral-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-neutral-50"
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-fg-body hover:bg-surface-muted min-h-[44px] text-left focus:outline-none focus-visible:bg-surface-muted"
                       >
                         <app-members-icon name="resend" [size]="16" />Reenviar convite
                       </button>
@@ -165,7 +165,7 @@ const CHIP =
                         data-copy-invite-link
                         [disabled]="busyId() !== null"
                         (click)="copyLink.emit(invite)"
-                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-800 hover:bg-neutral-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-neutral-50"
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-fg-body hover:bg-surface-muted min-h-[44px] text-left focus:outline-none focus-visible:bg-surface-muted"
                       >
                         <app-members-icon name="link" [size]="16" />Copiar link
                       </button>
@@ -175,7 +175,7 @@ const CHIP =
                         data-whatsapp-invite-link
                         [disabled]="busyId() !== null"
                         (click)="sendWhatsApp.emit(invite)"
-                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-800 hover:bg-neutral-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-neutral-50"
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-fg-body hover:bg-surface-muted min-h-[44px] text-left focus:outline-none focus-visible:bg-surface-muted"
                       >
                         <app-members-icon name="message" [size]="16" />Enviar pelo WhatsApp
                       </button>
@@ -184,14 +184,14 @@ const CHIP =
                         role="menuitem"
                         [disabled]="busyId() !== null"
                         (click)="cancel.emit(invite)"
-                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-700 hover:bg-rose-50 min-h-[44px] text-left focus:outline-none focus-visible:bg-rose-50"
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 min-h-[44px] text-left focus:outline-none focus-visible:bg-rose-50 dark:focus-visible:bg-rose-500/10"
                       >
                         <app-members-icon name="xCircle" [size]="16" />Cancelar convite
                       </button>
                     </app-actions-menu>
                   </div>
                 } @else {
-                  <span class="text-xs text-neutral-500 block max-w-[14rem] ml-auto text-right">{{
+                  <span class="text-xs text-fg-subtle block max-w-[14rem] ml-auto text-right">{{
                     invite.lockedReason
                   }}</span>
                 }

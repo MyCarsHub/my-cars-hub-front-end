@@ -26,7 +26,7 @@ export type PaperMode = 'example' | 'names';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class:
-      'flex min-w-0 flex-col gap-3 bg-neutral-100 px-3 py-4 sm:gap-4 sm:p-6',
+      'flex min-w-0 flex-col gap-3 bg-surface-sunken px-3 py-4 sm:gap-4 sm:p-6',
   },
   imports: [ContractIcon],
   styles: `
@@ -34,6 +34,11 @@ export type PaperMode = 'example' | 'names';
     :host {
       background-image: radial-gradient(#d4d4d4 1px, transparent 1px);
       background-size: 20px 20px;
+    }
+    /* No escuro a mesa escurece e a FOLHA continua branca (\`theme-paper\`): o contrato é
+       um documento impresso, e é assim que ele vai sair. */
+    :host-context(.dark) {
+      background-image: radial-gradient(var(--color-edge-strong) 1px, transparent 1px);
     }
     /* Fonte de documento com algarismos alinhados (a Georgia só tem os de estilo antigo,
        que fazem «R$ 700,00» e datas dançarem na linha). */
@@ -51,16 +56,16 @@ export type PaperMode = 'example' | 'names';
   template: `
     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
       <span class="flex min-w-0 items-center gap-2">
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-neutral-700 shadow-sm ring-1 ring-black/5">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-fg-soft shadow-sm ring-1 ring-black/5">
           <app-contract-icon name="fileText" [size]="16" />
         </span>
-        <span class="text-[15px] font-semibold text-neutral-800">{{ title() }}</span>
+        <span class="text-[15px] font-semibold text-fg-body">{{ title() }}</span>
       </span>
       @if (showModeSwitch()) {
         <div
           role="radiogroup"
           aria-label="Mostrar no contrato"
-          class="flex w-full gap-1 rounded-xl bg-neutral-200 p-1 sm:w-auto"
+          class="flex w-full gap-1 rounded-xl bg-surface-strong p-1 sm:w-auto"
         >
           <button
             type="button"
@@ -90,7 +95,7 @@ export type PaperMode = 'example' | 'names';
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         @if (draft()) {
           <p
-            class="m-0 inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[13px] font-semibold text-amber-900"
+            class="m-0 inline-flex items-center gap-1.5 rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-1 text-[13px] font-semibold text-amber-900 dark:text-amber-200"
           >
             <app-contract-icon name="pen" [size]="14" />
             Rascunho, aguardando revisão jurídica
@@ -99,7 +104,7 @@ export type PaperMode = 'example' | 'names';
         @if (legend().length > 0 && !loading()) {
           <ul class="m-0 flex list-none flex-wrap gap-x-4 gap-y-1.5 p-0" aria-label="Legenda das cores">
             @for (l of legend(); track l.key) {
-              <li class="flex items-center gap-1.5 text-base font-medium text-neutral-700">
+              <li class="flex items-center gap-1.5 text-base font-medium text-fg-soft">
                 <span aria-hidden="true" class="h-4 w-4 rounded-[4px]" [class]="l.swatch"></span>
                 {{ l.label }}
               </li>
@@ -112,12 +117,12 @@ export type PaperMode = 'example' | 'names';
     @if (loading()) {
       <div
         aria-hidden="true"
-        class="mx-auto box-border flex w-full max-w-[760px] flex-1 flex-col gap-3 rounded-[3px] bg-white px-5 py-8 shadow-lg sm:px-12 sm:py-12"
+        class="mx-auto box-border flex w-full max-w-[760px] flex-1 flex-col gap-3 theme-paper rounded-[3px] bg-surface px-5 py-8 shadow-lg sm:px-12 sm:py-12"
         [class]="split() ? 'min-h-[520px]' : 'min-h-[320px]'"
       >
-        <div class="mx-auto mb-3 h-4 w-3/5 rounded bg-neutral-200 motion-safe:animate-pulse"></div>
+        <div class="mx-auto mb-3 h-4 w-3/5 rounded bg-surface-strong motion-safe:animate-pulse"></div>
         @for (w of skeleton; track $index) {
-          <div class="h-3 rounded bg-neutral-100 motion-safe:animate-pulse" [style.width]="w"></div>
+          <div class="h-3 rounded bg-surface-sunken motion-safe:animate-pulse" [style.width]="w"></div>
         }
       </div>
     } @else if (paragraphs().length === 0) {
@@ -127,38 +132,38 @@ export type PaperMode = 'example' | 'names';
       >
         <!-- Folha fantasma: mostra o que vai aparecer aqui (texto + campos coloridos). -->
         <div aria-hidden="true" class="relative">
-          <div class="absolute inset-0 translate-x-2.5 translate-y-2 rotate-[4deg] rounded-[3px] bg-white shadow-sm ring-1 ring-black/5"></div>
-          <div class="relative flex w-40 flex-col gap-2 rounded-[3px] bg-white px-4 py-5 shadow-md ring-1 ring-black/5 sm:w-48">
-            <div class="mx-auto mb-1 h-2 w-2/3 rounded bg-neutral-300"></div>
-            <div class="flex gap-1.5"><span class="h-1.5 w-8 rounded bg-neutral-200"></span><span class="h-1.5 w-12 rounded bg-emerald-300"></span><span class="h-1.5 flex-1 rounded bg-neutral-200"></span></div>
-            <div class="h-1.5 w-full rounded bg-neutral-200"></div>
-            <div class="flex gap-1.5"><span class="h-1.5 flex-1 rounded bg-neutral-200"></span><span class="h-1.5 w-10 rounded bg-amber-300"></span></div>
-            <div class="h-1.5 w-4/5 rounded bg-neutral-200"></div>
-            <div class="flex gap-1.5"><span class="h-1.5 w-14 rounded bg-emerald-300"></span><span class="h-1.5 flex-1 rounded bg-neutral-200"></span></div>
-            <div class="h-1.5 w-3/5 rounded bg-neutral-200"></div>
+          <div class="absolute inset-0 translate-x-2.5 translate-y-2 theme-paper rotate-[4deg] rounded-[3px] bg-surface shadow-sm ring-1 ring-black/5"></div>
+          <div class="theme-paper relative flex w-40 flex-col gap-2 rounded-[3px] bg-surface px-4 py-5 shadow-md ring-1 ring-black/5 sm:w-48">
+            <div class="mx-auto mb-1 h-2 w-2/3 rounded bg-neutral-300 dark:bg-neutral-600"></div>
+            <div class="flex gap-1.5"><span class="h-1.5 w-8 rounded bg-surface-strong"></span><span class="h-1.5 w-12 rounded bg-emerald-300"></span><span class="h-1.5 flex-1 rounded bg-surface-strong"></span></div>
+            <div class="h-1.5 w-full rounded bg-surface-strong"></div>
+            <div class="flex gap-1.5"><span class="h-1.5 flex-1 rounded bg-surface-strong"></span><span class="h-1.5 w-10 rounded bg-amber-300"></span></div>
+            <div class="h-1.5 w-4/5 rounded bg-surface-strong"></div>
+            <div class="flex gap-1.5"><span class="h-1.5 w-14 rounded bg-emerald-300"></span><span class="h-1.5 flex-1 rounded bg-surface-strong"></span></div>
+            <div class="h-1.5 w-3/5 rounded bg-surface-strong"></div>
           </div>
-          <span class="absolute -bottom-3 -right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-primary-700 shadow-md ring-1 ring-black/5">
+          <span class="absolute -bottom-3 -right-3 flex h-10 w-10 items-center justify-center theme-paper rounded-full bg-surface text-primary-700 dark:text-primary-400 shadow-md ring-1 ring-black/5">
             <app-contract-icon [name]="emptyIcon()" [size]="20" />
           </span>
         </div>
-        <p class="m-0 max-w-[34ch] text-[15px] leading-relaxed text-neutral-700">{{ emptyText() }}</p>
+        <p class="m-0 max-w-[34ch] text-[15px] leading-relaxed text-fg-soft">{{ emptyText() }}</p>
       </div>
     } @else {
       <div class="relative mx-auto flex w-full max-w-[760px] flex-1 flex-col">
         <!-- A segunda folha atrás dá a ideia de documento de várias páginas. -->
-        <div aria-hidden="true" class="absolute inset-x-3 -bottom-1.5 top-3 hidden rounded-[3px] bg-white shadow-sm ring-1 ring-black/5 sm:block"></div>
+        <div aria-hidden="true" class="absolute inset-x-3 -bottom-1.5 theme-paper top-3 hidden rounded-[3px] bg-surface shadow-sm ring-1 ring-black/5 sm:block"></div>
         <article
           [attr.aria-label]="title()"
           tabindex="0"
-          class="paper-in relative box-border flex w-full flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-[3px] bg-white px-5 py-7 shadow-lg ring-1 ring-black/5 sm:px-12 sm:py-11 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          class="theme-paper paper-in relative box-border flex w-full flex-1 flex-col gap-4 overflow-y-auto overscroll-contain rounded-[3px] bg-surface px-5 py-7 shadow-lg ring-1 ring-black/5 sm:px-12 sm:py-11 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
           [class]="split() ? 'max-h-[720px]' : 'max-h-[60vh]'"
         >
           @for (p of paragraphs(); track p.id) {
             <p
-              class="m-0 rounded-md doc-serif leading-[1.75] text-neutral-800 break-words transition-colors duration-300"
+              class="m-0 rounded-md doc-serif leading-[1.75] text-fg-body break-words transition-colors duration-300"
               [class]="paragraphClass(p)"
               [attr.data-focus]="p.focus ? 'true' : null"
-            ><!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of p.segments; track $index) {<span [class]="segmentClass(s)" [attr.title]="segmentTitle(s)" [attr.data-focus]="isFocused(s) ? 'true' : null">{{ segmentText(s) }}@if (segmentCode(s); as code) {<span data-field-code class="ml-1 select-all font-mono text-[12px] font-normal text-neutral-700">{{ code }}</span>}</span>}</p>
+            ><!-- Uma linha só: espaço entre os spans viraria espaço no texto do contrato. -->@for (s of p.segments; track $index) {<span [class]="segmentClass(s)" [attr.title]="segmentTitle(s)" [attr.data-focus]="isFocused(s) ? 'true' : null">{{ segmentText(s) }}@if (segmentCode(s); as code) {<span data-field-code class="ml-1 select-all font-mono text-[12px] font-normal text-fg-soft">{{ code }}</span>}</span>}</p>
           }
         </article>
       </div>
@@ -184,8 +189,8 @@ export class ContractPaper {
   readonly split = input(false);
   readonly modeChange = output<PaperMode>();
 
-  protected readonly onClass = 'bg-white text-neutral-900 shadow-sm';
-  protected readonly offClass = 'bg-transparent text-neutral-700 hover:text-neutral-900';
+  protected readonly onClass = 'bg-surface text-fg shadow-sm';
+  protected readonly offClass = 'bg-transparent text-fg-soft hover:text-fg';
   protected readonly skeleton = ['100%', '92%', '96%', '70%', '100%', '88%', '94%', '60%', '100%', '84%'];
 
   /** Ícone do selo da folha vazia: o envio quando o título fala do arquivo. */
@@ -209,9 +214,9 @@ export class ContractPaper {
       }
     }
     const out: { key: string; label: string; swatch: string }[] = [];
-    if (ok) out.push({ key: 'ok', label: 'Preenchido sozinho', swatch: 'border-b-2 border-emerald-500 bg-emerald-100' });
-    if (doubt) out.push({ key: 'doubt', label: 'Pergunta da IA', swatch: 'border-b-2 border-amber-500 bg-amber-100' });
-    if (hidden) out.push({ key: 'hidden', label: 'Escondido da IA', swatch: 'bg-neutral-200' });
+    if (ok) out.push({ key: 'ok', label: 'Preenchido sozinho', swatch: 'border-b-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-500/15' });
+    if (doubt) out.push({ key: 'doubt', label: 'Pergunta da IA', swatch: 'border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15' });
+    if (hidden) out.push({ key: 'hidden', label: 'Escondido da IA', swatch: 'bg-surface-strong' });
     return out;
   });
 
@@ -240,7 +245,7 @@ export class ContractPaper {
         ? 'mb-1 text-center text-[17px] font-bold tracking-[0.01em] sm:text-lg'
         : 'text-left text-[15px] sm:text-base';
     return p.focus
-      ? `${base} -mx-3 border-l-4 border-primary-500 bg-primary-50 px-3 py-1`
+      ? `${base} -mx-3 border-l-4 border-primary-500 bg-primary-50 dark:bg-primary-500/10 px-3 py-1`
       : base;
   }
 
@@ -272,17 +277,17 @@ export class ContractPaper {
       case 'text':
         return s.bold ? 'font-bold' : '';
       case 'hidden':
-        return 'rounded-[4px] bg-neutral-200 px-1 py-px font-sans text-[13px] font-medium text-neutral-700 [box-decoration-break:clone]';
+        return 'rounded-[4px] bg-surface-strong px-1 py-px font-sans text-[13px] font-medium text-fg-soft [box-decoration-break:clone]';
       case 'kept':
         return s.focus
-          ? 'rounded-[3px] bg-amber-50 outline-2 outline-offset-1 outline-amber-500 [box-decoration-break:clone]'
+          ? 'rounded-[3px] bg-amber-50 dark:bg-amber-500/10 outline-2 outline-offset-1 outline-amber-500 [box-decoration-break:clone]'
           : '';
       case 'field': {
         const font = 'font-semibold';
         const color =
           s.tone === 'doubt'
-            ? 'border-b-2 border-amber-500 bg-amber-100 text-amber-900'
-            : 'border-b-2 border-emerald-500 bg-emerald-100 text-emerald-900';
+            ? 'border-b-2 border-amber-500 bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200'
+            : 'border-b-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-900 dark:text-emerald-200';
         const ring = s.focus
           ? `outline-2 outline-offset-2 ${s.tone === 'doubt' ? 'outline-amber-500' : 'outline-emerald-600'}`
           : '';

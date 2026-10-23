@@ -164,7 +164,7 @@ describe('opcoes de filtro x mapa de status', () => {
 describe('vistoria — situacao e tipo', () => {
   it('cada situacao tem o rotulo e a cor do desenho', () => {
     expect(INSPECTION_STATUS_META.PENDING.label).toBe('Em andamento');
-    expect(INSPECTION_STATUS_META.PENDING.chip).toContain('bg-neutral-100');
+    expect(INSPECTION_STATUS_META.PENDING.chip).toContain('bg-surface-sunken');
     expect(INSPECTION_STATUS_META.SUBMITTED.label).toBe('Aguardando aprovação');
     expect(INSPECTION_STATUS_META.SUBMITTED.chip).toContain('bg-amber-100');
     expect(INSPECTION_STATUS_META.APPROVED.label).toBe('Aprovada');

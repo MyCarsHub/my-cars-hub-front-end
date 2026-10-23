@@ -22,7 +22,7 @@
     <div class="reveal grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
       @for (p of pillars; track p.emphasis) {
         <article
-          class="relative bg-white/10 border border-white/20 rounded-2xl p-7 flex flex-col gap-5 overflow-hidden group hover:-translate-y-1.5 hover:bg-white/[0.18] hover:border-white/[0.35] hover:shadow-[0_30px_60px_-20px_rgba(0,0,0,0.35)] transition-all duration-300"
+          class="relative bg-white/10 border border-white/20 rounded-2xl p-7 flex flex-col gap-5 overflow-hidden group hover:-translate-y-1.5 hover:bg-surface/[0.18] hover:border-surface/[0.35] hover:shadow-[0_30px_60px_-20px_rgba(0,0,0,0.35)] transition-all duration-300"
           [class.bg-white/[0.16]]="p.mid"
           [class.border-white/[0.32]]="p.mid"
           [class.shadow-[0_24px_48px_-18px_rgba(0,0,0,0.28)]]="p.mid"
@@ -43,32 +43,32 @@
             <p class="text-[13.5px] leading-[1.55] text-white/80 m-0">{{ p.body }}</p>
           </div>
 
-          <div class="mt-auto pt-4 border-t border-white/[0.18] flex flex-col gap-2.5">
+          <div class="mt-auto pt-4 border-t border-surface/[0.18] flex flex-col gap-2.5">
             @switch (p.viz) {
               @case ('progress') {
                 <div aria-hidden="true" class="grid grid-cols-4 gap-1">
-                  <span class="h-1.5 rounded-full bg-white/95"></span>
-                  <span class="h-1.5 rounded-full bg-white/95"></span>
-                  <span class="h-1.5 rounded-full bg-white/95"></span>
+                  <span class="h-1.5 rounded-full bg-surface/95"></span>
+                  <span class="h-1.5 rounded-full bg-surface/95"></span>
+                  <span class="h-1.5 rounded-full bg-surface/95"></span>
                   <span class="h-1.5 rounded-full animate-[solProgress_1.8s_ease-in-out_infinite]" style="background: linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.4));"></span>
                 </div>
                 <small class="mono text-[11.5px] text-white/70">Fechamento maio · 75% concluído</small>
               }
               @case ('kpis') {
                 <div class="grid grid-cols-2 gap-2">
-                  <div class="bg-white/[0.14] border border-white/20 rounded-[10px] px-3 py-2.5">
+                  <div class="bg-surface/[0.14] border border-white/20 rounded-[10px] px-3 py-2.5">
                     <span class="block text-[10px] font-medium uppercase tracking-[0.08em] text-white/70 mb-1">Receita mês</span>
                     <strong class="mono text-base font-bold text-white tracking-[-0.02em]">R$ 84,2k</strong>
                   </div>
-                  <div class="bg-white/[0.14] border border-white/20 rounded-[10px] px-3 py-2.5">
+                  <div class="bg-surface/[0.14] border border-white/20 rounded-[10px] px-3 py-2.5">
                     <span class="block text-[10px] font-medium uppercase tracking-[0.08em] text-white/70 mb-1">Ocupação</span>
                     <strong class="mono text-base font-bold text-white tracking-[-0.02em]">92%</strong>
                   </div>
                 </div>
               }
               @case ('alert') {
-                <div class="relative bg-white/[0.14] border border-white/20 rounded-[10px] px-3.5 py-3 pr-10">
-                  <span aria-hidden="true" class="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-white animate-[solDotPulse_2s_ease-in-out_infinite]" style="box-shadow: 0 0 0 4px rgba(255,255,255,0.24);"></span>
+                <div class="relative bg-surface/[0.14] border border-white/20 rounded-[10px] px-3.5 py-3 pr-10">
+                  <span aria-hidden="true" class="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-surface animate-[solDotPulse_2s_ease-in-out_infinite]" style="box-shadow: 0 0 0 4px rgba(255,255,255,0.24);"></span>
                   <strong class="block text-[13px] font-bold text-white mb-0.5">Revisão agendada</strong>
                   <span class="mono text-[11.5px] text-white/70">Honda Civic · BRA2E19 · em 4 dias</span>
                 </div>

@@ -220,7 +220,7 @@ describe('InspectionsList', () => {
       expect(tile(fixture, 'submitted').className).toContain('bg-primary-500');
       expect(tile(fixture, 'pending').className).toContain('bg-emerald-700');
       expect(tile(fixture, 'approved').className).toContain('bg-emerald-600');
-      expect(tile(fixture, 'rejected').className).toContain('bg-white');
+      expect(tile(fixture, 'rejected').className).toContain('bg-surface');
       expect(tile(fixture, 'rejected').className).toContain('border');
     });
 
@@ -488,7 +488,7 @@ describe('InspectionsList', () => {
       };
 
       expect(chip('PENDING')).toMatchObject({ label: 'Em andamento' });
-      expect(chip('PENDING').cls).toContain('bg-neutral-100');
+      expect(chip('PENDING').cls).toContain('bg-surface-sunken');
       expect(chip('SUBMITTED')).toMatchObject({ label: 'Aguardando aprovação' });
       expect(chip('SUBMITTED').cls).toContain('bg-amber-100');
       expect(chip('APPROVED').cls).toContain('bg-emerald-100');
@@ -836,8 +836,8 @@ describe('InspectionsList', () => {
       const card = host(fixture).querySelector('[data-schedule-card]')!;
       const button = card.querySelector<HTMLButtonElement>('[data-schedule-open]')!;
 
-      expect(card.className).toContain('bg-white');
-      expect(button.className).toContain('border-neutral-200');
+      expect(card.className).toContain('bg-surface');
+      expect(button.className).toContain('border-edge');
       expect(button.className).not.toContain('bg-primary');
       expect(card.innerHTML).not.toContain('bg-primary');
     });

@@ -3,7 +3,7 @@
   description="Preencha as informações do motorista."
 >
   @if (loading()) {
-    <div class="rounded-2xl bg-white border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+    <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
     </div>
   } @else if (sentInvite(); as sent) {
@@ -40,14 +40,14 @@
         <app-alert-banner variant="error" [message]="resendFailure" />
       }
       @if (!result.inviteId) {
-        <p class="text-sm text-neutral-600" data-testid="invite-from-members">{{ membersHint }}</p>
+        <p class="text-sm text-fg-muted" data-testid="invite-from-members">{{ membersHint }}</p>
       }
       <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
         <button
           type="button"
           (click)="openSavedDriver()"
-          class="w-full sm:w-auto min-h-12 px-5 py-3 rounded-xl text-base font-medium text-neutral-700
-                 bg-white border border-neutral-200 hover:bg-neutral-50">
+          class="w-full sm:w-auto min-h-12 px-5 py-3 rounded-xl text-base font-medium text-fg-soft
+                 bg-surface border border-edge hover:bg-surface-muted">
           Ver motorista
         </button>
         @if (result.inviteId) {
@@ -104,7 +104,7 @@
               maxlength="13"
               [value]="rgDisplay()"
               (input)="onRgInput($event)"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
         </div>
@@ -137,7 +137,7 @@
               [value]="phoneDisplay()"
               (beforeinput)="onPhoneBeforeInput($event)"
               (input)="onPhoneInput($event)"
-              class="w-full bg-white rounded-xl border px-4 py-3
+              class="w-full bg-surface rounded-xl border px-4 py-3
                      focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
           </app-form-field>
         </div>
@@ -150,25 +150,25 @@
       @if (canAttachDocuments) {
         <app-page-card title="Contatos de terceiros (opcional)">
           <div class="p-4 sm:p-6 space-y-4">
-            <p class="text-sm text-neutral-600">
+            <p class="text-sm text-fg-muted">
               Pessoas de referência do motorista — até {{ maxContacts }} contatos, exibidos no
               detalhe na ordem em que forem adicionados.
             </p>
 
             @for (group of contactsArray.controls; track group; let i = $index) {
               <div
-                class="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-4"
+                class="rounded-xl border border-edge bg-surface-muted p-4 space-y-4"
                 [attr.data-contact-block]="i"
               >
                 <div class="flex items-center justify-between gap-3">
-                  <p class="text-sm font-semibold text-neutral-800">Contato {{ i + 1 }}</p>
+                  <p class="text-sm font-semibold text-fg-body">Contato {{ i + 1 }}</p>
                   <button
                     type="button"
                     (click)="removeContact(i)"
                     [disabled]="saving() || isEdit()"
                     [attr.aria-label]="removeContactAriaLabel(i)"
                     class="inline-flex items-center px-3 min-h-[44px] rounded-lg text-sm font-medium
-                           text-neutral-600 hover:text-rose-700
+                           text-fg-muted hover:text-rose-700 dark:hover:text-rose-300
                            focus-visible:outline focus-visible:outline-2
                            focus-visible:outline-primary-600 disabled:opacity-60
                            disabled:cursor-not-allowed">
@@ -190,7 +190,7 @@
                       placeholder="Ex: Maria da Silva"
                       maxlength="180"
                       [formControl]="group.controls.fullName"
-                      class="w-full bg-white border rounded-xl px-4 py-3 text-neutral-800
+                      class="w-full bg-surface border rounded-xl px-4 py-3 text-fg-body
                              focus:ring-2 focus:ring-primary-600 focus:border-primary-600
                              transition-colors disabled:opacity-60" />
                   </app-form-field>
@@ -212,7 +212,7 @@
                       [disabled]="saving() || isEdit()"
                       (beforeinput)="onPhoneBeforeInput($event)"
                       (input)="onContactPhoneInput(i, $event)"
-                      class="w-full bg-white rounded-xl border px-4 py-3
+                      class="w-full bg-surface rounded-xl border px-4 py-3
                              focus:outline-none focus:ring-2 focus:ring-primary-500/20
                              focus:border-primary-500 transition-colors disabled:opacity-60" />
                   </app-form-field>
@@ -225,14 +225,14 @@
               (click)="addContact()"
               [disabled]="saving() || isEdit() || contactCount() >= maxContacts"
               class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5
-                     min-h-[44px] rounded-xl border border-neutral-200 text-sm font-medium
-                     text-neutral-700 hover:bg-neutral-50 disabled:opacity-60
+                     min-h-[44px] rounded-xl border border-edge text-sm font-medium
+                     text-fg-soft hover:bg-surface-muted disabled:opacity-60
                      disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2
                      focus-visible:outline-primary-600">
               + Adicionar contato
             </button>
             @if (contactCount() >= maxContacts) {
-              <p class="text-xs text-neutral-500">
+              <p class="text-xs text-fg-subtle">
                 Limite de {{ maxContacts }} contatos atingido.
               </p>
             }
@@ -259,7 +259,7 @@
               placeholder="00000-000"
               maxlength="9"
               (blur)="onCepBlur()"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
 
@@ -305,7 +305,7 @@
             <select
               appFieldControl
               formControlName="uf"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               <option value="">—</option>
               @for (uf of ufs; track uf) {
@@ -334,7 +334,7 @@
               autocapitalize="characters"
               [value]="licenseDisplay()"
               (input)="onLicenseInput($event)"
-              class="w-full bg-white rounded-xl border px-4 py-3 tracking-wider
+              class="w-full bg-surface rounded-xl border px-4 py-3 tracking-wider
                      focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
           </app-form-field>
 
@@ -348,7 +348,7 @@
             <select
               appFieldControl
               formControlName="licenseCategory"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               <option value="">—</option>
               @for (cat of categories; track cat) {
@@ -368,7 +368,7 @@
               appFieldControl
               type="date"
               formControlName="licenseExpiry"
-              class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </app-form-field>
         </div>
@@ -387,7 +387,7 @@
               <select
                 appFieldControl
                 formControlName="type"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+                class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60">
                 <option value="CPF">CPF</option>
                 <option value="CNPJ">CNPJ</option>
@@ -411,7 +411,7 @@
                 [value]="documentDisplay()"
                 (input)="onDocumentInput($event)"
                 [disabled]="isEdit()"
-                class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 tracking-wider
+                class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-fg-body tracking-wider
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors disabled:opacity-60" />
             </app-form-field>
           </div>
@@ -452,7 +452,7 @@
             <select
               appFieldControl
               formControlName="status"
-              class="w-full md:w-72 bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800
+              class="w-full md:w-72 bg-surface-muted border rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (s of statuses; track s.value) {
                 <option [value]="s.value">{{ s.label }}</option>
@@ -467,8 +467,8 @@
         <button
           type="button"
           (click)="cancel()"
-          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-neutral-700
-                 bg-white border border-neutral-200 hover:bg-neutral-50">
+          class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-medium text-fg-soft
+                 bg-surface border border-edge hover:bg-surface-muted">
           Cancelar
         </button>
         <button

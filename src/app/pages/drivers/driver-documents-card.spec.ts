@@ -589,7 +589,7 @@ describe('DriverDocumentsCard', () => {
     expect(slotEl('CNH').classList.contains('bg-success-50')).toBe(true);
     expect(slotEl('ADDRESS_PROOF').classList.contains('bg-rose-50')).toBe(true);
     expect(slotEl('ADDRESS_PROOF').classList.contains('border-rose-500')).toBe(true);
-    expect(slotEl('APP_RIDE_RECEIPT').classList.contains('bg-neutral-50')).toBe(true);
+    expect(slotEl('APP_RIDE_RECEIPT').classList.contains('bg-surface-muted')).toBe(true);
   });
 
   it('agrupa cada arquivo sob o slot do seu próprio tipo', async () => {

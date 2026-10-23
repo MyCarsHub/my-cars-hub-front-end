@@ -21,31 +21,31 @@
       <div class="p-2 sm:p-3">
         @if (loading()) {
           <div class="space-y-3 p-4">
-            <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
-            <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
-            <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
+            <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
           </div>
         } @else if (items().length === 0) {
-          <p class="text-center text-neutral-500 text-sm py-12">Nenhum post ainda.</p>
+          <p class="text-center text-fg-subtle text-sm py-12">Nenhum post ainda.</p>
         } @else {
-          <ul class="divide-y divide-neutral-100">
+          <ul class="divide-y divide-edge-soft">
             @for (post of items(); track post.id) {
-              <li class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 hover:bg-neutral-50 transition-colors rounded-lg">
+              <li class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 hover:bg-surface-muted transition-colors rounded-lg">
                 <div class="flex-1 min-w-0">
                   <div class="flex flex-wrap items-center gap-2 mb-1">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                      [class.bg-emerald-100]="post.status === 'PUBLISHED'"
-                      [class.text-emerald-800]="post.status === 'PUBLISHED'"
-                      [class.bg-neutral-200]="post.status !== 'PUBLISHED'"
-                      [class.text-neutral-700]="post.status !== 'PUBLISHED'">
+                      [class.bg-emerald-100]="post.status === 'PUBLISHED'" [class.dark:bg-emerald-500/15]="post.status === 'PUBLISHED'"
+                      [class.text-emerald-800]="post.status === 'PUBLISHED'" [class.dark:text-emerald-200]="post.status === 'PUBLISHED'"
+                      [class.bg-surface-strong]="post.status !== 'PUBLISHED'"
+                      [class.text-fg-soft]="post.status !== 'PUBLISHED'">
                       {{ post.status === 'PUBLISHED' ? 'Publicado' : 'Rascunho' }}
                     </span>
-                    <span class="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    <span class="text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
                       {{ categoryLabel(post.category) }}
                     </span>
                   </div>
-                  <p class="text-sm font-semibold text-neutral-900 truncate">{{ post.title }}</p>
-                  <p class="text-xs text-neutral-500 mt-0.5">
+                  <p class="text-sm font-semibold text-fg truncate">{{ post.title }}</p>
+                  <p class="text-xs text-fg-subtle mt-0.5">
                     /blog/{{ post.slug }} · {{ post.readingMinutes }} min
                     @if (post.publishedAt) {
                       · publicado {{ formatDate(post.publishedAt) }}
@@ -59,7 +59,7 @@
                     <a
                       role="menuitem"
                       [routerLink]="['/admin/blog', post.id, 'editar']"
-                      class="flex items-center w-full px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                      class="flex items-center w-full px-4 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]"
                     >
                       Editar
                     </a>
@@ -67,7 +67,7 @@
                       type="button"
                       role="menuitem"
                       (click)="togglePublish(post)"
-                      class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                      class="w-full text-left px-4 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]"
                     >
                       {{ post.status === 'PUBLISHED' ? 'Despublicar' : 'Publicar' }}
                     </button>
@@ -75,8 +75,8 @@
                       type="button"
                       role="menuitem"
                       (click)="askDelete(post)"
-                      class="w-full text-left px-4 py-3 text-sm text-rose-600 hover:bg-rose-50
-                             min-h-[44px] border-t border-neutral-100"
+                      class="w-full text-left px-4 py-3 text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
+                             min-h-[44px] border-t border-edge-soft"
                     >
                       Excluir
                     </button>
@@ -92,12 +92,12 @@
     @if (totalPages() > 1) {
       <div class="flex items-center justify-between gap-2">
         <button type="button" (click)="goPage(page() - 1)" [disabled]="page() === 0"
-          class="px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium disabled:opacity-40">
+          class="px-4 py-2 rounded-lg border border-edge text-sm font-medium disabled:opacity-40">
           Anterior
         </button>
-        <span class="text-sm text-neutral-500">Página {{ page() + 1 }} de {{ totalPages() }}</span>
+        <span class="text-sm text-fg-subtle">Página {{ page() + 1 }} de {{ totalPages() }}</span>
         <button type="button" (click)="goPage(page() + 1)" [disabled]="page() >= totalPages() - 1"
-          class="px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium disabled:opacity-40">
+          class="px-4 py-2 rounded-lg border border-edge text-sm font-medium disabled:opacity-40">
           Próxima
         </button>
       </div>

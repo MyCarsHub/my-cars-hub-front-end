@@ -1052,7 +1052,7 @@ describe('CompanyMembers — pessoas da empresa', () => {
     expect(card('total').className).toContain('bg-primary-500');
     expect(card('management').className).toContain('bg-emerald-700');
     expect(card('drivers').className).toContain('bg-emerald-600');
-    expect(card('pending').className).toContain('bg-white');
+    expect(card('pending').className).toContain('bg-surface');
     expect(card('pending').className).toContain('border-gray-200');
     // The mint card of the first version is gone.
     expect(
