@@ -15,10 +15,10 @@ import { FieldControl, FormField } from '../../../components/form-field/form-fie
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
-    <h2 class="text-xl font-bold text-gray-900 mb-1 focus:outline-none" tabindex="-1">
+    <h2 class="text-xl font-bold text-gray-900 dark:text-fg mb-1 focus:outline-none" tabindex="-1">
       Sua empresa
     </h2>
-    <p class="text-sm text-primary-700 mb-6">Informe o nome da organização que será criada.</p>
+    <p class="text-sm text-primary-700 dark:text-primary-400 mb-6">Informe o nome da organização que será criada.</p>
 
     <form [formGroup]="form" class="space-y-4" (ngSubmit)="$event.preventDefault()">
       <app-form-field
@@ -39,7 +39,7 @@ import { FieldControl, FormField } from '../../../components/form-field/form-fie
         />
       </app-form-field>
 
-      <p class="text-xs text-gray-400 leading-relaxed">
+      <p class="text-xs text-gray-400 dark:text-fg-faint leading-relaxed">
         Este será o nome da sua organização na plataforma. Você poderá alterá-lo depois nas
         configurações.
       </p>

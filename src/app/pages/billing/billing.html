@@ -6,7 +6,7 @@
   @if (blockedMessage(); as blocked) {
     <div
       role="status"
-      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 text-sm font-medium">
+      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200 text-sm font-medium">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
         class="mt-0.5 shrink-0" aria-hidden="true">
@@ -17,7 +17,7 @@
         type="button"
         (click)="dismissBlockedMessage()"
         aria-label="Fechar aviso de bloqueio"
-        class="shrink-0 -m-1 p-1 rounded-lg text-amber-700 hover:bg-amber-100
+        class="shrink-0 -m-1 p-1 rounded-lg text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/15
                focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2" stroke-linecap="round" aria-hidden="true">
@@ -32,9 +32,9 @@
     <div
       role="status"
       aria-live="polite"
-      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-blue-200 bg-blue-50 text-blue-900 text-sm font-medium">
+      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 text-blue-900 dark:text-blue-200 text-sm font-medium">
       <span
-        class="mt-0.5 shrink-0 inline-block w-4 h-4 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"
+        class="mt-0.5 shrink-0 inline-block w-4 h-4 rounded-full border-2 border-blue-200 dark:border-blue-500/30 border-t-blue-600 animate-spin"
         aria-hidden="true"></span>
       <span>
         Aguardando a confirmação do seu pagamento. Esta página se atualiza sozinha assim que ele
@@ -47,8 +47,8 @@
   @if (manualCheckout(); as manual) {
     <div
       role="alert"
-      class="mb-4 flex flex-col gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50
-             text-amber-900 text-sm font-medium">
+      class="mb-4 flex flex-col gap-3 p-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10
+             text-amber-900 dark:text-amber-200 text-sm font-medium">
       <p class="min-w-0">
         Seu navegador bloqueou a aba de pagamento do plano {{ manual.planName }}. Toque no botão
         abaixo para abrir o checkout — nada foi cobrado ainda e a mesma cobrança será retomada.
@@ -90,9 +90,9 @@
     @if (subscription(); as sub) {
       <section
         class="relative overflow-hidden rounded-2xl shadow-xl border"
-        [class.bg-neutral-900]="!currentHeroBackground()"
-        [class.border-neutral-800]="!currentHeroBackground()"
-        [class.border-white/10]="!!currentHeroBackground()"
+        [class.bg-neutral-900]="!currentHeroBackground()" [class.dark:bg-neutral-700]="!currentHeroBackground()"
+        [class.border-neutral-800]="!currentHeroBackground()" [class.dark:border-neutral-600]="!currentHeroBackground()"
+        [class.border-surface/10]="!!currentHeroBackground()"
         [style.background]="currentHeroBackground()"
         aria-labelledby="assinatura-atual-title">
         <div aria-hidden="true"
@@ -198,9 +198,9 @@
                   (click)="onPlanCta(pp)"
                   [disabled]="planCtaDisabled(pp)"
                   class="w-full sm:w-auto sm:self-start min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
-                         bg-white text-neutral-900 hover:bg-neutral-100 transition-colors
+                         bg-surface text-fg hover:bg-surface-sunken transition-colors
                          disabled:opacity-60 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-surface/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
                   {{ planCtaLabel(pp) }}
                 </button>
               }
@@ -251,16 +251,16 @@
           <!-- Account actions: cancel and reactivate are distinct and never
                share a code path with the plan-change CTAs. -->
           @if (canCancel() || canReactivate()) {
-            <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-white/10">
+            <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-surface/10">
               @if (canReactivate()) {
                 <button
                   type="button"
                   (click)="reactivate()"
                   [disabled]="accountActionBusy()"
                   class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
-                         bg-white text-neutral-900 hover:bg-neutral-100 transition-colors
+                         bg-surface text-fg hover:bg-surface-sunken transition-colors
                          disabled:opacity-60 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-surface/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
                   @if (accountActionBusy()) { Reativando… } @else { Reativar assinatura }
                 </button>
               }
@@ -270,9 +270,9 @@
                   (click)="openCancel()"
                   [disabled]="accountActionBusy() || loading()"
                   class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-                         bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-colors
+                         bg-surface/5 border border-surface/10 hover:bg-surface/10 hover:text-white transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-surface/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
                   Cancelar assinatura
                 </button>
               }
@@ -282,10 +282,10 @@
       </section>
     } @else {
       <app-page-card title="Assinatura">
-        <div cardIcon class="p-2 bg-primary-low rounded-lg">
+        <div cardIcon class="p-2 bg-primary-low dark:bg-primary-500/15 rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-primary-500" aria-hidden="true">
+            class="text-primary-500 dark:text-primary-400" aria-hidden="true">
             <rect x="2" y="6" width="20" height="12" rx="2" />
             <path d="M2 10h20" />
           </svg>
@@ -294,29 +294,29 @@
           @if (loading()) {
             <div class="flex flex-col items-center justify-center gap-3 py-10 text-center">
               <span
-                class="inline-block w-6 h-6 rounded-full border-2 border-neutral-200 border-t-primary-500 animate-spin"
+                class="inline-block w-6 h-6 rounded-full border-2 border-edge border-t-primary-500 animate-spin"
                 aria-hidden="true"></span>
-              <p class="text-sm text-neutral-500">Carregando informações da assinatura…</p>
+              <p class="text-sm text-fg-subtle">Carregando informações da assinatura…</p>
             </div>
           } @else {
             <div class="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <div class="p-3 bg-primary-low rounded-full mb-1">
+              <div class="p-3 bg-primary-low dark:bg-primary-500/15 rounded-full mb-1">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="text-primary-500" aria-hidden="true">
+                  class="text-primary-500 dark:text-primary-400" aria-hidden="true">
                   <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
                   <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
                   <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" />
                 </svg>
               </div>
-              <p class="text-base font-semibold text-neutral-900">Você ainda não tem uma assinatura ativa</p>
+              <p class="text-base font-semibold text-fg">Você ainda não tem uma assinatura ativa</p>
               <!-- "Desbloquear os recursos" não descreve nada que aconteça: os
                    recursos são os mesmos em todo plano, e a nota de paridade
                    logo abaixo da grade dizia o contrário desta frase na mesma
                    tela. O que se escolhe aqui é tamanho de frota.
                    `neutral-600` (#525252) dá 7,82:1 sobre o branco do card,
                    contra 4,74:1 do `neutral-500` — os dois passam, este sobra. -->
-              <p class="text-sm text-neutral-600 max-w-md">Escolha abaixo o plano do tamanho da sua frota.</p>
+              <p class="text-sm text-fg-muted max-w-md">Escolha abaixo o plano do tamanho da sua frota.</p>
             </div>
           }
         </div>
@@ -325,10 +325,10 @@
 
     <!-- Section 2 — Trocar de plano -->
     <app-page-card title="Escolha seu plano" id="planos">
-      <div cardIcon class="p-2 bg-primary-low rounded-lg">
+      <div cardIcon class="p-2 bg-primary-low dark:bg-primary-500/15 rounded-lg">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          class="text-primary-500" aria-hidden="true">
+          class="text-primary-500 dark:text-primary-400" aria-hidden="true">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       </div>
@@ -375,12 +375,12 @@
             @if (loading()) {
               <div class="col-span-full flex flex-col items-center justify-center gap-3 py-10 text-center">
                 <span
-                  class="inline-block w-6 h-6 rounded-full border-2 border-neutral-200 border-t-primary-500 animate-spin"
+                  class="inline-block w-6 h-6 rounded-full border-2 border-edge border-t-primary-500 animate-spin"
                   aria-hidden="true"></span>
-                <p class="text-sm text-neutral-500">Carregando planos…</p>
+                <p class="text-sm text-fg-subtle">Carregando planos…</p>
               </div>
             } @else {
-              <p class="col-span-full text-center text-sm text-neutral-500 py-10">Nenhum plano disponível no momento.</p>
+              <p class="col-span-full text-center text-sm text-fg-subtle py-10">Nenhum plano disponível no momento.</p>
             }
           }
         </div>
@@ -390,10 +390,10 @@
     <!-- Section 3 — Comparar recursos (collapsible) -->
     @if (visiblePlans().length > 0) {
       <app-page-card title="Comparar recursos">
-        <div cardIcon class="p-2 bg-blue-50 rounded-lg">
+        <div cardIcon class="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-blue-600" aria-hidden="true">
+            class="text-blue-600 dark:text-blue-300" aria-hidden="true">
             <line x1="8" y1="6" x2="21" y2="6" />
             <line x1="8" y1="12" x2="21" y2="12" />
             <line x1="8" y1="18" x2="21" y2="18" />
@@ -407,7 +407,7 @@
           type="button"
           (click)="toggleCompare()"
           [attr.aria-expanded]="showCompare()"
-          class="min-h-[36px] px-3 rounded-lg text-xs font-semibold text-primary-700 hover:text-primary-800 hover:bg-primary-low inline-flex items-center gap-1.5 transition-colors
+          class="min-h-[36px] px-3 rounded-lg text-xs font-semibold text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 hover:bg-primary-low dark:hover:bg-primary-500/15 inline-flex items-center gap-1.5 transition-colors
                  focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
           @if (showCompare()) { Ocultar } @else { Mostrar comparação }
           <svg
@@ -430,18 +430,18 @@
                  então no desktop nada muda. -->
 
             <!-- Desktop: table -->
-            <div class="hidden lg:block overflow-x-auto rounded-xl border border-neutral-200">
+            <div class="hidden lg:block overflow-x-auto rounded-xl border border-edge">
               <table class="w-full text-sm">
-                <thead class="bg-neutral-50">
-                  <tr class="border-b border-neutral-200">
-                    <th class="text-left text-[11px] font-semibold text-neutral-500 uppercase tracking-wide px-4 py-3.5">Recurso</th>
+                <thead class="bg-surface-muted">
+                  <tr class="border-b border-edge">
+                    <th class="text-left text-[11px] font-semibold text-fg-subtle uppercase tracking-wide px-4 py-3.5">Recurso</th>
                     @for (plan of orderedPlans(); track plan.id) {
                       <th class="text-center px-3 py-3.5">
                         <div class="flex flex-col items-center gap-1.5">
-                          <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
-                          <span class="font-semibold text-base text-neutral-900">{{ plan.name }}</span>
+                          <span class="text-[11px] font-semibold text-fg-subtle uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
+                          <span class="font-semibold text-base text-fg">{{ plan.name }}</span>
                           @if (isRecommended(plan)) {
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-700 border border-primary-low">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low dark:bg-primary-500/15 text-primary-700 dark:text-primary-400 border border-primary-low">
                               Recomendado
                             </span>
                           }
@@ -450,11 +450,11 @@
                     }
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-neutral-100 bg-white">
+                <tbody class="divide-y divide-edge-soft bg-surface">
                   <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">Veículos</td>
+                    <td class="py-3.5 px-4 font-medium text-fg-soft">Veículos</td>
                     @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center font-semibold text-neutral-900 tabular-nums">
+                      <td class="py-3.5 px-3 text-center font-semibold text-fg tabular-nums">
                         @if (isUnlimited(plan.vehicleLimit, plan.name)) {
                           <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
                         } @else {
@@ -467,27 +467,27 @@
                        guarda-corpo interno e o campo saiu da resposta da API.
                        A linha inteira sai — nunca uma célula órfã. -->
                   <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">Dias de teste grátis</td>
+                    <td class="py-3.5 px-4 font-medium text-fg-soft">Dias de teste grátis</td>
                     @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center text-neutral-900 tabular-nums">
-                        @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-neutral-400">—</span> }
+                      <td class="py-3.5 px-3 text-center text-fg tabular-nums">
+                        @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-fg-faint">—</span> }
                       </td>
                     }
                   </tr>
                   <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">Cobrança automática</td>
+                    <td class="py-3.5 px-4 font-medium text-fg-soft">Cobrança automática</td>
                     @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
-                        <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <svg class="inline-block text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                         <span class="sr-only">Incluído</span>
                       </td>
                     }
                   </tr>
                   <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">Dashboard completo</td>
+                    <td class="py-3.5 px-4 font-medium text-fg-soft">Dashboard completo</td>
                     @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
-                        <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <svg class="inline-block text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                         <span class="sr-only">Incluído</span>
                       </td>
                     }
@@ -506,14 +506,14 @@
                     paga por prioridade, com um travessão.
                   -->
                   <tr>
-                    <td class="py-3.5 px-4 font-medium text-neutral-700">{{ prioritySupportLabel }}</td>
+                    <td class="py-3.5 px-4 font-medium text-fg-soft">{{ prioritySupportLabel }}</td>
                     @for (plan of orderedPlans(); track plan.id) {
                       <td class="py-3.5 px-3 text-center">
                         @if (hasPrioritySupport(plan)) {
-                          <svg class="inline-block text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                          <svg class="inline-block text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                           <span class="sr-only">Incluído</span>
                         } @else {
-                          <span aria-hidden="true" class="text-neutral-400">—</span>
+                          <span aria-hidden="true" class="text-fg-faint">—</span>
                           <span class="sr-only">Não incluído</span>
                         }
                       </td>
@@ -526,25 +526,25 @@
             <!-- Mobile: accordion per plan -->
             <div class="lg:hidden space-y-3">
               @for (plan of orderedPlans(); track plan.id) {
-                <div class="border border-neutral-200 rounded-2xl overflow-hidden bg-white">
+                <div class="border border-edge rounded-2xl overflow-hidden bg-surface">
                   <button
                     type="button"
                     (click)="toggleExpanded(plan.id)"
                     [attr.aria-expanded]="isExpanded(plan.id)"
-                    class="w-full min-h-[56px] flex items-center justify-between p-4 text-left hover:bg-neutral-50 transition-colors
+                    class="w-full min-h-[56px] flex items-center justify-between p-4 text-left hover:bg-surface-muted transition-colors
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset">
                     <div class="flex flex-col min-w-0">
-                      <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
-                      <span class="font-semibold text-base text-neutral-900 mt-0.5 truncate">{{ plan.name }}</span>
+                      <span class="text-[11px] font-semibold text-fg-subtle uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
+                      <span class="font-semibold text-base text-fg mt-0.5 truncate">{{ plan.name }}</span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                       @if (isRecommended(plan)) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low text-primary-700 border border-primary-low">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low dark:bg-primary-500/15 text-primary-700 dark:text-primary-400 border border-primary-low">
                           Popular
                         </span>
                       }
                       <svg
-                        class="text-neutral-500 transition-transform duration-200"
+                        class="text-fg-subtle transition-transform duration-200"
                         [class.rotate-180]="isExpanded(plan.id)"
                         width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -554,10 +554,10 @@
                   </button>
 
                   @if (isExpanded(plan.id)) {
-                    <ul class="p-4 pt-3 space-y-3 text-sm text-neutral-700 border-t border-neutral-100 bg-neutral-50">
+                    <ul class="p-4 pt-3 space-y-3 text-sm text-fg-soft border-t border-edge-soft bg-surface-muted">
                       <li class="flex items-center justify-between">
-                        <span class="text-neutral-500">Veículos</span>
-                        <span class="font-semibold text-neutral-900 tabular-nums">
+                        <span class="text-fg-subtle">Veículos</span>
+                        <span class="font-semibold text-fg tabular-nums">
                           @if (isUnlimited(plan.vehicleLimit, plan.name)) {
                             <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
                           } @else {
@@ -567,29 +567,29 @@
                       </li>
                       <!-- Ver a tabela desktop: o item inteiro sai (FEAT-0070). -->
                       <li class="flex items-center justify-between">
-                        <span class="text-neutral-500">Dias de teste</span>
-                        <span class="font-semibold text-neutral-900 tabular-nums">
-                          @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-neutral-400">—</span> }
+                        <span class="text-fg-subtle">Dias de teste</span>
+                        <span class="font-semibold text-fg tabular-nums">
+                          @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-fg-faint">—</span> }
                         </span>
                       </li>
                       <li class="flex items-center justify-between">
-                        <span class="text-neutral-500">Cobrança automática</span>
-                        <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span class="text-fg-subtle">Cobrança automática</span>
+                        <svg class="text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                         <span class="sr-only">Incluído</span>
                       </li>
                       <li class="flex items-center justify-between">
-                        <span class="text-neutral-500">Dashboard completo</span>
-                        <svg class="text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span class="text-fg-subtle">Dashboard completo</span>
+                        <svg class="text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                         <span class="sr-only">Incluído</span>
                       </li>
                       <!-- Espelho móvel das linhas acima; ver o comentário na tabela. -->
                       <li class="flex items-center justify-between gap-3">
-                        <span class="text-neutral-500 min-w-0">{{ prioritySupportLabel }}</span>
+                        <span class="text-fg-subtle min-w-0">{{ prioritySupportLabel }}</span>
                         @if (hasPrioritySupport(plan)) {
-                          <svg class="shrink-0 text-emerald-600" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                          <svg class="shrink-0 text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                           <span class="sr-only">Incluído</span>
                         } @else {
-                          <span aria-hidden="true" class="shrink-0 text-neutral-400">—</span>
+                          <span aria-hidden="true" class="shrink-0 text-fg-faint">—</span>
                           <span class="sr-only">Não incluído</span>
                         }
                       </li>
@@ -606,15 +606,15 @@
     <!-- Section 4 — Admin gateway override (bottom, low-emphasis) -->
     @if (isPlatformAdmin) {
       <app-page-card title="Admin — gateway override">
-        <div cardIcon class="p-2 bg-amber-50 rounded-lg">
+        <div cardIcon class="p-2 bg-amber-50 dark:bg-amber-500/10 rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-amber-600" aria-hidden="true">
+            class="text-amber-600 dark:text-amber-300" aria-hidden="true">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
         </div>
         <div class="px-4 sm:px-6 pb-6">
-          <p class="text-xs text-neutral-500 mb-3">Selecione o gateway usado no próximo checkout de teste.</p>
+          <p class="text-xs text-fg-subtle mb-3">Selecione o gateway usado no próximo checkout de teste.</p>
           <div
             role="radiogroup"
             aria-label="Gateway de pagamento"
@@ -629,10 +629,10 @@
               [class.bg-primary-500]="adminGateway() === 'stripe'"
               [class.text-white]="adminGateway() === 'stripe'"
               [class.border-primary-500]="adminGateway() === 'stripe'"
-              [class.bg-white]="adminGateway() !== 'stripe'"
-              [class.text-neutral-700]="adminGateway() !== 'stripe'"
-              [class.border-neutral-200]="adminGateway() !== 'stripe'"
-              [class.hover:bg-neutral-50]="adminGateway() !== 'stripe'">
+              [class.bg-surface]="adminGateway() !== 'stripe'"
+              [class.text-fg-soft]="adminGateway() !== 'stripe'"
+              [class.border-edge]="adminGateway() !== 'stripe'"
+              [class.hover:bg-surface-muted]="adminGateway() !== 'stripe'">
               Stripe
             </button>
             <button
@@ -645,10 +645,10 @@
               [class.bg-primary-500]="adminGateway() === 'abacate'"
               [class.text-white]="adminGateway() === 'abacate'"
               [class.border-primary-500]="adminGateway() === 'abacate'"
-              [class.bg-white]="adminGateway() !== 'abacate'"
-              [class.text-neutral-700]="adminGateway() !== 'abacate'"
-              [class.border-neutral-200]="adminGateway() !== 'abacate'"
-              [class.hover:bg-neutral-50]="adminGateway() !== 'abacate'">
+              [class.bg-surface]="adminGateway() !== 'abacate'"
+              [class.text-fg-soft]="adminGateway() !== 'abacate'"
+              [class.border-edge]="adminGateway() !== 'abacate'"
+              [class.hover:bg-surface-muted]="adminGateway() !== 'abacate'">
               AbacatePay
             </button>
           </div>

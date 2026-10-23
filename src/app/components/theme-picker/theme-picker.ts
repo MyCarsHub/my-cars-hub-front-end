@@ -30,7 +30,12 @@ const OPTIONS: readonly SegmentedToggleOption<ThemePreference>[] = [
   template: `
     <app-page-card title="Aparência">
       <div class="space-y-3 px-4 pb-5 sm:px-6">
+        <!-- Largura cheia e segmentos iguais: na coluna estreita do Perfil (≈290px no
+             desktop, 311px a 375) os três rótulos cabem sem cortar «Automático». -->
         <app-segmented-toggle
+          class="w-full"
+          containerClass="w-full bg-surface-sunken border border-edge"
+          textClass="flex-1 justify-center px-2! text-sm"
           [options]="options"
           [value]="theme.preference()"
           ariaLabel="Tema do app"

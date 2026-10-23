@@ -619,7 +619,7 @@ export class Billing implements OnInit, OnDestroy {
   });
 
   /**
-   * Rótulos secundários do hero. Sobre o `bg-neutral-900` o cinza continua
+   * Rótulos secundários do hero. Sobre o `bg-neutral-900 dark:bg-neutral-700` o cinza continua
    * legível (neutral-400 = 7,4:1); sobre o gradiente da marca não sobra
    * translucidez utilizável — no ponto mais claro (#C22F00) o branco a 85% dá
    * 4,47:1 e reprova, e a 90% dá 4,85:1, que passa por 0,35 e é consumido pela
@@ -627,7 +627,7 @@ export class Billing implements OnInit, OnDestroy {
    * peso, com branco cheio (5,67:1).
    */
   protected readonly currentHeroMutedClass = computed<string>(() =>
-    this.currentHeroBackground() ? 'text-white' : 'text-neutral-400',
+    this.currentHeroBackground() ? 'text-white' : 'text-fg-faint',
   );
 
   /**
@@ -640,7 +640,7 @@ export class Billing implements OnInit, OnDestroy {
   );
 
   /**
-   * Halo do canto inferior esquerdo. Era um `bg-white/5` fixo: mesmo véu branco
+   * Halo do canto inferior esquerdo. Era um `bg-surface/5` fixo: mesmo véu branco
    * que o resto desta tela já tinha eliminado, e num card de 375px um blob de
    * 224px passa por baixo dos rótulos. Sobre o gradiente ele derrubava o ponto
    * mais claro de 5,67:1 para 5,28:1 (laranja) e de 5,49:1 para 4,98:1 (verde)
@@ -879,19 +879,19 @@ export class Billing implements OnInit, OnDestroy {
   protected statusBadgeClass(status: SubscriptionStatus): string {
     switch (status) {
       case 'ACTIVE':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-500/30';
       case 'TRIALING':
       case 'PENDING':
       case 'INCOMPLETE':
       case 'PAST_DUE':
       case 'UNPAID':
       case 'PAUSED':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
+        return 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-500/30';
       case 'CANCELED':
       case 'EXPIRED':
-        return 'bg-rose-100 text-rose-800 border-rose-200';
+        return 'bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-500/30';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-gray-100 dark:bg-surface-sunken text-gray-800 dark:text-fg-body border-gray-200 dark:border-edge';
     }
   }
 
@@ -909,29 +909,29 @@ export class Billing implements OnInit, OnDestroy {
         return 'bg-rose-500';
       case 'CANCELED':
       case 'EXPIRED':
-        return 'bg-gray-400';
+        return 'bg-gray-400 dark:bg-neutral-500';
       default:
-        return 'bg-gray-400';
+        return 'bg-gray-400 dark:bg-neutral-500';
     }
   }
 
   protected statusPillClass(status: SubscriptionStatus): string {
     switch (status) {
       case 'ACTIVE':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
       case 'TRIALING':
       case 'PENDING':
       case 'INCOMPLETE':
       case 'PAUSED':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
+        return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30';
       case 'PAST_DUE':
       case 'UNPAID':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
+        return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30';
       case 'CANCELED':
       case 'EXPIRED':
-        return 'bg-gray-50 text-gray-700 border-gray-200';
+        return 'bg-canvas text-gray-700 dark:text-fg-soft border-gray-200 dark:border-edge';
       default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
+        return 'bg-canvas text-gray-700 dark:text-fg-soft border-gray-200 dark:border-edge';
     }
   }
 

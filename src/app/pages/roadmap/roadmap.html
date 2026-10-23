@@ -35,10 +35,10 @@
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
     @for (column of columns; track trackByColumnKey($index, column)) {
       <app-page-card [title]="column.label">
-        <div cardIcon class="p-2 bg-primary-low rounded-lg" aria-hidden="true">
+        <div cardIcon class="p-2 bg-primary-low dark:bg-primary-500/15 rounded-lg" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-primary-500">
+            class="text-primary-500 dark:text-primary-400">
             <rect x="3" y="4" width="18" height="16" rx="2"></rect>
             <line x1="3" y1="10" x2="21" y2="10"></line>
           </svg>
@@ -46,7 +46,7 @@
 
         <div cardActions>
           <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-[11px] font-bold
-                       text-primary-700 bg-primary-low border border-primary-low rounded-full tracking-wider uppercase">
+                       text-primary-700 dark:text-primary-400 bg-primary-low dark:bg-primary-500/15 border border-primary-low rounded-full tracking-wider uppercase">
             {{ columnTasksFor(column.key).length }}
           </span>
         </div>
@@ -54,10 +54,10 @@
         <div class="p-4 space-y-3 min-h-[200px]">
           @if (loading() && columnTasksFor(column.key).length === 0) {
             @for (s of skeletons; track trackByIndex($index)) {
-              <div class="bg-neutral-50 border border-neutral-100 rounded-xl p-4 animate-pulse">
-                <div class="h-4 bg-neutral-200 rounded w-3/4 mb-3"></div>
-                <div class="h-3 bg-neutral-200 rounded w-full mb-1.5"></div>
-                <div class="h-3 bg-neutral-200 rounded w-5/6"></div>
+              <div class="bg-surface-muted border border-edge-soft rounded-xl p-4 animate-pulse">
+                <div class="h-4 bg-surface-strong rounded w-3/4 mb-3"></div>
+                <div class="h-3 bg-surface-strong rounded w-full mb-1.5"></div>
+                <div class="h-3 bg-surface-strong rounded w-5/6"></div>
               </div>
             }
           } @else {
@@ -69,12 +69,12 @@
                 (keydown.enter)="openDetail(task)"
                 (keydown.space)="$event.preventDefault(); openDetail(task)"
                 [attr.aria-label]="'Ver detalhes da sugestão ' + task.title"
-                class="bg-white border border-neutral-200 rounded-xl p-4 cursor-pointer hover:border-neutral-300 hover:shadow-sm transition-all
+                class="bg-surface border border-edge rounded-xl p-4 cursor-pointer hover:border-edge-strong hover:shadow-sm transition-all
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
 
                 <!-- Controles próprios do card: o clique/Enter deles não pode abrir o detalhe. -->
                 <div class="flex items-start justify-between gap-2 mb-2">
-                  <h3 class="text-sm font-semibold text-neutral-900 leading-snug line-clamp-2 min-w-0 flex-1 break-words">{{ task.title }}</h3>
+                  <h3 class="text-sm font-semibold text-fg leading-snug line-clamp-2 min-w-0 flex-1 break-words">{{ task.title }}</h3>
 
                   @if (canEdit(task) || canDelete(task) || isAdmin()) {
                     <div
@@ -83,7 +83,7 @@
                       (keydown)="$event.stopPropagation()">
                       @if (canEdit(task)) {
                         <button type="button" (click)="openEdit(task)" aria-label="Editar sugestão"
-                          class="p-1.5 rounded-lg text-neutral-400 hover:text-primary-700 hover:bg-primary-low transition-colors">
+                          class="p-1.5 rounded-lg text-fg-faint hover:text-primary-700 dark:hover:text-primary-400 hover:bg-primary-low dark:hover:bg-primary-500/15 transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9"></path>
@@ -93,7 +93,7 @@
                       }
                       @if (canDelete(task)) {
                         <button type="button" (click)="askDelete(task, false)" aria-label="Excluir sugestão"
-                          class="p-1.5 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+                          class="p-1.5 rounded-lg text-fg-faint hover:text-rose-500 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="3 6 5 6 21 6"></polyline>
@@ -105,7 +105,7 @@
                       }
                       @if (isAdmin()) {
                         <button type="button" (click)="askDelete(task, true)" aria-label="Excluir como admin"
-                          class="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+                          class="p-1.5 rounded-lg text-fg-faint hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="10"></circle>
@@ -120,25 +120,25 @@
 
                 @if (isAdmin() && task.authorName) {
                 <div class="flex items-center gap-1.5 mb-2">
-                  <div class="w-5 h-5 rounded-full bg-neutral-100 flex items-center justify-center text-[10px] font-bold text-neutral-600">
+                  <div class="w-5 h-5 rounded-full bg-surface-sunken flex items-center justify-center text-[10px] font-bold text-fg-muted">
                     {{ authorInitial(task) }}
                   </div>
-                  <span class="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider truncate">
+                  <span class="text-[10px] font-semibold text-fg-subtle uppercase tracking-wider truncate">
                     {{ task.authorName }}
                   </span>
                 </div>
                 }
 
                 @if (task.description) {
-                  <p class="text-sm text-neutral-600 leading-relaxed line-clamp-3 mb-3">
+                  <p class="text-sm text-fg-muted leading-relaxed line-clamp-3 mb-3">
                     {{ task.description }}
                   </p>
                 }
 
                 @if (task.adminNote && task.status === 'REJECTED') {
-                  <div class="mb-3 p-2 rounded-lg bg-neutral-50 border border-neutral-100">
-                    <p class="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-0.5">Nota do time</p>
-                    <p class="text-xs text-neutral-600 leading-relaxed">{{ task.adminNote }}</p>
+                  <div class="mb-3 p-2 rounded-lg bg-surface-muted border border-edge-soft">
+                    <p class="text-[10px] font-semibold text-fg-subtle uppercase tracking-wider mb-0.5">Nota do time</p>
+                    <p class="text-xs text-fg-muted leading-relaxed">{{ task.adminNote }}</p>
                   </div>
                 }
 
@@ -149,7 +149,7 @@
                   @if (readOnly()) {
                     <!-- Leitura: o numero continua visivel, o voto nao e do motorista. -->
                     <span
-                      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-700"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-fg-soft"
                       [attr.aria-label]="task.fuelCount + ' de combustível'">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                         fill="none" stroke="currentColor" stroke-width="2"
@@ -166,14 +166,14 @@
                     [attr.aria-pressed]="task.hasVoted"
                     [attr.aria-label]="task.hasVoted ? 'Remover combustível' : 'Dar combustível'"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                    [class.bg-primary-low]="task.hasVoted"
-                    [class.text-primary-700]="task.hasVoted"
+                    [class.bg-primary-low]="task.hasVoted" [class.dark:bg-primary-500/15]="task.hasVoted"
+                    [class.text-primary-700]="task.hasVoted" [class.dark:text-primary-400]="task.hasVoted"
                     [class.border-primary-low]="task.hasVoted"
-                    [class.bg-neutral-50]="!task.hasVoted"
-                    [class.text-neutral-500]="!task.hasVoted"
-                    [class.border-neutral-200]="!task.hasVoted"
-                    [class.hover:bg-primary-low]="!task.hasVoted"
-                    [class.hover:text-primary-700]="!task.hasVoted"
+                    [class.bg-surface-muted]="!task.hasVoted"
+                    [class.text-fg-subtle]="!task.hasVoted"
+                    [class.border-edge]="!task.hasVoted"
+                    [class.hover:bg-primary-low]="!task.hasVoted" [class.dark:hover:bg-primary-500/15]="!task.hasVoted"
+                    [class.hover:text-primary-700]="!task.hasVoted" [class.dark:hover:text-primary-400]="!task.hasVoted"
                     [class.hover:border-primary-low]="!task.hasVoted">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                       [attr.fill]="task.hasVoted ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"
@@ -188,7 +188,7 @@
                     <select
                       (change)="onAdminStatusChange(task, $event)"
                       aria-label="Mover status"
-                      class="text-xs bg-white border border-neutral-200 rounded-lg px-2 py-1.5 text-neutral-600 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors cursor-pointer">
+                      class="text-xs bg-surface border border-edge rounded-lg px-2 py-1.5 text-fg-muted focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors cursor-pointer">
                       @for (option of statusOptions; track trackByStatusValue($index, option)) {
                         <option [value]="option.value" [selected]="option.value === task.status">
                           {{ option.label }}
@@ -201,16 +201,16 @@
             } @empty {
               @if (!loading()) {
                 <div class="flex flex-col items-center justify-center py-10 text-center">
-                  <div class="w-10 h-10 rounded-full bg-neutral-50 flex items-center justify-center mb-2" aria-hidden="true">
+                  <div class="w-10 h-10 rounded-full bg-surface-muted flex items-center justify-center mb-2" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                      class="text-neutral-300">
+                      class="text-neutral-300 dark:text-neutral-600">
                       <circle cx="12" cy="12" r="10"></circle>
                       <line x1="12" y1="8" x2="12" y2="12"></line>
                       <line x1="12" y1="16" x2="12.01" y2="16"></line>
                     </svg>
                   </div>
-                  <p class="text-xs text-neutral-500">Nada por aqui ainda.</p>
+                  <p class="text-xs text-fg-subtle">Nada por aqui ainda.</p>
                 </div>
               }
             }
@@ -226,30 +226,30 @@
       type="button"
       (click)="toggleRejected()"
       [attr.aria-expanded]="rejectedOpen()"
-      class="w-full flex items-center justify-between bg-white border border-neutral-200 rounded-2xl px-6 py-4 hover:border-neutral-300 transition-colors">
+      class="w-full flex items-center justify-between bg-surface border border-edge rounded-2xl px-6 py-4 hover:border-edge-strong transition-colors">
       <div class="flex items-center gap-3">
-        <div class="p-2 bg-neutral-100 rounded-lg" aria-hidden="true">
+        <div class="p-2 bg-surface-sunken rounded-lg" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-neutral-500">
+            class="text-fg-subtle">
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="15" y1="9" x2="9" y2="15"></line>
             <line x1="9" y1="9" x2="15" y2="15"></line>
           </svg>
         </div>
         <div class="text-left">
-          <p class="text-sm font-semibold text-neutral-800">Rejeitadas</p>
-          <p class="text-xs text-neutral-500">Sugestões que não seguirão adiante.</p>
+          <p class="text-sm font-semibold text-fg-body">Rejeitadas</p>
+          <p class="text-xs text-fg-subtle">Sugestões que não seguirão adiante.</p>
         </div>
       </div>
       <div class="flex items-center gap-3">
         <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-[11px] font-bold
-                     text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full tracking-wider uppercase">
+                     text-fg-muted bg-surface-sunken border border-edge rounded-full tracking-wider uppercase">
           {{ rejectedTasks().length }}
         </span>
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          class="text-neutral-400 transition-transform"
+          class="text-fg-faint transition-transform"
           [class.rotate-180]="rejectedOpen()">
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
@@ -266,18 +266,18 @@
             (keydown.enter)="openDetail(task)"
             (keydown.space)="$event.preventDefault(); openDetail(task)"
             [attr.aria-label]="'Ver detalhes da sugestão ' + task.title"
-            class="bg-neutral-50 border border-neutral-100 rounded-xl p-4 cursor-pointer hover:border-neutral-300 transition-colors
+            class="bg-surface-muted border border-edge-soft rounded-xl p-4 cursor-pointer hover:border-edge-strong transition-colors
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
-            <h3 class="text-sm font-semibold text-neutral-700 mb-2 leading-snug">{{ task.title }}</h3>
+            <h3 class="text-sm font-semibold text-fg-soft mb-2 leading-snug">{{ task.title }}</h3>
             @if (task.description) {
-              <p class="text-xs text-neutral-500 leading-relaxed line-clamp-3 mb-2">{{ task.description }}</p>
+              <p class="text-xs text-fg-subtle leading-relaxed line-clamp-3 mb-2">{{ task.description }}</p>
             }
             @if (task.adminNote) {
-              <p class="text-xs text-neutral-500 italic">"{{ task.adminNote }}"</p>
+              <p class="text-xs text-fg-subtle italic">"{{ task.adminNote }}"</p>
             }
           </article>
         } @empty {
-          <p class="col-span-full text-center text-xs text-neutral-500 py-6">Nenhuma sugestão rejeitada.</p>
+          <p class="col-span-full text-center text-xs text-fg-subtle py-6">Nenhuma sugestão rejeitada.</p>
         }
       </div>
     }
@@ -288,11 +288,11 @@
     <div class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" (click)="closeTaskDialog()" aria-hidden="true"></div>
     <div role="dialog" aria-modal="true" aria-labelledby="task-dialog-title"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-      <div class="bg-white rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-lg pointer-events-auto overflow-hidden">
+      <div class="bg-surface rounded-2xl shadow-2xl border border-edge-soft w-full max-w-lg pointer-events-auto overflow-hidden">
         <form [formGroup]="taskForm" (ngSubmit)="submitTask()">
           <div class="p-6">
-            <h2 id="task-dialog-title" class="text-base font-semibold text-neutral-900 mb-1">{{ dialogTitle() }}</h2>
-            <p class="text-sm text-neutral-500 mb-5">Descreva sua ideia com clareza. Boas descrições recebem mais combustível.</p>
+            <h2 id="task-dialog-title" class="text-base font-semibold text-fg mb-1">{{ dialogTitle() }}</h2>
+            <p class="text-sm text-fg-subtle mb-5">Descreva sua ideia com clareza. Boas descrições recebem mais combustível.</p>
 
             <div class="space-y-4">
               <app-form-field
@@ -307,7 +307,7 @@
                   formControlName="title"
                   maxlength="120"
                   placeholder="Ex: Notificações por WhatsApp"
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
+                  class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-sm text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
               </app-form-field>
 
               <app-form-field
@@ -321,8 +321,8 @@
                   [attr.maxlength]="descriptionMaxLength"
                   rows="5"
                   placeholder="Detalhe o problema e como sua ideia melhora o produto."
-                  class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors resize-none"></textarea>
-                <p class="text-xs text-neutral-400 tabular-nums text-right mt-1">
+                  class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-sm text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors resize-none"></textarea>
+                <p class="text-xs text-fg-faint tabular-nums text-right mt-1">
                   {{ descriptionLength() }} / {{ descriptionMaxLength }}
                 </p>
               </app-form-field>
@@ -333,12 +333,12 @@
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-3 px-6 py-4 bg-neutral-50 border-t border-neutral-100">
+          <div class="flex items-center justify-end gap-3 px-6 py-4 bg-surface-muted border-t border-edge-soft">
             <button
               type="button"
               (click)="closeTaskDialog()"
               [disabled]="submitting()"
-              class="px-4 py-2 text-sm font-medium text-neutral-600 bg-white border border-neutral-200 hover:bg-neutral-100 rounded-xl transition-colors disabled:opacity-50">
+              class="px-4 py-2 text-sm font-medium text-fg-muted bg-surface border border-edge hover:bg-surface-sunken rounded-xl transition-colors disabled:opacity-50">
               Cancelar
             </button>
             <button
@@ -358,21 +358,21 @@
     <div class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" (click)="cancelReject()" aria-hidden="true"></div>
     <div role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title"
       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none">
-      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-hidden">
+      <div class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full max-w-md pointer-events-auto overflow-hidden">
         <div class="p-5 sm:p-6">
-          <h2 id="reject-dialog-title" class="text-base font-semibold text-neutral-900 mb-1">Rejeitar sugestão</h2>
-          <p class="text-sm text-neutral-500 mb-4 sm:mb-5">Explique brevemente por que a sugestão foi rejeitada (opcional).</p>
+          <h2 id="reject-dialog-title" class="text-base font-semibold text-fg mb-1">Rejeitar sugestão</h2>
+          <p class="text-sm text-fg-subtle mb-4 sm:mb-5">Explique brevemente por que a sugestão foi rejeitada (opcional).</p>
           <textarea
             [value]="rejectNote()"
             (input)="onRejectNoteInput($event)"
             maxlength="500"
             rows="4"
             placeholder="Motivo da rejeição..."
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800 focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors resize-none"></textarea>
+            class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-sm text-fg-body focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors resize-none"></textarea>
         </div>
-        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 px-5 sm:px-6 py-4 bg-neutral-50 border-t border-neutral-100">
+        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 px-5 sm:px-6 py-4 bg-surface-muted border-t border-edge-soft">
           <button type="button" (click)="cancelReject()"
-            class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-white border border-neutral-200 hover:bg-neutral-100 rounded-xl transition-colors">
+            class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-fg-muted bg-surface border border-edge hover:bg-surface-sunken rounded-xl transition-colors">
             Cancelar
           </button>
           <button type="button" (click)="confirmReject()"
@@ -394,11 +394,11 @@
       <div class="space-y-4">
         <div class="flex flex-wrap items-center gap-2">
           <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider
-                       text-primary-700 bg-primary-low border border-primary-low">
+                       text-primary-700 dark:text-primary-400 bg-primary-low dark:bg-primary-500/15 border border-primary-low">
             {{ statusLabel(detail.status) }}
           </span>
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold
-                       text-neutral-600 bg-neutral-50 border border-neutral-200">
+                       text-fg-muted bg-surface-muted border border-edge">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
@@ -407,22 +407,22 @@
           </span>
           @if (isAdmin() && detail.authorName) {
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold
-                         text-neutral-600 bg-neutral-50 border border-neutral-200">
+                         text-fg-muted bg-surface-muted border border-edge">
               {{ detail.authorName }}
             </span>
           }
         </div>
 
         @if (detail.description) {
-          <p class="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap break-words">{{ detail.description }}</p>
+          <p class="text-sm text-fg-soft leading-relaxed whitespace-pre-wrap break-words">{{ detail.description }}</p>
         } @else {
-          <p class="text-sm text-neutral-400 italic">Sem descrição.</p>
+          <p class="text-sm text-fg-faint italic">Sem descrição.</p>
         }
 
         @if (detail.adminNote) {
-          <div class="p-3 rounded-lg bg-neutral-50 border border-neutral-100">
-            <p class="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1">Nota do time</p>
-            <p class="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap break-words">{{ detail.adminNote }}</p>
+          <div class="p-3 rounded-lg bg-surface-muted border border-edge-soft">
+            <p class="text-[10px] font-semibold text-fg-subtle uppercase tracking-wider mb-1">Nota do time</p>
+            <p class="text-sm text-fg-muted leading-relaxed whitespace-pre-wrap break-words">{{ detail.adminNote }}</p>
           </div>
         }
       </div>
