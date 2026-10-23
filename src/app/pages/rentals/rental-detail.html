@@ -1036,6 +1036,7 @@
     [rental]="r"
     [busy]="completeBusy()"
     intent="complete"
+    [allowAutomaticRefund]="!editSession()"
     [overduePreview]="overduePreview()"
     [overduePreviewLoading]="overduePreviewLoading()"
     [overduePreviewError]="overduePreviewError()"
