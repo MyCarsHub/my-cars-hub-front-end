@@ -1,5 +1,7 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { DestroyRef, Injectable, PLATFORM_ID, computed, inject, signal } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
+import { isPublicPath } from './theme-scope';
 
 /** O que a pessoa escolheu. `system` (Automático) segue o aparelho e é o padrão. */
 export type ThemePreference = 'light' | 'dark' | 'system';
@@ -46,7 +48,19 @@ export class ThemeService {
   private readonly systemDark = signal<boolean>(this.media?.matches ?? false);
 
   readonly preference = this._preference.asReadonly();
+  /**
+   * `true` quando o `AppShell` (app autenticado) está na tela. Fora dele o tema é sempre
+   * claro. Antes da primeira navegação terminar, o palpite vem do caminho da URL — o mesmo
+   * critério de `theme-init.js` —, e `NavigationEnd` o corrige (ex.: rota privada que o
+   * guard mandou para o login).
+   */
+  private readonly appActive = signal<boolean>(this.guessAppFromUrl());
+  private shellCount = 0;
+  private readonly router = inject(Router, { optional: true });
+
+  /** O tema PINTADO: a escolha da pessoa dentro do app, sempre claro fora dele. */
   readonly resolved = computed<ResolvedTheme>(() => {
+    if (!this.appActive()) return 'light';
     const pref = this._preference();
     if (pref === 'system') return this.systemDark() ? 'dark' : 'light';
     return pref;
@@ -60,7 +74,36 @@ export class ThemeService {
     };
     this.media?.addEventListener?.('change', onChange);
     inject(DestroyRef).onDestroy(() => this.media?.removeEventListener?.('change', onChange));
+    const sub = this.router?.events?.subscribe((event) => {
+      if (event instanceof NavigationEnd) {
+        this.appActive.set(this.shellCount > 0);
+        this.apply();
+      }
+    });
+    inject(DestroyRef).onDestroy(() => sub?.unsubscribe());
     this.apply();
+  }
+
+  /** O `AppShell` subiu: vale a preferência salva. Sem transição (não é troca manual). */
+  enterApp(): void {
+    this.shellCount++;
+    this.appActive.set(true);
+    this.apply();
+  }
+
+  /** O `AppShell` saiu: volta ao claro. A preferência salva NÃO é tocada. */
+  leaveApp(): void {
+    this.shellCount = Math.max(0, this.shellCount - 1);
+    if (this.shellCount === 0) {
+      this.appActive.set(false);
+      this.apply();
+    }
+  }
+
+  private guessAppFromUrl(): boolean {
+    if (!this.isBrowser) return false;
+    const path = this.document.defaultView?.location?.pathname ?? '/';
+    return !isPublicPath(path);
   }
 
   setPreference(preference: ThemePreference): void {

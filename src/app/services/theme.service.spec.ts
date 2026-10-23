@@ -34,7 +34,10 @@ function fakeSystem(dark: boolean) {
 function create(): ThemeService {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({});
-  return TestBed.inject(ThemeService);
+  const service = TestBed.inject(ThemeService);
+  // O tema do usuário só vale dentro do app autenticado (AppShell).
+  service.enterApp();
+  return service;
 }
 
 const html = () => document.documentElement;
@@ -44,9 +47,11 @@ describe('ThemeService', () => {
     localStorage.clear();
     html().classList.remove('dark');
     html().style.colorScheme = '';
+    history.replaceState(null, '', '/dashboard');
   });
 
   afterEach(() => {
+    history.replaceState(null, '', '/');
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     Reflect.deleteProperty(window, 'matchMedia');
@@ -162,6 +167,48 @@ describe('ThemeService', () => {
       const theme = create();
       expect(() => theme.setPreference('dark')).not.toThrow();
       expect(theme.preference()).toBe('dark');
+      expect(html().classList.contains('dark')).toBe(true);
+    });
+  });
+
+  describe('páginas públicas são sempre claras', () => {
+    it('preferência "dark" fora do shell fica clara e a preferência é mantida', () => {
+      fakeSystem(true);
+      localStorage.setItem('mch:theme', 'dark');
+      history.replaceState(null, '', '/');
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({});
+      const service = TestBed.inject(ThemeService);
+      expect(service.resolved()).toBe('light');
+      expect(html().classList.contains('dark')).toBe(false);
+      expect(service.preference()).toBe('dark');
+      expect(localStorage.getItem('mch:theme')).toBe('dark');
+    });
+
+    it('entrar no shell aplica a escolha; sair volta ao claro sem apagá-la', () => {
+      fakeSystem(false);
+      localStorage.setItem('mch:theme', 'dark');
+      history.replaceState(null, '', '/');
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({});
+      const service = TestBed.inject(ThemeService);
+      service.enterApp();
+      expect(html().classList.contains('dark')).toBe(true);
+      service.leaveApp();
+      expect(html().classList.contains('dark')).toBe(false);
+      expect(html().style.colorScheme).toBe('light');
+      expect(localStorage.getItem('mch:theme')).toBe('dark');
+      service.enterApp();
+      expect(html().classList.contains('dark')).toBe(true);
+    });
+
+    it('rota do app no boot começa escura (sem piscar) com preferência "dark"', () => {
+      fakeSystem(false);
+      localStorage.setItem('mch:theme', 'dark');
+      history.replaceState(null, '', '/dashboard');
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({});
+      TestBed.inject(ThemeService);
       expect(html().classList.contains('dark')).toBe(true);
     });
   });

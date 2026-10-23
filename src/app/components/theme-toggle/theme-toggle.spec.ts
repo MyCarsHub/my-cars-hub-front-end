@@ -43,9 +43,11 @@ describe('ThemeToggle', () => {
   beforeEach(() => {
     localStorage.clear();
     html().classList.remove('dark', THEME_TRANSITION_CLASS);
+    history.replaceState(null, '', '/dashboard');
   });
 
   afterEach(() => {
+    history.replaceState(null, '', '/');
     vi.useRealTimers();
     vi.restoreAllMocks();
     Reflect.deleteProperty(window, 'matchMedia');

@@ -9,10 +9,36 @@
  * `dark` / `light` valem como estao; ausente ou invalido = Automatico, que segue
  * `prefers-color-scheme`. Qualquer erro (storage bloqueado, navegador antigo) cai no
  * tema claro, que e o estado do HTML prerenderizado.
+ *
+ * Fora do app autenticado (landing, blog, legais, login, convite publico...) o tema e
+ * SEMPRE claro: a lista de caminhos publicos abaixo repete `services/theme-scope.ts`
+ * (`theme-init.spec.ts` as compara). Caminho publico nunca recebe `dark` e a escolha
+ * salva NAO e tocada; o `AppShell` aplica a escolha quando a pessoa entra no app.
  */
 (function () {
   var root = document.documentElement;
   try {
+    var path = window.location.pathname || '/';
+    var publicPaths = [
+      '/login',
+      '/signup',
+      '/oauth-success',
+      '/invite',
+      '/convite',
+      '/blog',
+      '/politica-de-privacidade',
+      '/termos-de-uso',
+      '/manutencao',
+    ];
+    var isPublic = path === '/' || path === '';
+    for (var i = 0; i < publicPaths.length && !isPublic; i++) {
+      var p = publicPaths[i];
+      if (path === p || path.indexOf(p + '/') === 0) isPublic = true;
+    }
+    if (isPublic) {
+      root.style.colorScheme = 'light';
+      return;
+    }
     var pref = null;
     try {
       pref = window.localStorage.getItem('mch:theme');
