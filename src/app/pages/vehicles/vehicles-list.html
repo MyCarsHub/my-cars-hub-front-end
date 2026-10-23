@@ -7,7 +7,7 @@
       <a
         routerLink="/veiculos/novo"
         class="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white
-               text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+               text-sm font-semibold px-4 py-2.5 min-h-11 rounded-xl transition-colors shadow-sm"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -36,7 +36,7 @@
               [ngModel]="search()"
               (ngModelChange)="search.set($event)"
               name="search"
-              class="w-full pl-9 pr-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+              class="w-full pl-9 pr-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
           </div>
@@ -123,7 +123,7 @@
             id="veiculos-type"
             [ngModel]="typeFilter()"
             (ngModelChange)="typeFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of typeOptions; track opt.value) {
@@ -140,7 +140,7 @@
             (ngModelChange)="statusFilter.set($event); onFilterChange()"
             [disabled]="soldFilter()"
             title="No modo Vendidos o status operacional não se aplica"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400
                    disabled:bg-neutral-50 disabled:text-neutral-400 disabled:cursor-not-allowed"
           >
@@ -158,7 +158,7 @@
             id="veiculos-sold"
             [ngModel]="soldFilter()"
             (ngModelChange)="onSoldFilterChange($event === 'true')"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             <option [value]="false">Frota: atual</option>
@@ -172,7 +172,7 @@
             id="veiculos-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl
+            class="w-full px-3 py-2.5 min-h-11 text-base sm:text-sm border border-neutral-200 rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {
@@ -188,7 +188,7 @@
           <button
             type="button"
             (click)="clearFilters()"
-            class="text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
+            class="min-h-11 text-sm font-medium text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-lg"
           >
             Limpar filtros
           </button>
@@ -197,9 +197,25 @@
         </div>
       </div>
 
-      <!-- Falha de CARREGAMENTO da lista. -->
+      <!--
+        Falha de CARREGAMENTO da lista, com saída: «Tentar novamente» refaz a MESMA
+        página com os MESMOS filtros. Sem o botão, o único conserto era recarregar a aba.
+      -->
       @if (error(); as loadError) {
-        <app-alert-banner variant="error" [message]="loadError" />
+        <div data-vehicles-load-error>
+          <app-alert-banner variant="error">
+            {{ loadError }}
+            <button
+              type="button"
+              data-vehicles-retry
+              (click)="retry()"
+              class="ml-1 min-h-11 inline-flex items-center underline font-medium rounded-sm
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+            >
+              Tentar novamente
+            </button>
+          </app-alert-banner>
+        </div>
       }
 
       <!-- Falha de OPERAÇÃO (remover / transição de status). Inline, nunca toast. -->
@@ -207,339 +223,317 @@
         <app-alert-banner variant="error" [message]="opError" />
       }
 
-      <!-- Loading skeleton -->
-      @if (loading() && items().length === 0) {
-        <div class="space-y-2">
-          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
-          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
-          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
-        </div>
-      }
-
-      <!-- Empty -->
-      @if (!loading() && items().length === 0) {
-        <div class="text-center py-12 space-y-3">
-          <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
-            aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="text-neutral-400">
-              <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
-              <circle cx="6.5" cy="16.5" r="2.5"/>
-              <circle cx="16.5" cy="16.5" r="2.5"/>
-            </svg>
+      <!--
+        `@container`: as colunas dos cards seguem a largura do CONTEÚDO (mesmos
+        degraus da lista de Vistorias: miniatura 148px a partir de 592px, duas
+        colunas a partir de 820px), não a da janela — a sidebar come largura.
+      -->
+      <div class="@container">
+        <!-- SKELETON: o formato do card, para a lista não "pular" quando chega. -->
+        @if (loading() && items().length === 0) {
+          <div data-vehicles-skeleton aria-hidden="true" class="grid grid-cols-1 @min-[820px]:grid-cols-2 gap-3">
+            @for (n of skeletonSlots; track n) {
+              <div class="rounded-2xl border border-neutral-200 bg-white p-3 flex gap-3">
+                <div class="shrink-0 aspect-square size-[104px] @min-[592px]:size-[148px] rounded-xl bg-neutral-100 animate-pulse"></div>
+                <div class="flex-1 flex flex-col gap-2 pt-1">
+                  <div class="h-4 w-24 rounded bg-neutral-100 animate-pulse"></div>
+                  <div class="h-3 w-36 rounded bg-neutral-100 animate-pulse"></div>
+                  <div class="h-3 w-28 rounded bg-neutral-100 animate-pulse"></div>
+                </div>
+              </div>
+            }
           </div>
-          @if (soldFilter()) {
-            <!-- Modo Vendidos vazio NÃO é defeito nem convite a cadastrar.
-                 Sem CTA de cadastro aqui — e a mensagem só afirma "nenhum
-                 vendido" quando NÃO há busca/tipo ativos: com q/type o vazio
-                 pode ser culpa do filtro, não da ausência de vendas. -->
-            @if (search().trim() || typeFilter()) {
-              <p class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
-            } @else {
-              <p class="text-sm text-neutral-500">Nenhum veículo vendido ainda.</p>
-            }
-          } @else {
-            <!-- FEAT-0080: frota vazia ≠ filtro sem resultado. Sem q/tipo/status
-                 ativos, o vazio é a ausência do primeiro veículo — este é o
-                 lembrete persistente de quem pulou o gate de ativação. -->
-            @if (search().trim() || typeFilter() || statusFilter()) {
-              <p class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
-            } @else {
-              <p class="text-sm font-medium text-neutral-700">
-                Você ainda não cadastrou nenhum veículo.
-              </p>
-              <p class="text-sm text-neutral-500">
-                Cadastre o primeiro para o painel, os alertas e as cobranças trabalharem com a
-                sua frota.
-              </p>
-              <a routerLink="/veiculos/novo"
-                class="inline-flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
-                Cadastrar primeiro veículo
-              </a>
-            }
-          }
-        </div>
-      }
+        }
 
-      <!-- Cards (mobile / tablet) -->
-      @if (items().length > 0) {
-        <div class="space-y-3 lg:hidden">
-          @for (vehicle of items(); track vehicle.id) {
-            <article
-              class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 cursor-pointer
-                     hover:border-primary-300 transition-colors"
-              (click)="openDetail(vehicle)"
-              (keydown.enter)="openDetail(vehicle)"
-              (keydown.space)="$event.preventDefault(); openDetail(vehicle)"
-              role="button"
-              tabindex="0"
-              [attr.aria-label]="'Ver detalhes do veículo ' + vehicle.plate"
-            >
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <h3 class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider">
-                    {{ formatPlate(vehicle.plate) }}
-                  </h3>
-                  <p class="text-xs text-neutral-500 mt-0.5 break-words">
+        <!-- VAZIO. Só quando a carga TERMINOU sem erro: lista que falhou não é frota vazia. -->
+        @if (!loading() && !error() && items().length === 0) {
+          <div class="text-center py-12 space-y-3">
+            <div class="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto"
+              aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="text-neutral-400">
+                <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
+                <circle cx="6.5" cy="16.5" r="2.5"/>
+                <circle cx="16.5" cy="16.5" r="2.5"/>
+              </svg>
+            </div>
+            @if (soldFilter()) {
+              <!-- Modo Vendidos vazio NÃO é defeito nem convite a cadastrar.
+                   Sem CTA de cadastro aqui — e a mensagem só afirma "nenhum
+                   vendido" quando NÃO há busca/tipo ativos: com q/type o vazio
+                   pode ser culpa do filtro, não da ausência de vendas. -->
+              @if (search().trim() || typeFilter()) {
+                <p data-vehicles-empty-filtered class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
+                <ng-container *ngTemplateOutlet="clearFiltersButton" />
+              } @else {
+                <p data-vehicles-empty class="text-sm text-neutral-500">Nenhum veículo vendido ainda.</p>
+              }
+            } @else {
+              <!-- FEAT-0080: frota vazia ≠ filtro sem resultado. Sem q/tipo/status
+                   ativos, o vazio é a ausência do primeiro veículo — este é o
+                   lembrete persistente de quem pulou o gate de ativação. -->
+              @if (search().trim() || typeFilter() || statusFilter()) {
+                <p data-vehicles-empty-filtered class="text-sm text-neutral-500">Nenhum veículo encontrado com esses filtros.</p>
+                <ng-container *ngTemplateOutlet="clearFiltersButton" />
+              } @else {
+                <p data-vehicles-empty class="text-sm font-medium text-neutral-700">
+                  Você ainda não cadastrou nenhum veículo.
+                </p>
+                <p class="text-sm text-neutral-500">
+                  Cadastre o primeiro para o painel, os alertas e as cobranças trabalharem com a
+                  sua frota.
+                </p>
+                <a routerLink="/veiculos/novo"
+                  class="inline-flex items-center min-h-11 gap-2 text-sm font-medium text-primary-700 hover:text-primary-800">
+                  Cadastrar primeiro veículo
+                </a>
+              }
+            }
+          </div>
+        }
+
+        <!--
+          CARDS em TODA largura — o padrão da lista de Vistorias (o dono pediu "igual"):
+          miniatura QUADRADA presa ao topo, placa + chip de status, e a ação principal
+          como botão. A tabela do desktop saiu: duas marcações da mesma lista divergiam.
+        -->
+        @if (items().length > 0) {
+          <div data-vehicles-cards class="grid grid-cols-1 @min-[820px]:grid-cols-2 gap-3">
+            @for (vehicle of items(); track vehicle.id) {
+              <article
+                data-vehicle-card
+                class="rounded-2xl border border-neutral-200 bg-white p-3 flex gap-3 min-w-0"
+              >
+                <!--
+                  A miniatura: foto do veículo, senão a frente da última vistoria aprovada
+                  (o backend decide e assina), senão o placeholder com o carro e a placa.
+                  A foto é OPCIONAL — sem ela o card continua inteiro.
+                -->
+                <div
+                  data-vehicle-thumb
+                  [attr.data-photo-source]="photoFor(vehicle) ? vehicle.photoSource : null"
+                  class="relative shrink-0 self-start aspect-square size-[104px] @min-[592px]:size-[148px]
+                         rounded-xl overflow-hidden bg-neutral-100 flex flex-col items-center justify-center
+                         gap-1.5 text-neutral-500"
+                >
+                  @if (photoFor(vehicle); as url) {
+                    <img
+                      data-vehicle-photo
+                      [src]="url"
+                      alt=""
+                      loading="lazy"
+                      (error)="onPhotoError(vehicle.id)"
+                      class="absolute inset-0 w-full h-full object-cover"
+                    />
+                  } @else {
+                    <svg
+                      data-vehicle-photo-placeholder
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="40"
+                      height="40"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 16H4a1 1 0 0 1-1-1v-2.5a2 2 0 0 1 1.3-1.9L7 9.5l1.7-2.6A2 2 0 0 1 10.4 6H14a2 2 0 0 1 1.7 1l1.6 2.6 2.3.8A2 2 0 0 1 21 12.3V15a1 1 0 0 1-1 1h-1" />
+                      <path d="M9 16h6" />
+                      <path d="M8.5 10h7" />
+                      <circle cx="7" cy="16" r="2" />
+                      <circle cx="17" cy="16" r="2" />
+                    </svg>
+                    <span
+                      data-vehicle-placeholder-plate
+                      aria-hidden="true"
+                      class="font-mono text-[11px] @min-[592px]:text-xs font-semibold tracking-wider
+                             rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-neutral-700"
+                    >
+                      {{ formatPlate(vehicle.plate) }}
+                    </span>
+                  }
+                </div>
+
+                <div class="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h3
+                      data-vehicle-plate
+                      class="font-mono text-base font-semibold tracking-wide text-neutral-900"
+                    >
+                      {{ formatPlate(vehicle.plate) }}
+                    </h3>
+                    <span
+                      data-vehicle-status-chip
+                      class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+                      [class]="statusChip(vehicle.status)"
+                    >
+                      {{ statusLabel(vehicle.status) }}
+                    </span>
+                    @if (vehicle.sold) {
+                      <!-- Mesmos tokens do chip Vendido do detalhe (vehicle-detail.html). -->
+                      <span
+                        data-sold-chip
+                        class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium
+                               bg-neutral-800 text-white"
+                      >
+                        Vendido
+                      </span>
+                    }
+                  </div>
+
+                  <p data-vehicle-model class="text-sm text-neutral-600 truncate">
                     {{ vehicle.brand }} {{ vehicle.model }} · {{ vehicle.yearModel }}
                   </p>
-                </div>
-                <div class="flex flex-col items-end gap-1 shrink-0">
-                  @if (vehicle.sold) {
-                    <!-- Mesmos tokens do chip Vendido do detalhe (vehicle-detail.html). -->
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold
-                                 uppercase tracking-wide bg-neutral-800 text-white"
-                      data-sold-chip>
-                      Vendido
-                    </span>
-                  }
-                  <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                    [class]="statusChip(vehicle.status)">
-                    {{ statusLabel(vehicle.status) }}
-                  </span>
-                  <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                    [class]="typeChip(vehicle.type)">
-                    {{ typeLabel(vehicle.type) }}
-                  </span>
-                  @if (showIpvaOverdue(vehicle)) {
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-800">
-                      IPVA vencido
-                    </span>
-                  }
-                </div>
-              </div>
 
-              <div class="grid grid-cols-2 gap-2 text-xs text-neutral-600">
-                <div>
-                  <span class="text-neutral-500 uppercase tracking-wide text-[10px]">Licenciamento</span>
-                  <p class="font-medium tabular-nums">
-                    {{ formatDate(vehicle.licensingExpiration) }}
+                  <p data-vehicle-meta class="text-[13px] text-neutral-500 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <span>{{ typeLabel(vehicle.type) }}</span>
+                    <span aria-hidden="true">·</span>
+                    <span class="tabular-nums">Licenciamento {{ formatDate(vehicle.licensingExpiration) }}</span>
                   </p>
-                </div>
-                <div class="flex items-end">
-                  @if (licensingBadge(vehicle.licensingExpiration); as badge) {
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                      [class]="badge.chip">
-                      {{ badge.label }}
-                    </span>
-                  }
-                </div>
-              </div>
 
-              <div class="flex items-center justify-end gap-2 pt-2 border-t border-neutral-50">
-                <app-actions-menu label="Ações do veículo">
-                  <a
-                    role="menuitem"
-                    [routerLink]="['/veiculos', vehicle.id, 'gerencia']"
-                    class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
-                    Gerenciar
-                  </a>
-                  <a
-                    role="menuitem"
-                    [routerLink]="['/veiculos', vehicle.id, 'editar']"
-                    class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
-                    Editar
-                  </a>
-                  @if (canGoMaintenance(vehicle)) {
-                    <button
-                      type="button"
-                      role="menuitem"
-                      [disabled]="transitioningId() === vehicle.id"
-                      (click)="transitionStatus(vehicle, 'MAINTENANCE', $event)"
-                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-800 hover:bg-amber-50 min-h-[44px] disabled:opacity-50 text-left">
-                      Marcar em manutenção
-                    </button>
-                  }
-                  @if (canGoAvailable(vehicle)) {
-                    <button
-                      type="button"
-                      role="menuitem"
-                      [disabled]="transitioningId() === vehicle.id"
-                      (click)="transitionStatus(vehicle, 'AVAILABLE', $event)"
-                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-emerald-800 hover:bg-emerald-50 min-h-[44px] disabled:opacity-50 text-left">
-                      Marcar disponível
-                    </button>
-                  }
-                  @if (canGoInactive(vehicle)) {
-                    <button
-                      type="button"
-                      role="menuitem"
-                      [disabled]="transitioningId() === vehicle.id"
-                      (click)="transitionStatus(vehicle, 'INACTIVE', $event)"
-                      class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50 text-left">
-                      Marcar inativo
-                    </button>
-                  }
-                  <button
-                    type="button"
-                    role="menuitem"
-                    [disabled]="deleteDisabledReason(vehicle) !== null"
-                    [attr.title]="deleteDisabledReason(vehicle)"
-                    (click)="askDelete(vehicle, $event)"
-                    class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed text-left border-t border-neutral-100">
-                    Remover
-                  </button>
-                </app-actions-menu>
-              </div>
-            </article>
-          }
-        </div>
-
-        <!-- Table (desktop) -->
-        <div class="hidden lg:block overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead>
-              <tr class="text-left text-xs text-neutral-500 uppercase border-b border-neutral-100">
-                <th class="py-2 pr-4 font-medium">Placa</th>
-                <th class="py-2 pr-4 font-medium">Tipo</th>
-                <th class="py-2 pr-4 font-medium">Status</th>
-                <th class="py-2 pr-4 font-medium">Marca</th>
-                <th class="py-2 pr-4 font-medium">Modelo</th>
-                <th class="py-2 pr-4 font-medium">Ano</th>
-                <th class="py-2 pr-4 font-medium">Licenciamento</th>
-                <th class="py-2 pr-4 font-medium text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (vehicle of items(); track vehicle.id) {
-                <tr class="border-b border-neutral-50 hover:bg-neutral-50/60 cursor-pointer"
-                  (click)="openDetail(vehicle)"
-                  (keydown.enter)="openDetail(vehicle)"
-                  (keydown.space)="$event.preventDefault(); openDetail(vehicle)"
-                  tabindex="0"
-                  [attr.aria-label]="'Ver detalhes do veículo ' + vehicle.plate">
-                  <td class="py-3 pr-4 font-semibold text-neutral-900 tabular-nums tracking-wider">
-                    {{ formatPlate(vehicle.plate) }}
-                  </td>
-                  <td class="py-3 pr-4">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                        [class]="typeChip(vehicle.type)">
-                        {{ typeLabel(vehicle.type) }}
-                      </span>
-                      @if (showIpvaOverdue(vehicle)) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-800">
-                          IPVA vencido
-                        </span>
-                      }
-                    </div>
-                  </td>
-                  <td class="py-3 pr-4">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                        [class]="statusChip(vehicle.status)">
-                        {{ statusLabel(vehicle.status) }}
-                      </span>
-                      @if (vehicle.sold) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                     bg-neutral-800 text-white"
-                          data-sold-chip>
-                          Vendido
-                        </span>
-                      }
-                    </div>
-                  </td>
-                  <td class="py-3 pr-4 text-neutral-700">{{ vehicle.brand }}</td>
-                  <td class="py-3 pr-4 text-neutral-700">{{ vehicle.model }}</td>
-                  <td class="py-3 pr-4 text-neutral-700 tabular-nums">{{ vehicle.yearModel }}</td>
-                  <td class="py-3 pr-4 tabular-nums">
-                    <div class="flex items-center gap-2">
-                      <span>{{ formatDate(vehicle.licensingExpiration) }}</span>
+                  @if (licensingBadge(vehicle.licensingExpiration) || showIpvaOverdue(vehicle)) {
+                    <div class="flex flex-wrap items-center gap-1.5">
                       @if (licensingBadge(vehicle.licensingExpiration); as badge) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
                           [class]="badge.chip">
                           {{ badge.label }}
                         </span>
                       }
+                      @if (showIpvaOverdue(vehicle)) {
+                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">
+                          IPVA vencido
+                        </span>
+                      }
                     </div>
-                  </td>
-                  <td class="py-3 pr-4">
-                    <div class="flex items-center justify-end gap-1">
-                      <app-actions-menu label="Ações do veículo" [menuWidth]="208">
-                        <a
-                          role="menuitem"
-                          [routerLink]="['/veiculos', vehicle.id, 'gerencia']"
-                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                          Gerenciar
-                        </a>
-                        <a
-                          role="menuitem"
-                          [routerLink]="['/veiculos', vehicle.id, 'editar']"
-                          class="flex items-center w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 text-left">
-                          Editar
-                        </a>
-                        @if (canGoMaintenance(vehicle)) {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            [disabled]="transitioningId() === vehicle.id"
-                            (click)="transitionStatus(vehicle, 'MAINTENANCE', $event)"
-                            class="w-full px-3 py-2 min-h-[44px] text-xs text-amber-800 hover:bg-amber-50 disabled:opacity-50 text-left">
-                            Marcar em manutenção
-                          </button>
-                        }
-                        @if (canGoAvailable(vehicle)) {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            [disabled]="transitioningId() === vehicle.id"
-                            (click)="transitionStatus(vehicle, 'AVAILABLE', $event)"
-                            class="w-full px-3 py-2 min-h-[44px] text-xs text-emerald-800 hover:bg-emerald-50 disabled:opacity-50 text-left">
-                            Marcar disponível
-                          </button>
-                        }
-                        @if (canGoInactive(vehicle)) {
-                          <button
-                            type="button"
-                            role="menuitem"
-                            [disabled]="transitioningId() === vehicle.id"
-                            (click)="transitionStatus(vehicle, 'INACTIVE', $event)"
-                            class="w-full px-3 py-2 min-h-[44px] text-xs text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 text-left">
-                            Marcar inativo
-                          </button>
-                        }
+                  }
+
+                  <div class="flex-1 min-h-2"></div>
+
+                  <div class="flex items-center gap-2">
+                    <a
+                      data-vehicle-open
+                      [routerLink]="['/veiculos', vehicle.id]"
+                      [attr.aria-label]="'Ver detalhes do veículo ' + vehicle.plate"
+                      class="flex-1 min-w-0 min-h-11 inline-flex items-center justify-center rounded-full border
+                             border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-900
+                             hover:border-primary-500 hover:bg-neutral-50 transition-colors
+                             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    >
+                      Ver detalhes
+                    </a>
+                    <app-actions-menu label="Ações do veículo" [menuWidth]="208">
+                      <a
+                        role="menuitem"
+                        [routerLink]="['/veiculos', vehicle.id, 'gerencia']"
+                        class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                        Gerenciar
+                      </a>
+                      <a
+                        role="menuitem"
+                        [routerLink]="['/veiculos', vehicle.id, 'editar']"
+                        class="flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]">
+                        Editar
+                      </a>
+                      @if (canGoMaintenance(vehicle)) {
                         <button
                           type="button"
                           role="menuitem"
-                          [disabled]="deleteDisabledReason(vehicle) !== null"
-                          [attr.title]="deleteDisabledReason(vehicle)"
-                          (click)="askDelete(vehicle, $event)"
-                          class="w-full px-3 py-2 min-h-[44px] text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed text-left border-t border-neutral-100">
-                          Remover
+                          [disabled]="transitioningId() === vehicle.id"
+                          (click)="transitionStatus(vehicle, 'MAINTENANCE', $event)"
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-amber-800 hover:bg-amber-50 min-h-[44px] disabled:opacity-50 text-left">
+                          Marcar em manutenção
                         </button>
-                      </app-actions-menu>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Pagination -->
-        <div class="flex items-center justify-between pt-2 border-t border-neutral-100 text-sm">
-          <p class="text-neutral-500">
-            {{ total() }} veículo(s) — página {{ pageNumber() }} de {{ totalPages() }}
-          </p>
-          <div class="flex items-center gap-2">
-            <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
-              [disabled]="page() === 0 || loading()"
-              (click)="prev()">
-              Anterior
-            </button>
-            <button type="button"
-              class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
-              [disabled]="page() + 1 >= totalPages() || loading()"
-              (click)="next()">
-              Próxima
-            </button>
+                      }
+                      @if (canGoAvailable(vehicle)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          [disabled]="transitioningId() === vehicle.id"
+                          (click)="transitionStatus(vehicle, 'AVAILABLE', $event)"
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-emerald-800 hover:bg-emerald-50 min-h-[44px] disabled:opacity-50 text-left">
+                          Marcar disponível
+                        </button>
+                      }
+                      @if (canGoInactive(vehicle)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          [disabled]="transitioningId() === vehicle.id"
+                          (click)="transitionStatus(vehicle, 'INACTIVE', $event)"
+                          class="w-full flex items-center gap-2 px-3 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50 text-left">
+                          Marcar inativo
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        role="menuitem"
+                        [disabled]="deleteDisabledReason(vehicle) !== null"
+                        [attr.title]="deleteDisabledReason(vehicle)"
+                        (click)="askDelete(vehicle, $event)"
+                        class="w-full flex items-center gap-2 px-3 py-3 text-sm text-rose-600 hover:bg-rose-50 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed text-left border-t border-neutral-100">
+                        Remover
+                      </button>
+                    </app-actions-menu>
+                  </div>
+                </div>
+              </article>
+            }
           </div>
-        </div>
-      }
+
+          <!-- Paginação: mesma forma da lista de Vistorias, alvos de 44px. -->
+          <div
+            data-vehicles-pagination
+            class="mt-4 flex flex-col @min-[592px]:flex-row @min-[592px]:items-center
+                   @min-[592px]:justify-between gap-3 pt-4 border-t border-neutral-100"
+          >
+            <p class="text-sm text-neutral-600 tabular-nums">
+              {{ total() }} veículo(s) — página {{ pageNumber() }} de {{ totalPages() }}
+            </p>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                data-vehicles-prev
+                [disabled]="page() === 0 || loading()"
+                (click)="prev()"
+                class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
+                       text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
+                       focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                data-vehicles-next
+                [disabled]="page() + 1 >= totalPages() || loading()"
+                (click)="next()"
+                class="flex-1 @min-[592px]:flex-none min-h-11 px-5 rounded-xl border border-neutral-200 bg-white
+                       text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none
+                       focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <ng-template #clearFiltersButton>
+        <button
+          type="button"
+          data-vehicles-empty-clear
+          (click)="clearFilters()"
+          class="min-h-11 px-5 rounded-xl border border-neutral-200 bg-white text-sm
+                 font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        >
+          Limpar filtros
+        </button>
+      </ng-template>
     </div>
   </app-page-card>
 </app-default-page-layout>

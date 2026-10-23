@@ -41,7 +41,7 @@ export class VehicleDocumentsCard {
   readonly vehicleId = input.required<string>();
 
   /**
-   * Dois tipos, SEM PORTÃO — a lista é constante (array simples, não computed:
+   * Três tipos, SEM PORTÃO — a lista é constante (array simples, não computed:
    * nada aqui reage a estado). Se aparecer lógica de portão neste arquivo, ela
    * foi inventada.
    */
@@ -56,6 +56,15 @@ export class VehicleDocumentsCard {
       kind: 'OTHER',
       label: VEHICLE_DOCUMENT_KIND_META['OTHER'],
       hint: 'Qualquer outro arquivo do veículo.',
+      required: false,
+    },
+    {
+      // V115 — OPCIONAL. Vira a miniatura do card na lista de veículos; sem
+      // ela, a lista usa a frente da última vistoria aprovada. Só imagem: o
+      // servidor recusa PDF neste tipo, e a mensagem cai no banner do card.
+      kind: 'PHOTO',
+      label: VEHICLE_DOCUMENT_KIND_META['PHOTO'],
+      hint: 'Opcional. Aparece na lista de veículos. Só imagem: JPG, PNG, WebP ou HEIC.',
       required: false,
     },
   ];
