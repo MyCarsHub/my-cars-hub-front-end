@@ -64,7 +64,7 @@ export class VehicleDocumentsCard {
       // servidor recusa PDF neste tipo, e a mensagem cai no banner do card.
       kind: 'PHOTO',
       label: VEHICLE_DOCUMENT_KIND_META['PHOTO'],
-      hint: 'Opcional. Aparece na lista de veículos. Só imagem: JPG, PNG, WebP ou HEIC.',
+      hint: 'Opcional. Aparece na lista de veículos. Só imagem: JPG, PNG ou WebP.',
       required: false,
     },
   ];
