@@ -53,6 +53,7 @@ import {
 } from './driver-finance.types';
 import * as ui from './driver-finance.ui';
 import { DriverNextCharge } from '../driver-area/rental/driver-next-charge';
+import { DriverOverdueNotice } from '../driver-area/rental/driver-overdue-notice';
 import { LedgerEntrySheet } from './ledger-entry-sheet';
 import { ArrowSelect } from './arrow-select';
 
@@ -93,7 +94,7 @@ function latest<K, V>(requests: Subject<K>, call: (key: K) => Observable<V>) {
 @Component({
   selector: 'app-driver-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AlertBanner, ArrowSelect, DriverNextCharge, LedgerEntrySheet, MembersSheet, RouterLink],
+  imports: [AlertBanner, ArrowSelect, DriverNextCharge, DriverOverdueNotice, LedgerEntrySheet, MembersSheet, RouterLink],
   providers: [DriverFinanceClock],
   host: { class: 'block' },
   templateUrl: './driver-dashboard.html',

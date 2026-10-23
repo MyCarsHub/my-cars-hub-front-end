@@ -189,6 +189,7 @@ export class RentalService {
     if (filters.driverId) params = params.set('driverId', filters.driverId);
     if (filters.from) params = params.set('from', filters.from);
     if (filters.to) params = params.set('to', filters.to);
+    if (filters.overdueCharges) params = params.set('overdueCharges', 'true');
     if (filters.page !== undefined) params = params.set('page', String(filters.page));
     if (filters.size !== undefined) params = params.set('size', String(filters.size));
 

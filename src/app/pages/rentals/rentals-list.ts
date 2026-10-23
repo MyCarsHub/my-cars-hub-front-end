@@ -116,6 +116,11 @@ export class RentalsList implements OnInit {
   protected readonly driverFilter = signal<string>('');
   protected readonly fromFilter = signal<string>('');
   protected readonly toFilter = signal<string>('');
+  /**
+   * «Cobranças em atraso» do dashboard: só aluguéis com cobrança vencida. Vem da URL
+   * (`?emAtraso=true`) e é removível pelo chip acima da lista.
+   */
+  protected readonly overdueFilter = signal(false);
   protected readonly pageSize = signal(20);
 
   /** Draft signals — bound to inputs inside the filters sheet on mobile.
@@ -243,7 +248,14 @@ export class RentalsList implements OnInit {
     this.driverFilter.set(qp.get('driverId') ?? '');
     this.fromFilter.set(qp.get('from') ?? '');
     this.toFilter.set(qp.get('to') ?? '');
+    this.overdueFilter.set(qp.get('emAtraso') === 'true');
     this.syncDraftFromActive();
+    this.reload(0);
+  }
+
+  protected clearOverdueFilter(): void {
+    this.overdueFilter.set(false);
+    this.syncUrl();
     this.reload(0);
   }
 
@@ -317,6 +329,7 @@ export class RentalsList implements OnInit {
       driverId: this.driverFilter() || null,
       from: this.fromFilter() || null,
       to: this.toFilter() || null,
+      emAtraso: this.overdueFilter() ? 'true' : null,
     };
     this.router.navigate([], {
       relativeTo: this.route,
@@ -342,6 +355,7 @@ export class RentalsList implements OnInit {
         driverId: this.driverFilter() || undefined,
         from: this.fromFilter() || undefined,
         to: this.toFilter() || undefined,
+        overdueCharges: this.overdueFilter() || undefined,
         page,
         size: this.pageSize(),
       })

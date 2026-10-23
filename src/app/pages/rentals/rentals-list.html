@@ -59,6 +59,21 @@
         </button>
       </div>
 
+      @if (overdueFilter()) {
+        <button type="button" data-overdue-filter (click)="clearOverdueFilter()"
+          aria-label="Remover filtro: com cobrança em atraso"
+          class="inline-flex items-center gap-2 min-h-11 px-4 rounded-full text-sm font-semibold
+                 border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10
+                 text-rose-800 dark:text-rose-200 cursor-pointer
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400">
+          Com cobrança em atraso
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      }
+
       <!-- Desktop-inline extra filters (hidden on mobile — mobile uses the sheet). -->
       <div class="hidden lg:grid grid-cols-4 gap-3 pb-1">
         @if (!isDriver) {

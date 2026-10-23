@@ -5,6 +5,11 @@
       <p [class]="ui.LEAD">{{ todayLabel() }}</p>
     </header>
 
+    <!-- Cobrança em atraso: o aviso mais urgente, no topo. Só as cobranças DELE. -->
+    @if (rentalId(); as overdueRentalId) {
+      <app-driver-overdue-notice [rentalId]="overdueRentalId" />
+    }
+
     @if (state() === 'error') {
       <app-alert-banner variant="error" data-state="error">
         Não foi possível carregar seus números.

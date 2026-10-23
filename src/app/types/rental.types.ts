@@ -434,6 +434,8 @@ export interface RentalFilters {
   from?: string;
   /** Period upper bound (yyyy-MM-dd). */
   to?: string;
+  /** Only rentals with at least one overdue charge (the dashboard alert's list). */
+  overdueCharges?: boolean;
   page?: number;
   size?: number;
 }
