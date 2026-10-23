@@ -48,7 +48,7 @@ const CHIP =
   'min-h-11 px-4 rounded-full border text-sm font-medium cursor-pointer transition-colors ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2';
 const CHIP_ON = `${CHIP} bg-primary-500 border-primary-500 text-white`;
-const CHIP_OFF = `${CHIP} bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50`;
+const CHIP_OFF = `${CHIP} bg-surface border-edge text-fg-soft hover:bg-surface-muted`;
 
 type DetailField = 'rides' | 'hours' | 'km';
 
@@ -106,7 +106,7 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
     >
       @if (showTabs()) {
         <div role="tablist" aria-label="Tipo de lançamento" appArrowSelect
-          class="mx-4 sm:mx-6 mt-1 mb-4 grid grid-cols-2 gap-1 rounded-xl bg-neutral-100 p-1">
+          class="mx-4 sm:mx-6 mt-1 mb-4 grid grid-cols-2 gap-1 rounded-xl bg-surface-sunken p-1">
           <button type="button" role="tab" id="ledger-tab-INCOME" data-tab="INCOME"
             aria-controls="ledger-entry-form" [attr.aria-selected]="type() === 'INCOME'"
             [attr.tabindex]="type() === 'INCOME' ? 0 : -1" (click)="setType('INCOME')"
@@ -130,7 +130,7 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
         }
 
         <div class="flex flex-col gap-2">
-          <label for="ledger-amount" class="text-xs font-medium uppercase tracking-wide text-neutral-500">
+          <label for="ledger-amount" class="text-xs font-medium uppercase tracking-wide text-fg-subtle">
             Valor
           </label>
           <input
@@ -144,19 +144,19 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
             (input)="onAmount($event)"
             [attr.aria-invalid]="amountError() ? 'true' : null"
             [attr.aria-describedby]="amountError() ? 'ledger-amount-error' : null"
-            class="min-h-14 w-full rounded-xl border bg-white px-4 text-2xl font-semibold tabular-nums
-                   text-neutral-900 placeholder:text-neutral-400 focus:outline-none
+            class="min-h-14 w-full rounded-xl border bg-surface px-4 text-2xl font-semibold tabular-nums
+                   text-fg placeholder:text-fg-faint focus:outline-none
                    focus-visible:ring-2 focus-visible:ring-primary-500"
-            [class]="amountError() ? 'border-rose-400' : 'border-neutral-200'"
+            [class]="amountError() ? 'border-rose-400' : 'border-edge'"
           />
           @if (amountError(); as message) {
-            <span id="ledger-amount-error" class="text-xs text-rose-700" role="alert">{{ message }}</span>
+            <span id="ledger-amount-error" class="text-xs text-rose-700 dark:text-rose-300" role="alert">{{ message }}</span>
           }
         </div>
 
         @if (type() === 'INCOME') {
           <div class="flex flex-col gap-2">
-            <span id="ledger-app-label" class="text-xs font-medium uppercase tracking-wide text-neutral-500">App</span>
+            <span id="ledger-app-label" class="text-xs font-medium uppercase tracking-wide text-fg-subtle">App</span>
             <div role="radiogroup" aria-labelledby="ledger-app-label" appArrowSelect class="flex flex-wrap gap-2">
               @for (a of apps; track a; let first = $first) {
                 <button type="button" role="radio" [attr.data-app]="a"
@@ -169,28 +169,28 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
           <div class="grid grid-cols-3 gap-3">
             @for (f of detailFields; track f.key) {
               <div class="flex flex-col gap-2 min-w-0">
-                <label [for]="'ledger-' + f.key" class="text-xs font-medium uppercase tracking-wide text-neutral-500">{{ f.label }}</label>
+                <label [for]="'ledger-' + f.key" class="text-xs font-medium uppercase tracking-wide text-fg-subtle">{{ f.label }}</label>
                 <input [id]="'ledger-' + f.key" [attr.data-field]="f.key" [attr.inputmode]="f.mode" placeholder="0"
                   [value]="detail(f.key)" (input)="onDetail(f.key, $event)"
                   [attr.aria-invalid]="fieldError(f.key) ? 'true' : null"
                   [attr.aria-describedby]="fieldError(f.key) ? 'ledger-' + f.key + '-error' : null"
-                  [class]="inputClass + (fieldError(f.key) ? ' border-rose-400' : ' border-neutral-200')" />
+                  [class]="inputClass + (fieldError(f.key) ? ' border-rose-400' : ' border-edge')" />
                 @if (fieldError(f.key); as message) {
-                  <span [id]="'ledger-' + f.key + '-error'" role="alert" class="text-xs text-rose-700">{{ message }}</span>
+                  <span [id]="'ledger-' + f.key + '-error'" role="alert" class="text-xs text-rose-700 dark:text-rose-300">{{ message }}</span>
                 }
               </div>
             }
           </div>
           <div class="flex flex-col gap-2">
-            <label for="ledger-notes" class="text-xs font-medium uppercase tracking-wide text-neutral-500">
+            <label for="ledger-notes" class="text-xs font-medium uppercase tracking-wide text-fg-subtle">
               Observação (opcional)
             </label>
             <input id="ledger-notes" maxlength="200" placeholder="Ex.: corrida paga em dinheiro"
-              [value]="notes()" (input)="notes.set(text($event))" [class]="inputClass + ' border-neutral-200'" />
+              [value]="notes()" (input)="notes.set(text($event))" [class]="inputClass + ' border-edge'" />
           </div>
         } @else {
           <div class="flex flex-col gap-2">
-            <span id="ledger-cat-label" class="text-xs font-medium uppercase tracking-wide text-neutral-500">Categoria</span>
+            <span id="ledger-cat-label" class="text-xs font-medium uppercase tracking-wide text-fg-subtle">Categoria</span>
             <div role="radiogroup" aria-labelledby="ledger-cat-label" appArrowSelect class="flex flex-wrap gap-2">
               @for (c of categoryChips(); track c) {
                 <button type="button" role="radio" [attr.data-category]="c"
@@ -201,27 +201,27 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
             </div>
           </div>
           <div class="flex flex-col gap-2">
-            <label for="ledger-odometer" class="text-xs font-medium uppercase tracking-wide text-neutral-500">
+            <label for="ledger-odometer" class="text-xs font-medium uppercase tracking-wide text-fg-subtle">
               Km atual do carro
             </label>
             <input id="ledger-odometer" inputmode="numeric" placeholder="Ex.: 48.320"
               [attr.aria-describedby]="odometerError() ? 'ledger-odometer-error ledger-odometer-hint' : 'ledger-odometer-hint'"
               [attr.aria-invalid]="odometerError() ? 'true' : null" [value]="odometer()"
               (input)="odometer.set(digits($event)); odometerError.set(null)"
-              [class]="inputClass + (odometerError() ? ' border-rose-400' : ' border-neutral-200')" />
+              [class]="inputClass + (odometerError() ? ' border-rose-400' : ' border-edge')" />
             @if (odometerError(); as message) {
-              <span id="ledger-odometer-error" role="alert" class="text-xs text-rose-700">{{ message }}</span>
+              <span id="ledger-odometer-error" role="alert" class="text-xs text-rose-700 dark:text-rose-300">{{ message }}</span>
             }
-            <span id="ledger-odometer-hint" class="text-xs text-neutral-500">{{ odometerHint() }}</span>
+            <span id="ledger-odometer-hint" class="text-xs text-fg-subtle">{{ odometerHint() }}</span>
           </div>
         }
       </form>
 
       <div sheetFooter
-        class="border-t border-neutral-100 px-4 sm:px-6 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] flex flex-col gap-2">
+        class="border-t border-edge-soft px-4 sm:px-6 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] flex flex-col gap-2">
         @if (editing()) {
           <button type="button" data-action="remove" (click)="remove()" [disabled]="busy()"
-            class="self-start min-h-11 px-1 text-sm font-semibold text-rose-700 cursor-pointer
+            class="self-start min-h-11 px-1 text-sm font-semibold text-rose-700 dark:text-rose-300 cursor-pointer
                    hover:underline disabled:opacity-60 focus:outline-none focus-visible:ring-2
                    focus-visible:ring-rose-500 rounded">
             {{ type() === 'INCOME' ? 'Excluir ganho' : 'Excluir custo' }}
@@ -229,9 +229,9 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
         }
         <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
           <button type="button" (click)="close()"
-            class="min-h-11 w-full sm:w-auto px-5 rounded-xl border border-neutral-300 bg-white text-sm
-                   font-semibold text-neutral-800 hover:bg-neutral-50 cursor-pointer focus:outline-none
-                   focus-visible:ring-2 focus-visible:ring-neutral-400">
+            class="min-h-11 w-full sm:w-auto px-5 rounded-xl border border-edge-strong bg-surface text-sm
+                   font-semibold text-fg-body hover:bg-surface-muted cursor-pointer focus:outline-none
+                   focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-500">
             Cancelar
           </button>
           <button type="submit" form="ledger-entry-form" data-action="save" [disabled]="busy()"
@@ -269,14 +269,14 @@ export class LedgerEntrySheet {
     { key: 'km', label: 'Km', mode: 'numeric' },
   ];
   protected readonly tabOn =
-    'min-h-11 rounded-lg bg-white text-sm font-semibold text-neutral-900 shadow-sm cursor-pointer ' +
+    'min-h-11 rounded-lg bg-surface text-sm font-semibold text-fg shadow-sm cursor-pointer ' +
     'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
   protected readonly tabOff =
-    'min-h-11 rounded-lg text-sm font-semibold text-neutral-600 cursor-pointer hover:text-neutral-900 ' +
+    'min-h-11 rounded-lg text-sm font-semibold text-fg-muted cursor-pointer hover:text-fg ' +
     'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
   protected readonly inputClass =
-    'min-h-12 w-full rounded-xl border bg-white px-3 text-base text-neutral-800 ' +
-    'placeholder:text-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
+    'min-h-12 w-full rounded-xl border bg-surface px-3 text-base text-fg-body ' +
+    'placeholder:text-fg-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
 
   readonly open = signal(false);
   protected readonly showTabs = signal(false);

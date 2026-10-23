@@ -28,39 +28,39 @@ import { DRIVER_RENTAL_TODAY, buildHero, dayMonth, weekday } from './driver-rent
   imports: [RouterLink],
   template: `
     <section
-      class="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden mb-4"
+      class="rounded-2xl border border-edge bg-surface shadow-sm overflow-hidden mb-4"
       aria-labelledby="driver-next-charge-title"
       data-driver-next-charge
     >
       <div class="px-4 sm:px-6 pt-5 pb-1">
-        <h2 id="driver-next-charge-title" class="text-base font-semibold text-neutral-800">
+        <h2 id="driver-next-charge-title" class="text-base font-semibold text-fg-body">
           Aluguel da semana
         </h2>
       </div>
       <div class="px-4 sm:px-6 pt-3 pb-4 sm:pb-6">
         @if (failed()) {
-          <p class="text-sm text-neutral-600" data-next-error>
+          <p class="text-sm text-fg-muted" data-next-error>
             Não foi possível carregar a próxima cobrança.
             <button
               type="button"
               (click)="reload()"
-              class="min-h-11 inline-flex items-center font-semibold underline underline-offset-2 text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm cursor-pointer"
+              class="min-h-11 inline-flex items-center font-semibold underline underline-offset-2 text-primary-700 dark:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm cursor-pointer"
             >
               Tentar novamente
             </button>
           </p>
         } @else if (!loaded()) {
-          <div class="h-11 rounded-xl bg-neutral-100 animate-pulse" aria-hidden="true"></div>
+          <div class="h-11 rounded-xl bg-surface-sunken animate-pulse" aria-hidden="true"></div>
         } @else {
           <div class="flex items-center justify-between gap-3">
             <span class="flex flex-col gap-0.5 min-w-0">
               <span
                 class="text-xs uppercase tracking-wide"
-                [class.text-rose-700]="overdue()"
-                [class.text-neutral-500]="!overdue()"
+                [class.text-rose-700]="overdue()" [class.dark:text-rose-300]="overdue()"
+                [class.text-fg-subtle]="!overdue()"
                 >{{ label() }}</span
               >
-              <span class="text-sm font-semibold text-neutral-900 tabular-nums" data-next-line>
+              <span class="text-sm font-semibold text-fg tabular-nums" data-next-line>
                 @if (amount(); as value) {
                   <span>{{ value }}</span>
                   @if (when(); as w) {
@@ -73,7 +73,7 @@ import { DRIVER_RENTAL_TODAY, buildHero, dayMonth, weekday } from './driver-rent
             </span>
             <a
               [routerLink]="['/alugueis', rentalId()]"
-              class="shrink-0 min-h-11 inline-flex items-center text-sm font-semibold text-primary-700 hover:text-primary-800 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+              class="shrink-0 min-h-11 inline-flex items-center text-sm font-semibold text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
               data-how-to-pay
             >
               {{ amount() ? 'Como pagar' : 'Ver aluguel' }}

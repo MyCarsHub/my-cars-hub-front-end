@@ -81,7 +81,7 @@ type CategoryFilter = ExpenseCategory | 'ALL';
           @default {
             @if (!hasAny()) {
               <div data-state="empty" [class]="ui.CARD + ' px-6 py-10 flex flex-col items-center gap-4 text-center'">
-                <p class="m-0 text-base text-neutral-600 max-w-[36ch]">Você ainda não lançou nenhum custo.</p>
+                <p class="m-0 text-base text-fg-muted max-w-[36ch]">Você ainda não lançou nenhum custo.</p>
                 <button type="button" data-action="first" (click)="openNew()" [class]="ui.BTN_PRIMARY">
                   Lançar primeiro custo
                 </button>
@@ -108,18 +108,18 @@ type CategoryFilter = ExpenseCategory | 'ALL';
                 <div [class]="ui.CARD">
                   <div class="px-4 sm:px-6 pt-5 pb-1 flex flex-col gap-1">
                     <span [class]="ui.EYEBROW">Total no período</span>
-                    <span data-total class="text-[32px] sm:text-[40px] font-bold leading-tight tabular-nums text-neutral-900">
+                    <span data-total class="text-[32px] sm:text-[40px] font-bold leading-tight tabular-nums text-fg">
                       {{ money(total()) }}
                     </span>
                   </div>
                   <dl class="m-0 grid grid-cols-2 gap-4 px-4 sm:px-6 pt-4 pb-5">
                     <div class="min-w-0 flex flex-col gap-0.5">
                       <dt [class]="ui.EYEBROW">Lançamentos</dt>
-                      <dd class="m-0 text-lg font-semibold tabular-nums text-neutral-900">{{ rows().length }}</dd>
+                      <dd class="m-0 text-lg font-semibold tabular-nums text-fg">{{ rows().length }}</dd>
                     </div>
                     <div class="min-w-0 flex flex-col gap-0.5">
                       <dt [class]="ui.EYEBROW">Custo por km</dt>
-                      <dd class="m-0 text-lg font-semibold tabular-nums text-neutral-900 whitespace-nowrap">{{ perKm() }}</dd>
+                      <dd class="m-0 text-lg font-semibold tabular-nums text-fg whitespace-nowrap">{{ perKm() }}</dd>
                     </div>
                   </dl>
                 </div>
@@ -128,16 +128,16 @@ type CategoryFilter = ExpenseCategory | 'ALL';
                   <div [class]="ui.CARD">
                     <div class="px-4 sm:px-6 pt-5 pb-2">
                       <h2 [class]="ui.H2">Por categoria</h2>
-                      <p class="mt-0.5 mb-0 text-[13px] text-neutral-500">Para onde foi o dinheiro.</p>
+                      <p class="mt-0.5 mb-0 text-[13px] text-fg-subtle">Para onde foi o dinheiro.</p>
                     </div>
                     <ul class="m-0 list-none px-4 sm:px-6 pt-2 pb-5 flex flex-col gap-3.5">
                       @for (b of byCategory(); track b.label) {
                         <li class="flex flex-col gap-1.5">
-                          <div class="flex justify-between gap-2 text-sm text-neutral-800">
+                          <div class="flex justify-between gap-2 text-sm text-fg-body">
                             <span>{{ b.label }}</span>
                             <span class="font-semibold tabular-nums">{{ b.value }}</span>
                           </div>
-                          <div class="h-2 rounded bg-neutral-100" aria-hidden="true">
+                          <div class="h-2 rounded bg-surface-sunken" aria-hidden="true">
                             <div class="h-2 rounded bg-neutral-700" [style.width.%]="b.pct"></div>
                           </div>
                         </li>
@@ -153,7 +153,7 @@ type CategoryFilter = ExpenseCategory | 'ALL';
                 </div>
                 @if (rows().length) {
                   <div aria-hidden="true"
-                    class="hidden lg:grid grid-cols-[120px_minmax(0,1fr)_140px_130px] gap-3 px-6 py-2.5 bg-neutral-50 border-t border-neutral-100 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    class="hidden lg:grid grid-cols-[120px_minmax(0,1fr)_140px_130px] gap-3 px-6 py-2.5 bg-surface-muted border-t border-edge-soft text-xs font-medium uppercase tracking-wide text-fg-subtle">
                     <span>Data</span><span>Categoria</span><span>Km do carro</span><span class="text-right">Valor</span>
                   </div>
                   <ul class="m-0 p-0 list-none">
@@ -161,16 +161,16 @@ type CategoryFilter = ExpenseCategory | 'ALL';
                       <li>
                         <button type="button" data-row (click)="openEdit(r.item)" [attr.aria-label]="r.aria"
                           class="grid grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[120px_minmax(0,1fr)_140px_130px]
-                                 items-center gap-3 w-full min-h-16 px-4 sm:px-6 py-2.5 border-0 border-t border-neutral-100
-                                 bg-white text-left text-neutral-900 cursor-pointer hover:bg-neutral-50
+                                 items-center gap-3 w-full min-h-16 px-4 sm:px-6 py-2.5 border-0 border-t border-edge-soft
+                                 bg-surface text-left text-fg cursor-pointer hover:bg-surface-muted
                                  focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500">
                           <span class="lg:hidden min-w-0 flex flex-col gap-0.5">
-                            <span class="text-sm font-medium text-neutral-900">{{ r.title }}</span>
-                            <span class="text-[13px] text-neutral-500">Km do carro: {{ r.km }}</span>
+                            <span class="text-sm font-medium text-fg">{{ r.title }}</span>
+                            <span class="text-[13px] text-fg-subtle">Km do carro: {{ r.km }}</span>
                           </span>
-                          <span class="hidden lg:block text-sm font-medium text-neutral-800">{{ r.when }}</span>
-                          <span class="hidden lg:block text-sm text-neutral-800">{{ r.category }}</span>
-                          <span class="hidden lg:block text-sm text-neutral-800 tabular-nums">{{ r.km }}</span>
+                          <span class="hidden lg:block text-sm font-medium text-fg-body">{{ r.when }}</span>
+                          <span class="hidden lg:block text-sm text-fg-body">{{ r.category }}</span>
+                          <span class="hidden lg:block text-sm text-fg-body tabular-nums">{{ r.km }}</span>
                           <span class="text-sm font-semibold text-right tabular-nums whitespace-nowrap">{{ r.value }}</span>
                         </button>
                       </li>
@@ -178,8 +178,8 @@ type CategoryFilter = ExpenseCategory | 'ALL';
                   </ul>
                 } @else {
                   <div data-state="no-match"
-                    class="px-6 py-8 flex flex-col items-center gap-3 text-center border-t border-neutral-100">
-                    <p class="m-0 text-sm text-neutral-600">Nenhum custo com esses filtros.</p>
+                    class="px-6 py-8 flex flex-col items-center gap-3 text-center border-t border-edge-soft">
+                    <p class="m-0 text-sm text-fg-muted">Nenhum custo com esses filtros.</p>
                     <button type="button" data-action="clear" (click)="clearFilters()" [class]="ui.BTN_OUTLINE">
                       Limpar filtros
                     </button>

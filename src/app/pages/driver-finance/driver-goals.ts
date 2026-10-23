@@ -64,16 +64,16 @@ const MAX_DAILY_GOAL_CENTS = 9_999_900;
                 <div [class]="ui.CARD + ' px-4 sm:px-6 py-5 flex flex-col gap-3'" [attr.data-progress]="p.key">
                   <span [class]="ui.EYEBROW">{{ p.label }}</span>
                   <div class="flex items-baseline gap-1.5 flex-wrap">
-                    <span class="text-2xl font-bold tabular-nums text-neutral-900">{{ p.value }}</span>
+                    <span class="text-2xl font-bold tabular-nums text-fg">{{ p.value }}</span>
                     @if (p.goal) {
-                      <span class="text-sm text-neutral-500">de {{ p.goal }}</span>
+                      <span class="text-sm text-fg-subtle">de {{ p.goal }}</span>
                     }
                   </div>
                   <div role="progressbar" [attr.aria-label]="p.label" aria-valuemin="0" aria-valuemax="100"
-                    [attr.aria-valuenow]="p.pct" class="h-2 rounded bg-neutral-100">
+                    [attr.aria-valuenow]="p.pct" class="h-2 rounded bg-surface-sunken">
                     <div class="h-2 rounded bg-success-500" [style.width.%]="p.pct"></div>
                   </div>
-                  <span class="text-[13px] text-neutral-600">{{ p.status }}</span>
+                  <span class="text-[13px] text-fg-muted">{{ p.status }}</span>
                 </div>
               }
             </div>
@@ -82,25 +82,25 @@ const MAX_DAILY_GOAL_CENTS = 9_999_900;
               <div [class]="ui.CARD">
                 <div class="px-4 sm:px-6 pt-5 pb-2">
                   <h2 [class]="ui.H2">Definir metas</h2>
-                  <p class="mt-0.5 mb-0 text-[13px] text-neutral-500">Aparecem no seu Dashboard.</p>
+                  <p class="mt-0.5 mb-0 text-[13px] text-fg-subtle">Aparecem no seu Dashboard.</p>
                 </div>
                 <form novalidate (submit)="$event.preventDefault(); save()"
                   class="px-4 sm:px-6 pt-2 pb-6 flex flex-col gap-5">
                   <div class="flex flex-col gap-2">
-                    <label for="goal-daily" class="text-sm font-medium text-neutral-800">Meta por dia (R$)</label>
+                    <label for="goal-daily" class="text-sm font-medium text-fg-body">Meta por dia (R$)</label>
                     <input id="goal-daily" data-field="daily" inputmode="decimal" autocomplete="off" placeholder="0,00"
                       [value]="daily()" (input)="onDaily($event)"
                       [attr.aria-invalid]="dailyError() ? 'true' : null"
                       [attr.aria-describedby]="dailyError() ? 'goal-daily-error' : null"
-                      class="min-h-12 w-full rounded-xl border bg-white px-3 text-base text-neutral-800 tabular-nums
+                      class="min-h-12 w-full rounded-xl border bg-surface px-3 text-base text-fg-body tabular-nums
                              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                      [class]="dailyError() ? 'border-rose-400' : 'border-neutral-200'" />
+                      [class]="dailyError() ? 'border-rose-400' : 'border-edge'" />
                     @if (dailyError(); as message) {
-                      <span id="goal-daily-error" role="alert" class="text-xs text-rose-700">{{ message }}</span>
+                      <span id="goal-daily-error" role="alert" class="text-xs text-rose-700 dark:text-rose-300">{{ message }}</span>
                     }
                   </div>
                   <div class="flex flex-col gap-2">
-                    <span id="goal-days-label" class="text-sm font-medium text-neutral-800">Dias de trabalho por semana</span>
+                    <span id="goal-days-label" class="text-sm font-medium text-fg-body">Dias de trabalho por semana</span>
                     <div role="radiogroup" aria-labelledby="goal-days-label" appArrowSelect class="flex flex-wrap gap-2">
                       @for (n of dayOptions; track n) {
                         <button type="button" role="radio" [attr.data-days]="n" [attr.aria-checked]="days() === n" [attr.tabindex]="days() === n ? 0 : -1"
@@ -108,14 +108,14 @@ const MAX_DAILY_GOAL_CENTS = 9_999_900;
                       }
                     </div>
                   </div>
-                  <dl class="m-0 rounded-xl bg-neutral-100 px-4 py-3 grid grid-cols-2 gap-3">
+                  <dl class="m-0 rounded-xl bg-surface-sunken px-4 py-3 grid grid-cols-2 gap-3">
                     <div class="min-w-0 flex flex-col gap-0.5">
                       <dt [class]="ui.EYEBROW">Meta semanal</dt>
-                      <dd class="m-0 text-lg font-semibold tabular-nums text-neutral-900" data-week-goal>{{ preview().week }}</dd>
+                      <dd class="m-0 text-lg font-semibold tabular-nums text-fg" data-week-goal>{{ preview().week }}</dd>
                     </div>
                     <div class="min-w-0 flex flex-col gap-0.5">
                       <dt [class]="ui.EYEBROW">Meta mensal</dt>
-                      <dd class="m-0 text-lg font-semibold tabular-nums text-neutral-900" data-month-goal>{{ preview().month }}</dd>
+                      <dd class="m-0 text-lg font-semibold tabular-nums text-fg" data-month-goal>{{ preview().month }}</dd>
                     </div>
                   </dl>
                   @if (saveError()) {
@@ -129,17 +129,17 @@ const MAX_DAILY_GOAL_CENTS = 9_999_900;
               <div [class]="ui.CARD">
                 <div class="px-4 sm:px-6 pt-5 pb-2">
                   <h2 [class]="ui.H2">Últimas semanas</h2>
-                  <p class="mt-0.5 mb-0 text-[13px] text-neutral-500">Quanto você ganhou em relação à meta.</p>
+                  <p class="mt-0.5 mb-0 text-[13px] text-fg-subtle">Quanto você ganhou em relação à meta.</p>
                 </div>
                 <ul class="m-0 list-none px-4 sm:px-6 pt-1 pb-3">
                   @for (w of weeks(); track w.range) {
-                    <li class="flex items-center gap-3 py-3 border-t border-neutral-100 min-h-14">
+                    <li class="flex items-center gap-3 py-3 border-t border-edge-soft min-h-14">
                       <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <span class="text-sm font-medium text-neutral-900">{{ w.range }}</span>
-                        <span class="text-[13px] text-neutral-500 tabular-nums">{{ w.text }}</span>
+                        <span class="text-sm font-medium text-fg">{{ w.range }}</span>
+                        <span class="text-[13px] text-fg-subtle tabular-nums">{{ w.text }}</span>
                       </div>
                       @if (w.tag) {
-                        <span class="text-sm font-semibold" [class]="w.hit ? 'text-success-900' : 'text-neutral-600'">{{ w.tag }}</span>
+                        <span class="text-sm font-semibold" [class]="w.hit ? 'text-success-900 dark:text-emerald-300' : 'text-fg-muted'">{{ w.tag }}</span>
                       }
                     </li>
                   }

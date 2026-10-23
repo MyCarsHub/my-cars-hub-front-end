@@ -20,19 +20,19 @@ export type RentCover = NonNullable<ReturnType<typeof coverModel>>;
       <div class="px-4 sm:px-6 pt-3 pb-4 sm:pb-6 flex flex-col gap-3.5">
         <div class="flex items-baseline justify-between gap-2">
           <span class="text-lg sm:text-xl font-semibold tabular-nums"
-            [class]="c.tone === 'done' ? 'text-emerald-700' : 'text-neutral-900'">{{ c.pct }}%</span>
-          <span class="text-xs text-neutral-500 text-right tabular-nums">{{ c.sub }}</span>
+            [class]="c.tone === 'done' ? 'text-emerald-700 dark:text-emerald-300' : 'text-fg'">{{ c.pct }}%</span>
+          <span class="text-xs text-fg-subtle text-right tabular-nums">{{ c.sub }}</span>
         </div>
         <div role="progressbar" aria-label="Cobertura do aluguel" aria-valuemin="0" aria-valuemax="100"
-          [attr.aria-valuenow]="c.pct" class="h-2 rounded bg-neutral-100 overflow-hidden">
+          [attr.aria-valuenow]="c.pct" class="h-2 rounded bg-surface-sunken overflow-hidden">
           <div class="h-full rounded" [style.width.%]="c.pct"
             [class]="c.tone === 'done' ? 'bg-emerald-700' : c.tone === 'mid' ? 'bg-amber-500' : 'bg-primary-500'"></div>
         </div>
-        <p class="m-0 text-sm text-neutral-800 leading-relaxed">{{ c.text }}</p>
+        <p class="m-0 text-sm text-fg-body leading-relaxed">{{ c.text }}</p>
         @if (c.next) {
-          <div class="flex flex-col gap-0.5 border-t border-neutral-100 pt-3">
+          <div class="flex flex-col gap-0.5 border-t border-edge-soft pt-3">
             <span [class]="ui.EYEBROW">Próxima cobrança</span>
-            <span class="text-sm font-semibold text-neutral-900 tabular-nums">{{ c.next }}</span>
+            <span class="text-sm font-semibold text-fg tabular-nums">{{ c.next }}</span>
           </div>
         }
       </div>

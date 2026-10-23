@@ -23,7 +23,7 @@
           <div class="flex flex-col gap-1.5 min-w-0">
             <span class="text-xs uppercase tracking-wide text-white/80">Seu lucro hoje</span>
             @if (state() === 'loading') {
-              <span class="h-12 w-48 rounded-lg bg-white/25 animate-pulse" aria-hidden="true"></span>
+              <span class="h-12 w-48 rounded-lg bg-surface/25 animate-pulse" aria-hidden="true"></span>
             } @else {
               <span data-hero-net class="text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight tabular-nums whitespace-nowrap">
                 {{ hero().net }}
@@ -43,7 +43,7 @@
           }
         </div>
         @if (state() === 'ready') {
-          <dl class="m-0 grid grid-cols-4 gap-2 border-t border-white/25 pt-3">
+          <dl class="m-0 grid grid-cols-4 gap-2 border-t border-surface/25 pt-3">
             @for (s of hero().stats; track s.label) {
               <div class="min-w-0 flex flex-col-reverse gap-0.5">
                 <dt class="text-xs text-white/85 truncate">{{ s.label }}</dt>
@@ -53,9 +53,9 @@
           </dl>
         }
         <button #heroAction type="button" data-action="launch" (click)="openLaunch()"
-          class="self-stretch sm:self-start min-h-11 px-5 rounded-xl bg-white text-sm font-semibold text-primary-700
+          class="self-stretch sm:self-start min-h-11 px-5 rounded-xl bg-surface text-sm font-semibold text-primary-700 dark:text-primary-400
                  inline-flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]
-                 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-surface focus-visible:ring-offset-2
                  focus-visible:ring-offset-primary-500">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
             stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
@@ -82,9 +82,9 @@
           aria-label="Alertas" data-alerts>
           @for (a of alerts(); track a.key) {
             <li class="shrink-0 min-w-60 xl:min-w-0 xl:flex-1 snap-start flex items-center gap-3 min-h-14 px-3.5 py-2.5 rounded-xl border"
-              [class]="a.tone === 'rose' ? 'bg-rose-50 border-rose-100 text-rose-800' : 'bg-amber-50 border-amber-200 text-amber-800'">
+              [class]="a.tone === 'rose' ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-100 dark:border-rose-500/20 text-rose-800 dark:text-rose-200' : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200'">
               <span class="shrink-0 size-9 rounded-[10px] flex items-center justify-center"
-                [class]="a.tone === 'rose' ? 'bg-rose-100' : 'bg-amber-100'" aria-hidden="true">
+                [class]="a.tone === 'rose' ? 'bg-rose-100 dark:bg-rose-500/15' : 'bg-amber-100 dark:bg-amber-500/15'" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
               </span>
@@ -102,21 +102,21 @@
         <div [class]="ui.CARD" data-week>
           <div class="px-4 sm:px-6 pt-5 pb-1 flex items-baseline justify-between gap-2">
             <h2 [class]="ui.H2">Minha semana</h2>
-            <span class="text-xs text-neutral-500 tabular-nums">{{ week().range }}</span>
+            <span class="text-xs text-fg-subtle tabular-nums">{{ week().range }}</span>
           </div>
           <div class="px-4 sm:px-6 pt-3 pb-4 sm:pb-6 flex flex-col gap-3.5">
             <div class="relative flex items-end gap-1.5 sm:gap-3.5" [style.height.px]="chartHeight">
               @if (week().goalBottom !== null) {
-                <span aria-hidden="true" class="absolute inset-x-0 border-t border-dashed border-neutral-400"
+                <span aria-hidden="true" class="absolute inset-x-0 border-t border-dashed border-neutral-400 dark:border-neutral-500"
                   [style.bottom.px]="week().goalBottom"></span>
               }
               @for (d of week().days; track d.date) {
                 <button type="button" (click)="openDay(d.date)" [disabled]="d.future" [attr.aria-label]="d.aria"
                   class="relative flex-1 min-w-0 h-full p-0 border-0 bg-transparent flex flex-col justify-end gap-1
                          enabled:cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-lg">
-                  <span class="text-xs text-neutral-500 text-center tabular-nums whitespace-nowrap">{{ d.value }}</span>
+                  <span class="text-xs text-fg-subtle text-center tabular-nums whitespace-nowrap">{{ d.value }}</span>
                   <span class="block rounded-t-lg rounded-b"
-                    [class]="d.tone === 'future' ? 'border border-dashed border-neutral-300' : d.tone === 'today' ? 'bg-primary-500' : d.tone === 'hit' ? 'bg-emerald-700' : 'bg-primary-500/30'"
+                    [class]="d.tone === 'future' ? 'border border-dashed border-edge-strong' : d.tone === 'today' ? 'bg-primary-500' : d.tone === 'hit' ? 'bg-emerald-700' : 'bg-primary-500/30'"
                     [style.height.px]="d.height"></span>
                 </button>
               }
@@ -124,15 +124,15 @@
             <div class="flex gap-1.5 sm:gap-3.5" aria-hidden="true">
               @for (d of week().days; track d.date) {
                 <span class="flex-1 min-w-0 text-center text-xs"
-                  [class]="d.isToday ? 'text-primary-700 font-bold' : 'text-neutral-600'">{{ d.label }}</span>
+                  [class]="d.isToday ? 'text-primary-700 dark:text-primary-400 font-bold' : 'text-fg-muted'">{{ d.label }}</span>
               }
             </div>
             @if (week().goalLabel) {
-              <div class="flex items-center gap-1.5 text-xs text-neutral-500">
-                <span class="w-4 border-t border-dashed border-neutral-400" aria-hidden="true"></span>{{ week().goalLabel }}
+              <div class="flex items-center gap-1.5 text-xs text-fg-subtle">
+                <span class="w-4 border-t border-dashed border-neutral-400 dark:border-neutral-500" aria-hidden="true"></span>{{ week().goalLabel }}
               </div>
             }
-            <p class="m-0 text-sm text-neutral-800 leading-relaxed">{{ week().text }}</p>
+            <p class="m-0 text-sm text-fg-body leading-relaxed">{{ week().text }}</p>
           </div>
         </div>
 
@@ -147,7 +147,7 @@
 
       <!-- Como estão seus números -->
       <div class="flex flex-col gap-2.5 mt-1">
-        <h2 class="m-0 text-lg font-semibold text-neutral-900">Como estão seus números</h2>
+        <h2 class="m-0 text-lg font-semibold text-fg">Como estão seus números</h2>
         <div role="radiogroup" aria-label="Período" appArrowSelect
           class="-mx-4 px-4 sm:mx-0 sm:px-0 py-0.5 flex gap-2 overflow-x-auto snap-x [scrollbar-width:none]">
           @for (p of presets; track p.key) {
@@ -159,19 +159,19 @@
         </div>
         @if (preset() === 'custom') {
           <div class="flex flex-col sm:flex-row gap-2">
-            <label class="flex-1 flex flex-col gap-1 text-xs text-neutral-500">De
+            <label class="flex-1 flex flex-col gap-1 text-xs text-fg-subtle">De
               <input type="date" [value]="customFrom()" [max]="customTo()" (change)="onCustomFrom($event)"
-                class="min-h-11 rounded-xl border border-neutral-200 bg-white px-3 text-base text-neutral-800
+                class="min-h-11 rounded-xl border border-edge bg-surface px-3 text-base text-fg-body
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
             </label>
-            <label class="flex-1 flex flex-col gap-1 text-xs text-neutral-500">Até
+            <label class="flex-1 flex flex-col gap-1 text-xs text-fg-subtle">Até
               <input type="date" [value]="customTo()" [min]="customFrom()" [max]="today()" (change)="onCustomTo($event)"
-                class="min-h-11 rounded-xl border border-neutral-200 bg-white px-3 text-base text-neutral-800
+                class="min-h-11 rounded-xl border border-edge bg-surface px-3 text-base text-fg-body
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
             </label>
           </div>
         } @else {
-          <span class="text-xs text-neutral-500 tabular-nums" data-range>{{ period().range }}</span>
+          <span class="text-xs text-fg-subtle tabular-nums" data-range>{{ period().range }}</span>
         }
       </div>
 
@@ -184,7 +184,7 @@
 
       @if (period().empty) {
         <div [class]="ui.CARD + ' px-6 py-8 text-center'" data-state="empty">
-          <p class="m-0 text-sm text-neutral-600 leading-relaxed">
+          <p class="m-0 text-sm text-fg-muted leading-relaxed">
             Sem movimento neste período. Lance o dia pelo botão «Lançar».
           </p>
         </div>
@@ -192,14 +192,14 @@
         <div class="grid grid-cols-2 xl:grid-cols-4 gap-3" data-tiles>
           @for (t of period().tiles; track t.label) {
             <div class="rounded-2xl p-4 min-w-0 flex flex-col gap-1"
-              [class]="t.accent ? 'bg-primary-500 text-white' : 'bg-white border border-neutral-200 text-neutral-900'">
-              <span class="text-xs uppercase tracking-wide truncate" [class]="t.accent ? 'text-white/85' : 'text-neutral-500'">{{ t.label }}</span>
+              [class]="t.accent ? 'bg-primary-500 text-white' : 'bg-surface border border-edge text-fg'">
+              <span class="text-xs uppercase tracking-wide truncate" [class]="t.accent ? 'text-white/85' : 'text-fg-subtle'">{{ t.label }}</span>
               <span class="text-xl sm:text-[22px] font-semibold tabular-nums leading-tight whitespace-nowrap">{{ t.value }}</span>
               <span class="text-xs truncate"
-                [class]="t.accent ? 'text-white/90' : t.delta.good === null ? 'text-neutral-500' : t.delta.good ? 'text-emerald-700' : 'text-rose-700'">
+                [class]="t.accent ? 'text-white/90' : t.delta.good === null ? 'text-fg-subtle' : t.delta.good ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">
                 {{ t.delta.text }}
               </span>
-              <span class="text-xs leading-snug" [class]="t.accent ? 'text-white/85' : 'text-neutral-500'">{{ t.hint }}</span>
+              <span class="text-xs leading-snug" [class]="t.accent ? 'text-white/85' : 'text-fg-subtle'">{{ t.hint }}</span>
             </div>
           }
         </div>
@@ -212,11 +212,11 @@
                 <span class="flex flex-col">
                   <span [class]="ui.EYEBROW">Sobrou para você</span>
                   <span class="text-lg sm:text-xl font-semibold tabular-nums"
-                    [class]="period().split.positive ? 'text-emerald-700' : 'text-rose-700'">{{ period().split.net }}</span>
+                    [class]="period().split.positive ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">{{ period().split.net }}</span>
                 </span>
-                <span class="text-xs text-neutral-500 text-right">de {{ period().split.gross }} ganhos</span>
+                <span class="text-xs text-fg-subtle text-right">de {{ period().split.gross }} ganhos</span>
               </div>
-              <div role="img" [attr.aria-label]="period().split.aria" class="flex h-3.5 rounded-full overflow-hidden bg-neutral-100">
+              <div role="img" [attr.aria-label]="period().split.aria" class="flex h-3.5 rounded-full overflow-hidden bg-surface-sunken">
                 @for (r of period().split.rows; track r.key) {
                   <div [style.width.%]="r.width"
                     [class]="r.key === 'net' ? 'bg-emerald-600' : r.key === 'exp' ? 'bg-red-500' : 'bg-amber-500'"></div>
@@ -224,16 +224,16 @@
               </div>
               <ul class="m-0 p-0 list-none flex flex-col gap-2">
                 @for (r of period().split.rows; track r.key) {
-                  <li class="flex items-center gap-2 text-sm text-neutral-800">
+                  <li class="flex items-center gap-2 text-sm text-fg-body">
                     <span class="shrink-0 size-2.5 rounded-[3px]" aria-hidden="true"
                       [class]="r.key === 'net' ? 'bg-emerald-600' : r.key === 'exp' ? 'bg-red-500' : 'bg-amber-500'"></span>
                     <span class="flex-1">{{ r.label }}</span>
-                    <span class="tabular-nums text-neutral-500">{{ r.per100 }}</span>
+                    <span class="tabular-nums text-fg-subtle">{{ r.per100 }}</span>
                     <span class="tabular-nums font-semibold min-w-[84px] sm:min-w-24 text-right">{{ r.value }}</span>
                   </li>
                 }
               </ul>
-              <span class="text-xs text-neutral-500">Colunas: a cada R$ 100 ganhos e valor no período.</span>
+              <span class="text-xs text-fg-subtle">Colunas: a cada R$ 100 ganhos e valor no período.</span>
             </div>
           </div>
 
@@ -243,7 +243,7 @@
               <div class="flex items-end gap-1.5 sm:gap-3.5 h-[120px]" aria-hidden="true">
                 @for (d of period().weekdays; track d.label) {
                   <div class="flex-1 min-w-0 h-full flex flex-col justify-end gap-1">
-                    <span class="text-xs text-neutral-500 text-center whitespace-nowrap">{{ d.value }}</span>
+                    <span class="text-xs text-fg-subtle text-center whitespace-nowrap">{{ d.value }}</span>
                     <span class="block min-h-[3px] rounded-t-md" [style.height.px]="d.height"
                       [class]="d.best ? 'bg-primary-500' : 'bg-primary-500/30'"></span>
                   </div>
@@ -252,10 +252,10 @@
               <div class="flex gap-1.5 sm:gap-3.5" aria-hidden="true">
                 @for (d of period().weekdays; track d.label) {
                   <span class="flex-1 min-w-0 text-center text-xs capitalize"
-                    [class]="d.best ? 'text-neutral-900 font-semibold' : 'text-neutral-600'">{{ d.label }}</span>
+                    [class]="d.best ? 'text-fg font-semibold' : 'text-fg-muted'">{{ d.label }}</span>
                 }
               </div>
-              <p class="m-0 rounded-xl border border-primary-200 bg-primary-50 px-3.5 py-3 text-sm text-primary-900 leading-relaxed">
+              <p class="m-0 rounded-xl border border-primary-200 dark:border-primary-500/30 bg-primary-50 dark:bg-primary-500/10 px-3.5 py-3 text-sm text-primary-900 dark:text-primary-400 leading-relaxed">
                 {{ period().insight }}
               </p>
             </div>
@@ -268,18 +268,18 @@
             <ul class="m-0 list-none px-4 sm:px-6 pt-3 pb-4 sm:pb-6 flex flex-col gap-3.5">
               @for (d of period().byApp; track d.app) {
                 <li class="flex flex-col gap-1.5">
-                  <div class="flex justify-between gap-2 text-xs text-neutral-700">
+                  <div class="flex justify-between gap-2 text-xs text-fg-soft">
                     <span>{{ d.label }}</span>
-                    <span class="font-semibold text-neutral-900 tabular-nums">{{ d.value }}</span>
+                    <span class="font-semibold text-fg tabular-nums">{{ d.value }}</span>
                   </div>
-                  <div class="h-2.5 rounded-full bg-neutral-100 overflow-hidden" aria-hidden="true">
+                  <div class="h-2.5 rounded-full bg-surface-sunken overflow-hidden" aria-hidden="true">
                     <div class="h-full rounded-full" [style.width.%]="d.width"
-                      [class]="d.app === 'UBER' ? 'bg-neutral-900' : d.app === '99' ? 'bg-primary-500' : d.app === 'INDRIVE' ? 'bg-emerald-600' : 'bg-neutral-400'"></div>
+                      [class]="d.app === 'UBER' ? 'bg-neutral-900 dark:bg-neutral-700' : d.app === '99' ? 'bg-primary-500' : d.app === 'INDRIVE' ? 'bg-emerald-600' : 'bg-neutral-400 dark:bg-neutral-500'"></div>
                   </div>
-                  <span class="text-xs text-neutral-500">{{ d.note }}</span>
+                  <span class="text-xs text-fg-subtle">{{ d.note }}</span>
                 </li>
               }
-              <li class="text-xs text-neutral-500">Lançamentos sem o número de corridas não entram nesta média.</li>
+              <li class="text-xs text-fg-subtle">Lançamentos sem o número de corridas não entram nesta média.</li>
             </ul>
           </div>
         }
@@ -290,7 +290,7 @@
         <div [class]="ui.CARD" data-calendar>
           <div [class]="ui.CARD_HEAD"><h2 [class]="ui.H2">Calendário financeiro</h2></div>
           <div class="px-4 sm:px-6 pt-2 pb-4 sm:pb-6 min-w-0">
-            <p class="mt-0 mb-3 text-xs text-neutral-500 leading-normal">
+            <p class="mt-0 mb-3 text-xs text-fg-subtle leading-normal">
               Ganhos e despesas de cada dia, mais cobranças e multas a vencer. Toque em um dia para ver o detalhe.
             </p>
             @if (calendarError()) {
@@ -303,17 +303,17 @@
             }
             <div class="flex items-center justify-between gap-2 mb-3">
               <button type="button" aria-label="Mês anterior" (click)="calPrev()"
-                class="size-11 rounded-lg border border-neutral-300 bg-white text-neutral-700 flex items-center justify-center cursor-pointer
+                class="size-11 rounded-lg border border-edge-strong bg-surface text-fg-soft flex items-center justify-center cursor-pointer
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
               </button>
-              <span class="flex-1 text-center text-base font-semibold text-neutral-800" aria-live="polite">{{ calendarLabel() }}</span>
+              <span class="flex-1 text-center text-base font-semibold text-fg-body" aria-live="polite">{{ calendarLabel() }}</span>
               <button type="button" (click)="calToday()"
-                class="min-h-11 px-3 rounded-lg border border-neutral-300 bg-white text-xs text-neutral-700 cursor-pointer
+                class="min-h-11 px-3 rounded-lg border border-edge-strong bg-surface text-xs text-fg-soft cursor-pointer
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">Hoje</button>
               <button type="button" aria-label="Próximo mês" (click)="calNext()"
-                class="size-11 rounded-lg border border-neutral-300 bg-white text-neutral-700 flex items-center justify-center cursor-pointer
+                class="size-11 rounded-lg border border-edge-strong bg-surface text-fg-soft flex items-center justify-center cursor-pointer
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
@@ -321,7 +321,7 @@
             </div>
             <div class="grid grid-cols-7 gap-1 mb-1" aria-hidden="true">
               @for (w of weekdayHead; track w) {
-                <span class="text-center text-xs uppercase tracking-wide text-neutral-500">{{ w }}</span>
+                <span class="text-center text-xs uppercase tracking-wide text-fg-subtle">{{ w }}</span>
               }
             </div>
             <div class="grid grid-cols-7 gap-1">
@@ -331,23 +331,23 @@
                     [attr.aria-label]="'Dia ' + c.day + (c.income ? ', ganhos ' + money(c.income) : '') + (c.out ? ', saídas ' + money(c.out) : '')"
                     class="min-w-0 min-h-12 sm:min-h-16 rounded-md border p-1 text-left flex flex-col justify-between cursor-pointer
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                    [class]="(c.isToday ? 'border-primary-200 bg-primary-50' : 'border-neutral-200 bg-white') + (selectedDay() === c.date ? ' ring-2 ring-primary-500' : '')">
+                    [class]="(c.isToday ? 'border-primary-200 dark:border-primary-500/30 bg-primary-50 dark:bg-primary-500/10' : 'border-edge bg-surface') + (selectedDay() === c.date ? ' ring-2 ring-primary-500' : '')">
                     <span class="flex items-center justify-between">
-                      <span class="text-xs tabular-nums" [class]="c.isToday ? 'text-primary-700 font-semibold' : 'text-neutral-700'">{{ c.day }}</span>
+                      <span class="text-xs tabular-nums" [class]="c.isToday ? 'text-primary-700 dark:text-primary-400 font-semibold' : 'text-fg-soft'">{{ c.day }}</span>
                       @if (c.count > 1) {
-                        <span class="hidden sm:inline text-xs bg-neutral-100 text-neutral-600 rounded-lg px-1">{{ c.count }}</span>
+                        <span class="hidden sm:inline text-xs bg-surface-sunken text-fg-muted rounded-lg px-1">{{ c.count }}</span>
                       }
                     </span>
                     <span class="flex flex-col gap-0.5 min-w-0 w-full">
                       @if (c.income) {
-                        <span class="flex items-center gap-[3px] text-xs font-medium text-emerald-700 leading-none whitespace-nowrap overflow-hidden">
+                        <span class="flex items-center gap-[3px] text-xs font-medium text-emerald-700 dark:text-emerald-300 leading-none whitespace-nowrap overflow-hidden">
                           <span class="shrink-0 size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
                           <span class="hidden sm:inline truncate">{{ short(c.income) }}</span>
                         </span>
                       }
                       @if (c.out) {
                         <span class="flex items-center gap-[3px] text-xs font-medium leading-none whitespace-nowrap overflow-hidden"
-                          [class]="c.due ? 'text-amber-700' : 'text-red-700'">
+                          [class]="c.due ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'">
                           <span class="shrink-0 size-1.5 rounded-full" [class]="c.due ? 'bg-amber-500' : 'bg-red-500'" aria-hidden="true"></span>
                           <span class="hidden sm:inline truncate">{{ short(c.out) }}</span>
                         </span>
@@ -355,35 +355,35 @@
                     </span>
                   </button>
                 } @else {
-                  <span class="min-h-12 sm:min-h-16 rounded-md bg-neutral-50/60" aria-hidden="true"></span>
+                  <span class="min-h-12 sm:min-h-16 rounded-md bg-surface-muted/60" aria-hidden="true"></span>
                 }
               }
             </div>
-            <div class="flex flex-wrap gap-3 mt-3 text-xs text-neutral-500">
+            <div class="flex flex-wrap gap-3 mt-3 text-xs text-fg-subtle">
               <span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-emerald-500" aria-hidden="true"></span>Ganhos</span>
               <span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-red-500" aria-hidden="true"></span>Despesas e aluguel pago</span>
               <span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-500" aria-hidden="true"></span>A vencer</span>
             </div>
             @if (calendar().truncated) {
-              <p class="mt-3 mb-0 text-xs text-neutral-600" data-calendar-truncated>
+              <p class="mt-3 mb-0 text-xs text-fg-muted" data-calendar-truncated>
                 Este mês tem lançamentos demais para mostrar dia a dia: os dias mostram só parte
                 deles. Os totais abaixo são do mês inteiro.
               </p>
             }
             <dl class="m-0 grid grid-cols-2 gap-2 mt-4">
-              <div class="rounded-xl border border-neutral-200 p-3 min-w-0">
+              <div class="rounded-xl border border-edge p-3 min-w-0">
                 <dt [class]="ui.EYEBROW">Ganhos no mês</dt>
-                <dd class="m-0 text-lg sm:text-xl font-semibold text-emerald-700 tabular-nums">{{ money(calendar().totalIn) }}</dd>
+                <dd class="m-0 text-lg sm:text-xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">{{ money(calendar().totalIn) }}</dd>
               </div>
-              <div class="rounded-xl border border-neutral-200 p-3 min-w-0">
+              <div class="rounded-xl border border-edge p-3 min-w-0">
                 <dt [class]="ui.EYEBROW">Saídas no mês</dt>
-                <dd class="m-0 text-lg sm:text-xl font-semibold text-red-700 tabular-nums">{{ money(calendar().totalOut) }}</dd>
+                <dd class="m-0 text-lg sm:text-xl font-semibold text-red-700 dark:text-red-300 tabular-nums">{{ money(calendar().totalOut) }}</dd>
               </div>
-              <div class="col-span-2 rounded-xl border border-neutral-200 p-3 min-w-0">
+              <div class="col-span-2 rounded-xl border border-edge p-3 min-w-0">
                 <dt [class]="ui.EYEBROW">Saldo do mês</dt>
                 <dd class="m-0 text-lg sm:text-xl font-semibold tabular-nums"
-                  [class]="calendar().balance >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ money(calendar().balance) }}</dd>
-                <dd class="m-0 text-xs text-neutral-500">Ganhos − despesas, aluguel e multas</dd>
+                  [class]="calendar().balance >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'">{{ money(calendar().balance) }}</dd>
+                <dd class="m-0 text-xs text-fg-subtle">Ganhos − despesas, aluguel e multas</dd>
               </div>
             </dl>
           </div>
@@ -396,21 +396,21 @@
               @if (goalRows(); as rows) {
                 @for (g of rows; track g.label) {
                   <div class="flex flex-col gap-1.5">
-                    <div class="flex justify-between gap-2 text-xs text-neutral-700">
+                    <div class="flex justify-between gap-2 text-xs text-fg-soft">
                       <span>{{ g.label }}</span><span class="tabular-nums">{{ g.value }}</span>
                     </div>
                     <div role="progressbar" [attr.aria-label]="'Meta da ' + g.label" aria-valuemin="0" aria-valuemax="100"
-                      [attr.aria-valuenow]="g.pct" class="h-2 rounded bg-neutral-100 overflow-hidden">
+                      [attr.aria-valuenow]="g.pct" class="h-2 rounded bg-surface-sunken overflow-hidden">
                       <div class="h-full rounded" [style.width.%]="g.pct" [class]="g.hit ? 'bg-emerald-700' : 'bg-primary-500'"></div>
                     </div>
                   </div>
                 }
               } @else {
-                <p class="m-0 text-sm text-neutral-700 leading-relaxed">
+                <p class="m-0 text-sm text-fg-soft leading-relaxed">
                   Defina quanto quer ganhar por dia e acompanhe a semana e o mês aqui.
                 </p>
                 <a [routerLink]="links.goals"
-                  class="self-start min-h-11 inline-flex items-center text-sm font-semibold text-primary-700 hover:underline
+                  class="self-start min-h-11 inline-flex items-center text-sm font-semibold text-primary-700 dark:text-primary-400 hover:underline
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded">Definir metas</a>
               }
             </div>
@@ -421,13 +421,13 @@
               <div [class]="ui.CARD_HEAD"><h2 [class]="ui.H2">Meu carro</h2></div>
               <div class="px-4 sm:px-6 pt-3 pb-4 sm:pb-6 flex flex-col gap-3.5">
                 <div class="flex items-center gap-3">
-                  <span class="shrink-0 size-11 rounded-xl bg-primary-50 text-primary-500 flex items-center justify-center" aria-hidden="true">
+                  <span class="shrink-0 size-11 rounded-xl bg-primary-50 dark:bg-primary-500/10 text-primary-500 dark:text-primary-400 flex items-center justify-center" aria-hidden="true">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                       stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M6 17v2M18 17v2M4 13l2-6h12l2 6v4H4z" /><circle cx="8" cy="14" r="0.5" /><circle cx="16" cy="14" r="0.5" /></svg>
                   </span>
                   <span class="flex flex-col min-w-0">
-                    <span class="text-sm font-semibold text-neutral-900">{{ c.label }}</span>
-                    <span class="text-xs text-neutral-500">
+                    <span class="text-sm font-semibold text-fg">{{ c.label }}</span>
+                    <span class="text-xs text-fg-subtle">
                       @if (c.plate) {
                         <span class="font-mono tracking-wide">{{ c.plate }}</span>
                       }
@@ -438,7 +438,7 @@
                     </span>
                   </span>
                 </div>
-                <div class="flex justify-between gap-2 text-xs text-neutral-700">
+                <div class="flex justify-between gap-2 text-xs text-fg-soft">
                   <span>Km da semana</span><span class="tabular-nums font-semibold">{{ c.km }}</span>
                 </div>
               </div>
@@ -462,35 +462,35 @@
 
 <app-members-sheet [open]="day() !== null" [title]="day()?.title ?? ''" subtitle="Detalhes do dia" (closed)="closeDay()">
   @if (day(); as d) {
-    <dl class="m-0 px-4 py-3 grid grid-cols-2 gap-3 border-b border-neutral-100">
-      <div><dt [class]="ui.EYEBROW">Ganhos</dt><dd class="m-0 text-sm font-semibold text-emerald-700 tabular-nums">{{ d.income }}</dd></div>
-      <div><dt [class]="ui.EYEBROW">Saídas</dt><dd class="m-0 text-sm font-semibold text-red-700 tabular-nums">{{ d.out }}</dd></div>
+    <dl class="m-0 px-4 py-3 grid grid-cols-2 gap-3 border-b border-edge-soft">
+      <div><dt [class]="ui.EYEBROW">Ganhos</dt><dd class="m-0 text-sm font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">{{ d.income }}</dd></div>
+      <div><dt [class]="ui.EYEBROW">Saídas</dt><dd class="m-0 text-sm font-semibold text-red-700 dark:text-red-300 tabular-nums">{{ d.out }}</dd></div>
     </dl>
     <ul class="m-0 list-none p-4 flex flex-col gap-3">
       @for (e of d.events; track $index) {
         <li>
           @if (e.ledgerId) {
             <button type="button" (click)="editEvent(e.ledgerId)" [attr.aria-label]="'Editar: ' + e.kind + ', ' + e.value"
-              class="w-full text-left border border-neutral-200 rounded-xl p-3 flex items-start justify-between gap-2 bg-white cursor-pointer
-                     hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+              class="w-full text-left border border-edge rounded-xl p-3 flex items-start justify-between gap-2 bg-surface cursor-pointer
+                     hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
               <span class="flex flex-col min-w-0">
-                <span class="text-xs font-medium" [class]="e.tone === 'in' ? 'text-emerald-700' : 'text-red-700'">{{ e.kind }}</span>
-                <span class="text-sm text-neutral-900">{{ e.label }}</span>
+                <span class="text-xs font-medium" [class]="e.tone === 'in' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'">{{ e.kind }}</span>
+                <span class="text-sm text-fg">{{ e.label }}</span>
               </span>
-              <span class="text-sm font-semibold whitespace-nowrap tabular-nums" [class]="e.tone === 'in' ? 'text-emerald-700' : 'text-red-700'">{{ e.value }}</span>
+              <span class="text-sm font-semibold whitespace-nowrap tabular-nums" [class]="e.tone === 'in' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'">{{ e.value }}</span>
             </button>
           } @else {
-            <div class="border border-neutral-200 rounded-xl p-3 flex items-start justify-between gap-2">
+            <div class="border border-edge rounded-xl p-3 flex items-start justify-between gap-2">
               <span class="flex flex-col min-w-0">
-                <span class="text-xs font-medium" [class]="e.tone === 'due' ? 'text-amber-700' : 'text-red-700'">{{ e.kind }}</span>
-                <span class="text-sm text-neutral-900">{{ e.label }}</span>
+                <span class="text-xs font-medium" [class]="e.tone === 'due' ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'">{{ e.kind }}</span>
+                <span class="text-sm text-fg">{{ e.label }}</span>
               </span>
-              <span class="text-sm font-semibold whitespace-nowrap tabular-nums" [class]="e.tone === 'due' ? 'text-amber-700' : 'text-red-700'">{{ e.value }}</span>
+              <span class="text-sm font-semibold whitespace-nowrap tabular-nums" [class]="e.tone === 'due' ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'">{{ e.value }}</span>
             </div>
           }
         </li>
       } @empty {
-        <li class="py-6 text-center text-sm text-neutral-500">Nenhum evento neste dia.</li>
+        <li class="py-6 text-center text-sm text-fg-subtle">Nenhum evento neste dia.</li>
       }
     </ul>
   }
