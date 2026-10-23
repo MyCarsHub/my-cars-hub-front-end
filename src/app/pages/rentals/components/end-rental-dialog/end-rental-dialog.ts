@@ -130,6 +130,12 @@ export class EndRentalDialog {
   overduePreview = input<OverdueFeeSummary | null>(null);
   overduePreviewLoading = input<boolean>(false);
   overduePreviewError = input<string | null>(null);
+  /**
+   * `false` na sessão de EDIÇÃO do suporte: o estorno automático da caução não é permitido ali (o
+   * backend recusa com 400), então a opção some e a devolução só pode ser registrada (MANUAL) ou
+   * retida (NONE).
+   */
+  allowAutomaticRefund = input<boolean>(true);
 
   confirmed = output<EndRentalDialogPayload>();
   cancelled = output<void>();
@@ -218,7 +224,7 @@ export class EndRentalDialog {
    * `externalId` nada seria estornado.
    */
   protected readonly canRefundViaGateway = computed<boolean>(
-    () => this.caucaoRefundState() === 'GATEWAY',
+    () => this.allowAutomaticRefund() && this.caucaoRefundState() === 'GATEWAY',
   );
 
   /**
@@ -324,6 +330,9 @@ export class EndRentalDialog {
    * deixa explícito que devolver o dinheiro é etapa manual, fora do sistema.
    */
   protected readonly refundStateNotice = computed<string>(() => {
+    if (!this.allowAutomaticRefund() && this.caucaoRefundState() === 'GATEWAY') {
+      return 'No modo edição o estorno automático pelo Asaas não está disponível. Se a caução for devolvida, devolva por fora e registre aqui o valor.';
+    }
     switch (this.caucaoRefundState()) {
       case 'PAID_OFFLINE':
         return 'Esta caução não tem cobrança no Asaas para estornar. Devolver o dinheiro é uma etapa manual, feita por você fora do sistema — aqui você só registra o que devolveu.';

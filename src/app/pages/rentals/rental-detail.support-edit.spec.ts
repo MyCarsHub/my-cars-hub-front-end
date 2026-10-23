@@ -525,6 +525,138 @@ describe('RentalDetail — ações do administrador na sessão de EDIÇÃO (FEAT
   });
 });
 
+describe('RentalDetail — concluir aluguel na sessão de EDIÇÃO', () => {
+  /** Aluguel ATIVO no prazo (sem multa), com caução paga e estornável pelo Asaas. */
+  const ACTIVE_ON_TIME: Partial<RentalResponseDto> = {
+    endDate: '2099-12-31',
+    caucaoPaid: true,
+    charges: [
+      {
+        id: 'c-caucao',
+        kind: 'CAUCAO',
+        amount: 50_000,
+        status: 'PAID',
+        provider: 'ASAAS',
+        externalId: 'pay_caucao',
+        checkoutUrl: null,
+        paidAt: '2026-08-01T00:00:00Z',
+        dueDate: '2026-08-01',
+        periodIndex: null,
+      },
+    ],
+  };
+
+  const NO_FEE = {
+    chargeId: null,
+    overdue: false,
+    overdueDays: 0,
+    dailyRate: 0,
+    multiplierBps: 10_000,
+    graceHours: 0,
+    amount: 0,
+    dueAt: '2100-01-01T00:00:00',
+    returnedAt: '2026-10-23T12:00:00',
+  };
+
+  function concludeButton(fixture: ComponentFixture<unknown>): HTMLButtonElement | null {
+    const buttons = Array.from(el(fixture).querySelectorAll('button')) as HTMLButtonElement[];
+    return (
+      buttons.find(
+        (b) => (b.textContent ?? '').trim() === 'Concluir aluguel' && !b.closest('[role="dialog"]'),
+      ) ?? null
+    );
+  }
+
+  async function openAndLoadPreview(
+    fixture: ComponentFixture<RentalDetail>,
+    http: HttpTestingController,
+  ): Promise<void> {
+    concludeButton(fixture)!.click();
+    await settle(fixture);
+    // A prévia da multa é pedida com debounce; o botão do diálogo só destrava com ela.
+    await new Promise((r) => setTimeout(r, 300));
+    http.expectOne((r) => r.method === 'GET' && r.url.includes('/overdue-preview')).flush(NO_FEE);
+    await settle(fixture);
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+  afterEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it('na EDIÇÃO o "Concluir aluguel" aparece e o POST /complete sai sem aviso', async () => {
+    const { fixture, http } = await mount('EDIT', ACTIVE_ON_TIME);
+    const warning = vi.spyOn(TestBed.inject(NotificationService), 'warning');
+
+    expect(concludeButton(fixture)).not.toBeNull();
+    await openAndLoadPreview(fixture, http);
+    // O estorno automático não é oferecido no modo edição (o backend o recusa).
+    expect(el(fixture).querySelector('input[type="radio"][value="AUTOMATIC"]')).toBeNull();
+
+    dialogButton(fixture, 'Concluir aluguel').click();
+    await settle(fixture);
+
+    const req = http.expectOne(`${BASE}/${RENTAL_ID}/complete`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.caucaoRefund?.method ?? 'NONE').not.toBe('AUTOMATIC');
+    req.flush({ ...RENTAL, ...ACTIVE_ON_TIME, status: 'COMPLETED' });
+    await settle(fixture);
+    drain(http);
+    await settle(fixture);
+
+    expect(warning).not.toHaveBeenCalled();
+    expect(concludeButton(fixture)).toBeNull();
+  });
+
+  it('na sessão de LEITURA o mesmo POST /complete é barrado antes de sair, com aviso', async () => {
+    const { fixture, http } = await mount('READ', ACTIVE_ON_TIME);
+    const warning = vi.spyOn(TestBed.inject(NotificationService), 'warning');
+
+    await openAndLoadPreview(fixture, http);
+    dialogButton(fixture, 'Concluir aluguel').click();
+    await settle(fixture);
+
+    http.expectNone(`${BASE}/${RENTAL_ID}/complete`);
+    expect(warning).toHaveBeenCalledTimes(1);
+  });
+
+  it('o motorista não vê o "Concluir aluguel", nem no modo edição', async () => {
+    // `isDriver` vem do token na criação da tela.
+    TestBed.resetTestingModule();
+    sessionStorage.clear();
+    signInAs('DRIVER');
+    TestBed.configureTestingModule({
+      imports: [RentalDetail],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(withInterceptors([impersonationInterceptor])),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: route },
+        {
+          provide: ImpersonationService,
+          useValue: { active: () => true, editMode: () => true, readOnly: () => false, reconcile: vi.fn() },
+        },
+      ],
+    });
+    const driverFixture = TestBed.createComponent(RentalDetail);
+    const http = TestBed.inject(HttpTestingController);
+    driverFixture.detectChanges();
+    await driverFixture.whenStable();
+    http.expectOne(`${BASE}/${RENTAL_ID}`).flush({ ...RENTAL, ...ACTIVE_ON_TIME });
+    await settle(driverFixture);
+    drain(http);
+    await settle(driverFixture);
+
+    expect(concludeButton(driverFixture)).toBeNull();
+  });
+});
+
 describe('rental-form na sessão de EDIÇÃO — rotas de escrita sem toast (FEAT-0347)', () => {
   const PREFLIGHT = {
     vehicleId: 'v-1',
