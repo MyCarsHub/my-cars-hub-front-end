@@ -423,6 +423,28 @@ body {
   }
 }
 
+/* Landing, blog, legais e o escopo de preços usam variáveis próprias (`--paper`, `--ink`…,
+   declaradas em `.landing-root` / `.pricing-scope` mais abaixo). Mesmo papel, valor escuro.
+   As faixas de marca (laranja, carbono) têm cor própria e não mudam. */
+.dark .landing-root,
+.dark .pricing-scope {
+  --paper: #0F0F10;
+  --paper-alt: #18181A;
+  --paper-2: #1E1E21;
+  --rule: #2E2E33;
+  --rule-strong: #3A3A40;
+  --ink: #F4F4F5;
+  --ink-80: rgba(244, 244, 245, 0.85);
+  --ink-70: rgba(244, 244, 245, 0.72);
+  --ink-50: rgba(244, 244, 245, 0.56);
+  --ink-30: rgba(244, 244, 245, 0.34);
+  --muted: #A1A1AA;
+  --ink-dark: #FAFAFA;
+  --brand-strong: #FA602E;
+  --brand-soft: rgba(246, 59, 4, 0.28);
+  --brand-tint: rgba(246, 59, 4, 0.14);
+}
+
 /* A ilha clara: papel do contrato, prévias de documento, fotos e PDFs. */
 .theme-paper {
   color-scheme: light;
@@ -453,6 +475,21 @@ body {
   --color-ink-dark: #050505;
   --color-muted: #6E6E6E;
   --color-border: #E8E4E0;
+  --paper: #FFFFFF;
+  --paper-alt: #FAFAFA;
+  --paper-2: #F5F5F5;
+  --rule: #ECECEC;
+  --rule-strong: #D6D6D6;
+  --ink: #0A0A0A;
+  --ink-80: rgba(10, 10, 10, 0.85);
+  --ink-70: rgba(10, 10, 10, 0.68);
+  --ink-50: rgba(10, 10, 10, 0.52);
+  --ink-30: rgba(10, 10, 10, 0.30);
+  --muted: #666666;
+  --ink-dark: #050505;
+  --brand-strong: #C22F00;
+  --brand-soft: #FFD9C9;
+  --brand-tint: #FFF0EA;
 }
 
 

@@ -54,7 +54,7 @@
         onmouseout="this.style.backgroundPosition='0% 0%'"
       >
         <span
-          class="absolute -top-3 right-5 inline-flex items-center gap-1.5 bg-white text-brand-strong text-[12px] font-display font-bold tracking-[-0.01em] px-3 py-1.5 rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.24)] z-[2] whitespace-nowrap"
+          class="absolute -top-3 right-5 inline-flex items-center gap-1.5 bg-surface text-brand-strong text-[12px] font-display font-bold tracking-[-0.01em] px-3 py-1.5 rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.24)] z-[2] whitespace-nowrap"
         >
           <span aria-hidden="true" class="inline-block w-1.5 h-1.5 rounded-full bg-brand"></span>
           Recomendado
@@ -63,7 +63,7 @@
         <div aria-hidden="true" class="absolute inset-0 pointer-events-none z-0 rounded-2xl overflow-hidden" style="background: radial-gradient(circle at 20% 10%, rgba(255,255,255,0.15), transparent 55%), radial-gradient(circle at 90% 100%, rgba(0,0,0,0.15), transparent 60%);"></div>
 
         <header class="relative z-[1] flex items-center gap-3">
-          <div class="w-10 h-10 rounded-[10px] inline-flex items-center justify-center bg-white/[0.18] text-white border border-white/[0.22] shrink-0" aria-hidden="true">
+          <div class="w-10 h-10 rounded-[10px] inline-flex items-center justify-center bg-surface/[0.18] text-white border border-surface/[0.22] shrink-0" aria-hidden="true">
             <img src="svg/logo-my-cars-hub.svg" alt="" width="24" height="24" style="filter: brightness(0) invert(1);" />
           </div>
           <h3 class="font-display font-bold text-[20px] tracking-[-0.02em] text-white m-0">MyCarsHub</h3>
@@ -72,7 +72,7 @@
         <ul class="relative z-[1] list-none p-0 m-0 flex flex-col gap-2.5">
           @for (item of ourItems; track item) {
             <li class="flex items-start gap-2.5 text-sm text-white/95 leading-[1.5] font-medium">
-              <span class="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-white shrink-0 mt-[3px]">
+              <span class="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-surface shrink-0 mt-[3px]">
                 <svg viewBox="0 0 24 24" fill="none" class="w-3 h-3 text-brand-strong"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </span>
               <span>{{ item }}</span>
@@ -82,7 +82,7 @@
 
         <a
           routerLink="/login"
-          class="relative z-[1] mt-auto inline-flex items-center justify-center gap-2 px-[22px] py-3 rounded-full bg-white text-brand-strong hover:text-brand no-underline font-bold text-sm min-h-[46px] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.25)] hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.35)] transition-all duration-300 group"
+          class="relative z-[1] mt-auto inline-flex items-center justify-center gap-2 px-[22px] py-3 rounded-full bg-surface text-brand-strong hover:text-brand no-underline font-bold text-sm min-h-[46px] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.25)] hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-8px_rgba(0,0,0,0.35)] transition-all duration-300 group"
         >
           Começar 14 dias grátis
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" class="transition-transform duration-200 group-hover:translate-x-1"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
