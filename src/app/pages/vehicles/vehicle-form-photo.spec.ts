@@ -279,17 +279,42 @@ describe('VehicleForm — foto do veículo', () => {
       expect(q('[data-photo-remove]')).not.toBeNull();
     });
 
-    it('trocar SUBSTITUI o anexo: apaga o atual e só então anexa o novo (nunca acumula)', () => {
+    it('trocar envia a NOVA primeiro e só então apaga a antiga pelo id (nunca acumula)', () => {
       choose(otherPhoto);
       api().submit();
       fixture.detectChanges();
 
       expect(update).toHaveBeenCalledTimes(1);
-      expect(deleteDocument).toHaveBeenCalledWith(EDIT_ID, 'doc-foto');
       expect(uploadDocument).toHaveBeenCalledWith(EDIT_ID, 'PHOTO', otherPhoto);
-      expect(deleteDocument.mock.invocationCallOrder[0]).toBeLessThan(
-        uploadDocument.mock.invocationCallOrder[0],
+      expect(deleteDocument).toHaveBeenCalledTimes(1);
+      expect(deleteDocument).toHaveBeenCalledWith(EDIT_ID, 'doc-foto');
+      expect(uploadDocument.mock.invocationCallOrder[0]).toBeLessThan(
+        deleteDocument.mock.invocationCallOrder[0],
       );
+      expect(navigate).toHaveBeenCalledWith(['/veiculos', EDIT_ID]);
+    });
+
+    it('se apagar a antiga falhar, tenta de novo em silêncio e a troca não vira erro', () => {
+      deleteDocument
+        .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })))
+        .mockReturnValueOnce(of(void 0));
+      choose(otherPhoto);
+      api().submit();
+      fixture.detectChanges();
+
+      expect(deleteDocument).toHaveBeenCalledTimes(2);
+      expect(q('[data-photo-failure]')).toBeNull();
+      expect(navigate).toHaveBeenCalledWith(['/veiculos', EDIT_ID]);
+    });
+
+    it('se apagar a antiga falhar sempre, a foto nova já está salva e nada é mostrado como erro', () => {
+      deleteDocument.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      choose(otherPhoto);
+      api().submit();
+      fixture.detectChanges();
+
+      expect(deleteDocument).toHaveBeenCalledTimes(3);
+      expect(q('[data-photo-failure]')).toBeNull();
       expect(navigate).toHaveBeenCalledWith(['/veiculos', EDIT_ID]);
     });
 
@@ -315,25 +340,32 @@ describe('VehicleForm — foto do veículo', () => {
       expect(uploadDocument).not.toHaveBeenCalled();
     });
 
-    it('se o envio da nova falha depois de apagar a antiga, o retry só envia (não apaga de novo)', () => {
+    it('se o ENVIO da nova falha, a foto antiga continua lá: nada é apagado', () => {
       uploadDocument.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
       choose(otherPhoto);
       api().submit();
       fixture.detectChanges();
 
-      expect(q('[data-photo-failure]')?.textContent).toContain('A foto anterior já foi removida');
-      listDocuments.mockReturnValue(of([]));
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(deleteDocument).not.toHaveBeenCalled();
+      const failure = q('[data-photo-failure]')?.textContent ?? '';
+      expect(failure).toContain('a foto não foi enviada');
+      expect(failure).not.toContain('removida');
+      expect(navigate).not.toHaveBeenCalled();
+
       click('[data-photo-retry]');
 
-      expect(deleteDocument).toHaveBeenCalledTimes(1);
+      // O retry envia de novo e só então apaga a antiga, uma única vez.
       expect(uploadDocument).toHaveBeenCalledTimes(2);
+      expect(deleteDocument).toHaveBeenCalledTimes(1);
+      expect(deleteDocument).toHaveBeenCalledWith(EDIT_ID, 'doc-foto');
       expect(update).toHaveBeenCalledTimes(1);
       expect(navigate).toHaveBeenCalledWith(['/veiculos', EDIT_ID]);
     });
   });
 
   describe('retry com resposta perdida', () => {
-    it('relista os anexos: se a foto já chegou ao servidor, apaga e reenvia em vez de bater na duplicata', async () => {
+    it('relista os anexos: se a foto já chegou ao servidor, envia a nova e apaga a fantasma', async () => {
       await setup({ role: 'OWNER' });
       uploadDocument.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 504 })));
       fillValidVehicle();
