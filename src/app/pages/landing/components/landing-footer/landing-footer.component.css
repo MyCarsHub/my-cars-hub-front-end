@@ -120,3 +120,8 @@
 @media (hover: none) and (pointer: coarse) {
   .footer__cols a { min-height: 44px; display: flex; align-items: center; }
 }
+
+/* Escuro: o "preto da seção" viraria claro (var(--ink-dark) é tinta, e a tinta inverte). */
+:host-context(.dark) .footer {
+  background: var(--paper-alt);
+}

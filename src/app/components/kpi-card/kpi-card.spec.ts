@@ -36,7 +36,7 @@ describe('KpiCard', () => {
     expect(card(root, 'primary').className).toContain('bg-primary-500');
     expect(card(root, 'emerald').className).toContain('bg-emerald-600');
     expect(card(root, 'dark').className).toContain('bg-emerald-700');
-    expect(card(root, 'white').className).toContain('bg-white');
+    expect(card(root, 'white').className).toContain('bg-surface');
     for (const t of ['primary', 'emerald', 'dark', 'white']) {
       expect(card(root, t).className, t).toContain('rounded-2xl');
     }

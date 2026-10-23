@@ -73,7 +73,7 @@ class Host {
     <app-segmented-toggle
       [options]="options"
       [value]="'monthly'"
-      activeClass="text-neutral-900"
+      activeClass="text-fg"
       ariaLabel="Ordenação"
     />
   `,
@@ -152,8 +152,8 @@ describe('SegmentedToggle', () => {
 
   it('swaps the text colour between active and inactive options', () => {
     expect(segments()[0].className).toContain('text-white');
-    // neutral-600: contraste AA sobre o trilho bg-neutral-100 (#f5f5f5).
-    expect(segments()[1].className).toContain('text-neutral-600');
+    // neutral-600: contraste AA sobre o trilho bg-surface-sunken (#f5f5f5).
+    expect(segments()[1].className).toContain('text-fg-muted');
   });
 
   it('lets the consumer override the active text colour for a light pill', () => {
@@ -162,7 +162,7 @@ describe('SegmentedToggle', () => {
     const active = (light.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
       '[aria-checked="true"]',
     );
-    expect(active?.className).toContain('text-neutral-900');
+    expect(active?.className).toContain('text-fg');
     expect(active?.className).not.toContain('text-white');
   });
 

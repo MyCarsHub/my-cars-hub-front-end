@@ -1,10 +1,10 @@
-<div class="flex-1 flex flex-col bg-neutral-50" data-testid="driver-onboarding">
-  <header class="bg-white border-b border-neutral-200 px-4 pt-4 pb-3">
+<div class="flex-1 flex flex-col bg-surface-muted" data-testid="driver-onboarding">
+  <header class="bg-surface border-b border-edge px-4 pt-4 pb-3">
     <div class="mx-auto w-full max-w-lg">
       <div class="flex items-center justify-between gap-3">
         <img ngSrc="svg/logo-my-cars-hub.svg" width="34" height="26" priority alt="MyCarsHub" />
         <span
-          class="min-w-0 truncate rounded-full bg-neutral-100 px-3 py-1.5 text-sm text-neutral-800"
+          class="min-w-0 truncate rounded-full bg-surface-sunken px-3 py-1.5 text-sm text-fg-body"
           data-testid="company-chip"
           >{{ companyName() }} · {{ roleLabel() }}</span
         >
@@ -21,11 +21,11 @@
           <div
             class="h-1.5 flex-1 rounded-full transition-colors"
             [class.bg-primary-500]="n <= stepIndex() + 1"
-            [class.bg-neutral-200]="n > stepIndex() + 1"
+            [class.bg-surface-strong]="n > stepIndex() + 1"
           ></div>
         }
       </div>
-      <div class="mt-2 flex items-center justify-between text-sm text-neutral-600">
+      <div class="mt-2 flex items-center justify-between text-sm text-fg-muted">
         <span>Passo {{ stepIndex() + 1 }} de {{ totalSteps() }}</span>
         <span>{{ title() }}</span>
       </div>
@@ -41,11 +41,11 @@
       <!-- Steps 1-3 stay in the DOM (hidden): server errors survive going back to a step. -->
       @if (!confirmOnly()) {
         <div [hidden]="step() !== 'personal'">
-          <h1 class="text-2xl font-bold text-neutral-900">Seus dados</h1>
-          <p class="mt-2 text-sm text-neutral-600">
+          <h1 class="text-2xl font-bold text-fg">Seus dados</h1>
+          <p class="mt-2 text-sm text-fg-muted">
             Confira como {{ companyName() }} cadastrou você.
           </p>
-          <div class="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 space-y-4 shadow-sm">
+          <div class="mt-6 rounded-2xl border border-edge bg-surface p-4 space-y-4 shadow-sm">
             <app-form-field label="Nome completo" controlId="drv-name">
               <input
                 appFieldControl
@@ -53,7 +53,7 @@
                 [value]="fullName()"
                 type="text"
                 autocomplete="name"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-600"
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base text-fg-muted"
               />
             </app-form-field>
             <app-form-field
@@ -67,24 +67,24 @@
                 [formControl]="form.controls.rg"
                 type="text"
                 maxlength="15"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
-                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base
+                       text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors"
               />
             </app-form-field>
           </div>
-          <dl class="mt-4 rounded-2xl border border-neutral-200 bg-white text-sm divide-y divide-neutral-100">
+          <dl class="mt-4 rounded-2xl border border-edge bg-surface text-sm divide-y divide-edge-soft">
             <div class="flex items-center justify-between gap-3 px-4 py-3">
-              <dt class="text-neutral-600">CPF</dt>
-              <dd class="font-medium text-emerald-800">Confirmado</dd>
+              <dt class="text-fg-muted">CPF</dt>
+              <dd class="font-medium text-emerald-800 dark:text-emerald-200">Confirmado</dd>
             </div>
           </dl>
         </div>
 
         <div [hidden]="step() !== 'license'">
-          <h1 class="text-2xl font-bold text-neutral-900">Sua CNH</h1>
-          <p class="mt-2 text-sm text-neutral-600">Os dados da frente do documento.</p>
-          <div class="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 space-y-4 shadow-sm">
+          <h1 class="text-2xl font-bold text-fg">Sua CNH</h1>
+          <p class="mt-2 text-sm text-fg-muted">Os dados da frente do documento.</p>
+          <div class="mt-6 rounded-2xl border border-edge bg-surface p-4 space-y-4 shadow-sm">
             <app-form-field
               label="Número da CNH"
               controlId="drv-cnh"
@@ -101,8 +101,8 @@
                 autocapitalize="characters"
                 autocomplete="off"
                 (input)="onLicenseInput($event)"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
-                       text-neutral-800 tracking-wider focus:outline-none focus:ring-2
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base
+                       text-fg-body tracking-wider focus:outline-none focus:ring-2
                        focus:ring-primary-600 focus:border-primary-600 transition-colors"
               />
             </app-form-field>
@@ -116,8 +116,8 @@
               <select
                 appFieldControl
                 [formControl]="form.controls.licenseCategory"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
-                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base
+                       text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors"
               >
                 <option value="">Selecione</option>
@@ -137,8 +137,8 @@
                 appFieldControl
                 [formControl]="form.controls.licenseExpiry"
                 type="date"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
-                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base
+                       text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors"
               />
             </app-form-field>
@@ -146,9 +146,9 @@
         </div>
 
         <div [hidden]="step() !== 'address'" [formGroup]="form.controls.address">
-          <h1 class="text-2xl font-bold text-neutral-900">Seu endereço</h1>
-          <p class="mt-2 text-sm text-neutral-600">Digite o CEP e preenchemos o resto.</p>
-          <div class="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 space-y-4 shadow-sm">
+          <h1 class="text-2xl font-bold text-fg">Seu endereço</h1>
+          <p class="mt-2 text-sm text-fg-muted">Digite o CEP e preenchemos o resto.</p>
+          <div class="mt-6 rounded-2xl border border-edge bg-surface p-4 space-y-4 shadow-sm">
             <app-form-field
               label="CEP"
               controlId="drv-cep"
@@ -166,8 +166,8 @@
                 maxlength="9"
                 autocomplete="postal-code"
                 (blur)="onCepBlur()"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base
-                       text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-600
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base
+                       text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-600
                        focus:border-primary-600 transition-colors"
               />
             </app-form-field>
@@ -183,7 +183,7 @@
                 formControlName="street"
                 type="text"
                 autocomplete="address-line1"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base text-fg-body
                        focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               />
             </app-form-field>
@@ -193,7 +193,7 @@
                   appFieldControl
                   formControlName="number"
                   type="text"
-                  class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                  class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base text-fg-body
                          focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                 />
               </app-form-field>
@@ -202,7 +202,7 @@
                   appFieldControl
                   formControlName="complement"
                   type="text"
-                  class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                  class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base text-fg-body
                          focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                 />
               </app-form-field>
@@ -218,7 +218,7 @@
                 appFieldControl
                 formControlName="district"
                 type="text"
-                class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base text-fg-body
                        focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               />
             </app-form-field>
@@ -234,7 +234,7 @@
                   appFieldControl
                   formControlName="city"
                   type="text"
-                  class="w-full min-h-12 px-4 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                  class="w-full min-h-12 px-4 py-3 bg-surface-muted border rounded-xl text-base text-fg-body
                          focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                 />
               </app-form-field>
@@ -248,7 +248,7 @@
                 <select
                   appFieldControl
                   formControlName="uf"
-                  class="w-full min-h-12 px-3 py-3 bg-neutral-50 border rounded-xl text-base text-neutral-800
+                  class="w-full min-h-12 px-3 py-3 bg-surface-muted border rounded-xl text-base text-fg-body
                          focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                 >
                   <option value="">—</option>
@@ -264,8 +264,8 @@
 
       @if (confirmOnly() && step() === 'confirm') {
         <div>
-          <h1 class="text-2xl font-bold text-neutral-900">Confirme seu cadastro</h1>
-          <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+          <h1 class="text-2xl font-bold text-fg">Confirme seu cadastro</h1>
+          <p class="mt-2 text-sm text-fg-muted leading-relaxed">
             {{ companyName() }} já preencheu sua CNH e seu endereço. É só confirmar para entrar.
           </p>
         </div>
@@ -274,7 +274,7 @@
       @if (step() === 'done') {
         <div class="text-center">
           <div
-            class="mx-auto inline-flex size-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800"
+            class="mx-auto inline-flex size-14 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
             aria-hidden="true"
           >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -282,10 +282,10 @@
               <path d="M8 12.5l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </div>
-          <h1 class="mt-4 text-2xl font-bold text-neutral-900">
+          <h1 class="mt-4 text-2xl font-bold text-fg">
             Tudo pronto{{ firstName() ? ', ' + firstName() : '' }}!
           </h1>
-          <p class="mt-2 text-sm text-neutral-600">
+          <p class="mt-2 text-sm text-fg-muted">
             Você já faz parte de {{ companyName() }} como {{ roleLabel() }}.
           </p>
         </div>
@@ -293,10 +293,10 @@
     </div>
   </main>
 
-  <footer class="sticky bottom-0 bg-white border-t border-neutral-200 px-4 py-3">
+  <footer class="sticky bottom-0 bg-surface border-t border-edge px-4 py-3">
     <div class="mx-auto w-full max-w-lg">
       @if (step() !== 'done') {
-        <p class="mb-2 text-xs text-neutral-600" data-testid="finish-later-note">
+        <p class="mb-2 text-xs text-fg-muted" data-testid="finish-later-note">
           Você pode terminar depois. Seus dados são salvos ao concluir.
         </p>
       }
@@ -307,7 +307,7 @@
             (click)="back()"
             [disabled]="submitting()"
             class="min-h-12 min-w-11 inline-flex items-center justify-center rounded-xl px-4 py-3
-                   text-base font-semibold text-neutral-800 hover:bg-neutral-100 focus:outline-none
+                   text-base font-semibold text-fg-body hover:bg-surface-sunken focus:outline-none
                    focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-60"
           >
             Voltar

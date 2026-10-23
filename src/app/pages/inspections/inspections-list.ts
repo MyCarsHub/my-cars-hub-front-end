@@ -462,7 +462,7 @@ export class InspectionsList implements OnInit {
   }
 
   protected chipClass(status: InspectionStatus): string {
-    return INSPECTION_STATUS_META[status]?.chip ?? 'bg-neutral-100 text-neutral-700';
+    return INSPECTION_STATUS_META[status]?.chip ?? 'bg-surface-sunken text-fg-soft';
   }
 
   protected statusLabel(status: InspectionStatus): string {

@@ -10,6 +10,11 @@
   <title>MyCarsHub</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Tema (Claro/Escuro/Automatico) aplicado ANTES da primeira pintura, para o modo escuro
+       nao piscar claro. Sincrono e no topo do <head> de proposito. Arquivo de mesma origem,
+       nao inline: a CSP de producao nao aceita script inline (ver o bloco do gtag abaixo).
+       A chave e a regra vivem em `ThemeService` — ver `public/theme-init.js`. -->
+  <script src="/theme-init.js"></script>
   <meta name="theme-color" content="#EB3F00">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="svg/logo-my-cars-hub.svg">

@@ -83,7 +83,7 @@ function bucketize(points: DailyPointDto[]): Bucket[] {
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         @if (chart(); as c) {
-            <div class="flex justify-between items-baseline text-[11px] text-gray-500 mb-1 tabular-nums">
+            <div class="flex justify-between items-baseline text-[11px] text-gray-500 dark:text-fg-subtle mb-1 tabular-nums">
                 <span>Pico: {{ c.peakLabel }}</span>
                 <span class="hidden sm:flex gap-3 items-center">
                     <span class="flex items-center gap-1">
@@ -91,7 +91,7 @@ function bucketize(points: DailyPointDto[]): Bucket[] {
                         Realizado
                     </span>
                     <span class="flex items-center gap-1">
-                        <span class="inline-block w-2.5 h-2.5 rounded bg-emerald-200"></span>
+                        <span class="inline-block w-2.5 h-2.5 rounded bg-emerald-200 dark:bg-emerald-500/25"></span>
                         Previsto
                     </span>
                 </span>
@@ -116,13 +116,13 @@ function bucketize(points: DailyPointDto[]): Bucket[] {
                     </rect>
                 }
             </svg>
-            <div class="flex justify-between items-baseline text-[10px] sm:text-xs text-gray-400 mt-2 tabular-nums">
+            <div class="flex justify-between items-baseline text-[10px] sm:text-xs text-gray-400 dark:text-fg-faint mt-2 tabular-nums">
                 <span class="truncate">{{ c.startLabel }}</span>
                 <span class="sm:hidden">Pico: {{ c.peakLabel }}</span>
                 <span class="truncate">{{ c.endLabel }}</span>
             </div>
         } @else {
-            <p class="text-sm text-gray-500 text-center py-10">Sem dados no período.</p>
+            <p class="text-sm text-gray-500 dark:text-fg-subtle text-center py-10">Sem dados no período.</p>
         }
     `,
 })

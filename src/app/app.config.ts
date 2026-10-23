@@ -24,6 +24,7 @@ import { PageTitleStrategy } from './services/page-title.strategy';
 import { prerenderApiBaseInterceptor } from './services/prerender-api-base.interceptor';
 import { ImpersonationService } from './services/impersonation.service';
 import { TenantCachesService } from './services/tenant-caches.service';
+import { ThemeService } from './services/theme.service';
 import { TelemetryErrorHandler } from './services/telemetry-error-handler';
 import { environment } from '../environments/environment';
 
@@ -66,6 +67,8 @@ export const appConfig: ApplicationConfig = {
     provideEnvironmentInitializer(() => {
       inject(ImpersonationService);
       inject(TenantCachesService);
+      // Mantém o tema em dia desde o boot (o `theme-init.js` já pintou o primeiro quadro).
+      inject(ThemeService);
     }),
     { provide: TitleStrategy, useClass: PageTitleStrategy },
     provideServiceWorker('ngsw-worker.js', {

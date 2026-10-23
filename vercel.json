@@ -75,6 +75,15 @@
       ]
     },
     {
+      "source": "/theme-init.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/gtag-init.js",
       "headers": [
         {

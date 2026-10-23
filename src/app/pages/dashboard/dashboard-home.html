@@ -5,7 +5,7 @@
     <!-- Error banner -->
     @if (error(); as msg) {
         <div
-            class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100 mb-4"
+            class="rounded-lg bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-sm p-3 border border-red-100 dark:border-red-500/20 mb-4"
             role="alert"
         >
             {{ msg }}
@@ -27,7 +27,7 @@
             <a
                 [routerLink]="['/veiculos', 'novo']"
                 [queryParams]="{ ativacao: '1' }"
-                class="block mt-1 font-medium underline underline-offset-2 text-sky-800 hover:text-sky-900"
+                class="block mt-1 font-medium underline underline-offset-2 text-sky-800 dark:text-sky-200 hover:text-sky-900 dark:hover:text-sky-200"
             >
                 Cadastrar meu primeiro veículo
             </a>
@@ -292,26 +292,26 @@
                         [class.lg:grid-cols-5]="hasSaleRevenue()"
                     >
                         <!-- Faturamento -->
-                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
                                 Faturamento
                             </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 mt-1 tabular-nums truncate">
+                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1 tabular-nums truncate">
                                 {{ billingLabel() }}
                             </p>
                             @if (billingDelta().label; as d) {
                                 <p
                                     class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
-                                    [class.text-emerald-600]="billingDelta().direction === 'up'"
-                                    [class.text-red-600]="billingDelta().direction === 'down'"
-                                    [class.text-gray-500]="billingDelta().direction === 'flat'"
+                                    [class.text-emerald-600]="billingDelta().direction === 'up'" [class.dark:text-emerald-300]="billingDelta().direction === 'up'"
+                                    [class.text-red-600]="billingDelta().direction === 'down'" [class.dark:text-red-300]="billingDelta().direction === 'down'"
+                                    [class.text-gray-500]="billingDelta().direction === 'flat'" [class.dark:text-fg-subtle]="billingDelta().direction === 'flat'"
                                 >
                                     @if (billingDelta().direction === 'up') { ▲ }
                                     @else if (billingDelta().direction === 'down') { ▼ }
                                     {{ d }} vs período anterior
                                 </p>
                             } @else {
-                                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
                                     contratos assinados no período
                                 </p>
                             }
@@ -324,10 +324,10 @@
                              venda, e inventá-la seria inventar dado. -->
                         @if (hasSaleRevenue()) {
                             <div
-                                class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col"
+                                class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col"
                                 data-sale-revenue-card
                             >
-                                <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
                                     Venda de veículos
                                 </p>
                                 <!-- `primary-700`: NÃO o verde do faturamento
@@ -337,66 +337,66 @@
                                      não representa um estado financeiro nesta
                                      grade, e é AA em texto pequeno (5,68:1). A
                                      MESMA cor vale no hub de gerência. -->
-                                <p class="text-lg sm:text-2xl font-semibold text-primary-700 mt-1 tabular-nums truncate">
+                                <p class="text-lg sm:text-2xl font-semibold text-primary-700 dark:text-primary-400 mt-1 tabular-nums truncate">
                                     {{ saleRevenueLabel() }}
                                 </p>
-                                <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                                <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
                                     entrada única no período
                                 </p>
                             </div>
                         }
 
                         <!-- Recebido -->
-                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
                                 Recebido
                             </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 mt-1 tabular-nums truncate">
+                            <p class="text-lg sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1 tabular-nums truncate">
                                 {{ receivedLabel() }}
                             </p>
                             @if (receivedDelta().label; as d) {
                                 <p
                                     class="text-[11px] sm:text-xs mt-1 tabular-nums truncate"
-                                    [class.text-emerald-600]="receivedDelta().direction === 'up'"
-                                    [class.text-red-600]="receivedDelta().direction === 'down'"
-                                    [class.text-gray-500]="receivedDelta().direction === 'flat'"
+                                    [class.text-emerald-600]="receivedDelta().direction === 'up'" [class.dark:text-emerald-300]="receivedDelta().direction === 'up'"
+                                    [class.text-red-600]="receivedDelta().direction === 'down'" [class.dark:text-red-300]="receivedDelta().direction === 'down'"
+                                    [class.text-gray-500]="receivedDelta().direction === 'flat'" [class.dark:text-fg-subtle]="receivedDelta().direction === 'flat'"
                                 >
                                     @if (receivedDelta().direction === 'up') { ▲ }
                                     @else if (receivedDelta().direction === 'down') { ▼ }
                                     {{ d }} vs anterior
                                 </p>
                             }
-                            <p class="text-[10px] sm:text-[11px] text-gray-500 mt-1 truncate tabular-nums">
+                            <p class="text-[10px] sm:text-[11px] text-gray-500 dark:text-fg-subtle mt-1 truncate tabular-nums">
                                 de {{ billingLabel() }} faturados
                             </p>
                         </div>
 
                         <!-- A receber -->
-                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
                                 A receber
                             </p>
-                            <p class="text-lg sm:text-2xl font-semibold text-amber-600 mt-1 tabular-nums truncate">
+                            <p class="text-lg sm:text-2xl font-semibold text-amber-600 dark:text-amber-300 mt-1 tabular-nums truncate">
                                 {{ pendingChargesLabel() }}
                             </p>
-                            <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
                                 cobranças pendentes no período
                             </p>
                         </div>
 
                         <!-- Inadimplência aluguel -->
-                        <div class="rounded-xl bg-white border border-gray-200 p-3 min-w-0 flex flex-col">
-                            <p class="text-[11px] sm:text-xs text-gray-500 uppercase tracking-wide truncate">
+                        <div class="rounded-xl bg-surface border border-gray-200 dark:border-edge p-3 min-w-0 flex flex-col">
+                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle uppercase tracking-wide truncate">
                                 Inadimplência aluguel
                             </p>
                             <p
                                 class="text-lg sm:text-2xl font-semibold mt-1 tabular-nums truncate"
-                                [class.text-red-600]="hasOverdue()"
-                                [class.text-gray-900]="!hasOverdue()"
+                                [class.text-red-600]="hasOverdue()" [class.dark:text-red-300]="hasOverdue()"
+                                [class.text-gray-900]="!hasOverdue()" [class.dark:text-fg]="!hasOverdue()"
                             >
                                 {{ overdueChargesLabel() }}
                             </p>
-                            <p class="text-[11px] sm:text-xs text-gray-500 mt-1 truncate">
+                            <p class="text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle mt-1 truncate">
                                 cobranças vencidas ou falhas
                             </p>
                         </div>
@@ -405,10 +405,10 @@
                     <!-- Faturamento últimos 6 meses -->
                     <div class="mt-6 min-w-0">
                         <div class="flex items-baseline justify-between mb-2">
-                            <h3 class="text-sm font-medium text-gray-800">
+                            <h3 class="text-sm font-medium text-gray-800 dark:text-fg-body">
                                 Faturamento últimos 6 meses
                             </h3>
-                            <span class="text-[11px] text-gray-500">
+                            <span class="text-[11px] text-gray-500 dark:text-fg-subtle">
                                 clique em um mês para filtrar
                             </span>
                         </div>
@@ -423,7 +423,7 @@
                              quebra no mobile. -->
                         @if (monthlyChartNote(); as chartNote) {
                             <p
-                                class="mt-2 text-[11px] sm:text-xs text-gray-500 break-words"
+                                class="mt-2 text-[11px] sm:text-xs text-gray-500 dark:text-fg-subtle break-words"
                                 data-monthly-chart-note
                             >
                                 {{ chartNote }}
@@ -450,7 +450,7 @@
         <div class="min-w-0">
             <app-page-card title="Calendário financeiro">
                         <div class="p-4 min-w-0">
-                            <p class="text-xs text-gray-500 mb-3">
+                            <p class="text-xs text-gray-500 dark:text-fg-subtle mb-3">
                                 Recebimentos projetados por frequência do contrato (diária,
                                 semanal, mensal) + multas e manutenções do período.
                             </p>
@@ -469,10 +469,10 @@
                         <div class="p-4 min-w-0">
                             @if (loading() && !summary()) {
                                 <div class="space-y-3">
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
                                 </div>
                             } @else {
                                 <app-status-bar-chart [buckets]="rentalsByStatusRows()" />
@@ -483,10 +483,10 @@
                         <div class="p-4 min-w-0">
                             @if (loading() && !summary()) {
                                 <div class="space-y-3">
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
-                                    <div class="h-6 rounded bg-gray-100 animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                                    <div class="h-6 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
                                 </div>
                             } @else {
                                 <app-status-bar-chart [buckets]="vehiclesByStatusRows()" />
@@ -502,9 +502,9 @@
             <div class="p-4 min-w-0">
                 @if (loading() && !summary()) {
                     <div class="space-y-3">
-                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
                     </div>
                 } @else {
                     <app-bar-chart [data]="topVehiclesByRevenue()" />
@@ -515,9 +515,9 @@
             <div class="p-4 min-w-0">
                 @if (loading() && !summary()) {
                     <div class="space-y-3">
-                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-10 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                        <div class="h-10 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
                     </div>
                 } @else {
                     <app-bar-chart [data]="topDriversByRevenue()" />
@@ -534,12 +534,12 @@
                     <button
                         type="button"
                         class="min-h-[44px] px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-                        [class.bg-gray-900]="offenderMode() === 'vehicles'"
+                        [class.bg-gray-900]="offenderMode() === 'vehicles'" [class.dark:bg-neutral-700]="offenderMode() === 'vehicles'"
                         [class.text-white]="offenderMode() === 'vehicles'"
-                        [class.border-gray-900]="offenderMode() === 'vehicles'"
-                        [class.bg-white]="offenderMode() !== 'vehicles'"
-                        [class.text-gray-600]="offenderMode() !== 'vehicles'"
-                        [class.border-gray-200]="offenderMode() !== 'vehicles'"
+                        [class.border-gray-900]="offenderMode() === 'vehicles'" [class.dark:border-neutral-200]="offenderMode() === 'vehicles'"
+                        [class.bg-surface]="offenderMode() !== 'vehicles'"
+                        [class.text-gray-600]="offenderMode() !== 'vehicles'" [class.dark:text-fg-muted]="offenderMode() !== 'vehicles'"
+                        [class.border-gray-200]="offenderMode() !== 'vehicles'" [class.dark:border-edge]="offenderMode() !== 'vehicles'"
                         (click)="setOffenderMode('vehicles')"
                     >
                         Veículos
@@ -547,12 +547,12 @@
                     <button
                         type="button"
                         class="min-h-[44px] px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-                        [class.bg-gray-900]="offenderMode() === 'drivers'"
+                        [class.bg-gray-900]="offenderMode() === 'drivers'" [class.dark:bg-neutral-700]="offenderMode() === 'drivers'"
                         [class.text-white]="offenderMode() === 'drivers'"
-                        [class.border-gray-900]="offenderMode() === 'drivers'"
-                        [class.bg-white]="offenderMode() !== 'drivers'"
-                        [class.text-gray-600]="offenderMode() !== 'drivers'"
-                        [class.border-gray-200]="offenderMode() !== 'drivers'"
+                        [class.border-gray-900]="offenderMode() === 'drivers'" [class.dark:border-neutral-200]="offenderMode() === 'drivers'"
+                        [class.bg-surface]="offenderMode() !== 'drivers'"
+                        [class.text-gray-600]="offenderMode() !== 'drivers'" [class.dark:text-fg-muted]="offenderMode() !== 'drivers'"
+                        [class.border-gray-200]="offenderMode() !== 'drivers'" [class.dark:border-edge]="offenderMode() !== 'drivers'"
                         (click)="setOffenderMode('drivers')"
                     >
                         Motoristas
@@ -560,9 +560,9 @@
                 </div>
                 @if (loading() && !summary()) {
                     <div class="space-y-2">
-                        <div class="h-14 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-14 rounded bg-gray-100 animate-pulse"></div>
-                        <div class="h-14 rounded bg-gray-100 animate-pulse"></div>
+                        <div class="h-14 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                        <div class="h-14 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
+                        <div class="h-14 rounded bg-gray-100 dark:bg-surface-sunken animate-pulse"></div>
                     </div>
                 } @else {
                     <app-top-offenders-table

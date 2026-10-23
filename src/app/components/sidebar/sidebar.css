@@ -30,3 +30,12 @@ nav::-webkit-scrollbar-thumb {
 nav::-webkit-scrollbar-thumb:hover {
     background-color: #9ca3af;
 }
+
+/* Escuro: o polegar cinza-claro acima brilharia sobre a barra escura. */
+:host-context(.dark) nav::-webkit-scrollbar-thumb {
+    background-color: var(--color-edge-strong);
+}
+
+:host-context(.dark) nav::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-fg-faint);
+}

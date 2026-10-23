@@ -21,20 +21,20 @@ export type WelcomeDestination = 'vehicle' | 'dashboard';
     <div class="py-2">
       <div class="flex flex-col items-center text-center mb-7">
         <div
-          class="w-14 h-14 rounded-full bg-success-50 border border-success-100 flex items-center justify-center mb-4"
+          class="w-14 h-14 rounded-full bg-success-50 dark:bg-success-500/10 border border-success-100 dark:border-success-500/20 flex items-center justify-center mb-4"
           aria-hidden="true"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-            stroke-linejoin="round" class="text-success-700">
+            stroke-linejoin="round" class="text-success-700 dark:text-emerald-300">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
 
-        <h2 class="text-2xl font-bold text-gray-900 mb-2 focus:outline-none" tabindex="-1">
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-fg mb-2 focus:outline-none" tabindex="-1">
           Sua conta está pronta
         </h2>
-        <p class="text-sm text-gray-600 leading-relaxed max-w-[38ch]">
+        <p class="text-sm text-gray-600 dark:text-fg-muted leading-relaxed max-w-[38ch]">
           Falta um passo para o painel trabalhar para você: cadastrar o primeiro veículo da
           sua frota.
         </p>
@@ -42,7 +42,7 @@ export type WelcomeDestination = 'vehicle' | 'dashboard';
 
       <button
         type="button"
-        class="group w-full flex items-center gap-3 p-4 rounded-xl border border-primary-300 bg-white
+        class="group w-full flex items-center gap-3 p-4 rounded-xl border border-primary-300 dark:border-primary-500/40 bg-surface
                text-left transition-all min-h-[64px]
                hover:border-primary-500 hover:shadow-sm
                focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
@@ -52,8 +52,8 @@ export type WelcomeDestination = 'vehicle' | 'dashboard';
         (click)="finish.emit('vehicle')"
       >
         <span
-          class="w-10 h-10 shrink-0 rounded-lg bg-primary-50 text-primary-500
-                 flex items-center justify-center group-hover:bg-primary-100 transition-colors"
+          class="w-10 h-10 shrink-0 rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-500 dark:text-primary-400
+                 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-500/15 transition-colors"
           aria-hidden="true"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -65,10 +65,10 @@ export type WelcomeDestination = 'vehicle' | 'dashboard';
           </svg>
         </span>
         <span class="flex-1 min-w-0">
-          <span class="block text-sm font-semibold text-gray-900">
+          <span class="block text-sm font-semibold text-gray-900 dark:text-fg">
             Cadastrar meu primeiro veículo
           </span>
-          <span class="block text-xs text-gray-500">
+          <span class="block text-xs text-gray-500 dark:text-fg-subtle">
             Destrava o painel, os alertas e as cobranças.
           </span>
         </span>
@@ -81,7 +81,7 @@ export type WelcomeDestination = 'vehicle' | 'dashboard';
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true"
-            class="shrink-0 text-gray-400 group-hover:text-primary-500 transition-colors">
+            class="shrink-0 text-gray-400 dark:text-fg-faint group-hover:text-primary-500 dark:group-hover:text-primary-400 transition-colors">
             <line x1="5" y1="12" x2="19" y2="12" />
             <polyline points="12 5 19 12 12 19" />
           </svg>
@@ -91,9 +91,9 @@ export type WelcomeDestination = 'vehicle' | 'dashboard';
       <div class="mt-4 text-center">
         <button
           type="button"
-          class="min-h-11 px-3 py-2 text-sm font-medium text-gray-500 rounded-lg
-                 hover:text-gray-800 hover:bg-gray-100 transition-colors
-                 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400
+          class="min-h-11 px-3 py-2 text-sm font-medium text-gray-500 dark:text-fg-subtle rounded-lg
+                 hover:text-gray-800 dark:hover:text-fg-body hover:bg-gray-100 dark:hover:bg-surface-sunken transition-colors
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:focus-visible:ring-neutral-500
                  disabled:opacity-40 disabled:cursor-not-allowed"
           [disabled]="loading()"
           (click)="finish.emit('dashboard')"

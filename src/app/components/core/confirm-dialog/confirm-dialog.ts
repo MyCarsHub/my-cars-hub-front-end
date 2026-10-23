@@ -117,11 +117,11 @@ export class ConfirmDialog {
 
   protected iconBgClass(): string {
     const map: Record<string, string> = {
-      info: 'bg-primary-50',
-      warning: 'bg-amber-50',
-      danger: 'bg-red-50',
+      info: 'bg-primary-50 dark:bg-primary-500/10',
+      warning: 'bg-amber-50 dark:bg-amber-500/10',
+      danger: 'bg-red-50 dark:bg-red-500/10',
     };
-    return map[this.variant()] ?? 'bg-primary-50';
+    return map[this.variant()] ?? 'bg-primary-50 dark:bg-primary-500/10';
   }
 
   protected confirmBtnClass(): string {

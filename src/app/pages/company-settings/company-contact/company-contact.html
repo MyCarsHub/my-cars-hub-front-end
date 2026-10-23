@@ -17,25 +17,25 @@
         variant="info"
         message="Os dados de contato da empresa são editados apenas pelo proprietário."
       />
-      <p class="text-sm text-neutral-600">
+      <p class="text-sm text-fg-muted">
         Você continua com acesso às Configurações; só este bloco é exclusivo do proprietário,
         porque é ele que identifica a empresa nos contratos gerados.
       </p>
     } @else if (loading()) {
       <div class="space-y-3" aria-hidden="true">
-        <div class="h-32 rounded-xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-64 rounded-xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-32 rounded-xl bg-surface-sunken animate-pulse"></div>
+        <div class="h-64 rounded-xl bg-surface-sunken animate-pulse"></div>
       </div>
       <p class="sr-only" role="status" aria-live="polite">Carregando os dados de contato…</p>
     } @else if (loadError(); as message) {
       <app-alert-banner variant="error" [message]="message" />
-      <p class="text-sm text-neutral-600">
+      <p class="text-sm text-fg-muted">
         O formulário não é exibido sem os dados atuais: salvar substitui o bloco de contato
         inteiro, então editar às cegas apagaria o que já está gravado.
       </p>
       <button
         type="button"
-        class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+        class="w-full sm:w-auto inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl border border-edge text-sm font-semibold text-fg-soft hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
         (click)="reload()"
       >
         Tentar de novo
@@ -71,7 +71,7 @@
                   placeholder="(00) 00000-0000"
                   maxlength="15"
                   (input)="onPhoneInput($event)"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
 
@@ -91,7 +91,7 @@
                   formControlName="email"
                   placeholder="contato@empresa.com.br"
                   maxlength="180"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
             </div>
@@ -119,7 +119,7 @@
                   maxlength="9"
                   (input)="onCepInput($event)"
                   (blur)="onCepBlur($event)"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
                 <!--
                   Linha de status da consulta (WCAG 4.1.3), sempre montada.
@@ -146,7 +146,7 @@
                   `pattern`.
                 -->
                 @if (cepLookupError(); as message) {
-                  <p class="text-xs text-amber-700 mt-1" [id]="cepWarningId" data-cep-lookup-error>
+                  <p class="text-xs text-amber-700 dark:text-amber-300 mt-1" [id]="cepWarningId" data-cep-lookup-error>
                     {{ message }}
                   </p>
                   <!--
@@ -161,7 +161,7 @@
                   -->
                   <button
                     type="button"
-                    class="mt-1 inline-flex items-center min-h-[44px] text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 rounded"
+                    class="mt-1 inline-flex items-center min-h-[44px] text-xs font-semibold text-amber-800 dark:text-amber-200 underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 rounded"
                     [class.opacity-60]="cepLoading()"
                     [class.cursor-not-allowed]="cepLoading()"
                     [attr.aria-disabled]="cepLoading() ? 'true' : null"
@@ -192,7 +192,7 @@
                   formControlName="addressStreet"
                   placeholder="Rua das Flores"
                   maxlength="180"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
 
@@ -210,7 +210,7 @@
                   formControlName="addressNumber"
                   placeholder="123"
                   maxlength="20"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
 
@@ -229,7 +229,7 @@
                   formControlName="addressComplement"
                   placeholder="Sala 4"
                   maxlength="120"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
 
@@ -247,7 +247,7 @@
                   formControlName="addressDistrict"
                   placeholder="Centro"
                   maxlength="120"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
 
@@ -266,7 +266,7 @@
                   formControlName="addressCity"
                   placeholder="São Paulo"
                   maxlength="120"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
 
@@ -285,7 +285,7 @@
                   formControlName="addressUf"
                   placeholder="SP"
                   maxlength="2"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 uppercase text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 uppercase text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
             </div>
@@ -308,7 +308,7 @@
                   formControlName="representativeName"
                   placeholder="Maria Souza"
                   maxlength="200"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
 
@@ -326,7 +326,7 @@
                   formControlName="representativeRole"
                   placeholder="Sócia-administradora"
                   maxlength="120"
-                  class="w-full min-h-[44px] bg-neutral-50 border rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+                  class="w-full min-h-[44px] bg-surface-muted border rounded-xl px-4 py-3 text-fg-body focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                 />
               </app-form-field>
             </div>

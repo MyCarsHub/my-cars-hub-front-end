@@ -105,11 +105,11 @@ export class InsuranceDetail implements OnInit {
 
   protected readonly statusBadge = computed<{ label: string; chip: string }>(() => {
     const i = this.insurance();
-    if (!i) return { label: '—', chip: 'bg-neutral-100 text-neutral-700' };
+    if (!i) return { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
     const meta = INSURANCE_STATUS_META[i.status];
     return meta
       ? { label: meta.label, chip: meta.chip }
-      : { label: i.status, chip: 'bg-neutral-100 text-neutral-700' };
+      : { label: i.status, chip: 'bg-surface-sunken text-fg-soft' };
   });
 
   /** Badge de vencimento derivado de `daysToExpiry` (calculado no backend). */
@@ -118,10 +118,10 @@ export class InsuranceDetail implements OnInit {
     if (!i || i.status !== 'ACTIVE') return null;
     const days = i.daysToExpiry;
     if (days == null) return null;
-    if (days < 0) return { label: 'Vencida', chip: 'bg-rose-100 text-rose-700' };
-    if (days <= 7) return { label: `Vence em ${days} dia(s)`, chip: 'bg-rose-100 text-rose-700' };
-    if (days <= 30) return { label: `Vence em ${days} dias`, chip: 'bg-amber-100 text-amber-800' };
-    return { label: `Vence em ${days} dias`, chip: 'bg-emerald-100 text-emerald-700' };
+    if (days < 0) return { label: 'Vencida', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
+    if (days <= 7) return { label: `Vence em ${days} dia(s)`, chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
+    if (days <= 30) return { label: `Vence em ${days} dias`, chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
+    return { label: `Vence em ${days} dias`, chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' };
   });
 
   protected readonly coverageText = computed<string>(() => {

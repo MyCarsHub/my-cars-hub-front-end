@@ -5,10 +5,12 @@ import {
   OnDestroy,
   computed,
   effect,
+  inject,
   input,
   viewChild,
 } from '@angular/core';
 import type { ChartConfiguration } from 'chart.js';
+import { ThemeService } from '../../../services/theme.service';
 import {
   BarController,
   BarElement,
@@ -296,6 +298,7 @@ export class LineChart implements OnDestroy {
   }
   readonly heightPx = input(160);
 
+  private readonly theme = inject(ThemeService);
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
 
   private chart: Chart<'line' | 'bar', number[], string> | null = null;
@@ -339,8 +342,11 @@ export class LineChart implements OnDestroy {
       // context" no console do servidor e no output dos testes.
       if (!canvas.getContext('2d')) return;
 
+      // Lido aqui dentro de propósito: trocar o tema redesenha o gráfico (o canvas não
+      // acompanha classe nem variável CSS sozinho).
+      const dark = this.theme.resolved() === 'dark';
       const primary = this.token('--color-primary-500', '#F63B04');
-      const surface = this.token('--color-white', '#FFFFFF');
+      const surface = this.token('--color-surface', '#FFFFFF');
 
       // O dataset de BARRA e o de LINHA divergem de verdade: `fill`, `tension`
       // e `segment` so existem na linha, e a marca do periodo parcial muda de
@@ -363,7 +369,11 @@ export class LineChart implements OnDestroy {
             data: points.map((p) => p.value),
             label: this.valueLabel(),
             borderColor: primary,
-            backgroundColor: this.token('--color-primary-low', '#FFE6DD'),
+            // No escuro o tint claro da marca acenderia uma faixa salmão; a mesma marca a
+            // 18% sobre a superfície escura faz o papel do `primary-low`.
+            backgroundColor: dark
+              ? 'rgba(246, 59, 4, 0.18)'
+              : this.token('--color-primary-low', '#FFE6DD'),
             borderWidth: MAIN_SERIES_STYLE.borderWidth,
             pointRadius: (ctx: { dataIndex: number }) =>
               points[ctx.dataIndex]?.partial ? 5 : points.length > 14 ? 0 : 3,
@@ -405,7 +415,7 @@ export class LineChart implements OnDestroy {
             type: 'line' as const,
             data: reference.map((p) => p.value),
             label: this.referenceLabel(),
-            borderColor: this.token('--color-neutral-400', '#A1A1A1'),
+            borderColor: this.token('--color-fg-faint', '#A1A1A1'),
             borderWidth: REFERENCE_STYLE.borderWidth,
             borderDash: [...REFERENCE_STYLE.borderDash],
             pointRadius: REFERENCE_STYLE.pointRadius,
@@ -453,6 +463,7 @@ export class LineChart implements OnDestroy {
               // Contagem de pessoas não tem casa decimal: sem isto o eixo
               // chega a mostrar "1,5 usuários" quando o pico é pequeno.
               ticks: {
+                ...this.tickColor(dark),
                 precision: 0,
                 maxTicksLimit: 5,
                 // Sem este callback o eixo imprime o valor CRU — em centavos,
@@ -460,11 +471,11 @@ export class LineChart implements OnDestroy {
                 callback: (value: string | number) =>
                   formatChartValue(Number(value), this.valueFormat()),
               },
-              grid: { color: this.token('--color-neutral-200', '#E5E5E5') },
+              grid: { color: this.token('--color-edge', '#E5E5E5') },
             },
             x: {
               // 30 datas não cabem em 360px; o Chart.js rareia os rótulos.
-              ticks: { maxTicksLimit: 6, autoSkip: true },
+              ticks: { maxTicksLimit: 6, autoSkip: true, ...this.tickColor(dark) },
               grid: { display: false },
             },
           },
@@ -485,6 +496,14 @@ export class LineChart implements OnDestroy {
    * não entende classe do Tailwind, então o token é resolvido em tempo de
    * execução; o `fallback` cobre SSR, onde não há `document`.
    */
+  /**
+   * Rótulos dos eixos. No claro fica o padrão do Chart.js (o tema claro não muda); no
+   * escuro o `#666` padrão daria ~3:1 sobre a superfície, e o `fg-subtle` dá 6,9:1.
+   */
+  private tickColor(dark: boolean): { color?: string } {
+    return dark ? { color: this.token('--color-fg-subtle', '#A1A1AA') } : {};
+  }
+
   private token(name: string, fallback: string): string {
     if (typeof document === 'undefined') return fallback;
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();

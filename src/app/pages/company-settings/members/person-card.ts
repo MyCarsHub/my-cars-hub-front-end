@@ -14,7 +14,7 @@ const CHIP =
   host: { class: 'block' },
   template: `
     <article
-      class="rounded-xl border border-neutral-200 bg-white p-4 space-y-3"
+      class="rounded-xl border border-edge bg-surface p-4 space-y-3"
       [attr.data-member-row]="row().member ? '' : null"
       [attr.data-invite-row]="row().invite ? '' : null"
       [attr.aria-busy]="busy() ? 'true' : null"
@@ -24,15 +24,15 @@ const CHIP =
           class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold"
           [class]="
             row().invite
-              ? 'bg-white border-2 border-dashed border-neutral-300 text-neutral-500'
-              : 'bg-neutral-200 text-neutral-700'
+              ? 'bg-surface border-2 border-dashed border-edge-strong text-fg-subtle'
+              : 'bg-surface-strong text-fg-soft'
           "
           aria-hidden="true"
         >
           {{ row().initial }}
         </div>
         <div class="flex-1 min-w-0">
-          <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-neutral-900">
+          <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-fg">
             <span class="break-words min-w-0">{{ row().name }}</span>
             <span data-status-chip [class]="chip + ' ' + tone[row().statusChip.tone]">{{
               row().statusChip.label
@@ -50,9 +50,9 @@ const CHIP =
             }
           </p>
           @if (row().invite?.subtitle || row().member) {
-            <p data-email class="text-xs text-neutral-500 break-all mt-1">{{ row().email }}</p>
+            <p data-email class="text-xs text-fg-subtle break-all mt-1">{{ row().email }}</p>
           }
-          <p data-role-line class="text-sm text-neutral-600 mt-1">
+          <p data-role-line class="text-sm text-fg-muted mt-1">
             {{ row().roleLabel }} ·
             {{ row().invite ? 'enviado' : 'desde' }}
             <span class="tabular-nums">{{ row().date | date: 'dd/MM/yyyy' }}</span>
@@ -66,8 +66,8 @@ const CHIP =
             [attr.aria-label]="'Ações para ' + row().name"
             aria-haspopup="dialog"
             (click)="actions.emit(row())"
-            class="w-11 h-11 -mt-2 -mr-2 inline-flex items-center justify-center rounded-lg text-neutral-500
-                   hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+            class="w-11 h-11 -mt-2 -mr-2 inline-flex items-center justify-center rounded-lg text-fg-subtle
+                   hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                    focus-visible:ring-offset-2 disabled:opacity-60"
           >
             <app-members-icon name="kebab" [size]="18" />
@@ -81,8 +81,8 @@ const CHIP =
             [attr.aria-label]="'Ações do convite de ' + row().name"
             aria-haspopup="dialog"
             (click)="actions.emit(row())"
-            class="w-11 h-11 -mt-2 -mr-2 inline-flex items-center justify-center rounded-lg text-neutral-500
-                   hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+            class="w-11 h-11 -mt-2 -mr-2 inline-flex items-center justify-center rounded-lg text-fg-subtle
+                   hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                    focus-visible:ring-offset-2 disabled:opacity-60"
           >
             <app-members-icon name="kebab" [size]="18" />
@@ -96,33 +96,33 @@ const CHIP =
           }}</span>
         </p>
         @if (invite.deliveryFailed) {
-          <p class="text-xs text-rose-700 break-words">
+          <p class="text-xs text-rose-700 dark:text-rose-300 break-words">
             O e-mail não chegou a {{ invite.email }}. Confira o endereço ou reenvie.
           </p>
         }
         @if (busy()) {
-          <p role="status" class="text-xs text-neutral-500">Atualizando o convite…</p>
+          <p role="status" class="text-xs text-fg-subtle">Atualizando o convite…</p>
         } @else if (invite.canAct && (invite.deliveryFailed || invite.expired)) {
           <button
             type="button"
             data-inline-resend
             (click)="resend.emit(invite)"
             class="min-h-[44px] px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2
-                   border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 w-full sm:w-auto
+                   border border-edge bg-surface text-fg-soft hover:bg-surface-muted w-full sm:w-auto
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
           >
             <app-members-icon name="resend" [size]="16" />Reenviar convite
           </button>
         } @else if (invite.lockedReason) {
-          <p class="text-xs text-neutral-500">{{ invite.lockedReason }}</p>
+          <p class="text-xs text-fg-subtle">{{ invite.lockedReason }}</p>
         }
       } @else if (row().member; as member) {
         @if (busy()) {
-          <p role="status" class="text-xs text-neutral-500">
+          <p role="status" class="text-xs text-fg-subtle">
             {{ member.isSelf ? 'Saindo…' : 'Removendo…' }}
           </p>
         } @else if (member.lockedReason) {
-          <p class="text-xs text-neutral-500">{{ member.lockedReason }}</p>
+          <p class="text-xs text-fg-subtle">{{ member.lockedReason }}</p>
         }
       }
     </article>

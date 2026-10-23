@@ -88,13 +88,13 @@ const FOCUS_PAD_Y = 8;
                             [title]="bar.label + ' — ' + bar.value"
                             (click)="barClick.emit(bar.month)"
                         >
-                            <span class="text-[10px] text-gray-500 tabular-nums mb-1 truncate w-full text-center">
+                            <span class="text-[10px] text-gray-500 dark:text-fg-subtle tabular-nums mb-1 truncate w-full text-center">
                                 {{ bar.value }}
                             </span>
                             <div
                                 class="w-full rounded-t-md transition-all duration-500 min-h-[2px]"
                                 [class.bg-primary-500]="bar.isCurrent"
-                                [class.bg-primary-200]="!bar.isCurrent"
+                                [class.bg-primary-200]="!bar.isCurrent" [class.dark:bg-primary-500/25]="!bar.isCurrent"
                                 [style.height.%]="bar.heightPct"
                             ></div>
                         </button>
@@ -102,7 +102,7 @@ const FOCUS_PAD_Y = 8;
                 </div>
                 <div class="flex gap-1 sm:gap-2 mt-2">
                     @for (bar of bars(); track bar.month) {
-                        <span class="flex-1 text-[10px] sm:text-xs text-gray-600 text-center truncate">
+                        <span class="flex-1 text-[10px] sm:text-xs text-gray-600 dark:text-fg-muted text-center truncate">
                             {{ bar.label }}
                         </span>
                     }
@@ -110,18 +110,18 @@ const FOCUS_PAD_Y = 8;
             } @else {
                 @if (isLineEmpty()) {
                     <div
-                        class="w-full h-40 rounded-xl border border-dashed border-neutral-200 bg-neutral-50/60 flex flex-col items-center justify-center text-center px-4"
+                        class="w-full h-40 rounded-xl border border-dashed border-edge bg-surface-muted/60 flex flex-col items-center justify-center text-center px-4"
                         role="status"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
                              fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                             stroke-linejoin="round" class="text-neutral-400 mb-2" aria-hidden="true">
+                             stroke-linejoin="round" class="text-fg-faint mb-2" aria-hidden="true">
                             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                         </svg>
-                        <p class="text-sm font-medium text-neutral-700">
+                        <p class="text-sm font-medium text-fg-soft">
                             Sem aluguéis concluídos nos últimos 6 meses.
                         </p>
-                        <p class="text-xs text-neutral-500 mt-1">
+                        <p class="text-xs text-fg-subtle mt-1">
                             O ticket médio aparecerá aqui assim que houver aluguéis finalizados.
                         </p>
                     </div>
@@ -153,6 +153,7 @@ const FOCUS_PAD_Y = 8;
                                     [attr.y1]="tick.y"
                                     [attr.y2]="tick.y"
                                     stroke="#f2f3f6"
+                                    class="dark:stroke-edge"
                                     stroke-width="1"
                                 />
                             }
@@ -165,6 +166,7 @@ const FOCUS_PAD_Y = 8;
                                     text-anchor="end"
                                     font-size="9"
                                     fill="#9ca3af"
+                                    class="dark:fill-fg-subtle"
                                     style="font-variant-numeric: tabular-nums; letter-spacing: 0.3px;"
                                 >
                                     {{ tick.label }}
@@ -178,6 +180,7 @@ const FOCUS_PAD_Y = 8;
                                 [attr.y1]="plotB"
                                 [attr.y2]="plotB"
                                 stroke="#d1d5db"
+                                class="dark:stroke-edge-strong"
                                 stroke-width="1"
                             />
 
@@ -207,7 +210,7 @@ const FOCUS_PAD_Y = 8;
                                       non-scaling-stroke keeps it 2 CSS px at any viewport.
                                     -->
                                     <rect
-                                        class="opacity-0 transition-opacity duration-150 group-focus-visible:opacity-100"
+                                        class="opacity-0 transition-opacity duration-150 group-focus-visible:opacity-100 dark:stroke-fg"
                                         [attr.x]="l.focusX"
                                         [attr.y]="focusBoxY"
                                         [attr.width]="focusBoxW"
@@ -238,6 +241,7 @@ const FOCUS_PAD_Y = 8;
                                             r="3"
                                             fill="#ffffff"
                                             stroke="#d1d5db"
+                                            class="dark:fill-surface dark:stroke-edge-strong"
                                             stroke-width="1.25"
                                         >
                                             <title>{{ l.label }} — {{ l.value }}</title>
@@ -256,6 +260,7 @@ const FOCUS_PAD_Y = 8;
                                             r="4.5"
                                             fill="#6366f1"
                                             stroke="#ffffff"
+                                            class="dark:stroke-surface"
                                             stroke-width="2"
                                         >
                                             <title>{{ l.label }} — {{ l.value }}</title>
@@ -267,6 +272,7 @@ const FOCUS_PAD_Y = 8;
                                             r="3.75"
                                             fill="#6366f1"
                                             stroke="#ffffff"
+                                            class="dark:stroke-surface"
                                             stroke-width="1.75"
                                         >
                                             <title>{{ l.label }} — {{ l.value }}</title>
@@ -285,6 +291,7 @@ const FOCUS_PAD_Y = 8;
                                         font-size="10.5"
                                         font-weight="600"
                                         fill="#4f46e5"
+                                        class="dark:fill-indigo-300"
                                         style="font-variant-numeric: tabular-nums; letter-spacing: 0.2px;"
                                     >
                                         {{ l.shortValue }}
@@ -300,6 +307,8 @@ const FOCUS_PAD_Y = 8;
                                     text-anchor="middle"
                                     font-size="9.5"
                                     [attr.fill]="l.isCurrent ? '#4f46e5' : '#6b7280'"
+                                    [class.dark:fill-indigo-300]="l.isCurrent"
+                                    [class.dark:fill-fg-subtle]="!l.isCurrent"
                                     [attr.font-weight]="l.isCurrent ? '600' : '400'"
                                     style="font-variant-numeric: tabular-nums; letter-spacing: 0.3px;"
                                 >

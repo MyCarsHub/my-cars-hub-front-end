@@ -6,20 +6,20 @@
   (click)="close()"
 >
   <div
-    class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-y-auto
+    class="w-full sm:max-w-md bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-y-auto
            max-h-[calc(100dvh-2rem)]"
     (click)="$event.stopPropagation()"
   >
-    <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
-      <h2 id="support-modal-title" class="text-lg font-semibold text-neutral-900">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-edge-soft">
+      <h2 id="support-modal-title" class="text-lg font-semibold text-fg">
         Suporte
       </h2>
       <button
         type="button"
         (click)="close()"
         aria-label="Fechar"
-        class="min-h-11 min-w-11 -mr-2 inline-flex items-center justify-center text-neutral-400
-               hover:text-neutral-700 transition-colors rounded-lg
+        class="min-h-11 min-w-11 -mr-2 inline-flex items-center justify-center text-fg-faint
+               hover:text-fg-soft transition-colors rounded-lg
                focus:outline-none focus:ring-2 focus:ring-primary-600"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -32,13 +32,13 @@
     </div>
 
     <form [formGroup]="form" class="px-5 py-4 space-y-4">
-      <p class="text-sm text-neutral-800 leading-relaxed">
+      <p class="text-sm text-fg-body leading-relaxed">
         Você está prestes a acionar um suporte humanizado.
       </p>
-      <p class="text-sm text-neutral-600 leading-relaxed">
+      <p class="text-sm text-fg-muted leading-relaxed">
         Para acelerar, mande seu problema seguido do
-        <strong class="text-neutral-800">CPF/CNPJ</strong> e
-        <strong class="text-neutral-800">email</strong> que utiliza na plataforma.
+        <strong class="text-fg-body">CPF/CNPJ</strong> e
+        <strong class="text-fg-body">email</strong> que utiliza na plataforma.
       </p>
 
       <app-form-field
@@ -54,11 +54,11 @@
           formControlName="message"
           placeholder="Descreva seu problema, CPF/CNPJ e o email cadastrado..."
           maxlength="2000"
-          class="w-full bg-neutral-50 border rounded-xl px-4 py-3 text-base sm:text-sm text-neutral-800
+          class="w-full bg-surface-muted border rounded-xl px-4 py-3 text-base sm:text-sm text-fg-body
                  focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                  resize-y min-h-[120px]"
         ></textarea>
-        <p class="text-xs text-neutral-400 tabular-nums text-right mt-1">
+        <p class="text-xs text-fg-faint tabular-nums text-right mt-1">
           {{ messageLength() }} / 2000
         </p>
       </app-form-field>
@@ -87,31 +87,31 @@
 
     @if (tickets().length > 0) {
       <section
-        class="px-5 py-4 border-t border-neutral-100"
+        class="px-5 py-4 border-t border-edge-soft"
         aria-labelledby="support-my-tickets"
         data-my-tickets
       >
-        <h3 id="support-my-tickets" class="text-sm font-semibold text-neutral-800">
+        <h3 id="support-my-tickets" class="text-sm font-semibold text-fg-body">
           Seus chamados
         </h3>
         <ul class="mt-3 space-y-2">
           @for (ticket of tickets(); track ticket.id) {
-            <li class="rounded-xl border border-neutral-200 p-3">
+            <li class="rounded-xl border border-edge p-3">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-xs text-neutral-600 tabular-nums">{{ ticketDate(ticket) }}</span>
+                <span class="text-xs text-fg-muted tabular-nums">{{ ticketDate(ticket) }}</span>
                 <span
                   class="px-2 py-0.5 rounded-md text-[11px] font-semibold border"
-                  [class.bg-emerald-50]="ticket.status === 'RESOLVED'"
-                  [class.text-emerald-800]="ticket.status === 'RESOLVED'"
-                  [class.border-emerald-200]="ticket.status === 'RESOLVED'"
-                  [class.bg-neutral-50]="ticket.status !== 'RESOLVED'"
-                  [class.text-neutral-800]="ticket.status !== 'RESOLVED'"
-                  [class.border-neutral-200]="ticket.status !== 'RESOLVED'"
+                  [class.bg-emerald-50]="ticket.status === 'RESOLVED'" [class.dark:bg-emerald-500/10]="ticket.status === 'RESOLVED'"
+                  [class.text-emerald-800]="ticket.status === 'RESOLVED'" [class.dark:text-emerald-200]="ticket.status === 'RESOLVED'"
+                  [class.border-emerald-200]="ticket.status === 'RESOLVED'" [class.dark:border-emerald-500/30]="ticket.status === 'RESOLVED'"
+                  [class.bg-surface-muted]="ticket.status !== 'RESOLVED'"
+                  [class.text-fg-body]="ticket.status !== 'RESOLVED'"
+                  [class.border-edge]="ticket.status !== 'RESOLVED'"
                 >
                   {{ statusLabel(ticket) }}
                 </span>
               </div>
-              <p class="mt-1.5 text-sm text-neutral-800 break-words line-clamp-3">
+              <p class="mt-1.5 text-sm text-fg-body break-words line-clamp-3">
                 {{ ticket.message }}
               </p>
             </li>
@@ -120,12 +120,12 @@
       </section>
     }
 
-    <div class="px-5 py-4 border-t border-neutral-100 flex flex-col sm:flex-row gap-2">
+    <div class="px-5 py-4 border-t border-edge-soft flex flex-col sm:flex-row gap-2">
       <button
         type="button"
         (click)="close()"
-        class="w-full sm:flex-1 px-4 py-3 rounded-xl border border-neutral-200 text-neutral-700
-               hover:bg-neutral-50 text-sm font-medium transition-colors"
+        class="w-full sm:flex-1 px-4 py-3 rounded-xl border border-edge text-fg-soft
+               hover:bg-surface-muted text-sm font-medium transition-colors"
       >
         Cancelar
       </button>

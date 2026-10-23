@@ -279,10 +279,12 @@ export class ContractEsteira {
   protected readonly primaryBtn =
     'inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 text-[17px] font-semibold text-white shadow-md transition hover:bg-primary-600 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
   protected readonly secondaryBtn =
-    'inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 text-base font-semibold text-neutral-800 transition-colors hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
+    'inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-edge-strong bg-surface px-5 text-base font-semibold text-fg-body transition-colors hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
   protected readonly cardOn =
-    'border-neutral-200 shadow-sm hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-lg active:translate-y-0 motion-reduce:hover:translate-y-0';
-  protected readonly cardOff = 'border-dashed border-neutral-300 bg-neutral-50/60';
+    'border-edge shadow-sm hover:-translate-y-0.5 hover:border-edge-strong hover:shadow-lg active:translate-y-0 motion-reduce:hover:translate-y-0';
+  // Sem `bg-*` próprio: o `bg-white` estático do card sempre venceu o antigo
+  // `bg-neutral-50/60` daqui (ordem do Tailwind), então o fundo real era branco — e continua.
+  protected readonly cardOff = 'border-dashed border-edge-strong';
 
   protected readonly doubts = computed(() => this.ai.draft()?.doubts ?? []);
   protected readonly notMaskedLabels = computed(() =>

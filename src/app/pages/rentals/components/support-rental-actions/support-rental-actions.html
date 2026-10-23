@@ -1,9 +1,9 @@
 <section
-  class="rounded-xl border border-rose-200 bg-rose-50/40 p-4 space-y-3"
+  class="rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50/40 dark:bg-rose-500/10 p-4 space-y-3"
   aria-labelledby="support-actions-title"
   data-testid="support-rental-actions"
 >
-  <h2 id="support-actions-title" class="text-base font-semibold text-neutral-900">
+  <h2 id="support-actions-title" class="text-base font-semibold text-fg">
     Modo edição: ações do administrador
   </h2>
 
@@ -18,7 +18,7 @@
           type="button"
           (click)="askCancel()"
           data-testid="support-cancel-first"
-          class="mt-2 block w-full min-h-[44px] rounded-xl border border-rose-300 bg-white px-4 py-2 text-base font-semibold text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
+          class="mt-2 block w-full min-h-[44px] rounded-xl border border-rose-300 dark:border-rose-500/40 bg-surface px-4 py-2 text-base font-semibold text-rose-700 dark:text-rose-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
         >
           Cancelar aluguel
         </button>
@@ -28,7 +28,7 @@
 
   @if (cancelResult(); as removals) {
     <div data-testid="support-cancel-result">
-      <h3 class="mb-2 text-base font-semibold text-neutral-900">Cobranças após o cancelamento</h3>
+      <h3 class="mb-2 text-base font-semibold text-fg">Cobranças após o cancelamento</h3>
       <app-charge-removal-list [removals]="removals" />
     </div>
   }
@@ -39,7 +39,7 @@
         type="button"
         (click)="askCancel()"
         data-testid="support-cancel"
-        class="w-full sm:w-auto min-h-[44px] rounded-xl border border-rose-300 bg-white px-4 py-2 text-base font-semibold text-rose-700 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
+        class="w-full sm:w-auto min-h-[44px] rounded-xl border border-rose-300 dark:border-rose-500/40 bg-surface px-4 py-2 text-base font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
       >
         Cancelar aluguel
       </button>

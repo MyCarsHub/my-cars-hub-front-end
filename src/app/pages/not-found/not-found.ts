@@ -27,7 +27,7 @@ import { environment } from '../../../environments/environment';
   imports: [RouterLink],
   template: `
     <main
-      class="relative min-h-dvh bg-gray-50 flex flex-col items-center px-4 pt-6 pb-8 overflow-hidden"
+      class="relative min-h-dvh bg-canvas flex flex-col items-center px-4 pt-6 pb-8 overflow-hidden"
     >
       <section
         class="flex-1 w-full max-w-[1040px] flex flex-col items-center justify-center gap-6 text-center py-4"
@@ -37,7 +37,7 @@ import { environment } from '../../../environments/environment';
             aria-hidden="true"
             class="absolute left-0 right-0 top-1/2 -translate-y-[58%] text-center select-none
                    pointer-events-none font-['Sora'] font-extrabold tracking-[-0.04em] leading-none
-                   text-neutral-900/[0.06] text-[clamp(150px,36vw,440px)]"
+                   text-fg/[0.06] text-[clamp(150px,36vw,440px)]"
             >404</span
           >
           <picture class="relative block w-full max-w-[960px]">
@@ -55,11 +55,11 @@ import { environment } from '../../../environments/environment';
 
         <div class="flex flex-col items-center gap-2">
           <h1
-            class="font-bold tracking-tight leading-tight text-neutral-900 text-[clamp(24px,5vw,36px)]"
+            class="font-bold tracking-tight leading-tight text-fg text-[clamp(24px,5vw,36px)]"
           >
             Opa, essa página saiu da rota.
           </h1>
-          <p class="text-base text-neutral-600 max-w-[40ch] leading-relaxed">
+          <p class="text-base text-fg-muted max-w-[40ch] leading-relaxed">
             O endereço que você abriu não existe ou foi movido. Volte ao painel e siga de onde
             parou.
           </p>
@@ -79,7 +79,7 @@ import { environment } from '../../../environments/environment';
             type="button"
             data-back
             (click)="back()"
-            class="min-h-[44px] text-sm font-medium text-neutral-600 hover:text-neutral-900 rounded-xl
+            class="min-h-[44px] text-sm font-medium text-fg-muted hover:text-fg rounded-xl
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                    focus-visible:ring-offset-2"
           >
@@ -89,13 +89,13 @@ import { environment } from '../../../environments/environment';
       </section>
 
       @if (supportUrl) {
-        <p class="relative text-sm text-neutral-600 text-center">
+        <p class="relative text-sm text-fg-muted text-center">
           Precisa de ajuda?
           <a
             [href]="supportUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="font-medium text-primary-700 hover:text-primary-500 underline-offset-2 hover:underline
+            class="font-medium text-primary-700 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-400 underline-offset-2 hover:underline
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"
             >Fale com o suporte</a
           >

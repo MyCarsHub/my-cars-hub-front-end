@@ -28,7 +28,7 @@ import { LayoutStore, SwitcherEntry } from '../core/layouts/layout.store';
                 [disabled]="layout.switchingTenantId() !== null"
                 (click)="select(entry)"
                 class="w-full min-h-12 flex items-center gap-3 px-3 py-2 rounded-xl text-left
-                       transition-colors hover:bg-gray-100 disabled:opacity-60 disabled:cursor-wait
+                       transition-colors hover:bg-gray-100 dark:hover:bg-surface-sunken disabled:opacity-60 disabled:cursor-wait
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 [class.bg-primary-500/10]="isCurrent(entry)"
               >
@@ -36,16 +36,16 @@ import { LayoutStore, SwitcherEntry } from '../core/layouts/layout.store';
                   class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold"
                   [class.bg-primary-500]="isCurrent(entry)"
                   [class.text-white]="isCurrent(entry)"
-                  [class.bg-gray-200]="!isCurrent(entry)"
-                  [class.text-gray-700]="!isCurrent(entry)"
+                  [class.bg-gray-200]="!isCurrent(entry)" [class.dark:bg-surface-strong]="!isCurrent(entry)"
+                  [class.text-gray-700]="!isCurrent(entry)" [class.dark:text-fg-soft]="!isCurrent(entry)"
                   >{{ entry.initial }}</span
                 >
                 <span class="flex-1 min-w-0">
-                  <span class="block text-sm font-semibold text-gray-900 truncate">{{ entry.name }}</span>
+                  <span class="block text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ entry.name }}</span>
                   <span
                     class="block text-xs truncate"
-                    [class.text-primary-700]="isCurrent(entry)"
-                    [class.text-gray-500]="!isCurrent(entry)"
+                    [class.text-primary-700]="isCurrent(entry)" [class.dark:text-primary-400]="isCurrent(entry)"
+                    [class.text-gray-500]="!isCurrent(entry)" [class.dark:text-fg-subtle]="!isCurrent(entry)"
                   >
                     @if (layout.switchingTenantId() === entry.id) {
                       Trocando…
@@ -65,7 +65,7 @@ import { LayoutStore, SwitcherEntry } from '../core/layouts/layout.store';
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="text-primary-700 shrink-0"
+                    class="text-primary-700 dark:text-primary-400 shrink-0"
                     aria-hidden="true"
                     data-testid="current-check"
                   >
@@ -81,19 +81,19 @@ import { LayoutStore, SwitcherEntry } from '../core/layouts/layout.store';
                 data-testid="switcher-onboarding"
               >
                 <span
-                  class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold bg-gray-200 text-gray-700"
+                  class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold bg-gray-200 dark:bg-surface-strong text-gray-700 dark:text-fg-soft"
                   >{{ entry.initial }}</span
                 >
                 <span class="flex-1 min-w-0">
-                  <span class="block text-sm font-semibold text-gray-900 truncate">{{ entry.name }}</span>
-                  <span class="block text-xs text-gray-500 truncate">{{ entry.roleLabel }}</span>
+                  <span class="block text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ entry.name }}</span>
+                  <span class="block text-xs text-gray-500 dark:text-fg-subtle truncate">{{ entry.roleLabel }}</span>
                 </span>
                 <button
                   type="button"
                   [disabled]="layout.switchingTenantId() !== null"
                   (click)="finishOnboarding(entry)"
-                  class="shrink-0 min-h-11 px-3 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold
-                         hover:bg-amber-200 disabled:opacity-60 disabled:cursor-wait focus:outline-none
+                  class="shrink-0 min-h-11 px-3 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 text-xs font-semibold
+                         hover:bg-amber-200 dark:hover:bg-amber-500/25 disabled:opacity-60 disabled:cursor-wait focus:outline-none
                          focus-visible:ring-2 focus-visible:ring-primary-400"
                 >
                   Concluir cadastro
@@ -105,10 +105,10 @@ import { LayoutStore, SwitcherEntry } from '../core/layouts/layout.store';
       </ul>
 
       @if (layout.pendingInvites().length > 0) {
-        <section class="mt-3 pt-3 border-t border-gray-100" aria-labelledby="switcher-invites-title">
+        <section class="mt-3 pt-3 border-t border-gray-100 dark:border-edge-soft" aria-labelledby="switcher-invites-title">
           <h3
             id="switcher-invites-title"
-            class="px-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
+            class="px-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-fg-subtle"
           >
             Convites para você
           </h3>
@@ -116,17 +116,17 @@ import { LayoutStore, SwitcherEntry } from '../core/layouts/layout.store';
             @for (invite of layout.pendingInvites(); track $index) {
               <li class="min-h-12 flex items-center gap-3 px-3 py-2" data-testid="switcher-invite">
                 <span
-                  class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold border border-dashed border-gray-300 text-gray-500"
+                  class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-semibold border border-dashed border-gray-300 dark:border-edge-strong text-gray-500 dark:text-fg-subtle"
                   >{{ invite.companyName.charAt(0).toUpperCase() }}</span
                 >
                 <span class="flex-1 min-w-0">
-                  <span class="block text-sm font-semibold text-gray-900 truncate">{{ invite.companyName }}</span>
-                  <span class="block text-xs text-gray-500 truncate">{{ invite.roleLabel }}</span>
+                  <span class="block text-sm font-semibold text-gray-900 dark:text-fg truncate">{{ invite.companyName }}</span>
+                  <span class="block text-xs text-gray-500 dark:text-fg-subtle truncate">{{ invite.roleLabel }}</span>
                 </span>
               </li>
             }
           </ul>
-          <p class="px-3 pt-1 text-xs text-gray-600">
+          <p class="px-3 pt-1 text-xs text-gray-600 dark:text-fg-muted">
             Abra o link do convite no seu e-mail para aceitar.
           </p>
         </section>

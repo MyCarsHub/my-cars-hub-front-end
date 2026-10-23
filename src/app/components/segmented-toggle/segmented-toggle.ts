@@ -30,7 +30,7 @@ export interface SegmentedToggleOption<T> {
 }
 
 const CONTAINER_BASE = 'inline-flex items-center gap-1 rounded-full p-1';
-const CONTAINER_CHROME = 'bg-neutral-100 border border-neutral-200';
+const CONTAINER_CHROME = 'bg-surface-sunken border border-edge';
 
 /**
  * Sem `text-*` aqui de propósito: o tamanho vem do `textClass`, senão duas
@@ -47,9 +47,9 @@ const SEGMENT_BASE =
   'cursor-pointer inline-flex items-center gap-2 min-h-[44px] transition-colors duration-200 ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
 const SEGMENT_ACTIVE = 'text-white';
-/* neutral-600, não 500: o trilho default é bg-neutral-100 (#f5f5f5) e
+/* neutral-600, não 500: o trilho default é bg-surface-sunken (#f5f5f5) e
    #737373 sobre ele dá 4,34:1 — reprova AA. #525252 dá 7,17:1. */
-const SEGMENT_INACTIVE = 'text-neutral-600 hover:text-neutral-900';
+const SEGMENT_INACTIVE = 'text-fg-muted hover:text-fg';
 
 /* O chip é texto de 10,5px: precisa dos 4,5:1 cheios, e o fundo dele é o
    pill JÁ pintado — ou seja, o contraste conta a composição, não a cor do

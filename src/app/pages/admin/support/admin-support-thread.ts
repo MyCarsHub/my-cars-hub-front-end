@@ -22,23 +22,23 @@ import {
   host: { class: 'block' },
   template: `
     @if (replies().length === 0) {
-      <p class="text-sm text-neutral-500">
+      <p class="text-sm text-fg-subtle">
         Nenhuma resposta ainda. A primeira resposta será enviada ao autor do ticket.
       </p>
     } @else {
       <ol class="space-y-3 list-none">
         @for (reply of replies(); track reply.id) {
-          <li class="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+          <li class="rounded-xl border border-edge bg-surface-muted p-3">
             <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-              <span class="text-sm font-medium text-neutral-900 break-words">
+              <span class="text-sm font-medium text-fg break-words">
                 {{ reply.authorName || 'Administrador removido' }}
               </span>
-              <time class="text-[11px] text-neutral-500 tabular-nums" [attr.datetime]="reply.createdDate">
+              <time class="text-[11px] text-fg-subtle tabular-nums" [attr.datetime]="reply.createdDate">
                 {{ reply.createdDate | date: 'dd/MM/yyyy HH:mm' }}
               </time>
             </div>
 
-            <p class="text-sm text-neutral-800 mt-1.5 whitespace-pre-wrap break-words">
+            <p class="text-sm text-fg-body mt-1.5 whitespace-pre-wrap break-words">
               {{ reply.message }}
             </p>
 
@@ -49,7 +49,7 @@ import {
               >
                 {{ emailLabel(reply.emailStatus) }}
               </span>
-              <span class="text-[11px] text-neutral-600 break-words">
+              <span class="text-[11px] text-fg-muted break-words">
                 {{ emailHint(reply.emailStatus) }}
               </span>
             </p>
@@ -67,7 +67,7 @@ export class AdminSupportThread {
   }
 
   protected emailChip(status: SupportTicketReplyEmailStatus): string {
-    return SUPPORT_REPLY_EMAIL_STATUS_META[status]?.chip ?? 'bg-neutral-200 text-neutral-800';
+    return SUPPORT_REPLY_EMAIL_STATUS_META[status]?.chip ?? 'bg-surface-strong text-fg-body';
   }
 
   protected emailHint(status: SupportTicketReplyEmailStatus): string {

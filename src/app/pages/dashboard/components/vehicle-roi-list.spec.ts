@@ -126,7 +126,7 @@ describe('VehicleRoiList', () => {
       render([semCusto]);
       const li = (fixture.nativeElement as HTMLElement).querySelector('li');
 
-      expect(li?.className).toContain('border-neutral-200');
+      expect(li?.className).toContain('border-edge');
       expect(li?.className).not.toContain('border-rose-200');
     });
 

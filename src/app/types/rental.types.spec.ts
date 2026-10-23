@@ -91,14 +91,14 @@ describe('CHARGE_STATUS_META (via chargeStatusInfo)', () => {
       const info = chargeStatusInfo({ status, dueDate: null }, TODAY);
       expect(info, `status ${status} sem entrada no mapa`).toBeDefined();
       expect(info.label, `status ${status} sem rótulo`).toBeTruthy();
-      expect(info.chip, `status ${status} sem chip`).toMatch(/^bg-\S+\s+text-\S+$/);
+      expect(info.chip, `status ${status} sem chip`).toMatch(/^bg-\S+(\s+dark:bg-\S+)?\s+text-\S+(\s+dark:text-\S+)?$/);
     }
   });
 
   it('dá a DISPUTED o rótulo em português e o par roxo que passa AA (5.99:1)', () => {
     expect(chargeStatusInfo({ status: 'DISPUTED', dueDate: null }, TODAY)).toEqual({
       label: 'Contestada',
-      chip: 'bg-purple-100 text-purple-700',
+      chip: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300',
     });
   });
 

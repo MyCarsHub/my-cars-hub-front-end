@@ -14,25 +14,25 @@ interface ToastStyle {
 
 const KIND_STYLES: Record<NotificationKind, ToastStyle> = {
   info: {
-    container: 'bg-blue-50 border-blue-200 text-blue-900',
-    icon: 'text-blue-500',
+    container: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200',
+    icon: 'text-blue-500 dark:text-blue-300',
     iconPath:
       'M12 9v4m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z',
   },
   success: {
-    container: 'bg-emerald-50 border-emerald-200 text-emerald-900',
-    icon: 'text-emerald-500',
+    container: 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-200',
+    icon: 'text-emerald-500 dark:text-emerald-300',
     iconPath: 'M5 13l4 4L19 7',
   },
   warning: {
-    container: 'bg-amber-50 border-amber-200 text-amber-900',
-    icon: 'text-amber-500',
+    container: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200',
+    icon: 'text-amber-500 dark:text-amber-300',
     iconPath:
       'M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
   },
   error: {
-    container: 'bg-red-50 border-red-200 text-red-900',
-    icon: 'text-red-500',
+    container: 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200',
+    icon: 'text-red-500 dark:text-red-300',
     iconPath:
       'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M12 22a10 10 0 100-20 10 10 0 000 20z',
   },

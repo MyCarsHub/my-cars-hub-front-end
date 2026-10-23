@@ -185,12 +185,12 @@ export class MaintenancesList implements OnInit {
 
   protected typeInfo(t: MaintenanceType): { label: string; chip: string } {
     const o = MAINTENANCE_TYPE_OPTIONS.find((x) => x.value === t);
-    return o ? { label: o.label, chip: o.chip } : { label: t, chip: 'bg-neutral-100' };
+    return o ? { label: o.label, chip: o.chip } : { label: t, chip: 'bg-surface-sunken' };
   }
 
   protected statusInfo(s: MaintenanceStatus): { label: string; chip: string } {
     const o = MAINTENANCE_STATUS_OPTIONS.find((x) => x.value === s);
-    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-neutral-100' };
+    return o ? { label: o.label, chip: o.chip } : { label: s, chip: 'bg-surface-sunken' };
   }
 
   protected vehiclePlate(vehicleId: string): string {
@@ -232,8 +232,8 @@ export class MaintenancesList implements OnInit {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const days = Math.round((next - today) / 86400000);
-    if (days < 0) return { label: 'Vencida', chip: 'bg-rose-100 text-rose-700' };
-    if (days <= 30) return { label: `Próxima em ${days}d`, chip: 'bg-amber-100 text-amber-800' };
+    if (days < 0) return { label: 'Vencida', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
+    if (days <= 30) return { label: `Próxima em ${days}d`, chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
     return null;
   }
 

@@ -12,7 +12,8 @@
       class="inline-flex items-center shrink-0"
       aria-label="MyCarsHub — início"
     >
-      <img src="svg/logo-my-cars-hub-complete.svg" alt="MyCarsHub" class="h-6 md:h-[26px] w-auto block" />
+      <img src="svg/logo-my-cars-hub-complete.svg" alt="MyCarsHub" class="h-6 md:h-[26px] w-auto block dark:hidden" />
+      <img src="svg/logo-my-cars-hub-complete-dark.svg" alt="MyCarsHub" class="h-6 md:h-[26px] w-auto hidden dark:block" />
     </a>
 
     <p class="hidden md:block mx-auto text-sm font-medium text-ink/60 tracking-[-0.005em] truncate">
@@ -21,7 +22,7 @@
 
     <div class="ml-auto flex items-center gap-2 md:gap-3">
       <div
-        class="inline-flex items-center gap-0.5 rounded-full border border-rule bg-white/70 p-0.5"
+        class="inline-flex items-center gap-0.5 rounded-full border border-rule bg-surface/70 p-0.5"
         role="group"
         [attr.aria-label]="lang() === 'pt' ? 'Selecionar idioma' : 'Select language'"
       >

@@ -46,7 +46,7 @@ describe('TopOffendersTable', () => {
         });
 
         // Contraste AA: micro-labels dos cards usam neutral-500 (4,74:1), nunca neutral-400.
-        expect(host.querySelector('.text-neutral-400')).toBeNull();
+        expect(host.querySelector('.text-fg-faint')).toBeNull();
 
         const headers = Array.from(host.querySelectorAll('th')).map((th) => th.textContent?.trim());
         expect(headers).toEqual(['Item', 'Detalhe', 'Multas', 'Total']);

@@ -35,7 +35,7 @@ export const MAINTENANCE_STILL_DOWN = 'Ainda em manutenção. Tente de novo em a
   host: { class: 'block' },
   template: `
     <main
-      class="relative min-h-dvh bg-gray-50 flex flex-col items-center px-4 pt-6 pb-8 overflow-hidden"
+      class="relative min-h-dvh bg-canvas flex flex-col items-center px-4 pt-6 pb-8 overflow-hidden"
     >
       <section
         class="flex-1 w-full max-w-[1040px] flex flex-col items-center justify-center gap-6 text-center py-4"
@@ -54,11 +54,11 @@ export const MAINTENANCE_STILL_DOWN = 'Ainda em manutenção. Tente de novo em a
 
         <div class="flex flex-col items-center gap-2">
           <h1
-            class="font-bold tracking-tight leading-tight text-neutral-900 text-[clamp(24px,5vw,36px)]"
+            class="font-bold tracking-tight leading-tight text-fg text-[clamp(24px,5vw,36px)]"
           >
             Estamos em manutenção.
           </h1>
-          <p class="text-base text-neutral-600 max-w-[42ch] leading-relaxed">
+          <p class="text-base text-fg-muted max-w-[42ch] leading-relaxed">
             Estamos atualizando o MyCarsHub para deixá-lo melhor. Seus dados estão seguros e tudo
             volta ao normal em breve.
           </p>
@@ -81,7 +81,7 @@ export const MAINTENANCE_STILL_DOWN = 'Ainda em manutenção. Tente de novo em a
             role="status"
             aria-live="polite"
             data-status
-            class="text-sm text-neutral-600 min-h-5"
+            class="text-sm text-fg-muted min-h-5"
           >
             {{ message() }}
           </p>
@@ -89,13 +89,13 @@ export const MAINTENANCE_STILL_DOWN = 'Ainda em manutenção. Tente de novo em a
       </section>
 
       @if (supportUrl) {
-        <p class="relative text-sm text-neutral-600 text-center">
+        <p class="relative text-sm text-fg-muted text-center">
           Urgente?
           <a
             [href]="supportUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="font-medium text-primary-700 hover:text-primary-500 underline-offset-2 hover:underline
+            class="font-medium text-primary-700 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-400 underline-offset-2 hover:underline
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"
             >Fale com o suporte</a
           >

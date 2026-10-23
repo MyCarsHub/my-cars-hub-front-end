@@ -64,11 +64,11 @@ import { AdminService } from '../admin.service';
         class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
       >
         <div
-          class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-hidden"
+          class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full max-w-md pointer-events-auto overflow-hidden"
         >
           <div class="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 pb-3 sm:pb-4">
             <div
-              class="shrink-0 w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center"
+              class="shrink-0 w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-500/10 flex items-center justify-center"
               aria-hidden="true"
             >
               <svg
@@ -81,7 +81,7 @@ import { AdminService } from '../admin.service';
                 stroke-width="2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                class="text-primary-500"
+                class="text-primary-500 dark:text-primary-400"
               >
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                 <polyline points="22,6 12,13 2,6" />
@@ -90,13 +90,13 @@ import { AdminService } from '../admin.service';
             <div class="flex-1 min-w-0">
               <h2
                 id="admin-email-test-title"
-                class="text-base font-semibold text-neutral-900 leading-snug"
+                class="text-base font-semibold text-fg leading-snug"
               >
                 Testar templates de email
               </h2>
               <p
                 id="admin-email-test-description"
-                class="mt-1 text-sm text-neutral-500 leading-relaxed"
+                class="mt-1 text-sm text-fg-subtle leading-relaxed"
               >
                 Todos os 13 templates de email serão disparados com dados mock.
                 Verifique a caixa de entrada.
@@ -123,7 +123,7 @@ import { AdminService } from '../admin.service';
                 type="email"
                 autocomplete="email"
                 placeholder="voce@exemplo.com"
-                class="w-full min-h-[48px] px-3 py-2 rounded-xl border bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:bg-neutral-50 disabled:text-neutral-500"
+                class="w-full min-h-[48px] px-3 py-2 rounded-xl border bg-surface text-fg placeholder:text-fg-faint focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:bg-surface-muted disabled:text-fg-subtle"
               />
             </app-form-field>
 
@@ -138,7 +138,7 @@ import { AdminService } from '../admin.service';
                 type="button"
                 (click)="onCancel()"
                 [disabled]="loading()"
-                class="w-full sm:w-auto min-h-[48px] px-4 py-2.5 text-sm font-medium text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                class="w-full sm:w-auto min-h-[48px] px-4 py-2.5 text-sm font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-edge-strong cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancelar
               </button>

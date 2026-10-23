@@ -87,11 +87,11 @@ const UUID_PATTERN =
         class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
       >
         <div
-          class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-md pointer-events-auto overflow-y-auto max-h-[90vh]"
+          class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full max-w-md pointer-events-auto overflow-y-auto max-h-[90vh]"
         >
           <div class="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 pb-3 sm:pb-4">
             <div
-              class="shrink-0 w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center"
+              class="shrink-0 w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center"
               aria-hidden="true"
             >
               <svg
@@ -104,7 +104,7 @@ const UUID_PATTERN =
                 stroke-width="2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                class="text-amber-600"
+                class="text-amber-600 dark:text-amber-300"
               >
                 <path
                   d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
@@ -114,13 +114,13 @@ const UUID_PATTERN =
             <div class="flex-1 min-w-0">
               <h2
                 id="admin-ops-tools-title"
-                class="text-base font-semibold text-neutral-900 leading-snug"
+                class="text-base font-semibold text-fg leading-snug"
               >
                 Ferramentas operacionais
               </h2>
               <p
                 id="admin-ops-tools-description"
-                class="mt-1 text-sm text-neutral-500 leading-relaxed"
+                class="mt-1 text-sm text-fg-subtle leading-relaxed"
               >
                 Ações de suporte executadas direto na plataforma. Toda ação pede confirmação antes
                 de rodar.
@@ -131,13 +131,13 @@ const UUID_PATTERN =
           <!-- Única ferramenta de hoje: regenerar cronograma de cobrança.
                Ver o comentário da classe antes de adicionar uma segunda. -->
           <section
-            class="mx-4 sm:mx-6 mb-4 sm:mb-6 rounded-xl border border-neutral-200 p-3 sm:p-4"
+            class="mx-4 sm:mx-6 mb-4 sm:mb-6 rounded-xl border border-edge p-3 sm:p-4"
             aria-labelledby="admin-ops-regenerate-title"
           >
-            <h3 id="admin-ops-regenerate-title" class="text-sm font-semibold text-neutral-900">
+            <h3 id="admin-ops-regenerate-title" class="text-sm font-semibold text-fg">
               Regenerar cronograma de cobrança
             </h3>
-            <p class="mt-1 text-xs text-neutral-500 leading-relaxed">
+            <p class="mt-1 text-xs text-fg-subtle leading-relaxed">
               Materializa as cobranças que faltam em um aluguel ativo. É idempotente: cobranças já
               existentes não são duplicadas nem apagadas.
             </p>
@@ -159,7 +159,7 @@ const UUID_PATTERN =
                   autocomplete="off"
                   spellcheck="false"
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  class="w-full min-h-[48px] px-3 py-2 rounded-xl border bg-white text-neutral-900 font-mono text-sm placeholder:text-neutral-400 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:bg-neutral-50 disabled:text-neutral-500"
+                  class="w-full min-h-[48px] px-3 py-2 rounded-xl border bg-surface text-fg font-mono text-sm placeholder:text-fg-faint placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 disabled:bg-surface-muted disabled:text-fg-subtle"
                 />
               </app-form-field>
 
@@ -210,7 +210,7 @@ const UUID_PATTERN =
               type="button"
               (click)="onCancel()"
               [disabled]="loading()"
-              class="w-full min-h-[48px] px-4 py-2.5 text-sm font-medium text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full min-h-[48px] px-4 py-2.5 text-sm font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-edge-strong cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Fechar
             </button>

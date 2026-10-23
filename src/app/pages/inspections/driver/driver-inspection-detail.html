@@ -4,7 +4,7 @@
     data-driver-back
     [routerLink]="listLink()"
     class="-ml-1 mb-2 min-h-11 inline-flex items-center gap-1.5 px-1 rounded-lg text-sm font-medium
-           text-neutral-600 hover:text-neutral-900 focus:outline-none focus-visible:ring-2
+           text-fg-muted hover:text-fg focus:outline-none focus-visible:ring-2
            focus-visible:ring-primary-400"
   >
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -27,8 +27,8 @@
   <div class="flex flex-col gap-4">
     @if (loading()) {
       <div data-driver-detail-skeleton aria-hidden="true" class="flex flex-col gap-4">
-        <div class="h-36 rounded-2xl bg-neutral-200 animate-pulse"></div>
-        <div class="h-64 rounded-2xl bg-neutral-200 animate-pulse"></div>
+        <div class="h-36 rounded-2xl bg-surface-strong animate-pulse"></div>
+        <div class="h-64 rounded-2xl bg-surface-strong animate-pulse"></div>
       </div>
       <p class="sr-only" role="status">Carregando vistoria…</p>
     } @else if (loadError(); as message) {
@@ -50,12 +50,12 @@
         <div
           data-driver-rejected
           role="alert"
-          class="rounded-2xl border border-rose-200 bg-rose-50 p-4 flex flex-col gap-1.5"
+          class="rounded-2xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 p-4 flex flex-col gap-1.5"
         >
-          <p class="text-sm font-bold text-rose-900">
+          <p class="text-sm font-bold text-rose-900 dark:text-rose-200">
             A locadora recusou esta vistoria. Você precisa refazer.
           </p>
-          <p class="text-sm leading-relaxed text-rose-900 whitespace-pre-line break-words">
+          <p class="text-sm leading-relaxed text-rose-900 dark:text-rose-200 whitespace-pre-line break-words">
             @if (rejectionReason(); as reason) {
               Motivo: {{ reason }}
             } @else {
@@ -74,12 +74,12 @@
             Refazer vistoria
           </a>
           } @else if (canRedo() === 'no') {
-            <p data-driver-redo-elsewhere class="text-sm leading-relaxed text-rose-900">
+            <p data-driver-redo-elsewhere class="text-sm leading-relaxed text-rose-900 dark:text-rose-200">
               Esta não é a vistoria mais recente deste carro. Para saber o que fazer agora, veja
               <a [routerLink]="listLink()" class="underline font-semibold">Vistorias</a>.
             </p>
           } @else if (canRedo() === 'unknown') {
-            <p data-driver-redo-unknown class="text-sm leading-relaxed text-rose-900">
+            <p data-driver-redo-unknown class="text-sm leading-relaxed text-rose-900 dark:text-rose-200">
               Não conseguimos confirmar agora se esta é a mais recente. Para refazer, abra
               <a [routerLink]="listLink()" class="underline font-semibold">Vistorias</a>.
             </p>
@@ -92,8 +92,8 @@
           message="Suas fotos e o hodômetro foram enviados. A locadora vai conferir e te avisar."
         />
       } @else if (status() === 'PENDING') {
-        <div class="rounded-2xl border border-neutral-200 bg-white p-4 flex flex-col gap-3">
-          <p class="text-sm text-neutral-700">Esta vistoria ainda não foi enviada.</p>
+        <div class="rounded-2xl border border-edge bg-surface p-4 flex flex-col gap-3">
+          <p class="text-sm text-fg-soft">Esta vistoria ainda não foi enviada.</p>
           <a
             data-driver-continue
             [routerLink]="captureLink()"
@@ -109,14 +109,14 @@
 
       <section
         aria-labelledby="driver-summary-title"
-        class="rounded-2xl border border-neutral-200 bg-white shadow-sm px-4 sm:px-6 py-5 flex flex-col gap-4"
+        class="rounded-2xl border border-edge bg-surface shadow-sm px-4 sm:px-6 py-5 flex flex-col gap-4"
       >
-        <h2 id="driver-summary-title" class="text-base font-semibold text-neutral-800">Resumo</h2>
+        <h2 id="driver-summary-title" class="text-base font-semibold text-fg-body">Resumo</h2>
         <dl class="grid grid-cols-2 gap-x-4 gap-y-[18px]">
           @for (field of fields(); track field.label) {
             <div class="flex flex-col gap-0.5 min-w-0">
-              <dt class="text-xs uppercase tracking-wider text-neutral-600">{{ field.label }}</dt>
-              <dd data-driver-field class="text-sm font-medium leading-snug text-neutral-900 break-words">
+              <dt class="text-xs uppercase tracking-wider text-fg-muted">{{ field.label }}</dt>
+              <dd data-driver-field class="text-sm font-medium leading-snug text-fg break-words">
                 {{ field.value }}
               </dd>
             </div>
@@ -126,13 +126,13 @@
 
       <section
         aria-labelledby="driver-photos-title"
-        class="rounded-2xl border border-neutral-200 bg-white shadow-sm px-4 sm:px-6 py-5 flex flex-col gap-3.5"
+        class="rounded-2xl border border-edge bg-surface shadow-sm px-4 sm:px-6 py-5 flex flex-col gap-3.5"
       >
-        <h2 id="driver-photos-title" class="text-base font-semibold text-neutral-800">Fotos enviadas</h2>
+        <h2 id="driver-photos-title" class="text-base font-semibold text-fg-body">Fotos enviadas</h2>
         @if (photosLoading() && frames().length === 0) {
           <div aria-hidden="true" class="grid grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2.5">
             @for (n of [1, 2, 3, 4, 5, 6]; track n) {
-              <div class="aspect-square rounded-xl bg-neutral-100 animate-pulse"></div>
+              <div class="aspect-square rounded-xl bg-surface-sunken animate-pulse"></div>
             }
           </div>
         } @else if (photosError(); as message) {
@@ -149,7 +149,7 @@
             </button>
           </app-alert-banner>
         } @else {
-          <p data-driver-photo-summary class="text-sm text-neutral-600">{{ photoSummary() }}</p>
+          <p data-driver-photo-summary class="text-sm text-fg-muted">{{ photoSummary() }}</p>
           <div
             data-driver-photos
             class="grid grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2.5"
@@ -161,8 +161,8 @@
                   data-driver-photo
                   (click)="openPhoto.emit(frame.angle)"
                   [attr.aria-label]="'Ver foto: ' + frame.label"
-                  class="relative aspect-square rounded-xl overflow-hidden border border-neutral-200
-                         bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  class="relative aspect-square rounded-xl overflow-hidden border border-edge
+                         bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 >
                   @if (frame.signedUrl; as url) {
                     <img [src]="url" alt="" loading="lazy" (error)="imageError.emit()"
@@ -173,23 +173,23 @@
                     </span>
                   } @else {
                     <span class="absolute inset-0 flex flex-col items-center justify-center gap-1 p-1.5 text-center">
-                      <span class="text-xs font-semibold leading-tight text-neutral-800">{{ frame.label }}</span>
-                      <span class="text-xs leading-tight text-neutral-600">Toque para carregar</span>
+                      <span class="text-xs font-semibold leading-tight text-fg-body">{{ frame.label }}</span>
+                      <span class="text-xs leading-tight text-fg-muted">Toque para carregar</span>
                     </span>
                   }
                 </button>
               } @else {
                 <div
                   data-driver-photo-missing
-                  class="aspect-square rounded-xl border border-dashed border-neutral-300 bg-neutral-50 flex
-                         flex-col items-center justify-center gap-1.5 p-1.5 text-center text-neutral-400"
+                  class="aspect-square rounded-xl border border-dashed border-edge-strong bg-surface-muted flex
+                         flex-col items-center justify-center gap-1.5 p-1.5 text-center text-fg-faint"
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
                     <circle cx="12" cy="13" r="3.5" />
                   </svg>
-                  <span class="text-xs leading-tight text-neutral-600">{{ frame.label }}</span>
+                  <span class="text-xs leading-tight text-fg-muted">{{ frame.label }}</span>
                 </div>
               }
             }
@@ -198,8 +198,8 @@
             <button
               type="button"
               (click)="retryPhotos.emit()"
-              class="self-start min-h-11 px-4 rounded-xl border border-neutral-200 bg-white text-sm
-                     font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none
+              class="self-start min-h-11 px-4 rounded-xl border border-edge bg-surface text-sm
+                     font-semibold text-fg-soft hover:bg-surface-muted focus:outline-none
                      focus-visible:ring-2 focus-visible:ring-primary-400"
             >
               Recarregar fotos
@@ -212,9 +212,9 @@
         <section
           data-driver-report
           aria-label="Laudo"
-          class="rounded-2xl border border-neutral-200 bg-white shadow-sm px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3"
+          class="rounded-2xl border border-edge bg-surface shadow-sm px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3"
         >
-          <span class="shrink-0 size-11 rounded-xl bg-rose-50 text-rose-600 inline-flex items-center justify-center">
+          <span class="shrink-0 size-11 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-300 inline-flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -222,8 +222,8 @@
             </svg>
           </span>
           <div class="flex-1 min-w-[160px] flex flex-col gap-0.5">
-            <span class="text-sm font-semibold text-neutral-900 break-all">{{ pdfName() }}</span>
-            <span class="text-xs text-neutral-600">Laudo gerado a partir das fotos</span>
+            <span class="text-sm font-semibold text-fg break-all">{{ pdfName() }}</span>
+            <span class="text-xs text-fg-muted">Laudo gerado a partir das fotos</span>
           </div>
           <button
             type="button"

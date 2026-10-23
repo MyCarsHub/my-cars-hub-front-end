@@ -924,7 +924,7 @@ export class RentalDetail implements OnInit {
   /** Chip da linha de caução: "Recebida por fora" quando aplicável, senão o status da cobrança. */
   protected caucaoChipInfo(charge: RentalChargeDto): { label: string; chip: string } {
     if (this.caucaoReceivedOutside()) {
-      return { label: 'Recebida por fora', chip: 'bg-emerald-100 text-emerald-800' };
+      return { label: 'Recebida por fora', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' };
     }
     return this.chargeStatusInfo(charge);
   }
@@ -1535,7 +1535,7 @@ export class RentalDetail implements OnInit {
     color: string;
   } {
     if (!status) {
-      return { label: 'Criado', chip: 'bg-neutral-100 text-neutral-700', color: '#6b7280' };
+      return { label: 'Criado', chip: 'bg-surface-sunken text-fg-soft', color: '#6b7280' };
     }
     return RENTAL_STATUS_META[status];
   }

@@ -40,7 +40,7 @@ const TICK_MS = 15_000;
       <div
         role="alert"
         class="fixed inset-x-0 top-0 z-[100] flex h-14 items-center gap-2 border-b
-               border-amber-600 bg-amber-300 px-3 text-amber-950 shadow-md sm:gap-3 sm:px-6"
+               border-amber-600 bg-amber-300 px-3 text-amber-950 dark:text-amber-200 shadow-md sm:gap-3 sm:px-6"
       >
         <svg
           class="hidden h-6 w-6 shrink-0 sm:block"

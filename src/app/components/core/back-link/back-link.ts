@@ -16,8 +16,8 @@ export type BackLinkPlacement = 'top' | 'bottom' | 'none';
  * rótulo e posição — nunca as classes.
  *
  * DÍVIDA ABERTA, já registrada na fila: quatro links de recuperação em cartão
- * de erro seguem com o styling antigo (`text-sm text-primary-700
- * hover:text-primary-800 font-medium`), sem alvo de 44px e sem anel de foco —
+ * de erro seguem com o styling antigo (`text-sm text-primary-700 dark:text-primary-400
+ * hover:text-primary-800 dark:hover:text-primary-400 font-medium`), sem alvo de 44px e sem anel de foco —
  * `financing-detail.html:9`, `fine-detail.html:9`, `insurance-detail.html:9` e
  * `maintenance-detail.html:9`. Adotá-lo ali é mudança de design, não migração,
  * e sai em item próprio.

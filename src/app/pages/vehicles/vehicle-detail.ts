@@ -28,14 +28,14 @@ import { vehicleStatusMeta } from '../../utils/status-maps';
 import { formatSaleDate, saleReleasesSlotNote, soldLockReason as soldLockReasonFor } from './vehicle-sale-copy';
 
 const TYPE_LABEL: Record<VehicleType, { label: string; chip: string }> = {
-  CAR: { label: 'Carro', chip: 'bg-blue-100 text-blue-700' },
-  MOTORCYCLE: { label: 'Moto', chip: 'bg-amber-100 text-amber-800' },
+  CAR: { label: 'Carro', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
+  MOTORCYCLE: { label: 'Moto', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
 };
 
 const IPVA_STATUS_LABEL: Record<IpvaStatus, { label: string; chip: string }> = {
-  PAID: { label: 'Pago', chip: 'bg-emerald-100 text-emerald-800' },
-  PENDING: { label: 'Pendente', chip: 'bg-amber-100 text-amber-800' },
-  OVERDUE: { label: 'Vencido', chip: 'bg-red-100 text-red-800' },
+  PAID: { label: 'Pago', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' },
+  PENDING: { label: 'Pendente', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+  OVERDUE: { label: 'Vencido', chip: 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-200' },
 };
 
 @Component({
@@ -80,7 +80,7 @@ export class VehicleDetail implements OnInit {
 
   protected readonly typeInfo = computed(() => {
     const t = this.vehicle()?.type;
-    return t ? TYPE_LABEL[t] : { label: '—', chip: 'bg-neutral-100 text-neutral-700' };
+    return t ? TYPE_LABEL[t] : { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
   });
 
   protected readonly statusInfo = computed(() => {
@@ -169,8 +169,8 @@ export class VehicleDetail implements OnInit {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const days = Math.round((expiry - startOfToday) / 86400000);
-    if (days < 0) return { label: 'Vencido', chip: 'bg-rose-100 text-rose-700' };
-    if (days <= 30) return { label: `Vence em ${days}d`, chip: 'bg-amber-100 text-amber-800' };
+    if (days < 0) return { label: 'Vencido', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
+    if (days <= 30) return { label: `Vence em ${days}d`, chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
     return null;
   });
 

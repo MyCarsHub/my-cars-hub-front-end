@@ -12,10 +12,10 @@ import { companyRoleLabel } from '../../../utils/role-labels';
 
 /** Chip tones. Values are the design-system ramps the guidelines name for each meaning. */
 export const CHIP_TONE = {
-  ok: 'bg-success-100 text-success-900',
-  amber: 'bg-amber-100 text-amber-800',
-  rose: 'bg-rose-50 text-rose-700',
-  neutral: 'bg-neutral-100 text-neutral-700',
+  ok: 'bg-success-100 dark:bg-success-500/15 text-success-900 dark:text-emerald-300',
+  amber: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
+  rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  neutral: 'bg-surface-sunken text-fg-soft',
 } as const;
 
 export type ChipTone = keyof typeof CHIP_TONE;
@@ -412,8 +412,8 @@ export function statusLabel(value: StatusFilter): string {
 
 /** Text colours for the "Expira em N dias" / "Expirado" line (AA on white). */
 export const validityTextTone: Record<ChipTone, string> = {
-  ok: 'text-success-900',
-  amber: 'text-amber-800',
-  rose: 'text-rose-700',
-  neutral: 'text-neutral-700',
+  ok: 'text-success-900 dark:text-emerald-300',
+  amber: 'text-amber-800 dark:text-amber-200',
+  rose: 'text-rose-700 dark:text-rose-300',
+  neutral: 'text-fg-soft',
 };

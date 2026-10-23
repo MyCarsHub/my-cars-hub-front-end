@@ -39,9 +39,9 @@ const TYPE_CHIPS: readonly TypeChip[] = [
 ];
 
 const SEVERITY_CHIP: Record<NotificationSeverity, string> = {
-  DANGER: 'bg-rose-100 text-rose-700',
-  WARNING: 'bg-amber-100 text-amber-800',
-  INFO: 'bg-sky-100 text-sky-800',
+  DANGER: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300',
+  WARNING: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
+  INFO: 'bg-sky-100 dark:bg-sky-500/15 text-sky-800 dark:text-sky-200',
 };
 
 const SEVERITY_LABEL: Record<NotificationSeverity, string> = {

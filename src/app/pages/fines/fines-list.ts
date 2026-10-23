@@ -150,12 +150,12 @@ export class FinesList implements OnInit {
 
   protected statusInfo(status: FineStatus): { label: string; chip: string } {
     const o = FINE_STATUS_OPTIONS.find((x) => x.value === status);
-    return o ? { label: o.label, chip: o.chip } : { label: status, chip: 'bg-neutral-100' };
+    return o ? { label: o.label, chip: o.chip } : { label: status, chip: 'bg-surface-sunken' };
   }
 
   protected severityInfo(sev: FineSeverity): { label: string; chip: string } {
     const o = FINE_SEVERITY_OPTIONS.find((x) => x.value === sev);
-    return o ? { label: o.label, chip: o.chip } : { label: sev, chip: 'bg-neutral-100' };
+    return o ? { label: o.label, chip: o.chip } : { label: sev, chip: 'bg-surface-sunken' };
   }
 
   protected vehicleLabel(vehicleId: string): string {

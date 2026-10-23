@@ -15,7 +15,7 @@
           <img ngSrc="svg/email-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
         </div>
         <input appFieldControl type="email" formControlName="email" placeholder="seu@email.com"
-          autocomplete="email" inputmode="email" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+          autocomplete="email" inputmode="email" class="w-full bg-surface rounded-xl border pl-12 pr-4 py-3
                  focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
       </div>
     </app-form-field>
@@ -27,13 +27,13 @@
           <img ngSrc="svg/password-lock-icon.svg" alt="" aria-hidden="true" width="24" height="24" />
         </div>
         <input appFieldControl type="password" formControlName="password" placeholder="********"
-          autocomplete="current-password" class="w-full bg-white rounded-xl border pl-12 pr-4 py-3
+          autocomplete="current-password" class="w-full bg-surface rounded-xl border pl-12 pr-4 py-3
                  focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors" />
       </div>
     </app-form-field>
 
     <div class="w-full text-right text-sm">
-      <span class="text-primary-500 font-medium cursor-pointer hover:text-primary-700 transition">
+      <span class="text-primary-500 dark:text-primary-400 font-medium cursor-pointer hover:text-primary-700 dark:hover:text-primary-400 transition">
         Redefinir senha
       </span>
     </div>

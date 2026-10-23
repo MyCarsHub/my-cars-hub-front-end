@@ -153,7 +153,7 @@ export class LandingPricingComponent {
       badge: `-${this.proSavings()}%`,
       activeBackground: CYCLE_YEARLY_BACKGROUND,
       activeShadow: CYCLE_YEARLY_SHADOW,
-      // Chip ESCURO, não claro: `bg-white/[0.22]` clareava o pedaço do pill
+      // Chip ESCURO, não claro: `bg-surface/[0.22]` clareava o pedaço do pill
       // exatamente atrás do "-17%" e derrubava aquele texto branco de 10,5px
       // para 3,60:1 — medido sobre o VERDE (#0A7854), que é o único pill onde
       // este badge aparece; sobre o laranja daria 3,98:1, e nenhum dos dois

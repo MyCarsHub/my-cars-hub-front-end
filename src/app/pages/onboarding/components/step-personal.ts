@@ -26,10 +26,10 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, FormField, FieldControl],
   template: `
-    <h2 class="text-xl font-bold text-gray-900 mb-1 focus:outline-none" tabindex="-1">
+    <h2 class="text-xl font-bold text-gray-900 dark:text-fg mb-1 focus:outline-none" tabindex="-1">
       Seus dados pessoais
     </h2>
-    <p class="text-sm text-primary-700 mb-6">
+    <p class="text-sm text-primary-700 dark:text-primary-400 mb-6">
       Precisamos de algumas informações para configurar sua conta.
     </p>
 

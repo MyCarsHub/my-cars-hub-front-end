@@ -105,6 +105,6 @@ describe('AdminUserDetail — campo "Último login"', () => {
     const labels = Array.from(host.querySelectorAll('p'));
     const empty = labels.find((p) => p.textContent?.trim() === 'Sem registro de acesso');
     // Atenuado, mas ainda com contraste AA sobre branco (neutral-500 ≥ 4,5:1).
-    expect(empty?.className).toContain('text-neutral-500');
+    expect(empty?.className).toContain('text-fg-subtle');
   });
 });

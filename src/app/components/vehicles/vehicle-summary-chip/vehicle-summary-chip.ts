@@ -24,9 +24,9 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
   template: `
     @let v = vehicle();
     @if (linkTo() === 'none') {
-      <div class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2.5">
+      <div class="flex items-center gap-3 rounded-xl border border-edge bg-surface px-3 py-2.5">
         <span
-          class="flex-none inline-flex items-center justify-center w-9 h-9 rounded-lg bg-primary-50 text-primary-600"
+          class="flex-none inline-flex items-center justify-center w-9 h-9 rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400"
           aria-hidden="true"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -36,10 +36,10 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
           </svg>
         </span>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider truncate">
+          <p class="text-sm font-semibold text-fg tabular-nums tracking-wider truncate">
             {{ formattedPlate() }}
           </p>
-          <p class="text-xs text-neutral-500 truncate">
+          <p class="text-xs text-fg-subtle truncate">
             {{ v.brand }} {{ v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
           </p>
         </div>
@@ -61,10 +61,10 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
     } @else {
       <a
         [routerLink]="routerTarget()"
-        class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 hover:border-primary-300 transition-colors"
+        class="flex items-center gap-3 rounded-xl border border-edge bg-surface px-3 py-2.5 hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors"
       >
         <span
-          class="flex-none inline-flex items-center justify-center w-9 h-9 rounded-lg bg-primary-50 text-primary-600"
+          class="flex-none inline-flex items-center justify-center w-9 h-9 rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400"
           aria-hidden="true"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -74,10 +74,10 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
           </svg>
         </span>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-semibold text-neutral-900 tabular-nums tracking-wider truncate">
+          <p class="text-sm font-semibold text-fg tabular-nums tracking-wider truncate">
             {{ formattedPlate() }}
           </p>
-          <p class="text-xs text-neutral-500 truncate">
+          <p class="text-xs text-fg-subtle truncate">
             {{ v.brand }} {{ v.model }}@if (v.hodometer != null) { · {{ v.hodometer }} km }
           </p>
         </div>
@@ -95,7 +95,7 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
             >{{ chip.label }}</span>
           }
         </div>
-        <svg class="flex-none text-neutral-300" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+        <svg class="flex-none text-neutral-300 dark:text-fg-faint" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
           stroke-linejoin="round" aria-hidden="true">
           <polyline points="9 18 15 12 9 6"/>
@@ -129,8 +129,8 @@ export class VehicleSummaryChip {
 
   protected typeChip(): { label: string; klass: string } | null {
     const t = this.vehicle().type;
-    if (t === 'CAR') return { label: 'Carro', klass: 'bg-blue-100 text-blue-700' };
-    if (t === 'MOTORCYCLE') return { label: 'Moto', klass: 'bg-amber-100 text-amber-800' };
+    if (t === 'CAR') return { label: 'Carro', klass: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' };
+    if (t === 'MOTORCYCLE') return { label: 'Moto', klass: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
     return null;
   }
 

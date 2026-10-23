@@ -12,25 +12,25 @@ interface Palette {
 
 const PALETTES: Record<AlertVariant, Palette> = {
     danger: {
-        bg: 'bg-red-50',
-        text: 'text-red-800',
-        border: 'border-red-100',
-        iconBg: 'bg-red-100',
-        iconText: 'text-red-600',
+        bg: 'bg-red-50 dark:bg-red-500/10',
+        text: 'text-red-800 dark:text-red-200',
+        border: 'border-red-100 dark:border-red-500/20',
+        iconBg: 'bg-red-100 dark:bg-red-500/15',
+        iconText: 'text-red-600 dark:text-red-300',
     },
     warning: {
-        bg: 'bg-amber-50',
-        text: 'text-amber-800',
-        border: 'border-amber-100',
-        iconBg: 'bg-amber-100',
-        iconText: 'text-amber-600',
+        bg: 'bg-amber-50 dark:bg-amber-500/10',
+        text: 'text-amber-800 dark:text-amber-200',
+        border: 'border-amber-100 dark:border-amber-500/20',
+        iconBg: 'bg-amber-100 dark:bg-amber-500/15',
+        iconText: 'text-amber-600 dark:text-amber-300',
     },
     info: {
-        bg: 'bg-blue-50',
-        text: 'text-blue-800',
-        border: 'border-blue-100',
-        iconBg: 'bg-blue-100',
-        iconText: 'text-blue-600',
+        bg: 'bg-blue-50 dark:bg-blue-500/10',
+        text: 'text-blue-800 dark:text-blue-200',
+        border: 'border-blue-100 dark:border-blue-500/20',
+        iconBg: 'bg-blue-100 dark:bg-blue-500/15',
+        iconText: 'text-blue-600 dark:text-blue-300',
     },
 };
 

@@ -46,17 +46,17 @@ interface ChipStyle {
 }
 
 const COMPANY_STATUS_CHIPS: Record<AdminCompanyStatus, ChipStyle> = {
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-700' },
-  SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 text-red-700' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
+  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
+  CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
 };
 
 const SUB_STATUS_CHIPS: Record<AdminCompanySubscriptionStatus, ChipStyle> = {
-  TRIALING: { label: 'Trial', chip: 'bg-blue-100 text-blue-700' },
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-700' },
-  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 text-amber-700' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 text-red-700' },
+  TRIALING: { label: 'Trial', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
+  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
 };
 
 const PAGE_SIZE = 20;
@@ -243,12 +243,12 @@ export class AdminCompanies implements OnInit, OnDestroy {
   }
 
   protected companyChip(status: AdminCompanyStatus): ChipStyle {
-    return COMPANY_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-neutral-100 text-neutral-700' };
+    return COMPANY_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
   }
 
   protected subChip(status: AdminCompanySubscriptionStatus | null): ChipStyle | null {
     if (!status) return null;
-    return SUB_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-neutral-100 text-neutral-700' };
+    return SUB_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
   }
 
   protected formatDate(value: string | null): string {
