@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VehicleForm } from './vehicle-form';
@@ -72,7 +72,7 @@ describe('VehicleForm — foto do veículo', () => {
     fixture.detectChanges();
   }
 
-  async function setup(opts: { role: string | null; editing?: boolean }): Promise<void> {
+  async function setup(opts: { role: string | null; editing?: boolean; listPending?: boolean }): Promise<void> {
     TestBed.resetTestingModule();
     create = vi.fn().mockReturnValue(of({ id: NEW_ID }));
     update = vi.fn().mockReturnValue(of({ id: EDIT_ID }));
@@ -90,7 +90,9 @@ describe('VehicleForm — foto do veículo', () => {
     );
     uploadDocument = vi.fn().mockReturnValue(of({ id: 'doc-novo' }));
     deleteDocument = vi.fn().mockReturnValue(of(void 0));
-    listDocuments = vi.fn().mockReturnValue(of([{ id: 'doc-foto', kind: 'PHOTO' }]));
+    listDocuments = vi
+      .fn()
+      .mockReturnValue(opts.listPending ? NEVER : of([{ id: 'doc-foto', kind: 'PHOTO' }]));
     documentSignedUrl = vi.fn().mockReturnValue(of({ url: 'https://cdn.test/foto.jpg' }));
     notifySuccess = vi.fn();
 
@@ -319,13 +321,45 @@ describe('VehicleForm — foto do veículo', () => {
       api().submit();
       fixture.detectChanges();
 
-      expect(q('[data-photo-failure]')).not.toBeNull();
+      expect(q('[data-photo-failure]')?.textContent).toContain('A foto anterior já foi removida');
+      listDocuments.mockReturnValue(of([]));
       click('[data-photo-retry]');
 
       expect(deleteDocument).toHaveBeenCalledTimes(1);
       expect(uploadDocument).toHaveBeenCalledTimes(2);
       expect(update).toHaveBeenCalledTimes(1);
       expect(navigate).toHaveBeenCalledWith(['/veiculos', EDIT_ID]);
+    });
+  });
+
+  describe('retry com resposta perdida', () => {
+    it('relista os anexos: se a foto já chegou ao servidor, apaga e reenvia em vez de bater na duplicata', async () => {
+      await setup({ role: 'OWNER' });
+      uploadDocument.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 504 })));
+      fillValidVehicle();
+      choose(photo);
+      api().submit();
+      fixture.detectChanges();
+
+      listDocuments.mockReturnValue(of([{ id: 'doc-fantasma', kind: 'PHOTO' }]));
+      click('[data-photo-retry]');
+
+      expect(listDocuments).toHaveBeenCalledWith(NEW_ID);
+      expect(deleteDocument).toHaveBeenCalledWith(NEW_ID, 'doc-fantasma');
+      expect(uploadDocument).toHaveBeenCalledTimes(2);
+      expect(navigate).toHaveBeenCalledWith(['/veiculos', NEW_ID]);
+    });
+  });
+
+  describe('edição — carregamento', () => {
+    it('o campo fica travado até a listagem de anexos responder', async () => {
+      await setup({ role: 'OWNER', editing: true, listPending: true });
+      expect(q<HTMLButtonElement>('[data-photo-pick]')?.disabled).toBe(true);
+    });
+
+    it('e destravado quando ela responde', async () => {
+      await setup({ role: 'OWNER', editing: true });
+      expect(q<HTMLButtonElement>('[data-photo-pick]')?.disabled).toBe(false);
     });
   });
 

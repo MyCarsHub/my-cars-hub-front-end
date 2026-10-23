@@ -363,6 +363,10 @@ export class VehicleForm implements OnInit {
    */
   protected readonly photoFailure = signal<string | null>(null);
   private photoSaved = false;
+  /** A troca já apagou a foto anterior: se o envio falhar, o aviso precisa dizer. */
+  private previousPhotoRemoved = false;
+  /** Edição: a listagem de anexos ainda não respondeu; trocar agora enviaria sem apagar a atual. */
+  protected readonly photoLoading = signal(false);
 
   protected readonly photoCurrentUrl = computed(() =>
     this.photoMarkedForRemoval() ? null : (this.existingPhoto()?.url ?? null),
@@ -830,8 +834,10 @@ export class VehicleForm implements OnInit {
   /** Edição: acha o anexo PHOTO e pede a URL assinada para a miniatura. */
   private loadExistingPhoto(vehicleId: string): void {
     if (!this.canManagePhoto) return;
+    this.photoLoading.set(true);
     this.vehiclesService.listDocuments(vehicleId).subscribe({
       next: (docs) => {
+        this.photoLoading.set(false);
         const photo = (Array.isArray(docs) ? docs : []).find((d) => d.kind === 'PHOTO');
         if (!photo) return;
         this.existingPhoto.set({ id: photo.id, url: null });
@@ -841,7 +847,10 @@ export class VehicleForm implements OnInit {
           error: () => undefined,
         });
       },
-      error: () => this.photoLoadFailed.set(true),
+      error: () => {
+        this.photoLoading.set(false);
+        this.photoLoadFailed.set(true);
+      },
     });
   }
 
@@ -886,6 +895,7 @@ export class VehicleForm implements OnInit {
           tap(() => {
             this.existingPhoto.set(null);
             this.photoMarkedForRemoval.set(false);
+            if (file) this.previousPhotoRemoved = true;
           }),
         )
       : of(null);
@@ -918,7 +928,10 @@ export class VehicleForm implements OnInit {
     const head = this.photoFile()
       ? 'O veículo foi salvo, mas a foto não foi enviada.'
       : 'O veículo foi salvo, mas a foto não foi removida.';
-    this.photoFailure.set(`${head} ${this.apiErrors.messageFor(err, CHILD_RETRY_HINT)}`);
+    const lost = this.previousPhotoRemoved
+      ? ' A foto anterior já foi removida; envie a nova para o veículo voltar a ter foto.'
+      : '';
+    this.photoFailure.set(`${head}${lost} ${this.apiErrors.messageFor(err, CHILD_RETRY_HINT)}`);
   }
 
   /** Reenvia SÓ a foto: não reenvia o formulário (o veículo já existe). */
@@ -927,13 +940,25 @@ export class VehicleForm implements OnInit {
     if (!id || this.saving()) return;
     this.saving.set(true);
     this.photoFailure.set(null);
-    this.photoStep({ id } as Vehicle).subscribe({
-      next: () => {
-        this.saving.set(false);
-        this.notifications.success('Foto do veículo salva.');
-        this.router.navigate(['/veiculos', id]);
-      },
-    });
+    // Relê os anexos: se o envio anterior chegou ao servidor e só a resposta se
+    // perdeu, o PHOTO existe e reenviar sem apagá-lo seria recusado para sempre.
+    this.vehiclesService
+      .listDocuments(id)
+      .pipe(
+        tap((docs) => {
+          const found = (Array.isArray(docs) ? docs : []).find((d) => d.kind === 'PHOTO');
+          if (found) this.existingPhoto.update((p) => p ?? { id: found.id, url: null });
+        }),
+        catchError(() => of(null)),
+        switchMap(() => this.photoStep({ id } as Vehicle)),
+      )
+      .subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.notifications.success('Foto do veículo salva.');
+          this.router.navigate(['/veiculos', id]);
+        },
+      });
   }
 
   /** Desiste da foto: o veículo já está salvo, segue para o detalhe. */
@@ -1028,6 +1053,7 @@ export class VehicleForm implements OnInit {
 
     this.bannerSource = null;
     this.photoFailure.set(null);
+    this.photoSaved = false;
     this.saving.set(true);
     this.error.set(null);
     clearServerErrors(this.form);

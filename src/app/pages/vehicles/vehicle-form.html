@@ -375,7 +375,7 @@
             [file]="photoFile()"
             [currentUrl]="photoCurrentUrl()"
             [hasCurrent]="photoHasCurrent()"
-            [disabled]="saving() || sold() || photoLoadFailed()"
+            [disabled]="saving() || sold() || photoLoadFailed() || photoLoading()"
             (filePicked)="onPhotoPicked($event)"
             (removed)="onPhotoRemoved()"
           />
