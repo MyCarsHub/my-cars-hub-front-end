@@ -22,11 +22,13 @@ import {
   Observable,
   catchError,
   concatMap,
+  defer,
   from,
   map,
   merge,
   of,
   switchMap,
+  retry,
   tap,
   toArray,
 } from 'rxjs';
@@ -363,8 +365,8 @@ export class VehicleForm implements OnInit {
    */
   protected readonly photoFailure = signal<string | null>(null);
   private photoSaved = false;
-  /** A troca já apagou a foto anterior: se o envio falhar, o aviso precisa dizer. */
-  private previousPhotoRemoved = false;
+  /** Outros PHOTO do servidor além do exibido (resposta perdida); a limpeza os apaga. */
+  private extraPhotoIds: string[] = [];
   /** Edição: a listagem de anexos ainda não respondeu; trocar agora enviaria sem apagar a atual. */
   protected readonly photoLoading = signal(false);
 
@@ -881,31 +883,51 @@ export class VehicleForm implements OnInit {
   }
 
   /**
-   * Envio/troca/remoção da foto com o que o servidor já tem (UM anexo PHOTO por
-   * veículo: apagar o atual e anexar o novo). O estado local avança a cada
-   * passo concluído, então o retry refaz SÓ o que faltou: nunca apaga duas
-   * vezes nem duplica a foto. O arquivo novo já foi validado (formato e
-   * tamanho) ao ser escolhido, antes de qualquer apagamento.
+   * Envio/troca/remoção da foto. TROCA = envia a NOVA primeiro e só depois,
+   * com o envio confirmado, apaga a antiga pelo id: se o envio falhar, a foto
+   * antiga continua lá. O servidor aceita um segundo PHOTO por esse instante e
+   * a lista mostra o mais recente. Apagar a antiga é limpeza SILENCIOSA (tenta
+   * de novo e, se não der, deixa: nunca vira erro para quem já tem a foto
+   * nova). O estado local avança a cada passo, então o retry refaz SÓ o que
+   * faltou. O arquivo novo já foi validado (formato e tamanho) ao ser escolhido.
    */
   private photoOps(vehicleId: string): Observable<unknown> {
     const existing = this.existingPhoto();
     const file = this.photoFile();
-    const remove$: Observable<unknown> = existing
-      ? this.vehiclesService.deleteDocument(vehicleId, existing.id).pipe(
-          tap(() => {
-            this.existingPhoto.set(null);
-            this.photoMarkedForRemoval.set(false);
-            if (file) this.previousPhotoRemoved = true;
-          }),
-        )
-      : of(null);
-    if (!file) return remove$;
-    return remove$.pipe(
-      switchMap(() => this.vehiclesService.uploadDocument(vehicleId, 'PHOTO', file)),
+    const extras = this.extraPhotoIds;
+    const cleanup$ = (ids: string[]): Observable<unknown> =>
+      from(ids).pipe(
+        concatMap((id) =>
+          defer(() => this.vehiclesService.deleteDocument(vehicleId, id)).pipe(
+            retry(2),
+            catchError(() => of(null)),
+          ),
+        ),
+        toArray(),
+        tap(() => (this.extraPhotoIds = [])),
+      );
+
+    if (!file) {
+      // Remover (sem foto nova): o apagamento do atual é o próprio pedido do
+      // usuário, então a falha dele é mostrada.
+      if (!existing) return cleanup$(extras);
+      return this.vehiclesService.deleteDocument(vehicleId, existing.id).pipe(
+        tap(() => {
+          this.existingPhoto.set(null);
+          this.photoMarkedForRemoval.set(false);
+        }),
+        switchMap(() => cleanup$(extras)),
+      );
+    }
+
+    const stale = [...(existing ? [existing.id] : []), ...extras];
+    return this.vehiclesService.uploadDocument(vehicleId, 'PHOTO', file).pipe(
       tap((doc) => {
         this.existingPhoto.set({ id: doc.id, url: null });
+        this.photoMarkedForRemoval.set(false);
         this.photoFile.set(null);
       }),
+      switchMap(() => cleanup$(stale)),
     );
   }
 
@@ -928,10 +950,7 @@ export class VehicleForm implements OnInit {
     const head = this.photoFile()
       ? 'O veículo foi salvo, mas a foto não foi enviada.'
       : 'O veículo foi salvo, mas a foto não foi removida.';
-    const lost = this.previousPhotoRemoved
-      ? ' A foto anterior já foi removida; envie a nova para o veículo voltar a ter foto.'
-      : '';
-    this.photoFailure.set(`${head}${lost} ${this.apiErrors.messageFor(err, CHILD_RETRY_HINT)}`);
+    this.photoFailure.set(`${head} ${this.apiErrors.messageFor(err, CHILD_RETRY_HINT)}`);
   }
 
   /** Reenvia SÓ a foto: não reenvia o formulário (o veículo já existe). */
@@ -946,8 +965,11 @@ export class VehicleForm implements OnInit {
       .listDocuments(id)
       .pipe(
         tap((docs) => {
-          const found = (Array.isArray(docs) ? docs : []).find((d) => d.kind === 'PHOTO');
-          if (found) this.existingPhoto.update((p) => p ?? { id: found.id, url: null });
+          const ids = (Array.isArray(docs) ? docs : [])
+            .filter((d) => d.kind === 'PHOTO')
+            .map((d) => d.id);
+          const shown = this.existingPhoto()?.id;
+          this.extraPhotoIds = ids.filter((id) => id !== shown);
         }),
         catchError(() => of(null)),
         switchMap(() => this.photoStep({ id } as Vehicle)),
