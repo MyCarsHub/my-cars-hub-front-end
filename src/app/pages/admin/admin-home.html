@@ -4,7 +4,7 @@
 >
   <!-- Error -->
   @if (error()) {
-    <div class="rounded-lg bg-red-50 text-red-700 text-sm p-3 border border-red-100 mb-4">
+    <div class="rounded-lg bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-sm p-3 border border-red-100 dark:border-red-500/20 mb-4">
       {{ error() }}
       <button
         type="button"
@@ -18,13 +18,13 @@
 
   <!-- Scope toggle -->
   <div class="flex flex-wrap items-center gap-2 mb-4">
-    <span class="text-xs text-neutral-500 uppercase tracking-wide">Escopo:</span>
-    <div class="inline-flex rounded-full border border-neutral-200 bg-white p-0.5" role="group" aria-label="Filtro de escopo">
+    <span class="text-xs text-fg-subtle uppercase tracking-wide">Escopo:</span>
+    <div class="inline-flex rounded-full border border-edge bg-surface p-0.5" role="group" aria-label="Filtro de escopo">
       <button
         type="button"
         (click)="setScope('active')"
         class="text-xs px-4 py-1.5 rounded-full transition-colors min-h-[44px]"
-        [class]="scope() === 'active' ? 'bg-primary-500 text-white' : 'text-neutral-700 hover:bg-gray-50'"
+        [class]="scope() === 'active' ? 'bg-primary-500 text-white' : 'text-fg-soft hover:bg-canvas'"
         [attr.aria-pressed]="scope() === 'active'"
       >
         Apenas ativos
@@ -33,7 +33,7 @@
         type="button"
         (click)="setScope('all')"
         class="text-xs px-4 py-1.5 rounded-full transition-colors min-h-[44px]"
-        [class]="scope() === 'all' ? 'bg-primary-500 text-white' : 'text-neutral-700 hover:bg-gray-50'"
+        [class]="scope() === 'all' ? 'bg-primary-500 text-white' : 'text-fg-soft hover:bg-canvas'"
         [attr.aria-pressed]="scope() === 'all'"
       >
         Todos
@@ -44,60 +44,60 @@
   <!-- KPI cards -->
   <div class="grid gap-4 grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 mb-3">
     <!-- Users total -->
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Usuários</p>
+    <div class="rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Usuários</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ usersDisplay() }}
         </p>
-        <p class="text-xs text-emerald-600 mt-1">
+        <p class="text-xs text-emerald-600 dark:text-emerald-300 mt-1">
           +{{ overview()?.users?.newLast30Days ?? 0 }} em 30 dias
         </p>
       }
     </div>
 
     <!-- Companies -->
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Empresas</p>
+    <div class="rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Empresas</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ companiesDisplay() }}
         </p>
-        <p class="text-xs text-emerald-600 mt-1">
+        <p class="text-xs text-emerald-600 dark:text-emerald-300 mt-1">
           +{{ overview()?.companies?.newLast30Days ?? 0 }} em 30 dias
         </p>
       }
     </div>
 
     <!-- Vehicles -->
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Veículos</p>
+    <div class="rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Veículos</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ vehiclesDisplay() }}
         </p>
-        <p class="text-xs text-neutral-500 mt-1">
+        <p class="text-xs text-fg-subtle mt-1">
           {{ scope() === 'active' ? 'Ativos' : 'Total cadastrado' }}
         </p>
       }
     </div>
 
     <!-- Active subscriptions -->
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Assinaturas ativas</p>
+    <div class="rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Assinaturas ativas</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ overview()?.subscriptions?.active ?? 0 }}
         </p>
-        <p class="text-xs text-neutral-500 mt-1">
+        <p class="text-xs text-fg-subtle mt-1">
           {{ overview()?.subscriptions?.trialing ?? 0 }} em trial
         </p>
       }
@@ -107,7 +107,7 @@
     <div class="rounded-2xl bg-emerald-600 text-white p-4">
       <p class="text-xs text-white/70 uppercase tracking-wide">MRR</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
+        <div class="h-8 mt-2 w-24 rounded bg-surface/20 animate-pulse"></div>
       } @else {
         <p class="text-2xl font-semibold mt-1 tabular-nums">
           {{ formatCurrency(mrrActiveOnly()) }}
@@ -120,7 +120,7 @@
     <div class="rounded-2xl bg-emerald-700 text-white p-4">
       <p class="text-xs text-white/70 uppercase tracking-wide">ARR</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
+        <div class="h-8 mt-2 w-24 rounded bg-surface/20 animate-pulse"></div>
       } @else {
         <p class="text-2xl font-semibold mt-1 tabular-nums">
           {{ formatCurrency(arr()) }}
@@ -133,7 +133,7 @@
     <div class="rounded-2xl bg-primary-500 text-white p-4">
       <p class="text-xs text-white/70 uppercase tracking-wide">MRR estimado</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
+        <div class="h-8 mt-2 w-24 rounded bg-surface/20 animate-pulse"></div>
       } @else {
         <p class="text-2xl font-semibold mt-1 tabular-nums">
           {{ formatCurrency(mrr()) }}
@@ -143,15 +143,15 @@
     </div>
 
     <!-- Feedback pending -->
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Feedback pendente</p>
+    <div class="rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Feedback pendente</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ overview()?.feedback?.pending ?? 0 }}
         </p>
-        <p class="text-xs text-neutral-500 mt-1">
+        <p class="text-xs text-fg-subtle mt-1">
           {{ overview()?.feedback?.total ?? 0 }} totais
         </p>
       }
@@ -160,55 +160,55 @@
     <!-- Volume consolidado (todas as empresas) — mesmos cartões da grade.
          Os dois de valor ocupam a linha inteira no celular: R$ com 2xl não
          cabe em meia coluna de 375px. As ressalvas vivem na nota abaixo. -->
-    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Aluguéis fechados</p>
+    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Aluguéis fechados</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-28 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-28 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ formatCurrency(closedRentals().amount) }}
         </p>
-        <p class="text-xs text-neutral-500 mt-1">
+        <p class="text-xs text-fg-subtle mt-1">
           {{ closedRentals().count }} aluguéis · exclui cancelados
         </p>
       }
     </div>
 
-    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Aluguéis concluídos</p>
+    <div class="col-span-2 sm:col-span-1 rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Aluguéis concluídos</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-28 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-28 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ formatCurrency(completedRentals().amount) }}
         </p>
-        <p class="text-xs text-neutral-500 mt-1">
+        <p class="text-xs text-fg-subtle mt-1">
           {{ completedRentals().count }} aluguéis finalizados
         </p>
       }
     </div>
 
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Contratos de locação</p>
+    <div class="rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Contratos de locação</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ contractsTotal() }}
         </p>
-        <p class="text-xs text-neutral-500 mt-1">gerados na plataforma</p>
+        <p class="text-xs text-fg-subtle mt-1">gerados na plataforma</p>
       }
     </div>
 
-    <div class="rounded-2xl bg-white border border-neutral-200 p-4">
-      <p class="text-xs text-neutral-500 uppercase tracking-wide">Contratos assinados</p>
+    <div class="rounded-2xl bg-surface border border-edge p-4">
+      <p class="text-xs text-fg-subtle uppercase tracking-wide">Contratos assinados</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-20 rounded bg-neutral-100 animate-pulse"></div>
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold text-neutral-900 mt-1 tabular-nums">
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
           {{ contractsSigned() }}
         </p>
-        <p class="text-xs text-neutral-500 mt-1">de {{ contractsTotal() }} contratos</p>
+        <p class="text-xs text-fg-subtle mt-1">de {{ contractsTotal() }} contratos</p>
       }
     </div>
   </div>
@@ -220,7 +220,7 @@
       <app-page-card title="Novos usuários — últimos 30 dias">
         <div class="p-4">
           @if (loading() && !overview()) {
-            <div class="h-32 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-32 rounded bg-surface-sunken animate-pulse"></div>
           } @else if (userPoints().length > 0) {
             <app-line-chart
               [points]="userPoints()"
@@ -228,11 +228,11 @@
               valueLabel="Novos usuários"
               [heightPx]="160"
             />
-            <p class="text-xs text-neutral-500 mt-2 tabular-nums">
+            <p class="text-xs text-fg-subtle mt-2 tabular-nums">
               Pico de {{ usersPeak() }} no período.
             </p>
           } @else {
-            <p class="text-sm text-neutral-500 text-center py-10">
+            <p class="text-sm text-fg-subtle text-center py-10">
               Sem dados no período.
             </p>
           }
@@ -245,17 +245,17 @@
       <app-page-card title="Assinaturas por status">
         <div class="p-4 space-y-3">
           @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
           } @else {
             @for (bar of subscriptionBars(); track bar.key) {
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-neutral-600">{{ bar.label }}</span>
-                  <span class="text-neutral-900 font-medium tabular-nums">{{ bar.count }}</span>
+                  <span class="text-fg-muted">{{ bar.label }}</span>
+                  <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
                 </div>
-                <div class="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
                   <div
                     class="h-full rounded-full transition-all duration-500"
                     [style.width.%]="bar.percent"
@@ -279,17 +279,17 @@
       <app-page-card title="Aluguéis por status">
         <div class="p-4 space-y-3">
           @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
           } @else {
             @for (bar of rentalBars(); track bar.key) {
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-neutral-600">{{ bar.label }}</span>
-                  <span class="text-neutral-900 font-medium tabular-nums">{{ bar.count }}</span>
+                  <span class="text-fg-muted">{{ bar.label }}</span>
+                  <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
                 </div>
-                <div class="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
                   <div
                     class="h-full rounded-full transition-all duration-500"
                     [style.width.%]="bar.percent"
@@ -307,17 +307,17 @@
       <app-page-card title="Feedback por status">
         <div class="p-4 space-y-3">
           @if (loading() && !overview()) {
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
-            <div class="h-6 rounded bg-neutral-100 animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
+            <div class="h-6 rounded bg-surface-sunken animate-pulse"></div>
           } @else {
             @for (bar of feedbackBars(); track bar.key) {
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-neutral-600">{{ bar.label }}</span>
-                  <span class="text-neutral-900 font-medium tabular-nums">{{ bar.count }}</span>
+                  <span class="text-fg-muted">{{ bar.label }}</span>
+                  <span class="text-fg font-medium tabular-nums">{{ bar.count }}</span>
                 </div>
-                <div class="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                <div class="h-2 rounded-full bg-surface-sunken overflow-hidden">
                   <div
                     class="h-full rounded-full transition-all duration-500"
                     [style.width.%]="bar.percent"
@@ -340,13 +340,13 @@
         @if (section.route && !section.disabled) {
           <a
             [routerLink]="section.route"
-            class="group flex flex-col gap-3 p-5 rounded-xl border border-neutral-200
-                   bg-white hover:border-primary-400 hover:shadow-sm
+            class="group flex flex-col gap-3 p-5 rounded-xl border border-edge
+                   bg-surface hover:border-primary-400 hover:shadow-sm
                    transition-all focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             <div
-              class="w-10 h-10 rounded-lg bg-primary-50 text-primary-500
-                     flex items-center justify-center group-hover:bg-primary-100 transition-colors"
+              class="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-500 dark:text-primary-400
+                     flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-500/15 transition-colors"
               aria-hidden="true"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
@@ -355,20 +355,20 @@
                 <path [attr.d]="section.icon" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-neutral-900">{{ section.title }}</h3>
-            <p class="text-sm text-neutral-500">{{ section.description }}</p>
+            <h3 class="text-base font-semibold text-fg">{{ section.title }}</h3>
+            <p class="text-sm text-fg-subtle">{{ section.description }}</p>
           </a>
         } @else if (section.action && !section.disabled) {
           <button
             type="button"
             (click)="openAction(section)"
-            class="group flex flex-col gap-3 p-5 rounded-xl border border-neutral-200
-                   bg-white hover:border-primary-400 hover:shadow-sm text-left
+            class="group flex flex-col gap-3 p-5 rounded-xl border border-edge
+                   bg-surface hover:border-primary-400 hover:shadow-sm text-left
                    transition-all focus:outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer min-h-[44px]"
           >
             <div
-              class="w-10 h-10 rounded-lg bg-primary-50 text-primary-500
-                     flex items-center justify-center group-hover:bg-primary-100 transition-colors"
+              class="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-500 dark:text-primary-400
+                     flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-500/15 transition-colors"
               aria-hidden="true"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
@@ -377,23 +377,23 @@
                 <path [attr.d]="section.icon" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-neutral-900">{{ section.title }}</h3>
-            <p class="text-sm text-neutral-500">{{ section.description }}</p>
+            <h3 class="text-base font-semibold text-fg">{{ section.title }}</h3>
+            <p class="text-sm text-fg-subtle">{{ section.description }}</p>
           </button>
         } @else {
           <div
             class="relative flex flex-col gap-3 p-5 rounded-xl border border-dashed
-                   border-neutral-200 bg-gray-50"
+                   border-edge bg-canvas"
             aria-disabled="true"
           >
             @if (section.badge) {
               <span class="absolute top-3 right-3 text-[10px] uppercase tracking-wide
-                           bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full">
+                           bg-surface-strong text-fg-muted px-2 py-0.5 rounded-full">
                 {{ section.badge }}
               </span>
             }
             <div
-              class="w-10 h-10 rounded-lg bg-neutral-100 text-neutral-400
+              class="w-10 h-10 rounded-lg bg-surface-sunken text-fg-faint
                      flex items-center justify-center"
               aria-hidden="true"
             >
@@ -403,8 +403,8 @@
                 <path [attr.d]="section.icon" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-neutral-500">{{ section.title }}</h3>
-            <p class="text-sm text-neutral-400">{{ section.description }}</p>
+            <h3 class="text-base font-semibold text-fg-subtle">{{ section.title }}</h3>
+            <p class="text-sm text-fg-faint">{{ section.description }}</p>
           </div>
         }
       }

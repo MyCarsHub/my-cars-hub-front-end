@@ -8,11 +8,11 @@
       <div class="p-4 sm:p-6 space-y-3">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="block">
-            <span class="block text-sm font-medium text-neutral-700 mb-1.5">Status</span>
+            <span class="block text-sm font-medium text-fg-soft mb-1.5">Status</span>
             <select
               (change)="onStatusFilterChange($any($event.target).value)"
               [value]="statusFilter()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-sm text-fg-body
                      min-h-[44px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Todos os status</option>
@@ -23,11 +23,11 @@
           </label>
 
           <label class="block">
-            <span class="block text-sm font-medium text-neutral-700 mb-1.5">Empresa</span>
+            <span class="block text-sm font-medium text-fg-soft mb-1.5">Empresa</span>
             <select
               (change)="onCompanyFilterChange($any($event.target).value)"
               [value]="companyFilter()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-sm text-fg-body
                      min-h-[44px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Todas as empresas</option>
@@ -42,8 +42,8 @@
           <button
             type="button"
             (click)="clearFilters()"
-            class="text-xs px-3 py-2 rounded-full border border-neutral-200 bg-white text-neutral-700
-                   hover:bg-neutral-50 min-h-[36px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+            class="text-xs px-3 py-2 rounded-full border border-edge bg-surface text-fg-soft
+                   hover:bg-surface-muted min-h-[36px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
           >
             Limpar filtros
           </button>
@@ -60,12 +60,12 @@
       <div class="p-3 sm:p-4 space-y-4">
         @if (loading() && items().length === 0) {
           <div class="space-y-2" aria-hidden="true">
-            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
-            <div class="h-24 rounded-xl bg-neutral-100 animate-pulse"></div>
+            <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
+            <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
+            <div class="h-24 rounded-xl bg-surface-sunken animate-pulse"></div>
           </div>
         } @else if (items().length === 0) {
-          <p class="text-sm text-neutral-500 text-center py-10">
+          <p class="text-sm text-fg-subtle text-center py-10">
             @if (hasFilters()) {
               Nenhum ticket encontrado com esses filtros.
             } @else {
@@ -75,7 +75,7 @@
         } @else {
           <ul class="space-y-3 list-none">
             @for (t of items(); track t.id) {
-              <li class="rounded-xl border border-neutral-200 bg-white">
+              <li class="rounded-xl border border-edge bg-surface">
                 <!-- ---------------- Resumo do ticket ---------------- -->
                 <div class="p-3 sm:p-4">
                   <div class="flex items-start justify-between gap-2">
@@ -88,34 +88,34 @@
                           {{ statusMeta[t.status].label }}
                         </span>
                         <span
-                          class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-200 text-neutral-800"
+                          class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-surface-strong text-fg-body"
                         >
                           {{ channelLabel[t.channel] }}
                         </span>
                         <time
-                          class="text-xs text-neutral-500 tabular-nums"
+                          class="text-xs text-fg-subtle tabular-nums"
                           [attr.datetime]="t.createdDate"
                         >
                           {{ t.createdDate | date: 'dd/MM/yyyy HH:mm' }}
                         </time>
                       </div>
 
-                      <p class="text-sm font-medium text-neutral-900 break-words">
+                      <p class="text-sm font-medium text-fg break-words">
                         {{ companyLabel(t) }}
                       </p>
-                      <p class="text-xs text-neutral-600 break-words">
+                      <p class="text-xs text-fg-muted break-words">
                         {{ authorLabel(t) }}
                         @if (t.userEmail) {
                           · {{ t.userEmail }}
                         }
                       </p>
 
-                      <p class="text-sm text-neutral-800 line-clamp-2 break-words">
+                      <p class="text-sm text-fg-body line-clamp-2 break-words">
                         {{ t.message }}
                       </p>
 
                       <div
-                        class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-600 pt-0.5"
+                        class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-muted pt-0.5"
                       >
                         <span>Responsável: {{ assigneeLabel(t) }}</span>
                         <span class="tabular-nums">{{ t.replyCount }} resposta(s)</span>
@@ -134,7 +134,7 @@
                             type="button"
                             role="menuitem"
                             (click)="changeStatus(t, 'IN_PROGRESS')"
-                            class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                            class="w-full text-left px-4 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]"
                           >
                             Marcar em atendimento
                           </button>
@@ -144,7 +144,7 @@
                             type="button"
                             role="menuitem"
                             (click)="changeStatus(t, 'RESOLVED')"
-                            class="w-full text-left px-4 py-3 text-sm text-emerald-700 hover:bg-emerald-50 min-h-[44px]"
+                            class="w-full text-left px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 min-h-[44px]"
                           >
                             Resolver
                           </button>
@@ -153,7 +153,7 @@
                             type="button"
                             role="menuitem"
                             (click)="changeStatus(t, 'OPEN')"
-                            class="w-full text-left px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                            class="w-full text-left px-4 py-3 text-sm text-fg-soft hover:bg-surface-muted min-h-[44px]"
                           >
                             Reabrir
                           </button>
@@ -168,7 +168,7 @@
                       (click)="toggleTicket(t)"
                       [attr.aria-expanded]="isOpen(t.id)"
                       [attr.aria-controls]="isOpen(t.id) ? 'ticket-detail-' + t.id : null"
-                      class="text-xs font-medium text-primary-700 hover:text-primary-800 underline
+                      class="text-xs font-medium text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 underline
                              min-h-[36px] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
                     >
                       {{ isOpen(t.id) ? 'Fechar ticket' : 'Abrir ticket e responder' }}
@@ -187,8 +187,8 @@
                         type="button"
                         (click)="dismissActionError()"
                         aria-label="Dispensar mensagem de erro"
-                        class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-lg text-rose-700
-                               hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                        class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-lg text-rose-700 dark:text-rose-300
+                               hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -212,7 +212,7 @@
                 @if (isOpen(t.id)) {
                   <div
                     [id]="'ticket-detail-' + t.id"
-                    class="border-t border-neutral-100 bg-neutral-50/60 p-3 sm:p-4 space-y-4"
+                    class="border-t border-edge-soft bg-surface-muted/60 p-3 sm:p-4 space-y-4"
                   >
                     @if (detailError(); as openError) {
                       <app-alert-banner variant="error" [message]="openError" />
@@ -220,13 +220,13 @@
 
                     <!-- Mensagem original, completa -->
                     <section class="space-y-1.5">
-                      <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                      <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                         Mensagem do autor
                       </h3>
-                      <p class="text-sm text-neutral-800 whitespace-pre-wrap break-words">
+                      <p class="text-sm text-fg-body whitespace-pre-wrap break-words">
                         {{ t.message }}
                       </p>
-                      <p class="text-[11px] text-neutral-500 break-words">
+                      <p class="text-[11px] text-fg-subtle break-words">
                         Ticket {{ t.id }}
                       </p>
                     </section>
@@ -234,7 +234,7 @@
                     <!-- Responsável -->
                     <section class="space-y-1.5">
                       <label
-                        class="block text-xs font-semibold uppercase tracking-wide text-neutral-500"
+                        class="block text-xs font-semibold uppercase tracking-wide text-fg-subtle"
                         [attr.for]="'ticket-assignee-' + t.id"
                       >
                         Responsável
@@ -243,8 +243,8 @@
                         [id]="'ticket-assignee-' + t.id"
                         [formControl]="assigneeControl"
                         (change)="onAssigneeChange($any($event.target).value)"
-                        class="w-full sm:max-w-sm bg-white border border-neutral-200 rounded-xl px-4 py-3 text-sm
-                               text-neutral-800 min-h-[44px] focus:ring-2 focus:ring-primary-600
+                        class="w-full sm:max-w-sm bg-surface border border-edge rounded-xl px-4 py-3 text-sm
+                               text-fg-body min-h-[44px] focus:ring-2 focus:ring-primary-600
                                focus:border-primary-600 transition-colors disabled:opacity-60"
                       >
                         <option value="">Sem responsável</option>
@@ -256,7 +256,7 @@
                         }
                       </select>
                       @if (assigning()) {
-                        <p class="text-xs text-neutral-500" role="status">Salvando responsável…</p>
+                        <p class="text-xs text-fg-subtle" role="status">Salvando responsável…</p>
                       }
                       @if (assignError(); as assignFailure) {
                         <app-alert-banner variant="error" [message]="assignFailure" />
@@ -265,11 +265,11 @@
 
                     <!-- Thread -->
                     <section class="space-y-2">
-                      <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                      <h3 class="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                         Respostas
                       </h3>
                       @if (detailLoading()) {
-                        <p class="text-sm text-neutral-500">Carregando a thread…</p>
+                        <p class="text-sm text-fg-subtle">Carregando a thread…</p>
                       } @else {
                         <app-admin-support-thread [replies]="replies()" />
                       }
@@ -292,11 +292,11 @@
                             formControlName="message"
                             [attr.maxlength]="replyMaxLength"
                             placeholder="Escreva a resposta que o autor vai receber…"
-                            class="w-full bg-white border rounded-xl px-4 py-3 text-sm text-neutral-800
+                            class="w-full bg-surface border rounded-xl px-4 py-3 text-sm text-fg-body
                                    focus:ring-2 focus:ring-primary-600 focus:border-primary-600
                                    transition-colors resize-y min-h-[112px]"
                           ></textarea>
-                          <p class="text-xs text-neutral-600 tabular-nums text-right mt-1">
+                          <p class="text-xs text-fg-muted tabular-nums text-right mt-1">
                             {{ replyLength() }} / {{ replyMaxLength }}
                           </p>
                         </app-form-field>
@@ -335,7 +335,7 @@
 
         <!-- Paginação -->
         <div class="flex items-center justify-between gap-3 pt-1">
-          <p class="text-xs text-neutral-500 tabular-nums">
+          <p class="text-xs text-fg-subtle tabular-nums">
             Página {{ page() + 1 }} de {{ totalPages() }} — {{ total() }} ticket(s)
           </p>
           <div class="flex gap-2">
@@ -343,8 +343,8 @@
               type="button"
               (click)="prevPage()"
               [disabled]="!hasPrev() || loading()"
-              class="px-3 py-2 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700
-                     min-h-[36px] hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+              class="px-3 py-2 rounded-lg text-xs font-medium border border-edge text-fg-soft
+                     min-h-[36px] hover:bg-surface-muted focus:outline-none focus-visible:ring-2
                      focus-visible:ring-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Anterior
@@ -353,8 +353,8 @@
               type="button"
               (click)="nextPage()"
               [disabled]="!hasNext() || loading()"
-              class="px-3 py-2 rounded-lg text-xs font-medium border border-neutral-200 text-neutral-700
-                     min-h-[36px] hover:bg-neutral-50 focus:outline-none focus-visible:ring-2
+              class="px-3 py-2 rounded-lg text-xs font-medium border border-edge text-fg-soft
+                     min-h-[36px] hover:bg-surface-muted focus:outline-none focus-visible:ring-2
                      focus-visible:ring-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Próxima

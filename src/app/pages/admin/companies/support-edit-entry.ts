@@ -41,8 +41,8 @@ const STATUS_URL = `${environment.apiUrl}/admin/impersonation/edit/status`;
     <div class="flex w-full flex-col gap-1 sm:w-auto">
       <button
         type="button"
-        class="min-h-11 w-full rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm
-               font-semibold text-rose-700 transition-colors hover:bg-rose-50 focus:outline-none
+        class="min-h-11 w-full rounded-xl border border-rose-200 dark:border-rose-500/30 bg-surface px-4 py-2.5 text-sm
+               font-semibold text-rose-700 dark:text-rose-300 transition-colors hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none
                focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
                disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         [disabled]="!canOpen()"
@@ -52,7 +52,7 @@ const STATUS_URL = `${environment.apiUrl}/admin/impersonation/edit/status`;
         {{ starting() ? 'Abrindo sessão…' : 'Editar como empresa' }}
       </button>
       @if (hint(); as text) {
-        <p id="support-edit-hint" class="text-xs text-neutral-500">{{ text }}</p>
+        <p id="support-edit-hint" class="text-xs text-fg-subtle">{{ text }}</p>
       }
       @if (error(); as message) {
         <app-alert-banner variant="error" [message]="message" />

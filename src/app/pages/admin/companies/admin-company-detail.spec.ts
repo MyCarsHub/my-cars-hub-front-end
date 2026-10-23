@@ -386,7 +386,7 @@ describe('AdminCompanyDetail — bloco de operação', () => {
 
     // Zerado é atenuado com neutral-500 (≥ 4,5:1 sobre branco), nunca neutral-400 — WCAG AA.
     const dd = block.querySelector('dd')!;
-    expect(dd.className).toContain('text-neutral-500');
-    expect(dd.className).not.toContain('text-neutral-400');
+    expect(dd.className).toContain('text-fg-subtle');
+    expect(dd.className).not.toContain('text-fg-faint');
   });
 });

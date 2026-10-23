@@ -51,22 +51,22 @@ const TARGET_LABELS: Record<string, string> = {
 
 /** Cor do chip por família de ação — remoções em vermelho, criações em verde. */
 const ACTION_CHIPS: Record<string, string> = {
-  USER_STATUS_CHANGED: 'bg-amber-100 text-amber-700',
-  USER_SYSTEM_ROLE_CHANGED: 'bg-purple-100 text-purple-700',
-  COMPANY_STATUS_CHANGED: 'bg-amber-100 text-amber-700',
-  FEEDBACK_TASK_STATUS_CHANGED: 'bg-blue-100 text-blue-700',
-  FEEDBACK_TASK_DELETED: 'bg-red-100 text-red-700',
-  BLOG_POST_CREATED: 'bg-emerald-100 text-emerald-700',
-  BLOG_POST_UPDATED: 'bg-blue-100 text-blue-700',
-  BLOG_POST_PUBLISHED: 'bg-emerald-100 text-emerald-700',
-  BLOG_POST_UNPUBLISHED: 'bg-neutral-200 text-neutral-700',
-  BLOG_POST_DELETED: 'bg-red-100 text-red-700',
-  RENTAL_SCHEDULE_REGENERATED: 'bg-indigo-100 text-indigo-700',
-  NOTIFICATION_TEST_DISPATCHED: 'bg-sky-100 text-sky-700',
-  CONTRACT_TEMPLATE_SAVED: 'bg-emerald-100 text-emerald-700',
+  USER_STATUS_CHANGED: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  USER_SYSTEM_ROLE_CHANGED: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300',
+  COMPANY_STATUS_CHANGED: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  FEEDBACK_TASK_STATUS_CHANGED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
+  FEEDBACK_TASK_DELETED: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
+  BLOG_POST_CREATED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  BLOG_POST_UPDATED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
+  BLOG_POST_PUBLISHED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  BLOG_POST_UNPUBLISHED: 'bg-surface-strong text-fg-soft',
+  BLOG_POST_DELETED: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
+  RENTAL_SCHEDULE_REGENERATED: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
+  NOTIFICATION_TEST_DISPATCHED: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300',
+  CONTRACT_TEMPLATE_SAVED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
 };
 
-const DEFAULT_CHIP = 'bg-neutral-100 text-neutral-700';
+const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';
 
 /** `BLOG_POST_DELETED` → `Blog post deleted`. Só para valores sem rótulo mapeado. */
 function humanize(raw: string): string {

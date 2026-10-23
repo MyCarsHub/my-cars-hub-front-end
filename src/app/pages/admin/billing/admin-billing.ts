@@ -30,14 +30,14 @@ interface ChipStyle {
 
 /** Fallback só. O filtro é populado por `GET /v1/admin/billing/statuses`. */
 const SUB_STATUS_CHIPS: Record<string, ChipStyle> = {
-  TRIALING: { label: 'Trial', chip: 'bg-blue-100 text-blue-700' },
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 text-emerald-700' },
-  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 text-amber-800' },
-  UNPAID: { label: 'Não paga', chip: 'bg-amber-100 text-amber-800' },
-  INCOMPLETE: { label: 'Incompleta', chip: 'bg-amber-100 text-amber-800' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-  CANCELLED: { label: 'Cancelada', chip: 'bg-neutral-200 text-neutral-700' },
-  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 text-red-700' },
+  TRIALING: { label: 'Trial', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
+  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+  UNPAID: { label: 'Não paga', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+  INCOMPLETE: { label: 'Incompleta', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
 };
 
 const COMPANY_STATUS_LABELS: Record<string, string> = {
@@ -82,14 +82,14 @@ interface IssueKindStyle {
 const ISSUE_KINDS: Record<string, IssueKindStyle> = {
   SUBSCRIPTION_PAST_DUE: {
     label: 'Assinatura vencida',
-    chip: 'bg-red-100 text-red-700',
+    chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
     guidance:
       'A cobrança do ciclo não foi confirmada. Verifique o pagamento no gateway e, ' +
       'se não houver regularização, suspenda a empresa.',
   },
   RECONCILIATION_PENDING: {
     label: 'Reconciliação pendente',
-    chip: 'bg-amber-100 text-amber-800',
+    chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200',
     guidance:
       'O que está no gateway não bate com o que está na base. Confira a assinatura ' +
       'no gateway antes de mudar plano ou status por aqui.',
@@ -107,7 +107,7 @@ const ISSUE_REASON_LABELS: Record<string, string> = {
   ZERO_AMOUNT_PAID_PLAN: 'Pagamento registrado com valor zero em um plano pago',
 };
 
-const DEFAULT_CHIP = 'bg-neutral-100 text-neutral-700';
+const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';
 
 /** `PLAN_MISMATCH` → `Plan mismatch`. Só para valores sem rótulo mapeado. */
 function humanize(raw: string): string {
@@ -344,8 +344,8 @@ export class AdminBilling implements OnInit {
 
   protected issueAmountClass(issue: AdminBillingIssue): string {
     return issue.amountCents === null || issue.amountCents === undefined
-      ? 'text-neutral-500 italic'
-      : 'text-neutral-900 tabular-nums';
+      ? 'text-fg-subtle italic'
+      : 'text-fg tabular-nums';
   }
 
   protected formatDate(value: string | null): string {
