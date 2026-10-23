@@ -22,11 +22,12 @@ import { ImpersonationService } from '../../../services/impersonation.service';
 import { TourSpotlight } from '../../tour/tour-spotlight';
 import { TourService } from '../../tour/tour.service';
 import { DriverTopBar } from '../../sidebar/driver-top-bar';
+import { ThemeToggle } from '../../theme-toggle/theme-toggle';
 
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell, TourSpotlight, DriverTopBar],
+  imports: [RouterOutlet, Sidebar, PaywallDialog, NotificationBell, TourSpotlight, DriverTopBar, ThemeToggle],
   animations: [
     trigger('contentMargin', [
       state('expanded', style({ marginLeft: '260px' })),
@@ -61,7 +62,7 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
       [class.flex-col]="layout.mobileTopBar()"
       [style.--page-top]="layout.mobileTopBar() ? '1.25rem' : null"
       [style.--page-fill-offset]="layout.mobileTopBar() ? 'calc(4.75rem + env(safe-area-inset-top) + env(safe-area-inset-bottom) + var(--consent-banner-h, 0px))' : null"
-      [style.--page-header-end]="layout.mobileTopBar() && showBell() ? '3.25rem' : null"
+      [style.--page-header-end]="headerEnd()"
     >
       @if (layout.mobileTopBar()) {
         <app-driver-top-bar />
@@ -71,7 +72,8 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
         class="relative min-h-0 flex-1 overflow-y-auto transition-none"
         [@contentMargin]="contentState()"
       >
-        @if (showBell()) {
+        <!-- O botão de tema aparece SEMPRE (dono, gerente e motorista; também no onboarding);
+             o sino continua só depois do onboarding concluído. -->
           <!--
             O shell não tem barra de header própria. O sino vive num header
             posicionado em absolute dentro do scroller do main: ocupa o espaço
@@ -93,10 +95,14 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
               [style.padding-top]="layout.mobileTopBar() ? 'var(--page-top)' : null"
               data-bell-row
             >
-              <app-notification-bell class="pointer-events-auto" />
+              <div class="pointer-events-auto flex items-center gap-2">
+                <app-theme-toggle />
+                @if (showBell()) {
+                  <app-notification-bell />
+                }
+              </div>
             </div>
           </header>
-        }
         <div>
           <router-outlet />
         </div>
@@ -158,6 +164,14 @@ export class AppShell implements OnInit, OnDestroy {
    * pedir o feed sem tenant é ruído garantido. `sessionStorage` não é reativo,
    * por isso o cálculo é reavaliado a cada navegação via `currentUrl()`.
    */
+  /**
+   * Folga à direita do título (`--page-header-end`, lida pelo default-page-layout) para a
+   * coluna do header: 44px do botão de tema, mais 8px + 44px do sino quando ele monta, mais
+   * 4px de respiro. Vale no celular e no desktop — o título e as ações da página não correm
+   * por baixo dos botões.
+   */
+  protected readonly headerEnd = computed(() => (this.showBell() ? '6.25rem' : '3.25rem'));
+
   protected readonly showBell = computed(() => {
     const url = this.currentUrl();
     if (url.startsWith('/onboarding')) return false;

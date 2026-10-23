@@ -452,6 +452,22 @@ body {
   --brand-tint: rgba(246, 59, 4, 0.14);
 }
 
+/* Troca de tema feita pela pessoa: fundo, texto e borda mudam em 250ms. A classe só existe
+   durante a troca (ThemeService) — nunca no carregamento — e nada disto roda com
+   `prefers-reduced-motion`. `!important` porque precisa vencer as transições próprias dos
+   componentes só nesses 300ms. */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition-property: background-color, border-color, color, fill, stroke, outline-color !important;
+    transition-duration: 250ms !important;
+    transition-timing-function: ease-out !important;
+    transition-delay: 0s !important;
+  }
+}
+
 /* A ilha clara: papel do contrato, prévias de documento, fotos e PDFs. */
 .theme-paper {
   color-scheme: light;

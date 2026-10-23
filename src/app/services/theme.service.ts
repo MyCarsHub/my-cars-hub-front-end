@@ -13,6 +13,11 @@ export type ResolvedTheme = 'light' | 'dark';
 export const THEME_STORAGE_KEY = 'mch:theme';
 export const THEME_DARK_CLASS = 'dark';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+/** Classe que liga a transição de cores no `<html>` (ver `styles.css`). */
+export const THEME_TRANSITION_CLASS = 'theme-transition';
+/** Um pouco mais que os 250ms do CSS, para a última cor terminar antes de a classe sair. */
+export const THEME_TRANSITION_MS = 320;
 
 function isPreference(value: unknown): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'system';
@@ -59,10 +64,41 @@ export class ThemeService {
   }
 
   setPreference(preference: ThemePreference): void {
+    this.animateNextChange();
     this._preference.set(preference);
     this.write(preference);
     this.apply();
   }
+
+  /**
+   * O botão ao lado do sino: um toque troca o que está PINTADO (claro ↔ escuro) e grava a
+   * escolha explícita. O Automático fica no cartão "Aparência" do Perfil — num ciclo de três
+   * estados, sair do Automático para o tema que já está na tela seria um toque sem efeito
+   * visível, que é exatamente o que faz a pessoa achar que o botão quebrou.
+   */
+  toggle(): void {
+    this.setPreference(this.resolved() === 'dark' ? 'light' : 'dark');
+  }
+
+  /**
+   * Transição suave de cores SÓ na troca feita pela pessoa: a classe vive ~300ms no `<html>`
+   * e o CSS (`html.theme-transition`) anima fundo, texto e borda. Nunca no carregamento
+   * (o `theme-init.js` e o boot não passam por aqui) e nunca com `prefers-reduced-motion`.
+   */
+  private animateNextChange(): void {
+    if (!this.isBrowser) return;
+    const view = this.document.defaultView;
+    if (view?.matchMedia?.(REDUCED_MOTION_QUERY)?.matches) return;
+    const root = this.document.documentElement;
+    root.classList.add(THEME_TRANSITION_CLASS);
+    if (this.transitionTimer) view?.clearTimeout(this.transitionTimer);
+    this.transitionTimer = view?.setTimeout(() => {
+      root.classList.remove(THEME_TRANSITION_CLASS);
+      this.transitionTimer = undefined;
+    }, THEME_TRANSITION_MS);
+  }
+
+  private transitionTimer: number | undefined;
 
   private apply(): void {
     if (!this.isBrowser) return;

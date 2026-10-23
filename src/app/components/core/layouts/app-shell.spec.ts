@@ -299,8 +299,8 @@ describe('AppShell — barra de topo do motorista', () => {
     configure('DRIVER');
     const host = renderMobile();
     expect(bellRow(host).style.paddingTop).toBe('var(--page-top)');
-    // ...e reserva a coluna do sino (44px + 8px) no cabeçalho da página.
-    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('3.25rem');
+    // ...e reserva a coluna do tema + sino (44 + 8 + 44 + 4px) no cabeçalho da página.
+    expect(frame(host).style.getPropertyValue('--page-header-end')).toBe('6.25rem');
   });
 
   /*
