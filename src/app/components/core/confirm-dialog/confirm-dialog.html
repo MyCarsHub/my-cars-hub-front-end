@@ -41,8 +41,8 @@
         <h2 id="confirm-dialog-title" class="text-base font-semibold text-fg leading-snug">
           {{ title() }}
         </h2>
-        <p id="confirm-dialog-description" class="mt-1 text-fg-subtle leading-relaxed"
-          [class.text-sm]="!large()" [class.text-base]="large()" [class.text-fg-soft]="large()">
+        <p id="confirm-dialog-description" class="mt-1 leading-relaxed"
+          [class.text-sm]="!large()" [class.text-base]="large()" [class.text-fg-subtle]="!large()" [class.text-fg-soft]="large()">
           {{ message() }}
         </p>
       </div>
