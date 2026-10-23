@@ -111,6 +111,9 @@ export class VehiclesService {
     // Quem chama é responsável por mandar as duas ou nenhuma.
     if (filters.periodStart) params = params.set('periodStart', filters.periodStart);
     if (filters.periodEnd) params = params.set('periodEnd', filters.periodEnd);
+    // Opt-in da miniatura (foto do veículo / frente da última vistoria aprovada):
+    // cada foto é uma assinatura no storage, então só a tela de veículos pede.
+    if (filters.includePhoto) params = params.set('includePhoto', 'true');
 
     return this.http.get<PagedResponse<VehicleListItem>>(BASE, { params }).pipe(
       tap((res) => {

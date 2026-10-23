@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { PageCard } from '../../components/core/page-card/page-card';
@@ -41,6 +42,7 @@ const TYPE_OPTIONS: Array<{ value: VehicleType | ''; label: string }> = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FormsModule,
+    NgTemplateOutlet,
     RouterLink,
     DefaultPageLayout,
     PageCard,
@@ -122,6 +124,16 @@ export class VehiclesList implements OnInit {
     return n > 0 ? `Filtros, ${n} ativo${n > 1 ? 's' : ''}` : 'Filtros';
   });
 
+  /** Quantos cards o skeleton desenha enquanto a primeira página não chega. */
+  protected readonly skeletonSlots = [0, 1, 2, 3];
+
+  /**
+   * Miniaturas que falharam ao carregar (URL assinada vencida, objeto sumido).
+   * O card cai no placeholder em vez de mostrar um quadro quebrado. Zera a cada
+   * carga: a página nova chega com URLs reassinadas.
+   */
+  private readonly brokenPhotos = signal<ReadonlySet<string>>(new Set());
+
   protected readonly deletingVehicle = signal<VehicleListItem | null>(null);
   protected readonly deleting = signal(false);
   protected readonly transitioningId = signal<string | null>(null);
@@ -198,8 +210,23 @@ export class VehiclesList implements OnInit {
     if (this.page() + 1 < this.totalPages()) this.reload(this.page() + 1);
   }
 
+  /** «Tentar novamente» do erro de carga: a MESMA página, com os MESMOS filtros. */
+  protected retry(): void {
+    this.reload(this.page());
+  }
+
+  protected photoFor(vehicle: VehicleListItem): string | null {
+    const url = vehicle.photoUrl ?? null;
+    return url && !this.brokenPhotos().has(vehicle.id) ? url : null;
+  }
+
+  protected onPhotoError(id: string): void {
+    this.brokenPhotos.update((current) => new Set(current).add(id));
+  }
+
   private reload(page: number): void {
     this.actionError.set(null);
+    this.brokenPhotos.set(new Set());
     this.vehiclesService
       .list({
         q: this.search().trim() || undefined,
@@ -210,6 +237,9 @@ export class VehiclesList implements OnInit {
         sort: this.sort(),
         page,
         size: this.pageSize(),
+        // Só ESTA tela pede a miniatura; pickers que reusam o endpoint não pagam
+        // as assinaturas de foto.
+        includePhoto: true,
       })
       // `VehiclesService` já expõe a mensagem em `error()` (banner inline);
       // aqui só reivindicamos o erro pra o safety net do interceptor não toastar.

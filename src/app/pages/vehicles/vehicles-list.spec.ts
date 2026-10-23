@@ -66,15 +66,13 @@ describe('VehiclesList — menu de ações', () => {
     });
   }
 
-  /** Abre o menu de ações do escopo informado e devolve seus itens já renderizados. */
-  function openMenuItems(
-    fixture: { nativeElement: unknown; detectChanges: () => void },
-    scope: 'mobile' | 'desktop',
-  ): HTMLElement[] {
+  /** Abre o menu de ações do primeiro card e devolve seus itens já renderizados. */
+  function openMenuItems(fixture: { nativeElement: unknown; detectChanges: () => void }): HTMLElement[] {
     const host = fixture.nativeElement as HTMLElement;
+    // Cards em TODA largura: um menu por veículo, sem a tabela desktop de antes.
     const containers = Array.from(host.querySelectorAll('app-actions-menu'));
-    // Os cards mobile vêm antes da tabela desktop no template.
-    const container = scope === 'mobile' ? containers[0] : containers[containers.length - 1];
+    expect(containers).toHaveLength(1);
+    const container = containers[0];
     container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.click();
     fixture.detectChanges();
     return Array.from(container.querySelectorAll<HTMLElement>('[role="menuitem"]'));
@@ -85,27 +83,24 @@ describe('VehiclesList — menu de ações', () => {
     configure();
   });
 
-  it.each(['mobile', 'desktop'] as const)(
-    'expõe Gerenciar, Editar e Remover no menu (%s)',
-    (scope) => {
-      const fixture = TestBed.createComponent(VehiclesList);
-      fixture.detectChanges();
+  it('expõe Gerenciar, Editar e Remover no menu do card', () => {
+    const fixture = TestBed.createComponent(VehiclesList);
+    fixture.detectChanges();
 
-      const menuItems = openMenuItems(fixture, scope);
-      const labels = menuItems.map((el) => el.textContent?.trim());
+    const menuItems = openMenuItems(fixture);
+    const labels = menuItems.map((el) => el.textContent?.trim());
 
-      expect(menuItems.length).toBeGreaterThan(0);
-      expect(labels).toContain('Gerenciar');
-      expect(labels).toContain('Editar');
-      expect(labels).toContain('Remover');
-    },
-  );
+    expect(menuItems.length).toBeGreaterThan(0);
+    expect(labels).toContain('Gerenciar');
+    expect(labels).toContain('Editar');
+    expect(labels).toContain('Remover');
+  });
 
   it('Gerenciar e Editar apontam para as rotas de gerência e edição', () => {
     const fixture = TestBed.createComponent(VehiclesList);
     fixture.detectChanges();
 
-    const hrefs = openMenuItems(fixture, 'mobile')
+    const hrefs = openMenuItems(fixture)
       .filter((el): el is HTMLAnchorElement => el.tagName === 'A')
       .map((a) => a.getAttribute('href'));
 
@@ -123,7 +118,7 @@ describe('VehiclesList — menu de ações', () => {
       confirmDelete: () => void;
     };
 
-    const remove = openMenuItems(fixture, 'mobile').find(
+    const remove = openMenuItems(fixture).find(
       (el) => el.textContent?.trim() === 'Remover',
     );
     remove?.click();
@@ -172,20 +167,26 @@ describe('VehiclesList — menu de ações', () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
-  // Padrão de listagem acessível (mesmo contrato de FinesList / TopOffendersTable).
-  it('card mobile expõe role="button", nome acessível e micro-labels em neutral-500 (AA)', () => {
+  /**
+   * Padrão da lista de Vistorias: o card NÃO é mais um `role="button"` — ele
+   * carregava o menu de ações DENTRO, interativo dentro de interativo, que o
+   * ARIA proíbe. A ação principal virou um link real com nome acessível.
+   */
+  it('card abre o detalhe por um link com nome acessível e usa micro-labels AA', () => {
     const fixture = TestBed.createComponent(VehiclesList);
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
 
-    const card = host.querySelector('article');
-    expect(card?.getAttribute('role')).toBe('button');
-    expect(card?.getAttribute('tabindex')).toBe('0');
-    expect(card?.getAttribute('aria-label')).toContain('ABC1D23');
+    const card = host.querySelector('article')!;
+    expect(card.getAttribute('role')).toBeNull();
+    const open = card.querySelector<HTMLAnchorElement>('[data-vehicle-open]')!;
+    expect(open.getAttribute('href')).toBe('/veiculos/v-1');
+    expect(open.getAttribute('aria-label')).toContain('ABC1D23');
+    expect(open.className).toContain('min-h-11');
 
-    expect(host.querySelectorAll('article span.text-neutral-500').length).toBeGreaterThan(0);
-    // Nada de neutral-400 (2,98:1) em texto dentro do card — só o ícone decorativo da busca usa.
-    expect(card?.querySelector('.text-neutral-400')).toBeNull();
+    expect(card.querySelectorAll('.text-neutral-500').length).toBeGreaterThan(0);
+    // Nada de neutral-400 (2,98:1) dentro do card — nem no placeholder da miniatura.
+    expect(card.querySelector('.text-neutral-400')).toBeNull();
   });
 
   /**
@@ -292,9 +293,9 @@ describe('VehiclesList — modo Vendidos (FIX-0264)', () => {
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
 
-    // Card mobile + célula da tabela desktop, apenas para o item vendido.
+    // Um card por veículo (sem a tabela desktop), chip só no vendido.
     const chips = Array.from(host.querySelectorAll('[data-sold-chip]'));
-    expect(chips).toHaveLength(2);
+    expect(chips).toHaveLength(1);
     for (const chip of chips) {
       expect(chip.textContent?.trim()).toBe('Vendido');
       expect(chip.className).toContain('bg-neutral-800');
