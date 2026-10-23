@@ -260,8 +260,8 @@ export class VehiclesList implements OnInit {
 
   protected typeChip(type: VehicleType): string {
     return type === 'CAR'
-      ? 'bg-blue-100 text-blue-700'
-      : 'bg-amber-100 text-amber-800';
+      ? 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300'
+      : 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200';
   }
 
   protected formatPlate(plate: string): string {
