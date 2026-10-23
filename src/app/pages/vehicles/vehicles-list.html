@@ -385,13 +385,14 @@
                   </div>
 
                   <p data-vehicle-model class="text-sm text-neutral-600 truncate">
-                    {{ vehicle.brand }} {{ vehicle.model }} · {{ vehicle.yearModel }}
+                    {{ vehicle.brand }} {{ vehicle.model }}
                   </p>
 
-                  <p data-vehicle-meta class="text-[13px] text-neutral-500 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                    <span>{{ typeLabel(vehicle.type) }}</span>
-                    <span aria-hidden="true">·</span>
-                    <span class="tabular-nums">Licenciamento {{ formatDate(vehicle.licensingExpiration) }}</span>
+                  <p data-vehicle-meta class="text-[13px] text-neutral-500 tabular-nums">
+                    {{ typeLabel(vehicle.type) }} · {{ vehicle.yearModel }}
+                  </p>
+                  <p data-vehicle-licensing class="text-[13px] text-neutral-500 tabular-nums">
+                    Licenciamento {{ formatDate(vehicle.licensingExpiration) }}
                   </p>
 
                   @if (licensingBadge(vehicle.licensingExpiration) || showIpvaOverdue(vehicle)) {
