@@ -100,7 +100,7 @@ function isPdfBytes(head: Uint8Array): boolean {
             <a
               data-testid="edit-rental-shortcut"
               [routerLink]="['/alugueis', rentalId(), 'editar']"
-              class="flex min-h-[44px] w-fit items-center text-base font-medium text-primary-700 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+              class="flex min-h-[44px] w-fit items-center text-base font-medium text-primary-700 dark:text-primary-400 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
             >
               Editar aluguel e definir os juros ao mês
             </a>
@@ -111,21 +111,21 @@ function isPdfBytes(head: Uint8Array): boolean {
             <a
               data-testid="edit-rental-required-shortcut"
               [routerLink]="['/alugueis', rentalId(), 'editar']"
-              class="flex min-h-[44px] w-fit items-center text-base font-medium text-primary-700 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
+              class="flex min-h-[44px] w-fit items-center text-base font-medium text-primary-700 dark:text-primary-400 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2"
             >
               Editar aluguel
             </a>
           }
         }
         @if (loading()) {
-          <div class="h-16 rounded-xl bg-neutral-100 animate-pulse"></div>
+          <div class="h-16 rounded-xl bg-surface-sunken animate-pulse"></div>
         } @else if (contract(); as c) {
           <div
-            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3"
+            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-edge bg-surface p-3"
           >
             <div class="min-w-0 flex items-center gap-3">
               <span
-                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-600 shrink-0"
+                class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-300 shrink-0"
                 aria-hidden="true"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
@@ -140,7 +140,7 @@ function isPdfBytes(head: Uint8Array): boolean {
                        mimeType da linha ainda diz DOCX (o arquivo virou PDF sem o
                        backend atualizar o MIME), e o formato REAL só é conhecido
                        depois de ler os bytes — tarde demais pra rotular o card. -->
-                  <p class="text-sm font-semibold text-neutral-900 truncate">Contrato</p>
+                  <p class="text-sm font-semibold text-fg truncate">Contrato</p>
                   @if (signatureBadge(); as b) {
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
                       [class]="b.chip"
@@ -149,7 +149,7 @@ function isPdfBytes(head: Uint8Array): boolean {
                     </span>
                   }
                 </div>
-                <p class="text-xs text-neutral-500 tabular-nums">
+                <p class="text-xs text-fg-subtle tabular-nums">
                   {{ fileTypeLabel() }} · {{ formatSize(c.sizeBytes) }} · Enviado {{ formatDate(c.createdDate) }}
                 </p>
               </div>
@@ -167,7 +167,7 @@ function isPdfBytes(head: Uint8Array): boolean {
               </button>
               @if (canReplaceFile()) {
                 <button type="button" (click)="askDelete()"
-                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors min-h-[44px]"
+                  class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-edge hover:bg-surface-muted text-fg-soft text-sm font-medium transition-colors min-h-[44px]"
                 >
                   Remover
                 </button>
@@ -209,46 +209,46 @@ function isPdfBytes(head: Uint8Array): boolean {
           }
 
           @if (signatureStatus() === 'PENDING') {
-            <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+            <p class="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-2">
               Aguardando signatários assinarem.
             </p>
           }
 
           @if (uploading()) {
-            <div class="rounded-xl border border-primary-200 bg-primary-50/60 p-3 space-y-2">
+            <div class="rounded-xl border border-primary-200 dark:border-primary-500/30 bg-primary-50/60 dark:bg-primary-500/10 p-3 space-y-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-xs text-primary-800 font-medium">Enviando contrato…</p>
+                <p class="text-xs text-primary-800 dark:text-primary-400 font-medium">Enviando contrato…</p>
                 <button type="button" (click)="cancelUpload()"
-                  class="text-xs text-neutral-600 hover:text-rose-600 font-medium min-h-[44px] px-3">
+                  class="text-xs text-fg-muted hover:text-rose-600 dark:hover:text-rose-300 font-medium min-h-[44px] px-3">
                   Cancelar
                 </button>
               </div>
-              <div class="h-1.5 rounded-full bg-primary-100 overflow-hidden"
+              <div class="h-1.5 rounded-full bg-primary-100 dark:bg-primary-500/15 overflow-hidden"
                    role="progressbar" aria-label="Enviando contrato">
                 <div class="h-full w-1/3 rounded-full bg-primary-500 indeterminate-bar"></div>
               </div>
             </div>
           } @else if (canReplaceFile()) {
             <button type="button" (click)="picker.click()"
-              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-neutral-300 hover:border-primary-400 text-sm font-medium text-neutral-600 hover:text-primary-700 transition-colors min-h-[48px]">
+              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-edge-strong hover:border-primary-400 text-sm font-medium text-fg-muted hover:text-primary-700 dark:hover:text-primary-400 transition-colors min-h-[48px]">
               Substituir contrato
             </button>
           }
         } @else {
-          <div class="rounded-xl border-2 border-dashed border-neutral-300 p-6 sm:p-8 text-center space-y-3">
-            <p class="text-sm text-neutral-600">
+          <div class="rounded-xl border-2 border-dashed border-edge-strong p-6 sm:p-8 text-center space-y-3">
+            <p class="text-sm text-fg-muted">
               Nenhum contrato enviado ainda. Anexe o contrato (PDF ou DOCX) para este aluguel.
             </p>
             @if (uploading()) {
-              <div class="rounded-xl bg-primary-50/60 border border-primary-200 p-3 space-y-2">
+              <div class="rounded-xl bg-primary-50/60 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/30 p-3 space-y-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-xs text-primary-800 font-medium">Enviando contrato…</p>
+                  <p class="text-xs text-primary-800 dark:text-primary-400 font-medium">Enviando contrato…</p>
                   <button type="button" (click)="cancelUpload()"
-                    class="text-xs text-neutral-600 hover:text-rose-600 font-medium min-h-[44px] px-3">
+                    class="text-xs text-fg-muted hover:text-rose-600 dark:hover:text-rose-300 font-medium min-h-[44px] px-3">
                     Cancelar
                   </button>
                 </div>
-                <div class="h-1.5 rounded-full bg-primary-100 overflow-hidden"
+                <div class="h-1.5 rounded-full bg-primary-100 dark:bg-primary-500/15 overflow-hidden"
                      role="progressbar" aria-label="Enviando contrato">
                   <div class="h-full w-1/3 rounded-full bg-primary-500 indeterminate-bar"></div>
                 </div>
@@ -289,11 +289,11 @@ function isPdfBytes(head: Uint8Array): boolean {
     @if (signatureModalOpen()) {
       <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
         (click)="closeSignatureModal()">
-        <div class="w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden"
+        <div class="w-full max-w-lg bg-surface rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden"
           (click)="$event.stopPropagation()">
-          <div class="p-4 sm:p-6 border-b border-neutral-100">
-            <h3 class="text-base font-semibold text-neutral-900">Solicitar assinatura eletrônica</h3>
-            <p class="text-xs text-neutral-500 mt-1">
+          <div class="p-4 sm:p-6 border-b border-edge-soft">
+            <h3 class="text-base font-semibold text-fg">Solicitar assinatura eletrônica</h3>
+            <p class="text-xs text-fg-subtle mt-1">
               Cada signatário receberá um email do Autentique com link direto para assinar.
             </p>
           </div>
@@ -310,9 +310,9 @@ function isPdfBytes(head: Uint8Array): boolean {
                       placeholder="Nome do signatário"
                       [attr.aria-invalid]="isNameInvalid(s.name) ? 'true' : null"
                       [attr.aria-describedby]="isNameInvalid(s.name) ? 'signer-' + i + '-name-error' : null"
-                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isNameInvalid(s.name) ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
+                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isNameInvalid(s.name) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge')" />
                     @if (isNameInvalid(s.name)) {
-                      <p class="text-xs text-rose-600 mt-1" [id]="'signer-' + i + '-name-error'" role="alert">
+                      <p class="text-xs text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-name-error'" role="alert">
                         Informe o nome do signatário.
                       </p>
                     }
@@ -326,9 +326,9 @@ function isPdfBytes(head: Uint8Array): boolean {
                       placeholder="email@exemplo.com"
                       [attr.aria-invalid]="isEmailInvalid(s.email) ? 'true' : null"
                       [attr.aria-describedby]="isEmailInvalid(s.email) ? 'signer-' + i + '-email-error' : null"
-                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40' : 'border-neutral-200')" />
+                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge')" />
                     @if (isEmailInvalid(s.email)) {
-                      <p class="text-xs text-rose-600 mt-1" [id]="'signer-' + i + '-email-error'" role="alert">
+                      <p class="text-xs text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-email-error'" role="alert">
                         Informe um e-mail válido (ex.: nome@empresa.com.br).
                       </p>
                     }
@@ -336,7 +336,7 @@ function isPdfBytes(head: Uint8Array): boolean {
                 </div>
                 @if (signers().length > 1) {
                   <button type="button" (click)="removeSigner(i)"
-                    class="mt-1 p-2 text-neutral-400 hover:text-rose-600 min-h-[44px] min-w-[44px]"
+                    class="mt-1 p-2 text-fg-faint hover:text-rose-600 dark:hover:text-rose-300 min-h-[44px] min-w-[44px]"
                     aria-label="Remover signatário">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                       fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -348,14 +348,14 @@ function isPdfBytes(head: Uint8Array): boolean {
             }
             @if (signers().length < 6) {
               <button type="button" (click)="addSigner()"
-                class="w-full py-2 rounded-lg border border-dashed border-neutral-300 hover:border-primary-400 text-sm text-neutral-600 hover:text-primary-700 min-h-[44px]">
+                class="w-full py-2 rounded-lg border border-dashed border-edge-strong hover:border-primary-400 text-sm text-fg-muted hover:text-primary-700 dark:hover:text-primary-400 min-h-[44px]">
                 + Adicionar signatário
               </button>
             }
           </div>
-          <div class="p-4 sm:p-6 border-t border-neutral-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          <div class="p-4 sm:p-6 border-t border-edge-soft flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <button type="button" (click)="closeSignatureModal()" [disabled]="requesting()"
-              class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-sm font-medium min-h-[44px]">
+              class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-edge hover:bg-surface-muted text-sm font-medium min-h-[44px]">
               Cancelar
             </button>
             <button type="button" (click)="submitSignature()" [disabled]="requesting() || !canSubmit()"
@@ -465,10 +465,10 @@ export class RentalContractCard implements OnInit, OnDestroy {
     const s = this.signatureStatus();
     if (!s || s === 'NOT_REQUIRED') return null;
     return {
-      PENDING: { label: 'Aguardando assinatura', chip: 'bg-amber-100 text-amber-800' },
-      SIGNED: { label: 'Assinado', chip: 'bg-emerald-100 text-emerald-800' },
-      REFUSED: { label: 'Recusado', chip: 'bg-rose-100 text-rose-800' },
-      EXPIRED: { label: 'Expirado', chip: 'bg-neutral-200 text-neutral-700' },
+      PENDING: { label: 'Aguardando assinatura', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+      SIGNED: { label: 'Assinado', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' },
+      REFUSED: { label: 'Recusado', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-200' },
+      EXPIRED: { label: 'Expirado', chip: 'bg-surface-strong text-fg-soft' },
     }[s];
   });
 

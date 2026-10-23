@@ -46,13 +46,13 @@ const PENDING: ReadonlySet<ChargeRemovalOutcome> = new Set(['REMOVAL_REFUSED', '
       <p
         role="alert"
         data-testid="removal-pending-summary"
-        class="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-base font-semibold text-rose-800"
+        class="mb-3 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 p-3 text-base font-semibold text-rose-800 dark:text-rose-200"
       >
         {{ pendingText() }}
       </p>
     }
     @if (rows().length === 0) {
-      <p class="text-base text-neutral-600">Este aluguel não tinha cobranças.</p>
+      <p class="text-base text-fg-muted">Este aluguel não tinha cobranças.</p>
     } @else {
       <ul class="space-y-2" data-testid="removal-list">
         @for (row of rows(); track row.id) {
@@ -62,12 +62,12 @@ const PENDING: ReadonlySet<ChargeRemovalOutcome> = new Set(['REMOVAL_REFUSED', '
             [attr.data-outcome-pending]="row.pending ? 'true' : null"
           >
             <div class="flex items-start justify-between gap-2">
-              <span class="min-w-0 font-medium text-neutral-900">{{ row.kind }}</span>
-              <span class="shrink-0 font-medium text-neutral-900">{{ row.amount }}</span>
+              <span class="min-w-0 font-medium text-fg">{{ row.kind }}</span>
+              <span class="shrink-0 font-medium text-fg">{{ row.amount }}</span>
             </div>
             <p class="mt-1 font-semibold" data-testid="removal-label">{{ row.label }}</p>
             @if (row.message) {
-              <p class="mt-1 break-words text-neutral-700">{{ row.message }}</p>
+              <p class="mt-1 break-words text-fg-soft">{{ row.message }}</p>
             }
           </li>
         }
@@ -90,10 +90,10 @@ export class ChargeRemovalList {
         message: r.message,
         pending,
         tone: pending
-          ? 'border-rose-300 bg-rose-50'
+          ? 'border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10'
           : kept
-            ? 'border-neutral-200 bg-neutral-50'
-            : 'border-emerald-200 bg-emerald-50',
+            ? 'border-edge bg-surface-muted'
+            : 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10',
       };
     });
     return [...rows.filter((r) => r.pending), ...rows.filter((r) => !r.pending)];

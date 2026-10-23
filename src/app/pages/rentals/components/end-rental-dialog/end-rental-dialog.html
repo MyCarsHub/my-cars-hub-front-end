@@ -14,7 +14,7 @@
     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 pointer-events-none"
   >
     <div
-      class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-neutral-100 w-full max-w-lg pointer-events-auto overflow-hidden max-h-[92vh] flex flex-col"
+      class="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-edge-soft w-full max-w-lg pointer-events-auto overflow-hidden max-h-[92vh] flex flex-col"
     >
       <div class="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 pb-3 sm:pb-4">
         <div
@@ -39,7 +39,7 @@
           }
         </div>
         <div class="flex-1 min-w-0">
-          <h2 id="end-rental-title" class="text-base font-semibold text-neutral-900 leading-snug">
+          <h2 id="end-rental-title" class="text-base font-semibold text-fg leading-snug">
             {{ titleLabel() }}
           </h2>
           <!--
@@ -47,7 +47,7 @@
             não têm nenhuma — e sem nada abaixo que cumprisse a promessa. Agora a
             frase só cita a caução quando a seção dela vai existir.
           -->
-          <p class="mt-1 text-sm text-neutral-500 leading-relaxed">
+          <p class="mt-1 text-sm text-fg-subtle leading-relaxed">
             @if (showRefundSection()) {
               Informe a data efetiva e a devolução da caução.
             } @else {
@@ -61,7 +61,7 @@
         <!-- Data (+ hora da devolução, que decide a multa por atraso) -->
         <div class="flex flex-col gap-3 sm:flex-row">
           <div class="flex-1 min-w-0">
-            <label for="end-date" class="block text-sm font-medium text-neutral-700 mb-1.5">
+            <label for="end-date" class="block text-sm font-medium text-fg-soft mb-1.5">
               Data de {{ intent() === 'cancel' ? 'cancelamento' : 'conclusão' }}
             </label>
             <input
@@ -72,7 +72,7 @@
               [attr.min]="minDate()"
               [attr.max]="maxDate()"
               [disabled]="busy()"
-              class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                      focus-visible:border-primary-400 transition-colors disabled:opacity-60"
             />
@@ -82,7 +82,7 @@
             <div class="sm:w-40 shrink-0">
               <label
                 for="end-return-time"
-                class="block text-sm font-medium text-neutral-700 mb-1.5"
+                class="block text-sm font-medium text-fg-soft mb-1.5"
               >
                 Hora da devolução
               </label>
@@ -93,7 +93,7 @@
                 (input)="onReturnTimeInput($event)"
                 [disabled]="busy()"
                 aria-describedby="end-return-time-hint"
-                class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-neutral-800
+                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                        focus-visible:border-primary-400 transition-colors disabled:opacity-60"
               />
@@ -102,7 +102,7 @@
         </div>
 
         @if (isComplete()) {
-          <p id="end-return-time-hint" class="-mt-2 text-[11px] text-neutral-500">
+          <p id="end-return-time-hint" class="-mt-2 text-[11px] text-fg-subtle">
             A hora decide a multa por atraso: a tolerância é contada em horas.
           </p>
 
@@ -110,7 +110,7 @@
           <div aria-live="polite">
             @if (overduePreviewLoading()) {
               <p
-                class="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-xs text-neutral-600"
+                class="rounded-xl border border-edge bg-surface-muted px-3 py-2.5 text-xs text-fg-muted"
               >
                 Calculando a multa por atraso…
               </p>
@@ -120,19 +120,19 @@
                 conclusão de qualquer jeito. Ou o operador tenta de novo, ou
                 assume por escrito que está concluindo sem saber o valor.
               -->
-              <div class="rounded-xl border border-rose-300 bg-rose-50 px-3 py-3 space-y-2.5">
+              <div class="rounded-xl border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10 px-3 py-3 space-y-2.5">
                 <!--
                   Sem `role="alert"`: o container já é `aria-live="polite"`, e
                   aninhar uma região assertiva dentro dele faria o leitor de
                   tela anunciar o título duas vezes.
                 -->
-                <p class="text-sm font-semibold text-rose-900">
+                <p class="text-sm font-semibold text-rose-900 dark:text-rose-200">
                   Não foi possível calcular a multa por atraso
                 </p>
-                <p class="text-xs leading-relaxed text-rose-800">
+                <p class="text-xs leading-relaxed text-rose-800 dark:text-rose-200">
                   {{ overduePreviewError() }}
                 </p>
-                <p class="text-xs leading-relaxed text-rose-800">
+                <p class="text-xs leading-relaxed text-rose-800 dark:text-rose-200">
                   Isso <b>não</b> significa que não há multa — a falha é na consulta, não na regra.
                   Se houver atraso, a cobrança será lançada na conclusão do mesmo jeito.
                 </p>
@@ -142,15 +142,15 @@
                   (click)="retryPreview()"
                   [disabled]="busy()"
                   class="inline-flex items-center justify-center min-h-[44px] w-full sm:w-auto rounded-xl border
-                         border-rose-400 bg-white px-4 text-sm font-semibold text-rose-800
-                         hover:bg-rose-100 disabled:opacity-60 focus:outline-none
+                         border-rose-400 bg-surface px-4 text-sm font-semibold text-rose-800 dark:text-rose-200
+                         hover:bg-rose-100 dark:hover:bg-rose-500/15 disabled:opacity-60 focus:outline-none
                          focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-1"
                 >
                   Tentar de novo
                 </button>
 
                 <label
-                  class="flex items-start gap-3 rounded-lg border border-rose-300 bg-white px-3 py-2.5 cursor-pointer"
+                  class="flex items-start gap-3 rounded-lg border border-rose-300 dark:border-rose-500/40 bg-surface px-3 py-2.5 cursor-pointer"
                   [class.ring-2]="overdueBlindAck()"
                   [class.ring-rose-500]="overdueBlindAck()"
                 >
@@ -164,7 +164,7 @@
                            focus-visible:outline-none focus-visible:ring-2
                            focus-visible:ring-rose-700 focus-visible:ring-offset-1"
                   />
-                  <span class="flex-1 min-w-0 text-sm text-neutral-800">
+                  <span class="flex-1 min-w-0 text-sm text-fg-body">
                     Estou ciente de que estou concluindo <b>sem saber o valor</b> da multa, e de que
                     o cliente pode ser cobrado por um valor que não apareceu nesta tela.
                   </span>
@@ -176,24 +176,24 @@
                 Nada de texto branco sobre amber-500, que reprova em AA.
               -->
               <div
-                class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 space-y-2"
+                class="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-3 space-y-2"
                 [attr.aria-describedby]="'overdue-formula'"
               >
                 <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <p class="text-sm font-semibold text-amber-900">
+                  <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">
                     {{ overdueAlreadyCharged() ? 'Multa por atraso já lançada' : 'Devolução em atraso' }}
                   </p>
-                  <p class="text-base font-bold text-amber-900 tabular-nums">
+                  <p class="text-base font-bold text-amber-900 dark:text-amber-200 tabular-nums">
                     {{ overdueFormulaTotal() }}
                   </p>
                 </div>
 
                 <!-- A conta, não só o resultado: é ela que o motorista confere. -->
-                <p id="overdue-formula" class="text-sm text-amber-900 tabular-nums">
+                <p id="overdue-formula" class="text-sm text-amber-900 dark:text-amber-200 tabular-nums">
                   {{ overdueFormula() }}
                 </p>
 
-                <dl class="text-xs text-amber-800 space-y-0.5">
+                <dl class="text-xs text-amber-800 dark:text-amber-200 space-y-0.5">
                   <div class="flex flex-wrap gap-x-1">
                     <dt class="font-medium">Prazo (fim do aluguel + {{ overdueGraceLabel() }}):</dt>
                     <dd class="tabular-nums">{{ overdueDueAtLabel() }}</dd>
@@ -209,12 +209,12 @@
                 </dl>
 
                 @if (overdueAlreadyCharged()) {
-                  <p class="text-xs text-amber-800">
+                  <p class="text-xs text-amber-800 dark:text-amber-200">
                     Esta cobrança já existe no aluguel — concluir não gera outra.
                   </p>
                 } @else {
                   <label
-                    class="flex items-start gap-3 rounded-lg border border-amber-300 bg-white px-3 py-2.5 cursor-pointer"
+                    class="flex items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-surface px-3 py-2.5 cursor-pointer"
                     [class.ring-2]="overdueAck()"
                     [class.ring-amber-500]="overdueAck()"
                   >
@@ -227,7 +227,7 @@
                              focus-visible:outline-none focus-visible:ring-2
                              focus-visible:ring-amber-700 focus-visible:ring-offset-1"
                     />
-                    <span class="flex-1 min-w-0 text-sm text-neutral-800">
+                    <span class="flex-1 min-w-0 text-sm text-fg-body">
                       Estou ciente de que concluir vai lançar esta multa de
                       <b class="tabular-nums">{{ overdueFormulaTotal() }}</b> no aluguel.
                     </span>
@@ -237,7 +237,7 @@
             } @else if (onTimeConfirmed()) {
               <!-- No prazo: confirmação sem valor nenhum. Nem um zero. -->
               <p
-                class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs leading-relaxed text-emerald-900"
+                class="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2.5 text-xs leading-relaxed text-emerald-900 dark:text-emerald-200"
               >
                 Devolução dentro do prazo — nenhuma multa será cobrada. O prazo com
                 {{ overdueGraceLabel() }} de tolerância vai até
@@ -250,7 +250,7 @@
 
         <!-- Motivo -->
         <div>
-          <label for="end-reason" class="block text-sm font-medium text-neutral-700 mb-1.5">
+          <label for="end-reason" class="block text-sm font-medium text-fg-soft mb-1.5">
             Motivo (opcional)
           </label>
           <textarea
@@ -261,21 +261,21 @@
             (input)="onReasonInput($event)"
             [disabled]="busy()"
             placeholder="Ex.: veículo devolvido antes do prazo por acordo com o locatário."
-            class="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-sm text-neutral-800
+            class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-sm text-fg-body
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                    focus-visible:border-primary-400 transition-colors disabled:opacity-60 resize-none"
           ></textarea>
-          <p class="mt-1 text-[11px] text-neutral-400 text-right tabular-nums">
+          <p class="mt-1 text-[11px] text-fg-faint text-right tabular-nums">
             {{ reason().length }}/500
           </p>
         </div>
 
         <!-- Devolução da caução -->
         @if (showRefundSection()) {
-          <div class="rounded-xl border border-neutral-200 bg-neutral-50/60 p-3 sm:p-4 space-y-3">
+          <div class="rounded-xl border border-edge bg-surface-muted/60 p-3 sm:p-4 space-y-3">
             <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <p class="text-sm font-semibold text-neutral-800">Devolução da caução</p>
-              <p class="text-xs text-neutral-500 tabular-nums">{{ caucaoSummaryLabel() }}</p>
+              <p class="text-sm font-semibold text-fg-body">Devolução da caução</p>
+              <p class="text-xs text-fg-subtle tabular-nums">{{ caucaoSummaryLabel() }}</p>
             </div>
 
             <!--
@@ -287,7 +287,7 @@
               sozinha — agora só há uma.
             -->
             @if (hasPaidCaucaoCharge()) {
-              <p class="text-xs leading-relaxed text-neutral-500">
+              <p class="text-xs leading-relaxed text-fg-subtle">
                 Esta caução é a exceção: ela não é apagada com as demais cobranças — a
                 devolução é você que decide, aqui.
               </p>
@@ -296,7 +296,7 @@
             @if (refundStateNotice()) {
               <p
                 id="refund-state-notice"
-                class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-900"
+                class="rounded-lg border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 px-3 py-2 text-xs leading-relaxed text-sky-900 dark:text-sky-200"
               >
                 {{ refundStateNotice() }}
               </p>
@@ -311,7 +311,7 @@
               <!-- Só existe quando o estorno pelo gateway é possível de verdade. -->
               @if (canRefundViaGateway()) {
                 <label
-                  class="flex items-start gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2 cursor-pointer"
+                  class="flex items-start gap-3 rounded-lg border border-edge bg-surface px-3 py-2 cursor-pointer"
                   [class.ring-2]="refundMethod() === 'AUTOMATIC'"
                   [class.ring-primary-400]="refundMethod() === 'AUTOMATIC'"
                   [class.border-primary-400]="refundMethod() === 'AUTOMATIC'"
@@ -326,8 +326,8 @@
                     class="mt-1 accent-primary-500"
                   />
                   <span class="flex-1 min-w-0">
-                    <span class="block text-sm font-medium text-neutral-800">Automática</span>
-                    <span class="block text-xs text-neutral-500">
+                    <span class="block text-sm font-medium text-fg-body">Automática</span>
+                    <span class="block text-xs text-fg-subtle">
                       Devolve via Asaas (estorno na cobrança da caução).
                     </span>
                   </span>
@@ -335,7 +335,7 @@
               }
 
               <label
-                class="flex items-start gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2 cursor-pointer"
+                class="flex items-start gap-3 rounded-lg border border-edge bg-surface px-3 py-2 cursor-pointer"
                 [class.ring-2]="refundMethod() === 'MANUAL'"
                 [class.ring-primary-400]="refundMethod() === 'MANUAL'"
                 [class.border-primary-400]="refundMethod() === 'MANUAL'"
@@ -350,17 +350,17 @@
                   class="mt-1 accent-primary-500"
                 />
                 <span class="flex-1 min-w-0">
-                  <span class="block text-sm font-medium text-neutral-800">
+                  <span class="block text-sm font-medium text-fg-body">
                     {{ manualOptionTitle() }}
                   </span>
-                  <span class="block text-xs text-neutral-500">
+                  <span class="block text-xs text-fg-subtle">
                     {{ manualOptionDescription() }}
                   </span>
                 </span>
               </label>
 
               <label
-                class="flex items-start gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2 cursor-pointer"
+                class="flex items-start gap-3 rounded-lg border border-edge bg-surface px-3 py-2 cursor-pointer"
                 [class.ring-2]="refundMethod() === 'NONE'"
                 [class.ring-primary-400]="refundMethod() === 'NONE'"
                 [class.border-primary-400]="refundMethod() === 'NONE'"
@@ -375,8 +375,8 @@
                   class="mt-1 accent-primary-500"
                 />
                 <span class="flex-1 min-w-0">
-                  <span class="block text-sm font-medium text-neutral-800">Não devolver</span>
-                  <span class="block text-xs text-neutral-500">
+                  <span class="block text-sm font-medium text-fg-body">Não devolver</span>
+                  <span class="block text-xs text-fg-subtle">
                     {{ noneOptionDescription() }}
                   </span>
                 </span>
@@ -384,7 +384,7 @@
             </fieldset>
 
             <div>
-              <label for="refund-amount" class="block text-sm font-medium text-neutral-700 mb-1.5">
+              <label for="refund-amount" class="block text-sm font-medium text-fg-soft mb-1.5">
                 Valor a devolver
               </label>
               <input
@@ -394,11 +394,11 @@
                 [value]="formattedRefund()"
                 (input)="onRefundAmountInput($event)"
                 [disabled]="busy() || refundMethod() === 'NONE'"
-                class="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 tabular-nums text-neutral-800
+                class="w-full bg-surface border border-edge rounded-xl px-4 py-3 tabular-nums text-fg-body
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                        focus-visible:border-primary-400 transition-colors disabled:opacity-60"
               />
-              <p class="mt-1 text-[11px] text-neutral-400">Máximo: {{ formattedRefundMax() }}</p>
+              <p class="mt-1 text-[11px] text-fg-faint">Máximo: {{ formattedRefundMax() }}</p>
             </div>
           </div>
         }
@@ -414,7 +414,7 @@
         -->
         @if (chargesNotice()) {
           <p
-            class="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800"
+            class="rounded-xl border border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200"
           >
             {{ chargesNotice() }}
           </p>
@@ -426,7 +426,7 @@
         -->
         @if (hasOverdueUnpaidCharges()) {
           <label
-            class="flex items-start gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2.5 cursor-pointer"
+            class="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-surface px-3 py-2.5 cursor-pointer"
             [class.ring-2]="removeOverdueCharges()"
             [class.ring-amber-400]="removeOverdueCharges()"
           >
@@ -440,31 +440,31 @@
                      focus-visible:ring-offset-1"
             />
             <span class="flex-1 min-w-0">
-              <span class="block text-sm font-medium text-neutral-800">
+              <span class="block text-sm font-medium text-fg-body">
                 Apagar também as cobranças vencidas e não pagas
               </span>
-              <span class="mt-0.5 block text-xs leading-relaxed text-neutral-500">
+              <span class="mt-0.5 block text-xs leading-relaxed text-fg-subtle">
                 Elas somem do Asaas e deixam de ser cobráveis por lá. Não dá para desfazer.
               </span>
             </span>
           </label>
         }
 
-        <p class="text-xs text-neutral-500 border-t border-neutral-100 pt-3">
+        <p class="text-xs text-fg-subtle border-t border-edge-soft pt-3">
           {{ previewLabel() }}
         </p>
       </div>
 
       <div
-        class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-3 sm:pt-4 border-t border-neutral-100"
+        class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-3 sm:pt-4 border-t border-edge-soft"
       >
         <button
           type="button"
           (click)="onCancel()"
           [disabled]="busy()"
-          class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-neutral-600 bg-neutral-100
-                 hover:bg-neutral-200 rounded-xl transition-colors focus-visible:outline-none
-                 focus-visible:ring-2 focus-visible:ring-neutral-300 disabled:opacity-60 cursor-pointer"
+          class="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-fg-muted bg-surface-sunken
+                 hover:bg-surface-strong rounded-xl transition-colors focus-visible:outline-none
+                 focus-visible:ring-2 focus-visible:ring-edge-strong disabled:opacity-60 cursor-pointer"
         >
           {{ cancelLabel() }}
         </button>
