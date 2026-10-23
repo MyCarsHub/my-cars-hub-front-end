@@ -69,7 +69,7 @@ describe('FilterChipGroup', () => {
   it('marks only the selected chip as checked and styles it as active', () => {
     expect(chips().map((c) => c.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
     expect(chips()[0].className).toContain('bg-primary-500');
-    expect(chips()[1].className).toContain('bg-white');
+    expect(chips()[1].className).toContain('bg-surface');
   });
 
   it('gives every chip the 44px touch target and a visible focus ring', () => {

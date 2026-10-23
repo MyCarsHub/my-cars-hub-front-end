@@ -25,7 +25,7 @@
     cresceu pelo tamanho do recorte e o titulo foi parar longe demais.
     Somar nos DOIS LADOS e o que torna a conta estavel.
 -->
-<section class="w-full h-full px-4 sm:px-6 lg:px-10 pt-[var(--page-top,calc(4.5rem+env(safe-area-inset-top)))] lg:pt-10 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-8 lg:pb-10 max-w-8xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 bg-gray-50">
+<section class="w-full h-full px-4 sm:px-6 lg:px-10 pt-[var(--page-top,calc(4.5rem+env(safe-area-inset-top)))] lg:pt-10 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-8 lg:pb-10 max-w-8xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 bg-canvas">
     <!-- `--page-header-end`: folga à direita que o shell pede quando o sino divide a linha do título (motorista no celular). Sem ela, 0. -->
     <header class="flex flex-col md:flex-row md:items-end justify-between gap-4 pr-[var(--page-header-end,0px)]">
         <div class="min-w-0">
@@ -33,14 +33,14 @@
             <ng-content select="[pageBack]"></ng-content>
             <!-- `flex-wrap`: o chip de situacao fica ao lado do titulo e desce para a linha de baixo quando nao cabe. -->
             <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-neutral-900 break-words min-w-0">
+                <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-fg break-words min-w-0">
                     {{ title }}
                 </h1>
                 <!-- Slot opcional AO LADO do titulo (ex.: chip de situacao). -->
                 <ng-content select="[pageBadge]"></ng-content>
             </div>
-            <!-- neutral-600: o canvas é bg-gray-50 (#F0F0F0) e neutral-500 dá 4,16:1 — reprova AA. -->
-            <p class="text-base sm:text-lg text-neutral-600 mt-1.5">
+            <!-- neutral-600: o canvas é bg-canvas (#F0F0F0) e neutral-500 dá 4,16:1 — reprova AA. -->
+            <p class="text-base sm:text-lg text-fg-muted mt-1.5">
                 {{ description }}
             </p>
         </div>

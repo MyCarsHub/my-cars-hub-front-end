@@ -85,7 +85,7 @@ describe('FormField', () => {
     host.form.controls.plate.markAsTouched();
     fixture.detectChanges();
     expect(input().classList.contains('border-rose-400')).toBe(true);
-    expect(input().classList.contains('border-neutral-200')).toBe(false);
+    expect(input().classList.contains('border-edge')).toBe(false);
   });
 
   it('honours per-validator copy overrides', () => {

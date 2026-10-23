@@ -49,9 +49,9 @@ const TICK_MS = 15_000;
 
         <button
           type="button"
-          class="min-h-11 shrink-0 rounded-xl border border-white/70 px-3 py-2 text-xs
+          class="min-h-11 shrink-0 rounded-xl border border-surface/70 px-3 py-2 text-xs
                  font-semibold text-white transition-colors hover:bg-rose-800 focus:outline-none
-                 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2
+                 focus-visible:ring-2 focus-visible:ring-surface focus-visible:ring-offset-2
                  focus-visible:ring-offset-rose-700 disabled:opacity-60 sm:px-4 sm:text-sm"
           [disabled]="extending() || ending() || capReached()"
           (click)="extend()"
@@ -62,9 +62,9 @@ const TICK_MS = 15_000;
 
         <button
           type="button"
-          class="min-h-11 shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-semibold
-                 text-rose-800 transition-colors hover:bg-rose-50 focus:outline-none
-                 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2
+          class="min-h-11 shrink-0 rounded-xl bg-surface px-3 py-2 text-xs font-semibold
+                 text-rose-800 dark:text-rose-200 transition-colors hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none
+                 focus-visible:ring-2 focus-visible:ring-surface focus-visible:ring-offset-2
                  focus-visible:ring-offset-rose-700 disabled:opacity-60 sm:px-4 sm:text-sm"
           [disabled]="ending()"
           (click)="stop()"

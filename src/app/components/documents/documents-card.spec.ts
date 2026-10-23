@@ -197,7 +197,7 @@ describe('DocumentsCard — parametrização (FIX-0231)', () => {
 
     const gated = host().querySelector('[data-kind="EXTRA"]');
     expect(gated?.getAttribute('data-state')).toBe('gated');
-    expect(gated?.classList.contains('bg-neutral-50')).toBe(true);
+    expect(gated?.classList.contains('bg-surface-muted')).toBe(true);
     expect(gated?.classList.contains('bg-rose-50')).toBe(false);
     expect(gated?.classList.contains('bg-success-50')).toBe(false);
   });

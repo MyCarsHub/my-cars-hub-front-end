@@ -15,8 +15,8 @@
     </p>
     <button
       type="button"
-      class="min-h-11 shrink-0 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-800
-             hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white
+      class="min-h-11 shrink-0 rounded-xl bg-surface px-4 py-2 text-sm font-semibold text-rose-800 dark:text-rose-200
+             hover:bg-rose-50 dark:hover:bg-rose-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-surface
              focus-visible:ring-offset-2 focus-visible:ring-offset-rose-700"
       (click)="endEdit()"
     >
@@ -25,7 +25,7 @@
   </div>
 }
 @if (maintenance()) {
-  <app-system-maintenance-page class="fixed inset-0 z-[1000] overflow-y-auto bg-gray-50" />
+  <app-system-maintenance-page class="fixed inset-0 z-[1000] overflow-y-auto bg-canvas" />
 }
 <div [class.hidden]="maintenance()" [attr.aria-hidden]="maintenance() ? 'true' : null">
   <router-outlet />

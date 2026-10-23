@@ -592,7 +592,9 @@ const CURRENT_BADGE =
   selector: 'app-plan-card',
   templateUrl: './plan-card.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block h-full' },
+  // `theme-paper`: o card de plano é material de marca (degradês e pares medidos para a
+  // superfície CLARA) e fica igual nos dois temas — ver `.theme-paper` em styles.css.
+  host: { class: 'block h-full theme-paper' },
 })
 export class PlanCardComponent {
   readonly tone = input.required<PlanCardTone>();

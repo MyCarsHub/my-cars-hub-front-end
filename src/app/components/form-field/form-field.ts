@@ -29,10 +29,10 @@ let nextFieldId = 0;
   host: { class: 'block' },
   template: `
     @if (label()) {
-      <label class="block text-sm font-medium text-neutral-700 mb-1.5" [attr.for]="fieldId()">
+      <label class="block text-sm font-medium text-fg-soft mb-1.5" [attr.for]="fieldId()">
         {{ label() }}
         @if (required()) {
-          <span class="text-primary-700" aria-hidden="true">*</span>
+          <span class="text-primary-700 dark:text-primary-400" aria-hidden="true">*</span>
         }
       </label>
     }
@@ -40,10 +40,10 @@ let nextFieldId = 0;
     <ng-content />
 
     @if (hint() && !errorMessage()) {
-      <p class="text-xs text-neutral-400 mt-1" [id]="hintId()">{{ hint() }}</p>
+      <p class="text-xs text-fg-faint mt-1" [id]="hintId()">{{ hint() }}</p>
     }
     @if (errorMessage(); as message) {
-      <p class="text-xs text-rose-600 mt-1" [id]="errorId()" role="alert">{{ message }}</p>
+      <p class="text-xs text-rose-600 dark:text-rose-300 mt-1" [id]="errorId()" role="alert">{{ message }}</p>
     }
   `,
 })
@@ -113,7 +113,7 @@ export class FormField {
  * Put this on the native control projected into `<app-form-field>`.
  * It owns `id`, `aria-invalid`, `aria-describedby`, `aria-required` and the border tint.
  *
- * The consuming template must NOT keep a static `border-neutral-200` class on the
+ * The consuming template must NOT keep a static `border-edge` class on the
  * control — this directive toggles it against `border-rose-400`.
  */
 @Directive({

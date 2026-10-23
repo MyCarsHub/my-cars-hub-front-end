@@ -56,7 +56,7 @@ import { DriverTopBar } from '../../sidebar/driver-top-bar';
       ocupa a altura toda (captura guiada da vistoria) desconta isso e cabe sem rolar.
     -->
     <div
-      class="flex h-[calc(100dvh-var(--consent-banner-h,0px))] overflow-hidden bg-gray-50"
+      class="flex h-[calc(100dvh-var(--consent-banner-h,0px))] overflow-hidden bg-canvas"
       [class.pt-14]="impersonating()"
       [class.flex-col]="layout.mobileTopBar()"
       [style.--page-top]="layout.mobileTopBar() ? '1.25rem' : null"

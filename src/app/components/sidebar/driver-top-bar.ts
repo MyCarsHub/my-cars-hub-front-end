@@ -15,7 +15,7 @@ import { LayoutStore } from '../core/layouts/layout.store';
   template: `
     <header
       class="flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 border-b
-             border-neutral-200 bg-white px-2 pt-[env(safe-area-inset-top)]"
+             border-edge bg-surface px-2 pt-[env(safe-area-inset-top)]"
       data-driver-top-bar
     >
       <button
@@ -23,8 +23,8 @@ import { LayoutStore } from '../core/layouts/layout.store';
         (click)="layout.openMobile()"
         [attr.aria-expanded]="layout.isMobileOpen()"
         aria-label="Abrir menu"
-        class="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-800
-               hover:bg-neutral-100 focus:outline-none focus-visible:ring-2
+        class="flex h-11 w-11 items-center justify-center rounded-xl text-fg-body
+               hover:bg-surface-sunken focus:outline-none focus-visible:ring-2
                focus-visible:ring-primary-500"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"

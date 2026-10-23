@@ -16,7 +16,7 @@ let nextShareId = 0;
 
 const ACTION =
   'min-h-12 w-full px-5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 ' +
-  'border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50 ' +
+  'border border-edge bg-surface text-fg-body hover:bg-surface-muted ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2';
 
 /**
@@ -42,7 +42,7 @@ const ACTION =
   template: `
     <div class="space-y-3" data-invite-share>
       <div>
-        <label [for]="fieldId" class="block text-xs font-semibold text-neutral-700 mb-1">
+        <label [for]="fieldId" class="block text-xs font-semibold text-fg-soft mb-1">
           Link do convite
         </label>
         <input
@@ -52,8 +52,8 @@ const ACTION =
           readonly
           [value]="link()"
           (focus)="selectAll($event)"
-          class="w-full min-h-[44px] bg-neutral-50 border border-neutral-200 rounded-xl px-3 text-base
-                 text-neutral-800 truncate focus:outline-none focus:ring-2 focus:ring-primary-400
+          class="w-full min-h-[44px] bg-surface-muted border border-edge rounded-xl px-3 text-base
+                 text-fg-body truncate focus:outline-none focus:ring-2 focus:ring-primary-400
                  focus:border-primary-400"
         />
       </div>
@@ -109,12 +109,12 @@ const ACTION =
         role="status"
         aria-live="polite"
         class="text-xs leading-relaxed min-h-4"
-        [class]="state() === 'failed' ? 'text-rose-700' : 'text-emerald-700'"
+        [class]="state() === 'failed' ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'"
       >
         {{ statusText() }}
       </p>
 
-      <p class="text-xs text-neutral-500 leading-relaxed">
+      <p class="text-xs text-fg-subtle leading-relaxed">
         Quem tiver este link entra na empresa com o acesso do convite. Envie só para a pessoa
         convidada.
       </p>
