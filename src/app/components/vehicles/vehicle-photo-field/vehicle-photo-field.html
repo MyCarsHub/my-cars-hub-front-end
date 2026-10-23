@@ -1,0 +1,98 @@
+<div class="p-4 sm:p-6 flex gap-4 items-start min-w-0 @container">
+  <!-- Miniatura QUADRADA, do tamanho da miniatura da lista de veículos. -->
+  <div
+    data-photo-thumb
+    class="relative shrink-0 aspect-square size-[104px] @min-[592px]:size-[148px]
+           rounded-xl overflow-hidden bg-surface-sunken flex items-center justify-center text-fg-subtle"
+  >
+    @if (previewUrl(); as url) {
+      @if (!brokenImage()) {
+        <img
+          data-photo-preview
+          [src]="url"
+          alt="Pré-visualização da foto do veículo"
+          (error)="brokenImage.set(true)"
+          class="absolute inset-0 w-full h-full object-cover"
+        />
+      }
+    }
+    @if (!previewUrl() || brokenImage()) {
+      <svg
+        data-photo-placeholder
+        xmlns="http://www.w3.org/2000/svg"
+        width="40"
+        height="40"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M5 16H4a1 1 0 0 1-1-1v-2.5a2 2 0 0 1 1.3-1.9L7 9.5l1.7-2.6A2 2 0 0 1 10.4 6H14a2 2 0 0 1 1.7 1l1.6 2.6 2.3.8A2 2 0 0 1 21 12.3V15a1 1 0 0 1-1 1h-1" />
+        <path d="M9 16h6" />
+        <path d="M8.5 10h7" />
+        <circle cx="7.5" cy="16" r="1.5" />
+        <circle cx="16.5" cy="16" r="1.5" />
+      </svg>
+    }
+  </div>
+
+  <div class="min-w-0 flex-1 space-y-2">
+    <p class="text-base text-fg-muted">
+      Opcional. É a foto que aparece na lista de veículos. Sem ela, a lista usa a frente da última
+      vistoria aprovada. JPG, PNG ou WebP, até 20MB.
+    </p>
+    @if (file(); as chosen) {
+      <p data-photo-name class="text-sm text-fg-body truncate">{{ chosen.name }}</p>
+    }
+
+    <div class="flex flex-col sm:flex-row gap-2">
+      <button
+        type="button"
+        data-photo-pick
+        (click)="openPicker()"
+        [disabled]="disabled()"
+        class="inline-flex items-center justify-center min-h-11 px-4 rounded-xl text-base font-medium
+               text-primary-700 dark:text-primary-400 bg-surface border border-edge hover:bg-surface-muted
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600
+               disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {{ pickLabel() }}
+      </button>
+      @if (hasPhoto()) {
+        <button
+          type="button"
+          data-photo-remove
+          (click)="remove()"
+          [disabled]="disabled()"
+          class="inline-flex items-center justify-center min-h-11 px-4 rounded-xl text-base font-medium
+                 text-fg-muted bg-surface border border-edge hover:bg-surface-muted hover:text-rose-700
+                 dark:hover:text-rose-300
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600
+                 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          Remover foto
+        </button>
+      }
+    </div>
+
+    @if (rejection(); as message) {
+      <p data-photo-rejection role="alert" class="text-sm text-rose-700 dark:text-rose-300 break-words">
+        {{ message }}
+      </p>
+    }
+  </div>
+
+  <input
+    #picker
+    data-photo-input
+    type="file"
+    [accept]="accept"
+    hidden
+    aria-hidden="true"
+    tabindex="-1"
+    (change)="onFileSelected($event)"
+  />
+</div>
