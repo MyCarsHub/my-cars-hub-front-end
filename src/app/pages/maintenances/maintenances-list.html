@@ -27,7 +27,7 @@
               id="maint-vehicle"
               [ngModel]="vehicleFilter()"
               (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
-              class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
+              class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl bg-surface
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             >
               <option value="">Veículo: Todos</option>
@@ -44,7 +44,7 @@
             id="maint-type"
             [ngModel]="typeFilter()"
             (ngModelChange)="typeFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
+            class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of typeOptions; track opt.value) {
@@ -59,7 +59,7 @@
             id="maint-status"
             [ngModel]="statusFilter()"
             (ngModelChange)="statusFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
+            class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of statusOptions; track opt.value) {
@@ -74,7 +74,7 @@
             id="maint-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl bg-surface
+            class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {

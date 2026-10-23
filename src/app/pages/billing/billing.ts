@@ -640,7 +640,7 @@ export class Billing implements OnInit, OnDestroy {
   );
 
   /**
-   * Halo do canto inferior esquerdo. Era um `bg-surface/5` fixo: mesmo véu branco
+   * Halo do canto inferior esquerdo. Era um `bg-white/5` fixo: mesmo véu branco
    * que o resto desta tela já tinha eliminado, e num card de 375px um blob de
    * 224px passa por baixo dos rótulos. Sobre o gradiente ele derrubava o ponto
    * mais claro de 5,67:1 para 5,28:1 (laranja) e de 5,49:1 para 4,98:1 (verde)

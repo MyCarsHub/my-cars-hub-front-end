@@ -36,7 +36,7 @@
               [ngModel]="search()"
               (ngModelChange)="search.set($event)"
               name="search"
-              class="w-full pl-9 pr-3 py-2.5 text-sm border border-edge rounded-xl
+              class="w-full pl-9 pr-3 py-2.5 text-sm border border-edge-field rounded-xl
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
           </div>
@@ -48,7 +48,7 @@
             id="motoristas-status"
             [ngModel]="statusFilter()"
             (ngModelChange)="statusFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl
+            class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of statusOptions; track opt.value) {
@@ -63,7 +63,7 @@
             id="motoristas-category"
             [ngModel]="categoryFilter()"
             (ngModelChange)="categoryFilter.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl
+            class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of categoryOptions; track opt.value) {
@@ -79,7 +79,7 @@
             type="date"
             [ngModel]="expiryBefore()"
             (ngModelChange)="expiryBefore.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl
+            class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           />
         </div>
@@ -90,7 +90,7 @@
             id="motoristas-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 py-2.5 text-sm border border-edge rounded-xl
+            class="w-full px-3 py-2.5 text-sm border border-edge-field rounded-xl
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {

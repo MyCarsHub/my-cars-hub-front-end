@@ -9,7 +9,7 @@
         <label class="block">
           <span class="block text-xs font-medium text-fg-muted mb-1">Ator</span>
           <select
-            class="w-full text-sm border border-edge rounded-lg px-3 py-2.5 bg-surface
+            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             [value]="actorFilter()"
             (change)="setActorFilter($any($event.target).value)"
@@ -24,7 +24,7 @@
         <label class="block">
           <span class="block text-xs font-medium text-fg-muted mb-1">Ação</span>
           <select
-            class="w-full text-sm border border-edge rounded-lg px-3 py-2.5 bg-surface
+            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             [value]="actionFilter()"
             (change)="setActionFilter($any($event.target).value)"
@@ -40,7 +40,7 @@
           <span class="block text-xs font-medium text-fg-muted mb-1">De</span>
           <input
             type="date"
-            class="w-full text-sm border border-edge rounded-lg px-3 py-2.5 bg-surface
+            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             [value]="fromFilter()"
             (change)="setFromFilter($any($event.target).value)"
@@ -51,7 +51,7 @@
           <span class="block text-xs font-medium text-fg-muted mb-1">Até</span>
           <input
             type="date"
-            class="w-full text-sm border border-edge rounded-lg px-3 py-2.5 bg-surface
+            class="w-full text-sm border border-edge-field rounded-lg px-3 py-2.5 bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             [value]="toFilter()"
             (change)="setToFilter($any($event.target).value)"

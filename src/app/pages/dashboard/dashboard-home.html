@@ -162,7 +162,7 @@
                     ROI
                 </p>
                 @if (vehicleRoiLoading() && !vehicleRoi()) {
-                    <div class="h-8 mt-2 w-16 rounded bg-surface/20 animate-pulse"></div>
+                    <div class="h-8 mt-2 w-16 rounded bg-white/20 animate-pulse"></div>
                 } @else if (vehicleRoiError()) {
                     <p class="text-xl sm:text-2xl font-semibold text-white/60 mt-1 truncate">—</p>
                     <p class="text-[11px] sm:text-xs text-white/70 mt-1 truncate">
@@ -209,7 +209,7 @@
                                 o caminho para resolver — dizer o que FALTA, nao
                                 so contar. O percentual continua na tela.
                             -->
-                            <div class="mt-2 rounded-lg bg-surface/15 border border-surface/30 px-2 py-1.5">
+                            <div class="mt-2 rounded-lg bg-white/15 border border-white/30 px-2 py-1.5">
                                 <p class="text-[11px] sm:text-xs text-white">{{ base.label }}</p>
                                 <a
                                     routerLink="/veiculos"

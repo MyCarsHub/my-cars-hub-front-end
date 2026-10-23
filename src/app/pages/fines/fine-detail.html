@@ -172,7 +172,7 @@
           type="date"
           [ngModel]="payDate()"
           (ngModelChange)="payDate.set($event)"
-          class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+          class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                  focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
       </div>
       @if (payError(); as payMessage) {

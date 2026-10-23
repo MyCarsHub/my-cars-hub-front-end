@@ -303,3 +303,8 @@
   color: var(--muted);
   font-weight: 500;
 }
+
+/* Selo sempre branco sobre a capa: brand-strong claro nos dois temas (o escuro daria 3,1:1). */
+.blog-card__cat {
+  --brand-strong: #C22F00;
+}

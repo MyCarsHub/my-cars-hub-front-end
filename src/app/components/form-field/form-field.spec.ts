@@ -82,10 +82,12 @@ describe('FormField', () => {
   });
 
   it('tints the control border when invalid', () => {
+    // Válido: a borda de campo (token `edge-field`, 3:1 no escuro).
+    expect(input().classList.contains('border-edge-field')).toBe(true);
     host.form.controls.plate.markAsTouched();
     fixture.detectChanges();
     expect(input().classList.contains('border-rose-400')).toBe(true);
-    expect(input().classList.contains('border-edge')).toBe(false);
+    expect(input().classList.contains('border-edge-field')).toBe(false);
   });
 
   it('honours per-validator copy overrides', () => {

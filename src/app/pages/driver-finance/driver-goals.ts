@@ -94,7 +94,7 @@ const MAX_DAILY_GOAL_CENTS = 9_999_900;
                       [attr.aria-describedby]="dailyError() ? 'goal-daily-error' : null"
                       class="min-h-12 w-full rounded-xl border bg-surface px-3 text-base text-fg-body tabular-nums
                              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                      [class]="dailyError() ? 'border-rose-400' : 'border-edge'" />
+                      [class]="dailyError() ? 'border-rose-400' : 'border-edge-field'" />
                     @if (dailyError(); as message) {
                       <span id="goal-daily-error" role="alert" class="text-xs text-rose-700 dark:text-rose-300">{{ message }}</span>
                     }

@@ -92,7 +92,7 @@
         class="relative overflow-hidden rounded-2xl shadow-xl border"
         [class.bg-neutral-900]="!currentHeroBackground()" [class.dark:bg-neutral-700]="!currentHeroBackground()"
         [class.border-neutral-800]="!currentHeroBackground()" [class.dark:border-neutral-600]="!currentHeroBackground()"
-        [class.border-surface/10]="!!currentHeroBackground()"
+        [class.border-white/10]="!!currentHeroBackground()"
         [style.background]="currentHeroBackground()"
         aria-labelledby="assinatura-atual-title">
         <div aria-hidden="true"
@@ -200,7 +200,7 @@
                   class="w-full sm:w-auto sm:self-start min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
                          bg-surface text-fg hover:bg-surface-sunken transition-colors
                          disabled:opacity-60 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-surface/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
                   {{ planCtaLabel(pp) }}
                 </button>
               }
@@ -251,7 +251,7 @@
           <!-- Account actions: cancel and reactivate are distinct and never
                share a code path with the plan-change CTAs. -->
           @if (canCancel() || canReactivate()) {
-            <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-surface/10">
+            <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-white/10">
               @if (canReactivate()) {
                 <button
                   type="button"
@@ -260,7 +260,7 @@
                   class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
                          bg-surface text-fg hover:bg-surface-sunken transition-colors
                          disabled:opacity-60 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-surface/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
                   @if (accountActionBusy()) { Reativando… } @else { Reativar assinatura }
                 </button>
               }
@@ -270,9 +270,9 @@
                   (click)="openCancel()"
                   [disabled]="accountActionBusy() || loading()"
                   class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-                         bg-surface/5 border border-surface/10 hover:bg-surface/10 hover:text-white transition-colors
+                         bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-surface/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
                   Cancelar assinatura
                 </button>
               }

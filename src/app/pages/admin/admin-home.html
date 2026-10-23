@@ -107,7 +107,7 @@
     <div class="rounded-2xl bg-emerald-600 text-white p-4">
       <p class="text-xs text-white/70 uppercase tracking-wide">MRR</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-surface/20 animate-pulse"></div>
+        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
       } @else {
         <p class="text-2xl font-semibold mt-1 tabular-nums">
           {{ formatCurrency(mrrActiveOnly()) }}
@@ -120,7 +120,7 @@
     <div class="rounded-2xl bg-emerald-700 text-white p-4">
       <p class="text-xs text-white/70 uppercase tracking-wide">ARR</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-surface/20 animate-pulse"></div>
+        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
       } @else {
         <p class="text-2xl font-semibold mt-1 tabular-nums">
           {{ formatCurrency(arr()) }}
@@ -133,7 +133,7 @@
     <div class="rounded-2xl bg-primary-500 text-white p-4">
       <p class="text-xs text-white/70 uppercase tracking-wide">MRR estimado</p>
       @if (loading() && !overview()) {
-        <div class="h-8 mt-2 w-24 rounded bg-surface/20 animate-pulse"></div>
+        <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
       } @else {
         <p class="text-2xl font-semibold mt-1 tabular-nums">
           {{ formatCurrency(mrr()) }}

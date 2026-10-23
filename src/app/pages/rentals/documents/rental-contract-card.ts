@@ -310,7 +310,7 @@ function isPdfBytes(head: Uint8Array): boolean {
                       placeholder="Nome do signatário"
                       [attr.aria-invalid]="isNameInvalid(s.name) ? 'true' : null"
                       [attr.aria-describedby]="isNameInvalid(s.name) ? 'signer-' + i + '-name-error' : null"
-                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isNameInvalid(s.name) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge')" />
+                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isNameInvalid(s.name) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge-field')" />
                     @if (isNameInvalid(s.name)) {
                       <p class="text-xs text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-name-error'" role="alert">
                         Informe o nome do signatário.
@@ -326,7 +326,7 @@ function isPdfBytes(head: Uint8Array): boolean {
                       placeholder="email@exemplo.com"
                       [attr.aria-invalid]="isEmailInvalid(s.email) ? 'true' : null"
                       [attr.aria-describedby]="isEmailInvalid(s.email) ? 'signer-' + i + '-email-error' : null"
-                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge')" />
+                      [class]="'w-full px-3 py-2 rounded-lg border text-sm min-h-[44px] ' + (isEmailInvalid(s.email) ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-500/10' : 'border-edge-field')" />
                     @if (isEmailInvalid(s.email)) {
                       <p class="text-xs text-rose-600 dark:text-rose-300 mt-1" [id]="'signer-' + i + '-email-error'" role="alert">
                         Informe um e-mail válido (ex.: nome@empresa.com.br).

@@ -72,7 +72,7 @@
               [attr.min]="minDate()"
               [attr.max]="maxDate()"
               [disabled]="busy()"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                      focus-visible:border-primary-400 transition-colors disabled:opacity-60"
             />
@@ -93,7 +93,7 @@
                 (input)="onReturnTimeInput($event)"
                 [disabled]="busy()"
                 aria-describedby="end-return-time-hint"
-                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+                class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                        focus-visible:border-primary-400 transition-colors disabled:opacity-60"
               />
@@ -261,7 +261,7 @@
             (input)="onReasonInput($event)"
             [disabled]="busy()"
             placeholder="Ex.: veículo devolvido antes do prazo por acordo com o locatário."
-            class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-sm text-fg-body
+            class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-sm text-fg-body
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                    focus-visible:border-primary-400 transition-colors disabled:opacity-60 resize-none"
           ></textarea>
@@ -394,7 +394,7 @@
                 [value]="formattedRefund()"
                 (input)="onRefundAmountInput($event)"
                 [disabled]="busy() || refundMethod() === 'NONE'"
-                class="w-full bg-surface border border-edge rounded-xl px-4 py-3 tabular-nums text-fg-body
+                class="w-full bg-surface border border-edge-field rounded-xl px-4 py-3 tabular-nums text-fg-body
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                        focus-visible:border-primary-400 transition-colors disabled:opacity-60"
               />

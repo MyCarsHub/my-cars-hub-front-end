@@ -52,8 +52,8 @@ const CAPTURE_QUALITY = 0.92;
           type="button"
           (click)="close()"
           class="shrink-0 min-h-[48px] min-w-[48px] inline-flex items-center justify-center rounded-full
-                 text-white/90 hover:bg-surface/10 focus-visible:outline-none focus-visible:ring-2
-                 focus-visible:ring-surface"
+                 text-white/90 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2
+                 focus-visible:ring-white"
           aria-label="Fechar câmera"
         >
           ✕
@@ -98,7 +98,7 @@ const CAPTURE_QUALITY = 0.92;
               <button
                 type="button"
                 (click)="start()"
-                class="min-h-[48px] px-5 rounded-xl bg-surface text-fg text-sm font-semibold"
+                class="min-h-[48px] px-5 rounded-xl bg-white text-neutral-900 text-sm font-semibold"
               >
                 Tentar de novo
               </button>
@@ -113,8 +113,8 @@ const CAPTURE_QUALITY = 0.92;
           type="button"
           (click)="capture()"
           [disabled]="state() !== 'live' || capturing()"
-          class="h-20 w-20 rounded-full border-4 border-surface bg-surface/20 disabled:opacity-40
-                 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-surface/60"
+          class="h-20 w-20 rounded-full border-4 border-white bg-white/20 disabled:opacity-40
+                 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/60"
           [attr.aria-label]="'Tirar foto: ' + label()"
         ></button>
       </div>

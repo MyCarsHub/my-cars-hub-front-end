@@ -73,7 +73,7 @@
             class="w-full bg-surface-muted border rounded-xl px-4 py-3 min-h-[44px] text-fg-body
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
                    focus-visible:border-primary-500 transition-colors disabled:opacity-60"
-            [class.border-edge]="!buyerInvalid()"
+            [class.border-edge-field]="!buyerInvalid()"
             [class.border-rose-400]="buyerInvalid()"
           />
           @if (buyerInvalid()) {
@@ -101,7 +101,7 @@
             class="w-full bg-surface-muted border rounded-xl px-4 py-3 min-h-[44px] text-fg-body
                    tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
                    focus-visible:border-primary-500 transition-colors disabled:opacity-60"
-            [class.border-edge]="!dateInvalid()"
+            [class.border-edge-field]="!dateInvalid()"
             [class.border-rose-400]="dateInvalid()"
           />
           @if (dateInvalid()) {
@@ -134,7 +134,7 @@
             class="w-full bg-surface-muted border rounded-xl px-4 py-3 min-h-[44px] text-fg-body
                    tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
                    focus-visible:border-primary-500 transition-colors disabled:opacity-60"
-            [class.border-edge]="!amountInvalid()"
+            [class.border-edge-field]="!amountInvalid()"
             [class.border-rose-400]="amountInvalid()"
           />
           @if (amountInvalid()) {

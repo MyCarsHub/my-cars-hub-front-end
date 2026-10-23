@@ -113,7 +113,7 @@ export class FormField {
  * Put this on the native control projected into `<app-form-field>`.
  * It owns `id`, `aria-invalid`, `aria-describedby`, `aria-required` and the border tint.
  *
- * The consuming template must NOT keep a static `border-edge` class on the
+ * The consuming template must NOT keep a static `border-edge`/`border-edge-field` class on the
  * control — this directive toggles it against `border-rose-400`.
  */
 @Directive({
@@ -123,7 +123,7 @@ export class FormField {
     '[attr.aria-invalid]': 'field.invalid() ? "true" : null',
     '[attr.aria-describedby]': 'field.describedBy()',
     '[attr.aria-required]': 'field.required() ? "true" : null',
-    '[class.border-neutral-200]': '!field.invalid()',
+    '[class.border-edge-field]': '!field.invalid()',
     '[class.border-rose-400]': 'field.invalid()',
   },
 })

@@ -147,7 +147,7 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
             class="min-h-14 w-full rounded-xl border bg-surface px-4 text-2xl font-semibold tabular-nums
                    text-fg placeholder:text-fg-faint focus:outline-none
                    focus-visible:ring-2 focus-visible:ring-primary-500"
-            [class]="amountError() ? 'border-rose-400' : 'border-edge'"
+            [class]="amountError() ? 'border-rose-400' : 'border-edge-field'"
           />
           @if (amountError(); as message) {
             <span id="ledger-amount-error" class="text-xs text-rose-700 dark:text-rose-300" role="alert">{{ message }}</span>
@@ -174,7 +174,7 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
                   [value]="detail(f.key)" (input)="onDetail(f.key, $event)"
                   [attr.aria-invalid]="fieldError(f.key) ? 'true' : null"
                   [attr.aria-describedby]="fieldError(f.key) ? 'ledger-' + f.key + '-error' : null"
-                  [class]="inputClass + (fieldError(f.key) ? ' border-rose-400' : ' border-edge')" />
+                  [class]="inputClass + (fieldError(f.key) ? ' border-rose-400' : ' border-edge-field')" />
                 @if (fieldError(f.key); as message) {
                   <span [id]="'ledger-' + f.key + '-error'" role="alert" class="text-xs text-rose-700 dark:text-rose-300">{{ message }}</span>
                 }
@@ -186,7 +186,7 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
               Observação (opcional)
             </label>
             <input id="ledger-notes" maxlength="200" placeholder="Ex.: corrida paga em dinheiro"
-              [value]="notes()" (input)="notes.set(text($event))" [class]="inputClass + ' border-edge'" />
+              [value]="notes()" (input)="notes.set(text($event))" [class]="inputClass + ' border-edge-field'" />
           </div>
         } @else {
           <div class="flex flex-col gap-2">
@@ -208,7 +208,7 @@ export function saveErrorMessage(error: unknown, action: 'salvar' | 'excluir'): 
               [attr.aria-describedby]="odometerError() ? 'ledger-odometer-error ledger-odometer-hint' : 'ledger-odometer-hint'"
               [attr.aria-invalid]="odometerError() ? 'true' : null" [value]="odometer()"
               (input)="odometer.set(digits($event)); odometerError.set(null)"
-              [class]="inputClass + (odometerError() ? ' border-rose-400' : ' border-edge')" />
+              [class]="inputClass + (odometerError() ? ' border-rose-400' : ' border-edge-field')" />
             @if (odometerError(); as message) {
               <span id="ledger-odometer-error" role="alert" class="text-xs text-rose-700 dark:text-rose-300">{{ message }}</span>
             }

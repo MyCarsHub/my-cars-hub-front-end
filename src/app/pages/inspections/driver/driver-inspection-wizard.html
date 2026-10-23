@@ -153,7 +153,7 @@
                   <span aria-hidden="true" class="absolute top-3.5 right-3.5 size-7 border-t-[3px] border-r-[3px] border-surface rounded-tr-md"></span>
                   <span aria-hidden="true" class="absolute bottom-3.5 left-3.5 size-7 border-b-[3px] border-l-[3px] border-surface rounded-bl-md"></span>
                   <span aria-hidden="true" class="absolute bottom-3.5 right-3.5 size-7 border-b-[3px] border-r-[3px] border-surface rounded-br-md"></span>
-                  <div class="flex flex-col items-center gap-2 px-6 text-center text-neutral-300 dark:text-neutral-600">
+                  <div class="flex flex-col items-center gap-2 px-6 text-center text-neutral-300 dark:text-fg-faint">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
@@ -317,10 +317,10 @@
                 [attr.aria-invalid]="kmError() ? 'true' : null"
                 [attr.aria-describedby]="kmError() ? 'driver-km-error driver-km-hint' : 'driver-km-hint'"
                 class="w-full min-h-16 rounded-xl border bg-surface px-4 font-mono text-[28px] font-semibold
-                       tracking-wide text-fg placeholder:text-neutral-300 dark:placeholder:text-neutral-600 focus:outline-none
+                       tracking-wide text-fg placeholder:text-neutral-300 dark:placeholder:text-fg-faint focus:outline-none
                        focus:ring-2 focus:ring-primary-400"
                 [class.border-rose-400]="!!kmError()"
-                [class.border-edge]="!kmError()"
+                [class.border-edge-field]="!kmError()"
               />
               @if (kmError(); as message) {
                 <span id="driver-km-error" role="alert" data-wizard-km-error class="text-xs leading-snug text-rose-700 dark:text-rose-300">{{ message }}</span>

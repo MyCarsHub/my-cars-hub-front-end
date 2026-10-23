@@ -12,7 +12,7 @@
               id="seg-vehicle"
               [ngModel]="vehicleFilter()"
               (ngModelChange)="vehicleFilter.set($event); onFilterChange()"
-              class="w-full px-3 min-h-[44px] text-sm border border-edge rounded-xl bg-surface
+              class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
                      focus:outline-none focus:ring-2 focus:ring-primary-400"
             >
               <option value="">Veículo: Todos</option>
@@ -29,7 +29,7 @@
             id="seg-status"
             [ngModel]="statusFilter()"
             (ngModelChange)="onStatusChange($event)"
-            class="w-full px-3 min-h-[44px] text-sm border border-edge rounded-xl bg-surface
+            class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of statusOptions; track opt.value) {
@@ -44,7 +44,7 @@
             id="seg-expiring"
             [ngModel]="expiringFilter()"
             (ngModelChange)="onExpiringChange($event)"
-            class="w-full px-3 min-h-[44px] text-sm border border-edge rounded-xl bg-surface
+            class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of expiringOptions; track opt.value) {
@@ -59,7 +59,7 @@
             id="seg-sort"
             [ngModel]="sort()"
             (ngModelChange)="sort.set($event); onFilterChange()"
-            class="w-full px-3 min-h-[44px] text-sm border border-edge rounded-xl bg-surface
+            class="w-full px-3 min-h-[44px] text-sm border border-edge-field rounded-xl bg-surface
                    focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             @for (opt of sortOptions; track opt.value) {

@@ -23,7 +23,7 @@
           <div class="flex flex-col gap-1.5 min-w-0">
             <span class="text-xs uppercase tracking-wide text-white/80">Seu lucro hoje</span>
             @if (state() === 'loading') {
-              <span class="h-12 w-48 rounded-lg bg-surface/25 animate-pulse" aria-hidden="true"></span>
+              <span class="h-12 w-48 rounded-lg bg-white/25 animate-pulse" aria-hidden="true"></span>
             } @else {
               <span data-hero-net class="text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight tabular-nums whitespace-nowrap">
                 {{ hero().net }}
@@ -43,7 +43,7 @@
           }
         </div>
         @if (state() === 'ready') {
-          <dl class="m-0 grid grid-cols-4 gap-2 border-t border-surface/25 pt-3">
+          <dl class="m-0 grid grid-cols-4 gap-2 border-t border-white/25 pt-3">
             @for (s of hero().stats; track s.label) {
               <div class="min-w-0 flex flex-col-reverse gap-0.5">
                 <dt class="text-xs text-white/85 truncate">{{ s.label }}</dt>
@@ -161,12 +161,12 @@
           <div class="flex flex-col sm:flex-row gap-2">
             <label class="flex-1 flex flex-col gap-1 text-xs text-fg-subtle">De
               <input type="date" [value]="customFrom()" [max]="customTo()" (change)="onCustomFrom($event)"
-                class="min-h-11 rounded-xl border border-edge bg-surface px-3 text-base text-fg-body
+                class="min-h-11 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg-body
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
             </label>
             <label class="flex-1 flex flex-col gap-1 text-xs text-fg-subtle">Até
               <input type="date" [value]="customTo()" [min]="customFrom()" [max]="today()" (change)="onCustomTo($event)"
-                class="min-h-11 rounded-xl border border-edge bg-surface px-3 text-base text-fg-body
+                class="min-h-11 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg-body
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500" />
             </label>
           </div>

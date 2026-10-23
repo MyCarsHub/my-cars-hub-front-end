@@ -110,7 +110,7 @@
             <select
               id="start-vehicle"
               data-start-vehicle
-              class="w-full min-h-[44px] bg-surface border border-edge rounded-xl px-3 text-base
+              class="w-full min-h-[44px] bg-surface border border-edge-field rounded-xl px-3 text-base
                      lg:text-sm text-fg-body focus:outline-none focus:ring-2
                      focus:ring-primary-400 focus:border-primary-400"
               [value]="startVehicleId()"
@@ -163,7 +163,7 @@
               (input)="onSearchInput($event)"
               (keydown.enter)="submitSearch()"
               (search)="submitSearch()"
-              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge rounded-xl px-3
+              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge-field rounded-xl px-3
                      text-base lg:text-sm text-fg-body focus:outline-none focus:ring-2
                      focus:ring-primary-400 focus:border-primary-400"
             />
@@ -176,7 +176,7 @@
               data-filter-status
               [value]="status()"
               (change)="onStatusChange($event)"
-              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge rounded-xl px-3
+              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge-field rounded-xl px-3
                      text-base lg:text-sm text-fg-body focus:outline-none focus:ring-2
                      focus:ring-primary-400 focus:border-primary-400"
             >
@@ -193,7 +193,7 @@
               data-filter-kind
               [value]="kind()"
               (change)="onKindChange($event)"
-              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge rounded-xl px-3
+              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge-field rounded-xl px-3
                      text-base lg:text-sm text-fg-body focus:outline-none focus:ring-2
                      focus:ring-primary-400 focus:border-primary-400"
             >
@@ -210,7 +210,7 @@
               data-filter-sort
               [value]="sort()"
               (change)="onSortChange($event)"
-              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge rounded-xl px-3
+              class="w-full min-w-0 min-h-[44px] bg-surface border border-edge-field rounded-xl px-3
                      text-base lg:text-sm text-fg-body focus:outline-none focus:ring-2
                      focus:ring-primary-400 focus:border-primary-400"
             >

@@ -130,7 +130,7 @@
               id="veiculo-type"
               formControlName="type"
               aria-required="true"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               @for (opt of typeOptions; track opt.value) {
                 <option [value]="opt.value">{{ opt.label }}</option>
@@ -146,7 +146,7 @@
               formControlName="color"
               placeholder="Ex: Prata"
               list="veiculo-color-options"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             <datalist id="veiculo-color-options">
               <option value="Branco"></option>
@@ -167,7 +167,7 @@
             <select
               id="veiculo-fuel"
               formControlName="fuel"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Selecione…</option>
@@ -208,7 +208,7 @@
                 [value]="fipeBrandCode()"
                 (change)="onFipeBrandChange($event)"
                 [disabled]="sold() || fipeLoading() === 'brands'"
-                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+                class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
                 <option value="">
                   {{ fipeLoading() === 'brands' ? 'Carregando marcas…' : 'Selecione a marca…' }}
@@ -238,7 +238,7 @@
                 [value]="fipeModelCode()"
                 (change)="onFipeModelChange($event)"
                 [disabled]="sold() || !fipeBrandCode() || fipeLoading() === 'models'"
-                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+                class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                        disabled:opacity-60">
                 <option value="">
@@ -267,7 +267,7 @@
                 [value]="fipeYearCode()"
                 (change)="onFipeYearChange($event)"
                 [disabled]="sold() || !fipeModelCode() || fipeLoading() === 'years'"
-                class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+                class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors
                        disabled:opacity-60">
                 <option value="">
@@ -342,7 +342,7 @@
                 min="1900"
                 max="2100"
                 aria-required="true"
-                class="w-full bg-surface-muted border border-edge rounded-xl px-3 py-3 text-fg-body tabular-nums
+                class="w-full bg-surface-muted border border-edge-field rounded-xl px-3 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
             <div>
@@ -354,7 +354,7 @@
                 min="1900"
                 max="2100"
                 aria-required="true"
-                class="w-full bg-surface-muted border border-edge rounded-xl px-3 py-3 text-fg-body tabular-nums
+                class="w-full bg-surface-muted border border-edge-field rounded-xl px-3 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
           </div>
@@ -423,7 +423,7 @@
               formControlName="hodometer"
               min="0"
               aria-required="true"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body tabular-nums
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body tabular-nums
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             @if (fieldInvalid(['hodometer'])) {
               <p class="text-xs text-rose-600 dark:text-rose-300 mt-1">Informe um valor válido (≥ 0).</p>
@@ -436,7 +436,7 @@
               id="veiculo-licensing-expiration"
               type="date"
               formControlName="licensingExpiration"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </div>
 
@@ -446,7 +446,7 @@
               id="veiculo-purchase-date"
               type="date"
               formControlName="purchaseDate"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </div>
 
@@ -465,7 +465,7 @@
                 formControlName="purchasePrice"
                 (input)="onMoneyInput($event)"
                 placeholder="45.000,00"
-                class="w-full bg-surface-muted border border-edge rounded-xl pl-10 pr-4 py-3 text-fg-body tabular-nums
+                class="w-full bg-surface-muted border border-edge-field rounded-xl pl-10 pr-4 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
             @if (fieldInvalid(['purchasePrice'])) {
@@ -493,7 +493,7 @@
                 inputmode="decimal"
                 formControlName="ipvaAmount"
                 placeholder="0,00"
-                class="w-full bg-surface-muted border border-edge rounded-xl pl-10 pr-4 py-3 text-fg-body tabular-nums
+                class="w-full bg-surface-muted border border-edge-field rounded-xl pl-10 pr-4 py-3 text-fg-body tabular-nums
                        focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
             </div>
             @if (fieldInvalid(['ipvaAmount'])) {
@@ -507,7 +507,7 @@
               id="veiculo-ipva-due"
               type="date"
               formControlName="ipvaDueDate"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors" />
           </div>
 
@@ -516,7 +516,7 @@
             <select
               id="veiculo-ipva-status"
               formControlName="ipvaStatus"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-fg-body
                      focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors">
               <option value="">Automático</option>
               @for (opt of ipvaStatusOptions; track opt.value) {

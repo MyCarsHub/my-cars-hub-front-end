@@ -95,7 +95,7 @@ export type VehicleSummaryChipLinkTo = 'detail' | 'gerencia' | 'none';
             >{{ chip.label }}</span>
           }
         </div>
-        <svg class="flex-none text-neutral-300 dark:text-neutral-600" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+        <svg class="flex-none text-neutral-300 dark:text-fg-faint" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
           stroke-linejoin="round" aria-hidden="true">
           <polyline points="9 18 15 12 9 6"/>

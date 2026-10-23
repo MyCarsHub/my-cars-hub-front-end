@@ -53,7 +53,7 @@ const SEGMENT_INACTIVE = 'text-fg-muted hover:text-fg';
 
 /* O chip é texto de 10,5px: precisa dos 4,5:1 cheios, e o fundo dele é o
    pill JÁ pintado — ou seja, o contraste conta a composição, não a cor do
-   pill. `bg-surface/25` clareava o acento e derrubava o branco para 3,77:1
+   pill. `bg-white/25` clareava o acento e derrubava o branco para 3,77:1
    (laranja) / 3,40:1 (verde); em `bg-black/25` sobem para 8,55:1 e 8,25:1.
    Inativo: `bg-emerald-600` do Tailwind (#009966) dava 3,65:1 — reprovava, e
    ainda era verde fora da rampa do projeto; `success-800` dá 5,49:1. */

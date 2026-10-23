@@ -12,7 +12,7 @@
             <select
               (change)="onStatusFilterChange($any($event.target).value)"
               [value]="statusFilter()"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-sm text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-sm text-fg-body
                      min-h-[44px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Todos os status</option>
@@ -27,7 +27,7 @@
             <select
               (change)="onCompanyFilterChange($any($event.target).value)"
               [value]="companyFilter()"
-              class="w-full bg-surface-muted border border-edge rounded-xl px-4 py-3 text-sm text-fg-body
+              class="w-full bg-surface-muted border border-edge-field rounded-xl px-4 py-3 text-sm text-fg-body
                      min-h-[44px] focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors"
             >
               <option value="">Todas as empresas</option>
@@ -243,7 +243,7 @@
                         [id]="'ticket-assignee-' + t.id"
                         [formControl]="assigneeControl"
                         (change)="onAssigneeChange($any($event.target).value)"
-                        class="w-full sm:max-w-sm bg-surface border border-edge rounded-xl px-4 py-3 text-sm
+                        class="w-full sm:max-w-sm bg-surface border border-edge-field rounded-xl px-4 py-3 text-sm
                                text-fg-body min-h-[44px] focus:ring-2 focus:ring-primary-600
                                focus:border-primary-600 transition-colors disabled:opacity-60"
                       >

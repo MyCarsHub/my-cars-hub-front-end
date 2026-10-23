@@ -69,6 +69,9 @@
   --color-edge-soft: var(--color-neutral-100);
   --color-edge: var(--color-neutral-200);
   --color-edge-strong: var(--color-neutral-300);
+  /* Borda de CAMPO (input/select/textarea): mesmo valor claro do `edge`; no escuro ela
+     identifica o controle e precisa de 3:1 (WCAG 1.4.11) — ver o bloco `.dark`. */
+  --color-edge-field: var(--color-neutral-200);
   --color-fg-strong: var(--color-neutral-950);
   --color-fg: var(--color-neutral-900);
   --color-fg-body: var(--color-neutral-800);
@@ -371,8 +374,11 @@ body {
      fg #F4F4F5 16,13:1 · fg-body 14,37 · fg-soft 12,00 · fg-muted 8,99 ·
      fg-subtle #A1A1AA 6,92 (5,88 sobre surface-sunken, 4,97 sobre
      surface-strong) — todos sobre surface #18181A.
-     fg-faint #71717A 3,67:1: só ícone/placeholder (piso 3:1), nunca texto.
+     fg-faint #8E8E97: 5,46:1 sobre surface, 4,64 sobre surface-sunken — passa como texto.
      rule-contrast #75757E: 3,89 surface · 4,20 canvas · 3,30 sunken.
+     edge-field #75757E (borda de campo): os mesmos 3,89 / 3,30 — passa 3:1.
+     edge-strong #6E6E78: 3,52:1 sobre surface (borda que identifica componente).
+     edge #2E2E33 é só divisória/moldura de card (decorativa).
    Laranja: `text-primary-700` (#C22F00) cai para 3,0:1 no escuro; o gêmeo
    `dark:text-primary-400` (#FA602E) dá 5,72:1 sobre surface e 4,98:1 sobre a
    tinta `primary-500/15`. O preenchimento `bg-primary-500` com texto branco
@@ -388,14 +394,15 @@ body {
   --color-edge-faint: #1E1E21;
   --color-edge-soft: #242428;
   --color-edge: #2E2E33;
-  --color-edge-strong: #46464E;
+  --color-edge-strong: #6E6E78;
+  --color-edge-field: #75757E;
   --color-fg-strong: #FAFAFA;
   --color-fg: #F4F4F5;
   --color-fg-body: #E7E7EA;
   --color-fg-soft: #D4D4D8;
   --color-fg-muted: #B8B8BF;
   --color-fg-subtle: #A1A1AA;
-  --color-fg-faint: #71717A;
+  --color-fg-faint: #8E8E97;
 
   /* Tokens neutros da landing / blog / legais, expostos como utilities
      (`bg-paper`, `text-ink`, `border-rule`…): mesmo papel, valor escuro. */
@@ -457,6 +464,7 @@ body {
   --color-edge-soft: var(--color-neutral-100);
   --color-edge: var(--color-neutral-200);
   --color-edge-strong: var(--color-neutral-300);
+  --color-edge-field: var(--color-neutral-200);
   --color-fg-strong: var(--color-neutral-950);
   --color-fg: var(--color-neutral-900);
   --color-fg-body: var(--color-neutral-800);

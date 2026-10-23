@@ -52,7 +52,7 @@ const ACTION =
           readonly
           [value]="link()"
           (focus)="selectAll($event)"
-          class="w-full min-h-[44px] bg-surface-muted border border-edge rounded-xl px-3 text-base
+          class="w-full min-h-[44px] bg-surface-muted border border-edge-field rounded-xl px-3 text-base
                  text-fg-body truncate focus:outline-none focus:ring-2 focus:ring-primary-400
                  focus:border-primary-400"
         />
