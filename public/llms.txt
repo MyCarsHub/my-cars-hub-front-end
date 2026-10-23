@@ -1,5 +1,5 @@
 <!--
-  MyCarsHub llms.txt — https://mycarshub.app.br/llms.txt
+  MyCarsHub llms.txt — https://www.mycarshub.app.br/llms.txt
 
   Served from the domain ROOT via the `public/` assets glob in angular.json, the same
   mechanism that already serves /robots.txt, /sitemap.xml and /manifest.webmanifest.
@@ -30,26 +30,26 @@ tradução é aplicada em runtime.
 
 ## Páginas
 
-- [Início](https://mycarshub.app.br/): apresentação do produto — gestão de frota,
+- [Início](https://www.mycarshub.app.br/): apresentação do produto — gestão de frota,
   motoristas, aluguéis, contratos, cobranças automáticas e relatórios, com teste gratuito
   de 14 dias sem cartão.
-- [Blog](https://mycarshub.app.br/blog): conteúdo prático sobre gestão de locadoras de
+- [Blog](https://www.mycarshub.app.br/blog): conteúdo prático sobre gestão de locadoras de
   veículos — contratos, cobrança, manutenção de frota e controle de motoristas. Os artigos
   ficam em `/blog/{slug}`.
 
 ## Legal
 
-- [Termos de Uso](https://mycarshub.app.br/termos-de-uso): condições de uso da plataforma —
+- [Termos de Uso](https://www.mycarshub.app.br/termos-de-uso): condições de uso da plataforma —
   contratação, planos, responsabilidades das partes e regras de cancelamento.
-- [Política de Privacidade](https://mycarshub.app.br/politica-de-privacidade): como o
+- [Política de Privacidade](https://www.mycarshub.app.br/politica-de-privacidade): como o
   MyCarsHub coleta, usa, armazena e protege os dados pessoais de locadoras e motoristas,
   em conformidade com a LGPD.
 
 ## Notas para agentes
 
 - O mapa completo das URLs públicas está em
-  [sitemap.xml](https://mycarshub.app.br/sitemap.xml); as regras de rastreamento estão em
-  [robots.txt](https://mycarshub.app.br/robots.txt).
+  [sitemap.xml](https://www.mycarshub.app.br/sitemap.xml); as regras de rastreamento estão em
+  [robots.txt](https://www.mycarshub.app.br/robots.txt).
 - Tudo o que não está listado acima faz parte da aplicação autenticada e exige sessão de
   usuário. Essas páginas não são públicas, não são indexáveis e não devem ser rastreadas
   nem acessadas por agentes automatizados.
