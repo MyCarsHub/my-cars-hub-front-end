@@ -147,8 +147,8 @@ describe('InspectionSchedulesBlock — cartao e dialogo', () => {
       const card = q(fixture, '[data-schedule-card]')!;
       const button = q(fixture, '[data-schedule-open]')!;
 
-      expect(card.className).toContain('bg-white');
-      expect(button.className).toContain('border-neutral-200');
+      expect(card.className).toContain('bg-surface');
+      expect(button.className).toContain('border-edge');
       // Nenhum PREENCHIMENTO laranja (o anel de foco e laranja em todo o app e nao conta).
       expect(card.innerHTML).not.toMatch(/bg-primary-/);
       expect(card.querySelectorAll('button').length).toBe(1);
@@ -166,12 +166,12 @@ describe('InspectionSchedulesBlock — cartao e dialogo', () => {
       const fixture = render();
 
       expect(q(fixture, '[data-schedule-chip]')?.textContent?.trim()).toBe('Desligado');
-      expect(q(fixture, '[data-schedule-chip]')?.className).toContain('bg-neutral-100');
+      expect(q(fixture, '[data-schedule-chip]')?.className).toContain('bg-surface-sunken');
       expect(q(fixture, '[data-schedule-text]')?.textContent?.trim()).toBe(
         'Peça as vistorias aos motoristas automaticamente, para todos os veículos, sem precisar lembrar de cada um.',
       );
       expect(q(fixture, '[data-schedule-open]')?.textContent?.trim()).toBe('Configurar');
-      expect(q(fixture, 'span[aria-hidden="true"]')?.className).toContain('bg-neutral-100');
+      expect(q(fixture, 'span[aria-hidden="true"]')?.className).toContain('bg-surface-sunken');
     });
 
     it('ativo: chip "Ativo" verde, a regra em uma frase e "Editar"', () => {
@@ -419,7 +419,7 @@ describe('InspectionSchedulesBlock — cartao e dialogo', () => {
       const order = Array.from(footer.querySelectorAll('button')).map((b) => b.textContent?.trim());
       expect(order).toEqual(['Cancelar', 'Ativar']);
       expect(q(fixture, '[data-schedule-save]')?.className).toContain('bg-primary-500');
-      expect(q(fixture, '[data-schedule-cancel]')?.className).toContain('border-neutral-200');
+      expect(q(fixture, '[data-schedule-cancel]')?.className).toContain('border-edge');
     });
   });
 

@@ -128,19 +128,19 @@ export class DriverDetail implements OnInit {
     if (rental.status === 'RESERVED') {
       return {
         label: 'Aluguel reservado',
-        container: 'bg-amber-50 border-amber-200',
-        eyebrow: 'text-amber-700',
-        body: 'text-amber-900',
-        link: 'text-amber-700 hover:text-amber-900',
+        container: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
+        eyebrow: 'text-amber-700 dark:text-amber-300',
+        body: 'text-amber-900 dark:text-amber-200',
+        link: 'text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200',
         icon: 'clock' as const,
       };
     }
     return {
       label: 'Aluguel ativo',
-      container: 'bg-blue-50 border-blue-200',
-      eyebrow: 'text-blue-700',
-      body: 'text-blue-900',
-      link: 'text-blue-700 hover:text-blue-900',
+      container: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30',
+      eyebrow: 'text-blue-700 dark:text-blue-300',
+      body: 'text-blue-900 dark:text-blue-200',
+      link: 'text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200',
       icon: 'arrow' as const,
     };
   });
@@ -148,7 +148,7 @@ export class DriverDetail implements OnInit {
 
   protected readonly statusInfo = computed(() => {
     const s = this.driver()?.status;
-    if (!s) return { label: '—', chip: 'bg-neutral-100 text-neutral-700' };
+    if (!s) return { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
     const meta = driverStatusMeta(s);
     return { label: meta.label, chip: meta.chip };
   });

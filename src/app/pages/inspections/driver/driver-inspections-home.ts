@@ -40,7 +40,7 @@ const HERO_TONES: Readonly<Record<DriverInspectionHero['tone'], string>> = {
   primary: 'bg-primary-500 text-white',
   rose: 'bg-rose-700 text-white',
   emerald: 'bg-emerald-700 text-white',
-  neutral: 'bg-white text-neutral-900 border border-neutral-200',
+  neutral: 'bg-surface text-fg border border-edge',
 };
 
 /**

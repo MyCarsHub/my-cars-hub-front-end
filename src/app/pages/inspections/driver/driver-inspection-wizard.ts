@@ -164,8 +164,8 @@ export class DriverInspectionWizard {
       tone: slot.done
         ? 'bg-primary-500'
         : i === this.step() && this.view() === 'cap'
-          ? 'bg-primary-200'
-          : 'bg-neutral-200',
+          ? 'bg-primary-200 dark:bg-primary-500/25'
+          : 'bg-surface-strong',
     })),
   );
 

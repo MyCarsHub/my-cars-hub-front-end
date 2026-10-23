@@ -39,7 +39,7 @@
     [routerLink]="root"
     data-back
     class="-ml-1 mb-1 inline-flex items-center gap-1.5 min-h-[44px] px-1 rounded-lg text-sm
-           font-medium text-neutral-600 hover:text-neutral-900 transition-colors focus:outline-none
+           font-medium text-fg-muted hover:text-fg transition-colors focus:outline-none
            focus-visible:ring-2 focus-visible:ring-primary-400"
   >
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -68,8 +68,8 @@
           type="button"
           data-retry-detail
           (click)="load()"
-          class="mt-2 min-h-[44px] px-4 rounded-xl border border-rose-200 bg-white text-sm
-                 font-semibold text-rose-700 hover:bg-rose-50 transition-colors focus:outline-none
+          class="mt-2 min-h-[44px] px-4 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-surface text-sm
+                 font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors focus:outline-none
                  focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
         >
           Tentar novamente
@@ -79,8 +79,8 @@
 
     @if (loading() && !inspection()) {
       <div data-skeleton class="space-y-4" aria-hidden="true">
-        <div class="h-44 rounded-2xl bg-neutral-100 animate-pulse"></div>
-        <div class="h-72 rounded-2xl bg-neutral-100 animate-pulse"></div>
+        <div class="h-44 rounded-2xl bg-surface-sunken animate-pulse"></div>
+        <div class="h-72 rounded-2xl bg-surface-sunken animate-pulse"></div>
       </div>
       <p class="sr-only" role="status">Carregando a vistoria…</p>
     }
@@ -90,13 +90,13 @@
         <div
           data-rejected-strip
           role="alert"
-          class="rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:px-6 flex flex-col gap-1"
+          class="rounded-2xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 p-4 sm:px-6 flex flex-col gap-1"
         >
-          <p class="text-sm font-semibold text-rose-900">
+          <p class="text-sm font-semibold text-rose-900 dark:text-rose-200">
             Vistoria recusada. O motorista precisa refazer.
           </p>
           @if (rejectedReason(); as reason) {
-            <p data-rejection-reason class="text-sm text-rose-900 leading-relaxed">
+            <p data-rejection-reason class="text-sm text-rose-900 dark:text-rose-200 leading-relaxed">
               Motivo: {{ reason }}
             </p>
           }
@@ -105,8 +105,8 @@
               data-redo
               [routerLink]="[root, current.id, 'captura']"
               class="mt-2 w-full sm:w-auto sm:self-start min-h-[44px] inline-flex items-center
-                     justify-center rounded-xl border border-rose-200 bg-white px-5 text-sm
-                     font-semibold text-rose-700 hover:bg-rose-50 transition-colors
+                     justify-center rounded-xl border border-rose-200 dark:border-rose-500/30 bg-surface px-5 text-sm
+                     font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >
               Ver recusa e refazer
@@ -123,8 +123,8 @@
               data-continue
               [routerLink]="[root, current.id, 'captura']"
               class="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center
-                     rounded-xl border border-neutral-200 bg-white px-5 text-sm font-semibold
-                     text-neutral-700 hover:bg-neutral-50 transition-colors focus:outline-none
+                     rounded-xl border border-edge bg-surface px-5 text-sm font-semibold
+                     text-fg-soft hover:bg-surface-muted transition-colors focus:outline-none
                      focus-visible:ring-2 focus-visible:ring-primary-400"
             >
               Continuar vistoria
@@ -140,8 +140,8 @@
                  gap-x-6 gap-y-5"
         >
           <div class="min-w-0 flex flex-col gap-0.5">
-            <dt class="text-xs uppercase tracking-wide text-neutral-500">Veículo</dt>
-            <dd data-field="vehicle" class="text-sm font-medium text-neutral-900 break-words">
+            <dt class="text-xs uppercase tracking-wide text-fg-subtle">Veículo</dt>
+            <dd data-field="vehicle" class="text-sm font-medium text-fg break-words">
               @if (plate(); as p) {
                 <span class="font-mono font-semibold tracking-wide">{{ p }}</span>
                 @if (vehicle(); as v) {
@@ -154,38 +154,38 @@
           </div>
 
           <div class="min-w-0 flex flex-col gap-0.5">
-            <dt class="text-xs uppercase tracking-wide text-neutral-500">Cor e ano</dt>
-            <dd data-field="color-year" class="text-sm font-medium text-neutral-900 break-words">
+            <dt class="text-xs uppercase tracking-wide text-fg-subtle">Cor e ano</dt>
+            <dd data-field="color-year" class="text-sm font-medium text-fg break-words">
               {{ colorYear() ?? '—' }}
             </dd>
           </div>
 
           <div class="min-w-0 flex flex-col gap-0.5">
-            <dt class="text-xs uppercase tracking-wide text-neutral-500">Motorista</dt>
-            <dd data-field="driver" class="text-sm font-medium text-neutral-900 break-words">
+            <dt class="text-xs uppercase tracking-wide text-fg-subtle">Motorista</dt>
+            <dd data-field="driver" class="text-sm font-medium text-fg break-words">
               {{ driverName() ?? '—' }}
             </dd>
           </div>
 
           <div class="min-w-0 flex flex-col gap-0.5">
-            <dt class="text-xs uppercase tracking-wide text-neutral-500">Contato</dt>
-            <dd data-field="phone" class="text-sm font-medium text-neutral-900 break-words">
+            <dt class="text-xs uppercase tracking-wide text-fg-subtle">Contato</dt>
+            <dd data-field="phone" class="text-sm font-medium text-fg break-words">
               {{ phone() ?? '—' }}
             </dd>
           </div>
 
           <div class="min-w-0 flex flex-col gap-0.5">
-            <dt class="text-xs uppercase tracking-wide text-neutral-500">ID do aluguel</dt>
+            <dt class="text-xs uppercase tracking-wide text-fg-subtle">ID do aluguel</dt>
             @if (current.rentalId; as rentalId) {
               <dd data-field="rental" class="flex flex-col gap-0.5 min-w-0">
-                <span class="font-mono text-sm font-medium text-neutral-900 break-all">
+                <span class="font-mono text-sm font-medium text-fg break-all">
                   {{ rentalId }}
                 </span>
                 <a
                   data-rental-link
                   [routerLink]="['/alugueis', rentalId]"
                   class="-my-3 self-start inline-flex items-center min-h-[44px] text-[13px]
-                         font-semibold text-primary-700 hover:text-primary-800 rounded-lg
+                         font-semibold text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 rounded-lg
                          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                 >
                   Ver aluguel
@@ -193,30 +193,30 @@
               </dd>
             } @else {
               <dd data-field="rental" class="flex flex-col gap-0.5">
-                <span class="text-sm font-medium text-neutral-900">—</span>
-                <span class="text-[13px] text-neutral-500">Vistoria de frota, sem aluguel.</span>
+                <span class="text-sm font-medium text-fg">—</span>
+                <span class="text-[13px] text-fg-subtle">Vistoria de frota, sem aluguel.</span>
               </dd>
             }
           </div>
 
           <div class="min-w-0 flex flex-col gap-0.5">
-            <dt class="text-xs uppercase tracking-wide text-neutral-500">Hodômetro informado</dt>
+            <dt class="text-xs uppercase tracking-wide text-fg-subtle">Hodômetro informado</dt>
             @if (odometer(); as odo) {
               <dd data-field="odometer" class="flex flex-col gap-0.5">
                 @if (odo.value; as value) {
                   <span
                     data-odometer-value
-                    class="font-mono text-base font-semibold text-neutral-900"
+                    class="font-mono text-base font-semibold text-fg"
                   >
                     {{ value }}
                   </span>
                 } @else {
-                  <span data-odometer-value class="text-sm font-medium text-neutral-500">
+                  <span data-odometer-value class="text-sm font-medium text-fg-subtle">
                     Aguardando o motorista
                   </span>
                 }
                 @if (odo.hint) {
-                  <span data-odometer-hint class="text-[13px] text-neutral-500 leading-snug">
+                  <span data-odometer-hint class="text-[13px] text-fg-subtle leading-snug">
                     {{ odo.hint }}
                   </span>
                 }
@@ -235,7 +235,7 @@
               aria-hidden="true"
             >
               @for (n of [1, 2, 3, 4, 5, 6]; track n) {
-                <div class="aspect-square rounded-xl bg-neutral-100 animate-pulse"></div>
+                <div class="aspect-square rounded-xl bg-surface-sunken animate-pulse"></div>
               }
             </div>
             <p class="sr-only" role="status" aria-live="polite">
@@ -244,7 +244,7 @@
           }
 
           @if (photos() !== null) {
-            <p data-photo-summary class="text-sm text-neutral-600 leading-relaxed">
+            <p data-photo-summary class="text-sm text-fg-muted leading-relaxed">
               {{ photoSummary() }}
             </p>
 
@@ -264,7 +264,7 @@
                       [attr.aria-label]="'Ampliar foto: ' + frame.label"
                       (click)="openViewer(frame.angle)"
                       class="relative block w-full aspect-square overflow-hidden rounded-xl border
-                             border-dashed border-neutral-300 bg-neutral-50 hover:border-primary-500
+                             border-dashed border-edge-strong bg-surface-muted hover:border-primary-500
                              transition-colors focus:outline-none focus-visible:ring-2
                              focus-visible:ring-primary-400 focus-visible:ring-offset-2"
                     >
@@ -284,18 +284,18 @@
                   } @else {
                     <div
                       data-frame="empty"
-                      class="w-full aspect-square rounded-xl border border-dashed border-neutral-300
-                             bg-neutral-50 flex flex-col items-center justify-center gap-2 p-2
+                      class="w-full aspect-square rounded-xl border border-dashed border-edge-strong
+                             bg-surface-muted flex flex-col items-center justify-center gap-2 p-2
                              text-center"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                         viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round" class="text-neutral-400"
+                        stroke-linecap="round" stroke-linejoin="round" class="text-fg-faint"
                         aria-hidden="true">
                         <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
                         <circle cx="12" cy="13" r="3" />
                       </svg>
-                      <span class="text-[13px] text-neutral-600 leading-tight">{{ frame.label }}</span>
+                      <span class="text-[13px] text-fg-muted leading-tight">{{ frame.label }}</span>
                     </div>
                   }
                 </li>
@@ -336,8 +336,8 @@
               data-retry-photos
               (click)="loadPhotos()"
               class="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center
-                     rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold
-                     text-neutral-700 hover:bg-neutral-50 transition-colors focus:outline-none
+                     rounded-xl border border-edge bg-surface px-4 text-sm font-semibold
+                     text-fg-soft hover:bg-surface-muted transition-colors focus:outline-none
                      focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
             >
               Tentar carregar as fotos de novo
@@ -349,7 +349,7 @@
       @if (canDecide()) {
         <app-page-card title="Sua decisão">
           <div data-decision class="px-4 sm:px-6 pb-5 sm:pb-6 space-y-4">
-            <p class="text-sm text-neutral-600 leading-relaxed">
+            <p class="text-sm text-fg-muted leading-relaxed">
               Aprove se as {{ totalCount() || 14 }} fotos e o hodômetro estão corretos. Se
               recusar, o motorista é avisado e refaz a vistoria inteira.
             </p>
@@ -370,8 +370,8 @@
                   maxlength="1000"
                   [formControl]="reasonControl"
                   placeholder="Ex.: foto do hodômetro desfocada, refaça com o painel aceso."
-                  class="w-full bg-white border rounded-xl px-3 py-2.5 text-base lg:text-sm
-                         text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-400
+                  class="w-full bg-surface border rounded-xl px-3 py-2.5 text-base lg:text-sm
+                         text-fg-body focus:outline-none focus:ring-2 focus:ring-primary-400
                          focus:border-primary-400"
                 ></textarea>
               </app-form-field>
@@ -388,8 +388,8 @@
                   data-cancel-reject
                   (click)="cancelReject()"
                   [disabled]="deciding()"
-                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-neutral-200
-                         bg-white text-sm font-semibold text-neutral-700 hover:bg-neutral-50
+                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-edge
+                         bg-surface text-sm font-semibold text-fg-soft hover:bg-surface-muted
                          transition-colors focus:outline-none focus-visible:ring-2
                          focus-visible:ring-primary-400 focus-visible:ring-offset-2
                          disabled:opacity-60"
@@ -401,8 +401,8 @@
                   data-reject
                   (click)="askRejectConfirmation()"
                   [disabled]="deciding()"
-                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-rose-200
-                         bg-white text-sm font-semibold text-rose-700 hover:bg-rose-50
+                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-rose-200 dark:border-rose-500/30
+                         bg-surface text-sm font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10
                          transition-colors focus:outline-none focus-visible:ring-2
                          focus-visible:ring-primary-400 focus-visible:ring-offset-2
                          disabled:opacity-60"
@@ -415,8 +415,8 @@
                   data-start-reject
                   (click)="startReject()"
                   [disabled]="deciding()"
-                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-neutral-200
-                         bg-white text-sm font-semibold text-neutral-700 hover:bg-neutral-50
+                  class="w-full sm:w-auto min-h-[44px] px-5 rounded-xl border border-edge
+                         bg-surface text-sm font-semibold text-fg-soft hover:bg-surface-muted
                          transition-colors focus:outline-none focus-visible:ring-2
                          focus-visible:ring-primary-400 focus-visible:ring-offset-2
                          disabled:opacity-60"
@@ -441,7 +441,7 @@
             </div>
 
             @if (!rejecting() && approveBlocked()) {
-              <p id="approve-note" data-approve-note class="text-xs text-neutral-500">
+              <p id="approve-note" data-approve-note class="text-xs text-fg-subtle">
                 Aprovar fica disponível quando as {{ totalCount() || 14 }} fotos e o hodômetro
                 estiverem enviados.
               </p>
@@ -453,12 +453,12 @@
       @if (status() === 'APPROVED') {
         <section
           data-pdf-card
-          class="rounded-2xl bg-white border border-neutral-200 shadow-sm px-4 sm:px-6 py-4 flex
+          class="rounded-2xl bg-surface border border-edge shadow-sm px-4 sm:px-6 py-4 flex
                  flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
         >
           <div class="flex items-center gap-3 min-w-0">
             <span
-              class="shrink-0 w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center
+              class="shrink-0 w-11 h-11 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-300 flex items-center
                      justify-center"
               aria-hidden="true"
             >
@@ -472,10 +472,10 @@
               </svg>
             </span>
             <div class="min-w-0 flex flex-col">
-              <span data-pdf-name class="text-sm font-semibold text-neutral-900 break-all">
+              <span data-pdf-name class="text-sm font-semibold text-fg break-all">
                 {{ pdfName() }}
               </span>
-              <span class="text-xs text-neutral-500">
+              <span class="text-xs text-fg-subtle">
                 Laudo gerado a partir das {{ totalCount() || 14 }} fotos
               </span>
             </div>
