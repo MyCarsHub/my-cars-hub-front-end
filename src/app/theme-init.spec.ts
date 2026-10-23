@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { THEME_STORAGE_KEY } from './services/theme.service';
+import { PUBLIC_PATH_PREFIXES } from './services/theme-scope';
 
 /**
  * `public/theme-init.js` — o tema ANTES da primeira pintura.
@@ -27,9 +28,11 @@ describe('public/theme-init.js', () => {
     localStorage.clear();
     html().classList.remove('dark');
     html().style.colorScheme = '';
+    history.replaceState(null, '', '/dashboard');
   });
 
   afterEach(() => {
+    history.replaceState(null, '', '/');
     vi.restoreAllMocks();
     Reflect.deleteProperty(window, 'matchMedia');
   });
@@ -80,5 +83,34 @@ describe('public/theme-init.js', () => {
     system(true);
     expect(run).not.toThrow();
     expect(html().classList.contains('dark')).toBe(true);
+  });
+
+  describe('caminho público: sempre claro', () => {
+    const publicPaths = ['/', ...PUBLIC_PATH_PREFIXES, '/blog/um-post', '/convite/cadastro'];
+
+    for (const path of publicPaths) {
+      it(`${path} com preferência "dark" e sistema escuro NÃO recebe dark`, () => {
+        history.replaceState(null, '', path);
+        localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+        system(true);
+        run();
+        expect(html().classList.contains('dark')).toBe(false);
+        expect(html().style.colorScheme).toBe('light');
+        // A preferência salva sobrevive à visita.
+        expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
+      });
+    }
+
+    it('caminho do app com preferência "dark" aplica dark', () => {
+      history.replaceState(null, '', '/dashboard');
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+      system(false);
+      run();
+      expect(html().classList.contains('dark')).toBe(true);
+    });
+
+    it('a lista do script é a mesma de theme-scope.ts', () => {
+      for (const p of PUBLIC_PATH_PREFIXES) expect(source).toContain(`'${p}'`);
+    });
   });
 });

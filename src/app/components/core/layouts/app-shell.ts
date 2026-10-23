@@ -23,6 +23,7 @@ import { TourSpotlight } from '../../tour/tour-spotlight';
 import { TourService } from '../../tour/tour.service';
 import { DriverTopBar } from '../../sidebar/driver-top-bar';
 import { ThemeToggle } from '../../theme-toggle/theme-toggle';
+import { ThemeService } from '../../../services/theme.service';
 
 @Component({
   selector: 'app-shell',
@@ -133,6 +134,7 @@ import { ThemeToggle } from '../../theme-toggle/theme-toggle';
 })
 export class AppShell implements OnInit, OnDestroy {
   protected readonly layout = inject(LayoutStore);
+  private readonly theme = inject(ThemeService);
   protected readonly access = inject(BillingAccessService);
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
@@ -229,6 +231,8 @@ export class AppShell implements OnInit, OnDestroy {
     window.addEventListener('resize', this.resizeListener);
     // Trava scroll do body — só o main scrolla; sem isso ficam dois scrollbars.
     document.body.classList.add('app-shell-active');
+    // Dentro do shell vale a preferência de tema; fora dele a página é sempre clara.
+    this.theme.enterApp();
   }
 
   ngOnDestroy(): void {
@@ -236,6 +240,7 @@ export class AppShell implements OnInit, OnDestroy {
       window.removeEventListener('resize', this.resizeListener);
     }
     document.body.classList.remove('app-shell-active');
+    this.theme.leaveApp();
   }
 
   private checkBreakpoint(): void {
