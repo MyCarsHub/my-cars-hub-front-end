@@ -272,7 +272,7 @@ export class RentalDetail implements OnInit {
           : ` Motivos: ${reasons.join(' | ')}`;
     return (
       `${subject}${why} O aluguel foi criado e o sistema tenta criá-las de novo automaticamente. ` +
-      'Para tentar agora, use Regerar na linha de cada cobrança que falhou.'
+      'Para tentar agora, toque em Gerar de novo na linha de cada cobrança que falhou.'
     );
   });
 
@@ -964,7 +964,8 @@ export class RentalDetail implements OnInit {
   }
 
   protected canRetryCharge(charge: RentalChargeDto): boolean {
-    return charge.status === 'FAILED';
+    // O motorista só consulta: quem gera de novo é a locadora (o backend recusa também).
+    return charge.status === 'FAILED' && !this.isDriver;
   }
 
   protected readonly retrying = signal<string | null>(null);
@@ -1485,7 +1486,7 @@ export class RentalDetail implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.retrying.set(null);
-        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível regerar a cobrança. Tente novamente.'));
+        this.actionError.set(this.apiErrors.messageFor(err, 'Não foi possível gerar a cobrança de novo. Tente novamente.'));
       },
     });
   }
@@ -1494,7 +1495,7 @@ export class RentalDetail implements OnInit {
   private retryMessage(outcome: RentalChargeRetryDto['outcome']): string {
     switch (outcome) {
       case 'RETRIED':
-        return 'Nova cobrança gerada com sucesso.';
+        return 'Cobrança gerada de novo. A anterior foi cancelada no Asaas e o motorista recebe o link novo.';
       case 'ALREADY_PAID':
         return 'Cobrança já estava paga no provedor — status sincronizado.';
       case 'ALREADY_REFUNDED':

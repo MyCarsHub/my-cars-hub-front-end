@@ -401,8 +401,8 @@ describe('RentalDetail — erro de operação que NÃO é ativação', () => {
     fixture.detectChanges();
     const regerar = (
       Array.from(fixture.nativeElement.querySelectorAll('[role="menuitem"]')) as HTMLButtonElement[]
-    ).find((b) => (b.textContent ?? '').includes('Regerar'));
-    expect(regerar, 'item "Regerar" não renderizou').toBeTruthy();
+    ).find((b) => (b.textContent ?? '').includes('Gerar de novo'));
+    expect(regerar, 'item "Gerar de novo" não renderizou').toBeTruthy();
     scrollSpy.mockClear();
 
     regerar?.click();
@@ -1271,7 +1271,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       );
     }
 
-    it('com failed > 0: diz quantas, que o sistema tenta de novo e aponta o Regerar', async () => {
+    it('com failed > 0: diz quantas, que o sistema tenta de novo e aponta o Gerar de novo', async () => {
       const { fixture } = await mountDetail(ACTIVE_AUTO, {
         navState: { chargeSync: { requested: 4, created: 2, failed: 2, local: 0 } },
       });
@@ -1281,10 +1281,10 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       const copy = (banner?.textContent ?? '').replace(/\s+/g, ' ');
       expect(copy).toContain('2 cobranças não puderam ser criadas no Asaas.');
       expect(copy).toContain('o sistema tenta criá-las de novo automaticamente');
-      expect(copy).toContain('Regerar');
+      expect(copy).toContain('Gerar de novo');
       expect(banner?.querySelector('[role="alert"]')).not.toBeNull();
       // O caminho existente continua lá: a linha FAILED tem o botão.
-      expect(buttonsLabeled(fixture, 'Regerar').length).toBeGreaterThan(0);
+      expect(buttonsLabeled(fixture, 'Gerar de novo').length).toBeGreaterThan(0);
     });
 
     it('no singular quando falhou uma só', async () => {
@@ -1565,7 +1565,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
     });
   });
 
-  describe('Regerar — cada desfecho diz o que de fato aconteceu', () => {
+  describe('Gerar de novo — cada desfecho diz o que de fato aconteceu', () => {
     async function regerarWith(outcome: string): Promise<string[]> {
       const { fixture, http } = await mountDetail({
         ...RESERVED_BASE,
@@ -1573,7 +1573,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
         automaticCharge: true,
         charges: [charge({ id: 'failed', status: 'FAILED', externalId: null })],
       });
-      buttonsLabeled(fixture, 'Regerar')[0].click();
+      buttonsLabeled(fixture, 'Gerar de novo')[0].click();
       fixture.detectChanges();
       await fixture.whenStable();
       http
@@ -1589,7 +1589,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
     it('CANCELED não finge que gerou uma cobrança nova', async () => {
       const messages = await regerarWith('CANCELED');
       expect(messages.some((m) => m.startsWith('Nada foi gerado:'))).toBe(true);
-      expect(messages).not.toContain('Nova cobrança gerada com sucesso.');
+      expect(messages).not.toContain('Cobrança gerada de novo. A anterior foi cancelada no Asaas e o motorista recebe o link novo.');
     });
 
     it('SKIPPED diz que a cobrança mudou e nada foi alterado', async () => {
@@ -1601,7 +1601,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
 
     it('RETRIED segue com a frase de sempre', async () => {
       const messages = await regerarWith('RETRIED');
-      expect(messages).toContain('Nova cobrança gerada com sucesso.');
+      expect(messages).toContain('Cobrança gerada de novo. A anterior foi cancelada no Asaas e o motorista recebe o link novo.');
     });
   });
 
@@ -1692,6 +1692,45 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       expect(text(fixture)).not.toContain('Sincronizar');
       // As cobranças dele moram em `DriverRentalDetail` (FEAT-0361); esta tela não as pede.
       expect(lastAncillaryUrls).not.toContain(`${BASE}/${RENTAL_ID}/charges`);
+    });
+
+    describe('V118 — cobrança que não foi criada no Asaas', () => {
+      const FAILED_WITH_NOTICE = (over: Partial<RentalChargeDto> = {}) =>
+        OPEN({
+          status: 'FAILED',
+          failureCode: 'DRIVER_DATA_INVALID',
+          failureReason: 'Motorista sem documento cadastrado.',
+          failureCategory: 'DATA',
+          failureNotice: 'A cobrança de R$ 700,00 do motorista Rennan (vence sexta, 30/10) não foi criada no Asaas. Motivo: faltou o CPF do motorista. Corrija o cadastro do motorista (CPF, e-mail, telefone e endereço) ou toque em Gerar de novo.',
+          autoRetrying: false,
+          ...over,
+        });
+
+      it('a locadora lê o aviso inteiro e tem o "Gerar de novo" à vista, sem abrir menu', async () => {
+        const { fixture } = await mountDetail(ACTIVE_AUTO([FAILED_WITH_NOTICE()]));
+
+        const notices = fixture.nativeElement.querySelectorAll('[data-testid="charge-failure-notice"]');
+        expect(notices.length).toBeGreaterThan(0);
+        expect(text(fixture)).toContain('Motivo: faltou o CPF do motorista.');
+        const visible = fixture.nativeElement.querySelectorAll('[data-testid="charge-regenerate"]');
+        expect(visible.length).toBeGreaterThan(0);
+        expect((visible[0].textContent ?? '').trim()).toBe('Gerar de novo');
+      });
+
+      it('mostra quantas vezes a cobrança já foi gerada de novo', async () => {
+        const { fixture } = await mountDetail(
+          ACTIVE_AUTO([OPEN({ status: 'PENDING', reissueCount: 2 })]),
+        );
+        expect(text(fixture)).toContain('Gerada de novo 2 vezes');
+      });
+
+      it('o motorista não vê o aviso, o motivo nem o botão', async () => {
+        const { fixture } = await mountDetail(ACTIVE_AUTO([FAILED_WITH_NOTICE()]), { role: 'DRIVER' });
+
+        expect(fixture.nativeElement.querySelectorAll('[data-testid="charge-failure-notice"]').length).toBe(0);
+        expect(fixture.nativeElement.querySelectorAll('[data-testid="charge-regenerate"]').length).toBe(0);
+        expect(text(fixture)).not.toContain('Gerar de novo');
+      });
     });
 
     describe('o detalhe para o motorista é só de consulta', () => {
@@ -1798,7 +1837,7 @@ describe('RentalDetail — emissão, reconciliação e baixa manual', () => {
       ['PENDING', ['Pagar (abrir cobrança)', 'Conferir no Asaas', 'Compartilhar']],
       ['PAST_DUE', ['Pagar (abrir cobrança)', 'Conferir no Asaas', 'Compartilhar']],
       ['PAID', ['Conferir no Asaas']],
-      ['FAILED', ['Regerar']],
+      ['FAILED', ['Gerar de novo']],
       ['REFUNDED', []],
       ['DISPUTED', []],
       ['CANCELED', []],

@@ -46,6 +46,11 @@ export interface AlertsDto {
      * à entrega do alerta não o envia.
      */
     overdueCharges?: CountAmountDto;
+    /**
+     * V118 — cobranças FAILED de aluguel em curso em que a locadora precisa agir (não
+     * foram criadas no Asaas ou precisam de link novo). Opcional: backend anterior não envia.
+     */
+    failedCharges?: CountAmountDto;
 }
 
 export interface FleetDto {

@@ -50,7 +50,7 @@
         </div>
       }
       <!-- Logo após criar: parte das cobranças não foi criada no Asaas. O aluguel existe;
-           o sistema tenta de novo e cada linha com falha tem "Regerar". -->
+           o sistema tenta de novo e cada linha com falha tem "Gerar de novo". -->
       @if (chargeSyncNotice()) {
         <app-alert-banner variant="warning" data-testid="charge-sync-warning">
           {{ chargeSyncMessage() }}
@@ -911,7 +911,35 @@
   `compact` = cartao do celular: no maximo tres linhas, o texto inteiro fica no `title`.
 -->
 <ng-template #failureNoteTpl let-charge let-compact="compact">
-  @if (charge.status === 'FAILED' && charge.failureReason) {
+  @if (charge.status === 'FAILED' && charge.failureNotice && !isDriver) {
+    <!-- V118 — o aviso pronto: o que houve, o motivo, o que corrigir, e o botão. -->
+    <div
+      data-testid="charge-failure-notice"
+      class="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-2.5"
+      [class.basis-full]="compact"
+      [class.mt-1]="!compact"
+      [class.max-w-sm]="!compact"
+    >
+      <p
+        class="text-amber-900 dark:text-amber-100 leading-snug"
+        [class.text-base]="compact"
+        [class.text-sm]="!compact"
+      >
+        {{ charge.failureNotice }}
+      </p>
+      @if (canRetryCharge(charge)) {
+        <button
+          type="button"
+          data-testid="charge-regenerate"
+          (click)="retryCharge(charge)"
+          [disabled]="retrying() !== null"
+          class="mt-2 min-h-11 px-4 rounded-xl bg-amber-700 dark:bg-amber-400 text-white dark:text-amber-950 text-sm font-semibold disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+        >
+          {{ retrying() === charge.id ? 'Gerando…' : 'Gerar de novo' }}
+        </button>
+      }
+    </div>
+  } @else if (charge.status === 'FAILED' && charge.failureReason) {
     <p
       data-testid="charge-failure-reason"
       [title]="charge.failureReason"
@@ -924,6 +952,16 @@
       [class.max-w-xs]="!compact"
     >
       {{ charge.failureReason }}
+    </p>
+  }
+  @if ((charge.reissueCount ?? 0) > 0 && !isDriver) {
+    <p
+      data-testid="charge-reissued"
+      class="text-fg-subtle text-xs"
+      [class.basis-full]="compact"
+      [class.mt-1]="!compact"
+    >
+      Gerada de novo {{ charge.reissueCount === 1 ? '1 vez' : charge.reissueCount + ' vezes' }}
     </p>
   }
 </ng-template>
@@ -978,7 +1016,7 @@
         <button type="button" role="menuitem" (click)="retryCharge(charge)"
           [disabled]="retrying() === charge.id"
           class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted disabled:opacity-60">
-          {{ retrying() === charge.id ? 'Regerando…' : 'Regerar' }}
+          {{ retrying() === charge.id ? 'Gerando…' : 'Gerar de novo' }}
         </button>
       }
       @if (canMarkPaidFromMenu(charge)) {
