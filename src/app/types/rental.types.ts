@@ -158,6 +158,31 @@ export interface RentalChargeDto {
    */
   failureCode?: string | null;
   failureReason?: string | null;
+  /**
+   * V118 — só em `FAILED` de aluguel em curso, e nunca para o motorista: a categoria do
+   * motivo, a frase pronta do aviso à locadora e se o sistema ainda tenta sozinho.
+   */
+  failureCategory?: 'TRANSIENT' | 'DATA' | 'OTHER' | null;
+  failureNotice?: string | null;
+  autoRetrying?: boolean | null;
+  /** V118 — quantas vezes a cobrança foi gerada de novo (0 = nunca). */
+  reissueCount?: number;
+}
+
+/** V118 — `GET /v1/charges/attention`: uma cobrança FAILED com o aviso à locadora. */
+export interface FailedChargeNoticeDto {
+  chargeId: string;
+  rentalId: string;
+  driverName: string;
+  amount: number; // cents
+  dueDate: string | null;
+  periodIndex: number | null;
+  category: 'TRANSIENT' | 'DATA' | 'OTHER';
+  failureCode: string | null;
+  reason: string;
+  message: string;
+  autoRetrying: boolean;
+  needsAttention: boolean;
 }
 
 /** Desfecho de `POST /v1/rentals/{rentalId}/charges/{chargeId}/cancel`. */

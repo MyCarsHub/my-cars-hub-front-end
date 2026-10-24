@@ -73,6 +73,18 @@
                         />
                     }
                 }
+                @if (isOperator() && s.alerts.failedCharges?.count; as failedCount) {
+                    <!-- V118 — irmão do atraso: cobranças que não ficaram prontas no Asaas. -->
+                    <app-alert-chip
+                        data-failed-charges-alert
+                        variant="warning"
+                        label="Cobranças não criadas no Asaas"
+                        [count]="failedCount"
+                        [amountLabel]="format(s.alerts.failedCharges?.amountCents ?? 0)"
+                        icon="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
+                        (chipClick)="scrollToFailedNotices()"
+                    />
+                }
                 @if (isOperator() && s.alerts.docsExpiring7d?.count; as docsExpiringCount) {
                     <app-alert-chip
                         variant="danger"
@@ -138,6 +150,9 @@
                     />
                 }
             </section>
+            @if (isOperator() && (s.alerts.failedCharges?.count ?? 0) > 0) {
+                <app-failed-charge-notices />
+            }
         }
     }
 

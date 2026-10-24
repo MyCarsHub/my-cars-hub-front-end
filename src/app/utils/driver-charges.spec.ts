@@ -87,6 +87,15 @@ describe('groupDriverCharges', () => {
 
     expect(g).toEqual({ overdue: [], next: null, upcoming: [], history: [] });
   });
+
+  it('V118 — FAILED vencida e com link (morto) nunca vira "atrasada" nem "a pagar" para o motorista', () => {
+    const g = groupDriverCharges(
+      [c({ status: 'FAILED', dueDate: '2026-10-16', checkoutUrl: 'https://www.asaas.com/i/morto' })],
+      TODAY,
+    );
+
+    expect(g).toEqual({ overdue: [], next: null, upcoming: [], history: [] });
+  });
 });
 
 describe('driverChargeKindLabel', () => {
