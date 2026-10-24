@@ -13,9 +13,10 @@ on:
 
 # PR: a new push cancels the previous run of the SAME PR.
 # main: NEVER cancels a run in progress. With cancel-in-progress false GitHub
-# keeps at most one pending run per group, so the run in progress finishes and
-# only the NEWEST of the later commits runs: the last main commit always gets CI
-# and no minute is thrown away on a run cut in half.
+# keeps at most one PENDING run per group: the run in progress finishes, and an
+# older pending run is replaced (marked "cancelled", no minute spent) by the
+# newest. The last main commit always gets CI and no run is cut in half; an
+# intermediate commit of a burst may show a cancelled run.
 concurrency:
   group: frontend-ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
