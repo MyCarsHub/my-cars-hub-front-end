@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { signal } from '@angular/core';
@@ -107,6 +109,43 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     return { fixture, host: fixture.nativeElement as HTMLElement };
   }
 
+  /** Igual a `render`, com HttpClient de teste: o painel V118 busca a própria lista. */
+  function renderWithHttp(summary: DashboardSummaryDto, role = 'OWNER') {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [DashboardHome],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: DashboardService,
+          useValue: {
+            loadOverview: vi.fn().mockReturnValue(of(summary)),
+            loadCashAccumulation: vi.fn().mockReturnValue(of(null)),
+          },
+        },
+        { provide: BillingAccessService, useValue: { status: signal(null) } },
+        {
+          provide: FleetActivationService,
+          useValue: { hasVehicles: vi.fn().mockReturnValue(of(true)) },
+        },
+        {
+          provide: SessionService,
+          useValue: {
+            getItem: (key: string) => (key === 'selectedRole' ? role : null),
+            isPlatformAdmin: () => false,
+            getCompanyRoleFromToken: () => role,
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(DashboardHome);
+    fixture.detectChanges();
+    return { fixture, host: fixture.nativeElement as HTMLElement };
+  }
+
   beforeEach(() => {
     document.body.innerHTML = '';
   });
@@ -129,6 +168,27 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     expect(chips.length).toBeGreaterThan(1);
     // alvo de toque >= 44px
     expect(button.className).toContain('min-h-[56px]');
+  });
+
+  it('V118 — cobranças não criadas no Asaas têm o chip irmão (amarelo) e o painel com a frase', () => {
+    TestBed.resetTestingModule();
+    const { host } = renderWithHttp(
+      summaryWith({ count: 1, amountCents: 70000 }, { failedCharges: { count: 1, amountCents: 70000 } }),
+    );
+    const chip = host.querySelector<HTMLElement>('app-alert-chip[data-failed-charges-alert]');
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toContain('Cobranças não criadas no Asaas');
+    expect(chip!.textContent).toContain('700,00');
+    expect(host.querySelector('app-failed-charge-notices')).not.toBeNull();
+  });
+
+  it('V118 — motorista nunca vê o chip nem o painel', () => {
+    const { host } = renderWithHttp(
+      summaryWith(undefined, { failedCharges: { count: 1, amountCents: 70000 } }),
+      'DRIVER',
+    );
+    expect(host.querySelector('app-alert-chip[data-failed-charges-alert]')).toBeNull();
+    expect(host.querySelector('app-failed-charge-notices')).toBeNull();
   });
 
   it('sem atraso, o card não aparece (como os demais zerados)', () => {

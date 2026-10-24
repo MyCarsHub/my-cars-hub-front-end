@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     Component,
@@ -25,6 +26,7 @@ import {
 } from '../../types/dashboard.types';
 import { DateRange, DateRangePicker } from '../../components/date-range-picker/date-range-picker';
 import { AlertChip } from './components/alert-chip';
+import { FailedChargeNotices } from './components/failed-charge-notices';
 import { MonthlyBillingChart } from './components/monthly-billing-chart';
 import { OffenderRow, TopOffendersTable } from './components/top-offenders-table';
 import { FinancialCalendar } from './components/financial-calendar';
@@ -80,6 +82,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
         PageCard,
         DateRangePicker,
         AlertChip,
+        FailedChargeNotices,
         MonthlyBillingChart,
         TopOffendersTable,
         FinancialCalendar,
@@ -97,6 +100,7 @@ const VEHICLE_STATUS_META: Record<string, StatusMeta> = {
 export class DashboardHome {
     private readonly service = inject(DashboardService);
     private readonly router = inject(Router);
+    private readonly doc = inject(DOCUMENT);
     private readonly access = inject(BillingAccessService);
     private readonly activation = inject(FleetActivationService);
     private readonly reports = inject(ReportsService);
@@ -338,6 +342,7 @@ export class DashboardHome {
             // Campos aditivos: `?.` protege contra um backend mais antigo que
             // ainda não os envia — o dashboard inteiro não pode quebrar por isso.
             (a.overdueCharges?.count ?? 0) > 0 ||
+            (a.failedCharges?.count ?? 0) > 0 ||
             (a.docsExpiring7d?.count ?? 0) > 0 ||
             (a.expiringInsurance30d?.count ?? 0) > 0
         );
@@ -538,6 +543,11 @@ export class DashboardHome {
     protected reload(): void {
         const r = this.currentRange();
         if (r) this.load(r);
+    }
+
+    /** V118 — o chip das cobranças não criadas leva ao painel com a frase e o "Gerar de novo". */
+    protected scrollToFailedNotices(): void {
+        this.doc.getElementById('cobrancas-paradas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     protected onAlertClick(target: string): void {
