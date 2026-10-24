@@ -1,41 +1,79 @@
 name: Frontend CI
 
 on:
+  # push to main has NO paths-ignore on purpose: every main commit keeps its run.
   push:
     branches: [main]
+  # A docs-only PR builds nothing that ships. One file outside these patterns
+  # and the run happens as usual.
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
 
+# PR: a new push cancels the previous run of the SAME PR.
+# main: NEVER cancels a run in progress. With cancel-in-progress false GitHub
+# keeps at most one pending run per group, so the run in progress finishes and
+# only the NEWEST of the later commits runs: the last main commit always gets CI
+# and no minute is thrown away on a run cut in half.
 concurrency:
-  group: frontend-ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: frontend-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     name: Lint, Test & Build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # MERGE-BACK: is this PR's tree EXACTLY main's?
+      #
+      # After every promotion the merge-back PR (main -> develop) produces the
+      # tree main has just received; the push run on main already tested it.
+      # The comparison is by TREE on the PR checkout (refs/pull/N/merge, the code
+      # that would land on develop). If develop moved, or the PR carries one byte
+      # beyond main, the trees differ and everything runs. Only PRs into develop
+      # can skip; promotions and pushes to main never do.
+      - name: Skip when the tree is exactly main's (merge-back)
+        id: same_tree
+        if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+        run: |
+          git fetch --no-tags --depth=1 origin main
+          head_tree=$(git rev-parse 'HEAD^{tree}')
+          main_tree=$(git rev-parse 'FETCH_HEAD^{tree}')
+          echo "PR tree:   $head_tree"
+          echo "main tree: $main_tree ($(git rev-parse FETCH_HEAD))"
+          if [ "$head_tree" = "$main_tree" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tree identical to origin/main $(git rev-parse FETCH_HEAD); the push run on main tests this exact tree. Suite skipped."
+          fi
+
       - name: Set up Node
+        if: steps.same_tree.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.same_tree.outputs.skip != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Lint
+        if: steps.same_tree.outputs.skip != 'true'
         run: npm run lint
 
       - name: Test
+        if: steps.same_tree.outputs.skip != 'true'
         run: npx ng test --watch=false
 
       # --stats-json emits the esbuild metafile that the initial-bundle guard reads.
       - name: Build (production)
+        if: steps.same_tree.outputs.skip != 'true'
         run: npx ng build --configuration=production --stats-json
 
       # FIX-0564 — wired up in the same commit that made @sentry dynamic, which is
@@ -49,6 +87,7 @@ jobs:
       #   exit 1  a forbidden package is back in the initial graph
       #   exit 2  could not measure — still red, on purpose
       - name: Assert initial bundle (no @sentry in the static graph)
+        if: steps.same_tree.outputs.skip != 'true'
         run: node scripts/assert-initial-bundle.mjs
 
       - name: Upload dist artifact
