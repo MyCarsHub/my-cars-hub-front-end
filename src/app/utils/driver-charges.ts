@@ -58,6 +58,18 @@ export function groupDriverCharges(charges: DriverCharge[], today: string): Driv
   return { overdue, next: waiting[0] ?? null, upcoming: waiting.slice(1), history };
 }
 
+/**
+ * The driver's FAILED charges that are already past their due date (a charge with no due date
+ * is not "late" for him). The landlord is regularising them, so the screen only says so: no
+ * pay button, no link, and never the word "falha". Only the due date decides, never `today`
+ * read here.
+ */
+export function regularizingCharges(charges: DriverCharge[], today: string): DriverCharge[] {
+  return charges.filter(
+    (c) => c.status === 'FAILED' && c.dueDate !== null && c.dueDate < today,
+  );
+}
+
 /** No date first, then the earliest. Equal dates keep the server's order (the sort is stable). */
 function byDueDate(a: DriverCharge, b: DriverCharge): number {
   if (a.dueDate === b.dueDate) return 0;
