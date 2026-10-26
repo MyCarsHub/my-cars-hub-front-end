@@ -28,6 +28,12 @@ export interface AdminCompanyListItem {
   memberCount: number;
   createdAt: string | null;
   /**
+   * Fim do teste da assinatura mais recente. O status TRIALING sozinho não diz se o
+   * teste ainda vale — o vencido continua TRIALING no banco. Opcional para tolerar um
+   * backend que ainda não manda o campo.
+   */
+  trialEndsAt?: string | null;
+  /**
    * Empresa INTERNA — fica fora das metricas da plataforma, e CONTINUA
    * aparecendo nesta listagem. Vem na listagem de proposito: sao sete
    * internas em trinta, e o dono confere as sete numa passada.

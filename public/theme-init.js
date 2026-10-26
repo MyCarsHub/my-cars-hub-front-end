@@ -29,6 +29,7 @@
       '/politica-de-privacidade',
       '/termos-de-uso',
       '/manutencao',
+      '/status',
     ];
     var isPublic = path === '/' || path === '';
     for (var i = 0; i < publicPaths.length && !isPublic; i++) {

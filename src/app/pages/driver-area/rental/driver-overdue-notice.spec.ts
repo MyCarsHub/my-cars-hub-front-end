@@ -99,6 +99,58 @@ describe('DriverOverdueNotice — aviso de cobrança em atraso do motorista', ()
     expect(amount).not.toContain('888');
   });
 
+  describe('FAILED vencida: a locadora está regularizando', () => {
+    const failed = (over: Partial<DriverCharge> = {}): DriverCharge =>
+      charge({ id: 'f', status: 'FAILED', checkoutUrl: null, dueDate: '2026-10-06', ...over });
+
+    it('só FAILED vencida: texto da locadora, SEM botão Pagar, SEM link', () => {
+      service.list.mockReturnValue(of([failed()]));
+      const host = mount();
+
+      const notice = host.querySelector<HTMLElement>('[data-driver-overdue-notice]');
+      expect(notice).not.toBeNull();
+      expect(notice!.querySelector('[data-notice-regularizing]')!.textContent).toContain(
+        'Esta cobrança está sendo regularizada pela locadora',
+      );
+      expect(notice!.querySelector('[data-pay-now]')).toBeNull();
+      expect(notice!.querySelector('a')).toBeNull();
+      expect(notice!.querySelector('[data-notice-amount]')).toBeNull();
+      expect(notice!.textContent!.toLowerCase()).not.toContain('falh');
+    });
+
+    it('várias FAILED: o texto vai para o plural', () => {
+      service.list.mockReturnValue(of([failed(), failed({ id: 'f2' })]));
+      expect(host(mount()).textContent).toContain(
+        'Estas cobranças estão sendo regularizadas pela locadora',
+      );
+    });
+
+    it('com atraso pagável + FAILED: UM só link (Pagar agora); o total NÃO soma a FAILED', () => {
+      service.list.mockReturnValue(of([charge({ amount: 65000 }), failed({ amount: 99900 })]));
+      const notice = mount().querySelector<HTMLElement>('[data-driver-overdue-notice]')!;
+
+      expect(notice.querySelectorAll('a')).toHaveLength(1);
+      expect(notice.querySelectorAll('[data-pay-now]')).toHaveLength(1);
+      expect(notice.querySelector('[data-notice-amount]')!.textContent).toContain('650,00');
+      expect(notice.querySelector('[data-notice-amount]')!.textContent).not.toContain('999');
+      expect(notice.querySelector('[data-notice-title]')!.textContent).toContain('1 cobrança atrasada');
+      expect(notice.querySelector('[data-notice-regularizing]')!.textContent).toContain(
+        'regularizada pela locadora',
+      );
+    });
+
+    it('FAILED que ainda não venceu, ou sem vencimento, não gera aviso', () => {
+      service.list.mockReturnValue(
+        of([failed({ dueDate: '2026-10-13' }), failed({ id: 'x', dueDate: TODAY }), failed({ id: 'y', dueDate: null })]),
+      );
+      expect(mount().querySelector('[data-driver-overdue-notice]')).toBeNull();
+    });
+
+    function host(el: HTMLElement): HTMLElement {
+      return el;
+    }
+  });
+
   it('sem atraso, o aviso não aparece', () => {
     service.list.mockReturnValue(
       of([charge({ status: 'PENDING', dueDate: '2026-10-13' }), charge({ status: 'PAID' })]),

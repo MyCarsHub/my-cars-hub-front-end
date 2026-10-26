@@ -1015,6 +1015,14 @@ export const routes: Routes = [
         ],
     },
     {
+        // Página pública de status (www.mycarshub.app.br/status). Sem `data.seo` de propósito:
+        // falha fechada para noindex, como as demais rotas dinâmicas. Pública e sempre clara
+        // (ver `theme-scope.ts`); client-rendered pelo catch-all de `app.routes.server.ts`.
+        path: 'status',
+        loadComponent: () => import('./pages/status/status-page').then((m) => m.StatusPage),
+        data: { pageTitle: 'Status' },
+    },
+    {
         // Tela de manutenção (handoff "Páginas de sistema"): pública, sem shell. O app
         // também a mostra sozinho quando a API sinaliza manutenção (ver
         // `MaintenanceInterceptor`); esta rota existe para abri-la direto e para o host

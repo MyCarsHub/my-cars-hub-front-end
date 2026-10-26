@@ -17,6 +17,7 @@ export const PUBLIC_PATH_PREFIXES: readonly string[] = [
   '/politica-de-privacidade',
   '/termos-de-uso',
   '/manutencao',
+  '/status',
 ];
 
 /** `true` para a landing (`/`) e para qualquer rota pública conhecida. */

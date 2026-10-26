@@ -20,6 +20,14 @@ export interface CountAmountDto {
     amountCents: number;
 }
 
+/**
+ * `alerts.overdueCharges`: `count` conta COBRANÇAS; `rentals` conta os ALUGUÉIS distintos que
+ * as têm (o que a lista aberta pelo card mostra). Opcional: um backend anterior não o envia.
+ */
+export interface OverdueChargesDto extends CountAmountDto {
+    rentals?: number;
+}
+
 export interface AlertsDto {
     openFines: CountAmountDto;
     openMaintenances: CountDto;
@@ -45,7 +53,7 @@ export interface AlertsDto {
      * Opcional pelo mesmo motivo de `expiringInsurance30d`: um backend anterior
      * à entrega do alerta não o envia.
      */
-    overdueCharges?: CountAmountDto;
+    overdueCharges?: OverdueChargesDto;
     /**
      * V118 — cobranças FAILED de aluguel em curso em que a locadora precisa agir (não
      * foram criadas no Asaas ou precisam de link novo). Opcional: backend anterior não envia.

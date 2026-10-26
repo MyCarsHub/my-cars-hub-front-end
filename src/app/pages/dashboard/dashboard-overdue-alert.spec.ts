@@ -22,7 +22,7 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
   const CHIP = 'app-alert-chip[data-overdue-charges-alert]';
 
   function summaryWith(
-    overdue: { count: number; amountCents: number } | undefined,
+    overdue: { count: number; amountCents: number; rentals?: number } | undefined,
     extra: Record<string, unknown> = {},
   ): DashboardSummaryDto {
     return {
@@ -155,7 +155,7 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
 
     const chip = host.querySelector<HTMLElement>(CHIP);
     expect(chip).not.toBeNull();
-    expect(chip!.textContent).toContain('Cobranças em atraso');
+    expect(chip!.textContent).toContain('Em atraso');
     expect(chip!.textContent).toContain('3');
     expect(chip!.textContent).toContain('1.234,56');
     // rose, com variante escura (tokens do tema)
@@ -168,6 +168,31 @@ describe('DashboardHome — alerta «Cobranças em atraso»', () => {
     expect(chips.length).toBeGreaterThan(1);
     // alvo de toque >= 44px
     expect(button.className).toContain('min-h-[56px]');
+  });
+
+  it('diz que o número são COBRANÇAS e quantos ALUGUÉIS elas ocupam (a lista mostra aluguéis)', () => {
+    const { host } = render(summaryWith({ count: 3, amountCents: 123456, rentals: 2 }));
+
+    const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('cobranças · 2 aluguéis · ');
+    expect(text).toContain('1.234,56');
+  });
+
+  it('no singular quando é 1 cobrança em 1 aluguel', () => {
+    const { host } = render(summaryWith({ count: 1, amountCents: 5000, rentals: 1 }));
+
+    const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('cobrança · 1 aluguel · ');
+    expect(text).not.toContain('cobranças');
+    expect(text).not.toContain('aluguéis');
+  });
+
+  it('backend sem `rentals`: o card segue legível, sem a parte dos aluguéis', () => {
+    const { host } = render(summaryWith({ count: 3, amountCents: 123456 }));
+
+    const text = host.querySelector<HTMLElement>(CHIP)!.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('cobranças · ');
+    expect(text).not.toContain('alugu');
   });
 
   it('V118 — cobranças não criadas no Asaas têm o chip irmão (amarelo) e o painel com a frase', () => {
