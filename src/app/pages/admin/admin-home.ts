@@ -72,6 +72,12 @@ const SECTIONS: AdminSection[] = [
     icon: 'M2 10h20 M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M7 15h2',
   },
   {
+    route: '/admin/notificacoes',
+    title: 'Notificações',
+    description: 'Por dia: os motoristas foram avisados das cobranças? E-mail das 05:00 e aviso do Asaas.',
+    icon: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
+  },
+  {
     route: null,
     action: 'openEmailTest',
     title: 'Testar templates',

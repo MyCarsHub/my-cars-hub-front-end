@@ -991,6 +991,14 @@ export const routes: Routes = [
                                     ),
                                 data: { pageTitle: 'Billing' },
                             },
+                            {
+                                path: 'notificacoes',
+                                loadComponent: () =>
+                                    import('./pages/admin/notifications/admin-notifications').then(
+                                        (m) => m.AdminNotifications,
+                                    ),
+                                data: { pageTitle: 'Notificações' },
+                            },
                         ],
                     },
                     {
