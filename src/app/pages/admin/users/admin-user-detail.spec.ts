@@ -108,3 +108,73 @@ describe('AdminUserDetail — campo "Último login"', () => {
     expect(empty?.className).toContain('text-fg-subtle');
   });
 });
+
+/** AUDIT 2026-10-25 D2 — a situação do vínculo aparece em português, nunca o enum cru. */
+describe('AdminUserDetail — situação do vínculo com a empresa', () => {
+  it('mostra Ativo / Convidado / Em cadastro em vez de ACTIVE / INVITED / ONBOARDING', () => {
+    const detail = signal<AdminUserDetailDto | null>({
+      id: 'u-1',
+      name: 'Ana Souza',
+      email: 'ana@example.com',
+      systemRole: 'USER',
+      active: true,
+      createdDate: '2025-01-01T00:00:00Z',
+      lastLoginAt: null,
+      companies: [
+        { companyId: 'c-1', companyName: 'Alfa', role: 'OWNER', status: 'ACTIVE', joinedAt: null },
+        {
+          companyId: 'c-2',
+          companyName: 'Beta',
+          role: 'MANAGER',
+          status: 'INVITED',
+          joinedAt: null,
+        },
+        {
+          companyId: 'c-3',
+          companyName: 'Gama',
+          role: 'DRIVER',
+          status: 'ONBOARDING',
+          joinedAt: null,
+        },
+      ],
+    });
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [AdminUserDetail],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 'u-1' })) } },
+        {
+          provide: AdminUsersService,
+          useValue: {
+            detail,
+            detailLoading: signal(false),
+            getDetail: vi.fn().mockReturnValue(of(detail())),
+            clearDetail: vi.fn(),
+            updateStatus: vi.fn(),
+            updateSystemRole: vi.fn(),
+          },
+        },
+        {
+          provide: NotificationService,
+          useValue: {
+            error: vi.fn(),
+            success: vi.fn(),
+            warning: vi.fn(),
+            info: vi.fn(),
+            push: vi.fn(),
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(AdminUserDetail);
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect(text).toContain('Ativo');
+    expect(text).toContain('Convidado');
+    expect(text).toContain('Em cadastro');
+    expect(text).not.toMatch(/\bACTIVE\b|\bINVITED\b|\bONBOARDING\b/);
+  });
+});

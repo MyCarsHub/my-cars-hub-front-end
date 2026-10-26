@@ -31,7 +31,12 @@ describe('Sidebar — item Administração acompanha a troca de credencial', () 
   /** Formato real do token de impersonação: sem `role`, `system_role` rebaixado. */
   const IMPERSONATION_TOKEN = token({ system_role: 'USER', impersonation: true });
 
-  const tenant = (id: string, name: string): Tenant => ({ id, name, role: 'OWNER', initial: name[0] });
+  const tenant = (id: string, name: string): Tenant => ({
+    id,
+    name,
+    role: 'OWNER',
+    initial: name[0],
+  });
 
   function offered(fixture: { componentInstance: unknown }): string[] {
     const menu = fixture.componentInstance as {

@@ -80,7 +80,7 @@ describe('AdminUsers — menu de ações', () => {
       const labels = openMenuItems(fixture, scope).map((el) => el.textContent?.trim());
 
       expect(labels).toContain('Ver detalhes');
-      expect(labels).toContain('Promover a PLATFORM_ADMIN');
+      expect(labels).toContain('Tornar administrador da plataforma');
       expect(labels).toContain('Desativar');
       // a destrutiva fica por último
       expect(labels[labels.length - 1]).toBe('Desativar');
