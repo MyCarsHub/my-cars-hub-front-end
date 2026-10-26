@@ -38,6 +38,7 @@ const ACTION_LABELS: Record<string, string> = {
   RENTAL_SCHEDULE_REGENERATED: 'Cronograma regenerado',
   NOTIFICATION_TEST_DISPATCHED: 'Teste de templates enviado',
   CONTRACT_TEMPLATE_SAVED: 'Template de contrato salvo',
+  CHARGE_EMAIL_RESENT: 'E-mail de cobrança reenviado',
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ const TARGET_LABELS: Record<string, string> = {
   BLOG_POST: 'Post',
   RENTAL: 'Aluguel',
   NOTIFICATION: 'Notificação',
+  RENTAL_CHARGE: 'Cobrança',
 };
 
 /** Cor do chip por família de ação — remoções em vermelho, criações em verde. */
@@ -64,6 +66,7 @@ const ACTION_CHIPS: Record<string, string> = {
   RENTAL_SCHEDULE_REGENERATED: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
   NOTIFICATION_TEST_DISPATCHED: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300',
   CONTRACT_TEMPLATE_SAVED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  CHARGE_EMAIL_RESENT: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300',
 };
 
 const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';
