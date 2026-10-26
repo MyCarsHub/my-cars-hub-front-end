@@ -26,9 +26,9 @@ import {
   AdminCompanySaleItem,
   AdminCompanySaleUndoItem,
   AdminCompanyStatus,
-  AdminCompanySubscriptionStatus,
 } from '../../../types/admin-company.types';
 import { SupportEditEntry } from './support-edit-entry';
+import { subscriptionChip } from './subscription-status-chip';
 import { formatBRL } from '../../../types/dashboard.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
 
@@ -95,14 +95,6 @@ const COMPANY_STATUS: Record<AdminCompanyStatus, ChipStyle> = {
   CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
 };
 
-const SUB_STATUS: Record<AdminCompanySubscriptionStatus, ChipStyle> = {
-  TRIALING: { label: 'Trial', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
-  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
-  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
-};
-
 const CONFIRMATION_WORD = 'SUSPENDER';
 
 @Component({
@@ -159,9 +151,8 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   });
 
   protected readonly subscriptionChip = computed<ChipStyle | null>(() => {
-    const status = this.detail()?.subscription?.status;
-    if (!status) return null;
-    return SUB_STATUS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
+    const sub = this.detail()?.subscription;
+    return subscriptionChip(sub?.status, sub?.trialEndsAt);
   });
 
   /**

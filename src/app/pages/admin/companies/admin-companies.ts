@@ -29,8 +29,8 @@ import { AdminCompaniesService } from '../admin-companies.service';
 import {
   AdminCompanyListItem,
   AdminCompanyStatus,
-  AdminCompanySubscriptionStatus,
 } from '../../../types/admin-company.types';
+import { subscriptionChip } from './subscription-status-chip';
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED';
 type PlanFilter = 'ALL' | 'TRIAL_MONTHLY' | 'PRO_MONTHLY';
@@ -49,14 +49,6 @@ const COMPANY_STATUS_CHIPS: Record<AdminCompanyStatus, ChipStyle> = {
   ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
   SUSPENDED: { label: 'Suspensa', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
   CANCELLED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
-};
-
-const SUB_STATUS_CHIPS: Record<AdminCompanySubscriptionStatus, ChipStyle> = {
-  TRIALING: { label: 'Trial', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
-  ACTIVE: { label: 'Ativa', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
-  PAST_DUE: { label: 'Atrasada', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300' },
-  CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
-  EXPIRED: { label: 'Expirada', chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' },
 };
 
 const PAGE_SIZE = 20;
@@ -246,9 +238,8 @@ export class AdminCompanies implements OnInit, OnDestroy {
     return COMPANY_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
   }
 
-  protected subChip(status: AdminCompanySubscriptionStatus | null): ChipStyle | null {
-    if (!status) return null;
-    return SUB_STATUS_CHIPS[status] ?? { label: status, chip: 'bg-surface-sunken text-fg-soft' };
+  protected subChip(company: AdminCompanyListItem): ChipStyle | null {
+    return subscriptionChip(company.subscriptionStatus, company.trialEndsAt);
   }
 
   protected formatDate(value: string | null): string {

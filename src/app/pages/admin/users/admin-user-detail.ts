@@ -27,6 +27,14 @@ interface PendingAction {
   kind: 'DEACTIVATE' | 'ACTIVATE' | 'PROMOTE' | 'DEMOTE';
 }
 
+const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Ativo',
+  INVITED: 'Convidado',
+  ONBOARDING: 'Em cadastro',
+  INACTIVE: 'Inativo',
+  REMOVED: 'Removido',
+};
+
 @Component({
   selector: 'app-admin-user-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -67,10 +75,14 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     const a = this.pendingAction();
     if (!a) return '';
     switch (a.kind) {
-      case 'DEACTIVATE': return 'Desativar usuário';
-      case 'ACTIVATE': return 'Ativar usuário';
-      case 'PROMOTE': return 'Promover a administrador da plataforma';
-      case 'DEMOTE': return 'Rebaixar para usuário comum';
+      case 'DEACTIVATE':
+        return 'Desativar usuário';
+      case 'ACTIVATE':
+        return 'Ativar usuário';
+      case 'PROMOTE':
+        return 'Promover a administrador da plataforma';
+      case 'DEMOTE':
+        return 'Rebaixar para usuário comum';
     }
   });
 
@@ -95,10 +107,14 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     const a = this.pendingAction();
     if (!a) return 'Confirmar';
     switch (a.kind) {
-      case 'DEACTIVATE': return 'Desativar';
-      case 'ACTIVATE': return 'Ativar';
-      case 'PROMOTE': return 'Promover';
-      case 'DEMOTE': return 'Rebaixar';
+      case 'DEACTIVATE':
+        return 'Desativar';
+      case 'ACTIVATE':
+        return 'Ativar';
+      case 'PROMOTE':
+        return 'Promover';
+      case 'DEMOTE':
+        return 'Rebaixar';
     }
   });
 
@@ -115,17 +131,15 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   );
 
   ngOnInit(): void {
-    this.route.paramMap
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((params) => {
-        const id = params.get('id');
-        if (!id) {
-          this.router.navigate(['/admin/users']);
-          return;
-        }
-        this.userId = id;
-        this.loadDetail(id);
-      });
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id');
+      if (!id) {
+        this.router.navigate(['/admin/users']);
+        return;
+      }
+      this.userId = id;
+      this.loadDetail(id);
+    });
   }
 
   ngOnDestroy(): void {
@@ -183,10 +197,18 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     const a = this.pendingAction();
     if (!a) return;
     switch (a.kind) {
-      case 'DEACTIVATE': this.applyStatus(false); break;
-      case 'ACTIVATE':   this.applyStatus(true); break;
-      case 'PROMOTE':    this.applyRole('PLATFORM_ADMIN'); break;
-      case 'DEMOTE':     this.applyRole('USER'); break;
+      case 'DEACTIVATE':
+        this.applyStatus(false);
+        break;
+      case 'ACTIVATE':
+        this.applyStatus(true);
+        break;
+      case 'PROMOTE':
+        this.applyRole('PLATFORM_ADMIN');
+        break;
+      case 'DEMOTE':
+        this.applyRole('USER');
+        break;
     }
     this.pendingAction.set(null);
   }
@@ -214,9 +236,19 @@ export class AdminUserDetail implements OnInit, OnDestroy {
       : 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300';
   }
 
+  /**
+   * Situação do vínculo em português. O backend manda o enum cru (ACTIVE, INVITED,
+   * ONBOARDING...) e a tela o exibia assim (AUDIT 2026-10-25 D2).
+   */
+  protected linkStatusLabel(status: string): string {
+    return MEMBERSHIP_STATUS_LABELS[status] ?? status;
+  }
+
   protected linkStatusChip(status: string): string {
-    if (status === 'ACTIVE') return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
-    if (status === 'INVITED') return 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300';
+    if (status === 'ACTIVE')
+      return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+    if (status === 'INVITED')
+      return 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300';
     return 'bg-surface-sunken text-fg-soft';
   }
 
@@ -232,8 +264,11 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
     return d.toLocaleString('pt-BR', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }
 
@@ -266,9 +301,11 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     this.usersService.updateSystemRole(this.userId, role).subscribe({
       next: () => {
         this.updating.set(false);
-        this.notify.success(role === 'PLATFORM_ADMIN'
-          ? 'Usuário promovido a administrador.'
-          : 'Usuário rebaixado para usuário comum.');
+        this.notify.success(
+          role === 'PLATFORM_ADMIN'
+            ? 'Usuário promovido a administrador.'
+            : 'Usuário rebaixado para usuário comum.',
+        );
       },
       error: (err: HttpErrorResponse) => {
         this.updating.set(false);

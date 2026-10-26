@@ -56,7 +56,7 @@ const TICK_MS = 15_000;
           [disabled]="extending() || ending() || capReached()"
           (click)="extend()"
         >
-          {{ extending() ? 'Estendendo…' : 'Extender' }}
+          {{ extending() ? 'Estendendo…' : 'Estender' }}
           <span class="sr-only"> a sessão de edição de {{ session.companyName }}</span>
         </button>
 

@@ -103,7 +103,7 @@
                     <span class="block text-xs text-fg-subtle mt-0.5 break-words">{{ user.email }}</span>
                     @if (user.lastCompanyName) {
                       <span class="block text-[11px] text-fg-faint mt-1">
-                        Última empresa: {{ user.lastCompanyName }}
+                        Empresa mais recente: {{ user.lastCompanyName }}
                       </span>
                     }
                   </a>
@@ -125,7 +125,7 @@
                       [disabled]="isPending(user.id)"
                       (click)="requestToggleRole(user)"
                     >
-                      {{ user.systemRole === 'PLATFORM_ADMIN' ? 'Rebaixar para USER' : 'Promover a PLATFORM_ADMIN' }}
+                      {{ user.systemRole === 'PLATFORM_ADMIN' ? 'Remover acesso de administrador' : 'Tornar administrador da plataforma' }}
                     </button>
                     @if (user.active) {
                       <button
@@ -191,7 +191,7 @@
                 <th class="py-2 pr-4 font-medium">Email</th>
                 <th class="py-2 pr-4 font-medium">Status</th>
                 <th class="py-2 pr-4 font-medium">Papel</th>
-                <th class="py-2 pr-4 font-medium">Última empresa</th>
+                <th class="py-2 pr-4 font-medium">Empresa mais recente</th>
                 <th class="py-2 pr-4 font-medium">Criado em</th>
                 <th class="py-2 pr-4 font-medium text-right">Ações</th>
               </tr>
@@ -286,7 +286,7 @@
                           [disabled]="isPending(user.id)"
                           (click)="requestToggleRole(user)"
                         >
-                          {{ user.systemRole === 'PLATFORM_ADMIN' ? 'Rebaixar para USER' : 'Promover a PLATFORM_ADMIN' }}
+                          {{ user.systemRole === 'PLATFORM_ADMIN' ? 'Remover acesso de administrador' : 'Tornar administrador da plataforma' }}
                         </button>
                         @if (user.active) {
                           <button

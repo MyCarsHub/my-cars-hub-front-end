@@ -56,13 +56,13 @@ describe('banners de impersonação', () => {
     expect(root.querySelector('[role="alert"]')?.className).toContain('bg-rose-700');
     const buttons = Array.from(root.querySelectorAll('button'));
     expect(buttons.map((b) => (b.textContent ?? '').trim().split(/\s+/)[0])).toEqual([
-      'Extender',
+      'Estender',
       'Encerrar',
     ]);
     expect(buttons.every((b) => b.className.includes('min-h-11'))).toBe(true);
   });
 
-  it('EDIÇÃO: Extender e Encerrar chamam o serviço', () => {
+  it('EDIÇÃO: Estender e Encerrar chamam o serviço', () => {
     const { service } = setup(state({ mode: 'EDIT' }));
     const fixture = TestBed.createComponent(SupportEditBanner);
     fixture.detectChanges();
@@ -77,7 +77,7 @@ describe('banners de impersonação', () => {
     expect(service.end).toHaveBeenCalledTimes(1);
   });
 
-  it('EDIÇÃO: Extender fica desabilitado no teto absoluto', () => {
+  it('EDIÇÃO: Estender fica desabilitado no teto absoluto', () => {
     const at = new Date(Date.now() + 10 * 60_000).toISOString();
     setup(state({ mode: 'EDIT', expiresAt: at, absoluteExpiresAt: at }));
     const fixture = TestBed.createComponent(SupportEditBanner);
