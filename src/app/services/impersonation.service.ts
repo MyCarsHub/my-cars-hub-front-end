@@ -244,7 +244,7 @@ export class ImpersonationService {
       catchError((error: HttpErrorResponse) => {
         // Se a sessão já foi encerrada por outro caminho enquanto o DELETE
         // voava, o aviso seria mentira: o acesso administrativo já voltou.
-        if (error.status !== 404 && this._state()) {
+        if (error.status !== 404 && this.isSameSession(current.sessionId)) {
           this.notifications.warning(
             'Não foi possível confirmar o encerramento no servidor. Seu acesso de administrador foi restaurado e a sessão expira sozinha em até 15 minutos.',
           );
@@ -259,7 +259,7 @@ export class ImpersonationService {
         // token administrativo (a primeira execução já o consumiu) e mandaria
         // o admin para o /login. O DELETE em si continua valendo: encerrar no
         // servidor uma sessão que já acabou é inócuo.
-        if (!this._state()) return;
+        if (!this.isSameSession(current.sessionId)) return;
         this.finish({
           message: `Impersonação encerrada. Você voltou ao seu acesso de administrador.`,
           kind: 'success',
@@ -269,7 +269,22 @@ export class ImpersonationService {
       map(() => void 0),
     );
 
-    return this.leaveObservedScreens().pipe(switchMap(() => deleteSession));
+    // A sessão pode morrer durante a navegação para o pivô (timer, 401, reconcile): o
+    // `finish()` já devolveu o token do admin e apagou o administrativo guardado, e um
+    // DELETE agora sairia sem credencial — 401 e o admin cairia no /login. A linha do
+    // servidor vence sozinha.
+    return this.leaveObservedScreens().pipe(
+      switchMap(() => {
+        if (this.isSameSession(current.sessionId)) return deleteSession;
+        this.ending = false;
+        return of(void 0);
+      }),
+    );
+  }
+
+  /** A sessão viva ainda é a que este encerramento começou a desfazer. */
+  private isSameSession(sessionId: string): boolean {
+    return this._state()?.sessionId === sessionId;
   }
 
   /**

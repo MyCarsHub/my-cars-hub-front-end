@@ -240,6 +240,24 @@ describe('ImpersonationService', () => {
       expect(navigate).toHaveBeenCalledWith(['/admin/companies', 'co-1']);
     });
 
+    it('sessão que morre DURANTE a ida ao pivô não dispara DELETE sem credencial', async () => {
+      // Revisão de segurança: o DELETE sairia depois de o finish() ter apagado o token
+      // administrativo guardado — sem Authorization, 401 e o admin no /login.
+      let arrive: (ok: boolean) => void = () => undefined;
+      navigateByUrl = vi.fn(() => new Promise<boolean>((resolve) => (arrive = resolve)));
+      const service = build();
+      service.start('co-1').subscribe();
+
+      service.end().subscribe();
+      service.expire();
+      arrive(true);
+      await settle();
+
+      expect(httpDelete).not.toHaveBeenCalled();
+      expect(session.getToken()).toBe(ADMIN_TOKEN);
+      expect(navigate).not.toHaveBeenCalledWith(['/login'], { replaceUrl: true });
+    });
+
     it('uma navegação recusada para o pivô não prende o admin na sessão', async () => {
       navigateByUrl = vi.fn(() => Promise.reject(new Error('guard')));
       const service = build();
