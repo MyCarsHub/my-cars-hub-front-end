@@ -18,7 +18,7 @@ export interface ChargeNotificationCompanySummary extends ChargeNotificationSumm
 }
 
 export interface ChargeEmailStatus {
-  /** SENT | FAILED | SKIPPED | CLAIMED | NOT_RECORDED */
+  /** SENT | BOUNCED | FAILED | SKIPPED | CLAIMED | NOT_RECORDED */
   state: string;
   providerConfirmed: boolean;
   label: string;

@@ -29,7 +29,7 @@ function item(overrides: Partial<ChargeNotificationItem> = {}): ChargeNotificati
     email: {
       state: 'SENT',
       providerConfirmed: true,
-      label: 'Enviado (confirmado pelo provedor)',
+      label: 'Entregue (confirmado pelo provedor)',
       reason: null,
       attempts: 1,
       finishedAt: '2026-10-25T08:00:05Z',
@@ -191,7 +191,7 @@ describe('AdminNotifications', () => {
     const first = el.querySelectorAll('[data-testid="charge-card"]')[0].textContent!;
     expect(first).toContain('No dia do vencimento + D+1');
     expect(first).toContain('E-mail · SMS · WhatsApp');
-    expect(first).toContain('Enviado (confirmado pelo provedor)');
+    expect(first).toContain('Entregue (confirmado pelo provedor)');
   });
 
   it('nunca mostra e-mail completo: só o mascarado que veio do backend', () => {
