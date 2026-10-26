@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, Injector, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
+import { Observable, catchError, defer, from, map, of, switchMap, tap, throwError } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 import { LayoutStore } from '../components/core/layouts/layout.store';
@@ -25,6 +25,9 @@ import {
 } from './impersonation.context';
 
 const API_BASE = `${environment.apiUrl}/admin/impersonation`;
+
+/** Rota inerte usada como pivô ao sair da sessão (mesma da troca de empresa). */
+const LEAVE_PIVOT_URL = '/trocando-empresa';
 
 /*
  * O papel efetivo da sessão de impersonação mudou de casa no FIX-0363: agora é
@@ -154,9 +157,7 @@ export class ImpersonationService {
    */
   start(companyId: string): Observable<ImpersonationState> {
     if (this.active()) {
-      return throwError(
-        () => new Error('Já existe uma sessão de impersonação ativa nesta aba.'),
-      );
+      return throwError(() => new Error('Já existe uma sessão de impersonação ativa nesta aba.'));
     }
     return this.http
       .post<ImpersonationStartResponse>(API_BASE, { companyId })
@@ -169,9 +170,7 @@ export class ImpersonationService {
    */
   startEdit(companyId: string): Observable<ImpersonationState> {
     if (this.active()) {
-      return throwError(
-        () => new Error('Já existe uma sessão de impersonação ativa nesta aba.'),
-      );
+      return throwError(() => new Error('Já existe uma sessão de impersonação ativa nesta aba.'));
     }
     return this.http
       .post<ImpersonationStartResponse>(`${API_BASE}/edit`, { companyId })
@@ -232,39 +231,59 @@ export class ImpersonationService {
     }
     this.ending = true;
 
-    return this.http
-      .delete(`${API_BASE}/${current.sessionId}`, {
+    // Sai das telas da empresa observada ANTES de devolver o token do admin. Sem
+    // isso, a tela aberta (ex.: detalhe do aluguel) re-renderiza no meio da troca
+    // e refaz GETs do aluguel com a credencial do ADMIN — 404 em toast vermelho
+    // por cima do "Impersonação encerrada" (AUDIT 2026-10-25 F1).
+    const deleteSession = defer(() =>
+      this.http.delete(`${API_BASE}/${current.sessionId}`, {
         responseType: 'text',
         context: new HttpContext().set(USE_ADMIN_TOKEN, true),
-      })
-      .pipe(
-        catchError((error: HttpErrorResponse) => {
-          // Se a sessão já foi encerrada por outro caminho enquanto o DELETE
-          // voava, o aviso seria mentira: o acesso administrativo já voltou.
-          if (error.status !== 404 && this._state()) {
-            this.notifications.warning(
-              'Não foi possível confirmar o encerramento no servidor. Seu acesso de administrador foi restaurado e a sessão expira sozinha em até 15 minutos.',
-            );
-          }
-          return of('');
-        }),
-        tap(() => {
-          this.ending = false;
-          // O DELETE é assíncrono e a sessão pode ter morrido no meio do voo —
-          // timer de expiração, 401 de outra requisição, `reconcile()`. Sem
-          // esta checagem o `finish()` rodaria uma segunda vez, não acharia o
-          // token administrativo (a primeira execução já o consumiu) e mandaria
-          // o admin para o /login. O DELETE em si continua valendo: encerrar no
-          // servidor uma sessão que já acabou é inócuo.
-          if (!this._state()) return;
-          this.finish({
-            message: `Impersonação encerrada. Você voltou ao seu acesso de administrador.`,
-            kind: 'success',
-            navigate: true,
-          });
-        }),
-        map(() => void 0),
-      );
+      }),
+    ).pipe(
+      catchError((error: HttpErrorResponse) => {
+        // Se a sessão já foi encerrada por outro caminho enquanto o DELETE
+        // voava, o aviso seria mentira: o acesso administrativo já voltou.
+        if (error.status !== 404 && this._state()) {
+          this.notifications.warning(
+            'Não foi possível confirmar o encerramento no servidor. Seu acesso de administrador foi restaurado e a sessão expira sozinha em até 15 minutos.',
+          );
+        }
+        return of('');
+      }),
+      tap(() => {
+        this.ending = false;
+        // O DELETE é assíncrono e a sessão pode ter morrido no meio do voo —
+        // timer de expiração, 401 de outra requisição, `reconcile()`. Sem
+        // esta checagem o `finish()` rodaria uma segunda vez, não acharia o
+        // token administrativo (a primeira execução já o consumiu) e mandaria
+        // o admin para o /login. O DELETE em si continua valendo: encerrar no
+        // servidor uma sessão que já acabou é inócuo.
+        if (!this._state()) return;
+        this.finish({
+          message: `Impersonação encerrada. Você voltou ao seu acesso de administrador.`,
+          kind: 'success',
+          navigate: true,
+        });
+      }),
+      map(() => void 0),
+    );
+
+    return this.leaveObservedScreens().pipe(switchMap(() => deleteSession));
+  }
+
+  /**
+   * Leva o roteador para o pivô inerte (`/trocando-empresa`, o mesmo da troca de
+   * empresa) sem mudar a URL, destruindo as telas da empresa observada enquanto a
+   * credencial ainda é a da sessão. Uma navegação recusada ou com erro não pode
+   * prender o admin: segue para o encerramento do mesmo jeito.
+   */
+  private leaveObservedScreens(): Observable<void> {
+    return defer(() =>
+      from(
+        this.router.navigateByUrl(LEAVE_PIVOT_URL, { skipLocationChange: true }).catch(() => false),
+      ),
+    ).pipe(map(() => void 0));
   }
 
   /**
@@ -272,7 +291,9 @@ export class ImpersonationService {
    * Chamado pelo timer de expiração e pelo `errorInterceptor` ao ver 401 com
    * um token de impersonação.
    */
-  expire(reason = 'Sua sessão de impersonação expirou. Você voltou ao seu acesso de administrador.'): void {
+  expire(
+    reason = 'Sua sessão de impersonação expirou. Você voltou ao seu acesso de administrador.',
+  ): void {
     if (!this._state()) return;
     this.ending = false;
     this.finish({ message: reason, kind: 'warning', navigate: true });
@@ -501,8 +522,7 @@ export class ImpersonationService {
 
     if (this.remainingMs(state) <= 0) {
       this.finish({
-        message:
-          'Sua sessão de impersonação expirou. Você voltou ao seu acesso de administrador.',
+        message: 'Sua sessão de impersonação expirou. Você voltou ao seu acesso de administrador.',
         kind: 'warning',
         navigate: false,
       });

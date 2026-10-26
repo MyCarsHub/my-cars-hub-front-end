@@ -81,12 +81,18 @@ class FakeSession {
   }
 }
 
+/** Deixa a navegação para o pivô (Promise) assentar antes do DELETE. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+}
+
 describe('ImpersonationService', () => {
   let session: FakeSession;
   let httpGet: ReturnType<typeof vi.fn>;
   let httpPost: ReturnType<typeof vi.fn>;
   let httpDelete: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.fn>;
+  let navigateByUrl: ReturnType<typeof vi.fn>;
   let notifications: Record<string, ReturnType<typeof vi.fn>>;
 
   /** Última instância construída — o `afterEach` precisa dela para desarmar o timer. */
@@ -102,7 +108,7 @@ describe('ImpersonationService', () => {
           provide: HttpClient,
           useValue: { get: httpGet, post: httpPost, delete: httpDelete, patch: vi.fn() },
         },
-        { provide: Router, useValue: { navigate } },
+        { provide: Router, useValue: { navigate, navigateByUrl } },
         { provide: NotificationService, useValue: notifications },
       ],
     });
@@ -123,6 +129,7 @@ describe('ImpersonationService', () => {
     httpPost = vi.fn(() => of(startResponse(futureIso())));
     httpDelete = vi.fn(() => of(''));
     navigate = vi.fn();
+    navigateByUrl = vi.fn(() => Promise.resolve(true));
     notifications = {
       info: vi.fn(),
       success: vi.fn(),
@@ -184,7 +191,7 @@ describe('ImpersonationService', () => {
   });
 
   describe('encerramento pelo banner', () => {
-    it('chama o DELETE com a credencial ADMINISTRATIVA e restaura o contexto', () => {
+    it('chama o DELETE com a credencial ADMINISTRATIVA e restaura o contexto', async () => {
       session.setItem('selectedCompanyId', 'admin-co');
       session.setItem('selectedRole', 'MANAGER');
       session.setItem('userCompanies', '[{"companyId":"admin-co"}]');
@@ -192,6 +199,7 @@ describe('ImpersonationService', () => {
       service.start('co-1').subscribe();
 
       service.end().subscribe();
+      await settle();
 
       expect(httpDelete).toHaveBeenCalledTimes(1);
       const [url, options] = httpDelete.mock.calls[0] as [string, { context: HttpContext }];
@@ -208,24 +216,63 @@ describe('ImpersonationService', () => {
       expect(navigate).toHaveBeenCalledWith(['/admin/companies', 'co-1']);
     });
 
-    it('trata 404 (sessão já encerrada) como sucesso, sem alarmar o admin', () => {
+    it('sai das telas da empresa observada ANTES de devolver o token do admin (F1)', async () => {
+      // A tela aberta (detalhe do aluguel) refazia GETs com o token do ADMIN no meio da
+      // troca e o admin via três "Aluguel não encontrado." ao clicar em "Encerrar".
+      const tokenAtPivot: Array<string | null> = [];
+      navigateByUrl = vi.fn(() => {
+        tokenAtPivot.push(session.getToken());
+        return Promise.resolve(true);
+      });
+      const service = build();
+      service.start('co-1').subscribe();
+
+      service.end().subscribe();
+      // Antes de a navegação assentar, nada foi devolvido nem apagado no servidor.
+      expect(session.getToken()).toBe(IMPERSONATION_TOKEN);
+      expect(httpDelete).not.toHaveBeenCalled();
+      await settle();
+
+      expect(navigateByUrl).toHaveBeenCalledWith('/trocando-empresa', { skipLocationChange: true });
+      expect(tokenAtPivot).toEqual([IMPERSONATION_TOKEN]);
+      expect(httpDelete).toHaveBeenCalledTimes(1);
+      expect(session.getToken()).toBe(ADMIN_TOKEN);
+      expect(navigate).toHaveBeenCalledWith(['/admin/companies', 'co-1']);
+    });
+
+    it('uma navegação recusada para o pivô não prende o admin na sessão', async () => {
+      navigateByUrl = vi.fn(() => Promise.reject(new Error('guard')));
+      const service = build();
+      service.start('co-1').subscribe();
+
+      service.end().subscribe();
+      await settle();
+
+      expect(httpDelete).toHaveBeenCalledTimes(1);
+      expect(service.active()).toBe(false);
+      expect(session.getToken()).toBe(ADMIN_TOKEN);
+    });
+
+    it('trata 404 (sessão já encerrada) como sucesso, sem alarmar o admin', async () => {
       httpDelete = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 404 })));
       const service = build();
       service.start('co-1').subscribe();
 
       service.end().subscribe();
+      await settle();
 
       expect(service.active()).toBe(false);
       expect(session.getToken()).toBe(ADMIN_TOKEN);
       expect(notifications['warning']).not.toHaveBeenCalled();
     });
 
-    it('restaura o acesso do admin MESMO se o DELETE falhar — nunca deixa preso', () => {
+    it('restaura o acesso do admin MESMO se o DELETE falhar — nunca deixa preso', async () => {
       httpDelete = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500 })));
       const service = build();
       service.start('co-1').subscribe();
 
       service.end().subscribe();
+      await settle();
 
       expect(service.active()).toBe(false);
       expect(session.getToken()).toBe(ADMIN_TOKEN);
@@ -367,12 +414,13 @@ describe('ImpersonationService', () => {
       };
     }
 
-    it('expiração durante o DELETE: o admin volta ao próprio acesso, não ao /login', () => {
+    it('expiração durante o DELETE: o admin volta ao próprio acesso, não ao /login', async () => {
       const gate = pendingDelete();
       const service = build();
       service.start('co-1').subscribe();
 
       service.end().subscribe();
+      await settle();
       expect(httpDelete).toHaveBeenCalledTimes(1);
       // A sessão morre enquanto o DELETE ainda está em voo.
       service.expire();
@@ -388,7 +436,7 @@ describe('ImpersonationService', () => {
       );
     });
 
-    it('o timer de expiração disparando durante o DELETE tem o mesmo desfecho', () => {
+    it('o timer de expiração disparando durante o DELETE tem o mesmo desfecho', async () => {
       vi.useFakeTimers();
       const gate = pendingDelete();
       httpPost = vi.fn(() => of(startResponse(new Date(Date.now() + 15 * 60_000).toISOString())));
@@ -396,6 +444,7 @@ describe('ImpersonationService', () => {
       service.start('co-1').subscribe();
 
       service.end().subscribe();
+      await settle();
       vi.advanceTimersByTime(15 * 60_000 + 10);
       gate.resolve();
 
@@ -404,13 +453,14 @@ describe('ImpersonationService', () => {
       expect(navigate).not.toHaveBeenCalledWith(['/login'], { replaceUrl: true });
     });
 
-    it('a falha do DELETE não alarma sobre uma sessão que já foi encerrada', () => {
+    it('a falha do DELETE não alarma sobre uma sessão que já foi encerrada', async () => {
       const gate = new Subject<string>();
       httpDelete = vi.fn(() => gate.asObservable());
       const service = build();
       service.start('co-1').subscribe();
 
       service.end().subscribe();
+      await settle();
       service.expire();
       notifications['warning'].mockClear();
       gate.error(new HttpErrorResponse({ status: 500 }));
@@ -513,7 +563,7 @@ describe('ImpersonationService', () => {
       return { feed, insurances, alerts, invites };
     }
 
-    it('encerrar não deixa nada da empresa observada no contexto do admin', () => {
+    it('encerrar não deixa nada da empresa observada no contexto do admin', async () => {
       const service = build();
       service.start('co-1').subscribe();
       const caches = fillCaches();
@@ -525,6 +575,7 @@ describe('ImpersonationService', () => {
       // contador continuar em 4, o que está na tela é resíduo do cliente.
       unreadFromServer = 1;
       service.end().subscribe();
+      await settle();
 
       expect(service.active()).toBe(false);
       expect(caches.feed.items()).toEqual([]);
@@ -597,7 +648,7 @@ describe('ImpersonationService', () => {
       }
     });
 
-    it('restaura a identidade do admin mesmo se algo a sobrescrever durante a sessão', () => {
+    it('restaura a identidade do admin mesmo se algo a sobrescrever durante a sessão', async () => {
       seedAdminIdentity();
       const service = build();
       service.start('co-1').subscribe();
@@ -610,6 +661,7 @@ describe('ImpersonationService', () => {
       session.setItem('onboardingCompleted', 'false');
 
       service.end().subscribe();
+      await settle();
 
       for (const [key, value] of ADMIN_IDENTITY) {
         expect(session.getItem(key)).toBe(value);
