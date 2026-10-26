@@ -1,0 +1,389 @@
+<app-default-page-layout
+  title="Notificações"
+  description="Por dia, se os motoristas estão sendo avisados das cobranças: e-mail das 05:00 e aviso do Asaas."
+>
+  <!-- ==================== DIA ==================== -->
+  <app-page-card title="Cobranças do dia">
+    <div class="p-3 sm:p-4 space-y-4">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <app-filter-chip-group
+          [options]="presets"
+          [value]="preset()"
+          ariaLabel="Dia"
+          (selectionChange)="setPreset($event)"
+        />
+        @if (preset() === 'custom') {
+          <label class="flex flex-col gap-1 text-xs font-medium text-fg-muted">
+            Data
+            <input
+              type="date"
+              data-testid="custom-date"
+              class="min-h-[44px] rounded-lg border border-edge bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+              [value]="customDate()"
+              [min]="minDate()"
+              [max]="todayIso()"
+              (change)="onCustomDate($event)"
+            />
+          </label>
+        }
+      </div>
+
+      @if (dayError(); as err) {
+        <app-alert-banner variant="error" [message]="err" />
+        <button
+          type="button"
+          class="text-sm px-4 rounded-lg border border-edge bg-surface text-fg-soft hover:bg-canvas
+                 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-400"
+          (click)="reloadDay()"
+        >
+          Tentar novamente
+        </button>
+      }
+
+      @if (dayLoading() && !day()) {
+        <div class="grid grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+        </div>
+      }
+
+      @if (summary(); as s) {
+        <p class="text-sm text-fg-muted">
+          Vencimento em <strong class="text-fg">{{ formatIsoDate(day()?.date) }}</strong>
+          @if (dayLoading()) {
+            <span class="ml-1 text-fg-subtle">· atualizando…</span>
+          }
+        </p>
+        <dl class="grid grid-cols-3 gap-2 sm:gap-3" data-testid="day-summary">
+          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
+            <dt class="text-xs font-medium text-fg-muted">Vencendo</dt>
+            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums">{{ s.due }}</dd>
+          </div>
+          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
+            <dt class="text-xs font-medium text-fg-muted">Avisados</dt>
+            <dd class="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
+              {{ s.notified }}
+            </dd>
+          </div>
+          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
+            <dt class="text-xs font-medium text-fg-muted">Não avisados</dt>
+            <dd
+              class="mt-1 text-xl font-semibold tabular-nums"
+              [class.text-red-700]="s.notNotified > 0"
+              [class.dark:text-red-300]="s.notNotified > 0"
+              [class.text-fg]="s.notNotified === 0"
+            >
+              {{ s.notNotified }}
+            </dd>
+          </div>
+        </dl>
+
+        @if (day()?.truncated) {
+          <app-alert-banner
+            variant="warning"
+            message="O dia tem mais cobranças do que a tela mostra. Os números acima contam só as listadas."
+          />
+        }
+
+        @if (companies().length > 0) {
+          <div>
+            <h3 class="text-sm font-semibold text-fg mb-2">Por empresa</h3>
+            <ul class="space-y-2 list-none" data-testid="company-summary">
+              @for (c of companies(); track c.companyId) {
+                <li>
+                  <button
+                    type="button"
+                    class="w-full min-h-[44px] rounded-lg border px-3 py-2 text-left flex items-center
+                           justify-between gap-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                    [class.border-primary-500]="companyFilter() === c.companyId"
+                    [class.border-edge]="companyFilter() !== c.companyId"
+                    [attr.aria-pressed]="companyFilter() === c.companyId"
+                    (click)="selectCompany(c.companyId)"
+                  >
+                    <span class="min-w-0 text-sm text-fg break-words">
+                      {{ c.companyName }}
+                      @if (c.internal) {
+                        <span class="ml-1 text-[11px] text-fg-subtle">(interna)</span>
+                      }
+                    </span>
+                    <span class="shrink-0 text-xs text-fg-muted tabular-nums">
+                      {{ c.due }} · {{ c.notified }} avisados ·
+                      <span [class.text-red-700]="c.notNotified > 0" [class.dark:text-red-300]="c.notNotified > 0">
+                        {{ c.notNotified }} não
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <!-- Filtros -->
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label class="flex flex-col gap-1 text-xs font-medium text-fg-muted sm:min-w-64">
+            Empresa
+            <select
+              data-testid="company-filter"
+              class="min-h-[44px] rounded-lg border border-edge bg-surface px-3 text-base text-fg
+                     focus:outline-none focus:ring-2 focus:ring-primary-400"
+              (change)="onCompanyFilter($event)"
+            >
+              <option value="" [selected]="!companyFilter()">Todas</option>
+              @for (c of companies(); track c.companyId) {
+                <option [value]="c.companyId" [selected]="companyFilter() === c.companyId">
+                  {{ c.companyName }}
+                </option>
+              }
+            </select>
+          </label>
+          <label class="flex items-center gap-2 min-h-[44px] text-sm text-fg cursor-pointer">
+            <input
+              type="checkbox"
+              data-testid="only-not-notified"
+              class="h-5 w-5 rounded border-edge"
+              [checked]="onlyNotNotified()"
+              (change)="onOnlyNotNotified($event)"
+            />
+            Só não avisados
+          </label>
+          @if (hasFilters()) {
+            <button
+              type="button"
+              class="min-h-[44px] px-3 text-sm text-primary-700 dark:text-primary-300 underline
+                     focus:outline-none focus:ring-2 focus:ring-primary-400 rounded-lg"
+              (click)="clearFilters()"
+            >
+              Limpar filtros
+            </button>
+          }
+        </div>
+
+        <!-- Lista -->
+        @if (items().length === 0) {
+          <p class="text-center text-sm text-fg-subtle py-8" data-testid="empty">
+            @if (s.due === 0) {
+              Nenhuma cobrança vencendo neste dia.
+            } @else {
+              Nenhuma cobrança com estes filtros.
+            }
+          </p>
+        } @else {
+          <ul class="grid grid-cols-1 lg:grid-cols-2 gap-3 list-none" data-testid="charge-list">
+            @for (item of items(); track item.chargeId) {
+              <li
+                class="rounded-xl border bg-surface p-4 space-y-3 min-w-0"
+                [class.border-edge]="item.notified"
+                [class.border-red-300]="!item.notified"
+                [class.dark:border-red-500/40]="!item.notified"
+                data-testid="charge-card"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-fg break-words">{{ item.driverFirstName }}</p>
+                    <p class="text-xs text-fg-muted break-words">
+                      {{ item.companyName }}
+                      @if (item.driverEmailMasked) {
+                        · {{ item.driverEmailMasked }}
+                      }
+                    </p>
+                  </div>
+                  <div class="text-right shrink-0">
+                    <p class="text-sm font-semibold text-fg tabular-nums">
+                      {{ formatCents(item.amountCents) }}
+                    </p>
+                    <p class="text-[11px] text-fg-subtle">
+                      vence {{ formatIsoDate(item.dueDate) }} · {{ chargeStatusLabel(item.chargeStatus) }}
+                    </p>
+                  </div>
+                </div>
+
+                @if (!item.notified) {
+                  <p
+                    class="rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-200 break-words"
+                    data-testid="not-notified-reason"
+                  >
+                    <strong>Não avisado.</strong> {{ item.notNotifiedReason }}
+                  </p>
+                }
+
+                <dl class="space-y-2 text-xs">
+                  <div>
+                    <dt class="font-medium text-fg-muted">E-mail das 05:00</dt>
+                    <dd class="mt-1 flex flex-wrap items-center gap-2">
+                      <span class="rounded-full px-2 py-0.5 font-medium" [class]="emailChip(item)">
+                        {{ item.email.label }}
+                      </span>
+                      @if (item.email.reason && item.email.state !== 'NOT_RECORDED') {
+                        <span class="text-fg-soft break-words">{{ item.email.reason }}</span>
+                      }
+                      @if (item.email.finishedAt) {
+                        <span class="text-fg-subtle">{{ formatTime(item.email.finishedAt) }}</span>
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="font-medium text-fg-muted">Aviso do Asaas</dt>
+                    <dd class="mt-1 flex flex-wrap items-center gap-2">
+                      <span class="rounded-full px-2 py-0.5 font-medium" [class]="asaasChip(item.asaas)">
+                        {{ item.asaas.label }}
+                      </span>
+                      @if (asaasSchedule(item.asaas); as when) {
+                        <span class="text-fg-soft">{{ when }} · {{ channels(item.asaas) }}</span>
+                      }
+                      @if (item.asaas.reason) {
+                        <span class="text-fg-soft break-words">{{ item.asaas.reason }}</span>
+                      }
+                    </dd>
+                  </div>
+                  @if (item.lastResend; as r) {
+                    <div>
+                      <dt class="font-medium text-fg-muted">Último reenvio</dt>
+                      <dd class="mt-1 text-fg-soft">
+                        {{ formatTime(r.requestedAt) }} por {{ r.requestedByName }} ·
+                        {{ resendOutcomeLabel(r.outcome, r.providerConfirmed) }}
+                      </dd>
+                    </div>
+                  }
+                </dl>
+
+                <div class="space-y-1">
+                  <button
+                    type="button"
+                    data-testid="resend-button"
+                    class="w-full sm:w-auto min-h-[44px] px-4 rounded-lg text-sm font-medium border
+                           focus:outline-none focus:ring-2 focus:ring-primary-400
+                           disabled:cursor-not-allowed disabled:opacity-60"
+                    [class.bg-primary-500]="item.resend.allowed"
+                    [class.text-white]="item.resend.allowed"
+                    [class.border-primary-500]="item.resend.allowed"
+                    [class.bg-surface]="!item.resend.allowed"
+                    [class.text-fg-soft]="!item.resend.allowed"
+                    [class.border-edge]="!item.resend.allowed"
+                    [disabled]="!item.resend.allowed || isResending(item.chargeId)"
+                    [attr.aria-describedby]="'resend-note-' + item.chargeId"
+                    (click)="resend(item)"
+                  >
+                    @if (isResending(item.chargeId)) {
+                      Reenviando…
+                    } @else {
+                      Reenviar e-mail
+                    }
+                  </button>
+                  <p
+                    class="text-[11px] text-fg-muted break-words"
+                    [id]="'resend-note-' + item.chargeId"
+                    aria-live="polite"
+                  >
+                    @if (resendMessage(item.chargeId); as msg) {
+                      {{ msg }}
+                    } @else if (!item.resend.allowed) {
+                      {{ item.resend.blockedReason }}
+                    } @else {
+                      Reenvia só o e-mail com o link de pagamento. A cobrança não muda.
+                    }
+                  </p>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </div>
+  </app-page-card>
+
+  <!-- ==================== ASAAS ==================== -->
+  <app-page-card title="Avisos do Asaas">
+    <div class="p-3 sm:p-4 space-y-4">
+      @if (asaasError(); as err) {
+        <app-alert-banner variant="error" [message]="err" />
+        <button
+          type="button"
+          class="text-sm px-4 rounded-lg border border-edge bg-surface text-fg-soft hover:bg-canvas
+                 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-400"
+          (click)="reloadAsaas()"
+        >
+          Tentar novamente
+        </button>
+      }
+
+      @if (asaasLoading() && !asaas()) {
+        <div class="grid grid-cols-3 gap-2 sm:gap-3" aria-busy="true" aria-label="Carregando">
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+          <div class="h-20 rounded-xl bg-surface-sunken animate-pulse"></div>
+        </div>
+      }
+
+      @if (asaas(); as a) {
+        <p class="text-sm text-fg-muted">
+          Motoristas com aluguel ativo: <strong class="text-fg">{{ a.activeDrivers }}</strong>
+        </p>
+        <dl class="grid grid-cols-3 gap-2 sm:gap-3" data-testid="asaas-summary">
+          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
+            <dt class="text-xs font-medium text-fg-muted">Configurados</dt>
+            <dd class="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
+              {{ a.configured }}
+            </dd>
+          </div>
+          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
+            <dt class="text-xs font-medium text-fg-muted">Com falha</dt>
+            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums">{{ a.notConfigured }}</dd>
+          </div>
+          <div class="rounded-xl border border-edge bg-surface p-3 sm:p-4">
+            <dt class="text-xs font-medium text-fg-muted">Sem WhatsApp</dt>
+            <dd class="mt-1 text-xl font-semibold text-fg tabular-nums">{{ a.withoutWhatsapp }}</dd>
+          </div>
+        </dl>
+
+        @if (a.activeDrivers === 0) {
+          <p class="text-center text-sm text-fg-subtle py-6">Nenhum motorista com aluguel ativo no Asaas.</p>
+        }
+
+        @if (a.failures.length > 0) {
+          <div>
+            <h3 class="text-sm font-semibold text-fg mb-2">Com falha ou pendentes</h3>
+            <ul class="space-y-2 list-none" data-testid="asaas-failures">
+              @for (d of a.failures; track d.companyId + d.driverFirstName + $index) {
+                <li class="rounded-lg border border-edge p-3 text-xs space-y-1">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-sm text-fg break-words">
+                      {{ d.driverFirstName }} <span class="text-fg-muted">· {{ d.companyName }}</span>
+                    </span>
+                    <span class="rounded-full px-2 py-0.5 font-medium" [class]="asaasChip(d)">{{ d.label }}</span>
+                  </div>
+                  @if (d.reason) {
+                    <p class="text-fg-soft break-words">{{ d.reason }}</p>
+                  }
+                  @if (d.lastAttemptAt) {
+                    <p class="text-fg-subtle">Última tentativa: {{ formatTime(d.lastAttemptAt) }}</p>
+                  }
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (a.withoutWhatsappDrivers.length > 0) {
+          <div>
+            <h3 class="text-sm font-semibold text-fg mb-2">Sem WhatsApp no aviso</h3>
+            <ul class="space-y-2 list-none" data-testid="asaas-without-whatsapp">
+              @for (d of a.withoutWhatsappDrivers; track d.companyId + d.driverFirstName + $index) {
+                <li class="rounded-lg border border-edge p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-sm text-fg break-words">
+                    {{ d.driverFirstName }} <span class="text-fg-muted">· {{ d.companyName }}</span>
+                  </span>
+                  <span class="text-fg-soft">{{ channels(d) }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      }
+    </div>
+  </app-page-card>
+
+  <app-back-link link="/admin" label="Voltar para o painel admin" />
+</app-default-page-layout>
