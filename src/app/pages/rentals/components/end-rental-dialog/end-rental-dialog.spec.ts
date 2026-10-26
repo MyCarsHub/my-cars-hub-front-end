@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Component, signal } from '@angular/core';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { provideRouter } from '@angular/router';
 
@@ -9,6 +9,19 @@ import { EndRentalDialog, EndRentalDialogPayload } from './end-rental-dialog';
 import { OverdueFeeSummary } from '../../../../types/overdue.types';
 import { RentalChargeDto, RentalResponseDto } from '../../../../types/rental.types';
 import { nowHhMmInBusinessTz, todayInBusinessTz } from '../../../../utils/business-clock';
+
+// O dialog semeia data/hora a partir do relogio de negocio. Sem fixar o instante, um spec que
+// digita um horario fixo (ex.: 23:45) vira no-op quando o CI roda exatamente nesse minuto.
+// 15:00Z = 12:00 em Brasilia, longe de qualquer fronteira de dia ou dos horarios digitados.
+const FIXED_NOW = new Date('2026-03-10T15:00:00Z');
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: FIXED_NOW });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 /**
  * Opt-in de apagar as cobranças VENCIDAS e não pagas no Asaas. Regra de negócio:
