@@ -607,6 +607,20 @@ export class DashboardHome {
         this.router.navigateByUrl(`${base}/${row.id}`);
     }
 
+    /**
+     * «cobranças · 2 aluguéis · R$ X»: o número grande do card conta COBRANÇAS e a lista que ele
+     * abre mostra ALUGUÉIS, então o card diz as duas coisas. Sem `rentals` (backend antigo) a
+     * parte dos aluguéis simplesmente não aparece.
+     */
+    protected overdueDetail(o: { count: number; amountCents: number; rentals?: number }): string {
+        const parts = [o.count === 1 ? 'cobrança' : 'cobranças'];
+        if (typeof o.rentals === 'number' && o.rentals > 0) {
+            parts.push(`${o.rentals} ${o.rentals === 1 ? 'aluguel' : 'aluguéis'}`);
+        }
+        parts.push(this.format(o.amountCents));
+        return parts.join(' · ');
+    }
+
     protected format(cents: number | null | undefined): string {
         return formatBRL(cents);
     }

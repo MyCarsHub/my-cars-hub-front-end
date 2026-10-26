@@ -179,7 +179,7 @@
                 <span class="text-[11px] text-fg-subtle">
                   {{ company.planName ?? '—' }}
                 </span>
-                @if (subChip(company.subscriptionStatus); as chip) {
+                @if (subChip(company); as chip) {
                   <span
                     class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
                            font-medium uppercase tracking-wide"
@@ -276,7 +276,7 @@
                       tabindex="-1"
                       class="block py-3 pr-4"
                     >
-                    @if (subChip(company.subscriptionStatus); as chip) {
+                    @if (subChip(company); as chip) {
                       <span
                         class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
                         [class]="chip.chip"

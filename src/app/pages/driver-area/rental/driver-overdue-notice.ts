@@ -14,7 +14,7 @@ import { RouterLink } from '@angular/router';
 import { EMPTY, Subject, catchError, switchMap, tap } from 'rxjs';
 import { DriverRentalChargesService } from '../../../services/driver-rental-charges.service';
 import { DriverCharge } from '../../../types/driver-charges.types';
-import { groupDriverCharges } from '../../../utils/driver-charges';
+import { groupDriverCharges, regularizingCharges } from '../../../utils/driver-charges';
 import { DRIVER_RENTAL_TODAY, daysBetween, money, plural } from './driver-rental-view';
 
 /**
@@ -31,7 +31,7 @@ import { DRIVER_RENTAL_TODAY, daysBetween, money, plural } from './driver-rental
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink],
   template: `
-    @if (summary(); as s) {
+    @if (view(); as v) {
       <section
         class="flex items-center gap-3 px-3.5 py-2.5 min-h-14 rounded-xl border bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-800 dark:text-rose-200"
         aria-label="Cobranças em atraso"
@@ -47,17 +47,31 @@ import { DRIVER_RENTAL_TODAY, daysBetween, money, plural } from './driver-rental
           </svg>
         </span>
         <span class="flex-1 min-w-0 flex flex-col">
-          <span class="text-xs font-medium opacity-80" data-notice-title>{{ s.title }}</span>
-          <span class="text-base font-semibold tabular-nums" data-notice-amount>{{ s.amount }}</span>
-          <span class="text-xs opacity-80" data-notice-late>{{ s.late }}</span>
+          @if (v.pay; as s) {
+            <span class="text-xs font-medium opacity-80" data-notice-title>{{ s.title }}</span>
+            <span class="text-base font-semibold tabular-nums" data-notice-amount>{{ s.amount }}</span>
+            <span class="text-xs opacity-80" data-notice-late>{{ s.late }}</span>
+          }
+          @if (v.regularizing; as r) {
+            <span
+              class="text-sm"
+              [class.mt-1]="v.pay"
+              [class.font-medium]="!v.pay"
+              [class.opacity-80]="v.pay"
+              data-notice-regularizing
+              >{{ r.text }}</span
+            >
+          }
         </span>
-        <a
-          [routerLink]="['/alugueis', rentalId()]"
-          data-pay-now
-          class="shrink-0 min-h-11 px-4 inline-flex items-center rounded-xl bg-rose-700 dark:bg-rose-400 text-white dark:text-rose-950 text-sm font-semibold hover:bg-rose-800 dark:hover:bg-rose-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
-        >
-          Pagar agora
-        </a>
+        @if (v.pay) {
+          <a
+            [routerLink]="['/alugueis', rentalId()]"
+            data-pay-now
+            class="shrink-0 min-h-11 px-4 inline-flex items-center rounded-xl bg-rose-700 dark:bg-rose-400 text-white dark:text-rose-950 text-sm font-semibold hover:bg-rose-800 dark:hover:bg-rose-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
+          >
+            Pagar agora
+          </a>
+        }
       </section>
     }
   `,
@@ -72,8 +86,27 @@ export class DriverOverdueNotice {
   private readonly today = signal(this.todayFn());
   private readonly charges = signal<DriverCharge[]>([]);
 
-  /** `null` when there is nothing overdue (the notice is not drawn at all). */
-  protected readonly summary = computed(() => {
+  /**
+   * `null` when there is nothing to say (the notice is not drawn at all). `pay` is the overdue
+   * money he can pay (with the one "Pagar agora"); `regularizing` is the FAILED ones the landlord
+   * is sorting out, which carry neither a button nor a link.
+   */
+  protected readonly view = computed(() => {
+    const pay = this.summary();
+    const failed = regularizingCharges(this.charges(), this.today());
+    const regularizing =
+      failed.length === 0
+        ? null
+        : {
+            text:
+              failed.length === 1
+                ? 'Esta cobrança está sendo regularizada pela locadora'
+                : 'Estas cobranças estão sendo regularizadas pela locadora',
+          };
+    return pay || regularizing ? { pay, regularizing } : null;
+  });
+
+  private readonly summary = computed(() => {
     const overdue = groupDriverCharges(this.charges(), this.today()).overdue;
     if (overdue.length === 0) return null;
     const total = overdue.reduce((sum, c) => sum + c.amount, 0);

@@ -464,10 +464,21 @@ export class Sidebar {
    */
   protected readonly isDriverMenu = computed(() => this.menuRole() === 'DRIVER');
 
+  /**
+   * "Administração" segue o TOKEN, relido a cada troca de tenant — o mesmo gatilho do
+   * `menuRole`. Precisa de gatilho próprio: o admin é OWNER da própria empresa e o papel da
+   * sessão "Ver como empresa" também é OWNER, então `menuRole` não muda e, sem isto, o item
+   * ficava congelado — visível durante a sessão e ausente depois de sair (AUDIT 2026-10-25 F2).
+   */
+  private readonly isPlatformAdmin = computed(() => {
+    this.layout.selectedTenant();
+    return this.session.isPlatformAdmin();
+  });
+
   private readonly allowedItems = computed<NavItem[]>(() => {
     if (this.isDriverMenu()) return buildDriverNavItems(this.driverRoutes);
     const role = this.menuRole();
-    const isAdmin = this.session.isPlatformAdmin();
+    const isAdmin = this.isPlatformAdmin();
     const passes = (item: NavItem) => {
       if (item.requiresPlatformAdmin && !isAdmin) return false;
       if (item.roles && !(role && item.roles.includes(role))) return false;

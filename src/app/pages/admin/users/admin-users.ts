@@ -50,8 +50,8 @@ const STATUS_OPTIONS: readonly FilterChipOption<AdminUserStatusFilter>[] = [
 ];
 
 const ROLE_OPTIONS: readonly FilterChipOption<AdminUserRoleFilter>[] = [
-  { value: 'ALL', label: 'Todos papeis' },
-  { value: 'USER', label: 'Usuario' },
+  { value: 'ALL', label: 'Todos os papéis' },
+  { value: 'USER', label: 'Usuário' },
   { value: 'PLATFORM_ADMIN', label: 'Admin' },
 ];
 
