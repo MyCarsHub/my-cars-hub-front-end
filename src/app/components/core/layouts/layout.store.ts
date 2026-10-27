@@ -164,7 +164,9 @@ export class LayoutStore {
       const found = tenants.find(t => t.id === selectedId);
       if (found) return found;
     }
-    return tenants.length > 0 ? tenants[0] : FALLBACK_TENANT;
+    // No (or a stale) selection: the login rule, OWNER > MANAGER > DRIVER — never simply the
+    // first row, which is backend order and can be a DRIVER profile of someone else's fleet.
+    return sortByRolePriority(tenants, (t) => t.role)[0] ?? FALLBACK_TENANT;
   }
 
   toggleCollapse(): void {
