@@ -277,6 +277,18 @@ describe('LayoutStore — troca de tenant', () => {
 
       expect(layout.switcherEntries().map((e) => e.id)).toEqual(['o-1', 'm-1', 'd-1']);
     });
+
+    it('sem seleção (ou seleção vencida): a empresa mostrada segue OWNER > MANAGER > DRIVER, não a 1ª linha', () => {
+      store['userCompanies'] = JSON.stringify([
+        { companyId: 'd-1', companyName: 'D', role: 'DRIVER' },
+        { companyId: 'm-1', companyName: 'M', role: 'MANAGER' },
+        { companyId: 'o-1', companyName: 'O', role: 'OWNER' },
+      ]);
+      store['selectedCompanyId'] = 'empresa-que-nao-esta-mais-na-lista';
+      layout.refreshTenants();
+
+      expect(layout.selectedTenant().id).toBe('o-1');
+    });
   });
 
   /**
