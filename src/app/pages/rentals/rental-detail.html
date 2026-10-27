@@ -1031,6 +1031,13 @@
           Desmarcar como paga
         </button>
       }
+      @if (canCancelAndMarkReceived(charge)) {
+        <button type="button" role="menuitem" (click)="askCancelCharge(charge, true)"
+          data-testid="cancel-and-mark-received-item"
+          class="w-full text-left text-sm px-4 py-3 min-h-[44px] text-fg-soft hover:bg-surface-muted border-t border-edge-soft">
+          Cancelar no Asaas e marcar como recebida por fora
+        </button>
+      }
       @if (canCancelCaucaoCharge(charge)) {
         <button type="button" role="menuitem" (click)="askCancelCharge(charge)"
           data-testid="cancel-charge-item"
@@ -1152,9 +1159,9 @@
 
 <app-confirm-dialog
   [open]="cancelChargeTarget() !== null"
-  title="Cancelar cobrança da caução?"
-  message="A cobrança será removida do Asaas; se o motorista já pagou, nada é cancelado."
-  confirmLabel="Confirmar cancelamento"
+  [title]="cancelChargeDialogTitle()"
+  [message]="cancelChargeDialogMessage()"
+  [confirmLabel]="cancelChargeMarkReceived() ? 'Cancelar no Asaas e marcar' : 'Confirmar cancelamento'"
   cancelLabel="Manter cobrança"
   variant="danger"
   [busy]="cancelChargeBusy()"

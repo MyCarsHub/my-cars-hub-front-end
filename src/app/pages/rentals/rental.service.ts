@@ -511,11 +511,17 @@ export class RentalService {
     rentalId: string,
     chargeId: string,
     note?: string,
+    markCaucaoReceived = false,
   ): Observable<ChargeCancelResponse> {
     const trimmed = note?.trim();
+    // `markCaucaoReceived`: "cancelar no Asaas e marcar como recebida por fora" numa
+    // ação só. O servidor só marca depois que o Asaas confirmar o cancelamento.
+    const body: { note?: string; markCaucaoReceived?: true } = {};
+    if (trimmed) body.note = trimmed;
+    if (markCaucaoReceived) body.markCaucaoReceived = true;
     return this.http.post<ChargeCancelResponse>(
       `${BASE}/${rentalId}/charges/${chargeId}/cancel`,
-      trimmed ? { note: trimmed } : {},
+      body,
     );
   }
 
