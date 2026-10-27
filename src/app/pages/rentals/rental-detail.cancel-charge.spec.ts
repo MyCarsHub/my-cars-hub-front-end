@@ -156,6 +156,21 @@ function rowButton(fixture: ComponentFixture<RentalDetail>): HTMLButtonElement |
   return null;
 }
 
+function menuItem(fixture: ComponentFixture<RentalDetail>, testId: string): HTMLButtonElement | null {
+  const triggers = Array.from(
+    el(fixture).querySelectorAll('[aria-haspopup="menu"]'),
+  ) as HTMLButtonElement[];
+  for (const trigger of triggers) {
+    trigger.click();
+    fixture.detectChanges();
+    const item = el(fixture).querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+    if (item) return item;
+    trigger.click();
+    fixture.detectChanges();
+  }
+  return null;
+}
+
 async function settle(fixture: ComponentFixture<RentalDetail>): Promise<void> {
   fixture.detectChanges();
   await fixture.whenStable();
@@ -332,4 +347,100 @@ describe('RentalDetail — cancelar cobrança da caução', () => {
 
     expect(http.match(`${BASE}/${RENTAL_ID}/charges/c-1/cancel`).length).toBe(1);
   });
+  // ---- Hotfix 27/10/2026: caução gerada por engano (aluguel 75b97a78)
+
+  it('oferece "Cancelar no Asaas e marcar como recebida por fora" para caução vencida e aberta', async () => {
+    const { fixture } = await mount({ charges: [charge({ dueDate: '2026-10-26' })] });
+
+    const item = menuItem(fixture, 'cancel-and-mark-received-item');
+    expect(item).not.toBeNull();
+    expect(item?.textContent).toContain('Cancelar no Asaas e marcar como recebida por fora');
+    expect(item?.className).toContain('min-h-[44px]');
+  });
+
+  it('não oferece a ação combinada quando a caução já consta como recebida', async () => {
+    const { fixture } = await mount({ charges: [charge()], rental: { caucaoPaid: true } });
+
+    expect(menuItem(fixture, 'cancel-and-mark-received-item')).toBeNull();
+  });
+
+  it('ação combinada: confirma, envia markCaucaoReceived e só diz "recebida" com a confirmação do servidor', async () => {
+    const { fixture, http } = await mount({ charges: [charge({ dueDate: '2026-10-26' })] });
+
+    menuItem(fixture, 'cancel-and-mark-received-item')?.click();
+    await settle(fixture);
+    expect(el(fixture).textContent).toContain('Cancelar no Asaas e marcar como recebida por fora?');
+    expect(el(fixture).textContent).toContain('depois que o Asaas confirmar o cancelamento');
+
+    dialogButton(fixture, 'Cancelar no Asaas e marcar').click();
+    await settle(fixture);
+
+    const call = http.expectOne(`${BASE}/${RENTAL_ID}/charges/c-1/cancel`);
+    expect(call.request.body).toEqual({ markCaucaoReceived: true });
+    call.flush({
+      outcome: 'REMOVED_AT_GATEWAY',
+      status: 'CANCELED',
+      hint: null,
+      caucaoMarkedReceived: true,
+    });
+    await settle(fixture);
+    http.expectOne(`${BASE}/${RENTAL_ID}`).flush({
+      ...RENTAL,
+      caucaoPaid: true,
+      charges: [charge({ status: 'CANCELED', dueDate: '2026-10-26' })],
+    });
+    drain(http);
+    await settle(fixture);
+
+    const result = el(fixture).querySelector('[data-testid="cancel-charge-result"]');
+    expect(result?.textContent).toContain(
+      'Cobrança da caução cancelada no Asaas e caução marcada como recebida por fora.',
+    );
+    expect(el(fixture).textContent).toContain('Recebida por fora');
+    // recebida por fora: o card não oferece gerar outra cobrança
+    expect(el(fixture).querySelector('[data-testid="generate-caucao-charge"]')).toBeNull();
+  });
+
+  it('ação combinada sem confirmação do Asaas: avisa que NÃO marcou', async () => {
+    const { fixture, http } = await mount({ charges: [charge()] });
+    menuItem(fixture, 'cancel-and-mark-received-item')?.click();
+    await settle(fixture);
+    dialogButton(fixture, 'Cancelar no Asaas e marcar').click();
+    await settle(fixture);
+
+    http.expectOne(`${BASE}/${RENTAL_ID}/charges/c-1/cancel`).flush({
+      outcome: 'REMOVAL_PENDING_SWEEP',
+      status: 'CANCELED',
+      hint: null,
+      caucaoMarkedReceived: false,
+    });
+    await settle(fixture);
+
+    const result = el(fixture).querySelector('[data-testid="cancel-charge-result"]');
+    expect(result?.textContent).toContain('NÃO foi marcada como recebida por fora');
+    expect(result?.textContent).not.toContain('caução marcada como recebida por fora.');
+  });
+
+  it('recusa do servidor (409): o motivo real aparece no card da caução', async () => {
+    const { fixture, http } = await mount({ charges: [charge()] });
+    rowButton(fixture)?.click();
+    await settle(fixture);
+    dialogButton(fixture, 'Confirmar cancelamento').click();
+    await settle(fixture);
+
+    http
+      .expectOne(`${BASE}/${RENTAL_ID}/charges/c-1/cancel`)
+      .flush(
+        { message: 'O pagamento no Asaas não está em um estado que permita cancelamento. Nada foi cancelado.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle(fixture);
+
+    const result = el(fixture).querySelector('[data-testid="cancel-charge-result"]');
+    expect(result?.textContent).toContain(
+      'O pagamento no Asaas não está em um estado que permita cancelamento.',
+    );
+    expect(result?.querySelector('[role="alert"]')).not.toBeNull();
+  });
 });
+

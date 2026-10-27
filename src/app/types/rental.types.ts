@@ -197,6 +197,12 @@ export interface ChargeCancelResponse {
   outcome: ChargeCancelOutcome;
   status: string;
   hint: string | null;
+  /**
+   * `true` só quando o pedido trouxe `markCaucaoReceived` E o cancelamento foi
+   * confirmado (removida no Asaas, ou sem link lá): a caução ficou "recebida por
+   * fora". Ausente em respostas antigas.
+   */
+  caucaoMarkedReceived?: boolean;
 }
 
 /**
