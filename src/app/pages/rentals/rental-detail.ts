@@ -1458,6 +1458,8 @@ export class RentalDetail implements OnInit {
           'A cobrança foi cancelada aqui, mas o Asaas ainda não confirmou a remoção do link. A caução NÃO foi marcada como recebida por fora; o sistema tenta remover de novo sozinho.',
         ALREADY_PAID:
           'O motorista já pagou esta caução pelo Asaas, então nada foi cancelado nem marcado.',
+        ALREADY_CLOSED:
+          'Esta cobrança já estava encerrada, então a caução NÃO foi marcada por aqui. Para registrá-la como recebida por fora, use Editar no aluguel.',
       };
       return {
         tone: res.outcome === 'ALREADY_PAID' ? 'info' : 'warning',
