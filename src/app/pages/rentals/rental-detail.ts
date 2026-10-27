@@ -1331,8 +1331,10 @@ export class RentalDetail implements OnInit {
   protected readonly cancelChargeTarget = signal<RentalChargeDto | null>(null);
   protected readonly cancelChargeNote = signal('');
   protected readonly cancelChargeBusy = signal(false);
+  /** Hotfix 27/10: o mesmo diálogo serve a "cancelar" e a "cancelar e marcar recebida por fora". */
+  protected readonly cancelChargeMarkReceived = signal(false);
   protected readonly cancelChargeResult = signal<{
-    tone: 'success' | 'warning' | 'info';
+    tone: 'success' | 'warning' | 'info' | 'error';
     message: string;
     hint: string | null;
   } | null>(null);
@@ -1362,11 +1364,30 @@ export class RentalDetail implements OnInit {
     return r.status === 'RESERVED' || r.status === 'ACTIVE';
   });
 
-  protected askCancelCharge(charge: RentalChargeDto): void {
+  protected askCancelCharge(charge: RentalChargeDto, markReceived = false): void {
     if (!this.canCancelCaucaoCharge(charge) || this.cancelChargeBusy()) return;
     this.cancelChargeNote.set('');
+    this.cancelChargeMarkReceived.set(markReceived);
     this.cancelChargeTarget.set(charge);
   }
+
+  /** "Cancelar no Asaas e marcar como recebida por fora": só quando ainda não foi recebida. */
+  protected canCancelAndMarkReceived(charge: RentalChargeDto): boolean {
+    const r = this.rental();
+    return this.canCancelCaucaoCharge(charge) && !!r && r.caucaoAmount > 0 && !r.caucaoPaid;
+  }
+
+  protected readonly cancelChargeDialogTitle = computed(() =>
+    this.cancelChargeMarkReceived()
+      ? 'Cancelar no Asaas e marcar como recebida por fora?'
+      : 'Cancelar cobrança da caução?',
+  );
+
+  protected readonly cancelChargeDialogMessage = computed(() =>
+    this.cancelChargeMarkReceived()
+      ? 'A cobrança da caução será removida do Asaas e o link deixa de funcionar. A caução só fica como recebida por fora depois que o Asaas confirmar o cancelamento. Se o motorista já pagou pelo link, nada é cancelado. As cobranças do aluguel não mudam.'
+      : 'A cobrança será removida do Asaas; se o motorista já pagou, nada é cancelado.',
+  );
 
   protected closeCancelCharge(): void {
     if (this.cancelChargeBusy()) return;
@@ -1384,30 +1405,70 @@ export class RentalDetail implements OnInit {
     this.actionError.set(null);
     this.cancelChargeResult.set(null);
     this.cancelChargeBusy.set(true);
-    this.rentalService.cancelCharge(r.id, charge.id, this.cancelChargeNote()).subscribe({
-      next: (res) => {
-        this.cancelChargeBusy.set(false);
-        this.cancelChargeTarget.set(null);
-        this.cancelChargeResult.set(this.cancelChargeOutcome(res));
-        this.reloadRental(r.id);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.cancelChargeBusy.set(false);
-        this.cancelChargeTarget.set(null);
-        if (isToastedBySupportEditInterceptor(err)) return;
-        this.actionError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível cancelar a cobrança. Tente novamente.'),
-        );
-      },
-    });
+    const markReceived = this.cancelChargeMarkReceived();
+    this.rentalService
+      .cancelCharge(r.id, charge.id, this.cancelChargeNote(), markReceived)
+      .subscribe({
+        next: (res) => {
+          this.cancelChargeBusy.set(false);
+          this.cancelChargeTarget.set(null);
+          this.cancelChargeResult.set(this.cancelChargeOutcome(res, markReceived));
+          this.reloadRental(r.id);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.cancelChargeBusy.set(false);
+          this.cancelChargeTarget.set(null);
+          if (isToastedBySupportEditInterceptor(err)) return;
+          // O motivo REAL do servidor, no próprio card da caução (antes ia só para o
+          // topo da página e, no celular, ficava fora da tela de quem tocou no botão).
+          this.cancelChargeResult.set({
+            tone: 'error',
+            message: this.apiErrors.messageFor(
+              err,
+              'Não foi possível cancelar a cobrança. Tente novamente.',
+            ),
+            hint: markReceived ? 'A caução não foi marcada como recebida por fora.' : null,
+          });
+        },
+      });
   }
 
   /** Uma frase por desfecho + o `hint` do servidor, quando houver. */
-  private cancelChargeOutcome(res: ChargeCancelResponse): {
-    tone: 'success' | 'warning' | 'info';
+  private cancelChargeOutcome(
+    res: ChargeCancelResponse,
+    markReceivedRequested = false,
+  ): {
+    tone: 'success' | 'warning' | 'info' | 'error';
     message: string;
     hint: string | null;
   } {
+    if (markReceivedRequested) {
+      if (res.caucaoMarkedReceived) {
+        return {
+          tone: 'success',
+          message:
+            res.outcome === 'REMOVED_AT_GATEWAY'
+              ? 'Cobrança da caução cancelada no Asaas e caução marcada como recebida por fora.'
+              : 'Cobrança da caução cancelada (não havia link ativo no Asaas) e caução marcada como recebida por fora.',
+          hint: res.hint?.trim() || null,
+        };
+      }
+      const why: Partial<Record<ChargeCancelOutcome, string>> = {
+        REMOVAL_PENDING_SWEEP:
+          'A cobrança foi cancelada aqui, mas o Asaas ainda não confirmou a remoção do link. A caução NÃO foi marcada como recebida por fora; o sistema tenta remover de novo sozinho.',
+        ALREADY_PAID:
+          'O motorista já pagou esta caução pelo Asaas, então nada foi cancelado nem marcado.',
+        ALREADY_CLOSED:
+          'Esta cobrança já estava encerrada, então a caução NÃO foi marcada por aqui. Para registrá-la como recebida por fora, use Editar no aluguel.',
+      };
+      return {
+        tone: res.outcome === 'ALREADY_PAID' ? 'info' : 'warning',
+        message:
+          why[res.outcome] ??
+          'O cancelamento não foi confirmado pelo Asaas, então a caução NÃO foi marcada como recebida por fora.',
+        hint: res.hint?.trim() || null,
+      };
+    }
     const messages: Record<
       ChargeCancelOutcome,
       { tone: 'success' | 'warning' | 'info'; text: string }
