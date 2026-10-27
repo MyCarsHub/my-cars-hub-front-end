@@ -226,6 +226,12 @@ export class AppShell implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.checkBreakpoint();
+    // The store is a root singleton and may already exist from BEFORE the session: the cookie
+    // banner in the root component injects it on the login page, with an empty storage, and
+    // login does not reload the page. Without this re-read the sidebar said "Sem Empresa" to
+    // someone who owns companies (and, after logout + login, kept the previous user's). The
+    // shell mounting is the one moment every session start passes through.
+    this.layout.refreshTenants();
     this.layout.ensureMembershipsLoaded();
     this.resizeListener = () => this.checkBreakpoint();
     window.addEventListener('resize', this.resizeListener);
