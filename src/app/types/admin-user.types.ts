@@ -16,6 +16,8 @@ export interface AdminUserListItem {
   online?: boolean;
   /** Ultima requisicao autenticada (ISO); null = nunca visto. */
   lastSeenAt?: string | null;
+  /** Admin v2 (D1) — telefone SO mascarado pelo servidor; nulo = sem telefone. */
+  phoneMasked?: string | null;
 }
 
 export interface AdminUserCompanyLink {
@@ -35,4 +37,8 @@ export interface AdminUserDetail {
   createdDate: string | null;
   lastLoginAt: string | null;
   companies: AdminUserCompanyLink[];
+  /** V122 — ultima requisicao autenticada (ISO); null = nunca visto desde a V122. */
+  lastSeenAt?: string | null;
+  /** Admin v2 (D1) — so mascarado; o numero inteiro vem da revelacao auditada (VIEW). */
+  phoneMasked?: string | null;
 }

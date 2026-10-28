@@ -8,7 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -22,6 +22,7 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
 import { AdminUserCompanyLink } from '../../../types/admin-user.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
+import { ContactBar } from '../contact/contact-bar';
 
 interface PendingAction {
   kind: 'DEACTIVATE' | 'ACTIVATE' | 'PROMOTE' | 'DEMOTE';
@@ -38,7 +39,7 @@ const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-user-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner],
+  imports: [BackLink, DefaultPageLayout, PageCard, ConfirmDialog, AlertBanner, RouterLink, ContactBar],
   templateUrl: './admin-user-detail.html',
 })
 export class AdminUserDetail implements OnInit, OnDestroy {
@@ -128,6 +129,15 @@ export class AdminUserDetail implements OnInit, OnDestroy {
    */
   protected readonly lastLogin = computed<string | null>(() =>
     this.formatDateTime(this.detail()?.lastLoginAt ?? null),
+  );
+
+  /**
+   * Presença (V122): última requisição autenticada. A lista já mostrava, o
+   * detalhe não (auditoria 03). Nulo = nunca visto desde a V122 — que é recente,
+   * então o vazio não afirma que a pessoa nunca entrou.
+   */
+  protected readonly lastSeen = computed<string | null>(() =>
+    this.formatDateTime(this.detail()?.lastSeenAt ?? null),
   );
 
   ngOnInit(): void {
