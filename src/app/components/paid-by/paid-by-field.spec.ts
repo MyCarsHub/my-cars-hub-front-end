@@ -35,9 +35,9 @@ describe('PaidByField / PaidByBadge (V123 — Quem pagou?)', () => {
     await fixture.whenStable();
   });
 
-  it('shows the pt-BR question and both options, Locadora first and selected by default', () => {
+  it('shows the pt-BR question and the three options, Locadora first and selected by default', () => {
     expect(el.textContent).toContain('Quem pagou?');
-    expect(radios().map((r) => r.textContent?.trim())).toEqual(['Locadora', 'Motorista']);
+    expect(radios().map((r) => r.textContent?.trim())).toEqual(['Locadora', 'Motorista', 'Dono']);
     expect(checked()?.textContent?.trim()).toBe('Locadora');
   });
 
@@ -59,6 +59,16 @@ describe('PaidByField / PaidByBadge (V123 — Quem pagou?)', () => {
     expect(el.textContent).toContain('não é descontado do faturamento');
   });
 
+  it('writes OWNER on click of Dono, with the owner hint', async () => {
+    radios()[2].click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(host.control.value).toBe('OWNER');
+    expect(checked()?.textContent?.trim()).toBe('Dono');
+    expect(el.textContent).toContain('Pago pelo dono do veículo');
+  });
+
   it('reflects a value patched from outside (edit mode loading the stored marking)', async () => {
     host.control.setValue('DRIVER');
     fixture.detectChanges();
@@ -74,7 +84,7 @@ describe('PaidByField / PaidByBadge (V123 — Quem pagou?)', () => {
     }
   });
 
-  it('badge renders only for DRIVER', async () => {
+  it('badge renders only for DRIVER and OWNER, with the matching copy', async () => {
     expect(el.textContent).not.toContain('Pago pelo motorista');
 
     host.badgeValue.set('COMPANY');
@@ -86,5 +96,11 @@ describe('PaidByField / PaidByBadge (V123 — Quem pagou?)', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(el.textContent).toContain('Pago pelo motorista');
+
+    host.badgeValue.set('OWNER');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Pago pelo dono');
+    expect(el.textContent).not.toContain('Pago pelo motorista');
   });
 });

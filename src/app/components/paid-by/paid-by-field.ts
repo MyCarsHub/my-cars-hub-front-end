@@ -8,6 +8,7 @@ import {
 } from '../segmented-toggle/segmented-toggle';
 import {
   EXPENSE_PAID_BY_LABELS,
+  EXPENSE_PAID_BY_VALUES,
   ExpensePaidBy,
   paidByOrDefault,
 } from '../../types/expense-paid-by.types';
@@ -22,9 +23,7 @@ import {
 const ACTIVE_BACKGROUND = 'var(--color-surface)';
 const ACTIVE_SHADOW = '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)';
 
-const OPTIONS: readonly SegmentedToggleOption<ExpensePaidBy>[] = (
-  ['COMPANY', 'DRIVER'] as const
-).map((value) => ({
+const OPTIONS: readonly SegmentedToggleOption<ExpensePaidBy>[] = EXPENSE_PAID_BY_VALUES.map((value) => ({
   value,
   label: EXPENSE_PAID_BY_LABELS[value],
   activeBackground: ACTIVE_BACKGROUND,
@@ -34,7 +33,7 @@ const OPTIONS: readonly SegmentedToggleOption<ExpensePaidBy>[] = (
 let nextId = 0;
 
 /**
- * "Quem pagou? Locadora | Motorista" — a marcação de manutenção, sinistro e
+ * "Quem pagou? Locadora | Motorista | Dono" — a marcação de manutenção, sinistro e
  * multa (V123). Escreve direto no `FormControl` recebido.
  *
  * `text-base` nas opções: 16px é o piso para o iOS não dar zoom no foco.
@@ -72,11 +71,16 @@ export class PaidByField {
     { initialValue: 'COMPANY' as ExpensePaidBy },
   );
 
-  protected readonly hint = computed(() =>
-    this.value() === 'DRIVER'
-      ? 'Pago pelo motorista: não é descontado do faturamento da locadora.'
-      : 'Pago pela locadora: entra como despesa no faturamento.',
-  );
+  protected readonly hint = computed(() => {
+    switch (this.value()) {
+      case 'DRIVER':
+        return 'Pago pelo motorista: não é descontado do faturamento da locadora.';
+      case 'OWNER':
+        return 'Pago pelo dono do veículo: não é descontado do faturamento da locadora.';
+      default:
+        return 'Pago pela locadora: entra como despesa no faturamento.';
+    }
+  });
 
   protected select(next: ExpensePaidBy): void {
     const control = this.control();
