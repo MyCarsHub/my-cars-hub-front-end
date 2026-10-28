@@ -1,3 +1,5 @@
+import { ExpensePaidBy } from './expense-paid-by.types';
+
 /**
  * Sinistro (colisão, roubo, dano, pane) — espelho do módulo `incidents` do
  * backend. NÃO é multa: multa tem órgão emissor e pontuação na CNH; sinistro
@@ -55,6 +57,8 @@ export interface VehicleIncidentListItem {
   insuranceStatusLabel: string;
   insuranceClaimNumber: string | null;
   createdDate: string;
+  /** V123 — ausente em resposta antiga = Locadora. */
+  paidBy?: ExpensePaidBy;
 }
 
 /**
@@ -102,6 +106,9 @@ export interface VehicleIncident {
 
   /** Só na resposta de criação: `true` se o veículo foi mesmo para MAINTENANCE. */
   vehicleTakenOutOfService: boolean | null;
+
+  /** V123 — ausente em resposta antiga = Locadora. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface IncidentDocument {
@@ -146,6 +153,8 @@ export interface CreateVehicleIncidentRequest {
   notes?: string | null;
   /** Opt-in: tenta AVAILABLE → MAINTENANCE. Nunca mexe num veículo RENTED. */
   takeVehicleOutOfService?: boolean | null;
+  /** V123 — omitido: Locadora no create, mantém o gravado no update. */
+  paidBy?: ExpensePaidBy;
 }
 
 /** Correção dos dados descritivos. Sem status e sem `vehicleId` — nem no backend. */

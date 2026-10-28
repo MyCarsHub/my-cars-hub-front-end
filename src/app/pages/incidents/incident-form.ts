@@ -1,3 +1,5 @@
+import { ExpensePaidBy, EXPENSE_PAID_BY_DEFAULT, paidByOrDefault } from '../../types/expense-paid-by.types';
+import { PaidByField } from '../../components/paid-by/paid-by-field';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -42,7 +44,7 @@ import {
 @Component({
   selector: 'app-incident-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
+  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl, PaidByField],
   templateUrl: './incident-form.html',
 })
 export class IncidentForm implements OnInit {
@@ -103,6 +105,7 @@ export class IncidentForm implements OnInit {
     thirdPartyPhone: ['', [Validators.maxLength(30)]],
     thirdPartyPlate: ['', [Validators.maxLength(10)]],
     notes: [''],
+    paidBy: [EXPENSE_PAID_BY_DEFAULT as ExpensePaidBy],
     /** Opt-in explícito. O backend nunca mexe num veículo RENTED. */
     takeVehicleOutOfService: [false],
   });
@@ -146,6 +149,7 @@ export class IncidentForm implements OnInit {
           thirdPartyPhone: incident.thirdPartyPhone ?? '',
           thirdPartyPlate: incident.thirdPartyPlate ?? '',
           notes: incident.notes ?? '',
+          paidBy: paidByOrDefault(incident.paidBy),
         });
         this.loading.set(false);
       },
@@ -183,6 +187,7 @@ export class IncidentForm implements OnInit {
       thirdPartyPhone: raw.thirdPartyPhone?.trim() || null,
       thirdPartyPlate: raw.thirdPartyPlate?.trim().toUpperCase() || null,
       notes: raw.notes?.trim() || null,
+      paidBy: raw.paidBy,
     };
 
     if (this.isEdit()) {

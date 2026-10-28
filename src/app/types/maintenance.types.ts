@@ -1,3 +1,5 @@
+import { ExpensePaidBy } from './expense-paid-by.types';
+
 export type MaintenanceType =
   | 'PREVENTIVE'
   | 'CORRECTIVE'
@@ -89,6 +91,8 @@ export interface MaintenanceListItem {
   status: MaintenanceStatus;
   /** ISO date-time */
   createdDate: string;
+  /** V123 — ausente em resposta antiga = Locadora. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface Maintenance {
@@ -120,6 +124,8 @@ export interface Maintenance {
   nextServiceHodometer: number | null;
   status: MaintenanceStatus;
   notes: string | null;
+  /** V123 — ausente em resposta antiga = Locadora. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface CreateMaintenanceRequest {
@@ -149,6 +155,8 @@ export interface CreateMaintenanceRequest {
    */
   status: MaintenanceStatus;
   notes?: string | null;
+  /** V123 — omitido: Locadora no create, mantém o gravado no update. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface UpdateMaintenanceRequest {
@@ -169,6 +177,8 @@ export interface UpdateMaintenanceRequest {
   nextServiceHodometer?: number | null;
   status: MaintenanceStatus;
   notes?: string | null;
+  /** V123 — omitido: Locadora no create, mantém o gravado no update. */
+  paidBy?: ExpensePaidBy;
 }
 
 /**

@@ -1,6 +1,7 @@
 export type FineStatus = 'PENDING' | 'PAID' | 'CONTESTED' | 'CANCELED';
 export type FineSeverity = 'LEVE' | 'MEDIA' | 'GRAVE' | 'GRAVISSIMA';
 
+import { ExpensePaidBy } from './expense-paid-by.types';
 import {
   FINE_SEVERITY_FILTER_OPTIONS,
   FINE_STATUS_FILTER_OPTIONS,
@@ -45,6 +46,8 @@ export interface FineListItem {
   dueDate: string | null;
   /** ISO date-time */
   createdDate: string;
+  /** V123 — ausente em resposta antiga = Locadora. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface Fine {
@@ -65,6 +68,8 @@ export interface Fine {
   status: FineStatus;
   paidDate: string | null;
   notes: string | null;
+  /** V123 — ausente em resposta antiga = Locadora. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface CreateFineRequest {
@@ -82,6 +87,8 @@ export interface CreateFineRequest {
   status?: FineStatus | null;
   paidDate?: string | null;
   notes?: string | null;
+  /** V123 — omitido: Locadora no create, mantém o gravado no update. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface UpdateFineRequest {
@@ -97,6 +104,8 @@ export interface UpdateFineRequest {
   status: FineStatus;
   paidDate?: string | null;
   notes?: string | null;
+  /** V123 — omitido: Locadora no create, mantém o gravado no update. */
+  paidBy?: ExpensePaidBy;
 }
 
 export interface PayFineRequest {

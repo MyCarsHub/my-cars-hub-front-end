@@ -186,6 +186,7 @@
                       Vencida
                     </span>
                   }
+                  <app-paid-by-badge [paidBy]="fine.paidBy" />
                 </div>
               </div>
 
@@ -285,10 +286,13 @@
                     </span>
                   </td>
                   <td class="py-3 pr-4">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      [class]="statusInfo(fine.status).chip">
-                      {{ statusInfo(fine.status).label }}
-                    </span>
+                    <div class="flex flex-wrap items-center gap-1">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                        [class]="statusInfo(fine.status).chip">
+                        {{ statusInfo(fine.status).label }}
+                      </span>
+                      <app-paid-by-badge [paidBy]="fine.paidBy" />
+                    </div>
                   </td>
                   <td class="py-3 pr-4">
                     <div class="flex items-center justify-end gap-1">
