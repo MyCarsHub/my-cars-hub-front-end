@@ -149,6 +149,7 @@
                     [class]="statusInfo(m.status).chip">
                     {{ statusInfo(m.status).label }}
                   </span>
+                  <app-paid-by-badge [paidBy]="m.paidBy" />
                   @if (nextServiceBadge(m.nextServiceDate); as badge) {
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
                       [class]="badge.chip">
@@ -268,10 +269,13 @@
                   </td>
                   <td class="py-3 pr-4 font-semibold text-fg tabular-nums">{{ formatCurrency(m.costCents) }}</td>
                   <td class="py-3 pr-4">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      [class]="statusInfo(m.status).chip">
-                      {{ statusInfo(m.status).label }}
-                    </span>
+                    <div class="flex flex-wrap items-center gap-1">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                        [class]="statusInfo(m.status).chip">
+                        {{ statusInfo(m.status).label }}
+                      </span>
+                      <app-paid-by-badge [paidBy]="m.paidBy" />
+                    </div>
                   </td>
                   <td class="py-3 pr-4">
                     <div class="flex items-center justify-end gap-1">

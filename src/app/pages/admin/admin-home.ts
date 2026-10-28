@@ -167,6 +167,9 @@ export class AdminHome implements OnInit {
     return this.scope() === 'active' ? u.activeTotal : u.total;
   });
 
+  /** Presenca (nao login). Backend sem o campo (deploy antigo) = 0. */
+  protected readonly onlineNow = computed(() => this.overview()?.users?.onlineNow ?? 0);
+
   protected readonly companiesDisplay = computed(() => {
     const c = this.overview()?.companies;
     if (!c) return 0;

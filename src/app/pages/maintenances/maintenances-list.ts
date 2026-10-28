@@ -1,3 +1,4 @@
+import { PaidByBadge } from '../../components/paid-by/paid-by-badge';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -52,6 +53,7 @@ const TRANSITIONABLE: readonly MaintenanceStatus[] = ['SCHEDULED', 'IN_PROGRESS'
     ConcludeMaintenanceDialog,
     ActionsMenu,
     AlertBanner,
+    PaidByBadge,
   ],
   templateUrl: './maintenances-list.html',
 })

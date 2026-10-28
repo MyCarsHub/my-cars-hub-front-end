@@ -42,6 +42,13 @@
             ariaLabel="Filtrar por papel"
             (selectionChange)="setRoleFilter($event)"
           />
+          <span class="w-px bg-surface-strong mx-1 self-stretch" aria-hidden="true"></span>
+          <app-filter-chip-group
+            [options]="presenceOptions"
+            [value]="presenceFilter()"
+            ariaLabel="Filtrar por presença"
+            (selectionChange)="setPresenceFilter($event)"
+          />
         </div>
       </div>
 
@@ -101,6 +108,18 @@
                     class="block"
                   >
                     <span class="block text-xs text-fg-subtle mt-0.5 break-words">{{ user.email }}</span>
+                    @if (user.online) {
+                      <span
+                        data-testid="online-badge"
+                        class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium
+                               bg-success-50 text-success-900 dark:bg-success-500/15 dark:text-success-100"
+                      >
+                        <span class="inline-block w-2 h-2 rounded-full bg-success-500" aria-hidden="true"></span>
+                        Online
+                      </span>
+                    } @else if (lastSeenLabel(user); as seen) {
+                      <span class="block text-[11px] text-fg-faint mt-1" data-testid="last-seen">{{ seen }}</span>
+                    }
                     @if (user.lastCompanyName) {
                       <span class="block text-[11px] text-fg-faint mt-1">
                         Empresa mais recente: {{ user.lastCompanyName }}
@@ -217,6 +236,18 @@
                       [attr.aria-label]="'Ver detalhes de ' + (user.name ?? user.email)"
                     >
                       {{ user.name ?? '(sem nome)' }}
+                      @if (user.online) {
+                        <span
+                          data-testid="online-badge"
+                          class="ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium align-middle
+                                 bg-success-50 text-success-900 dark:bg-success-500/15 dark:text-success-100"
+                        >
+                          <span class="inline-block w-2 h-2 rounded-full bg-success-500" aria-hidden="true"></span>
+                          Online
+                        </span>
+                      } @else if (lastSeenLabel(user); as seen) {
+                        <span class="block text-[11px] font-normal text-fg-faint mt-0.5" data-testid="last-seen">{{ seen }}</span>
+                      }
                     </a>
                   </td>
                   <td class="align-top text-fg-soft break-all">

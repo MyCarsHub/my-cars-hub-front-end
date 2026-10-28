@@ -52,6 +52,16 @@
               <dd class="text-fg">{{ driverName() || '—' }}</dd>
             </div>
             <div>
+              <dt class="text-xs uppercase tracking-wide text-fg-subtle">Quem pagou</dt>
+              <dd class="text-fg">
+                @if (i.paidBy === 'DRIVER' || i.paidBy === 'OWNER') {
+                  <app-paid-by-badge [paidBy]="i.paidBy" size="md" />
+                } @else {
+                  Locadora
+                }
+              </dd>
+            </div>
+            <div>
               <dt class="text-xs uppercase tracking-wide text-fg-subtle">Encerrado em</dt>
               <dd class="text-fg tabular-nums">{{ formatDateTime(i.resolvedAt) }}</dd>
             </div>

@@ -58,6 +58,34 @@
       }
     </div>
 
+    <!--
+      Online agora — presença, não login: a autenticação é JWT sem sessão, então
+      conta quem fez requisição autenticada dentro da janela do backend
+      (UserPresence.ONLINE_WINDOW). O cartão leva à lista já filtrada.
+    -->
+    <a
+      routerLink="/admin/users"
+      [queryParams]="{ online: true }"
+      data-testid="online-now-card"
+      class="block rounded-2xl bg-surface border border-edge p-4 min-h-[44px]
+             hover:border-primary-300 dark:hover:border-primary-500/40 transition-colors
+             outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      aria-label="Ver usuários online agora"
+    >
+      <p class="flex items-center gap-1.5 text-xs text-fg-subtle uppercase tracking-wide">
+        <span class="inline-block w-2 h-2 rounded-full bg-success-500" aria-hidden="true"></span>
+        Online agora
+      </p>
+      @if (loading() && !overview()) {
+        <div class="h-8 mt-2 w-20 rounded bg-surface-sunken animate-pulse"></div>
+      } @else {
+        <p class="text-2xl font-semibold text-fg mt-1 tabular-nums" data-testid="online-now-count">
+          {{ onlineNow() }}
+        </p>
+        <p class="text-xs text-fg-subtle mt-1">Ver quem está online</p>
+      }
+    </a>
+
     <!-- Companies -->
     <div class="rounded-2xl bg-surface border border-edge p-4">
       <p class="text-xs text-fg-subtle uppercase tracking-wide">Empresas</p>

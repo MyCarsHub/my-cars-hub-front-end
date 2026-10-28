@@ -1,3 +1,5 @@
+import { ExpensePaidBy, EXPENSE_PAID_BY_DEFAULT, paidByOrDefault } from '../../types/expense-paid-by.types';
+import { PaidByField } from '../../components/paid-by/paid-by-field';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -198,6 +200,7 @@ function hodometerValidator(required: boolean): ValidatorFn {
     FormField,
     FieldControl,
     PendingDocumentsBlock,
+    PaidByField,
   ],
   templateUrl: './maintenance-form.html',
 })
@@ -304,6 +307,7 @@ export class MaintenanceForm implements OnInit {
     nextServiceHodometer: ['', [hodometerValidator(false)]],
     status: ['SCHEDULED' as MaintenanceStatus, [Validators.required]],
     notes: [''],
+    paidBy: [EXPENSE_PAID_BY_DEFAULT as ExpensePaidBy],
   });
 
   protected get items() {
@@ -541,6 +545,7 @@ export class MaintenanceForm implements OnInit {
           nextServiceHodometer: this.hodometerText(m.nextServiceHodometer),
           status: m.status,
           notes: m.notes ?? '',
+          paidBy: paidByOrDefault(m.paidBy),
         });
         this.loadedHodometer.set(m.hodometerReading ?? null);
         this.onStatusChange(m.status);
@@ -601,6 +606,7 @@ export class MaintenanceForm implements OnInit {
         nextServiceHodometer: this.kmOf(raw.nextServiceHodometer),
         status: raw.status,
         notes: raw.notes?.trim() || null,
+        paidBy: raw.paidBy,
       };
       this.saveChildren(this.maintenancesService.update(this.editingId()!, payload));
     } else {
@@ -622,6 +628,7 @@ export class MaintenanceForm implements OnInit {
         // Sempre explícito: omitir faria o backend assumir DONE e exigir hodômetro.
         status: raw.status,
         notes: raw.notes?.trim() || null,
+        paidBy: raw.paidBy,
       };
       this.saveChildren(this.maintenancesService.create(payload));
     }
