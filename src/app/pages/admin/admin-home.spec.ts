@@ -279,4 +279,26 @@ describe('AdminHome — consolidado de aluguéis e contratos', () => {
       expect(flatText(host)).toContain('Sem dados no período');
     });
   });
+
+  describe('Online agora', () => {
+    it('mostra o número de usuários online e leva à lista filtrada', () => {
+      overview.set({
+        ...EMPTY_OVERVIEW,
+        users: { ...EMPTY_OVERVIEW.users, onlineNow: 3 },
+      });
+      const host = render();
+
+      const card = host.querySelector('[data-testid="online-now-card"]');
+      expect(card).not.toBeNull();
+      expect(host.querySelector('[data-testid="online-now-count"]')?.textContent?.trim()).toBe('3');
+      expect(card?.getAttribute('href')).toBe('/admin/users?online=true');
+    });
+
+    it('backend sem o campo mostra zero, nunca vazio', () => {
+      overview.set(EMPTY_OVERVIEW);
+      const host = render();
+
+      expect(host.querySelector('[data-testid="online-now-count"]')?.textContent?.trim()).toBe('0');
+    });
+  });
 });

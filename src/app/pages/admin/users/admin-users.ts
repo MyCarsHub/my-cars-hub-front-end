@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { BackLink } from '../../../components/core/back-link/back-link';
@@ -27,6 +27,7 @@ import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
 import {
   AdminUserListItem,
+  AdminUserPresenceFilter,
   AdminUserRoleFilter,
   AdminUserStatusFilter,
 } from '../../../types/admin-user.types';
@@ -47,6 +48,11 @@ const STATUS_OPTIONS: readonly FilterChipOption<AdminUserStatusFilter>[] = [
   { value: 'ALL', label: 'Todos' },
   { value: 'ACTIVE', label: 'Ativos' },
   { value: 'INACTIVE', label: 'Inativos' },
+];
+
+const PRESENCE_OPTIONS: readonly FilterChipOption<AdminUserPresenceFilter>[] = [
+  { value: 'ALL', label: 'Todos' },
+  { value: 'ONLINE', label: 'Online agora' },
 ];
 
 const ROLE_OPTIONS: readonly FilterChipOption<AdminUserRoleFilter>[] = [
@@ -75,6 +81,7 @@ export class AdminUsers implements OnInit, OnDestroy {
   private readonly usersService = inject(AdminUsersService);
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroy$ = new Subject<void>();
 
   protected readonly items = this.usersService.items;
@@ -95,9 +102,17 @@ export class AdminUsers implements OnInit, OnDestroy {
   protected readonly search = signal<string>('');
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly roleOptions = ROLE_OPTIONS;
+  protected readonly presenceOptions = PRESENCE_OPTIONS;
 
   protected readonly statusFilter = signal<AdminUserStatusFilter>('ALL');
   protected readonly roleFilter = signal<AdminUserRoleFilter>('ALL');
+  /**
+   * Presenca. Nasce de `?online=true` — o cartao "Online agora" do painel
+   * admin abre a lista ja filtrada.
+   */
+  protected readonly presenceFilter = signal<AdminUserPresenceFilter>(
+    this.route.snapshot.queryParamMap.get('online') === 'true' ? 'ONLINE' : 'ALL',
+  );
   protected readonly currentPage = signal(0);
 
   protected readonly pendingAction = signal<PendingAction | null>(null);
@@ -163,10 +178,11 @@ export class AdminUsers implements OnInit, OnDestroy {
       const search = this.search();
       const status = this.statusFilter();
       const role = this.roleFilter();
+      const online = this.presenceFilter() === 'ONLINE';
       const page = this.currentPage();
       this.error.set(null);
       this.usersService
-        .load({ search, status, systemRole: role, page, size: PAGE_SIZE })
+        .load({ search, status, systemRole: role, online, page, size: PAGE_SIZE })
         .subscribe({
           error: (err: HttpErrorResponse) => {
             this.error.set(
@@ -202,6 +218,28 @@ export class AdminUsers implements OnInit, OnDestroy {
   protected setRoleFilter(value: AdminUserRoleFilter): void {
     this.currentPage.set(0);
     this.roleFilter.set(value);
+  }
+
+  protected setPresenceFilter(value: AdminUserPresenceFilter): void {
+    this.currentPage.set(0);
+    this.presenceFilter.set(value);
+  }
+
+  /**
+   * Texto secundario de presenca para quem NAO esta online: "Visto ha 12 min".
+   * Null quando online (o selo ja diz) ou nunca visto. O "agora" e o momento
+   * da renderizacao — a lista recarrega a cada filtro/pagina.
+   */
+  protected lastSeenLabel(user: AdminUserListItem): string | null {
+    if (user.online || !user.lastSeenAt) return null;
+    const seen = Date.parse(user.lastSeenAt);
+    if (Number.isNaN(seen)) return null;
+    const minutes = Math.max(1, Math.floor((Date.now() - seen) / 60_000));
+    if (minutes < 60) return `Visto há ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Visto há ${hours} h`;
+    const days = Math.floor(hours / 24);
+    return days === 1 ? 'Visto há 1 dia' : `Visto há ${days} dias`;
   }
 
   protected prevPage(): void {

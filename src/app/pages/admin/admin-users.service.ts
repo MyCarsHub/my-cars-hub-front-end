@@ -17,6 +17,8 @@ export interface AdminUserQuery {
   search?: string;
   status?: AdminUserStatusFilter;
   systemRole?: AdminUserRoleFilter;
+  /** true = so quem esta online agora (presenca do backend). */
+  online?: boolean;
   page?: number;
   size?: number;
 }
@@ -60,6 +62,9 @@ export class AdminUsersService {
     }
     if (query.systemRole && query.systemRole !== 'ALL') {
       params = params.set('systemRole', query.systemRole);
+    }
+    if (query.online) {
+      params = params.set('online', 'true');
     }
     params = params.set('page', String(query.page ?? 0));
     params = params.set('size', String(query.size ?? 20));
