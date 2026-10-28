@@ -32,6 +32,8 @@ import {
   UpdateFineRequest,
 } from '../../types/fine.types';
 import { VehicleListItem } from '../../types/vehicle.types';
+import { ExpensePaidBy, EXPENSE_PAID_BY_DEFAULT, paidByOrDefault } from '../../types/expense-paid-by.types';
+import { PaidByField } from '../../components/paid-by/paid-by-field';
 import { DriverListItem } from '../../types/driver.types';
 
 const SEVERITY_VALUES: FineSeverity[] = ['LEVE', 'MEDIA', 'GRAVE', 'GRAVISSIMA'];
@@ -40,7 +42,7 @@ const STATUS_VALUES: FineStatus[] = ['PENDING', 'PAID', 'CONTESTED', 'CANCELED']
 @Component({
   selector: 'app-fine-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl],
+  imports: [ReactiveFormsModule, DefaultPageLayout, PageCard, AlertBanner, FormField, FieldControl, PaidByField],
   templateUrl: './fine-form.html',
 })
 export class FineForm implements OnInit {
@@ -96,6 +98,7 @@ export class FineForm implements OnInit {
     status: ['PENDING' as FineStatus, [Validators.required]],
     paidDate: [''],
     notes: [''],
+    paidBy: [EXPENSE_PAID_BY_DEFAULT as ExpensePaidBy],
   });
 
   ngOnInit(): void {
@@ -135,6 +138,7 @@ export class FineForm implements OnInit {
           status: f.status,
           paidDate: f.paidDate ?? '',
           notes: f.notes ?? '',
+          paidBy: paidByOrDefault(f.paidBy),
         });
         this.loading.set(false);
       },
@@ -208,6 +212,7 @@ export class FineForm implements OnInit {
         status: raw.status,
         paidDate: raw.paidDate || null,
         notes: raw.notes?.trim() || null,
+        paidBy: raw.paidBy,
       };
       this.finesService.update(this.editingId()!, payload).subscribe({
         next: (f) => this.onSaved(f.id),
@@ -228,6 +233,7 @@ export class FineForm implements OnInit {
         status: raw.status,
         paidDate: raw.paidDate || null,
         notes: raw.notes?.trim() || null,
+        paidBy: raw.paidBy,
       };
       this.finesService.create(payload).subscribe({
         next: (f) => this.onSaved(f.id),

@@ -1,3 +1,4 @@
+import { PaidByBadge } from '../../components/paid-by/paid-by-badge';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -45,6 +46,7 @@ import {
     VehicleSummaryChip,
     IncidentStatusCard,
     IncidentDocumentsCard,
+    PaidByBadge,
   ],
   templateUrl: './incident-detail.html',
 })

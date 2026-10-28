@@ -1,3 +1,4 @@
+import { PaidByBadge } from '../../components/paid-by/paid-by-badge';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -57,6 +58,7 @@ const TRANSITIONABLE: readonly MaintenanceStatus[] = ['SCHEDULED', 'IN_PROGRESS'
     VehicleSummaryChip,
     AlertBanner,
     MaintenanceDocumentsCard,
+    PaidByBadge,
   ],
   templateUrl: './maintenance-detail.html',
 })

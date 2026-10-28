@@ -218,6 +218,7 @@
                   <span aria-hidden="true">{{ insuranceMeta(incident.insuranceStatus).icon }}</span>
                   {{ insuranceDimensionLabel }}: {{ incident.insuranceStatusLabel }}
                 </span>
+                <app-paid-by-badge [paidBy]="incident.paidBy" />
               </div>
 
               <div class="grid grid-cols-2 gap-2 text-xs text-fg-muted">
@@ -315,6 +316,7 @@
                       <span aria-hidden="true">{{ insuranceMeta(incident.insuranceStatus).icon }}</span>
                       {{ insuranceDimensionLabel }}: {{ incident.insuranceStatusLabel }}
                     </span>
+                    <div class="mt-1"><app-paid-by-badge [paidBy]="incident.paidBy" /></div>
                   </td>
                   <td class="py-3 pr-4 text-fg-soft tabular-nums">
                     {{ formatCurrency(incident.estimatedCostCents) }}

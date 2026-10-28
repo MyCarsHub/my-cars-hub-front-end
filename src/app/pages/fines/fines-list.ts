@@ -1,3 +1,4 @@
+import { PaidByBadge } from '../../components/paid-by/paid-by-badge';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -39,6 +40,7 @@ import { VehicleListItem } from '../../types/vehicle.types';
     ConfirmDialog,
     ActionsMenu,
     AlertBanner,
+    PaidByBadge,
   ],
   templateUrl: './fines-list.html',
 })
