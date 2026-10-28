@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -30,6 +30,8 @@ import {
 import { SupportEditEntry } from './support-edit-entry';
 import { TrialExtensionSheet } from './trial-extension-sheet';
 import { TrialExtensionResponse } from '../../../services/admin-trial.service';
+import { ContactBar } from '../contact/contact-bar';
+import { ContactActions } from '../contact/contact-actions';
 import { subscriptionChip } from './subscription-status-chip';
 import { formatBRL } from '../../../types/dashboard.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
@@ -110,6 +112,9 @@ const CONFIRMATION_WORD = 'SUSPENDER';
     AlertBanner,
     SupportEditEntry,
     TrialExtensionSheet,
+    RouterLink,
+    ContactBar,
+    ContactActions,
   ],
   templateUrl: './admin-company-detail.html',
 })
@@ -181,6 +186,20 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    * LGPD: telefone, e-mail e nome do representante são dado pessoal. Eles vão
    * para a TELA e para nenhum outro lugar — nada de `console`/log aqui.
    */
+  /** Admin v2 (D1) — o membro OWNER ativo, dono da barra de contato. */
+  protected readonly owner = computed(
+    () => this.detail()?.members.find((m) => m.role === 'OWNER' && m.status === 'ACTIVE') ?? null,
+  );
+
+  /**
+   * Se ha telefone a revelar: o do dono (mascarado) ou, na falta, o cadastral
+   * da empresa — a mesma ordem que o servidor usa no sujeito COMPANY. Nulo =
+   * nada a revelar, e a barra nem chama o endpoint (nada a auditar).
+   */
+  protected readonly ownerContactHint = computed<string | null>(
+    () => this.owner()?.phoneMasked ?? this.detail()?.registration?.phone ?? null,
+  );
+
   protected readonly registrationSections = computed<RegistrationSection[]>(() => {
     const reg = this.detail()?.registration;
     if (!reg) return [];

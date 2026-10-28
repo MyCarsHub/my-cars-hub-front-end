@@ -40,6 +40,9 @@ const ACTION_LABELS: Record<string, string> = {
   CONTRACT_TEMPLATE_SAVED: 'Template de contrato salvo',
   CHARGE_EMAIL_RESENT: 'E-mail de cobrança reenviado',
   COMPANY_TRIAL_EXTENDED: 'Teste estendido',
+  USER_CONTACT_REVEALED: 'Contato de usuário revelado',
+  DRIVER_CONTACT_REVEALED: 'Contato de motorista revelado',
+  COMPANY_CONTACT_REVEALED: 'Contato de empresa revelado',
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -50,6 +53,7 @@ const TARGET_LABELS: Record<string, string> = {
   RENTAL: 'Aluguel',
   NOTIFICATION: 'Notificação',
   RENTAL_CHARGE: 'Cobrança',
+  DRIVER: 'Motorista',
 };
 
 /** Cor do chip por família de ação — remoções em vermelho, criações em verde. */
@@ -69,6 +73,9 @@ const ACTION_CHIPS: Record<string, string> = {
   CONTRACT_TEMPLATE_SAVED: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   CHARGE_EMAIL_RESENT: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300',
   COMPANY_TRIAL_EXTENDED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
+  USER_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
+  DRIVER_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
+  COMPANY_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
 };
 
 const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';

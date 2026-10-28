@@ -121,6 +121,19 @@
       }
     </section>
 
+    <!-- Admin v2 (D1) — barra de contato do DONO. Regiao propria (trilha B);
+         as acoes do cabecalho acima sao da trilha A. Numero inteiro so pela
+         revelacao auditada (canal VIEW), pedida uma vez ao abrir. -->
+    <div class="mb-4" data-testid="owner-contact">
+      <app-contact-bar
+        subjectType="COMPANY"
+        [subjectId]="company.id"
+        [phoneMasked]="ownerContactHint()"
+        [fallbackEmail]="owner()?.email ?? company.registration.email"
+        [heading]="owner() ? 'Contato do dono · ' + owner()!.name : 'Contato da empresa'"
+      />
+    </div>
+
     <!-- Assinatura -->
     <app-page-card title="Assinatura">
       <div class="p-4 sm:p-6">
@@ -401,7 +414,13 @@
                 <li class="rounded-xl border border-edge-soft bg-canvas p-3">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
-                      <p class="text-sm font-medium text-fg truncate">{{ member.name }}</p>
+                      <a
+                        [routerLink]="['/admin/users', member.userId]"
+                        data-testid="member-link"
+                        class="inline-flex items-center min-h-[44px] text-sm font-medium text-primary-700 dark:text-primary-300
+                               hover:underline truncate max-w-full
+                               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                      >{{ member.name }}</a>
                       <p class="text-xs text-fg-subtle truncate">{{ member.email }}</p>
                     </div>
                     <span
@@ -414,6 +433,13 @@
                   <p class="mt-2 text-xs text-fg-muted">
                     Papel: <span class="font-medium text-fg-body">{{ roleLabel(member.role) }}</span>
                   </p>
+                  <app-contact-actions
+                    class="mt-2 pt-2 border-t border-edge-soft"
+                    subjectType="USER"
+                    [subjectId]="member.userId"
+                    [phoneMasked]="member.phoneMasked"
+                    [label]="member.name"
+                  />
                 </li>
               }
             </ul>
@@ -424,6 +450,7 @@
                   <tr class="text-left text-xs uppercase tracking-wide text-fg-subtle border-b border-edge">
                     <th class="py-3 pr-4 font-medium">Nome</th>
                     <th class="py-3 pr-4 font-medium">Email</th>
+                    <th class="py-3 pr-4 font-medium">Telefone</th>
                     <th class="py-3 pr-4 font-medium">Papel</th>
                     <th class="py-3 pr-4 font-medium">Status</th>
                   </tr>
@@ -431,8 +458,23 @@
                 <tbody>
                   @for (member of company.members; track trackMember($index, member)) {
                     <tr class="border-b border-edge-soft">
-                      <td class="py-3 pr-4 text-fg">{{ member.name }}</td>
+                      <td class="py-3 pr-4">
+                        <a
+                          [routerLink]="['/admin/users', member.userId]"
+                          data-testid="member-link"
+                          class="text-primary-700 dark:text-primary-300 hover:underline
+                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                        >{{ member.name }}</a>
+                      </td>
                       <td class="py-3 pr-4 text-fg-muted">{{ member.email }}</td>
+                      <td class="py-1 pr-4">
+                        <app-contact-actions
+                          subjectType="USER"
+                          [subjectId]="member.userId"
+                          [phoneMasked]="member.phoneMasked"
+                          [label]="member.name"
+                        />
+                      </td>
                       <td class="py-3 pr-4 text-fg-soft">{{ roleLabel(member.role) }}</td>
                       <td class="py-3 pr-4">
                         <span

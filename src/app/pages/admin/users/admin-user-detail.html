@@ -109,6 +109,16 @@
       </div>
     </section>
 
+    <!-- Admin v2 (D1): contato completo, revelado com auditoria (canal VIEW). -->
+    <div class="mb-4">
+      <app-contact-bar
+        subjectType="USER"
+        [subjectId]="user.id"
+        [phoneMasked]="user.phoneMasked"
+        [fallbackEmail]="user.email"
+      />
+    </div>
+
     <!-- Dados -->
     <app-page-card title="Dados">
       <div class="p-4 sm:p-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,6 +134,14 @@
             <p class="text-sm text-fg mt-1 tabular-nums">{{ value }}</p>
           } @else {
             <p class="text-sm text-fg-subtle mt-1">Sem registro de acesso</p>
+          }
+        </div>
+        <div data-testid="last-seen">
+          <p class="text-xs text-fg-subtle uppercase tracking-wide">Último acesso</p>
+          @if (lastSeen(); as value) {
+            <p class="text-sm text-fg mt-1 tabular-nums">{{ value }}</p>
+          } @else {
+            <p class="text-sm text-fg-subtle mt-1">Sem registro de presença</p>
           }
         </div>
         <div>
@@ -146,9 +164,13 @@
                 <li class="rounded-xl border border-edge-soft bg-canvas p-3">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
-                      <p class="text-sm font-medium text-fg truncate">
-                        {{ link.companyName }}
-                      </p>
+                      <a
+                        [routerLink]="['/admin/companies', link.companyId]"
+                        data-testid="company-link"
+                        class="inline-flex items-center min-h-[44px] text-sm font-medium text-primary-700 dark:text-primary-300
+                               hover:underline truncate max-w-full
+                               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                      >{{ link.companyName }}</a>
                       <p class="text-xs text-fg-subtle mt-0.5">
                         Papel: <span class="font-medium text-fg-soft">{{ roleLabel(link.role) }}</span>
                       </p>
@@ -180,7 +202,14 @@
                 <tbody>
                   @for (link of user.companies; track trackLink($index, link)) {
                     <tr class="border-b border-edge-soft">
-                      <td class="py-3 pr-4 text-fg font-medium">{{ link.companyName }}</td>
+                      <td class="py-3 pr-4 font-medium">
+                        <a
+                          [routerLink]="['/admin/companies', link.companyId]"
+                          data-testid="company-link"
+                          class="text-primary-700 dark:text-primary-300 hover:underline
+                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+                        >{{ link.companyName }}</a>
+                      </td>
                       <td class="py-3 pr-4 text-fg-soft">{{ roleLabel(link.role) }}</td>
                       <td class="py-3 pr-4">
                         <span

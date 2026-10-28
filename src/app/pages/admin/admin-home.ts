@@ -48,6 +48,12 @@ const SECTIONS: AdminSection[] = [
     icon: 'M3 21h18 M5 21V7l8-4v18 M19 21V11l-6-4',
   },
   {
+    route: '/admin/cobrancas',
+    title: 'Cobranças',
+    description: 'Cobranças com falha e atrasadas de todas as empresas, com WhatsApp do motorista.',
+    icon: 'M2 10h20 M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M12 13v2 M12 9h.01',
+  },
+  {
     route: '/admin/blog',
     title: 'Blog',
     description: 'Publicar, editar e despublicar posts do blog público.',

@@ -936,6 +936,15 @@ export const routes: Routes = [
                                 data: { pageTitle: 'Empresas' },
                             },
                             {
+                                // Admin v2 (D5) — antes de 'companies/:id', senao vira um id.
+                                path: 'companies/converter-testes',
+                                loadComponent: () =>
+                                    import(
+                                        './pages/admin/companies/admin-trial-conversion'
+                                    ).then((m) => m.AdminTrialConversion),
+                                data: { pageTitle: 'Converter testes' },
+                            },
+                            {
                                 path: 'companies/:id',
                                 loadComponent: () =>
                                     import(
@@ -990,6 +999,15 @@ export const routes: Routes = [
                                         (m) => m.AdminBilling,
                                     ),
                                 data: { pageTitle: 'Billing' },
+                            },
+                            {
+                                // Admin v2 P0 — so leitura ("atrasado e nossa prova").
+                                path: 'cobrancas',
+                                loadComponent: () =>
+                                    import('./pages/admin/charges/admin-charges').then(
+                                        (m) => m.AdminCharges,
+                                    ),
+                                data: { pageTitle: 'Cobranças' },
                             },
                             {
                                 path: 'notificacoes',

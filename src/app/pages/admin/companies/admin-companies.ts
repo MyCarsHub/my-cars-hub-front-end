@@ -26,6 +26,8 @@ import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu'
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminCompaniesService } from '../admin-companies.service';
+import { ContactActions } from '../contact/contact-actions';
+import { AdminCompaniesTabs } from './admin-companies-tabs';
 import {
   AdminCompanyListItem,
   AdminCompanyStatus,
@@ -74,6 +76,8 @@ const PLAN_OPTIONS: readonly FilterChipOption<PlanFilter>[] = [
   selector: 'app-admin-companies',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    AdminCompaniesTabs,
+    ContactActions,
     BackLink,
     ReactiveFormsModule,
     DefaultPageLayout,

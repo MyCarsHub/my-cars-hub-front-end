@@ -2,6 +2,7 @@
   title="Empresas"
   description="Listar, buscar, suspender/reativar os tenants cadastrados na plataforma."
 >
+  <app-admin-companies-tabs active="all" />
   <app-page-card title="Contas">
     <div class="p-3 sm:p-4 space-y-4">
       <!-- Search + filters -->
@@ -14,7 +15,7 @@
             autocomplete="off"
             [formControl]="searchControl"
             placeholder="Nome, CPF ou CNPJ (com ou sem pontuação)"
-            class="w-full text-sm border border-edge-field rounded-lg pl-10 pr-3 py-2.5
+            class="w-full text-base border border-edge-field rounded-lg pl-10 pr-3 py-2.5
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             aria-label="Buscar empresa"
           />
@@ -203,6 +204,19 @@
                   {{ company.memberCount }} membros · {{ formatDate(company.createdAt) }}
                 </span>
               </a>
+
+              <!-- Admin v2 (D1): dono + contato. Fora dos ancoras (botao em link e HTML invalido). -->
+              <div class="pt-2 border-t border-edge-soft flex items-center justify-between gap-2" data-testid="owner-row">
+                <span class="text-xs text-fg-subtle truncate min-w-0">
+                  Dono: <span class="text-fg-soft font-medium">{{ company.ownerName ?? '—' }}</span>
+                </span>
+                <app-contact-actions
+                  subjectType="COMPANY"
+                  [subjectId]="company.id"
+                  [phoneMasked]="company.ownerPhoneMasked"
+                  [label]="company.ownerName ?? company.name"
+                />
+              </div>
             </div>
           }
         </div>
@@ -214,6 +228,7 @@
               <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                 <th class="py-2 pr-4 font-medium">Nome</th>
                 <th class="py-2 pr-4 font-medium">CNPJ</th>
+                <th class="py-2 pr-4 font-medium">Dono</th>
                 <th class="py-2 pr-4 font-medium">Plano</th>
                 <th class="py-2 pr-4 font-medium">Status Sub</th>
                 <th class="py-2 pr-4 font-medium">Status</th>
@@ -260,6 +275,15 @@
                     >
                       {{ company.documentMasked ?? '—' }}
                     </a>
+                  </td>
+                  <td class="py-1 pr-4 align-top" data-testid="cell-owner">
+                    <span class="block text-xs text-fg-soft pt-2 truncate max-w-[12rem]">{{ company.ownerName ?? '—' }}</span>
+                    <app-contact-actions
+                      subjectType="COMPANY"
+                      [subjectId]="company.id"
+                      [phoneMasked]="company.ownerPhoneMasked"
+                      [label]="company.ownerName ?? company.name"
+                    />
                   </td>
                   <td class="align-top text-fg-soft">
                     <a
