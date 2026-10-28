@@ -8,6 +8,8 @@ export interface UsersMetrics {
   activeTotal: number;
   newLast30Days: number;
   newByDay: DailyCount[];
+  /** Usuarios com requisicao autenticada dentro de UserPresence.ONLINE_WINDOW (backend). Opcional: backend anterior nao envia. */
+  onlineNow?: number;
 }
 
 export interface CompaniesMetrics {
