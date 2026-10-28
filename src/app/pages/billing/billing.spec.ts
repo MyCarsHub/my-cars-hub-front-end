@@ -973,10 +973,10 @@ describe('Billing', () => {
   // R4/H3 — a BLOCKED account must keep a way back to the free plan
   // ---------------------------------------------------------------------------
 
-  it('offers the way back to the free plan on PAST_DUE / CANCELED / EXPIRED', () => {
+  it('offers the way back to the free plan on PAST_DUE / CANCELED', () => {
     const c = build();
 
-    for (const status of ['PAST_DUE', 'UNPAID', 'PAUSED', 'CANCELED', 'EXPIRED']) {
+    for (const status of ['PAST_DUE', 'UNPAID', 'PAUSED', 'CANCELED']) {
       subscriptionSignal.set(sub({ status, currentPeriodEnd: PAST }));
 
       // Telling a BLOCKED user the free plan is already theirs, with the button
@@ -987,8 +987,19 @@ describe('Billing', () => {
     }
   });
 
-  it('routes the blocked account to /downgrade and never to /checkout', () => {
+  // V124 (backend) — EXPIRED passou a existir e significa SÓ "teste vencido".
+  // O plano gratuito é o próprio plano de teste: "voltar" a ele desbloquearia o
+  // teste vencido para sempre, e o backend responde no-op. Sem botão.
+  it('does NOT offer the way back to the free plan to an EXPIRED (ended) trial', () => {
+    const c = build();
     subscriptionSignal.set(sub({ status: 'EXPIRED', currentPeriodEnd: PAST }));
+
+    expect(c.planIntent(FREE)).not.toBe('DOWNGRADE');
+    expect(c.planCtaLabel(FREE)).not.toBe('Voltar ao plano gratuito');
+  });
+
+  it('routes the blocked account to /downgrade and never to /checkout', () => {
+    subscriptionSignal.set(sub({ status: 'CANCELED', currentPeriodEnd: PAST }));
     const c = build();
 
     c.onPlanCta(FREE);
@@ -1004,8 +1015,8 @@ describe('Billing', () => {
   });
 
   it('handles an APPLIED downgrade without inventing a future date', () => {
-    subscriptionSignal.set(sub({ status: 'EXPIRED', currentPeriodEnd: PAST }));
-    // Backend contract: CANCELED / EXPIRED apply on the spot.
+    subscriptionSignal.set(sub({ status: 'CANCELED', currentPeriodEnd: PAST }));
+    // Backend contract: CANCELED applies on the spot.
     billing.downgrade = vi.fn(() => {
       subscriptionSignal.set(
         sub({

@@ -1154,8 +1154,13 @@ export class Billing implements OnInit, OnDestroy {
       case 'UNPAID':
       case 'PAUSED':
       case 'CANCELED':
-      case 'EXPIRED':
         return true;
+      // EXPIRED é o teste VENCIDO (o backend só grava EXPIRED ao encerrar o
+      // trial, V124). O backend responde no-op ao /downgrade dele, como faz com
+      // TRIALING: o plano gratuito É o plano de teste, e "voltar" a ele
+      // desbloquearia o teste vencido para sempre. Oferecer o botão seria
+      // prometer o que o servidor recusa.
+      case 'EXPIRED':
       default:
         return false;
     }

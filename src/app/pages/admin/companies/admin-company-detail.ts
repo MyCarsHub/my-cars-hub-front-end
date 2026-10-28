@@ -28,6 +28,8 @@ import {
   AdminCompanyStatus,
 } from '../../../types/admin-company.types';
 import { SupportEditEntry } from './support-edit-entry';
+import { TrialExtensionSheet } from './trial-extension-sheet';
+import { TrialExtensionResponse } from '../../../services/admin-trial.service';
 import { subscriptionChip } from './subscription-status-chip';
 import { formatBRL } from '../../../types/dashboard.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
@@ -107,6 +109,7 @@ const CONFIRMATION_WORD = 'SUSPENDER';
     PageCard,
     AlertBanner,
     SupportEditEntry,
+    TrialExtensionSheet,
   ],
   templateUrl: './admin-company-detail.html',
 })
@@ -339,6 +342,33 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
 
   protected reload(): void {
     if (this.companyId) this.loadDetail(this.companyId);
+  }
+
+  // ---- [trilha A] Estender teste -------------------------------------------
+
+  protected readonly trialExtensionOpen = signal(false);
+
+  /** Só faz sentido em teste: em andamento (TRIALING) ou vencido (EXPIRED). */
+  protected readonly canExtendTrial = computed(() => {
+    const status = this.detail()?.subscription?.status;
+    return status === 'TRIALING' || status === 'EXPIRED';
+  });
+
+  protected openTrialExtension(): void {
+    this.trialExtensionOpen.set(true);
+  }
+
+  protected closeTrialExtension(): void {
+    this.trialExtensionOpen.set(false);
+  }
+
+  protected onTrialExtended(res: TrialExtensionResponse): void {
+    this.trialExtensionOpen.set(false);
+    const email = res.emailRecipients > 0
+      ? ' A empresa foi avisada por e-mail.'
+      : ' A empresa não tem e-mail cadastrado para o aviso.';
+    this.notifications.success(`Teste estendido em ${res.days} dias.${email}`);
+    this.reload();
   }
 
   private loadDetail(id: string): void {
