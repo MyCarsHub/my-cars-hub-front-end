@@ -29,6 +29,13 @@ describe('subscriptionChip', () => {
     expect(subscriptionChip('ACTIVE', '2026-10-01T12:00:00', NOW)?.label).toBe('Ativa');
   });
 
+  it('EXPIRED (teste encerrado pelo job do backend) diz "Teste vencido", igual ao TRIALING vencido', () => {
+    expect(subscriptionChip('EXPIRED', '2026-10-01T12:00:00', NOW)?.label).toBe('Teste vencido');
+    expect(subscriptionChip('EXPIRED', '2026-10-01T12:00:00', NOW)?.label).toBe(
+      subscriptionChip('TRIALING', '2026-10-01T12:00:00', NOW)?.label,
+    );
+  });
+
   it('sem assinatura, sem chip', () => {
     expect(subscriptionChip(null, null, NOW)).toBeNull();
   });

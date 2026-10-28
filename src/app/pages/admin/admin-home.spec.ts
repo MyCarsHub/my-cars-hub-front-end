@@ -301,4 +301,57 @@ describe('AdminHome — consolidado de aluguéis e contratos', () => {
       expect(host.querySelector('[data-testid="online-now-count"]')?.textContent?.trim()).toBe('0');
     });
   });
+
+  /**
+   * Admin v2 P0 — os cards que mentiam. "em trial" e as barras vêm da contagem
+   * por DATA do backend (3, não 32); o "MRR estimado", que repetia o MRR, deu
+   * lugar a "Testes acabando em 7 dias".
+   */
+  describe('trials honestos', () => {
+    const TRIALS_OVERVIEW: AdminOverviewResponse = {
+      ...EMPTY_OVERVIEW,
+      subscriptions: {
+        ...EMPTY_OVERVIEW.subscriptions,
+        active: 3,
+        trialing: 3,
+        trialsEndingIn7Days: 2,
+        byStatus: { ACTIVE: 3, TRIALING: 3, EXPIRED: 29 },
+        mrrCents: 23_970,
+        mrrActiveOnlyCents: 23_970,
+        arrCents: 287_640,
+      },
+    };
+
+    it('mostra os trials em andamento e os que acabam em 7 dias', () => {
+      overview.set(TRIALS_OVERVIEW);
+      const host = render();
+
+      expect(host.querySelector('[data-testid="trialing-count"]')?.textContent?.trim()).toBe('3');
+      expect(host.querySelector('[data-testid="trials-ending-count"]')?.textContent?.trim()).toBe('2');
+      expect(flatText(host)).toContain('de 3 em teste');
+    });
+
+    it('não tem mais o card duplicado "MRR estimado"', () => {
+      overview.set(TRIALS_OVERVIEW);
+      const host = render();
+
+      expect(flatText(host)).not.toContain('MRR estimado');
+      expect(statValue(host, 'MRR')).toContain('239,70');
+    });
+
+    it('a barra de teste vencido usa o status efetivo do backend', () => {
+      overview.set(TRIALS_OVERVIEW);
+      const host = render();
+
+      expect(barCount(host, 'Trial')).toBe('3');
+      expect(barCount(host, 'Teste vencido')).toBe('29');
+    });
+
+    it('backend sem o campo novo mostra zero', () => {
+      overview.set(EMPTY_OVERVIEW);
+      const host = render();
+
+      expect(host.querySelector('[data-testid="trials-ending-count"]')?.textContent?.trim()).toBe('0');
+    });
+  });
 });

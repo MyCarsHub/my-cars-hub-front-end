@@ -66,6 +66,20 @@
             {{ impersonationStarting() ? 'Abrindo sessão…' : 'Ver como empresa (leitura)' }}
           </button>
           <app-support-edit-entry [companyId]="company.id" [companyName]="company.name" />
+          <!-- [trilha A] Estender teste — só em teste (TRIALING ou EXPIRED); pagante é recusado no backend. -->
+          @if (canExtendTrial()) {
+            <button
+              type="button"
+              class="w-full sm:w-auto min-h-11 rounded-xl border border-primary-300 dark:border-primary-500/40
+                     bg-surface px-4 py-2.5 text-sm font-semibold text-primary-700 dark:text-primary-300
+                     transition-colors hover:bg-primary-50 dark:hover:bg-primary-500/10
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              data-testid="extend-trial-button"
+              (click)="openTrialExtension()"
+            >
+              Estender teste
+            </button>
+          }
           @if (company.active) {
             <button
               type="button"
@@ -554,6 +568,17 @@
         </div>
       </div>
     </div>
+  }
+
+  <!-- [trilha A] Folha "Estender teste" -->
+  @if (trialExtensionOpen() && detail(); as company) {
+    <app-trial-extension-sheet
+      [companyId]="company.id"
+      [companyName]="company.name"
+      [trialEndsAt]="company.subscription?.trialEndsAt ?? null"
+      (closed)="closeTrialExtension()"
+      (extended)="onTrialExtended($event)"
+    />
   }
 
   <app-back-link link="/admin/companies" label="Voltar para a lista" />
