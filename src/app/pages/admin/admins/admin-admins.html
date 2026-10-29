@@ -226,14 +226,14 @@
             <p class="text-sm text-fg-subtle" aria-live="polite">Ninguém encontrado com conta ativa e sem acesso de admin.</p>
           }
 
-          <app-reason-picker legend="Papel" [options]="roleOptions" [showNote]="false" [(reason)]="role" />
+          <app-reason-picker legend="Papel" [options]="roleOptions" [showNote]="false" [columns]="1" [(reason)]="role" />
           <app-reason-picker legend="Motivo" [options]="grantReasons" [showNote]="false" [(reason)]="reason" />
         </div>
       }
 
       @case ('change') {
         <div class="flex flex-col gap-4">
-          <app-reason-picker legend="Papel" [options]="roleOptions" [showNote]="false" [(reason)]="role" />
+          <app-reason-picker legend="Papel" [options]="roleOptions" [showNote]="false" [columns]="1" [(reason)]="role" />
 
           @if (diff().gains.length || diff().loses.length) {
             <div class="rounded-xl bg-surface-muted p-3.5" data-testid="role-diff" aria-live="polite">
