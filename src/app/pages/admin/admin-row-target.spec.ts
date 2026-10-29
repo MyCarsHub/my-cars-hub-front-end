@@ -75,7 +75,6 @@ describe('FIX-0422 — clicar FORA do nome navega (/admin/users)', () => {
             loading: signal(false),
             load: vi.fn().mockReturnValue(of({ content: [USER], total: 1 })),
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         { provide: NotificationService, useValue: NOTIFY },

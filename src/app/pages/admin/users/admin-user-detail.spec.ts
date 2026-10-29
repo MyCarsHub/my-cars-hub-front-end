@@ -55,7 +55,6 @@ describe('AdminUserDetail — campo "Último login"', () => {
             getDetail: vi.fn().mockReturnValue(of(detail())),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         {
@@ -161,7 +160,6 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
             getDetail: vi.fn().mockReturnValue(of(detail())),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         {
@@ -227,7 +225,6 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
             getDetail: vi.fn().mockReturnValue(of(user)),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         { provide: AdminContactService, useValue: { reveal } },
@@ -250,6 +247,18 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
     expect(links.length).toBeGreaterThan(0);
     expect(links.every((a) => a.getAttribute('href') === '/admin/companies/co-1')).toBe(true);
     expect(el.querySelector('[data-testid="last-seen"]')?.textContent).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+  });
+
+  it('o menu Ações não concede nem tira papel de admin (só em "Admins e papéis")', () => {
+    const reveal = vi.fn().mockReturnValue(of({ available: false }));
+    const el = render(USER, reveal);
+    const trigger = el.querySelector<HTMLButtonElement>('[data-testid="user-actions"] button[aria-haspopup="menu"]')!;
+    trigger.click();
+    TestBed.tick();
+    const fixtureText = el.querySelector('[data-testid="user-actions"]')?.textContent ?? '';
+    expect(fixtureText).toContain('Desativar usuário'); // o menu abriu de fato
+    expect(fixtureText).not.toMatch(/admin/i);
+    expect(el.querySelector('[data-testid="manage-admin-roles"]')).toBeNull();
   });
 
   it('com telefone, a barra revela com canal VIEW; sem telefone, não revela', () => {

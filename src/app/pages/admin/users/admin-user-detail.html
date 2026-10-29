@@ -19,7 +19,7 @@
     </div>
   }
 
-  <!-- Falha de uma ação (ativar/desativar, promover/rebaixar) -->
+  <!-- Falha de uma ação (ativar/desativar; papel de admin so em Admins e papeis) -->
   @if (actionError(); as err) {
     <div class="mb-4">
       <app-alert-banner variant="error" [message]="err" />
@@ -95,18 +95,6 @@
               >
                 {{ user.active ? 'Desativar usuário' : 'Ativar usuário' }}
               </button>
-              @if (caps.can('admins.gerir')) {
-                <!-- Papel de admin: so na tela "Admins e papeis" (Dono, Suporte ou Leitura). -->
-                <a
-                  routerLink="/admin/admins"
-                  class="block w-full text-left text-sm px-4 py-3 hover:bg-canvas min-h-[44px]"
-                  data-testid="manage-admin-roles"
-                >
-                  {{ user.systemRole === 'PLATFORM_ADMIN'
-                     ? 'Mudar papel ou remover acesso de admin'
-                     : 'Tornar admin em Admins e papéis' }}
-                </a>
-              }
             </div>
           }
         </div>

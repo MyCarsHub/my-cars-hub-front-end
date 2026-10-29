@@ -26,7 +26,7 @@ import { companyRoleLabel } from '../../../utils/role-labels';
 import { ContactBar } from '../contact/contact-bar';
 
 interface PendingAction {
-  kind: 'DEACTIVATE' | 'ACTIVATE' | 'PROMOTE' | 'DEMOTE';
+  kind: 'DEACTIVATE' | 'ACTIVATE';
 }
 
 const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
@@ -59,7 +59,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   /** Falha ao CARREGAR o usuário — banner com CTA de "tentar novamente". */
   protected readonly error = signal<string | null>(null);
   /**
-   * Falha de uma OPERACAO da tela (ativar/desativar, promover/rebaixar). Banner
+   * Falha de uma OPERACAO da tela (ativar/desativar; papel de admin so em Admins e papeis). Banner
    * inline, nunca toast: `messageFor()` reivindica o erro e desarma o safety net.
    */
   protected readonly actionError = signal<string | null>(null);
@@ -71,7 +71,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   protected readonly confirmVariant = computed<'info' | 'warning' | 'danger'>(() => {
     const a = this.pendingAction();
     if (!a) return 'info';
-    return a.kind === 'PROMOTE' || a.kind === 'DEACTIVATE' ? 'danger' : 'warning';
+    return a.kind === 'DEACTIVATE' ? 'danger' : 'warning';
   });
 
   protected readonly confirmTitle = computed(() => {
@@ -82,10 +82,6 @@ export class AdminUserDetail implements OnInit, OnDestroy {
         return 'Desativar usuário';
       case 'ACTIVATE':
         return 'Ativar usuário';
-      case 'PROMOTE':
-        return 'Promover a administrador da plataforma';
-      case 'DEMOTE':
-        return 'Rebaixar para usuário comum';
     }
   });
 
@@ -99,10 +95,6 @@ export class AdminUserDetail implements OnInit, OnDestroy {
         return `«${label}» perderá acesso imediatamente à plataforma. Continuar?`;
       case 'ACTIVATE':
         return `«${label}» poderá voltar a acessar a plataforma.`;
-      case 'PROMOTE':
-        return `Isso dará acesso admin total a «${label}» — inclusive gestão de usuários, feedback e métricas. Prossiga apenas se essa pessoa é membro da equipe.`;
-      case 'DEMOTE':
-        return `«${label}» perderá acesso à área /admin, mantendo apenas o app normal.`;
     }
   });
 
@@ -114,10 +106,6 @@ export class AdminUserDetail implements OnInit, OnDestroy {
         return 'Desativar';
       case 'ACTIVATE':
         return 'Ativar';
-      case 'PROMOTE':
-        return 'Promover';
-      case 'DEMOTE':
-        return 'Rebaixar';
     }
   });
 
@@ -193,14 +181,6 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     }
   }
 
-  protected requestToggleRole(): void {
-    this.closeActionMenu();
-    const u = this.detail();
-    if (!u) return;
-    this.pendingAction.set({
-      kind: u.systemRole === 'PLATFORM_ADMIN' ? 'DEMOTE' : 'PROMOTE',
-    });
-  }
 
   protected cancelPending(): void {
     this.pendingAction.set(null);
@@ -215,12 +195,6 @@ export class AdminUserDetail implements OnInit, OnDestroy {
         break;
       case 'ACTIVATE':
         this.applyStatus(true);
-        break;
-      case 'PROMOTE':
-        this.applyRole('PLATFORM_ADMIN');
-        break;
-      case 'DEMOTE':
-        this.applyRole('USER');
         break;
     }
     this.pendingAction.set(null);
@@ -307,25 +281,4 @@ export class AdminUserDetail implements OnInit, OnDestroy {
     });
   }
 
-  private applyRole(role: 'USER' | 'PLATFORM_ADMIN'): void {
-    if (!this.userId) return;
-    this.actionError.set(null);
-    this.updating.set(true);
-    this.usersService.updateSystemRole(this.userId, role).subscribe({
-      next: () => {
-        this.updating.set(false);
-        this.notify.success(
-          role === 'PLATFORM_ADMIN'
-            ? 'Usuário promovido a administrador.'
-            : 'Usuário rebaixado para usuário comum.',
-        );
-      },
-      error: (err: HttpErrorResponse) => {
-        this.updating.set(false);
-        this.actionError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível atualizar o papel do usuário.'),
-        );
-      },
-    });
-  }
 }

@@ -51,7 +51,7 @@ const SECTIONS: AdminSection[] = [
     route: '/admin/users',
     capability: 'ver',
     title: 'Usuários',
-    description: 'Listar, buscar, ativar/desativar e ajustar papéis.',
+    description: 'Listar, buscar e ativar/desativar contas.',
     icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   },
   {
