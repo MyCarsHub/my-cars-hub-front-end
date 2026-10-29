@@ -16,31 +16,6 @@
     </div>
   }
 
-  <!-- Scope toggle -->
-  <div class="flex flex-wrap items-center gap-2 mb-4">
-    <span class="text-xs text-fg-subtle uppercase tracking-wide">Escopo:</span>
-    <div class="inline-flex rounded-full border border-edge bg-surface p-0.5" role="group" aria-label="Filtro de escopo">
-      <button
-        type="button"
-        (click)="setScope('active')"
-        class="text-xs px-4 py-1.5 rounded-full transition-colors min-h-[44px]"
-        [class]="scope() === 'active' ? 'bg-primary-500 text-white' : 'text-fg-soft hover:bg-canvas'"
-        [attr.aria-pressed]="scope() === 'active'"
-      >
-        Apenas ativos
-      </button>
-      <button
-        type="button"
-        (click)="setScope('all')"
-        class="text-xs px-4 py-1.5 rounded-full transition-colors min-h-[44px]"
-        [class]="scope() === 'all' ? 'bg-primary-500 text-white' : 'text-fg-soft hover:bg-canvas'"
-        [attr.aria-pressed]="scope() === 'all'"
-      >
-        Todos
-      </button>
-    </div>
-  </div>
-
   <!-- KPI cards -->
   <div class="grid gap-4 grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 mb-3">
     <!-- Users total -->
@@ -111,7 +86,7 @@
           {{ vehiclesDisplay() }}
         </p>
         <p class="text-xs text-fg-subtle mt-1">
-          {{ scope() === 'active' ? 'Ativos' : 'Total cadastrado' }}
+          Ativos
         </p>
       }
     </div>

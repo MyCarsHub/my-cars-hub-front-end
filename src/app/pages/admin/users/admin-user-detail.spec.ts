@@ -187,8 +187,8 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
 
 /**
  * Admin v2 (03 §1): o detalhe ganha presença ("Último acesso"), empresas
- * clicáveis e a barra de contato — que revela com canal VIEW só quando o
- * servidor disse que há telefone.
+ * clicáveis e a barra de contato — mascarada ao abrir; revela (canal VIEW) só
+ * no toque, e só quando o servidor disse que há telefone.
  */
 describe('AdminUserDetail — contato, presença e empresas', () => {
   const USER: AdminUserDetailDto = {
@@ -261,7 +261,7 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
     expect(el.querySelector('[data-testid="manage-admin-roles"]')).toBeNull();
   });
 
-  it('com telefone, a barra revela com canal VIEW; sem telefone, não revela', () => {
+  it('abrir o detalhe não revela; o toque em "Ver número" revela UMA vez com canal VIEW', () => {
     const reveal = vi.fn().mockReturnValue(
       of({
         subjectType: 'USER',
@@ -275,7 +275,13 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
         email: 'bia@example.com',
       }),
     );
-    render(USER, reveal);
+    const page = render(USER, reveal);
+    // D1: carregar a página não chama o endpoint auditado.
+    expect(reveal).not.toHaveBeenCalled();
+    expect(page.querySelector('[data-testid="contact-masked"]')?.textContent).toContain('(11) •••••-4321');
+
+    page.querySelector<HTMLButtonElement>('[data-testid="bar-reveal"]')!.click();
+    expect(reveal).toHaveBeenCalledTimes(1);
     expect(reveal).toHaveBeenCalledWith('USER', 'u-2', 'VIEW');
 
     const none = vi.fn();
