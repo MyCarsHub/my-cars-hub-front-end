@@ -33,7 +33,7 @@ import { FieldControl, FormField } from '../../../components/form-field/form-fie
           formControlName="companyName"
           type="text"
           autocomplete="organization"
-          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-base transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="Ex: Transportadora São Paulo"
         />

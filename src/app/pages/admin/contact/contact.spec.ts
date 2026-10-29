@@ -46,6 +46,14 @@ class BarHost {
   readonly masked = signal<string | null>('(11) •••••-4321');
 }
 
+/** Membro de empresa: usuário revelado no contexto da empresa vista. */
+@Component({
+  imports: [ContactActions],
+  template: `<app-contact-actions subjectType="USER" subjectId="usr-9" phoneMasked="(11) •••••-4321"
+    contextCompanyId="cmp-7" label="Membro" />`,
+})
+class MemberActionsHost {}
+
 const notify = { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
 function configure(): HttpTestingController {
@@ -151,6 +159,22 @@ describe('ContactActions (lista)', () => {
     const req = http.expectOne(REVEAL_URL);
     expect(req.request.body.channel).toBe('CALL');
     // Não seguimos o tel: no jsdom (navegação); o canal auditado é o que importa aqui.
+    req.flush({ ...REVEALED, telLink: null });
+    await flush();
+  });
+
+  it('membro de empresa: a revelação leva a empresa vista (o servidor prefere o cadastro de motorista dela)', async () => {
+    const fixture = TestBed.createComponent(MemberActionsHost);
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-testid="contact-call"]') as HTMLButtonElement).click();
+    const req = http.expectOne(REVEAL_URL);
+    expect(req.request.body).toEqual({
+      subjectType: 'USER',
+      subjectId: 'usr-9',
+      channel: 'CALL',
+      contextCompanyId: 'cmp-7',
+    });
     req.flush({ ...REVEALED, telLink: null });
     await flush();
   });

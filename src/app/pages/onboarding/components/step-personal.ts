@@ -46,7 +46,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
           formControlName="name"
           type="text"
           autocomplete="name"
-          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-base transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="Seu nome completo"
         />
@@ -65,7 +65,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
           type="text"
           autocomplete="off"
           inputmode="numeric"
-          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-base transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="000.000.000-00"
           maxlength="14"
@@ -86,7 +86,7 @@ const PHONE_PATTERN = /^\(?\d{2}\)?\s?9?\d{4}-?\d{4}$|^\d{10,11}$/;
           type="tel"
           autocomplete="tel"
           inputmode="tel"
-          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow
+          class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-base transition-shadow
                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           placeholder="(00) 00000-0000"
           maxlength="15"

@@ -72,7 +72,7 @@ import { cnpjValidator } from '../../../utils/validators/cnpj.validator';
             autocomplete="off"
             autocapitalize="characters"
             spellcheck="false"
-            class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-sm transition-shadow uppercase
+            class="w-full min-h-11 px-4 py-2.5 border rounded-lg text-base transition-shadow uppercase
                    placeholder:normal-case
                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             placeholder="00.000.000/0000-00"
