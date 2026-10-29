@@ -19,8 +19,9 @@ const CHIPS: Record<AdminCompanySubscriptionStatus, SubscriptionChip> = {
     chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',
   },
   CANCELED: { label: 'Cancelada', chip: 'bg-surface-strong text-fg-soft' },
+  // EXPIRED só é escrito pelo job que encerra o teste vencido (backend V124).
   EXPIRED: {
-    label: 'Expirada',
+    label: 'Teste vencido',
     chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
   },
 };

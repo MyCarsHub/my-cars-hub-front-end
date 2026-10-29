@@ -1,0 +1,87 @@
+<app-default-page-layout
+  title="Empresas"
+  description="Testes que acabaram ou acabam em até 7 dias, de quem ainda não paga."
+>
+  <app-admin-companies-tabs active="convert" />
+
+  <details class="mb-4 rounded-xl border border-edge-soft bg-surface-muted px-4 py-3 text-sm text-fg-soft" data-testid="order-explainer">
+    <summary class="cursor-pointer min-h-[44px] flex items-center font-medium text-fg">Como a lista é ordenada</summary>
+    <ol class="mt-2 list-decimal pl-5 space-y-1 text-xs text-fg-subtle">
+      <li><strong>Até onde chegou:</strong> fez aluguel, depois cadastrou motorista, depois veículo, depois só o cadastro. Quem já usou o produto e parou no pagamento é a conversa mais curta.</li>
+      <li><strong>Acesso mais recente:</strong> quem entrou há pouco ainda lembra do produto.</li>
+      <li><strong>Teste mais recente:</strong> o que está acabando ou acabou há pouco vem antes do que venceu há meses.</li>
+    </ol>
+    <p class="mt-2 text-xs text-fg-subtle">"Teste" é decidido pela data de fim do teste, nunca pelo status. Empresas que já pagam ficam de fora.</p>
+  </details>
+
+  <label class="mb-4 inline-flex items-center gap-3 min-h-[44px] cursor-pointer select-none">
+    <input
+      type="checkbox"
+      class="h-5 w-5 rounded border-edge-field text-primary-500 focus:ring-primary-400"
+      [checked]="includeInternal()"
+      (change)="toggleInternal($event)"
+    />
+    <span class="text-base sm:text-sm text-fg-soft">Incluir empresas internas</span>
+  </label>
+
+  @if (error(); as err) {
+    <div class="mb-4">
+      <app-alert-banner variant="error">
+        {{ err }}
+        <button type="button" class="ml-2 underline min-h-11 px-2" (click)="load()">Tentar novamente</button>
+      </app-alert-banner>
+    </div>
+  }
+
+  @if (loading() && items().length === 0) {
+    <div class="grid gap-3 lg:grid-cols-2">
+      <div class="h-44 rounded-2xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-44 rounded-2xl bg-surface-sunken animate-pulse"></div>
+    </div>
+  } @else if (!error() && items().length === 0) {
+    <p class="py-10 text-center text-sm text-fg-subtle">Nenhum teste acabando ou vencido.</p>
+  } @else {
+    <p class="mb-2 text-xs text-fg-subtle tabular-nums">{{ items().length }} empresa(s)</p>
+    <ul class="grid gap-3 lg:grid-cols-2" data-testid="conversion-list">
+      @for (item of items(); track item.companyId) {
+        <li class="rounded-2xl border border-edge bg-surface p-4 flex flex-col gap-3" data-testid="conversion-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <a
+                [routerLink]="['/admin/companies', item.companyId]"
+                class="inline-flex items-center min-h-[44px] text-base font-semibold text-primary-700 dark:text-primary-300
+                       hover:underline break-words focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+              >{{ item.companyName }}</a>
+              <p class="text-xs text-fg-subtle">{{ trialLabel(item) }} · cadastro em {{ formatDate(item.signupAt) }}</p>
+            </div>
+            <span
+              class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+              [class]="stageChip(item.activationStage)"
+              data-testid="stage"
+            >{{ stageLabel(item.activationStage) }}</span>
+          </div>
+
+          <ul class="flex flex-wrap gap-2 text-xs" aria-label="Sinais de ativação">
+            <li class="rounded-full border border-edge-soft px-2 py-1 tabular-nums">{{ item.vehicles }} veículo(s)</li>
+            <li class="rounded-full border border-edge-soft px-2 py-1 tabular-nums">{{ item.drivers }} motorista(s)</li>
+            <li class="rounded-full border border-edge-soft px-2 py-1 tabular-nums">{{ item.rentals }} aluguel(éis)</li>
+            <li class="rounded-full border border-edge-soft px-2 py-1">Último acesso: {{ lastAccess(item) }}</li>
+          </ul>
+
+          <div class="flex items-center justify-between gap-2 pt-2 border-t border-edge-soft">
+            <span class="text-xs text-fg-subtle truncate min-w-0">
+              Dono: <span class="text-fg-soft font-medium">{{ item.ownerName ?? '—' }}</span>
+            </span>
+            <app-contact-actions
+              subjectType="COMPANY"
+              [subjectId]="item.companyId"
+              [phoneMasked]="item.ownerPhoneMasked"
+              [label]="item.ownerName ?? item.companyName"
+              [whatsAppText]="whatsAppText(item)"
+            />
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</app-default-page-layout>

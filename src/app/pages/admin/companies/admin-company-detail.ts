@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -28,6 +28,10 @@ import {
   AdminCompanyStatus,
 } from '../../../types/admin-company.types';
 import { SupportEditEntry } from './support-edit-entry';
+import { TrialExtensionSheet } from './trial-extension-sheet';
+import { TrialExtensionResponse } from '../../../services/admin-trial.service';
+import { ContactBar } from '../contact/contact-bar';
+import { ContactActions } from '../contact/contact-actions';
 import { subscriptionChip } from './subscription-status-chip';
 import { formatBRL } from '../../../types/dashboard.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
@@ -107,6 +111,10 @@ const CONFIRMATION_WORD = 'SUSPENDER';
     PageCard,
     AlertBanner,
     SupportEditEntry,
+    TrialExtensionSheet,
+    RouterLink,
+    ContactBar,
+    ContactActions,
   ],
   templateUrl: './admin-company-detail.html',
 })
@@ -178,6 +186,20 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
    * LGPD: telefone, e-mail e nome do representante são dado pessoal. Eles vão
    * para a TELA e para nenhum outro lugar — nada de `console`/log aqui.
    */
+  /** Admin v2 (D1) — o membro OWNER ativo, dono da barra de contato. */
+  protected readonly owner = computed(
+    () => this.detail()?.members.find((m) => m.role === 'OWNER' && m.status === 'ACTIVE') ?? null,
+  );
+
+  /**
+   * Se ha telefone a revelar: o do dono (mascarado) ou, na falta, o cadastral
+   * da empresa — a mesma ordem que o servidor usa no sujeito COMPANY. Nulo =
+   * nada a revelar, e a barra nem chama o endpoint (nada a auditar).
+   */
+  protected readonly ownerContactHint = computed<string | null>(
+    () => this.owner()?.phoneMasked ?? this.detail()?.registration?.phone ?? null,
+  );
+
   protected readonly registrationSections = computed<RegistrationSection[]>(() => {
     const reg = this.detail()?.registration;
     if (!reg) return [];
@@ -339,6 +361,33 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
 
   protected reload(): void {
     if (this.companyId) this.loadDetail(this.companyId);
+  }
+
+  // ---- [trilha A] Estender teste -------------------------------------------
+
+  protected readonly trialExtensionOpen = signal(false);
+
+  /** Só faz sentido em teste: em andamento (TRIALING) ou vencido (EXPIRED). */
+  protected readonly canExtendTrial = computed(() => {
+    const status = this.detail()?.subscription?.status;
+    return status === 'TRIALING' || status === 'EXPIRED';
+  });
+
+  protected openTrialExtension(): void {
+    this.trialExtensionOpen.set(true);
+  }
+
+  protected closeTrialExtension(): void {
+    this.trialExtensionOpen.set(false);
+  }
+
+  protected onTrialExtended(res: TrialExtensionResponse): void {
+    this.trialExtensionOpen.set(false);
+    const email = res.emailRecipients > 0
+      ? ' A empresa foi avisada por e-mail.'
+      : ' A empresa não tem e-mail cadastrado para o aviso.';
+    this.notifications.success(`Teste estendido em ${res.days} dias.${email}`);
+    this.reload();
   }
 
   private loadDetail(id: string): void {
