@@ -59,3 +59,74 @@ export interface TrialConversionItem {
   ownerName: string | null;
   ownerPhoneMasked: string | null;
 }
+
+// ---------------------------------------------------------------- admin v2 P1
+
+/** Motivo FECHADO das ações de admin (o código vai para a trilha; a nota não). */
+export type AdminActionReason =
+  | 'PAID_OUTSIDE_GATEWAY'
+  | 'CUSTOMER_REQUEST'
+  | 'DATA_CORRECTION'
+  | 'GATEWAY_FAILURE'
+  | 'OTHER';
+
+export interface AdminActionRequest {
+  reason: AdminActionReason;
+  note?: string | null;
+}
+
+export type AsaasComparisonResult =
+  | 'MATCH'
+  | 'DIVERGENT'
+  | 'NOT_FOUND_AT_ASAAS'
+  | 'NO_GATEWAY_LINK'
+  | 'ASAAS_UNAVAILABLE';
+
+export interface AsaasComparisonField {
+  /** value · originalValue · discount · dueDate · originalDueDate · status */
+  key: string;
+  /** CENTS · DATE · TEXT */
+  kind: 'CENTS' | 'DATE' | 'TEXT';
+  local: string | null;
+  asaas: string | null;
+  divergent: boolean;
+}
+
+export interface AsaasComparison {
+  chargeId: string;
+  rentalId: string;
+  companyId: string;
+  externalId: string | null;
+  result: AsaasComparisonResult;
+  message: string;
+  /** yyyy-MM-dd */
+  comparedOn: string;
+  fields: AsaasComparisonField[];
+}
+
+export interface AdminChargeActionResult {
+  chargeId: string;
+  action: 'RECEIVED_OUTSIDE' | 'RETRY';
+  outcome: string;
+  status: string | null;
+  done: boolean;
+  hint: string | null;
+}
+
+export interface DriverNameCorrectionResult {
+  driverId: string;
+  companyId: string;
+  name: string;
+  userUpdated: boolean;
+  asaasCustomerLinked: boolean;
+}
+
+export interface AsaasCustomerSyncResult {
+  driverId: string;
+  companyId: string;
+  customerId: string;
+  result: 'UPDATED' | 'REJECTED' | 'UNAVAILABLE';
+  message: string;
+  sentFields: string[];
+  asaasName: string | null;
+}

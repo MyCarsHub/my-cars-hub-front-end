@@ -1,6 +1,6 @@
 <app-default-page-layout
   title="Cobranças"
-  description="Cobranças que falharam e atrasadas, de todas as empresas. Só leitura."
+  description="Cobranças que falharam e atrasadas, de todas as empresas."
 >
   <!-- Abas + filtro -->
   <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -43,9 +43,9 @@
   <p class="mb-4 rounded-xl border border-edge-soft bg-surface-muted px-4 py-3 text-xs text-fg-subtle">
     @if (tab() === 'OVERDUE') {
       Atrasada é nossa prova: a cobrança vencida não é reemitida, re-datada nem marcada como falha.
-      Aqui você só lembra o motorista.
+      Aqui você lembra o motorista, compara com o Asaas ou registra a caução recebida por fora.
     } @else {
-      Falha na emissão do gateway. Nesta versão a página é só de consulta: abra o aluguel para ver o detalhe.
+      Falha na emissão do gateway. "Tentar de novo" só aparece enquanto o vencimento não passou.
     }
   </p>
 
@@ -68,9 +68,13 @@
       @if (tab() === 'FAILED') { Nenhuma cobrança com falha. } @else { Nenhuma cobrança atrasada. }
     </p>
   } @else {
-    <ul class="grid gap-3 lg:grid-cols-2" data-testid="charges-list">
-      @for (item of items(); track item.chargeId) {
-        <li class="rounded-2xl border border-edge bg-surface p-4 flex flex-col gap-3" data-testid="charge-card">
+    <ul class="grid gap-3 sm:grid-cols-2 lg:hidden" data-testid="charges-list">
+      @for (item of items(); track item.chargeId; let i = $index) {
+        <li
+          class="enter-up rounded-2xl border border-edge bg-surface p-4 flex flex-col gap-3"
+          [style.--stagger-i]="i"
+          data-testid="charge-card"
+        >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <a
@@ -121,7 +125,7 @@
             <button
               type="button"
               data-testid="open-rental"
-              class="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-edge text-sm font-medium
+              class="press inline-flex items-center min-h-[44px] px-4 rounded-xl border border-edge text-sm font-medium
                      text-fg-soft hover:bg-canvas disabled:opacity-50
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
               [disabled]="opening() !== null"
@@ -130,9 +134,115 @@
               {{ opening() === item.chargeId ? 'Abrindo…' : 'Ver aluguel' }}
             </button>
           </div>
+          <div class="grid grid-cols-[1fr_auto] gap-2">
+            <button
+              type="button"
+              data-testid="open-compare"
+              class="press min-h-12 px-3 rounded-xl border border-primary-500 text-base font-semibold
+                     text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              (click)="openActions(item, 'compare')"
+            >Comparar com o Asaas</button>
+            <button
+              type="button"
+              data-testid="open-actions"
+              class="press min-h-12 px-4 rounded-xl bg-surface-sunken text-base font-medium text-fg
+                     hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              (click)="openActions(item)"
+            >Mais ações</button>
+          </div>
         </li>
       }
     </ul>
+
+    <!-- Desktop (>=1024px): tabela com colunas, hover por linha e ações à direita. -->
+    <div class="hidden lg:block overflow-x-auto rounded-2xl border border-edge bg-surface" data-testid="charges-table">
+      <table class="w-full text-sm">
+        <thead class="bg-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+          <tr>
+            <th scope="col" class="px-4 py-3">Empresa · motorista</th>
+            <th scope="col" class="px-4 py-3">Tipo</th>
+            <th scope="col" class="px-4 py-3 text-right">Valor</th>
+            <th scope="col" class="px-4 py-3">Vencimento</th>
+            <th scope="col" class="px-4 py-3">Situação</th>
+            <th scope="col" class="px-4 py-3 text-right"><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.chargeId; let i = $index) {
+            <tr
+              class="enter-up border-t border-edge-soft align-top transition-colors hover:bg-canvas"
+              [style.--stagger-i]="i"
+              data-testid="charge-row"
+            >
+              <td class="px-4 py-3">
+                <a
+                  [routerLink]="['/admin/companies', item.companyId]"
+                  class="font-semibold text-primary-700 dark:text-primary-300 hover:underline rounded-sm
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                >{{ item.companyName }}</a>
+                @if (item.companyInternal) {
+                  <span class="ml-1 inline-flex rounded-full bg-indigo-100 dark:bg-indigo-500/15 px-2 py-0.5 text-[10px]
+                               font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Interna</span>
+                }
+                <div class="mt-0.5 flex flex-wrap items-center gap-2 text-fg">
+                  <span class="break-words">{{ item.driverName ?? 'Motorista não identificado' }}</span>
+                  @if (item.driverId) {
+                    <app-contact-actions
+                      subjectType="DRIVER"
+                      [subjectId]="item.driverId"
+                      [phoneMasked]="item.driverPhoneMasked"
+                      [label]="item.driverName ?? 'motorista'"
+                    />
+                  }
+                </div>
+                @if (item.failureReason || item.failureCode) {
+                  <p class="mt-1 text-xs text-fg-subtle break-words">Motivo: {{ item.failureReason ?? item.failureCode }}</p>
+                }
+              </td>
+              <td class="px-4 py-3 text-fg-soft">{{ kindLabel(item.kind) }}</td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums text-fg">{{ money(item.amountCents) }}</td>
+              <td class="px-4 py-3 tabular-nums text-fg-soft whitespace-nowrap">
+                {{ dueDate(item.dueDate) }}
+                <span class="block text-xs text-fg-subtle">{{ overdueLabel(item) }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <span
+                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide"
+                  [class]="statusChip(item.status)"
+                >{{ statusLabel(item.status) }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex flex-col 2xl:flex-row items-stretch 2xl:justify-end gap-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    data-testid="row-compare"
+                    class="press min-h-10 px-3 rounded-lg border border-primary-500 font-semibold
+                           text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    (click)="openActions(item, 'compare')"
+                  >Comparar</button>
+                  <button
+                    type="button"
+                    data-testid="row-actions"
+                    class="press min-h-10 px-3 rounded-lg bg-surface-sunken font-medium text-fg hover:bg-surface-strong
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    (click)="openActions(item)"
+                  >Ações</button>
+                  <button
+                    type="button"
+                    class="press min-h-10 px-3 rounded-lg border border-edge font-medium text-fg-soft hover:bg-surface
+                           disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    [disabled]="opening() !== null"
+                    (click)="openRental(item)"
+                  >{{ opening() === item.chargeId ? 'Abrindo…' : 'Ver aluguel' }}</button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
 
     @if (totalPages() > 1) {
       <div class="mt-4 flex items-center justify-between gap-3">
@@ -153,5 +263,14 @@
         </div>
       </div>
     }
+  }
+
+  @if (sheetItem(); as current) {
+    <app-charge-actions-sheet
+      [item]="current"
+      [initialMode]="sheetMode()"
+      (closed)="closeActions()"
+      (changed)="onActionChanged()"
+    />
   }
 </app-default-page-layout>

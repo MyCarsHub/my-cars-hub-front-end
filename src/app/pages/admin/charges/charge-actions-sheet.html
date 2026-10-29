@@ -1,0 +1,185 @@
+<app-bottom-sheet
+  [title]="title()"
+  [subtitle]="subtitle()"
+  [size]="mode() === 'compare' ? 'lg' : 'md'"
+  [busy]="busy()"
+  (closed)="closed.emit()"
+>
+  <div data-testid="charge-actions-sheet" [attr.data-mode]="mode()">
+    <!-- Erro no TOPO: num celular o fim do formulário fica abaixo da dobra. -->
+    @if (error(); as err) {
+      <div class="enter-up mb-4" data-testid="action-error">
+        <app-alert-banner variant="error" [message]="err" />
+      </div>
+    }
+    @switch (mode()) {
+      @case ('menu') {
+        <ul class="flex flex-col gap-2" role="list">
+          <li class="enter-up" style="--stagger-i: 0">
+            <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-compare" (click)="go('compare')">
+              <span class="font-medium text-fg">Comparar com o Asaas</span>
+              <span class="text-sm text-fg-subtle">Valor, desconto, vencimento e situação lado a lado</span>
+            </button>
+          </li>
+          @if (canReceive()) {
+            <li class="enter-up" style="--stagger-i: 1">
+              <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-received" (click)="go('received')">
+                <span class="font-medium text-fg">Recebida por fora</span>
+                <span class="text-sm text-fg-subtle">Cancela a caução no Asaas e marca como recebida</span>
+              </button>
+            </li>
+          }
+          @if (canRetry()) {
+            <li class="enter-up" style="--stagger-i: 2">
+              <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-retry" (click)="go('retry')">
+                <span class="font-medium text-fg">Tentar de novo</span>
+                <span class="text-sm text-fg-subtle">Gera a cobrança outra vez, com o mesmo vencimento</span>
+              </button>
+            </li>
+          }
+          @if (hasDriver()) {
+            <li class="enter-up" style="--stagger-i: 3">
+              <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-name" (click)="go('name')">
+                <span class="font-medium text-fg">Corrigir nome do motorista</span>
+                <span class="text-sm text-fg-subtle">Só o nome, no motorista e no usuário dele</span>
+              </button>
+            </li>
+            <li class="enter-up" style="--stagger-i: 4">
+              <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-sync" (click)="go('sync')">
+                <span class="font-medium text-fg">Atualizar cliente no Asaas</span>
+                <span class="text-sm text-fg-subtle">Envia ao Asaas os dados atuais do motorista</span>
+              </button>
+            </li>
+          }
+        </ul>
+        @if (isOverdue()) {
+          <p class="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-sm text-fg-subtle" data-testid="overdue-rule">
+            Atrasada é nossa prova: esta cobrança não é gerada de novo, re-datada nem marcada como falha.
+          </p>
+        }
+      }
+
+      @case ('compare') {
+        @if (comparison(); as c) {
+          <app-alert-banner
+            [variant]="c.result === 'MATCH' ? 'success' : c.result === 'DIVERGENT' ? 'warning' : 'info'"
+            [message]="c.message"
+          />
+          @if (c.fields.length > 0) {
+            <div class="mt-4">
+              <app-compare-rows [rows]="compareRows()" leftLabel="MyCarsHub" rightLabel="Asaas" />
+            </div>
+          }
+          @if (c.externalId) {
+            <p class="mt-3 text-xs text-fg-subtle break-all">Cobrança no Asaas: {{ c.externalId }}</p>
+          }
+        } @else if (!error()) {
+          <app-compare-rows [loading]="true" leftLabel="MyCarsHub" rightLabel="Asaas" />
+        }
+      }
+
+      @default {
+        @if (showsForm()) {
+          <form [id]="formId" (submit)="$event.preventDefault(); submit()" (keydown.enter)="onEnter($event)" class="flex flex-col gap-4">
+            @if (mode() === 'received') {
+              <p class="text-base text-fg-soft">
+                A caução é <strong class="text-fg">cancelada no Asaas</strong> e só fica como recebida por fora
+                depois que o Asaas confirmar. Se o motorista já pagou pelo link, nada é cancelado.
+              </p>
+            }
+            @if (mode() === 'retry') {
+              <p class="text-base text-fg-soft">
+                Antes de gerar, o sistema confere no Asaas se a cobrança anterior foi paga — nunca cobra duas vezes.
+                O vencimento continua o mesmo.
+              </p>
+            }
+            @if (mode() === 'sync') {
+              <p class="text-base text-fg-soft">
+                Envia ao Asaas da empresa o nome, documento, e-mail, telefone e endereço que estão hoje no cadastro.
+              </p>
+            }
+            @if (mode() === 'name') {
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-fg-muted">Nome correto</span>
+                <input
+                  type="text"
+                  maxlength="180"
+                  autocomplete="off"
+                  data-testid="driver-name-input"
+                  class="min-h-12 rounded-xl border border-edge-field bg-surface px-3 text-base text-fg
+                         focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  [value]="newName()"
+                  (input)="setName($event)"
+                />
+                <span class="text-xs text-fg-subtle">
+                  Muda o motorista e o usuário vinculado. O nome não vai para a trilha de auditoria.
+                </span>
+              </label>
+            }
+            <app-reason-picker [options]="reasons" [(reason)]="reason" [(note)]="note" />
+          </form>
+        } @else {
+          <div class="enter-up flex flex-col gap-3" data-testid="action-result">
+            @if (actionResult(); as r) {
+              <app-alert-banner [variant]="r.done ? 'success' : 'warning'" [message]="outcomeText(r)" />
+            }
+            @if (nameResult(); as n) {
+              <app-alert-banner variant="success" [message]="'Nome corrigido para ' + n.name + '.'" />
+              @if (n.asaasCustomerLinked) {
+                <p class="text-base text-fg-soft">O Asaas ainda tem o nome antigo até você atualizar o cliente lá.</p>
+              }
+            }
+            @if (syncResult(); as s) {
+              <app-alert-banner [variant]="s.result === 'UPDATED' ? 'success' : 'warning'" [message]="s.message" />
+              @if (s.asaasName) {
+                <p class="text-base text-fg-soft">
+                  Nome no Asaas agora: <strong class="text-fg">{{ s.asaasName }}</strong>
+                </p>
+              }
+              @if (s.sentFields.length > 0) {
+                <p class="text-xs text-fg-subtle">{{ s.sentFields.length }} campos enviados.</p>
+              }
+            }
+          </div>
+        }
+      }
+    }
+
+  </div>
+
+  <div sheetFooter class="flex flex-col-reverse lg:flex-row lg:justify-end gap-2 lg:gap-3">
+    @if (mode() !== 'menu') {
+      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-back" [disabled]="busy()" (click)="go('menu')">
+        Voltar
+      </button>
+    } @else {
+      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" (click)="close()">Fechar</button>
+    }
+    @if (mode() === 'compare' && comparison()) {
+      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 press" data-testid="compare-again" [disabled]="busy()" (click)="compare()">
+        Comparar de novo
+      </button>
+    }
+    @if (showsForm()) {
+      <button
+        type="submit"
+        class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 press"
+        data-testid="action-confirm"
+        [attr.form]="formId"
+        [disabled]="!canSubmit()"
+      >
+        @switch (mode()) {
+          @case ('received') { {{ busy() ? 'Cancelando…' : 'Cancelar no Asaas e marcar' }} }
+          @case ('retry') { {{ busy() ? 'Gerando…' : 'Gerar de novo' }} }
+          @case ('name') { {{ busy() ? 'Salvando…' : 'Salvar nome' }} }
+          @default { {{ busy() ? 'Enviando…' : 'Atualizar no Asaas' }} }
+        }
+      </button>
+    }
+    @if (nameResult()?.asaasCustomerLinked && mode() === 'name') {
+      <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 press" data-testid="continue-sync" (click)="continueToSync()">
+        Atualizar no Asaas
+      </button>
+    }
+  </div>
+</app-bottom-sheet>

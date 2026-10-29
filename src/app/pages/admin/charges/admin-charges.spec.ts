@@ -44,16 +44,21 @@ const PAGE: AdminChargesPage = {
 
 describe('AdminCharges (Cobranças)', () => {
   let list: ReturnType<typeof vi.fn>;
+  let compareWithAsaas: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     list = vi.fn().mockReturnValue(of(PAGE));
+    compareWithAsaas = vi.fn().mockReturnValue(of({
+      chargeId: 'ch-1', rentalId: 'rt-1', companyId: 'co-1', externalId: 'pay_1', result: 'MATCH',
+      message: 'MyCarsHub e Asaas concordam nos campos comparados.', comparedOn: '2026-10-29', fields: [],
+    }));
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [AdminCharges],
       providers: [
         provideRouter([]),
         ApiErrorService,
-        { provide: AdminChargesService, useValue: { list } },
+        { provide: AdminChargesService, useValue: { list, compareWithAsaas } },
         { provide: AdminContactService, useValue: { reveal: vi.fn() } },
         { provide: ImpersonationService, useValue: { start: vi.fn() } },
         { provide: NotificationService, useValue: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() } },
@@ -90,14 +95,54 @@ describe('AdminCharges (Cobranças)', () => {
     expect(card.querySelector('[data-testid="open-rental"]')).not.toBeNull();
   });
 
-  /** "Atrasado é nossa prova": nenhuma ação de reemitir, re-datar ou mudar status. */
-  it('não oferece reemitir, re-datar nem tentar de novo', () => {
+  /** "Atrasado é nossa prova": a LISTA não tem ação de dinheiro solta; tudo passa pela folha de ações. */
+  it('a lista não oferece reemitir, re-datar nem tentar de novo direto no card', () => {
     const el: HTMLElement = render().nativeElement;
     const actions = Array.from(el.querySelectorAll('button, a')).map((b) => (b.textContent ?? '').toLowerCase());
 
     for (const forbidden of ['reemitir', 're-datar', 'redatar', 'tentar de novo', 'marcar', 'cancelar']) {
       expect(actions.some((t) => t.includes(forbidden))).toBe(false);
     }
+  });
+
+  it('"Comparar com o Asaas" abre a folha já comparando; "Mais ações" abre o menu', () => {
+    const fixture = render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    (el.querySelector('[data-testid="open-compare"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="charge-actions-sheet"]')?.getAttribute('data-mode')).toBe('compare');
+    expect(compareWithAsaas).toHaveBeenCalledWith('ch-1');
+  });
+
+  it('atrasada (PAST_DUE): o menu nunca oferece "tentar de novo" e mostra a regra', () => {
+    list.mockReturnValue(of({
+      ...PAGE,
+      tab: 'OVERDUE',
+      content: [{ ...PAGE.content[0], status: 'PAST_DUE', daysOverdue: 9 }],
+    }));
+    const fixture = render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    (el.querySelector('[data-testid="open-actions"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-testid="action-compare"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="action-retry"]')).toBeNull();
+    expect(el.querySelector('[data-testid="overdue-rule"]')).not.toBeNull();
+  });
+
+  it('desktop: a mesma lista em tabela com cabeçalho de colunas e ações por linha', () => {
+    const el: HTMLElement = render().nativeElement;
+    const table = el.querySelector('[data-testid="charges-table"] table') as HTMLTableElement;
+
+    expect(Array.from(table.querySelectorAll('th')).map((t) => t.textContent?.trim())).toEqual(
+      expect.arrayContaining(['Tipo', 'Valor', 'Vencimento', 'Situação']),
+    );
+    const row = table.querySelector('[data-testid="charge-row"]') as HTMLElement;
+    expect(row.textContent).toContain('Locadora Teste');
+    expect(row.querySelector('[data-testid="row-compare"]')).not.toBeNull();
+    expect(row.querySelector('[data-testid="row-actions"]')).not.toBeNull();
   });
 
   it('trocar de aba e incluir internas recarrega com os parâmetros certos', () => {
