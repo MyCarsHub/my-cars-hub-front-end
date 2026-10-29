@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
   AdminActionRequest,
+  AdminReceivedOutsideRequest,
   AdminChargeActionResult,
   AdminChargeTab,
   AdminChargesPage,
@@ -46,7 +47,7 @@ export class AdminChargesService {
     );
   }
 
-  markReceivedOutside(chargeId: string, body: AdminActionRequest): Observable<AdminChargeActionResult> {
+  markReceivedOutside(chargeId: string, body: AdminReceivedOutsideRequest): Observable<AdminChargeActionResult> {
     return this.http.post<AdminChargeActionResult>(
       `${environment.apiUrl}/admin/charges/${chargeId}/received-outside`,
       body,

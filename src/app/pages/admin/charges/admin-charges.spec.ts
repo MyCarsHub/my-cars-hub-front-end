@@ -92,7 +92,10 @@ describe('AdminCharges (Cobranças)', () => {
     expect(card.textContent).toContain('Falhou');
     expect(card.textContent).toContain('(11) •••••-4321');
     expect(card.querySelector('[data-testid="contact-whatsapp"]')).not.toBeNull();
-    expect(card.querySelector('[data-testid="open-rental"]')).not.toBeNull();
+    // "Ver aluguel" mudou para "Mais ações"; o card tem "Comparar" e "Mais ações".
+    expect(card.querySelector('[data-testid="open-rental"]')).toBeNull();
+    expect(card.querySelector('[data-testid="open-compare"]')?.textContent?.trim()).toBe('Comparar');
+    expect(card.querySelector('[data-testid="open-actions"]')).not.toBeNull();
   });
 
   /** "Atrasado é nossa prova": a LISTA não tem ação de dinheiro solta; tudo passa pela folha de ações. */
@@ -105,7 +108,7 @@ describe('AdminCharges (Cobranças)', () => {
     }
   });
 
-  it('"Comparar com o Asaas" abre a folha já comparando; "Mais ações" abre o menu', () => {
+  it('"Comparar" abre a folha já comparando; "Mais ações" abre o menu', () => {
     const fixture = render();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -143,6 +146,21 @@ describe('AdminCharges (Cobranças)', () => {
     expect(row.textContent).toContain('Locadora Teste');
     expect(row.querySelector('[data-testid="row-compare"]')).not.toBeNull();
     expect(row.querySelector('[data-testid="row-actions"]')).not.toBeNull();
+  });
+
+  it('"Ver aluguel" em "Mais ações": fecha a folha e abre a sessão somente leitura da empresa', () => {
+    const start = TestBed.inject(ImpersonationService).start as ReturnType<typeof vi.fn>;
+    start.mockReturnValue(of({ companyName: 'Locadora Teste' }));
+    const fixture = render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    (el.querySelector('[data-testid="open-actions"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="action-view-rental"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(start).toHaveBeenCalledWith('co-1');
+    expect(el.querySelector('[data-testid="charge-actions-sheet"]')).toBeNull();
   });
 
   it('trocar de aba e incluir internas recarrega com os parâmetros certos', () => {

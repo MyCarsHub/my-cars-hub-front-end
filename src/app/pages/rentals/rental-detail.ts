@@ -1371,12 +1371,6 @@ export class RentalDetail implements OnInit {
     this.cancelChargeTarget.set(charge);
   }
 
-  /** "Cancelar no Asaas e marcar como recebida por fora": só quando ainda não foi recebida. */
-  protected canCancelAndMarkReceived(charge: RentalChargeDto): boolean {
-    const r = this.rental();
-    return this.canCancelCaucaoCharge(charge) && !!r && r.caucaoAmount > 0 && !r.caucaoPaid;
-  }
-
   protected readonly cancelChargeDialogTitle = computed(() =>
     this.cancelChargeMarkReceived()
       ? 'Cancelar no Asaas e marcar como recebida por fora?'

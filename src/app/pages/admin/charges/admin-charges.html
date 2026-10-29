@@ -111,7 +111,7 @@
             </p>
           }
 
-          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-edge-soft">
+          <div class="flex items-center gap-2 pt-2 border-t border-edge-soft min-h-11">
             @if (item.driverId) {
               <app-contact-actions
                 subjectType="DRIVER"
@@ -122,19 +122,8 @@
             } @else {
               <span class="text-xs text-fg-faint">sem motorista</span>
             }
-            <button
-              type="button"
-              data-testid="open-rental"
-              class="press inline-flex items-center min-h-[44px] px-4 rounded-xl border border-edge text-sm font-medium
-                     text-fg-soft hover:bg-canvas disabled:opacity-50
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              [disabled]="opening() !== null"
-              (click)="openRental(item)"
-            >
-              {{ opening() === item.chargeId ? 'Abrindo…' : 'Ver aluguel' }}
-            </button>
           </div>
-          <div class="grid grid-cols-[1fr_auto] gap-2">
+          <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
               data-testid="open-compare"
@@ -142,7 +131,8 @@
                      text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
               (click)="openActions(item, 'compare')"
-            >Comparar com o Asaas</button>
+              aria-label="Comparar com o Asaas"
+            >Comparar</button>
             <button
               type="button"
               data-testid="open-actions"
@@ -213,13 +203,14 @@
                 >{{ statusLabel(item.status) }}</span>
               </td>
               <td class="px-4 py-3">
-                <div class="flex flex-col 2xl:flex-row items-stretch 2xl:justify-end gap-2 whitespace-nowrap">
+                <div class="flex justify-end gap-2 whitespace-nowrap">
                   <button
                     type="button"
                     data-testid="row-compare"
                     class="press min-h-10 px-3 rounded-lg border border-primary-500 font-semibold
                            text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                    aria-label="Comparar com o Asaas"
                     (click)="openActions(item, 'compare')"
                   >Comparar</button>
                   <button
@@ -229,13 +220,6 @@
                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                     (click)="openActions(item)"
                   >Ações</button>
-                  <button
-                    type="button"
-                    class="press min-h-10 px-3 rounded-lg border border-edge font-medium text-fg-soft hover:bg-surface
-                           disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                    [disabled]="opening() !== null"
-                    (click)="openRental(item)"
-                  >{{ opening() === item.chargeId ? 'Abrindo…' : 'Ver aluguel' }}</button>
                 </div>
               </td>
             </tr>
@@ -271,6 +255,7 @@
       [initialMode]="sheetMode()"
       (closed)="closeActions()"
       (changed)="onActionChanged()"
+      (openRental)="viewRentalFromSheet(current)"
     />
   }
 </app-default-page-layout>

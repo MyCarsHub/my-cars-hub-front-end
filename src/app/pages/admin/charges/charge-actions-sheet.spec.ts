@@ -49,7 +49,7 @@ describe('ChargeActionsSheet', () => {
     service = {
       compareWithAsaas: vi.fn().mockReturnValue(of(COMPARISON)),
       markReceivedOutside: vi.fn().mockReturnValue(
-        of({ chargeId: 'ch-1', action: 'RECEIVED_OUTSIDE', outcome: 'REMOVED_AT_GATEWAY', status: 'CANCELED', done: true, hint: null }),
+        of({ chargeId: 'ch-1', action: 'RECEIVED_OUTSIDE', outcome: 'MARKED_RECEIVED_OUTSIDE', status: 'PAID', done: true, hint: null }),
       ),
       retry: vi.fn().mockReturnValue(
         of({ chargeId: 'ch-1', action: 'RETRY', outcome: 'RETRIED', status: null, done: true, hint: null }),
@@ -106,8 +106,25 @@ describe('ChargeActionsSheet', () => {
     expect(q(pastDue, 'action-retry')).toBeNull();
   });
 
-  it('parcela do aluguel não oferece "recebida por fora"', () => {
-    expect(q(render({ kind: 'RENTAL_PERIOD' }).nativeElement, 'action-received')).toBeNull();
+  it('"recebida por fora": caução e parcela PENDENTE/ATRASADA sim; FAILED, paga e multa não', () => {
+    expect(q(render({ kind: 'RENTAL_PERIOD', status: 'PENDING' }).nativeElement, 'action-received')).not.toBeNull();
+    expect(q(render({ kind: 'RENTAL_TOTAL', status: 'PAST_DUE', daysOverdue: 9 }).nativeElement, 'action-received'))
+      .not.toBeNull();
+    expect(q(render({ kind: 'CAUCAO', status: 'PAST_DUE', daysOverdue: 2 }).nativeElement, 'action-received'))
+      .not.toBeNull();
+    expect(q(render({ kind: 'CAUCAO', status: 'FAILED' }).nativeElement, 'action-received')).toBeNull();
+    expect(q(render({ kind: 'RENTAL_PERIOD', status: 'PAID' }).nativeElement, 'action-received')).toBeNull();
+    expect(q(render({ kind: 'OVERDUE_FEE', status: 'PENDING' }).nativeElement, 'action-received')).toBeNull();
+  });
+
+  it('"Ver aluguel" mora no menu e avisa a página', () => {
+    const fixture = render();
+    const open = vi.fn();
+    fixture.componentInstance.openRental.subscribe(open);
+
+    (q(fixture.nativeElement, 'action-view-rental') as HTMLButtonElement).click();
+
+    expect(open).toHaveBeenCalledTimes(1);
   });
 
   it('comparar: lado a lado formatado em R$ e com a divergência destacada', () => {
@@ -123,12 +140,18 @@ describe('ChargeActionsSheet', () => {
     expect(el.textContent).toContain('pay_iy22uunv9fvmyk4q');
   });
 
-  it('recebida por fora: exige motivo (pré-escolhido) e manda motivo + nota; avisa a lista', () => {
-    const fixture = render({}, 'received');
+  it('recebida por fora: motivo pré-escolhido + data (hoje, 16px) e manda motivo, nota e data; avisa a lista', () => {
+    const fixture = render({ kind: 'RENTAL_PERIOD', status: 'PAST_DUE', daysOverdue: 9 }, 'received');
     const changed = vi.fn();
     fixture.componentInstance.changed.subscribe(changed);
     const el: HTMLElement = fixture.nativeElement;
+    const date = q(el, 'date-field-input') as HTMLInputElement;
 
+    expect(q(el, 'received-explainer')!.textContent).toContain('A parcela');
+    expect(date.className).toContain('text-base');
+    expect(date.getAttribute('max')).toBe(date.value);
+    date.value = '2026-10-20';
+    date.dispatchEvent(new Event('input'));
     const note = q(el, 'reason-note') as HTMLTextAreaElement;
     note.value = '  pagou em dinheiro ';
     note.dispatchEvent(new Event('input'));
@@ -139,9 +162,27 @@ describe('ChargeActionsSheet', () => {
     expect(service['markReceivedOutside']).toHaveBeenCalledWith('ch-1', {
       reason: 'PAID_OUTSIDE_GATEWAY',
       note: 'pagou em dinheiro',
+      receivedOn: '2026-10-20',
     });
     expect(changed).toHaveBeenCalledTimes(1);
-    expect(q(el, 'action-result')!.textContent).toContain('recebida por fora');
+    expect(q(el, 'action-result')!.textContent).toContain('recebida por fora em 20/10/2026');
+    expect(q(el, 'action-result')!.textContent).toContain('O vencimento não mudou');
+    // Atrasada: "recebida por fora" sim, "tentar de novo" continua fora do menu.
+    expect(q(render({ kind: 'RENTAL_PERIOD', status: 'PAST_DUE', daysOverdue: 9 }).nativeElement, 'action-retry'))
+      .toBeNull();
+  });
+
+  it('recebida por fora: data futura bloqueia o botão', () => {
+    const fixture = render({}, 'received');
+    const el: HTMLElement = fixture.nativeElement;
+    const date = q(el, 'date-field-input') as HTMLInputElement;
+
+    date.value = '2999-01-01';
+    date.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect((q(el, 'action-confirm') as HTMLButtonElement).disabled).toBe(true);
+    expect(service['markReceivedOutside']).not.toHaveBeenCalled();
   });
 
   it('tentar de novo: sem motivo o botão fica desabilitado', () => {

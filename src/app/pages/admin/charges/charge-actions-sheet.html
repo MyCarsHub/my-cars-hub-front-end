@@ -25,7 +25,7 @@
             <li class="enter-up" style="--stagger-i: 1">
               <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-received" (click)="go('received')">
                 <span class="font-medium text-fg">Recebida por fora</span>
-                <span class="text-sm text-fg-subtle">Cancela a caução no Asaas e marca como recebida</span>
+                <span class="text-sm text-fg-subtle">Cancela esta cobrança no Asaas e registra o recebimento na data informada</span>
               </button>
             </li>
           }
@@ -51,6 +51,12 @@
               </button>
             </li>
           }
+          <li class="enter-up" style="--stagger-i: 5">
+            <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-view-rental" (click)="viewRental()">
+              <span class="font-medium text-fg">Ver aluguel</span>
+              <span class="text-sm text-fg-subtle">Abre o aluguel da empresa em modo somente leitura</span>
+            </button>
+          </li>
         </ul>
         @if (isOverdue()) {
           <p class="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-sm text-fg-subtle" data-testid="overdue-rule">
@@ -82,10 +88,17 @@
         @if (showsForm()) {
           <form [id]="formId" (submit)="$event.preventDefault(); submit()" (keydown.enter)="onEnter($event)" class="flex flex-col gap-4">
             @if (mode() === 'received') {
-              <p class="text-base text-fg-soft">
-                A caução é <strong class="text-fg">cancelada no Asaas</strong> e só fica como recebida por fora
-                depois que o Asaas confirmar. Se o motorista já pagou pelo link, nada é cancelado.
+              <p class="text-base text-fg-soft" data-testid="received-explainer">
+                {{ isCaucao() ? 'A caução' : 'A parcela' }} é <strong class="text-fg">cancelada no Asaas</strong> (o link deixa
+                de funcionar) e fica como paga, recebida por fora, na data abaixo. Se o motorista já pagou pelo link,
+                vale o pagamento do Asaas. O vencimento não muda e nada é gerado de novo.
               </p>
+              <app-date-field
+                label="Recebido em"
+                hint="Dia em que o dinheiro chegou. Não pode ser no futuro."
+                [max]="today()"
+                [(value)]="receivedOn"
+              />
             }
             @if (mode() === 'retry') {
               <p class="text-base text-fg-soft">
@@ -169,7 +182,7 @@
         [disabled]="!canSubmit()"
       >
         @switch (mode()) {
-          @case ('received') { {{ busy() ? 'Cancelando…' : 'Cancelar no Asaas e marcar' }} }
+          @case ('received') { {{ busy() ? 'Registrando…' : 'Cancelar no Asaas e registrar' }} }
           @case ('retry') { {{ busy() ? 'Gerando…' : 'Gerar de novo' }} }
           @case ('name') { {{ busy() ? 'Salvando…' : 'Salvar nome' }} }
           @default { {{ busy() ? 'Enviando…' : 'Atualizar no Asaas' }} }

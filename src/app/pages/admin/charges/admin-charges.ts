@@ -143,6 +143,12 @@ export class AdminCharges implements OnInit {
     this.sheetItem.set(item);
   }
 
+  /** "Ver aluguel" agora mora em "Mais ações": fecha a folha e abre a sessão somente leitura. */
+  protected viewRentalFromSheet(item: AdminChargeListItem): void {
+    this.sheetItem.set(null);
+    this.openRental(item);
+  }
+
   protected closeActions(): void {
     this.sheetItem.set(null);
   }

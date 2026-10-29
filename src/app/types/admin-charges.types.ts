@@ -75,6 +75,11 @@ export interface AdminActionRequest {
   note?: string | null;
 }
 
+/** "Recebida por fora" (só admin): motivo + dia do recebimento (yyyy-MM-dd, nunca futuro). */
+export interface AdminReceivedOutsideRequest extends AdminActionRequest {
+  receivedOn: string;
+}
+
 export type AsaasComparisonResult =
   | 'MATCH'
   | 'DIVERGENT'

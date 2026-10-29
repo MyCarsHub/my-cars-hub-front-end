@@ -17,6 +17,7 @@ import { Observable } from 'rxjs';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { BottomSheet } from '../../../components/core/bottom-sheet/bottom-sheet';
 import { CompareRow, CompareRows } from '../../../components/core/compare-rows/compare-rows';
+import { DateField, todayInSaoPaulo } from '../../../components/core/date-field/date-field';
 import { ReasonOption, ReasonPicker } from '../../../components/core/reason-picker/reason-picker';
 import { ApiErrorService } from '../../../services/api-error.service';
 import {
@@ -29,6 +30,9 @@ import {
   DriverNameCorrectionResult,
 } from '../../../types/admin-charges.types';
 import { AdminChargesService } from './admin-charges.service';
+
+/** Tipos que o admin pode registrar como recebidos por fora. */
+const RECEIVABLE_KINDS = ['CAUCAO', 'RENTAL_PERIOD', 'RENTAL_TOTAL'];
 
 export type ChargeActionMode = 'menu' | 'compare' | 'received' | 'retry' | 'name' | 'sync';
 
@@ -89,7 +93,7 @@ const TITLES: Record<ChargeActionMode, string> = {
 @Component({
   selector: 'app-charge-actions-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BottomSheet, CompareRows, ReasonPicker, AlertBanner],
+  imports: [BottomSheet, CompareRows, ReasonPicker, DateField, AlertBanner],
   templateUrl: './charge-actions-sheet.html',
 })
 export class ChargeActionsSheet implements OnInit {
@@ -103,6 +107,8 @@ export class ChargeActionsSheet implements OnInit {
   readonly closed = output<void>();
   /** Algo mudou do lado do dinheiro/cadastro: a lista deve recarregar. */
   readonly changed = output<void>();
+  /** "Ver aluguel" (sessão somente leitura) — quem abre é a página. */
+  readonly openRental = output<void>();
 
   private readonly sheet = viewChild(BottomSheet);
 
@@ -114,6 +120,10 @@ export class ChargeActionsSheet implements OnInit {
   protected readonly reason = signal<string | null>(null);
   protected readonly note = signal('');
   protected readonly newName = signal('');
+  /** "Recebida por fora": dia do recebimento (yyyy-MM-dd), nunca futuro (fuso de São Paulo). */
+  protected readonly receivedOn = signal('');
+  protected readonly today = signal(todayInSaoPaulo());
+  private readonly dateField = viewChild(DateField);
 
   protected readonly comparison = signal<AsaasComparison | null>(null);
   protected readonly actionResult = signal<AdminChargeActionResult | null>(null);
@@ -130,7 +140,15 @@ export class ChargeActionsSheet implements OnInit {
   protected readonly canRetry = computed(
     () => this.item().status === 'FAILED' && this.item().dueDate !== null && this.item().daysOverdue <= 0,
   );
-  protected readonly canReceive = computed(() => this.item().kind === 'CAUCAO');
+  /**
+   * "Recebida por fora" (só admin, dono 29/10/2026): caução ou parcela do aluguel, PENDENTE ou
+   * ATRASADA. Multa e cobrança com falha não. O backend confere tudo de novo.
+   */
+  protected readonly canReceive = computed(() => {
+    const i = this.item();
+    return RECEIVABLE_KINDS.includes(i.kind) && (i.status === 'PENDING' || i.status === 'PAST_DUE');
+  });
+  protected readonly isCaucao = computed(() => this.item().kind === 'CAUCAO');
   protected readonly hasDriver = computed(() => this.item().driverId !== null);
   protected readonly isOverdue = computed(() => this.item().daysOverdue > 0);
 
@@ -146,6 +164,10 @@ export class ChargeActionsSheet implements OnInit {
 
   protected readonly canSubmit = computed(() => {
     if (this.busy() || !this.reason()) return false;
+    if (this.mode() === 'received') {
+      const v = this.receivedOn();
+      return /^\d{4}-\d{2}-\d{2}$/.test(v) && v <= this.today() && (this.dateField()?.valid() ?? true);
+    }
     if (this.mode() === 'name') {
       const n = this.newName().trim();
       return n.length > 0 && n.length <= 180 && n !== (this.item().driverName ?? '').trim();
@@ -171,6 +193,10 @@ export class ChargeActionsSheet implements OnInit {
     this.syncResult.set(null);
     if (mode !== 'sync') this.nameResult.set(null);
     if (mode === 'name') this.newName.set(this.item().driverName ?? '');
+    if (mode === 'received') {
+      this.today.set(todayInSaoPaulo());
+      this.receivedOn.set(this.today());
+    }
     if (mode === 'received') this.reason.set('PAID_OUTSIDE_GATEWAY');
     else if (mode === 'name' || mode === 'sync') this.reason.set('DATA_CORRECTION');
     else this.reason.set(null);
@@ -194,7 +220,11 @@ export class ChargeActionsSheet implements OnInit {
     const item = this.item();
     switch (this.mode()) {
       case 'received':
-        this.run(this.service.markReceivedOutside(item.chargeId, body), (r) => this.actionResult.set(r), true);
+        this.run(
+          this.service.markReceivedOutside(item.chargeId, { ...body, receivedOn: this.receivedOn() }),
+          (r) => this.actionResult.set(r),
+          true,
+        );
         break;
       case 'retry':
         this.run(this.service.retry(item.chargeId, body), (r) => this.actionResult.set(r), true);
@@ -241,9 +271,14 @@ export class ChargeActionsSheet implements OnInit {
           ? 'O Asaas já tinha o pagamento: a cobrança foi baixada, nada foi emitido.'
           : 'Nada foi emitido (' + r.outcome + ').';
     }
-    return r.done
-      ? 'Caução cancelada no Asaas e marcada como recebida por fora.'
-      : (r.hint ?? 'O cancelamento não foi confirmado pelo Asaas; a caução NÃO foi marcada (' + r.outcome + ').');
+    if (r.done) {
+      return (
+        'Cobrança cancelada no Asaas e registrada como recebida por fora em ' +
+        this.br(this.receivedOn()) +
+        '. O vencimento não mudou.'
+      );
+    }
+    return r.hint ?? 'Nada foi registrado (' + r.outcome + ').';
   }
 
   private run<T>(call: Observable<T>, onOk: (res: T) => void, changesData: boolean): void {
@@ -266,6 +301,16 @@ export class ChargeActionsSheet implements OnInit {
         );
       },
     });
+  }
+
+  protected br(iso: string): string {
+    const [y, m, d] = iso.split('-');
+    return d && m && y ? `${d}/${m}/${y}` : iso;
+  }
+
+  /** "Ver aluguel" no menu: fecha a folha e deixa a página abrir a sessão somente leitura. */
+  protected viewRental(): void {
+    this.openRental.emit();
   }
 
   private format(f: AsaasComparisonField, raw: string | null): string | null {
