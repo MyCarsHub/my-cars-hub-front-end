@@ -89,6 +89,8 @@ export class ContactActions {
   readonly label = input<string>('contato');
   /** Mensagem pré-preenchida do WhatsApp (pt-BR, curta). */
   readonly whatsAppText = input<string | null>(null);
+  /** Empresa sendo vista (membros): o servidor prefere o cadastro de motorista dela. */
+  readonly contextCompanyId = input<string | null>(null);
 
   protected readonly busy = signal(false);
 
@@ -145,7 +147,7 @@ export class ContactActions {
     this.busy.set(true);
     try {
       const contact = await firstValueFrom(
-        this.contacts.reveal(this.subjectType(), this.subjectId(), channel),
+        this.contacts.reveal(this.subjectType(), this.subjectId(), channel, this.contextCompanyId()),
       );
       if (!contact.available) {
         this.notify.warning('Sem telefone válido cadastrado.');
