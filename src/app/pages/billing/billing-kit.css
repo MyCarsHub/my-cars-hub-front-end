@@ -65,6 +65,7 @@ button.row:disabled { cursor: default; }
 .row .v { color: var(--b-muted); font-size: 15px; text-align: right; flex: none; }
 .chev { width: 8px; height: 14px; color: var(--b-faint); flex: none; }
 .row.danger .t b { color: var(--b-danger); }
+.row .t b.link { color: var(--b-primary-text); }
 .inv-amt { font-family: var(--font-mono); font-size: 14px; color: var(--color-fg); font-weight: 500; }
 .mini-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; background: var(--color-primary-500); color: #fff; font-size: 11.5px; font-weight: 600; margin-left: 8px; vertical-align: 2px; }
 

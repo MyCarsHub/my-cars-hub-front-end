@@ -1597,7 +1597,11 @@ export class Billing implements OnInit, OnDestroy {
         ctaLabel: cta.label,
         ctaDisabled: cta.disabled,
         ctaAria: cta.aria ?? `${cta.label} — plano ${copy.name}`,
-        note: row && !cta.disabled ? this.planCtaNote(row) : null,
+        // A grade fica limpa (mockups 09/12): o custo de uma troca aparece no
+        // diálogo de confirmação. Só a retomada de um pagamento já iniciado
+        // ganha nota aqui, porque o rótulo sozinho não diz que não cobra duas vezes.
+        note:
+          row && !contact && this.planIntent(row) === 'PENDING_PAYMENT' ? this.planCtaNote(row) : null,
         error: err,
         plan: contact ? null : row,
         contact,

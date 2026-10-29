@@ -8,14 +8,14 @@ import { ENTERPRISE_YEARLY_TOTAL, PLAN_PRICES } from './landing-plans';
  * de `PLAN_PRICES` e por isso continuaria verde com o catálogo inteiro errado.
  */
 describe('PLAN_PRICES', () => {
-  it('espelha o estado-alvo de preço da V59', () => {
+  it('espelha o estado-alvo de preço da V59, com o PRO da V127', () => {
     // Valores conferidos contra a asserção final da própria migration
     // (V59:479-485), que derruba o boot do backend se o banco divergir.
     expect(PLAN_PRICES.trialMonthly).toBe(0); // V59:479
     expect(PLAN_PRICES.starterMonthly).toBe(79.9); // V59:480
     expect(PLAN_PRICES.starterYearlyTotal).toBe(799); // V59:481
-    expect(PLAN_PRICES.proMonthly).toBe(149.9); // V59:482
-    expect(PLAN_PRICES.proYearlyTotal).toBe(1499); // V59:483
+    expect(PLAN_PRICES.proMonthly).toBe(159.9); // V127 (era 149,90 na V59)
+    expect(PLAN_PRICES.proYearlyTotal).toBe(1599); // V127 (era 1499,00 na V59)
     expect(PLAN_PRICES.enterpriseMonthly).toBe(299); // V59:484
     expect(PLAN_PRICES.enterpriseYearlyTotal).toBe(2990); // V59:485
   });
