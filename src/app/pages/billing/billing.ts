@@ -13,34 +13,22 @@ import {
   viewChild,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { timeout } from 'rxjs';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
-import { PageCard } from '../../components/core/page-card/page-card';
-import {
-  PlanCardComponent,
-  PlanCardTone,
-  RECOMMENDED_PLAN_TIER,
-  planCardTone,
-} from '../../components/core/plan-card/plan-card';
+import { BottomSheet } from '../../components/core/bottom-sheet/bottom-sheet';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
-import {
-  SegmentedToggle,
-  SegmentedToggleOption,
-} from '../../components/segmented-toggle/segmented-toggle';
 import { ApiErrorService } from '../../services/api-error.service';
-import { PlanTier, showsAsUnlimited } from '../../utils/plan-limits';
+import { PLAN_CAPACITY, PlanTier, planCapacityLines } from '../../utils/plan-limits';
+import { PLAN_TIER_ORDER, hasPrioritySupport, planTierOf } from '../../utils/plan-features';
 import {
-  PLAN_DESCRIPTION,
-  PLAN_TIER_ORDER,
-  PRIORITY_SUPPORT_FEATURE,
-  PlanLadderArrangement,
-  hasPrioritySupport,
-  planCardFeatureLines,
-  planTierOf,
-} from '../../utils/plan-features';
-import { mediaQuerySignal } from '../../utils/viewport';
+  formatDayMonth,
+  formatDayMonthTime,
+  formatFullDate,
+  parseServerTime,
+  remainingLabel,
+} from '../../utils/server-time';
 import {
   BillingService,
   CHECKOUT_PENDING_KEY,
@@ -54,13 +42,17 @@ import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import {
   BillingCycle,
-  GatewayOverride,
+  BillingInvoice,
+  BillingState,
+  BillingSummary,
   PlanGateway,
   PlanPeriod,
   PlanResponse,
   SubscriptionChangeOutcome,
   SubscriptionStatus,
 } from '../../types/billing.types';
+import { environment } from '../../../environments/environment';
+import { PlanColumn, PlanGrid } from './plan-grid';
 
 /**
  * What the CTA of a given plan card means for THIS customer. Derived from
@@ -124,34 +116,117 @@ const CHECKOUT_REQUEST_TIMEOUT_MS = 20000;
  */
 type AwaitMode = 'returned' | 'checkout-open';
 
+/** A página do cliente sempre vende pelo gateway de produção. */
+const ACTIVE_GATEWAY: PlanGateway = 'stripe';
+
+/** Folhas da página: uma de cada vez. */
+type BillingSheet = 'pay' | 'plans' | 'cancel' | 'paid' | 'invoices';
+
+/** Depois de abrir a fatura do Stripe, relê o resumo nesta cadência… */
+const INVOICE_POLL_MS = 4000;
+/** …por no máximo este tempo (3-D Secure e app do banco levam minutos). */
+const INVOICE_WATCH_MS = 15 * 60 * 1000;
+
+/** Linhas iguais em todos os planos (resumo de `PLAN_FEATURES`). */
+const SHARED_ROWS = ['Contratos e cobranças', 'Assinatura eletrônica', 'Vistoria em 14 ângulos'];
+
+/** Nome e frase de cada coluna da grade (owner, 2026-10-29). */
+const PLAN_COPY: Readonly<Record<PlanTier, { name: string; pitch: string }>> = {
+  TRIAL: { name: 'Teste', pitch: 'Para conhecer com os primeiros carros.' },
+  STARTER: { name: 'Starter', pitch: 'Para sair da planilha de vez.' },
+  PRO: { name: 'Pro', pitch: 'Para a frota que está crescendo.' },
+  SCALE: { name: 'Scale', pitch: 'Para operações com frota grande.' },
+  ENTERPRISE: {
+    name: 'Enterprise',
+    pitch: `Para frotas acima de ${PLAN_CAPACITY.SCALE.vehicles} carros.`,
+  },
+};
+
 /**
- * Acento único desta tela: pill ativo do toggle, card recomendado e hero da
- * assinatura vigente pintam TODOS a partir daqui. Antes o toggle usava a rampa
- * canônica e o card ao lado dele um laranja que não existia em `@theme`
- * (#FF5722 → #EB3F00 → #C93300) — dois laranjas a 20px de distância.
- *
- * `--brand-gradient-deep` / `--success-gradient-deep` são os preenchimentos
- * medidos para carregar TEXTO BRANCO (5,67:1 e 5,49:1 no ponto mais claro);
- * `--brand-gradient` começa no primary-400 e é decorativo. Ver `styles.css`.
+ * As seis linhas de uma coluna. Iguais em todos os planos para alinhar a grade;
+ * capacidade sai de `PLAN_CAPACITY`/`planCapacityLines` e o atendimento
+ * prioritário de `hasPrioritySupport` — nenhuma promessa por tier é digitada
+ * aqui (ver `billing-claims.spec.ts`).
  */
-const CYCLE_MONTHLY_BACKGROUND = 'var(--brand-gradient-deep)';
-const CYCLE_MONTHLY_SHADOW = '0 6px 18px -6px rgba(194,47,0,0.4)';
-const CYCLE_YEARLY_BACKGROUND = 'var(--success-gradient-deep)';
-const CYCLE_YEARLY_SHADOW = '0 6px 18px -6px rgba(10,120,84,0.45)';
+function planRowLabels(tier: PlanTier): string[] {
+  return [
+    planCapacityLines(tier)[0],
+    tier === 'TRIAL' ? 'Teste de 14 dias' : 'Sem prazo de uso',
+    ...SHARED_ROWS,
+    hasPrioritySupport(tier) ? 'Suporte prioritário' : 'Suporte no WhatsApp',
+  ];
+}
+
+/** Linhas da coluna; em destaque as que mudam em relação ao plano anterior. */
+export function planRows(tier: PlanTier): { label: string; hi: boolean }[] {
+  const idx = PLAN_TIER_ORDER.indexOf(tier);
+  const prev = idx > 0 ? planRowLabels(PLAN_TIER_ORDER[idx - 1]) : null;
+  return planRowLabels(tier).map((label, i) => ({ label, hi: prev !== null && prev[i] !== label }));
+}
+
+/** "Starter", "Pro"… a partir do `plans.name` da API. */
+export function displayPlanName(name: string | null): string {
+  const tier = planTierOf(name);
+  if (tier) return PLAN_COPY[tier].name;
+  if (!name) return '';
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+}
+
+function brandName(brand: string | null | undefined): string {
+  switch ((brand ?? '').toLowerCase()) {
+    case 'visa':
+      return 'Visa';
+    case 'mastercard':
+      return 'Mastercard';
+    case 'amex':
+      return 'Amex';
+    case 'elo':
+      return 'Elo';
+    case 'hipercard':
+      return 'Hipercard';
+    case '':
+      return 'Cartão';
+    default:
+      return brand!.charAt(0).toUpperCase() + brand!.slice(1);
+  }
+}
+
+function brandShort(brand: string | null | undefined): string {
+  switch ((brand ?? '').toLowerCase()) {
+    case 'mastercard':
+      return 'MC';
+    case 'amex':
+      return 'AMEX';
+    case '':
+      return '••';
+    default:
+      return (brand ?? '').slice(0, 4).toUpperCase();
+  }
+}
+
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** "R$ 79,90" a partir de centavos. */
+function formatCents(cents: number): string {
+  return BRL.format(cents / 100).replace(/ /g, ' ');
+}
+
+/** "79,90", "299", "1.599" — sem o "R$" (a grade o desenha menor). */
+function formatPlanPrice(value: number, forceCents = false): string {
+  const whole = Math.abs(value - Math.round(value)) < 0.005;
+  const out = new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: whole && !forceCents ? 0 : 2,
+    maximumFractionDigits: whole && !forceCents ? 0 : 2,
+  }).format(value);
+  return forceCents ? `R$ ${out}` : out;
+}
+
 
 @Component({
   selector: 'app-billing',
-  imports: [
-    CommonModule,
-    DefaultPageLayout,
-    ConfirmDialog,
-    PageCard,
-    PlanCardComponent,
-    AlertBanner,
-    SegmentedToggle,
-  ],
+  imports: [CommonModule, RouterLink, DefaultPageLayout, ConfirmDialog, BottomSheet, AlertBanner, PlanGrid],
   templateUrl: './billing.html',
-  styleUrl: './billing.css',
+  styleUrls: ['./billing-kit.css', './billing.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Billing implements OnInit, OnDestroy {
@@ -163,11 +238,10 @@ export class Billing implements OnInit, OnDestroy {
   private readonly apiErrors = inject(ApiErrorService);
   private readonly logger = inject(LoggerService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
-  protected readonly isPlatformAdmin = this.session.isPlatformAdmin();
-  protected readonly adminGateway = signal<GatewayOverride>('stripe');
 
   protected readonly plans = this.billingService.plans;
   protected readonly subscription = this.billingService.subscription;
@@ -175,8 +249,6 @@ export class Billing implements OnInit, OnDestroy {
   protected readonly error = this.billingService.error;
 
   protected readonly cycle = signal<BillingCycle>('MONTHLY');
-  protected readonly expandedPlanId = signal<string | null>(null);
-  protected readonly showCompare = signal(false);
 
   /** Plan whose CTA is currently in flight (per-card spinner + per-card error). */
   protected readonly busyPlanId = signal<string | null>(null);
@@ -201,32 +273,12 @@ export class Billing implements OnInit, OnDestroy {
     url: string;
   } | null>(null);
 
-  private readonly manualCheckoutLink =
-    viewChild<ElementRef<HTMLAnchorElement>>('manualCheckoutLink');
-
-  /**
-   * The banner is at the top of the page while the failure is reported on the
-   * card the user clicked — on a phone the two are rarely on screen together.
-   * Focusing the link moves the keyboard and the viewport to the only action
-   * that unblocks the checkout.
-   */
-  private readonly focusManualCheckoutLink = effect(() => {
-    this.manualCheckoutLink()?.nativeElement.focus();
-  });
   protected readonly accountActionBusy = signal(false);
 
   protected readonly showCancelDialog = signal(false);
   protected readonly downgradeTarget = signal<PlanResponse | null>(null);
   /** Mensal↔Anual target awaiting an explicit, informed confirmation. */
   protected readonly periodSwitchTarget = signal<PlanResponse | null>(null);
-
-  /**
-   * O tier recomendado, vindo do MESMO lugar que a landing lê (`plan-card.ts`)
-   * em vez do literal `'PRO'` que morava aqui. A comparação passa por
-   * `planTierOf()`, que normaliza o `plans.name` da API — então uma linha
-   * legada (`BUSINESS`, `FREE`) cai no tier certo sem um `if` extra aqui.
-   */
-  protected readonly recommendedName: PlanTier = RECOMMENDED_PLAN_TIER;
 
   private visibilityListener: (() => void) | null = null;
   private focusListener: (() => void) | null = null;
@@ -236,16 +288,6 @@ export class Billing implements OnInit, OnDestroy {
   private awaitDeadline = 0;
   /** Which waiting window is running — they have very different bounds. */
   private awaitMode: AwaitMode = 'returned';
-
-  /**
-   * Which gateway to render. PLATFORM_ADMIN can switch; everyone else sees
-   * `stripe` (default). See gotchas — the company gateway isn't currently
-   * exposed on `access-status` / `subscription`, so we hardcode stripe as
-   * the customer-facing default.
-   */
-  protected readonly activeGateway = computed<PlanGateway>(() =>
-    this.isPlatformAdmin ? this.adminGateway() : 'stripe',
-  );
 
   // ---------------------------------------------------------------------------
   // Subscription truth — status FIRST, plan second.
@@ -316,93 +358,13 @@ export class Billing implements OnInit, OnDestroy {
     return null;
   });
 
-  protected readonly pendingPlan = computed<PlanResponse | null>(() => {
-    const code = this.pendingPlanCode();
-    if (!code) return null;
-    return this.plans().find((p) => p.code === code) ?? null;
-  });
-
-  protected readonly pendingPlanName = computed<string | null>(
-    () => this.pendingPlan()?.name ?? this.pendingPlanCode(),
-  );
-
   protected readonly scheduledDowngradeCode = computed<string | null>(
     () => this.subscription()?.scheduledDowngradePlanCode ?? null,
   );
 
-  protected readonly scheduledDowngradeName = computed<string | null>(() => {
-    const code = this.scheduledDowngradeCode();
-    if (!code) return null;
-    return this.plans().find((p) => p.code === code)?.name ?? code;
-  });
-
   protected readonly scheduledDowngradeAt = computed<string | null>(
     () => this.subscription()?.scheduledDowngradeAt ?? null,
   );
-
-  /**
-   * Eyebrow above the hero title. Answers "qual plano?", never "qual status?" —
-   * the status has its own pill right next to it (`statusLabel()`), so a
-   * TRIALING subscription reads "Plano atual / PRO / Período de teste" instead
-   * of replacing the plano with the estado and leaving PRO looking like TRIAL.
-   */
-  protected readonly heroEyebrow = computed<string>(() => {
-    if (this.isFreeActive()) return 'Plano gratuito';
-    if (this.isPlanInForce()) return 'Plano atual';
-    switch (this.status()) {
-      case 'CANCELED':
-      case 'EXPIRED':
-        return 'Assinatura encerrada';
-      default:
-        return 'Assinatura';
-    }
-  });
-
-  protected readonly heroPlanTitle = computed<string>(() => {
-    const sub = this.subscription();
-    if (!sub) return 'Sem plano ativo';
-    switch (sub.status) {
-      case 'PENDING':
-      case 'INCOMPLETE':
-        return 'Nenhum plano ativo';
-      default:
-        return sub.planName || 'Sem plano ativo';
-    }
-  });
-
-  /** Honest one-liner explaining a non-ACTIVE state. */
-  protected readonly heroNotice = computed<string | null>(() => {
-    const sub = this.subscription();
-    if (!sub) return null;
-    if (this.isFreeActive()) {
-      // NUNCA "liberar todos os recursos": não existe gate de funcionalidade no
-      // backend, então a frase prometia destravar o que já está destravado — e
-      // era desmentida um scroll abaixo pela nota de paridade da grade. O que um
-      // plano pago compra é ESPAÇO: mais veículos. Motorista NÃO entra aqui — o
-      // teto é 200 em todos os planos (FEAT-0070), então prometer capacidade de
-      // motorista no upgrade seria vender o que o pago não entrega.
-      return 'Você está no plano gratuito, sem cobranças. Escolha um plano pago para cadastrar mais veículos.';
-    }
-    switch (sub.status) {
-      case 'ACTIVE':
-        return null;
-      case 'TRIALING':
-        return 'Você está no período de teste — nenhum pagamento foi confirmado ainda.';
-      case 'PENDING':
-      case 'INCOMPLETE':
-        return 'Seu pagamento ainda não foi confirmado. Conclua o pagamento para liberar o plano.';
-      case 'PAST_DUE':
-      case 'UNPAID':
-        return 'Não conseguimos confirmar a última cobrança. Regularize o pagamento para manter o acesso.';
-      case 'PAUSED':
-        return 'Sua assinatura está pausada.';
-      case 'CANCELED':
-      case 'EXPIRED':
-        return 'Sua assinatura não está mais ativa. Escolha um plano para voltar a usar tudo.';
-      default:
-        return 'Não reconhecemos o status desta assinatura. Se algo parecer errado, fale com o suporte.';
-    }
-  });
 
   /**
    * Reactivate is the way out of the "cancel scheduled" dead end — but the
@@ -442,122 +404,13 @@ export class Billing implements OnInit, OnDestroy {
   // Blocked-access reason (arrives as `?reason=` from the guard / paywall).
   // ---------------------------------------------------------------------------
 
-  protected readonly blockedReason = signal<string | null>(null);
-
-  protected readonly blockedMessage = computed<string | null>(() => {
-    switch (this.blockedReason()) {
-      case 'TRIAL_EXPIRED':
-        return 'Seu período de teste terminou. Escolha um plano para voltar a usar a plataforma.';
-      case 'PAYMENT_FAILED':
-      case 'PAST_DUE':
-        return 'Não conseguimos confirmar seu pagamento. Regularize para reabrir o acesso.';
-      case 'CANCELED':
-        return 'Sua assinatura foi cancelada. Escolha um plano para retomar o acesso.';
-      case 'NO_SUBSCRIPTION':
-        return 'Você precisa de um plano ativo para acessar o restante da plataforma.';
-      case null:
-        return null;
-      default:
-        return 'O acesso à plataforma está bloqueado até você ter um plano ativo.';
-    }
-  });
-
   // ---------------------------------------------------------------------------
   // Plan rows
   // ---------------------------------------------------------------------------
 
-  /**
-   * Rows filtered by current gateway + selected period, one row per `name`.
-   * When multiple codes exist for the same (name, period, gateway) we keep
-   * the first — backend should already dedupe, but this stays defensive.
-   */
-  protected readonly visiblePlans = computed<PlanResponse[]>(() => {
-    const gw = this.activeGateway();
-    const period: PlanPeriod = this.cycle();
-    const seen = new Set<string>();
-    const out: PlanResponse[] = [];
-    for (const p of this.plans()) {
-      if (p.gateway !== gw) continue;
-      if (p.period !== period) continue;
-      if (seen.has(p.name)) continue;
-      seen.add(p.name);
-      out.push(p);
-    }
-    // A ordem do CATÁLOGO, imposta aqui e não herdada da API. A grade seguia o
-    // que `GET /v1/billing/plans` devolvesse, que é ordem de tabela e não
-    // promessa nenhuma — e a landing, com a lista escrita à mão, já estava numa
-    // ordem diferente. Agora as duas telas sobem o mesmo degrau na mesma
-    // direção, que é o que a linha de herança ("tudo o que o plano anterior
-    // tem") precisa para significar alguma coisa. Um `name` que não normaliza
-    // vai para o fim em vez de embaralhar a escada.
-    const rank = (plan: PlanResponse): number => {
-      const tier = planTierOf(plan.name);
-      return tier ? PLAN_TIER_ORDER.indexOf(tier) : PLAN_TIER_ORDER.length;
-    };
-    return out.sort((a, b) => rank(a) - rank(b));
-  });
-
-  /**
-   * `true` a partir de `sm` — a largura em que esta grade deixa de ser uma
-   * coluna.
-   *
-   * A query é em `rem` porque o breakpoint do Tailwind v4 é `40rem` e nada neste
-   * projeto redefine `--breakpoint-sm`. Escrita em `px` ela batia com a classe
-   * só em quem usa 16px de fonte-raiz; para todo mundo que aumentou a fonte do
-   * navegador, o signal e o `sm:` do template discordavam numa faixa de larguras
-   * — exatamente a divergência que `utils/viewport.ts` existe para impedir.
-   *
-   * Diferente da landing, esta rota é `RenderMode.Client` (ver
-   * `app.routes.server.ts`): não há documento prerenderizado com que este signal
-   * possa discordar, então aqui a decisão pode continuar em JS.
-   */
-  private readonly showsLadderOrder = mediaQuerySignal('(min-width: 40rem)');
-
-  /**
-   * O arranjo em que a grade está desenhada, para a CÓPIA da herança acompanhar
-   * a ordem. Sai do mesmo signal que `orderedPlans()` — se um dia a ordem mudar
-   * de fonte, a frase muda junto ou nenhuma das duas muda.
-   */
-  private readonly ladderArrangement = computed<PlanLadderArrangement>(() =>
-    this.showsLadderOrder() ? 'catalog' : 'reversed',
-  );
-
-  /**
-   * A ordem que a grade imprime: catálogo a partir de `sm`, INVERTIDA no
-   * telefone (ENTERPRISE primeiro, TRIAL por último), por decisão do dono e
-   * igual à da landing.
-   *
-   * Substitui o `[class.order-first]="isPrioritized(plan)"`, que subia o card do
-   * plano atual no telefone. Duas regras disputando a primeira posição na mesma
-   * largura só podiam terminar com uma delas calada, e a que o dono especificou
-   * ganha. O `order-*` também reordenava só o pixel: o Tab continuava na ordem
-   * do DOM. Aqui quem inverte é o array — ver `utils/viewport.ts`.
-   */
-  protected readonly orderedPlans = computed<readonly PlanResponse[]>(() =>
-    this.showsLadderOrder() ? this.visiblePlans() : [...this.visiblePlans()].reverse(),
-  );
-
-  /**
-   * Percent savings for a given `name`, based on YEARLY vs MONTHLY row of
-   * the same name + active gateway. Returns 0 when either side is missing.
-   */
-  protected planYearlySavingsByName(name: string): number {
-    const gw = this.activeGateway();
-    let monthly = 0;
-    let yearly = 0;
-    for (const p of this.plans()) {
-      if (p.gateway !== gw) continue;
-      if (p.name !== name) continue;
-      if (p.period === 'MONTHLY') monthly = p.price;
-      else if (p.period === 'YEARLY') yearly = p.price;
-    }
-    if (monthly <= 0 || yearly <= 0) return 0;
-    return Math.round(100 * (1 - yearly / (monthly * 12)));
-  }
-
   /** Best yearly savings across all plan groups (for the cycle-toggle badge). */
   protected readonly yearlySavingsBadge = computed<number>(() => {
-    const gw = this.activeGateway();
+    const gw = ACTIVE_GATEWAY;
     const monthly = new Map<string, number>();
     const yearly = new Map<string, number>();
     for (const p of this.plans()) {
@@ -576,29 +429,6 @@ export class Billing implements OnInit, OnDestroy {
   });
 
   /**
-   * Opções do toggle Mensal/Anual. O badge de desconto só existe quando há
-   * economia real no anual — a opção sai sem `badge` quando não há.
-   */
-  protected readonly cycleOptions = computed<readonly SegmentedToggleOption<BillingCycle>[]>(() => {
-    const savings = this.yearlySavingsBadge();
-    return [
-      {
-        value: 'MONTHLY',
-        label: 'Mensal',
-        activeBackground: CYCLE_MONTHLY_BACKGROUND,
-        activeShadow: CYCLE_MONTHLY_SHADOW,
-      },
-      {
-        value: 'YEARLY',
-        label: 'Anual',
-        badge: savings > 0 ? `-${savings}%` : undefined,
-        activeBackground: CYCLE_YEARLY_BACKGROUND,
-        activeShadow: CYCLE_YEARLY_SHADOW,
-      },
-    ];
-  });
-
-  /**
    * The exact row backing the subscription in force. `null` while the
    * subscription is not ACTIVE.
    */
@@ -608,55 +438,11 @@ export class Billing implements OnInit, OnDestroy {
     return this.plans().find((p) => p.code === code) ?? null;
   });
 
-  /** Paid gradient only when the plan is really paid and active. */
-  protected readonly currentHeroBackground = computed<string | null>(() => {
-    if (!this.isPaidActive()) return null;
-    const sub = this.subscription();
-    if (!sub) return null;
-    const name = (sub.planName ?? '').toUpperCase();
-    if (name !== 'PRO' && name !== 'ENTERPRISE' && name !== 'BUSINESS') return null;
-    return sub.billingCycle === 'YEARLY' ? CYCLE_YEARLY_BACKGROUND : CYCLE_MONTHLY_BACKGROUND;
-  });
-
-  /**
-   * Rótulos secundários do hero. Sobre o `bg-neutral-900 dark:bg-neutral-700` o cinza continua
-   * legível (neutral-400 = 7,4:1); sobre o gradiente da marca não sobra
-   * translucidez utilizável — no ponto mais claro (#C22F00) o branco a 85% dá
-   * 4,47:1 e reprova, e a 90% dá 4,85:1, que passa por 0,35 e é consumido pela
-   * primeira vinheta que clarear o canto. Ali a hierarquia sai do tamanho e do
-   * peso, com branco cheio (5,67:1).
-   */
-  protected readonly currentHeroMutedClass = computed<string>(() =>
-    this.currentHeroBackground() ? 'text-white' : 'text-fg-faint',
-  );
-
-  /**
-   * Halo do canto do hero. Sobre o gradiente ele ESCURECE em vez de clarear:
-   * o `rgba(255,255,255,0.20)` de antes lavava o canto superior direito, onde
-   * mora a pílula de status, e levava o branco a 4,12:1. Escurecer só melhora.
-   */
-  protected readonly currentHeroGlow = computed<string>(() =>
-    this.currentHeroBackground() ? 'rgba(0,0,0,0.18)' : 'rgba(246,59,4,0.25)',
-  );
-
-  /**
-   * Halo do canto inferior esquerdo. Era um `bg-white/5` fixo: mesmo véu branco
-   * que o resto desta tela já tinha eliminado, e num card de 375px um blob de
-   * 224px passa por baixo dos rótulos. Sobre o gradiente ele derrubava o ponto
-   * mais claro de 5,67:1 para 5,28:1 (laranja) e de 5,49:1 para 4,98:1 (verde)
-   * — ainda AA, mas indo na direção errada. Escurecido/tingido de marca, como o
-   * irmão do canto oposto, o contraste só sobe.
-   */
-  protected readonly currentHeroGlowSecondary = computed<string>(() =>
-    this.currentHeroBackground() ? 'rgba(0,0,0,0.14)' : 'rgba(246,59,4,0.14)',
-  );
-
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
 
   ngOnInit(): void {
-    this.blockedReason.set(this.route.snapshot.queryParamMap.get('reason'));
 
     if (this.isBrowser && this.session.getItem(CHECKOUT_PENDING_KEY) === 'true') {
       // A checkout round-trip was already in progress when this page loaded:
@@ -681,6 +467,7 @@ export class Billing implements OnInit, OnDestroy {
       },
     });
     this.refreshSubscription();
+    this.refreshSummary();
 
     if (!this.isBrowser) return;
     this.visibilityListener = () => {
@@ -693,6 +480,8 @@ export class Billing implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopAwaitPolling();
+    this.stopInvoiceWatch();
+    this.stopClock();
     if (!this.isBrowser) return;
     if (this.visibilityListener) {
       this.document.removeEventListener('visibilitychange', this.visibilityListener);
@@ -729,6 +518,8 @@ export class Billing implements OnInit, OnDestroy {
     // failure must stay silent rather than pop a toast they cannot act on.
     this.access.load().subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
     this.refreshSubscription();
+    this.refreshSummary();
+    this.now.set(new Date());
   }
 
   private refreshSubscription(): void {
@@ -804,34 +595,9 @@ export class Billing implements OnInit, OnDestroy {
     this.cycle.set(cycle);
   }
 
-  protected setAdminGateway(g: GatewayOverride): void {
-    this.adminGateway.set(g);
-  }
-
   /** Monthly-equivalent price for a plan row. Yearly rows return price/12. */
   protected monthlyEquivalent(plan: PlanResponse): number {
     return plan.period === 'MONTHLY' ? plan.price : plan.price / 12;
-  }
-
-  /**
-   * Display a plan limit in the comparison table.
-   *
-   * A regra de "ilimitado" mora em `utils/plan-limits.ts` e vale para os dois
-   * motivos: limite nulo (sentinela da coluna) e plano maquiado (ENTERPRISE,
-   * que tem teto real e mesmo assim não mostra número).
-   */
-  protected formatLimit(value: number | null, planName: string): string {
-    return showsAsUnlimited(planName, value) ? '∞' : String(value);
-  }
-
-  /**
-   * Mesmo predicado do `formatLimit`, exposto ao template porque o `∞` precisa
-   * de equivalente textual: o glifo vai `aria-hidden` e um `sr-only` em
-   * português ocupa o lugar dele para quem não enxerga a célula. Sem isso o
-   * leitor de tela ou fala "infinity" ou cala a célula.
-   */
-  protected isUnlimited(value: number | null, planName: string): boolean {
-    return showsAsUnlimited(planName, value);
   }
 
   protected formatPrice(value: number): string {
@@ -853,95 +619,9 @@ export class Billing implements OnInit, OnDestroy {
     }).format(date);
   }
 
-  protected statusLabel(status: SubscriptionStatus): string {
-    switch (status) {
-      case 'PENDING':
-      case 'INCOMPLETE':
-        return 'Aguardando pagamento';
-      case 'TRIALING':
-        return 'Período de teste';
-      case 'ACTIVE':
-        return 'Ativa';
-      case 'PAST_DUE':
-      case 'UNPAID':
-        return 'Pagamento pendente';
-      case 'PAUSED':
-        return 'Pausada';
-      case 'CANCELED':
-        return 'Cancelada';
-      case 'EXPIRED':
-        return 'Expirada';
-      default:
-        return 'Status desconhecido';
-    }
-  }
-
-  protected statusBadgeClass(status: SubscriptionStatus): string {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-500/30';
-      case 'TRIALING':
-      case 'PENDING':
-      case 'INCOMPLETE':
-      case 'PAST_DUE':
-      case 'UNPAID':
-      case 'PAUSED':
-        return 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-500/30';
-      case 'CANCELED':
-      case 'EXPIRED':
-        return 'bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-500/30';
-      default:
-        return 'bg-gray-100 dark:bg-surface-sunken text-gray-800 dark:text-fg-body border-gray-200 dark:border-edge';
-    }
-  }
-
-  protected statusDotClass(status: SubscriptionStatus): string {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-emerald-500';
-      case 'TRIALING':
-      case 'PENDING':
-      case 'INCOMPLETE':
-      case 'PAUSED':
-        return 'bg-amber-500';
-      case 'PAST_DUE':
-      case 'UNPAID':
-        return 'bg-rose-500';
-      case 'CANCELED':
-      case 'EXPIRED':
-        return 'bg-gray-400 dark:bg-neutral-500';
-      default:
-        return 'bg-gray-400 dark:bg-neutral-500';
-    }
-  }
-
-  protected statusPillClass(status: SubscriptionStatus): string {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
-      case 'TRIALING':
-      case 'PENDING':
-      case 'INCOMPLETE':
-      case 'PAUSED':
-        return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30';
-      case 'PAST_DUE':
-      case 'UNPAID':
-        return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30';
-      case 'CANCELED':
-      case 'EXPIRED':
-        return 'bg-canvas text-gray-700 dark:text-fg-soft border-gray-200 dark:border-edge';
-      default:
-        return 'bg-canvas text-gray-700 dark:text-fg-soft border-gray-200 dark:border-edge';
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Plan card presentation
   // ---------------------------------------------------------------------------
-
-  protected trackByPlanId(_i: number, plan: PlanResponse): string {
-    return plan.id;
-  }
 
   /** True only when the plan is paid, active and in force. */
   protected isCurrent(plan: PlanResponse): boolean {
@@ -950,116 +630,6 @@ export class Billing implements OnInit, OnDestroy {
 
   protected isPending(plan: PlanResponse): boolean {
     return this.pendingPlanCode() === plan.code;
-  }
-
-  protected isRecommended(plan: PlanResponse): boolean {
-    return planTierOf(plan.name) === this.recommendedName;
-  }
-
-  protected isBusinessPlan(plan: PlanResponse): boolean {
-    return planTierOf(plan.name) === 'ENTERPRISE';
-  }
-
-  /**
-   * Degrau visual do card. A escolha mora em `plan-card.ts` e é a MESMA que a
-   * landing usa, então o Pro autenticado e o Pro público não podem mais ser
-   * pintados por regras diferentes.
-   *
-   * Substitui `planVariant()`, que devolvia `'trial' | 'pro' | 'business'` e
-   * não tinha ramo para o STARTER: a V59 criou o tier, o card caiu no default e
-   * o STARTER passou a ser renderizado idêntico ao TRIAL. `planTierOf()`
-   * normaliza o `plans.name` antes, então uma linha legada (`BUSINESS`, `FREE`)
-   * cai no tier certo sem um `if` extra nesta página.
-   */
-  protected planTone(plan: PlanResponse): PlanCardTone {
-    // O `PlanPeriod` da API (`MONTHLY`/`YEARLY`) é traduzido aqui, na fronteira,
-    // para o vocabulário de ciclo do card. O card não conhece o enum do backend
-    // e a landing não conhece o dela — as duas telas encontram `planCardTone()`
-    // falando a mesma língua.
-    return planCardTone(planTierOf(plan.name), this.cycle() === 'YEARLY' ? 'yearly' : 'monthly');
-  }
-
-  /**
-   * Human label for a plan limit. Mesma decisão de maquiagem da tabela
-   * comparativa (`utils/plan-limits.ts`), para o card e a tabela nunca
-   * discordarem sobre o mesmo plano.
-   */
-  private limitLabel(
-    planName: string,
-    value: number | null | undefined,
-    singular: string,
-    plural: string,
-  ): string {
-    // Campo ausente = a API não mandou a coluna; some o bullet em vez de
-    // inventar um limite.
-    if (value === undefined) return '';
-    if (showsAsUnlimited(planName, value)) return `${plural} ilimitados`;
-    return value === 1 ? `1 ${singular}` : `Até ${value} ${plural}`;
-  }
-
-  /**
-   * Bullets do card. A CAPACIDADE sai da linha da API (o card autenticado nunca
-   * pode contradizer o plano que o backend realmente vende); a composição da
-   * lista sai de `planCardFeatureLines()`, a mesma regra que a landing usa.
-   *
-   * Antes esta tela somava `planFeaturesFor()` e imprimia as sete frases
-   * qualitativas em TODO card, mais a nota de paridade acima da grade explicando
-   * a repetição. Era informação demais para quem só quer escolher um plano. Do
-   * STARTER para cima o card agora abre com a herança e mostra só o seu delta —
-   * que é, honestamente, quase só o teto novo.
-   */
-  protected planFeatures(plan: PlanResponse): readonly string[] {
-    const capacity: string[] = [];
-    const vehicles = this.limitLabel(plan.name, plan.vehicleLimit, 'veículo', 'veículos');
-    if (vehicles) capacity.push(vehicles);
-    // Motoristas NÃO entram (FEAT-0070): o teto virou guarda-corpo interno e o
-    // campo saiu da resposta da API — não há o que exibir nem que se quisesse.
-    if (plan.trialDays > 0) capacity.push(`${plan.trialDays} dias de teste grátis`);
-
-    return planCardFeatureLines(planTierOf(plan.name), capacity, this.ladderArrangement());
-  }
-
-  protected planSubtitle(plan: PlanResponse): string | null {
-    if (this.cycle() === 'YEARLY') {
-      const monthly = this.formatPrice(this.monthlyEquivalent(plan));
-      const savings = this.planYearlySavingsByName(plan.name);
-      return savings > 0
-        ? `Equivale a ${monthly}/mês · economiza ${savings}%`
-        : `Equivale a ${monthly}/mês`;
-    }
-    if (this.isRecommended(plan)) {
-      const savings = this.planYearlySavingsByName(plan.name);
-      if (savings > 0) {
-        // Preview the effective monthly if user switched to yearly.
-        const gw = this.activeGateway();
-        const yearlyRow = this.plans().find(
-          (p) => p.name === plan.name && p.gateway === gw && p.period === 'YEARLY',
-        );
-        if (yearlyRow) {
-          return `ou ${this.formatPrice(yearlyRow.price / 12)}/mês no anual`;
-        }
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Linha de posicionamento do card — a MESMA que a landing imprime, e que só
-   * fala de TAMANHO. As três frases que moravam aqui citavam recurso
-   * ("integrações premium, suporte dedicado", "integrações customizadas") e
-   * eram desmentidas pela nota de paridade um scroll abaixo.
-   */
-  protected planDescription(plan: PlanResponse): string | null {
-    const tier = planTierOf(plan.name);
-    return tier ? PLAN_DESCRIPTION[tier] : null;
-  }
-
-  protected planRibbon(plan: PlanResponse): string | null {
-    if (this.isPending(plan)) return 'Aguardando pagamento';
-    if (this.scheduledDowngradeCode() === plan.code) return 'Mudança agendada';
-    if (this.isRecommended(plan)) return 'Mais popular';
-    if (this.isBusinessPlan(plan)) return 'Sua frota cresceu?';
-    return null;
   }
 
   /**
@@ -1241,79 +811,6 @@ export class Billing implements OnInit, OnDestroy {
     return err && err.planId === plan.id ? err.message : null;
   }
 
-  /** Human period label for the comparison tables — never the raw plan code. */
-  protected planPeriodLabel(plan: PlanResponse): string {
-    return plan.period === 'YEARLY' ? 'Cobrança anual' : 'Cobrança mensal';
-  }
-
-  /**
-   * Rótulo da única linha qualitativa que sobrou na tabela comparativa.
-   *
-   * Vem da constante compartilhada em vez de ser digitado no HTML: a tabela
-   * dizia "Suporte prioritário" enquanto o card ao lado prometia "Atendimento
-   * prioritário no WhatsApp". Sendo a MESMA string, uma reescrita da promessa
-   * pelo dono muda as duas superfícies de uma vez, e nenhuma delas pode
-   * prometer um canal que a outra não prometeu.
-   */
-  protected readonly prioritySupportLabel = PRIORITY_SUPPORT_FEATURE;
-
-  /**
-   * A coluna deste plano leva ✓ na linha de atendimento prioritário?
-   *
-   * Delega a `utils/plan-features.ts` — a mesma fonte que monta os bullets do
-   * card — em vez de reusar `isRecommended()`, que responde outra pergunta
-   * ("qual card ganha a fita 'Mais popular'?", só o PRO) e por isso negava ao
-   * ENTERPRISE uma prioridade que o card dele anuncia. A normalização do
-   * `plans.name` passa por `planTierOf()`, então uma linha legada (`BUSINESS`)
-   * cai no tier certo sem um `if` extra aqui.
-   */
-  protected hasPrioritySupport(plan: PlanResponse): boolean {
-    return hasPrioritySupport(planTierOf(plan.name));
-  }
-
-  protected planCycleSuffix(): string {
-    return this.cycle() === 'MONTHLY' ? 'mês' : 'ano';
-  }
-
-  protected taglineFor(plan: PlanResponse): string {
-    switch (plan.name) {
-      case 'TRIAL':
-      case 'STARTER':
-        return 'Para começar';
-      case 'PRO':
-        return 'Para escalar';
-      case 'BUSINESS':
-      case 'ENTERPRISE':
-        return 'Para grandes frotas';
-      default:
-        return '';
-    }
-  }
-
-  protected readonly hasAnyTrial = computed<boolean>(() =>
-    this.visiblePlans().some((p) => p.trialDays > 0),
-  );
-
-  protected readonly maxTrialDays = computed<number>(() => {
-    let max = 0;
-    for (const p of this.visiblePlans()) {
-      if (p.trialDays > max) max = p.trialDays;
-    }
-    return max;
-  });
-
-  protected toggleCompare(): void {
-    this.showCompare.update((v) => !v);
-  }
-
-  protected toggleExpanded(planId: string): void {
-    this.expandedPlanId.update((cur) => (cur === planId ? null : planId));
-  }
-
-  protected isExpanded(planId: string): boolean {
-    return this.expandedPlanId() === planId;
-  }
-
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
@@ -1364,14 +861,6 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   /**
-   * Plan codes this page already POSTed a checkout for and got an `externalId`
-   * back. In-memory on purpose: it only has to survive until the redirect
-   * leaves the page, and a genuinely new page load re-reads the pending state
-   * from `/subscription`.
-   */
-  private readonly startedCheckoutCodes = new Set<string>();
-
-  /**
    * Paid transitions only. Downgrades must never reach this method, and a
    * period switch only reaches it after `confirmPeriodSwitch()`.
    *
@@ -1381,6 +870,8 @@ export class Billing implements OnInit, OnDestroy {
    * back the SAME session instead of opening a second charge.
    */
   private startCheckout(plan: PlanResponse, opts?: { resumePending: boolean }): void {
+    // `resumePending` documenta a intenção no chamador; o backend retoma a
+    // sessão aberta do mesmo plano sozinho (`reusePendingCheckout`).
     if (this.busyPlanId() !== null) return;
     // A R$ 0,00 plan has nothing to charge: `/checkout` answers 400 and the
     // user gets a dead button. The free plan is reached via `/downgrade`.
@@ -1402,20 +893,15 @@ export class Billing implements OnInit, OnDestroy {
     // after the POST resolves is what made mobile browsers treat the checkout as
     // an unsolicited pop-up and block it.
     const tab = this.externalNav.openPendingTab();
-    // A previous POST for this plan already answered with an `externalId`: a
-    // gateway session EXISTS even though we never reached it (empty
-    // `redirectUrl`). Retrying as a plain new checkout minted a SECOND Stripe
-    // session — and a second chance to be charged. Resume instead.
-    const resume = opts?.resumePending === true || this.startedCheckoutCodes.has(plan.code);
-    const override = this.isPlatformAdmin && !resume ? this.adminGateway() : undefined;
+    // Sem override de gateway: a ferramenta de admin saiu da página do cliente
+    // (decisão D6). Um checkout repetido do mesmo plano é retomado pelo backend
+    // (`reusePendingCheckout`), nunca vira uma segunda sessão.
+    void opts;
     this.billingService
-      .startCheckout(plan.code, override)
+      .startCheckout(plan.code)
       .pipe(timeout(CHECKOUT_REQUEST_TIMEOUT_MS))
       .subscribe({
         next: (res) => {
-          // Record BEFORE the redirect branch: the session exists regardless of
-          // whether this response was usable.
-          if (res.externalId) this.startedCheckoutCodes.add(plan.code);
           const redirectUrl = res.redirectUrl?.trim() ?? '';
           if (!redirectUrl) {
             // No URL to navigate to: the reserved tab would sit there blank
@@ -1737,11 +1223,12 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   protected openCancel(): void {
-    this.showCancelDialog.set(true);
+    this.sheet.set('cancel');
   }
 
   protected onCancelConfirmed(): void {
     this.showCancelDialog.set(false);
+    this.sheet.set(null);
     this.accountActionError.set(null);
     this.accountActionBusy.set(true);
     this.billingService.cancel().subscribe({
@@ -1754,6 +1241,7 @@ export class Billing implements OnInit, OnDestroy {
           next: () => this.accountActionBusy.set(false),
           error: () => this.accountActionBusy.set(false),
         });
+        this.refreshSummary();
         this.notifications.success('Cancelamento agendado para o fim do período atual.');
       },
       error: (err: unknown) => {
@@ -1784,6 +1272,7 @@ export class Billing implements OnInit, OnDestroy {
     this.billingService.reactivate().subscribe({
       next: (res) => {
         this.accountActionBusy.set(false);
+        this.refreshSummary();
         this.notifications.success(res.message ?? 'Assinatura reativada.');
       },
       error: (err: unknown) => {
@@ -1795,18 +1284,557 @@ export class Billing implements OnInit, OnDestroy {
           ),
         );
         this.billingService.clearError();
-        this.scrollToPlans();
+        this.sheet.set('plans');
       },
     });
   }
 
-  /** Send the user to the plans section (used when reactivate is impossible). */
-  private scrollToPlans(): void {
-    if (!this.isBrowser) return;
-    this.document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // ===========================================================================
+  // Redesign (2026-10-29): resumo, cartão de status, grupos, folhas.
+  // A lógica de checkout/troca de plano acima continua sendo a única porta de
+  // compra — a grade nova só a chama por `onPlanCta`.
+  // ===========================================================================
+
+  private readonly manualCheckoutLink =
+    viewChild<ElementRef<HTMLAnchorElement>>('manualCheckoutLink');
+
+  /** Pop-up bloqueado: foco no único link que destrava o checkout. */
+  private readonly focusManualCheckoutLink = effect(() => {
+    this.manualCheckoutLink()?.nativeElement.focus();
+  });
+
+  protected readonly summary = this.billingService.summary;
+  protected readonly summaryLoaded = signal(false);
+  protected readonly sheet = signal<BillingSheet | null>(null);
+  protected readonly payOption = signal<'invoice' | 'card'>('invoice');
+  protected readonly cardBusy = signal(false);
+  protected readonly sheetError = signal<string | null>(null);
+  /** Comprovante da folha "Pagamento confirmado". */
+  protected readonly paidReceipt = signal<{
+    amount: string;
+    method: string;
+    at: string;
+    planName: string;
+    until: string;
+    receiptUrl: string | null;
+  } | null>(null);
+  /** Relógio da contagem regressiva — um tique por minuto basta. */
+  protected readonly now = signal(new Date());
+  private clockHandle: ReturnType<typeof setInterval> | null = null;
+  private invoicePollHandle: ReturnType<typeof setInterval> | null = null;
+  private invoiceWatchUntil = 0;
+  private wasOwing = false;
+  private lastOwingAmountCents: number | null = null;
+  private queryIntentHandled = false;
+
+  protected readonly supportUrl = environment.supportWhatsapp
+    ? `https://wa.me/${environment.supportWhatsapp}?text=${encodeURIComponent('Olá! Quero falar sobre o plano Enterprise do MyCarsHub.')}`
+    : null;
+
+  /** Estado da tela: o do resumo; sem ele, derivado de `/subscription`. */
+  protected readonly state = computed<BillingState>(() => {
+    const fromSummary = this.summary()?.state;
+    if (fromSummary) return fromSummary;
+    switch (this.status()) {
+      case 'ACTIVE':
+        return 'ACTIVE';
+      case 'TRIALING':
+        return 'TRIALING';
+      case 'PAST_DUE':
+      case 'UNPAID':
+        return 'PAST_DUE';
+      case 'CANCELED':
+        return 'CANCELED';
+      case 'EXPIRED':
+        return 'TRIAL_EXPIRED';
+      default:
+        return 'NONE';
+    }
+  });
+
+  protected readonly owing = computed(() => this.state() === 'PAST_DUE' || this.state() === 'BLOCKED');
+
+  /** Teste, teste encerrado e sem assinatura: escolher um plano é o trabalho da tela. */
+  protected readonly showsInlinePicker = computed(() => {
+    const s = this.state();
+    return s === 'TRIALING' || s === 'TRIAL_EXPIRED' || s === 'CANCELED' || s === 'NONE';
+  });
+
+  protected readonly canManage = computed(() => this.summary()?.canManage ?? true);
+
+  protected readonly planName = computed(() =>
+    displayPlanName(this.summary()?.plan?.name ?? this.subscription()?.planName ?? null),
+  );
+
+  protected readonly heroTone = computed(() => {
+    switch (this.state()) {
+      case 'PAST_DUE':
+        return 'st-due';
+      case 'BLOCKED':
+        return 'st-block';
+      case 'ACTIVE':
+      case 'TRIALING':
+        return 'st-ok';
+      default:
+        return 'st-idle';
+    }
+  });
+
+  protected readonly heroChip = computed<{ cls: string; label: string }>(() => {
+    const sum = this.summary();
+    switch (this.state()) {
+      case 'ACTIVE':
+        if (sum?.cancelAtPeriodEnd || this.subscription()?.cancelAtPeriodEnd) {
+          return { cls: 'warn', label: `Termina em ${formatDayMonth(this.periodEnd())}` };
+        }
+        return { cls: 'ok', label: 'Em dia' };
+      case 'TRIALING': {
+        const d = this.trialDaysLeft();
+        return { cls: 'brand', label: d === 1 ? '1 dia restante' : `${d} dias restantes` };
+      }
+      case 'PAST_DUE':
+        return { cls: 'warn', label: 'Pagamento recusado' };
+      case 'BLOCKED':
+        return { cls: 'danger', label: 'Acesso pausado' };
+      case 'TRIAL_EXPIRED':
+        return { cls: 'neutral', label: 'Teste encerrado' };
+      case 'CANCELED':
+        return { cls: 'neutral', label: 'Assinatura encerrada' };
+      default:
+        return { cls: 'neutral', label: 'Sem plano' };
+    }
+  });
+
+  /** Valor grande do cartão: o devido quando há atraso, senão o preço do plano. */
+  protected readonly heroAmount = computed<{ reais: string; cents: string } | null>(() => {
+    const sum = this.summary();
+    let cents: number | null = null;
+    if (this.owing() && sum?.amountDueCents != null) cents = sum.amountDueCents;
+    else {
+      const price = sum?.plan?.price ?? this.currentPlan()?.price ?? null;
+      if (price != null && price > 0) cents = Math.round(price * 100);
+    }
+    if (cents == null) return null;
+    const reais = Math.floor(cents / 100);
+    return {
+      reais: new Intl.NumberFormat('pt-BR').format(reais),
+      cents: String(cents % 100).padStart(2, '0'),
+    };
+  });
+
+  protected readonly heroPer = computed(() => {
+    if (this.owing()) return 'em aberto';
+    const period = this.summary()?.plan?.period ?? this.currentPlan()?.period;
+    return period === 'YEARLY' ? '/ano' : '/mês';
+  });
+
+  protected readonly periodEnd = computed(() =>
+    parseServerTime(this.summary()?.currentPeriodEnd ?? this.subscription()?.currentPeriodEnd ?? null),
+  );
+  protected readonly periodEndLabel = computed(() => formatFullDate(this.periodEnd()));
+
+  protected readonly card = computed(() => {
+    const pm = this.summary()?.paymentMethod;
+    if (!pm || !pm.last4) return null;
+    const brand = brandName(pm.brand);
+    return {
+      label: `${brand} final ${pm.last4}`,
+      short: brandShort(pm.brand),
+      expiry:
+        pm.expMonth && pm.expYear
+          ? `Validade ${String(pm.expMonth).padStart(2, '0')}/${pm.expYear}`
+          : null,
+    };
+  });
+
+  protected readonly failureAt = computed(() =>
+    formatDayMonth(parseServerTime(this.summary()?.lastFailure?.at ?? this.summary()?.pastDueSince ?? null)),
+  );
+
+  protected readonly failureLine = computed(() => {
+    const failure = this.summary()?.lastFailure;
+    const message = (failure?.message ?? 'O banco recusou a cobrança').trim();
+    const reason = message.charAt(0).toLowerCase() + message.slice(1);
+    const who = this.card()?.label ?? 'Cartão';
+    return `${who} recusado em ${this.failureAt()}: ${reason}.`;
+  });
+
+  protected readonly graceEnd = computed(() => parseServerTime(this.summary()?.graceEndsAt ?? null));
+  protected readonly deadlineLabel = computed(() => remainingLabel(this.graceEnd(), this.now()));
+  protected readonly deadlineAt = computed(() => formatDayMonthTime(this.graceEnd()));
+  /** Barra que esvazia: tempo que resta da carência. */
+  protected readonly deadlinePct = computed(() => {
+    const end = this.graceEnd();
+    const start = parseServerTime(this.summary()?.pastDueSince ?? null);
+    if (!end || !start) return 0;
+    const total = end.getTime() - start.getTime();
+    const left = end.getTime() - this.now().getTime();
+    if (total <= 0) return 0;
+    return Math.max(0, Math.min(100, (left / total) * 100));
+  });
+
+  protected readonly usage = computed(() => {
+    const sum = this.summary();
+    if (!sum) return null;
+    const limit = sum.usage.vehicleLimit ?? sum.plan?.vehicleLimit ?? null;
+    if (limit == null) return null;
+    return {
+      vehicles: sum.usage.vehicles,
+      limit,
+      pct: Math.max(0, Math.min(100, limit > 0 ? (sum.usage.vehicles / limit) * 100 : 0)),
+    };
+  });
+
+  protected readonly trialEnd = computed(() =>
+    parseServerTime(this.summary()?.trialEndsAt ?? this.subscription()?.trialEndsAt ?? null),
+  );
+  protected readonly trialDaysLeft = computed(() => {
+    const end = this.trialEnd();
+    if (!end) return 0;
+    return Math.max(0, Math.ceil((end.getTime() - this.now().getTime()) / 86_400_000));
+  });
+  protected readonly trialPct = computed(() => {
+    const total = this.trialTotalDays();
+    return Math.max(0, Math.min(100, (this.trialDaysLeft() / total) * 100));
+  });
+  protected readonly trialEndLabel = computed(() => formatFullDate(this.trialEnd()));
+  private readonly trialTotalDays = computed(
+    () => this.plans().find((p) => p.price <= 0 && p.trialDays > 0)?.trialDays ?? 14,
+  );
+  protected readonly trialVehicleLimit = computed(
+    () => this.summary()?.usage.vehicleLimit ?? PLAN_CAPACITY.TRIAL.vehicles,
+  );
+
+  protected readonly cycleLabel = computed(() => {
+    const period = this.summary()?.plan?.period ?? this.currentPlan()?.period ?? 'MONTHLY';
+    const end = this.periodEnd();
+    if (period === 'YEARLY') return end ? `Anual, ${formatDayMonth(end)}` : 'Anual';
+    return end ? `Mensal, dia ${formatDayMonth(end).slice(0, 2)}` : 'Mensal';
+  });
+
+  protected readonly invoices = computed(() => this.summary()?.invoices ?? []);
+  protected readonly recentInvoices = computed(() => this.invoices().slice(0, 3));
+
+  protected readonly payTitle = computed(() => {
+    const cents = this.summary()?.amountDueCents;
+    return cents != null ? `Pagar ${formatCents(cents)}` : 'Pagar agora';
+  });
+  protected readonly paySubtitle = computed(() => {
+    const created = parseServerTime(this.summary()?.openInvoice?.createdAt ?? null);
+    const plan = `Plano ${this.planName()}`;
+    return created ? `${plan} · fatura de ${formatFullDate(created)}` : plan;
+  });
+  protected readonly canPayInvoice = computed(
+    () => !!this.summary()?.openInvoice?.payUrl && this.has('PAY_NOW'),
+  );
+
+  protected has(action: string): boolean {
+    return (this.summary()?.actions ?? []).includes(action as never);
   }
 
-  protected dismissBlockedMessage(): void {
-    this.blockedReason.set(null);
+  protected invoiceDate(inv: BillingInvoice): string {
+    return formatFullDate(parseServerTime(inv.createdAt));
   }
+
+  protected invoiceAmount(inv: BillingInvoice): string {
+    return formatCents(inv.amountCents);
+  }
+
+  protected invoiceStatus(inv: BillingInvoice): string {
+    switch (inv.status) {
+      case 'PAID':
+        return inv.cardLast4 ? `Paga · ${brandName(inv.cardBrand)} final ${inv.cardLast4}` : 'Paga';
+      case 'OPEN':
+        return 'Em aberto';
+      case 'VOID':
+        return 'Cancelada';
+      case 'UNCOLLECTIBLE':
+        return 'Não paga';
+      default:
+        return inv.status;
+    }
+  }
+
+  protected openInvoice(inv: BillingInvoice): void {
+    const url = inv.hostedUrl ?? inv.pdfUrl;
+    if (url) this.externalNav.openExternal(url);
+  }
+
+  // ------------------------------------------------------------- plan grid
+
+  protected readonly planColumns = computed<PlanColumn[]>(() => {
+    const cycle = this.cycle();
+    const currentTier = this.isPlanInForce()
+      ? planTierOf(this.currentPlan()?.name ?? this.subscription()?.planName ?? null)
+      : null;
+    const currentPeriod = this.currentPlan()?.period ?? this.subscription()?.billingCycle ?? null;
+    return PLAN_TIER_ORDER.map((tier) => {
+      const copy = PLAN_COPY[tier];
+      const row = this.rowFor(tier, tier === 'TRIAL' ? 'MONTHLY' : cycle);
+      const contact = tier === 'ENTERPRISE' || row?.contactOnly === true;
+      const isCurrent =
+        currentTier === tier && (tier === 'TRIAL' || currentPeriod === null || currentPeriod === cycle);
+      const yearly = cycle === 'YEARLY' && tier !== 'TRIAL' && !contact;
+      const price = row?.price ?? null;
+      const err = row ? this.planCardError(row) : null;
+      const cta = this.columnCta(tier, row, contact, currentTier);
+      return {
+        tier,
+        name: copy.name,
+        pitch: copy.pitch,
+        price: contact ? 'Sob consulta' : tier === 'TRIAL' || !price ? 'Grátis' : formatPlanPrice(price),
+        per: contact || tier === 'TRIAL' || !price ? null : yearly ? '/ano' : '/mês',
+        sub: contact
+          ? 'Preço conforme a frota'
+          : tier === 'TRIAL'
+            ? `${row?.trialDays || 14} dias, sem cartão`
+            : yearly && price
+              ? `${formatPlanPrice(price / 12, true)} por mês`
+              : 'Cobrado todo mês',
+        rows: planRows(tier),
+        current: isCurrent,
+        recommended: tier === 'PRO',
+        ctaLabel: cta.label,
+        ctaDisabled: cta.disabled,
+        ctaAria: cta.aria ?? `${cta.label} — plano ${copy.name}`,
+        note: row && !cta.disabled ? this.planCtaNote(row) : null,
+        error: err,
+        plan: contact ? null : row,
+        contact,
+      };
+    });
+  });
+
+  private rowFor(tier: PlanTier, period: PlanPeriod): PlanResponse | null {
+    return (
+      this.plans().find(
+        (p) => p.gateway === ACTIVE_GATEWAY && p.period === period && planTierOf(p.name) === tier,
+      ) ?? null
+    );
+  }
+
+  private columnCta(
+    tier: PlanTier,
+    row: PlanResponse | null,
+    contact: boolean,
+    currentTier: PlanTier | null,
+  ): { label: string; disabled: boolean; aria?: string } {
+    if (contact) return { label: 'Falar com a gente', disabled: false };
+    if (!row) return { label: 'Em breve', disabled: true, aria: `Plano ${PLAN_COPY[tier].name} em breve` };
+    if (this.busyPlanId() === row.id) return { label: 'Processando…', disabled: true };
+    const intent = this.planIntent(row);
+    const name = PLAN_COPY[tier].name;
+    switch (intent) {
+      case 'CURRENT':
+        return currentTier === tier
+          ? { label: 'Plano atual', disabled: true, aria: `Plano ${name} é o seu plano atual` }
+          : { label: 'Já utilizado', disabled: true, aria: `Teste grátis já utilizado` };
+      case 'SCHEDULED':
+        return { label: 'Mudança agendada', disabled: true };
+      case 'PENDING_PAYMENT':
+        return { label: 'Concluir pagamento', disabled: this.planCtaDisabled(row) };
+      case 'DOWNGRADE':
+        // Assinatura paga em dia: o caminho de saída é "Cancelar assinatura"
+        // (Conta); a coluna do teste só diz que ele já foi usado (mockups 09/12).
+        // Conta encerrada/atrasada mantém a volta ao gratuito como saída.
+        return this.isPaidActive()
+          ? { label: 'Já utilizado', disabled: true, aria: 'Teste grátis já utilizado' }
+          : { label: 'Voltar ao gratuito', disabled: this.planCtaDisabled(row) };
+      default:
+        break;
+    }
+    if (row.purchasable === false) {
+      return { label: 'Em breve', disabled: true, aria: `Plano ${name} em breve` };
+    }
+    const disabled = this.planCtaDisabled(row);
+    switch (intent) {
+      case 'UPGRADE':
+        return { label: currentTier === 'TRIAL' || !currentTier ? `Assinar ${name}` : `Subir para ${name}`, disabled };
+      case 'PLAN_SWITCH':
+        return { label: `Mudar para ${name}`, disabled };
+      case 'PERIOD_UPGRADE':
+        return { label: `${name} anual`, disabled };
+      case 'PERIOD_DOWNGRADE':
+        return { label: `${name} mensal`, disabled };
+      default:
+        return { label: `Assinar ${name}`, disabled };
+    }
+  }
+
+  protected onColumn(col: PlanColumn): void {
+    if (col.contact) {
+      this.openSupport();
+      return;
+    }
+    if (!col.plan) return;
+    this.onPlanCta(col.plan);
+    // As confirmações (troca de período, voltar ao gratuito) são diálogos que
+    // ficam ABAIXO da folha: fecha a folha para o diálogo ficar à vista.
+    if (this.periodSwitchTarget() || this.downgradeTarget()) this.sheet.set(null);
+  }
+
+  protected openSupport(): void {
+    if (this.supportUrl) this.externalNav.openExternal(this.supportUrl);
+    else void this.router.navigate(['/suporte']);
+  }
+
+  // ------------------------------------------------------------- sheets
+
+  protected openPlans(): void {
+    this.sheet.set('plans');
+  }
+
+  protected openPay(): void {
+    this.sheetError.set(null);
+    this.payOption.set(this.canPayInvoice() ? 'invoice' : 'card');
+    this.sheet.set('pay');
+  }
+
+  protected closeSheet(): void {
+    this.sheet.set(null);
+    this.sheetError.set(null);
+  }
+
+  protected confirmPay(): void {
+    if (this.payOption() === 'card') {
+      this.openCardUpdate();
+      return;
+    }
+    const url = this.summary()?.openInvoice?.payUrl;
+    if (!url) return;
+    this.externalNav.openExternal(url);
+    this.sheet.set(null);
+    this.watchInvoicePayment();
+  }
+
+  /** "Trocar cartão": Billing Portal do Stripe nesta aba; ele devolve para cá. */
+  protected openCardUpdate(): void {
+    if (this.cardBusy()) return;
+    this.cardBusy.set(true);
+    this.sheetError.set(null);
+    this.billingService.cardUpdateUrl().subscribe({
+      next: (url) => {
+        this.cardBusy.set(false);
+        if (this.isBrowser && url) this.document.location.assign(url);
+      },
+      error: (err: unknown) => {
+        this.cardBusy.set(false);
+        const message = this.apiErrors.messageFor(err, 'Não foi possível abrir a troca de cartão. Tente novamente.');
+        if (this.sheet()) this.sheetError.set(message);
+        else this.accountActionError.set(message);
+      },
+    });
+  }
+
+  protected viewAllInvoices(): void {
+    this.sheet.set('invoices');
+  }
+
+  protected closePaid(): void {
+    this.sheet.set(null);
+    this.paidReceipt.set(null);
+  }
+
+  protected openPaidReceipt(): void {
+    const url = this.paidReceipt()?.receiptUrl;
+    if (url) this.externalNav.openExternal(url);
+  }
+
+  // ------------------------------------------------------------- summary
+
+  private refreshSummary(): void {
+    if (typeof this.billingService.loadSummary !== 'function') return;
+    this.billingService.loadSummary().subscribe({
+      next: (sum) => this.onSummary(sum),
+      error: (err: unknown) => {
+        this.summaryLoaded.set(true);
+        this.apiErrors.claim(err);
+        this.logger.warn('[billing] loadSummary failed', { error: err });
+      },
+    });
+  }
+
+  private onSummary(sum: BillingSummary | null): void {
+    this.summaryLoaded.set(true);
+    if (!sum) return;
+    const owingNow = sum.state === 'PAST_DUE' || sum.state === 'BLOCKED';
+    if (this.wasOwing && sum.state === 'ACTIVE') this.showPaid(sum);
+    this.wasOwing = owingNow;
+    // A contagem regressiva só existe com fatura em aberto.
+    if (owingNow) this.startClock();
+    else this.stopClock();
+    this.now.set(new Date());
+    if (owingNow) this.lastOwingAmountCents = sum.amountDueCents;
+    this.handleQueryIntent(sum);
+  }
+
+  /** O atraso virou ACTIVE com a página aberta: confirma o pagamento. */
+  private showPaid(sum: BillingSummary): void {
+    this.stopInvoiceWatch();
+    this.access.invalidate();
+    this.access.load().subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
+    const paid = sum.invoices.find((i) => i.status === 'PAID') ?? null;
+    const cents = paid?.amountCents ?? this.lastOwingAmountCents;
+    this.paidReceipt.set({
+      amount: cents != null ? formatCents(cents) : '—',
+      method: paid?.cardLast4 ? `${brandName(paid.cardBrand)} final ${paid.cardLast4}` : 'Cartão',
+      at: formatDayMonthTime(new Date()),
+      planName: displayPlanName(sum.plan?.name ?? null),
+      until: formatFullDate(parseServerTime(sum.currentPeriodEnd)),
+      receiptUrl: paid?.hostedUrl ?? paid?.pdfUrl ?? null,
+    });
+    this.sheet.set('paid');
+  }
+
+  /** Links dos e-mails: `?pagar=1` abre o pagamento, `?cartao=1` a troca de cartão. */
+  private handleQueryIntent(sum: BillingSummary): void {
+    if (this.queryIntentHandled) return;
+    this.queryIntentHandled = true;
+    const params = this.route.snapshot.queryParamMap;
+    const owingNow = sum.state === 'PAST_DUE' || sum.state === 'BLOCKED';
+    if (params.get('pagar') === '1' && owingNow && sum.canManage) {
+      this.openPay();
+    } else if (params.get('cartao') === '1' && sum.canManage && sum.actions.includes('UPDATE_CARD')) {
+      this.openCardUpdate();
+    } else if (params.get('cartao') === 'atualizado') {
+      this.notifications.success(
+        owingNow
+          ? 'Cartão atualizado. Pague a fatura em aberto para liberar o acesso na hora.'
+          : 'Cartão atualizado. As próximas cobranças usam o cartão novo.',
+      );
+    }
+  }
+
+  /** Depois de abrir a fatura do Stripe: relê o resumo até o pagamento chegar. */
+  private watchInvoicePayment(): void {
+    this.stopInvoiceWatch();
+    this.invoiceWatchUntil = Date.now() + INVOICE_WATCH_MS;
+    this.invoicePollHandle = setInterval(() => {
+      if (Date.now() >= this.invoiceWatchUntil) {
+        this.stopInvoiceWatch();
+        return;
+      }
+      this.refreshSummary();
+    }, INVOICE_POLL_MS);
+  }
+
+  private stopInvoiceWatch(): void {
+    if (this.invoicePollHandle) {
+      clearInterval(this.invoicePollHandle);
+      this.invoicePollHandle = null;
+    }
+  }
+
+  private startClock(): void {
+    if (!this.isBrowser || this.clockHandle) return;
+    this.clockHandle = setInterval(() => this.now.set(new Date()), 60_000);
+  }
+
+  private stopClock(): void {
+    if (this.clockHandle) {
+      clearInterval(this.clockHandle);
+      this.clockHandle = null;
+    }
+  }
+
 }

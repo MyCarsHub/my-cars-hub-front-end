@@ -51,9 +51,12 @@ describe('PaywallDialog — texto por papel', () => {
     expect(body(trial)).toBe('Assine o PRO para continuar usando o MyCarsHub.');
     expect(cta(trial)?.textContent?.trim()).toBe('Ver planos');
 
+    // Atraso (mockup 07): quem deve vai para o pagamento, não para a grade de planos.
     const pending = render('PAST_DUE', true);
-    expect(title(pending)).toBe('Pagamento pendente');
-    expect(cta(pending)?.textContent?.trim()).toBe('Ver planos');
+    expect(title(pending)).toBe('Acesso pausado');
+    expect(cta(pending)?.textContent?.trim()).toBe('Pagar agora');
+    expect(pending.textContent).toContain('Trocar cartão');
+    expect(pending.textContent).toContain('Falar com o suporte');
 
     const none = render('NO_SUBSCRIPTION', true);
     expect(title(none)).toBe('Escolha um plano para começar');

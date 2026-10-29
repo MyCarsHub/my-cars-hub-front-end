@@ -231,6 +231,7 @@ export class LandingPricingComponent {
     TRIAL: planCapacityLines('TRIAL'),
     STARTER: planCapacityLines('STARTER'),
     PRO: planCapacityLines('PRO'),
+    SCALE: planCapacityLines('SCALE'),
     ENTERPRISE: planCapacityLines('ENTERPRISE'),
   };
 

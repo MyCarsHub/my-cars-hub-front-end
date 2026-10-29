@@ -37,7 +37,7 @@
  */
 
 /** Planos do catálogo, pelo `name` da tabela `plans` (V59:7-15). */
-export type PlanTier = 'TRIAL' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type PlanTier = 'TRIAL' | 'STARTER' | 'PRO' | 'SCALE' | 'ENTERPRISE';
 
 export interface PlanCapacity {
   vehicles: number;
@@ -55,6 +55,8 @@ export const PLAN_CAPACITY: Readonly<Record<PlanTier, PlanCapacity>> = {
   TRIAL: { vehicles: 3 },
   STARTER: { vehicles: 15 },
   PRO: { vehicles: 25 },
+  /** V127 (decisão do dono, 2026-10-29). */
+  SCALE: { vehicles: 75 },
   ENTERPRISE: { vehicles: 100 },
 };
 

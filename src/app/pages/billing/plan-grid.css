@@ -1,0 +1,91 @@
+:host { display: block; --acc: #F63B04; --acc-glow: rgba(246, 59, 4, 0.35); }
+:host(.yr) { --acc: #10B981; --acc-glow: rgba(16, 185, 129, 0.35); }
+
+/* Celular: carrossel com snap. Desktop (≥1024): cinco colunas alinhadas por subgrid. */
+.pl-grid {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  margin: 20px -16px 0; padding: 4px 16px 28px; scrollbar-width: none; align-items: stretch;
+  overscroll-behavior-x: contain;
+}
+.pl-grid::-webkit-scrollbar { display: none; }
+.pl-grid .pl { flex: 0 0 84%; scroll-snap-align: center; }
+.dots { display: flex; justify-content: center; gap: 6px; margin-top: -8px; }
+.dots i { width: 6px; height: 6px; border-radius: 9px; background: var(--b-edge); transition: width 0.25s var(--b-ease), background-color 0.25s; }
+.dots i.on { width: 18px; background: var(--color-fg); }
+
+@media (min-width: 1024px) {
+  .pl-grid {
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(7, auto);
+    column-gap: 16px; row-gap: 0; overflow: visible; margin: 24px 0 0; padding: 8px 0 0;
+  }
+  .pl-grid .pl { grid-row: span 7; grid-template-rows: subgrid; }
+  .pl:hover { transform: translateY(-6px); }
+  .dots { display: none; }
+}
+
+.pl {
+  position: relative; background: var(--b-plan-surface); border: 1px solid var(--b-edge); border-radius: 18px;
+  padding: 24px 20px; display: grid; grid-template-rows: auto auto auto auto auto auto 1fr; isolation: isolate;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+:host-context(.dark) .pl { border-color: #1F1F1F; }
+.pl .r-name { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.pl .name { font-size: 18px; font-weight: 600; color: var(--color-fg); letter-spacing: -0.01em; margin: 0; }
+.pl .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pl .tag.rec { color: #fff; background: #C22F00; }
+:host(.yr) .pl .tag.rec { background: #0A7854; }
+.pl .tag.cur { color: var(--color-fg-body); background: var(--color-surface-sunken); }
+.pl .r-pitch { margin: 8px 0 0; font-size: 15px; line-height: 22px; color: var(--b-muted); min-height: 44px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pl .r-price { margin-top: 24px; display: flex; align-items: baseline; gap: 4px; min-height: 40px; white-space: nowrap; }
+.pl .r-price b { font-family: var(--font-display); font-weight: 700; font-size: 32px; line-height: 40px; letter-spacing: -0.035em; color: var(--color-fg); }
+.pl .r-price b i { font-style: normal; font-size: 18px; letter-spacing: -0.01em; margin-right: 3px; vertical-align: top; position: relative; top: 3px; }
+.pl .r-price b.txt { font-size: 24px; }
+.pl .r-price span { font-size: 13.5px; color: var(--b-muted); }
+.pl .r-sub { margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--b-muted); min-height: 20px; }
+.pl .r-cta { margin-top: 24px; }
+.pl .r-cta .btn {
+  width: 100%; min-height: 44px; font-size: 15px; border-radius: 12px; background: transparent;
+  border: 1px solid var(--b-edge); color: var(--color-fg); box-shadow: none; white-space: nowrap; padding: 0 12px;
+}
+:host-context(.dark) .pl .r-cta .btn { border-color: #2A2A2A; }
+.pl .r-cta .btn:hover:not(:disabled) { background: var(--color-surface-sunken); }
+.pl .r-cta .btn:disabled { color: var(--b-faint); background: var(--color-surface-sunken); border-color: transparent; opacity: 1; }
+.pl .r-note, .pl .r-err { margin: 8px 0 0; font-size: 12.5px; line-height: 17px; color: var(--b-muted); }
+.pl .r-err { color: var(--b-danger); font-weight: 500; }
+.pl .r-inc { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--b-edge); font-size: 14px; color: var(--b-muted); }
+:host-context(.dark) .pl .r-inc { border-top-color: #1F1F1F; }
+.pl ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; align-content: start; }
+.pl li { display: flex; gap: 10px; font-size: 15px; line-height: 21px; color: var(--b-muted); white-space: nowrap; }
+.pl li svg { width: 16px; height: 16px; flex: none; margin-top: 3px; color: var(--b-faint); }
+.pl li.hi { color: var(--color-fg); font-weight: 500; }
+.pl li.hi svg { color: var(--acc); stroke-width: 2.2; }
+
+/* Pro: leve calor no pé do cartão, CTA cheio. */
+.pl.rec {
+  background: linear-gradient(180deg, var(--b-plan-surface) 0%, var(--b-plan-surface) 45%, color-mix(in srgb, var(--acc) 7%, var(--b-plan-surface)) 100%);
+  border-color: color-mix(in srgb, var(--acc) 45%, var(--b-edge));
+}
+:host-context(.dark) .pl.rec {
+  background: linear-gradient(180deg, #0A0A0A 0%, #0A0A0A 40%, color-mix(in srgb, var(--acc) 12%, #0A0A0A) 100%);
+  border-color: color-mix(in srgb, var(--acc) 45%, #1F1F1F);
+}
+.pl.rec .r-cta .btn:not(:disabled) { background: linear-gradient(180deg, #F84A16 0%, #F63B04 50%, #E23500 100%); border: 0; color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+:host(.yr) .pl.rec .r-cta .btn:not(:disabled) { background: linear-gradient(180deg, #0B8A61, #0A7854); }
+
+/* Plano atual: mesma superfície, a borda acende (mais forte embaixo). */
+.pl.cur { border-color: transparent; box-shadow: 0 22px 48px -22px var(--acc-glow); }
+.pl.cur::before {
+  content: ""; position: absolute; inset: -2px; border-radius: 19px; padding: 2px; pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 55%, transparent) 0%, color-mix(in srgb, var(--acc) 75%, transparent) 50%, var(--acc) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.pl.cur::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 140px; border-radius: 0 0 18px 18px; z-index: -1; pointer-events: none;
+  background: radial-gradient(75% 95% at 50% 100%, color-mix(in srgb, var(--acc) 22%, transparent), transparent 72%);
+}
+:host-context(.dark) .pl.cur::after { background: radial-gradient(75% 95% at 50% 100%, color-mix(in srgb, var(--acc) 38%, transparent), transparent 72%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pl, .dots i { transition: none; }
+  .pl:hover { transform: none; }
+}

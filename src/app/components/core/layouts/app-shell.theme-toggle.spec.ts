@@ -37,7 +37,7 @@ describe('AppShell — botão de tema ao lado do sino', () => {
         { provide: ImpersonationService, useValue: { active: signal(false) } },
         {
           provide: BillingAccessService,
-          useValue: { load: () => of(null), isBlocked: signal(false), reason: signal<string | null>(null) },
+          useValue: { load: () => of(null), isBlocked: signal(false), status: signal(null), reason: signal<string | null>(null) },
         },
         {
           provide: NotificationFeedService,

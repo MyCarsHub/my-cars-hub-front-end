@@ -13,6 +13,7 @@ describe('plan-limits', () => {
   it('espelha os tetos reais da V59', () => {
     // Só VEÍCULOS: o teto de motorista virou guarda-corpo interno (FEAT-0070).
     expect(PLAN_CAPACITY.TRIAL).toEqual({ vehicles: 3 });
+    expect(PLAN_CAPACITY.SCALE).toEqual({ vehicles: 75 });
     expect(PLAN_CAPACITY.STARTER).toEqual({ vehicles: 15 });
     expect(PLAN_CAPACITY.PRO).toEqual({ vehicles: 25 });
     expect(PLAN_CAPACITY.ENTERPRISE).toEqual({ vehicles: 100 });
@@ -27,6 +28,7 @@ describe('plan-limits', () => {
     expect(Object.keys(PLAN_CAPACITY).sort()).toEqual([
       'ENTERPRISE',
       'PRO',
+      'SCALE',
       'STARTER',
       'TRIAL',
     ]);

@@ -30,10 +30,10 @@ export const PLAN_PRICES = {
   starterMonthly: 79.9,
   /** STARTER anual TOTAL: 799,00 (V59:173-174, UPDATE V59:249-256, guarda V59:496). */
   starterYearlyTotal: 799,
-  /** PRO mensal: 149,90 — era 79,90 antes da V59 (V59:176-177, UPDATE V59:260-267, guarda V59:497). */
-  proMonthly: 149.9,
-  /** PRO anual TOTAL: 1499,00 — era 795,80 antes da V59 (V59:178-179, UPDATE V59:270-277, guarda V59:498). */
-  proYearlyTotal: 1499,
+  /** PRO mensal: 159,90 desde a V127 (era 149,90; 79,90 antes da V59 (V59:176-177, UPDATE V59:260-267, guarda V59:497). */
+  proMonthly: 159.9,
+  /** PRO anual TOTAL: 1599,00 desde a V127 (era 1499,00; 795,80 antes da V59 (V59:178-179, UPDATE V59:270-277, guarda V59:498). */
+  proYearlyTotal: 1599,
   /** ENTERPRISE mensal: 299,00, inalterado pela V59 (V59:181-182, UPDATE V59:291-298, guarda V59:499). */
   enterpriseMonthly: 299,
   /** ENTERPRISE anual TOTAL: 2990,00 — era 3049,80 antes da V59 (V59:183-184, UPDATE V59:280-287, guarda V59:500). */
