@@ -18,12 +18,21 @@ const API = `${environment.apiUrl}/admin/contacts/reveal`;
 export class AdminContactService {
   private readonly http = inject(HttpClient);
 
+  /**
+   * `contextCompanyId`: a empresa que o admin está vendo. Para um USUÁRIO sem
+   * telefone próprio, o servidor prefere o cadastro de motorista dele NESSA
+   * empresa; só ordena, não amplia o que pode ser lido. Omitido quando não há.
+   */
   reveal(
     subjectType: ContactSubjectType,
     subjectId: string,
     channel: ContactChannel,
+    contextCompanyId?: string | null,
   ): Observable<RevealedContact> {
-    return this.http.post<RevealedContact>(API, { subjectType, subjectId, channel });
+    const body = contextCompanyId
+      ? { subjectType, subjectId, channel, contextCompanyId }
+      : { subjectType, subjectId, channel };
+    return this.http.post<RevealedContact>(API, body);
   }
 }
 
