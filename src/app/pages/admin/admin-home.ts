@@ -186,17 +186,10 @@ export class AdminHome implements OnInit {
   protected readonly loading = this.metricsService.loading;
   protected readonly error = this.metricsService.error;
 
-  /** Toggle: 'active' mostra apenas entidades ativas (padrão); 'all' inclui inativas/canceladas. */
-  protected readonly scope = signal<'active' | 'all'>('active');
-
-  protected setScope(next: 'active' | 'all'): void {
-    this.scope.set(next);
-  }
-
   protected readonly usersDisplay = computed(() => {
     const u = this.overview()?.users;
     if (!u) return 0;
-    return this.scope() === 'active' ? u.activeTotal : u.total;
+    return u.activeTotal;
   });
 
   /** Presenca (nao login). Backend sem o campo (deploy antigo) = 0. */
@@ -205,13 +198,13 @@ export class AdminHome implements OnInit {
   protected readonly companiesDisplay = computed(() => {
     const c = this.overview()?.companies;
     if (!c) return 0;
-    return this.scope() === 'active' ? c.activeTotal : c.total;
+    return c.activeTotal;
   });
 
   protected readonly vehiclesDisplay = computed(() => {
     const v = this.overview()?.vehicles;
     if (!v) return 0;
-    return this.scope() === 'active' ? v.activeTotal : v.total;
+    return v.activeTotal;
   });
 
   /**
