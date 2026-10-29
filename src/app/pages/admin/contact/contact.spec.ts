@@ -189,10 +189,24 @@ describe('ContactBar (detalhe)', () => {
 
   afterEach(() => http.verify());
 
-  it('revela UMA vez com canal VIEW e vira links de um toque', async () => {
+  it('abrir o detalhe NÃO revela: mostra só a máscara e não chama o endpoint auditado', () => {
+    const fixture = TestBed.createComponent(BarHost);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    http.expectNone(REVEAL_URL);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="contact-masked"]')?.textContent).toContain('(11) •••••-4321');
+    expect(el.textContent).not.toContain('98765');
+    expect(el.innerHTML).not.toContain('wa.me');
+    expect(el.innerHTML).not.toContain('tel:');
+  });
+
+  it('"Ver número": UMA revelação com canal VIEW e o número aparece', async () => {
     const fixture = TestBed.createComponent(BarHost);
     fixture.detectChanges();
 
+    (fixture.nativeElement.querySelector('[data-testid="bar-reveal"]') as HTMLButtonElement).click();
     const req = http.expectOne(REVEAL_URL);
     expect(req.request.body).toEqual({ subjectType: 'USER', subjectId: 'usr-1', channel: 'VIEW' });
     req.flush({ ...REVEALED, subjectType: 'USER', subjectId: 'usr-1' });
@@ -201,13 +215,47 @@ describe('ContactBar (detalhe)', () => {
     const el: HTMLElement = fixture.nativeElement;
 
     expect(el.querySelector('[data-testid="contact-display"]')?.textContent).toContain('(11) 98765-4321');
-    expect(el.querySelector('[data-testid="bar-whatsapp"]')?.getAttribute('href')).toBe(
-      'https://wa.me/5511987654321',
-    );
-    expect(el.querySelector('[data-testid="bar-call"]')?.getAttribute('href')).toBe('tel:+5511987654321');
     expect(el.querySelector('[data-testid="bar-email"]')?.getAttribute('href')).toBe(
       'mailto:motorista@example.com',
     );
+  });
+
+  it('WhatsApp: UMA revelação com canal WHATSAPP, aba aberta no gesto', async () => {
+    const tab = { opener: {} as unknown, location: { href: '' }, close: vi.fn() };
+    const open = vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window);
+    const fixture = TestBed.createComponent(BarHost);
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-testid="bar-whatsapp"]') as HTMLButtonElement).click();
+    expect(open).toHaveBeenCalledWith('', '_blank');
+    const req = http.expectOne(REVEAL_URL);
+    expect(req.request.body).toEqual({ subjectType: 'USER', subjectId: 'usr-1', channel: 'WHATSAPP' });
+    req.flush(REVEALED);
+    await flush();
+
+    expect(tab.location.href).toBe('https://wa.me/5511987654321');
+    expect(tab.opener).toBeNull();
+    open.mockRestore();
+  });
+
+  it('Ligar e Copiar revelam com o próprio canal, uma requisição por toque', async () => {
+    const fixture = TestBed.createComponent(BarHost);
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+
+    (el.querySelector('[data-testid="bar-call"]') as HTMLButtonElement).click();
+    const call = http.expectOne(REVEAL_URL);
+    expect(call.request.body.channel).toBe('CALL');
+    // Não seguimos o tel: no jsdom (navegação); o canal auditado é o que importa aqui.
+    call.flush({ ...REVEALED, telLink: null });
+    await flush();
+    fixture.detectChanges();
+
+    (el.querySelector('[data-testid="bar-copy"]') as HTMLButtonElement).click();
+    const copy = http.expectOne(REVEAL_URL);
+    expect(copy.request.body.channel).toBe('COPY');
+    copy.flush(REVEALED);
+    await flush();
   });
 
   it('sem telefone no servidor: não chama a revelação (nada a auditar) e diz que não há', () => {
@@ -218,7 +266,9 @@ describe('ContactBar (detalhe)', () => {
     http.expectNone(REVEAL_URL);
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('[data-testid="contact-none"]')?.textContent).toContain('Sem telefone');
-    expect(el.querySelector('[data-testid="bar-whatsapp"]')).toBeNull();
+    expect(
+      (el.querySelector('[data-testid="bar-whatsapp"]') as HTMLButtonElement).disabled,
+    ).toBe(true);
     // O e-mail continua utilizável.
     expect(el.querySelector('[data-testid="bar-email"]')?.getAttribute('href')).toBe('mailto:pessoa@example.com');
   });
