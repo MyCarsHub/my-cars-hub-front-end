@@ -30,9 +30,9 @@ import {
   DriverNameCorrectionResult,
 } from '../../../types/admin-charges.types';
 import { AdminChargesService } from './admin-charges.service';
+import { canReceiveCharge, canRetryCharge } from './charge-action-rules';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 
-/** Tipos que o admin pode registrar como recebidos por fora. */
-const RECEIVABLE_KINDS = ['CAUCAO', 'RENTAL_PERIOD', 'RENTAL_TOTAL'];
 
 export type ChargeActionMode = 'menu' | 'compare' | 'received' | 'retry' | 'name' | 'sync';
 
@@ -104,6 +104,8 @@ export class ChargeActionsSheet implements OnInit {
 
   readonly item = input.required<AdminChargeListItem>();
   readonly initialMode = input<ChargeActionMode>('menu');
+  /** Lote 2A: o menu da folha segue o papel (o servidor confere de novo). */
+  protected readonly caps = inject(AdminCapabilitiesService);
   readonly closed = output<void>();
   /** Algo mudou do lado do dinheiro/cadastro: a lista deve recarregar. */
   readonly changed = output<void>();
@@ -137,17 +139,12 @@ export class ChargeActionsSheet implements OnInit {
   });
 
   /** "Tentar de novo": FAILED e hoje ≤ vencimento (daysOverdue ≤ 0). */
-  protected readonly canRetry = computed(
-    () => this.item().status === 'FAILED' && this.item().dueDate !== null && this.item().daysOverdue <= 0,
-  );
+  protected readonly canRetry = computed(() => canRetryCharge(this.item()));
   /**
    * "Recebida por fora" (só admin, dono 29/10/2026): caução ou parcela do aluguel, PENDENTE ou
    * ATRASADA. Multa e cobrança com falha não. O backend confere tudo de novo.
    */
-  protected readonly canReceive = computed(() => {
-    const i = this.item();
-    return RECEIVABLE_KINDS.includes(i.kind) && (i.status === 'PENDING' || i.status === 'PAST_DUE');
-  });
+  protected readonly canReceive = computed(() => canReceiveCharge(this.item()));
   protected readonly isCaucao = computed(() => this.item().kind === 'CAUCAO');
   protected readonly hasDriver = computed(() => this.item().driverId !== null);
   protected readonly isOverdue = computed(() => this.item().daysOverdue > 0);

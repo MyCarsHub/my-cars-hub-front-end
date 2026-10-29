@@ -1,3 +1,4 @@
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
@@ -68,7 +69,12 @@ describe('ChargeActionsSheet', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [ChargeActionsSheet],
-      providers: [ApiErrorService, { provide: AdminChargesService, useValue: service }],
+      providers: [
+        ApiErrorService,
+        { provide: AdminChargesService, useValue: service },
+        // Lote 2A: estas specs exercem o menu completo (Dono).
+        { provide: AdminCapabilitiesService, useValue: { can: () => true, ensureLoaded: () => of(null) } },
+      ],
     });
   });
 
