@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './services/auth-guard';
 import { roleGuard } from './services/role.guard';
 import { adminGuard } from './services/admin.guard';
+import { capabilityGuard } from './services/admin-capability.guard';
 import { driverRoleMatch } from './services/driver-role.match';
 import { homeRouteForRole } from './utils/home-route';
 import { SessionService } from './services/session.service';
@@ -983,6 +984,16 @@ export const routes: Routes = [
                                         (m) => m.AdminSupportList,
                                     ),
                                 data: { pageTitle: 'Suporte' },
+                            },
+                            {
+                                // Admin v2 P1 lote 2A — so o Dono (admins.gerir); o servidor confere de novo.
+                                path: 'admins',
+                                canActivate: [capabilityGuard('admins.gerir')],
+                                loadComponent: () =>
+                                    import('./pages/admin/admins/admin-admins').then(
+                                        (m) => m.AdminAdmins,
+                                    ),
+                                data: { pageTitle: 'Admins e papéis' },
                             },
                             {
                                 path: 'auditoria',

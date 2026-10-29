@@ -19,6 +19,7 @@ import { ConfirmDialog } from '../../../components/core/confirm-dialog/confirm-d
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { AdminUsersService } from '../admin-users.service';
 import { AdminUserCompanyLink } from '../../../types/admin-user.types';
 import { companyRoleLabel } from '../../../utils/role-labels';
@@ -44,6 +45,7 @@ const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
 })
 export class AdminUserDetail implements OnInit, OnDestroy {
   private readonly usersService = inject(AdminUsersService);
+  protected readonly caps = inject(AdminCapabilitiesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notify = inject(NotificationService);
@@ -141,6 +143,7 @@ export class AdminUserDetail implements OnInit, OnDestroy {
   );
 
   ngOnInit(): void {
+    this.caps.ensureLoaded().subscribe();
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const id = params.get('id');
       if (!id) {

@@ -1,3 +1,4 @@
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
@@ -17,6 +18,8 @@ import { AdminContactService } from '../contact/admin-contact.service';
  * Como não houve backfill dos usuários antigos, o estado vazio fala de
  * AUSÊNCIA DO DADO — nunca afirma que a pessoa jamais acessou.
  */
+const OWNER_CAPS = { can: () => true, ensureLoaded: () => of(null) };
+
 describe('AdminUserDetail — campo "Último login"', () => {
   const BASE_USER: AdminUserDetailDto = {
     id: 'u-1',
@@ -36,6 +39,8 @@ describe('AdminUserDetail — campo "Último login"', () => {
     TestBed.configureTestingModule({
       imports: [AdminUserDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         {
@@ -143,6 +148,8 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
     TestBed.configureTestingModule({
       imports: [AdminUserDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 'u-1' })) } },
@@ -207,6 +214,8 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
     TestBed.configureTestingModule({
       imports: [AdminUserDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: user.id })) } },

@@ -1,0 +1,328 @@
+<app-default-page-layout
+  title="Admins e papéis"
+  description="Quem administra a plataforma e o que cada um pode fazer."
+>
+  <!-- Ação principal: botão no topo no desktop, flutuante no celular -->
+  <div class="mb-4 hidden lg:flex lg:justify-end">
+    <button
+      type="button"
+      data-testid="add-admin"
+      class="press inline-flex h-11 items-center gap-2 rounded-xl bg-primary-500 px-5 text-base font-semibold text-white
+             shadow-[0_6px_16px_-6px_rgba(246,59,4,0.6)] hover:bg-primary-600
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+      (click)="openGrant()"
+    >
+      <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+      </svg>
+      Adicionar admin
+    </button>
+  </div>
+
+  <!-- Resumo -->
+  <div class="mb-4 grid grid-cols-3 gap-2 lg:gap-3" data-testid="admin-counts">
+    <div class="rounded-2xl border border-edge bg-surface p-3 lg:p-4">
+      <div class="text-2xl font-bold tabular-nums text-fg">{{ counts().owner }}</div>
+      <div class="mt-1 text-xs text-fg-subtle lg:text-sm">Dono</div>
+    </div>
+    <div class="rounded-2xl border border-edge bg-surface p-3 lg:p-4">
+      <div class="text-2xl font-bold tabular-nums text-fg">{{ counts().support }}</div>
+      <div class="mt-1 text-xs text-fg-subtle lg:text-sm">Suporte</div>
+    </div>
+    <div class="rounded-2xl border border-edge bg-surface p-3 lg:p-4">
+      <div class="text-2xl font-bold tabular-nums text-fg">{{ counts().readonly }}</div>
+      <div class="mt-1 text-xs text-fg-subtle lg:text-sm">Leitura</div>
+    </div>
+  </div>
+
+  @if (loadError()) {
+    <app-alert-banner [message]="loadError()!" />
+  }
+
+  @if (loading()) {
+    <div class="space-y-2" aria-busy="true" aria-label="Carregando admins">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="h-20 animate-pulse rounded-2xl bg-surface-sunken"></div>
+      }
+    </div>
+  } @else {
+    <div
+      class="flex flex-col gap-2.5 lg:gap-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-edge lg:bg-surface"
+      data-testid="admin-list"
+    >
+      <div
+        class="hidden lg:grid lg:grid-cols-[2.2fr_1fr_1fr_1.2fr_56px] lg:gap-4 lg:border-b lg:border-edge
+               lg:bg-surface-muted lg:px-5 lg:py-3 text-xs font-semibold uppercase tracking-wide text-fg-faint"
+        aria-hidden="true"
+      >
+        <span>Admin</span><span>Papel</span><span>Situação</span><span>Último acesso</span><span></span>
+      </div>
+
+      @for (m of members(); track m.id; let i = $index) {
+        <article
+          class="enter-up grid grid-cols-[44px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-2xl border border-edge
+                 bg-surface p-3.5 lg:grid-cols-[2.2fr_1fr_1fr_1.2fr_56px] lg:items-center lg:gap-4 lg:rounded-none
+                 lg:border-0 lg:border-t lg:border-edge lg:px-5 lg:py-3.5 lg:first-of-type:border-t-0"
+          [style.--stagger-i]="i"
+          [attr.data-testid]="'admin-row-' + m.id"
+        >
+          <!-- pessoa -->
+          <div class="contents lg:flex lg:min-w-0 lg:items-center lg:gap-3">
+            <span
+              class="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
+              [class]="avatarTone(m.adminRole)"
+              aria-hidden="true"
+              >{{ initials(m.name) }}</span
+            >
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-1.5 font-semibold text-fg">
+                <span class="break-words">{{ m.name ?? 'Sem nome' }}</span>
+                @if (isMe(m)) {
+                  <span class="rounded-md bg-surface-sunken px-1.5 py-0.5 text-[11px] font-semibold text-fg-subtle">Você</span>
+                }
+              </div>
+              <div class="truncate text-sm text-fg-subtle">{{ m.email }}</div>
+            </div>
+          </div>
+
+          <!-- ações: o kebab padrão das listas do admin (ActionsMenu), como em Empresas -->
+          <div class="col-start-3 row-start-1 -mr-1.5 -mt-1 lg:col-start-5 lg:m-0 lg:justify-self-end">
+            @if (!isMe(m)) {
+              <app-actions-menu [label]="'Ações para ' + (m.name ?? 'admin')" [menuWidth]="232">
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                  [attr.data-testid]="'menu-change-' + m.id"
+                  (click)="openChange(m)"
+                >
+                  Mudar papel
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="w-full text-left text-sm px-4 py-3 text-rose-600 dark:text-rose-300 hover:bg-rose-50
+                         dark:hover:bg-rose-500/10 min-h-[44px] border-t border-edge-soft"
+                  [attr.data-testid]="'menu-revoke-' + m.id"
+                  (click)="openRevoke(m)"
+                >
+                  Remover acesso de admin
+                </button>
+              </app-actions-menu>
+            } @else {
+              <span class="inline-flex h-11 w-11 items-center justify-center text-fg-faint" title="Você não pode mudar o próprio acesso">
+                <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                <span class="sr-only">Você não pode mudar o próprio acesso</span>
+              </span>
+            }
+          </div>
+
+          <!-- metadados -->
+          <div class="col-span-2 col-start-2 flex flex-wrap items-center gap-1.5 text-sm text-fg-subtle lg:contents">
+            <span class="lg:col-start-2 lg:row-start-1"><app-admin-role-badge [role]="m.adminRole" /></span>
+            <span class="lg:col-start-3 lg:row-start-1">
+              @if (m.active) {
+                <span class="inline-flex h-6 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200">
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>Ativo
+                </span>
+              } @else {
+                <span class="inline-flex h-6 items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 text-xs font-semibold text-fg-soft">
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>Desativado
+                </span>
+              }
+            </span>
+            <span class="w-full lg:col-start-4 lg:row-start-1 lg:w-auto lg:text-fg-soft">{{ lastAccess(m) }}</span>
+          </div>
+        </article>
+      } @empty {
+        <p class="rounded-2xl border border-edge bg-surface p-6 text-center text-fg-subtle">Nenhum admin.</p>
+      }
+    </div>
+
+    @if (iAmOnlyOwner()) {
+      <p class="mt-3 flex items-start gap-2 text-sm text-fg-subtle" data-testid="only-owner-note">
+        <svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+        Você é o único Dono: seu papel não pode ser alterado nem removido. Torne outra pessoa Dono antes.
+      </p>
+    }
+  }
+
+  <!-- Botão flutuante no celular -->
+  <button
+    type="button"
+    class="press fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-4 z-40 inline-flex h-13 items-center gap-2
+           rounded-full bg-primary-500 px-5 text-base font-semibold text-white shadow-[0_10px_24px_-8px_rgba(246,59,4,0.7)]
+           hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 lg:hidden"
+    data-testid="add-admin-fab"
+    (click)="openGrant()"
+  >
+    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+    </svg>
+    Adicionar admin
+  </button>
+  <div class="h-20 lg:hidden" aria-hidden="true"></div>
+</app-default-page-layout>
+
+@if (sheet()) {
+  <app-bottom-sheet
+    [title]="sheetTitle()"
+    [subtitle]="sheetSubtitle()"
+    [busy]="busy()"
+    (closed)="closeSheet()"
+  >
+    @switch (sheet()) {
+      @case ('grant') {
+        <div class="flex flex-col gap-4">
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-fg-muted">Pessoa</span>
+            <input
+              type="search"
+              autocomplete="off"
+              enterkeyhint="search"
+              placeholder="Nome ou e-mail"
+              data-testid="grant-search"
+              class="h-12 rounded-xl border border-edge-field bg-surface px-3.5 text-base text-fg
+                     focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/15"
+              [value]="query()"
+              (input)="onQuery($any($event.target).value)"
+            />
+          </label>
+
+          @if (picked(); as p) {
+            <div class="flex items-center gap-3 rounded-xl border-[1.5px] border-primary-500 bg-primary-50 px-3 py-2.5 dark:bg-primary-500/10" data-testid="grant-picked">
+              <span class="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-sky-700 text-xs font-semibold text-white" aria-hidden="true">{{ initials(p.name) }}</span>
+              <span class="min-w-0 grow">
+                <span class="block truncate font-semibold text-fg">{{ p.name ?? 'Sem nome' }}</span>
+                <span class="block truncate text-sm text-fg-subtle">{{ p.email }}</span>
+              </span>
+              <button type="button" class="press h-11 rounded-lg px-2 text-sm font-semibold text-primary-700 dark:text-primary-300" (click)="onQuery(query())">Trocar</button>
+            </div>
+          } @else if (searching()) {
+            <p class="text-sm text-fg-subtle" aria-live="polite">Buscando…</p>
+          } @else if (candidates().length > 0) {
+            <ul class="flex flex-col gap-1.5" data-testid="grant-candidates">
+              @for (c of candidates(); track c.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="press flex min-h-12 w-full items-center gap-3 rounded-xl border border-edge px-3 py-2 text-left hover:bg-canvas"
+                    (click)="pick(c)"
+                  >
+                    <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-sunken text-xs font-semibold text-fg-soft" aria-hidden="true">{{ initials(c.name) }}</span>
+                    <span class="min-w-0">
+                      <span class="block truncate text-base text-fg">{{ c.name ?? 'Sem nome' }}</span>
+                      <span class="block truncate text-sm text-fg-subtle">{{ c.email }}</span>
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else if (query().trim().length >= 2) {
+            <p class="text-sm text-fg-subtle" aria-live="polite">Ninguém encontrado com conta ativa e sem acesso de admin.</p>
+          }
+
+          <app-reason-picker legend="Papel" [options]="roleOptions" [showNote]="false" [(reason)]="role" />
+          <app-reason-picker legend="Motivo" [options]="grantReasons" [showNote]="false" [(reason)]="reason" />
+        </div>
+      }
+
+      @case ('change') {
+        <div class="flex flex-col gap-4">
+          <app-reason-picker legend="Papel" [options]="roleOptions" [showNote]="false" [(reason)]="role" />
+
+          @if (diff().gains.length || diff().loses.length) {
+            <div class="rounded-xl bg-surface-muted p-3.5" data-testid="role-diff" aria-live="polite">
+              <p class="mb-2 text-sm font-medium text-fg-muted">O que muda</p>
+              <ul class="flex flex-col gap-1.5 text-sm">
+                @for (g of diff().gains; track g) {
+                  <li class="flex gap-2 text-emerald-700 dark:text-emerald-300"><span aria-hidden="true">+</span><span>Ganha: {{ g }}</span></li>
+                }
+                @for (l of diff().loses; track l) {
+                  <li class="flex gap-2 text-red-700 dark:text-red-300"><span aria-hidden="true">−</span><span>Perde: {{ l }}</span></li>
+                }
+                @for (k of diff().keeps; track k) {
+                  <li class="flex gap-2 text-fg-subtle"><span aria-hidden="true">✓</span><span>Continua: {{ k }}</span></li>
+                }
+              </ul>
+            </div>
+          }
+
+          <app-reason-picker legend="Motivo" [options]="changeReasons" [showNote]="false" [(reason)]="reason" />
+          <p class="flex gap-2 rounded-xl border border-edge bg-surface-muted p-3 text-sm text-fg-soft">
+            Vale na próxima ação dessa pessoa no admin.
+          </p>
+        </div>
+      }
+
+      @case ('revoke') {
+        <div class="flex flex-col gap-4">
+          <ul class="flex flex-col gap-2.5 text-base text-fg">
+            <li class="flex gap-2.5"><span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-xs" aria-hidden="true">✓</span>Perde o acesso ao admin na hora.</li>
+            <li class="flex gap-2.5"><span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-xs" aria-hidden="true">✓</span>Sessões de “Ver como” e modo edição abertas são encerradas.</li>
+            <li class="flex gap-2.5"><span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-xs" aria-hidden="true">✓</span>A conta e os vínculos com empresas continuam.</li>
+          </ul>
+          <p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/15 dark:text-amber-100">
+            Telas de empresa já abertas no celular dessa pessoa podem seguir funcionando por até 1 hora, até o login expirar.
+          </p>
+          <app-reason-picker legend="Motivo" [options]="revokeReasons" [showNote]="false" [(reason)]="reason" />
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-fg-muted">Digite {{ revokeWord }} para confirmar</span>
+            <input
+              type="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              data-testid="revoke-confirm"
+              class="h-12 rounded-xl border border-edge-field bg-surface px-3.5 text-base uppercase text-fg
+                     focus:border-red-500 focus:outline-none focus:ring-4 focus:ring-red-500/15"
+              [placeholder]="revokeWord"
+              [value]="confirmText()"
+              (input)="confirmText.set($any($event.target).value)"
+            />
+            <span class="text-xs text-fg-subtle">A ação fica registrada na auditoria com o seu nome.</span>
+          </label>
+        </div>
+      }
+    }
+
+    @if (sheetError()) {
+      <div class="mt-4"><app-alert-banner [message]="sheetError()!" /></div>
+    }
+
+    @if (sheet()) {
+      <div sheetFooter class="flex flex-col-reverse gap-2 border-t border-edge pt-4 lg:flex-row lg:justify-end">
+        <button
+          type="button"
+          class="press h-12 rounded-xl bg-surface-sunken px-5 text-base font-semibold text-fg lg:h-11"
+          [disabled]="busy()"
+          (click)="dismiss()"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          data-testid="sheet-submit"
+          class="press h-12 rounded-xl px-5 text-base font-semibold text-white disabled:opacity-50 lg:h-11"
+          [class]="sheet() === 'revoke' ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-500 hover:bg-primary-600'"
+          [disabled]="!canSubmit()"
+          (click)="submit()"
+        >
+          @if (busy()) {
+            Salvando…
+          } @else {
+            @switch (sheet()) {
+              @case ('grant') { Tornar admin }
+              @case ('change') { Salvar papel }
+              @case ('revoke') { Remover acesso }
+            }
+          }
+        </button>
+      </div>
+    }
+  </app-bottom-sheet>
+}
