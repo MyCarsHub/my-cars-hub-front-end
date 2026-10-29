@@ -17,6 +17,7 @@
     <!-- Sheet / Modal -->
     <div
       @sheet
+      [class.paused]="paymentPaused()"
       class="relative w-full md:max-w-md md:w-[92%] bg-surface
              rounded-t-2xl md:rounded-2xl
              shadow-2xl overflow-hidden
@@ -31,7 +32,11 @@
       <div class="px-5 pt-4 pb-6 sm:px-6 sm:pt-6 sm:pb-7 flex flex-col gap-5">
         <!-- Icon -->
         <div
-          class="mx-auto w-14 h-14 rounded-2xl bg-primary-50 dark:bg-primary-500/10 flex items-center justify-center"
+          class="w-14 h-14 rounded-2xl flex items-center justify-center"
+          [class.mx-auto]="!paymentPaused()"
+          [class.bg-primary-50]="!paymentPaused()"
+          [class.dark:bg-primary-500/10]="!paymentPaused()"
+          [class.bg-surface-sunken]="paymentPaused()"
           aria-hidden="true"
         >
           <svg
@@ -44,14 +49,14 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="text-primary-600 dark:text-primary-400"
+            [class]="paymentPaused() ? 'text-fg' : 'text-primary-600 dark:text-primary-400'"
           >
             <rect x="3" y="11" width="18" height="10" rx="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
         </div>
 
-        <div class="text-center space-y-2">
+        <div class="space-y-2" [class.text-center]="!paymentPaused()">
           <h2
             id="paywall-title"
             class="text-xl sm:text-2xl font-bold text-fg leading-tight"
@@ -62,6 +67,12 @@
             {{ copy().body }}
           </p>
         </div>
+
+        @if (paymentPaused() && amountDue()) {
+          <dl class="paywall-kv">
+            <div><dt>Em aberto</dt><dd>{{ amountDue() }}</dd></div>
+          </dl>
+        }
 
         <button
           type="button"
@@ -75,6 +86,26 @@
         >
           {{ copy().cta }}
         </button>
+
+        @if (paymentPaused()) {
+          <button
+            type="button"
+            (click)="changeCard.emit()"
+            class="w-full min-h-[48px] px-5 rounded-xl border border-edge bg-surface text-fg-body font-semibold
+                   hover:bg-surface-sunken transition-colors press
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          >
+            Trocar cartão
+          </button>
+          <button
+            type="button"
+            (click)="contactSupport.emit()"
+            class="mx-auto min-h-[44px] px-3 text-sm font-semibold text-primary-700 dark:text-primary-400 hover:underline
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-lg"
+          >
+            Falar com o suporte
+          </button>
+        }
 
         @if (!hardBlock()) {
           <button

@@ -54,6 +54,14 @@ export interface PlanResponse {
   trialDays: number;
   productExternalId: string | null;
   gateway: PlanGateway;
+  /** V127 — "Sob consulta": contato, nunca checkout (hoje o ENTERPRISE). */
+  contactOnly?: boolean;
+  /**
+   * V127 — o checkout aceita este plano agora. `false` num plano pago e não-contato
+   * = "em breve" (o Price do Stripe ainda não foi configurado pelo dono).
+   * Ausente (backend antigo) conta como comprável.
+   */
+  purchasable?: boolean;
 }
 
 export interface SubscriptionResponse {
@@ -112,4 +120,65 @@ export interface SubscriptionChangeResponse {
   targetPlanCode: string | null;
   effectiveAt: string | null;
   message: string | null;
+}
+
+/** Estado da página Assinatura, derivado do veredito de acesso no backend. */
+export type BillingState =
+  | 'ACTIVE'
+  | 'TRIALING'
+  | 'TRIAL_EXPIRED'
+  | 'PAST_DUE'
+  | 'BLOCKED'
+  | 'CANCELED'
+  | 'NONE';
+
+export type BillingAction =
+  | 'PAY_NOW'
+  | 'UPDATE_CARD'
+  | 'CHANGE_PLAN'
+  | 'CANCEL'
+  | 'REACTIVATE'
+  | 'SUBSCRIBE';
+
+/** Datas são LocalDateTime do servidor em UTC, sem sufixo de zona — leia com `parseServerTime`. */
+export interface BillingSummary {
+  state: BillingState;
+  canManage: boolean;
+  plan: {
+    code: string;
+    name: string;
+    period: PlanPeriod;
+    price: number;
+    vehicleLimit: number | null;
+    contactOnly: boolean;
+  } | null;
+  usage: { vehicles: number; vehicleLimit: number | null };
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  pendingPlanCode: string | null;
+  scheduledDowngradePlanCode: string | null;
+  scheduledDowngradeAt: string | null;
+  pastDueSince: string | null;
+  graceEndsAt: string | null;
+  amountDueCents: number | null;
+  openInvoice: { ref: string; amountCents: number; createdAt: string | null; payUrl: string | null } | null;
+  paymentMethod: { brand: string | null; last4: string | null; expMonth: number | null; expYear: number | null } | null;
+  lastFailure: { code: string | null; message: string; at: string | null } | null;
+  invoices: BillingInvoice[];
+  actions: BillingAction[];
+  payWith: string[];
+  providerDetailsAvailable: boolean;
+}
+
+export interface BillingInvoice {
+  ref: string;
+  number: string | null;
+  createdAt: string | null;
+  amountCents: number;
+  status: 'PAID' | 'OPEN' | 'VOID' | 'UNCOLLECTIBLE' | (string & {});
+  cardBrand: string | null;
+  cardLast4: string | null;
+  pdfUrl: string | null;
+  hostedUrl: string | null;
 }

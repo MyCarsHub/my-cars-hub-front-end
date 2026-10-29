@@ -7,7 +7,7 @@
 
 <!-- ==================== SIDEBAR (DESKTOP) ==================== -->
 @if (!layout.isMobile()) {
-<aside class="fixed top-0 left-0 z-30 h-[calc(100dvh-var(--consent-banner-h,0px))] bg-surface border-r border-gray-200 dark:border-edge
+<aside class="app-sidebar fixed top-0 left-0 z-30 h-[calc(100dvh-var(--consent-banner-h,0px))] bg-surface border-r border-gray-200 dark:border-edge
            flex flex-col overflow-hidden" [@sidebarWidth]="layout.isCollapsed() ? 'collapsed' : 'expanded'"
   role="navigation" aria-label="Menu principal">
   <ng-container *ngTemplateOutlet="sidebarContent" />
@@ -16,7 +16,7 @@
 
 <!-- ==================== SIDEBAR (MOBILE DRAWER) ==================== -->
 @if (layout.isMobile() && layout.isMobileOpen()) {
-<aside class="fixed top-0 left-0 z-50 h-[calc(100dvh-var(--consent-banner-h,0px))] w-[260px] bg-surface border-r border-gray-200 dark:border-edge
+<aside class="app-sidebar fixed top-0 left-0 z-50 h-[calc(100dvh-var(--consent-banner-h,0px))] w-[260px] bg-surface border-r border-gray-200 dark:border-edge
            flex flex-col shadow-2xl" @mobileSlide role="navigation" aria-label="Menu principal">
   <!-- Close button -->
   <!--

@@ -77,14 +77,14 @@ let nextId = 0;
           class="panel pointer-events-auto w-full bg-surface border border-edge-soft shadow-2xl
                  rounded-t-3xl lg:rounded-2xl max-h-[92dvh] flex flex-col
                  pb-[env(safe-area-inset-bottom)] lg:pb-0"
-          [class]="size() === 'lg' ? 'lg:max-w-2xl' : 'lg:max-w-md'"
+          [class]="size() === 'xl' ? 'lg:max-w-[1220px]' : size() === 'lg' ? 'lg:max-w-2xl' : 'lg:max-w-md'"
           (keydown.tab)="trapTab($event)"
         >
           <header class="px-5 pt-3 lg:pt-6 lg:px-6 shrink-0">
             <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-surface-strong lg:hidden" aria-hidden="true"></div>
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <h2 [id]="titleId" class="text-lg font-semibold text-fg break-words">{{ title() }}</h2>
+                <h2 [id]="titleId" class="text-lg font-semibold text-fg break-words" [class.sr-only]="hideTitle()">{{ title() }}</h2>
                 @if (subtitle()) {
                   <p class="mt-0.5 text-sm text-fg-subtle break-words">{{ subtitle() }}</p>
                 }
@@ -118,7 +118,10 @@ let nextId = 0;
 export class BottomSheet implements OnInit, OnDestroy {
   readonly title = input.required<string>();
   readonly subtitle = input<string | null>(null);
-  readonly size = input<'md' | 'lg'>('md');
+  /** O conteúdo desenha o próprio título (ex.: confirmação centralizada); o h2 fica só para leitores de tela. */
+  readonly hideTitle = input(false);
+  /** `xl`: a grade de planos com cinco colunas (Assinatura → Mudar de plano). */
+  readonly size = input<'md' | 'lg' | 'xl'>('md');
   /** Bloqueia Esc/fundo enquanto uma ação está em voo. */
   readonly busy = input(false);
   readonly closed = output<void>();

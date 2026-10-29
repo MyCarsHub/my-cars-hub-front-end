@@ -57,7 +57,9 @@
     <div class="flex items-baseline gap-1.5 flex-wrap">
       <strong class="font-display font-extrabold text-4xl lg:text-[26px] xl:text-4xl tracking-[-0.03em] tabular-nums"
         [class]="styles().price">{{ price() }}</strong>
-      <small class="text-[13.5px] font-medium" [class]="styles().suffix">/ {{ cycleSuffix() }}</small>
+      @if (cycleSuffix()) {
+        <small class="text-[13.5px] font-medium" [class]="styles().suffix">/ {{ cycleSuffix() }}</small>
+      }
     </div>
     @if (subtitleText()) {
       <p class="text-xs font-semibold m-0" [class]="styles().subtitle">{{ subtitleText() }}</p>

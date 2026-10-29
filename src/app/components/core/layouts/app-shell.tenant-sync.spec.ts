@@ -53,6 +53,7 @@ describe('AppShell — sidebar company after a login without reload', () => {
           useValue: {
             load: () => of(null),
             isBlocked: signal(false),
+            status: signal(null),
             reason: signal<string | null>(null),
           },
         },

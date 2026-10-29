@@ -51,6 +51,7 @@ describe('AppShell — gate do sino de notificações', () => {
           useValue: {
             load: () => of(null),
             isBlocked: signal(false),
+            status: signal(null),
             reason: signal<string | null>(null),
           },
         },
@@ -131,6 +132,7 @@ describe('AppShell — paywall por papel', () => {
           useValue: {
             load: () => of(null),
             isBlocked: signal(blocked),
+            status: signal(null),
             reason: signal<string | null>('TRIAL_EXPIRED'),
           },
         },
@@ -245,6 +247,7 @@ describe('AppShell — barra de topo do motorista', () => {
           useValue: {
             load: () => of(null),
             isBlocked: signal(false),
+            status: signal(null),
             reason: signal<string | null>(null),
           },
         },

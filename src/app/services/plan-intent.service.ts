@@ -33,10 +33,11 @@ import { SessionService } from './session.service';
  * que ela disparar um checkout, um prazo em horas passa a ser obrigatório — e aí
  * esta é a decisão a revisitar.
  */
-export type PlanIntent = 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type PlanIntent = 'STARTER' | 'PRO' | 'SCALE';
 
 const KEY = 'planIntent';
-const PAID: readonly string[] = ['STARTER', 'PRO', 'ENTERPRISE'];
+// ENTERPRISE é "Sob consulta" desde a V127: não vira intenção de compra.
+const PAID: readonly string[] = ['STARTER', 'PRO', 'SCALE'];
 
 @Injectable({ providedIn: 'root' })
 export class PlanIntentService {

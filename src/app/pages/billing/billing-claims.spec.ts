@@ -58,8 +58,8 @@ describe('billing — promessas por tier fora dos cards', () => {
    * `driver_limit`) e nenhum gate de funcionalidade, então uma função anunciada
    * como exclusiva de um plano é mentira no ar — venha ela do card ou da tabela.
    */
-  it('não anuncia nenhuma FUNÇÃO exclusiva de tier na tabela comparativa', () => {
-    const html = renderedTemplate();
+  it('não anuncia nenhuma FUNÇÃO exclusiva de tier na tela de planos', () => {
+    const html = renderedTemplate() + readFileSync(resolve(workspaceRoot(), 'src/app/pages/billing/billing.ts'), 'utf8');
 
     for (const claim of [
       'Relatórios avançados',
@@ -74,48 +74,21 @@ describe('billing — promessas por tier fora dos cards', () => {
   });
 
   /**
-   * `isRecommended()` responde "qual card leva a fita 'Mais popular'?" — e a
-   * resposta é só o PRO. Usá-lo para decidir ✓/— numa linha de entrega foi como
-   * o ENTERPRISE, que paga por prioridade, levou travessão. Ele pode continuar
-   * pintando fita e destaque; não pode voltar a conceder nada.
+   * A grade nova (2026-10-29) monta as linhas em `billing.ts`, não no HTML. A
+   * mesma porta dos fundos vale lá: capacidade e atendimento prioritário saem
+   * das fontes compartilhadas, nunca de um literal por tier.
    */
-  it('não deriva nenhuma entrega de isRecommended() — aquilo é destaque, não gate', () => {
-    const html = renderedTemplate();
-    const uses = html.match(/isRecommended\(/g) ?? [];
-
-    // As duas únicas sobreviventes são as fitas "Recomendado" (desktop) e
-    // "Popular" (mobile). Uma terceira significa que a fita virou gate de novo.
-    expect(uses).toHaveLength(2);
-    expect(html).toContain('Recomendado');
-    expect(html).toContain('Popular');
+  it('a grade deriva capacidade e prioridade das fontes compartilhadas', () => {
+    const ts = readFileSync(resolve(workspaceRoot(), 'src/app/utils/plan-grid-copy.ts'), 'utf8');
+    expect(ts).toContain('hasPrioritySupport(tier)');
+    expect(ts).toContain('planCapacityLines(tier)');
+    expect(ts).not.toContain(PRIORITY_SUPPORT_FEATURE);
+    expect(ts).not.toMatch(/Até \d+ veículos/);
   });
 
-  /**
-   * A prioridade de atendimento é a ÚNICA promessa que pode variar por tier
-   * (compromisso operacional, não software). Ela aparece nos cards e na tabela,
-   * e as duas superfícies têm de ler a MESMA fonte — foi haver duas regras que
-   * produziu a contradição.
-   */
-  it('lê a prioridade de atendimento da fonte compartilhada, não de uma regra local', () => {
+  it('o template não digita nenhuma linha de plano', () => {
     const html = renderedTemplate();
-
-    expect(html).toContain('hasPrioritySupport(plan)');
-    // Desktop (tabela) e mobile (accordion): as duas superfícies, o mesmo gate.
-    expect(html.match(/hasPrioritySupport\(plan\)/g) ?? []).toHaveLength(2);
-  });
-
-  /**
-   * E o RÓTULO também sai de lá. A tabela dizia "Suporte prioritário" enquanto o
-   * card, a um scroll de distância, prometia "Atendimento prioritário no
-   * WhatsApp": duas grafias da mesma promessa, uma delas sem nomear o canal.
-   * Digitar a frase no HTML é o primeiro passo para elas divergirem de novo.
-   */
-  it('imprime o rótulo da prioridade interpolado, nunca digitado no HTML', () => {
-    const html = renderedTemplate();
-
-    expect(html).toContain('{{ prioritySupportLabel }}');
-    expect(html.match(/\{\{ prioritySupportLabel \}\}/g) ?? []).toHaveLength(2);
     expect(html).not.toContain('Suporte prioritário');
-    expect(html).not.toContain(PRIORITY_SUPPORT_FEATURE);
+    expect(html).not.toMatch(/Até \d+ veículos/);
   });
 });

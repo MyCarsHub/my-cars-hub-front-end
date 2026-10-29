@@ -12,8 +12,7 @@ import { ExternalNavigationService } from '../../services/external-navigation.se
 import { NotificationService } from '../../services/notification.service';
 import { SessionService } from '../../services/session.service';
 import { ApiErrorService } from '../../services/api-error.service';
-import { PlanResponse, SubscriptionResponse } from '../../types/billing.types';
-import { PLAN_CAPACITY } from '../../utils/plan-limits';
+import { BillingSummary, PlanResponse, SubscriptionResponse } from '../../types/billing.types';
 
 const plan = (over: Partial<PlanResponse>): PlanResponse => ({
   id: 'id-free',
@@ -101,14 +100,6 @@ type Probe = {
   confirmDowngrade(): void;
   reactivate(): void;
   revalidate(): void;
-  statusLabel(s: string): string;
-  statusPillClass(s: string): string;
-  statusDotClass(s: string): string;
-  heroEyebrow(): string;
-  heroPlanTitle(): string;
-  heroNotice(): string | null;
-  pendingPlanName(): string | null;
-  blockedMessage(): string | null;
   canReactivate(): boolean;
   canCancel(): boolean;
   downgradeTarget(): PlanResponse | null;
@@ -131,27 +122,117 @@ type Probe = {
   ngOnInit(): void;
   error(): string | null;
   accountActionError(): string | null;
-  formatLimit(value: number | null, planName: string): string;
-  planFeatures(p: PlanResponse): readonly string[];
-  hasPrioritySupport(p: PlanResponse): boolean;
-  prioritySupportLabel: string;
-  toggleCompare(): void;
-  toggleExpanded(planId: string): void;
-  cycleOptions(): readonly {
-    value: string;
-    activeBackground?: string;
-    badge?: string;
+  sheet(): string | null;
+  state(): string;
+  planColumns(): {
+    tier: string;
+    ctaLabel: string;
+    ctaDisabled: boolean;
+    current: boolean;
+    contact: boolean;
+    price: string;
   }[];
+  failureLine(): string;
+  deadlineLabel(): string;
+  canPayInvoice(): boolean;
+  openPay(): void;
+  confirmPay(): void;
+  payOption: { set(v: 'invoice' | 'card'): void };
+  openCardUpdate(): void;
+  paidReceipt(): { amount: string; planName: string } | null;
 };
 
-/**
- * Os DOIS únicos preenchimentos medidos para carregar texto branco
- * (`styles.css`). A string é comparada inteira de propósito: um `var(--typo)`
- * não resolve para nada, o pill ativo fica branco sobre o trilho neutro
- * (1,09:1) e nenhuma asserção de "contém linear-gradient" pegaria isso.
- */
-const BRAND_DEEP_TOKEN = 'var(--brand-gradient-deep)';
-const SUCCESS_DEEP_TOKEN = 'var(--success-gradient-deep)';
+/** Servidor manda LocalDateTime em UTC sem zona. */
+const serverTime = (msFromNow: number): string =>
+  new Date(Date.now() + msFromNow).toISOString().slice(0, 19);
+
+const STARTER_M = plan({
+  id: 'id-st',
+  code: 'STARTER_MONTHLY_STRIPE',
+  name: 'STARTER',
+  price: 79.9,
+  trialDays: 0,
+  vehicleLimit: 15,
+  purchasable: true,
+});
+const PRO_M = plan({
+  id: 'id-pro2',
+  code: 'PRO_MONTHLY_STRIPE',
+  name: 'PRO',
+  price: 159.9,
+  trialDays: 0,
+  vehicleLimit: 25,
+  purchasable: false,
+});
+const SCALE_M = plan({
+  id: 'id-sc',
+  code: 'SCALE_MONTHLY_STRIPE',
+  name: 'SCALE',
+  price: 299,
+  trialDays: 0,
+  vehicleLimit: 75,
+  purchasable: false,
+});
+const ENT_M = plan({
+  id: 'id-ent',
+  code: 'ENTERPRISE_MONTHLY_STRIPE',
+  name: 'ENTERPRISE',
+  price: 299,
+  trialDays: 0,
+  vehicleLimit: 100,
+  contactOnly: true,
+  purchasable: false,
+});
+const TRIAL_M = plan({
+  id: 'id-tr',
+  code: 'TRIAL_MONTHLY_STRIPE',
+  name: 'TRIAL',
+  price: 0,
+  trialDays: 14,
+  vehicleLimit: 3,
+});
+const GRID_PLANS = [TRIAL_M, STARTER_M, PRO_M, SCALE_M, ENT_M];
+
+const pastDueSummary = (over: Partial<BillingSummary> = {}): BillingSummary => ({
+  state: 'PAST_DUE',
+  canManage: true,
+  plan: {
+    code: 'STARTER_MONTHLY_STRIPE',
+    name: 'STARTER',
+    period: 'MONTHLY',
+    price: 79.9,
+    vehicleLimit: 15,
+    contactOnly: false,
+  },
+  usage: { vehicles: 8, vehicleLimit: 15 },
+  trialEndsAt: null,
+  currentPeriodEnd: serverTime(30 * 86_400_000),
+  cancelAtPeriodEnd: false,
+  pendingPlanCode: null,
+  scheduledDowngradePlanCode: null,
+  scheduledDowngradeAt: null,
+  pastDueSince: serverTime(-12 * 3_600_000),
+  graceEndsAt: serverTime(2.5 * 86_400_000),
+  amountDueCents: 7990,
+  openInvoice: {
+    ref: 'in_1',
+    amountCents: 7990,
+    createdAt: serverTime(-86_400_000),
+    payUrl: 'https://invoice.stripe.com/i/1',
+  },
+  paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2027 },
+  lastFailure: {
+    code: 'insufficient_funds',
+    message: 'Saldo insuficiente',
+    at: serverTime(-12 * 3_600_000),
+  },
+  invoices: [],
+  actions: ['PAY_NOW', 'UPDATE_CARD'],
+  payWith: ['CARD'],
+  providerDetailsAvailable: true,
+  ...over,
+});
+
 
 describe('Billing', () => {
   let subscriptionSignal: ReturnType<typeof signal<SubscriptionResponse | null>>;
@@ -162,6 +243,7 @@ describe('Billing', () => {
    */
   let plansSignal: ReturnType<typeof signal<PlanResponse[]>>;
   let errorSignal: ReturnType<typeof signal<string | null>>;
+  let summarySignal: ReturnType<typeof signal<BillingSummary | null>>;
   let billing: {
     plans: unknown;
     subscription: unknown;
@@ -174,6 +256,10 @@ describe('Billing', () => {
     reactivate: ReturnType<typeof vi.fn>;
     cancel: ReturnType<typeof vi.fn>;
     clearError: ReturnType<typeof vi.fn>;
+    summary: unknown;
+    loadSummary: ReturnType<typeof vi.fn>;
+    cardUpdateUrl: ReturnType<typeof vi.fn>;
+    syncCardAfterUpdate: ReturnType<typeof vi.fn>;
   };
   /**
    * A tab handed out by the stubbed `openPendingTab()`. `snapshot` models the
@@ -218,6 +304,7 @@ describe('Billing', () => {
     subscriptionSignal = signal<SubscriptionResponse | null>(null);
     plansSignal = signal<PlanResponse[]>([...PLANS]);
     errorSignal = signal<string | null>(null);
+    summarySignal = signal<BillingSummary | null>(null);
     queryParams = {};
 
     billing = {
@@ -248,6 +335,10 @@ describe('Billing', () => {
       ),
       cancel: vi.fn(() => of(void 0)),
       clearError: vi.fn(() => errorSignal.set(null)),
+      summary: summarySignal.asReadonly(),
+      loadSummary: vi.fn(() => of(summarySignal())),
+      cardUpdateUrl: vi.fn(() => of('https://billing.stripe.com/p/session/x')),
+      syncCardAfterUpdate: vi.fn(() => of('UPDATED')),
     };
     tabs = [];
     popupBlocked = false;
@@ -305,12 +396,8 @@ describe('Billing', () => {
 
     expect(c.isCurrent(PRO)).toBe(true);
     // Plano comes from the plan…
-    expect(c.heroEyebrow()).toBe('Plano atual');
-    expect(c.heroPlanTitle()).toBe('PRO');
     expect(c.planCtaLabel(PRO)).toBe('Plano atual');
     // …and the trial survives as an ADDITIONAL state, never as the plan.
-    expect(c.statusLabel('TRIALING')).toBe('Período de teste');
-    expect(c.heroNotice()).toContain('período de teste');
   });
 
   it('does NOT mark the TRIAL/free plan as current while a PRO trial is running', () => {
@@ -354,10 +441,7 @@ describe('Billing', () => {
     subscriptionSignal.set(sub({ status: 'PENDING' }));
     const c = build();
 
-    expect(c.heroEyebrow()).toBe('Assinatura');
-    expect(c.heroPlanTitle()).toBe('Nenhum plano ativo');
     expect(c.isCurrent(PRO)).toBe(false);
-    expect(c.heroNotice()).toContain('pagamento');
   });
 
   it('renders pendingPlanCode as pending, with an enabled "concluir pagamento" CTA', () => {
@@ -371,7 +455,6 @@ describe('Billing', () => {
     expect(c.planIntent(PRO)).toBe('PENDING_PAYMENT');
     expect(c.planCtaLabel(PRO)).toBe('Concluir pagamento');
     expect(c.planCtaDisabled(PRO)).toBe(false);
-    expect(c.pendingPlanName()).toBe('PRO');
   });
 
   it('only marks the plan as current when the subscription is ACTIVE', () => {
@@ -379,7 +462,6 @@ describe('Billing', () => {
     const c = build();
 
     expect(c.isCurrent(PRO)).toBe(true);
-    expect(c.heroEyebrow()).toBe('Plano atual');
     expect(c.planCtaLabel(PRO)).toBe('Plano atual');
     expect(c.planCtaDisabled(PRO)).toBe(true);
   });
@@ -388,20 +470,7 @@ describe('Billing', () => {
   // F2 — status pill always renders, unknown statuses degrade safely
   // ---------------------------------------------------------------------------
 
-  it('never returns an empty label/colour for an unknown status', () => {
-    subscriptionSignal.set(sub({ status: 'SOMETHING_NEW' }));
-    const c = build();
 
-    expect(c.statusLabel('SOMETHING_NEW')).toBe('Status desconhecido');
-    expect(c.statusPillClass('SOMETHING_NEW')).not.toBe('');
-    expect(c.statusDotClass('SOMETHING_NEW')).not.toBe('');
-    expect(c.heroNotice()).not.toBeNull();
-  });
-
-  it('labels TRIALING explicitly instead of hiding it', () => {
-    const c = build();
-    expect(c.statusLabel('TRIALING')).toBe('Período de teste');
-  });
 
   // ---------------------------------------------------------------------------
   // F3 — CTA branches by intent; downgrade never touches /checkout
@@ -437,7 +506,7 @@ describe('Billing', () => {
 
     c.onPlanCta(BUSINESS);
 
-    expect(billing.startCheckout).toHaveBeenCalledWith('BUSINESS_MONTHLY_STRIPE', undefined);
+    expect(billing.startCheckout).toHaveBeenCalledWith('BUSINESS_MONTHLY_STRIPE');
     expect(lastTab().navigate).toHaveBeenCalledWith('https://pay.example/x');
     // `openExternal` would be a post-response `window.open` — the blocked path.
     expect(externalNav.openExternal).not.toHaveBeenCalled();
@@ -497,25 +566,7 @@ describe('Billing', () => {
     expect(billing.loadSubscription).toHaveBeenCalled();
   });
 
-  it('explains why the user was redirected here via ?reason=', () => {
-    TestBed.overrideProvider(ActivatedRoute, {
-      useValue: { snapshot: { queryParamMap: convertToParamMap({ reason: 'TRIAL_EXPIRED' }) } },
-    });
-    const c = build();
-    c.ngOnInit();
 
-    expect(c.blockedMessage()).toContain('período de teste terminou');
-  });
-
-  it('falls back to a generic explanation for an unknown reason', () => {
-    TestBed.overrideProvider(ActivatedRoute, {
-      useValue: { snapshot: { queryParamMap: convertToParamMap({ reason: 'WAT' }) } },
-    });
-    const c = build();
-    c.ngOnInit();
-
-    expect(c.blockedMessage()).not.toBeNull();
-  });
 
   // ---------------------------------------------------------------------------
   // F8 — period switch (Mensal ↔ Anual) is its own intent and is never silent
@@ -599,7 +650,7 @@ describe('Billing', () => {
 
     expect(c.periodSwitchTarget()).toBeNull();
     expect(billing.startCheckout).toHaveBeenCalledTimes(1);
-    expect(billing.startCheckout).toHaveBeenCalledWith('PRO_MONTHLY_STRIPE', undefined);
+    expect(billing.startCheckout).toHaveBeenCalledWith('PRO_MONTHLY_STRIPE');
   });
 
   it('warns about the immediate charge on MONTHLY → YEARLY too', () => {
@@ -662,7 +713,7 @@ describe('Billing', () => {
     // No override → the request is identical to the one that created the
     // pending session, so the backend can hand the SAME session back.
     expect(billing.startCheckout).toHaveBeenCalledTimes(1);
-    expect(billing.startCheckout).toHaveBeenCalledWith('PRO_MONTHLY_STRIPE', undefined);
+    expect(billing.startCheckout).toHaveBeenCalledWith('PRO_MONTHLY_STRIPE');
   });
 
   it('tells the user the pending CTA is the same charge, not a second one', () => {
@@ -713,7 +764,7 @@ describe('Billing', () => {
 
     c.confirmPeriodSwitch();
 
-    expect(billing.startCheckout).toHaveBeenCalledWith('BASIC_MONTHLY_STRIPE', undefined);
+    expect(billing.startCheckout).toHaveBeenCalledWith('BASIC_MONTHLY_STRIPE');
     expect(billing.downgrade).not.toHaveBeenCalled();
   });
 
@@ -749,11 +800,7 @@ describe('Billing', () => {
     const c = build();
 
     expect(c.isFreeActive()).toBe(true);
-    expect(c.heroEyebrow()).toBe('Plano gratuito');
-    expect(c.heroPlanTitle()).toBe('TRIAL');
     // The pill stays visible and honest — the subscription really is active.
-    expect(c.statusLabel('ACTIVE')).toBe('Ativa');
-    expect(c.heroNotice()).toContain('gratuito');
     // The free plan IS the plan in force.
     expect(c.isCurrent(FREE)).toBe(true);
     expect(c.planCtaLabel(FREE)).toBe('Plano atual');
@@ -799,7 +846,6 @@ describe('Billing', () => {
     // …and it must not demote a paying customer to the free plan.
     expect(c.isFreeActive()).toBe(false);
     expect(c.canCancel()).toBe(true);
-    expect(c.heroEyebrow()).toBe('Plano atual');
     logged.mockRestore();
   });
 
@@ -824,7 +870,6 @@ describe('Billing', () => {
     expect(c.isFreeActive()).toBe(true);
     expect(c.canCancel()).toBe(false);
     expect(c.canReactivate()).toBe(false);
-    expect(c.heroEyebrow()).toBe('Plano gratuito');
   });
 
   it('treats every paid plan as a plain checkout from an ACTIVE free plan', () => {
@@ -839,7 +884,7 @@ describe('Billing', () => {
 
     c.onPlanCta(PRO_YEARLY);
     expect(c.periodSwitchTarget()).toBeNull();
-    expect(billing.startCheckout).toHaveBeenCalledWith('PRO_YEARLY_STRIPE', undefined);
+    expect(billing.startCheckout).toHaveBeenCalledWith('PRO_YEARLY_STRIPE');
   });
 
   // ---------------------------------------------------------------------------
@@ -850,7 +895,6 @@ describe('Billing', () => {
     subscriptionSignal.set(sub({ status: 'ACTIVE', pendingPlanCode: 'BUSINESS_MONTHLY_STRIPE' }));
     const c = build();
 
-    expect(c.pendingPlanName()).toBe('BUSINESS');
     expect(c.planIntent(BUSINESS)).toBe('PENDING_PAYMENT');
 
     // The backend clears `pendingPlanCode` as part of /cancel.
@@ -863,7 +907,6 @@ describe('Billing', () => {
 
     c.onCancelConfirmed();
 
-    expect(c.pendingPlanName()).toBeNull();
     expect(c.planIntent(BUSINESS)).toBe('UPGRADE');
     // The same-tab "voltando do gateway" marker must not survive the cancel.
     expect(session.removeItem).toHaveBeenCalledWith('billingCheckoutPending');
@@ -1140,7 +1183,7 @@ describe('Billing', () => {
     expect(message).toContain('reembolso');
 
     c.confirmPeriodSwitch();
-    expect(billing.startCheckout).toHaveBeenCalledWith('BUSINESS_YEARLY_STRIPE', undefined);
+    expect(billing.startCheckout).toHaveBeenCalledWith('BUSINESS_YEARLY_STRIPE');
   });
 
   it('skips the dialog for an upgrade with no paid period left to burn', () => {
@@ -1150,7 +1193,7 @@ describe('Billing', () => {
     c.onPlanCta(BUSINESS);
 
     expect(c.periodSwitchTarget()).toBeNull();
-    expect(billing.startCheckout).toHaveBeenCalledWith('BUSINESS_MONTHLY_STRIPE', undefined);
+    expect(billing.startCheckout).toHaveBeenCalledWith('BUSINESS_MONTHLY_STRIPE');
   });
 
   // ---------------------------------------------------------------------------
@@ -1196,14 +1239,14 @@ describe('Billing', () => {
     const c = build();
 
     c.onPlanCta(PRO);
-    // The first POST is a normal admin-overridden checkout…
-    expect(billing.startCheckout).toHaveBeenNthCalledWith(1, 'PRO_MONTHLY_STRIPE', 'stripe');
+    // The first POST carries no override — the admin gateway tool left this page (D6)…
+    expect(billing.startCheckout).toHaveBeenNthCalledWith(1, 'PRO_MONTHLY_STRIPE');
     // …and the user is told the retry costs nothing extra.
     expect(c.planCardError(PRO)).toContain('nada é cobrado duas vezes');
 
     c.onPlanCta(PRO);
-    // …the retry drops the override so the backend can hand back sess_1.
-    expect(billing.startCheckout).toHaveBeenNthCalledWith(2, 'PRO_MONTHLY_STRIPE', undefined);
+    // …so the retry is the identical request and the backend hands back sess_1.
+    expect(billing.startCheckout).toHaveBeenNthCalledWith(2, 'PRO_MONTHLY_STRIPE');
   });
 
   it('does not mark a checkout as resumable when no session was created', () => {
@@ -1504,12 +1547,6 @@ describe('Billing', () => {
 
   it('shows a failed reactivate inline, and still sends the user to the plans', () => {
     vi.useFakeTimers();
-    // jsdom implements no layout, so `scrollIntoView` is simply absent from the
-    // prototype. Stub it so the failure path can be observed rather than crash.
-    const scrollIntoView = vi.fn();
-    const proto = Element.prototype as unknown as { scrollIntoView?: () => void };
-    const original = proto.scrollIntoView;
-    proto.scrollIntoView = scrollIntoView;
     try {
       subscriptionSignal.set(sub({ status: 'ACTIVE', cancelAtPeriodEnd: true }));
       const err = new HttpErrorResponse({
@@ -1529,12 +1566,152 @@ describe('Billing', () => {
       expect(c.error()).toBeNull();
       runSafetyNet(err);
       expect(notifications.error).not.toHaveBeenCalled();
-      // The recovery intent is unchanged by the feedback migration.
-      expect(scrollIntoView).toHaveBeenCalled();
+      // The recovery intent: the plans sheet opens (it used to scroll to the grid).
+      expect(c.sheet()).toBe('plans');
     } finally {
-      proto.scrollIntoView = original;
       vi.useRealTimers();
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Redesign 2026-10-29 — resumo, grade de 5 colunas, pagar agora, sucesso
+  // ---------------------------------------------------------------------------
+
+  it('lays out the five-column grid: em breve without a Stripe price, contact for Enterprise', () => {
+    plansSignal.set([...GRID_PLANS]);
+    subscriptionSignal.set(
+      sub({ status: 'ACTIVE', planCode: 'STARTER_MONTHLY_STRIPE', planName: 'STARTER' }),
+    );
+    const cols = build().planColumns();
+
+    expect(cols.map((c) => c.tier)).toEqual(['TRIAL', 'STARTER', 'PRO', 'SCALE', 'ENTERPRISE']);
+    const by = (t: string) => cols.find((c) => c.tier === t)!;
+    expect(by('STARTER')).toMatchObject({
+      current: true,
+      ctaLabel: 'Plano atual',
+      ctaDisabled: true,
+      price: '79,90',
+    });
+    expect(by('PRO')).toMatchObject({ ctaLabel: 'Em breve', ctaDisabled: true, price: '159,90' });
+    expect(by('SCALE')).toMatchObject({ ctaLabel: 'Em breve', ctaDisabled: true, price: '299' });
+    expect(by('ENTERPRISE')).toMatchObject({
+      contact: true,
+      ctaLabel: 'Falar com a gente',
+      price: 'Sob consulta',
+    });
+    expect(by('TRIAL').ctaLabel).toBe('Já utilizado');
+  });
+
+  it('a purchasable higher plan reads "Subir para"', () => {
+    plansSignal.set([
+      ...GRID_PLANS.filter((p) => p.name !== 'PRO'),
+      { ...PRO_M, purchasable: true },
+    ]);
+    subscriptionSignal.set(
+      sub({
+        status: 'ACTIVE',
+        planCode: 'STARTER_MONTHLY_STRIPE',
+        planName: 'STARTER',
+        currentPeriodEnd: PAST,
+      }),
+    );
+    const cols = build().planColumns();
+    expect(cols.find((c) => c.tier === 'PRO')!.ctaLabel).toBe('Subir para Pro');
+  });
+
+  it('past due: plain reason, countdown and pay-now from the summary', () => {
+    summarySignal.set(pastDueSummary());
+    subscriptionSignal.set(
+      sub({ status: 'PAST_DUE', planCode: 'STARTER_MONTHLY_STRIPE', planName: 'STARTER' }),
+    );
+    const c = build();
+
+    expect(c.state()).toBe('PAST_DUE');
+    expect(c.failureLine()).toMatch(
+      /^Visa final 4242 recusado em \d{2}\/\d{2}: saldo insuficiente\.$/,
+    );
+    expect(c.deadlineLabel()).toBe('Faltam 2 dias');
+    expect(c.canPayInvoice()).toBe(true);
+  });
+
+  it('"Pagar agora" opens the Stripe hosted invoice, never a checkout', () => {
+    summarySignal.set(pastDueSummary());
+    const c = build();
+    c.openPay();
+    c.confirmPay();
+
+    expect(externalNav.openExternal).toHaveBeenCalledWith('https://invoice.stripe.com/i/1');
+    expect(billing.startCheckout).not.toHaveBeenCalled();
+    expect(c.sheet()).toBeNull();
+  });
+
+  it('"Outro cartão" goes to the Stripe billing portal', () => {
+    summarySignal.set(pastDueSummary());
+    const c = build();
+    c.openPay();
+    c.payOption.set('card');
+    c.confirmPay();
+
+    expect(billing.cardUpdateUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed card update shows the error where the action is', () => {
+    summarySignal.set(pastDueSummary());
+    billing.cardUpdateUrl = vi.fn(() =>
+      throwError(() => new HttpErrorResponse({ status: 400, error: { message: 'Sem cartão.' } })),
+    );
+    const c = build();
+    c.openCardUpdate();
+
+    expect(c.accountActionError()).toBe('Sem cartão.');
+  });
+
+  it('opens the pay sheet from the e-mail deep link (?pagar=1)', () => {
+    TestBed.overrideProvider(ActivatedRoute, {
+      useValue: { snapshot: { queryParamMap: convertToParamMap({ pagar: '1' }) } },
+    });
+    summarySignal.set(pastDueSummary());
+    const c = build();
+    c.ngOnInit();
+
+    expect(c.sheet()).toBe('pay');
+  });
+
+  it('back from the billing portal, the subscription is switched to the new card once', () => {
+    TestBed.overrideProvider(ActivatedRoute, {
+      useValue: { snapshot: { queryParamMap: convertToParamMap({ cartao: 'atualizado' }) } },
+    });
+    summarySignal.set(pastDueSummary());
+    const c = build();
+    c.ngOnInit();
+    c.revalidate();
+
+    expect(billing.syncCardAfterUpdate).toHaveBeenCalledTimes(1);
+    expect(notifications.success).toHaveBeenCalled();
+    // Paying the open invoice is still the hosted-invoice path, never this call.
+    expect(externalNav.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('confirms the payment when the summary turns from past due to active', () => {
+    summarySignal.set(pastDueSummary());
+    const c = build();
+    c.ngOnInit();
+    expect(c.sheet()).toBeNull();
+
+    summarySignal.set(
+      pastDueSummary({
+        state: 'ACTIVE',
+        amountDueCents: null,
+        openInvoice: null,
+        lastFailure: null,
+        actions: ['UPDATE_CARD', 'CHANGE_PLAN', 'CANCEL'],
+      }),
+    );
+    c.revalidate();
+
+    expect(c.sheet()).toBe('paid');
+    expect(c.paidReceipt()).toMatchObject({ amount: 'R$ 79,90', planName: 'Starter' });
+    expect(access.invalidate).toHaveBeenCalled();
   });
 
   it('keeps the load banner as the single surface when /plans fails', () => {
@@ -1559,363 +1736,6 @@ describe('Billing', () => {
     }
   });
 
-  /**
-   * Tabela comparativa de planos. A API devolve teto real em TODOS os planos —
-   * inclusive no ENTERPRISE, que mesmo assim é apresentado como ilimitado
-   * (decisão de produto, `utils/plan-limits.ts`).
-   *
-   * O fixture carrega os tetos da GERAÇÃO ATUAL, e é isso que dá valor às
-   * asserções negativas daqui. Ele ficou parado em 500/1000 (V44) depois que a
-   * V59 passou o ENTERPRISE para 100/300: a guarda continuava verde procurando
-   * dois números que o backend não devolve mais, então a maquiagem podia
-   * quebrar e vazar "100"/"300" na tela sem derrubar teste nenhum. Se a V60
-   * mexer nos tetos, este par tem de andar junto com `PLAN_CAPACITY`.
-   */
-  describe('limites na tabela de planos', () => {
-    const ENTERPRISE = plan({
-      id: 'id-ent',
-      code: 'ENTERPRISE_MONTHLY_STRIPE',
-      name: 'ENTERPRISE',
-      price: 299,
-      vehicleLimit: PLAN_CAPACITY.ENTERPRISE.vehicles,
-      trialDays: 0,
-    });
-    const PRO_V44 = plan({
-      id: 'id-pro-v44',
-      code: 'PRO_MONTHLY_STRIPE',
-      name: 'PRO',
-      price: 79.9,
-      vehicleLimit: 20,
-      trialDays: 0,
-    });
-    const TRIAL_V44 = plan({ vehicleLimit: 3 });
 
-    it('esconde o teto real do ENTERPRISE nas células da tabela', () => {
-      const c = build();
 
-      expect(c.formatLimit(ENTERPRISE.vehicleLimit, ENTERPRISE.name)).toBe('∞');
-    });
-
-    /**
-     * CONTROLE POSITIVO das asserções negativas deste bloco.
-     *
-     * Sem ele, "o número não aparece" é ambíguo: pode ser a maquiagem fazendo o
-     * trabalho, ou pode ser que aquele número nunca fosse aparecer de qualquer
-     * jeito — que é exatamente o que acontecia quando o fixture procurava os
-     * tetos da V44. Aqui os MESMOS 100/300 são impressos crus assim que o nome
-     * deixa de ser ENTERPRISE, o que prova que quem os suprime é a maquiagem e
-     * não a ausência do dado.
-     */
-    it('imprime os mesmos números quando o plano não tem maquiagem', () => {
-      const c = build();
-
-      expect(c.formatLimit(PLAN_CAPACITY.ENTERPRISE.vehicles, 'PRO')).toBe(
-        String(PLAN_CAPACITY.ENTERPRISE.vehicles),
-      );
-    });
-
-    it('mostra os números reais de TRIAL e PRO', () => {
-      const c = build();
-
-      expect(c.formatLimit(TRIAL_V44.vehicleLimit, TRIAL_V44.name)).toBe('3');
-      expect(c.formatLimit(PRO_V44.vehicleLimit, PRO_V44.name)).toBe('20');
-    });
-
-    // Sentinela da coluna: segue significando ilimitado para qualquer plano.
-    it('mantém o ramo de limite nulo', () => {
-      const c = build();
-
-      expect(c.formatLimit(null, 'PRO')).toBe('∞');
-    });
-
-    it('não vaza o teto real do ENTERPRISE nos bullets do card', () => {
-      const c = build();
-      const features = c.planFeatures(ENTERPRISE).join(' | ');
-
-      expect(features).toContain('veículos ilimitados');
-      expect(features).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.vehicles));
-      // FEAT-0070: capacidade de motorista não aparece em bullet nenhum.
-      expect(features).not.toContain('motorista');
-    });
-
-    /**
-     * Os bullets de CAPACIDADE do PRO saem em número; a maquiagem é só do
-     * ENTERPRISE. Os limites vêm da linha da API (o fixture), nunca de
-     * `PLAN_CAPACITY` — esta tela é autenticada e recebe os tetos reais, e o
-     * card não pode contradizer o plano que o backend vende.
-     *
-     * A asserção negativa é sobre as frases de FROTA, não sobre a palavra
-     * "ilimitados" solta: `PLAN_FEATURES` traz "Usuários e papéis ilimitados",
-     * que vale para os quatro tiers e não fala de teto de frota. Procurar a
-     * palavra crua reprovava um bullet correto.
-     */
-    it('anuncia os tetos reais nos bullets do card PRO', () => {
-      const c = build();
-      const features = c.planFeatures(PRO_V44).join(' | ');
-
-      expect(features).toContain('Até 20 veículos');
-      expect(features).not.toContain('veículos ilimitados');
-      // FEAT-0070: nem número nem "ilimitados" de motorista.
-      expect(features).not.toContain('motorista');
-    });
-
-    /**
-     * O `∞` é decisão visual e não tem leitura útil: o leitor de tela ou diz
-     * "infinity" em inglês ou pula o caractere e deixa a célula muda. Cada
-     * ocorrência do glifo — tabela desktop e acordeão mobile — precisa vir com
-     * o glifo `aria-hidden` e um `sr-only` em português no lugar dele.
-     */
-    it('dá nome acessível em português a todo `∞` renderizado', () => {
-      plansSignal.set([ENTERPRISE, PRO_V44]);
-      const fixture = TestBed.createComponent(Billing);
-      const c = fixture.componentInstance as unknown as Probe;
-      fixture.detectChanges();
-
-      // Abre a comparação (desktop + mobile) e expande o card do ENTERPRISE,
-      // que é onde o acordeão materializa as células.
-      c.toggleCompare();
-      c.toggleExpanded(ENTERPRISE.id);
-      fixture.detectChanges();
-
-      const host = fixture.nativeElement as HTMLElement;
-      const glyphs = Array.from(host.querySelectorAll('[aria-hidden="true"]')).filter(
-        (el) => el.textContent?.trim() === '∞',
-      );
-
-      // 1 na tabela desktop (veículos) e 1 no acordeão mobile. Eram 4 antes do
-      // FEAT-0070, quando existia a linha de motoristas nas duas superfícies.
-      expect(glyphs.length).toBe(2);
-      for (const glyph of glyphs) {
-        const label = glyph.nextElementSibling;
-        expect(label?.classList.contains('sr-only')).toBe(true);
-        expect(label?.textContent?.trim()).toBe('Ilimitado');
-      }
-
-      // O texto acessível é exclusivo do glifo: plano com teto real segue
-      // anunciando o número, sem "Ilimitado" pendurado.
-      const srTexts = Array.from(host.querySelectorAll('.sr-only')).map((el) =>
-        el.textContent?.trim(),
-      );
-      expect(srTexts.filter((t) => t === 'Ilimitado').length).toBe(2);
-      // O teto real de VEÍCULOS do PRO segue impresso…
-      expect(host.textContent).toContain('20');
-      // …e o eixo de motorista não existe mais na tela. Assertar a ausência do
-      // RÓTULO, não do número: o antigo `not.toContain('40')` virou decorativo
-      // quando `driverLimit` saiu do fixture, e como é substring crua sobre a
-      // página inteira qualquer preço com "40" o reprovaria por acidente.
-      expect(host.textContent).not.toMatch(/motorista/i);
-    });
-  });
-
-  /**
-   * A tabela comparativa e os CARDS ficam na mesma tela, a um scroll um do
-   * outro, e chegaram a discordar: o card do ENTERPRISE prometia atendimento
-   * prioritário enquanto a coluna do ENTERPRISE marcava travessão na linha de
-   * suporte, porque a tabela decidia isso com `isRecommended()` (só o PRO). A
-   * linha "Relatórios avançados" era pior — capacidade de software que o
-   * backend não gateia em lugar nenhum.
-   */
-  describe('linhas qualitativas da tabela comparativa', () => {
-    /**
-     * Rende a tela com a comparação aberta e um plano expandido no acordeão.
-     *
-     * O catálogo é parametrizável porque a guarda de maquiagem lá embaixo
-     * precisa de um plano com TETO REAL, e o `BUSINESS` do fixture padrão tem
-     * `vehicleLimit` nulo — nele o `∞` sai do sentinela de
-     * coluna, não da maquiagem.
-     */
-    const renderCompare = (expandPlanId: string, plans: readonly PlanResponse[] = [
-      FREE,
-      BASIC,
-      PRO,
-      BUSINESS,
-    ]) => {
-      plansSignal.set([...plans]);
-      const fixture = TestBed.createComponent(Billing);
-      const c = fixture.componentInstance as unknown as Probe;
-      fixture.detectChanges();
-      c.toggleCompare();
-      c.toggleExpanded(expandPlanId);
-      fixture.detectChanges();
-      return { fixture, c, host: fixture.nativeElement as HTMLElement };
-    };
-
-    /**
-     * O predicado que a tabela consulta. `BUSINESS` é o nome legado da linha
-     * que hoje se chama ENTERPRISE e precisa cair no mesmo tier — era
-     * exatamente o plano que levava travessão.
-     */
-    it('concede prioridade ao PRO e ao ENTERPRISE, e a mais ninguém', () => {
-      const c = build();
-
-      expect(c.hasPrioritySupport(PRO)).toBe(true);
-      expect(c.hasPrioritySupport(BUSINESS)).toBe(true);
-      expect(c.hasPrioritySupport(FREE)).toBe(false);
-      expect(c.hasPrioritySupport(BASIC)).toBe(false);
-    });
-
-    /**
-     * O rótulo da linha é a MESMA frase do bullet do card. Se as duas grafias
-     * voltarem a divergir ("Suporte prioritário" na tabela, "Atendimento
-     * prioritário no WhatsApp" no card), a tela volta a nomear a mesma entrega
-     * de dois jeitos — e um deles não cita o canal.
-     *
-     * O card do ENTERPRISE não repete mais a frase, e isso é o desenho novo, não
-     * uma regressão: os bullets passaram a mostrar só o DELTA de cada degrau, e
-     * a prioridade ESTREIA no PRO. Quem a entrega ao ENTERPRISE é a linha de
-     * herança. A tabela, que precisa de ✓ por coluna e não de uma lista, segue
-     * marcando os dois — via `hasPrioritySupport()`, conferido logo acima.
-     */
-    it('rotula a linha com a mesma frase que o card imprime', () => {
-      const c = build();
-
-      expect(c.prioritySupportLabel).toBe('Atendimento prioritário no WhatsApp');
-      expect(c.planFeatures(PRO)).toContain(c.prioritySupportLabel);
-      expect(c.planFeatures(FREE)).not.toContain(c.prioritySupportLabel);
-
-      // O ENTERPRISE herda em vez de reanunciar — e é a herança que a coluna ✓
-      // dele está cobrindo.
-      //
-      // A REDAÇÃO segue o arranjo em que a grade está desenhada, não o tier. O
-      // jsdom não casa com media query nenhuma, então esta suíte observa o
-      // arranjo de TELEFONE, onde a escada desce e a frase aponta para baixo —
-      // é o mesmo signal que inverte a ordem dos cards que escolhe a frase, de
-      // propósito, para as duas não poderem divergir.
-      expect(c.planFeatures(BUSINESS)).not.toContain(c.prioritySupportLabel);
-      expect(c.planFeatures(BUSINESS)[0]).toBe('Tudo o que os planos abaixo têm');
-      expect(c.hasPrioritySupport(BUSINESS)).toBe(true);
-    });
-
-    /**
-     * A prova no DOM: coluna a coluna, na ordem em que a tabela as desenha.
-     * `hasPrioritySupport()` poderia estar certo e o template continuar amarrado
-     * ao gate antigo — foi assim que o bug existiu.
-     */
-    it('marca ✓ nas colunas do PRO e do ENTERPRISE na tabela desktop', () => {
-      const { host, c } = renderCompare(BUSINESS.id);
-
-      const rows = Array.from(host.querySelectorAll('tbody tr'));
-      const row = rows.find(
-        (tr) => tr.querySelector('td')?.textContent?.trim() === c.prioritySupportLabel,
-      );
-      expect(row, 'a linha de atendimento prioritário sumiu da tabela').toBeTruthy();
-
-      // Uma célula por plano visível, na ORDEM DO CATÁLOGO, que a tela agora
-      // impõe em vez de herdar de `GET /v1/billing/plans`:
-      //
-      //   [FREE→TRIAL, PRO, BUSINESS→ENTERPRISE, BASIC]
-      //
-      // `BASIC` fecha a fila porque não é nome do catálogo (a V59 tem TRIAL,
-      // STARTER, PRO, ENTERPRISE) e `planTierOf('BASIC')` devolve `null` — é o
-      // plano pago-mais-barato sintético deste fixture. Um nome que a UI não
-      // reconhece vai para o fim em vez de embaralhar a escada, e continua sem
-      // prioridade, que é o que se paga para ter.
-      const marks = Array.from(row!.querySelectorAll('td'))
-        .slice(1)
-        .map((td) => td.querySelector('.sr-only')?.textContent?.trim());
-
-      expect(marks).toEqual(['Não incluído', 'Incluído', 'Incluído', 'Não incluído']);
-    });
-
-    /**
-     * Mesma asserção na superfície do telefone, que é onde a maioria dos donos
-     * de frota abre esta tela. O acordeão carregava uma cópia das mesmas duas
-     * linhas, com o mesmo gate errado.
-     */
-    it('marca ✓ no acordeão mobile do ENTERPRISE e travessão no do TRIAL', () => {
-      for (const [plan, expected] of [
-        [BUSINESS, 'Incluído'],
-        [FREE, 'Não incluído'],
-      ] as const) {
-        const { host, c } = renderCompare(plan.id);
-
-        const item = Array.from(host.querySelectorAll('li')).find(
-          (li) => li.querySelector('span')?.textContent?.trim() === c.prioritySupportLabel,
-        );
-        expect(item, `linha de prioridade ausente no acordeão de ${plan.name}`).toBeTruthy();
-        expect(item!.querySelector('.sr-only')?.textContent?.trim()).toBe(expected);
-      }
-    });
-
-    /**
-     * A linha que saiu de vez. Ela não pode voltar por nenhuma das duas
-     * superfícies: é função de software anunciada por tier, e o backend só
-     * aplica `vehicle_limit` e `driver_limit`.
-     */
-    it('não renderiza nenhuma linha de "Relatórios avançados"', () => {
-      const { host } = renderCompare(BUSINESS.id);
-
-      expect(host.textContent).not.toContain('Relatórios avançados');
-      expect(host.textContent).not.toContain('Suporte prioritário');
-    });
-
-    /**
-     * O ENTERPRISE continua sem número de teto — a maquiagem vale para a tabela
-     * inteira, e mexer nas linhas qualitativas não pode ter reaberto o teto real
-     * nas células de capacidade.
-     *
-     * Duas coisas estavam erradas nesta guarda e as duas a deixavam VAZIA:
-     * ela procurava 500/1000 (tetos da V44, que a V59 substituiu por 100/300),
-     * e renderizava o `BUSINESS`, cujos limites são nulos — ou seja, um plano
-     * que nem passa pela maquiagem e cujo `∞` vem do sentinela de coluna. Duas
-     * razões independentes para nunca falhar. Agora o catálogo traz um plano
-     * com o NOME que a maquiagem reconhece (`UNLIMITED_FACADE_PLANS`) e o TETO
-     * que o backend devolve hoje, lidos de `PLAN_CAPACITY`.
-     */
-    it('mantém o ENTERPRISE sem número de teto na comparação', () => {
-      const ENTERPRISE_REAL = plan({
-        id: 'id-ent-real',
-        code: 'ENTERPRISE_MONTHLY_STRIPE',
-        name: 'ENTERPRISE',
-        price: 499,
-        vehicleLimit: PLAN_CAPACITY.ENTERPRISE.vehicles,
-        trialDays: 0,
-      });
-      const { host } = renderCompare(ENTERPRISE_REAL.id, [FREE, BASIC, PRO, ENTERPRISE_REAL]);
-
-      expect(host.textContent).not.toContain(String(PLAN_CAPACITY.ENTERPRISE.vehicles));
-      expect(host.textContent).toContain('∞');
-    });
-
-    /**
-     * FEAT-0070 — a comparação não tem eixo de MOTORISTA: nem linha na tabela
-     * desktop, nem item no acordeão mobile, nem número em lugar nenhum. O teto
-     * virou guarda-corpo interno e o backend removeu `driverLimit` das
-     * respostas; esta guarda é o que impede a linha de voltar por descuido.
-     */
-    it('não exibe capacidade de motoristas em nenhuma superfície da comparação', () => {
-      const { host } = renderCompare(PRO.id, [FREE, BASIC, PRO]);
-
-      const linhas = Array.from(host.querySelectorAll('tr')).map((tr) => tr.textContent ?? '');
-      expect(linhas.some((linha) => linha.includes('Veículos'))).toBe(true);
-      expect(linhas.some((linha) => linha.includes('Motoristas'))).toBe(false);
-      // Acordeão mobile: mesma ausência, mesmo template. O controle POSITIVO
-      // é obrigatório aqui — sem ele, um acordeão que não materializasse
-      // nenhum `li` faria a asserção de ausência passar vacuamente.
-      const itens = Array.from(host.querySelectorAll('li')).map((li) => li.textContent ?? '');
-      expect(itens.some((item) => item.includes('Veículos'))).toBe(true);
-      expect(itens.some((item) => item.includes('Motoristas'))).toBe(false);
-    });
-  });
-
-  describe('acento do toggle de ciclo', () => {
-    // O `SegmentedToggle` só ecoa o acento que recebe, então a suíte DELE não
-    // consegue distinguir `var(--brand-gradient-deep)` de `var(--typo)`. Aqui,
-    // no consumidor, o nome do token é comparado por inteiro: se ele for
-    // renomeado em `styles.css` ou digitado errado aqui, o `var()` não resolve,
-    // o pill ativo fica branco sobre o trilho neutro (1,09:1) e este teste cai.
-    it('pinta os pills com os tokens de gradiente medidos, e não com hex solto', () => {
-      const options = build().cycleOptions();
-
-      expect(options.map((o) => o.value)).toEqual(['MONTHLY', 'YEARLY']);
-      expect(options[0].activeBackground).toBe(BRAND_DEEP_TOKEN);
-      expect(options[1].activeBackground).toBe(SUCCESS_DEEP_TOKEN);
-
-      // Nenhum hex literal: o laranja de fora do sistema (#FF5722/#EB3F00)
-      // voltar por aqui é exatamente o que esta asserção impede.
-      for (const option of options) {
-        expect(option.activeBackground).not.toMatch(/#[0-9a-f]{3,8}/i);
-      }
-    });
-  });
 });

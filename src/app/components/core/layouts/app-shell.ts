@@ -24,6 +24,11 @@ import { TourService } from '../../tour/tour.service';
 import { DriverTopBar } from '../../sidebar/driver-top-bar';
 import { ThemeToggle } from '../../theme-toggle/theme-toggle';
 import { ThemeService } from '../../../services/theme.service';
+import { PastDueBannerStore } from '../../past-due-banner/past-due-banner';
+import { formatDayMonthTime, parseServerTime } from '../../../utils/server-time';
+
+/** "Depois" no aviso de atraso vale 24h; nas últimas 24h do prazo ele não sai. */
+const PAST_DUE_SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 @Component({
   selector: 'app-shell',
@@ -114,7 +119,11 @@ import { ThemeService } from '../../../services/theme.service';
       [reason]="access.reason()"
       [hardBlock]="true"
       [canRegularize]="paywallCanRegularize()"
+      [planName]="paywallPlanName()"
+      [amountDue]="paywallAmount()"
       (confirmed)="goToBilling()"
+      (changeCard)="goToBilling({ cartao: '1' })"
+      (contactSupport)="goToSupport()"
       (acknowledged)="paywallOpen.set(false)"
     />
     <!--
@@ -139,6 +148,9 @@ export class AppShell implements OnInit, OnDestroy {
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly tour = inject(TourService);
+  private readonly pastDue = inject(PastDueBannerStore);
+  /** "Depois" esconde o aviso de atraso até este instante (por empresa, nesta aba). */
+  private readonly pastDueSnoozedUntil = signal(0);
 
   /** Reserva de espaço para a barra de impersonação — ver o comentário no template. */
   protected readonly impersonating = inject(ImpersonationService).active;
@@ -200,6 +212,37 @@ export class AppShell implements OnInit, OnDestroy {
       this.paywallOpen.set(true);
     });
 
+    // Aviso de cobrança recusada (dentro da carência), com o prazo de
+    // `/access-status`. Bloqueado é o paywall; a Assinatura esconde o aviso.
+    this.pastDue.payNow = () =>
+      void this.router.navigate(['/billing'], { queryParams: { pagar: '1' } });
+    this.pastDue.later = () => {
+      const until = Date.now() + PAST_DUE_SNOOZE_MS;
+      this.session.setItem(this.pastDueSnoozeKey(), String(until));
+      this.pastDueSnoozedUntil.set(until);
+    };
+    effect(() => {
+      const st = this.access.status();
+      this.pastDueSnoozedUntil();
+      const end = parseServerTime(st?.graceEndsAt ?? null);
+      if (!st || st.status !== 'PAST_DUE' || st.blocked || !end) {
+        this.pastDue.notice.set(null);
+        return;
+      }
+      const lastDay = end.getTime() - Date.now() <= PAST_DUE_SNOOZE_MS;
+      const snoozed = Number(this.session.getItem(this.pastDueSnoozeKey()) ?? 0) > Date.now();
+      if (snoozed && !lastDay) {
+        this.pastDue.notice.set(null);
+        return;
+      }
+      this.pastDue.notice.set({
+        deadline: formatDayMonthTime(end),
+        canPay: this.session.getCompanyRoleFromToken() === 'OWNER',
+        canDismiss: !lastDay,
+      });
+    });
+    effect(() => this.pastDue.hidden.set(this.currentUrl().startsWith('/billing')));
+
     // Tour guiado: só no dashboard, nunca dentro de `/onboarding` (o wizard
     // obrigatório) — a checagem de URL cobre os dois casos de uma vez. O
     // efeito reavalia a cada navegação; a trava de "uma vez por aba" e a
@@ -217,11 +260,30 @@ export class AppShell implements OnInit, OnDestroy {
     return this.layout.isCollapsed() ? 'collapsed' : 'expanded';
   }
 
-  protected goToBilling(): void {
+  /** Plano e valor da fatura em aberto, para o paywall de atraso. */
+  protected readonly paywallPlanName = computed(() => {
+    const name = this.access.status()?.plan?.name ?? null;
+    return name ? name.charAt(0).toUpperCase() + name.slice(1).toLowerCase() : null;
+  });
+  protected readonly paywallAmount = computed(() => {
+    const price = this.access.status()?.plan?.price ?? null;
+    return price && price > 0
+      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price).replace(/\u00A0/g, ' ')
+      : null;
+  });
+
+  protected goToBilling(extra?: Record<string, string>): void {
     this.paywallOpen.set(false);
-    this.router.navigate(['/billing'], {
-      queryParams: { reason: this.access.reason() ?? 'BLOCKED' },
-    });
+    const reason = this.access.reason();
+    // Quem deve vai direto para o pagamento (mockup 07), nunca para a grade de planos.
+    const owing = reason === 'PAYMENT_FAILED' || reason === 'PAST_DUE';
+    const queryParams = extra ?? (owing ? { pagar: '1' } : { reason: reason ?? 'BLOCKED' });
+    this.router.navigate(['/billing'], { queryParams });
+  }
+
+  protected goToSupport(): void {
+    this.paywallOpen.set(false);
+    this.router.navigate(['/suporte']);
   }
 
   ngOnInit(): void {
@@ -257,6 +319,10 @@ export class AppShell implements OnInit, OnDestroy {
     const companyId = this.session.getItem('selectedCompanyId') ?? 'none';
     const today = new Date().toISOString().slice(0, 10);
     return `mch:paywall-shown:${companyId}:${today}`;
+  }
+
+  private pastDueSnoozeKey(): string {
+    return `mch:past-due-later:${this.session.getItem('selectedCompanyId') ?? 'none'}`;
   }
 
   private wasShownThisSession(): boolean {
