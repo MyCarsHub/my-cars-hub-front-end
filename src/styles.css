@@ -450,10 +450,10 @@ body {
    As faixas de marca (laranja, carbono) têm cor própria e não mudam. */
 .dark .landing-root,
 .dark .pricing-scope {
-  --paper: #0F0F10;
-  --paper-alt: #18181A;
-  --paper-2: #1E1E21;
-  --rule: #2E2E33;
+  --paper: #000000;
+  --paper-alt: #0E0E0F;
+  --paper-2: #141416;
+  --rule: #1F1F1F;
   --rule-strong: #3A3A40;
   --ink: #F4F4F5;
   --ink-80: rgba(244, 244, 245, 0.85);
