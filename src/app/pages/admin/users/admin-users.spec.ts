@@ -49,7 +49,6 @@ describe('AdminUsers — erros do backend', () => {
             loading: signal(false),
             load,
             updateStatus,
-            updateSystemRole: vi.fn(),
           },
         },
         {

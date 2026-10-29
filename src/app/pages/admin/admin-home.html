@@ -368,7 +368,7 @@
   <!-- Sections nav -->
   <app-page-card title="Áreas administrativas">
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 p-4">
-      @for (section of sections; track section.title) {
+      @for (section of sections(); track section.title) {
         @if (section.route && !section.disabled) {
           <a
             [routerLink]="section.route"

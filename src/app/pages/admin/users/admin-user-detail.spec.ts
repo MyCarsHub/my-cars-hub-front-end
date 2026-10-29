@@ -1,3 +1,4 @@
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
@@ -17,6 +18,8 @@ import { AdminContactService } from '../contact/admin-contact.service';
  * Como não houve backfill dos usuários antigos, o estado vazio fala de
  * AUSÊNCIA DO DADO — nunca afirma que a pessoa jamais acessou.
  */
+const OWNER_CAPS = { can: () => true, ensureLoaded: () => of(null) };
+
 describe('AdminUserDetail — campo "Último login"', () => {
   const BASE_USER: AdminUserDetailDto = {
     id: 'u-1',
@@ -36,6 +39,8 @@ describe('AdminUserDetail — campo "Último login"', () => {
     TestBed.configureTestingModule({
       imports: [AdminUserDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         {
@@ -50,7 +55,6 @@ describe('AdminUserDetail — campo "Último login"', () => {
             getDetail: vi.fn().mockReturnValue(of(detail())),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         {
@@ -143,6 +147,8 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
     TestBed.configureTestingModule({
       imports: [AdminUserDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 'u-1' })) } },
@@ -154,7 +160,6 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
             getDetail: vi.fn().mockReturnValue(of(detail())),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         {
@@ -207,6 +212,8 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
     TestBed.configureTestingModule({
       imports: [AdminUserDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: user.id })) } },
@@ -218,7 +225,6 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
             getDetail: vi.fn().mockReturnValue(of(user)),
             clearDetail: vi.fn(),
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         { provide: AdminContactService, useValue: { reveal } },
@@ -241,6 +247,18 @@ describe('AdminUserDetail — contato, presença e empresas', () => {
     expect(links.length).toBeGreaterThan(0);
     expect(links.every((a) => a.getAttribute('href') === '/admin/companies/co-1')).toBe(true);
     expect(el.querySelector('[data-testid="last-seen"]')?.textContent).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+  });
+
+  it('o menu Ações não concede nem tira papel de admin (só em "Admins e papéis")', () => {
+    const reveal = vi.fn().mockReturnValue(of({ available: false }));
+    const el = render(USER, reveal);
+    const trigger = el.querySelector<HTMLButtonElement>('[data-testid="user-actions"] button[aria-haspopup="menu"]')!;
+    trigger.click();
+    TestBed.tick();
+    const fixtureText = el.querySelector('[data-testid="user-actions"]')?.textContent ?? '';
+    expect(fixtureText).toContain('Desativar usuário'); // o menu abriu de fato
+    expect(fixtureText).not.toMatch(/admin/i);
+    expect(el.querySelector('[data-testid="manage-admin-roles"]')).toBeNull();
   });
 
   it('com telefone, a barra revela com canal VIEW; sem telefone, não revela', () => {

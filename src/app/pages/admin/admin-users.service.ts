@@ -8,7 +8,6 @@ import {
   AdminUserListItem,
   AdminUserRoleFilter,
   AdminUserStatusFilter,
-  AdminUserSystemRole,
 } from '../../types/admin-user.types';
 
 const BASE = `${environment.apiUrl}/admin/users`;
@@ -105,15 +104,6 @@ export class AdminUsersService {
   updateStatus(id: string, active: boolean): Observable<AdminUserListItem> {
     return this.http
       .patch<AdminUserListItem>(`${BASE}/${id}/status`, { active })
-      .pipe(tap((updated) => {
-        this.replaceItem(updated);
-        this.patchDetail(updated);
-      }));
-  }
-
-  updateSystemRole(id: string, systemRole: AdminUserSystemRole): Observable<AdminUserListItem> {
-    return this.http
-      .patch<AdminUserListItem>(`${BASE}/${id}/system-role`, { systemRole })
       .pipe(tap((updated) => {
         this.replaceItem(updated);
         this.patchDetail(updated);

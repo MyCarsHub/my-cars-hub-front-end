@@ -60,7 +60,6 @@ describe('AdminUsers — menu de ações', () => {
             loading: signal(false),
             load: vi.fn().mockReturnValue(of({ content: [ACTIVE_USER], page: 0, size: 20, total: 1 })),
             updateStatus,
-            updateSystemRole: vi.fn().mockReturnValue(of(void 0)),
           },
         },
         {
@@ -72,7 +71,7 @@ describe('AdminUsers — menu de ações', () => {
   });
 
   it.each(['mobile', 'desktop'] as const)(
-    'expõe Ver detalhes, Promover e Desativar no menu (%s)',
+    'expõe Ver detalhes e Desativar no menu, sem nenhum item de papel de admin (%s)',
     (scope) => {
       const fixture = TestBed.createComponent(AdminUsers);
       fixture.detectChanges();
@@ -80,7 +79,8 @@ describe('AdminUsers — menu de ações', () => {
       const labels = openMenuItems(fixture, scope).map((el) => el.textContent?.trim());
 
       expect(labels).toContain('Ver detalhes');
-      expect(labels).toContain('Tornar administrador da plataforma');
+      // Lote 2A (dono, 29/10): conceder ou tirar papel de admin SO em "Admins e papeis".
+      expect(labels.some((l) => /admin/i.test(l ?? ''))).toBe(false);
       expect(labels).toContain('Desativar');
       // a destrutiva fica por último
       expect(labels[labels.length - 1]).toBe('Desativar');

@@ -11,6 +11,8 @@ import { AdminContactService } from '../contact/admin-contact.service';
 import { AdminTrialConversion } from '../companies/admin-trial-conversion';
 import { AdminCharges } from './admin-charges';
 import { AdminChargesService } from './admin-charges.service';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
+import type { AdminCapabilityCode } from '../../../types/admin-roles.types';
 
 const PAGE: AdminChargesPage = {
   tab: 'FAILED',
@@ -42,6 +44,14 @@ const PAGE: AdminChargesPage = {
   overdueCount: 4,
 };
 
+const OWNER_CAPS = { can: () => true, ensureLoaded: () => of(null) };
+
+/** Abre o kebab (ActionsMenu) dentro de `scope` e devolve o elemento raiz. */
+function openKebab(scope: HTMLElement, fixture: { detectChanges(): void }): void {
+  (scope.querySelector('app-actions-menu button[aria-haspopup="menu"]') as HTMLButtonElement).click();
+  fixture.detectChanges();
+}
+
 describe('AdminCharges (Cobranças)', () => {
   let list: ReturnType<typeof vi.fn>;
   let compareWithAsaas: ReturnType<typeof vi.fn>;
@@ -59,6 +69,7 @@ describe('AdminCharges (Cobranças)', () => {
         provideRouter([]),
         ApiErrorService,
         { provide: AdminChargesService, useValue: { list, compareWithAsaas } },
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         { provide: AdminContactService, useValue: { reveal: vi.fn() } },
         { provide: ImpersonationService, useValue: { start: vi.fn() } },
         { provide: NotificationService, useValue: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() } },
@@ -92,10 +103,10 @@ describe('AdminCharges (Cobranças)', () => {
     expect(card.textContent).toContain('Falhou');
     expect(card.textContent).toContain('(11) •••••-4321');
     expect(card.querySelector('[data-testid="contact-whatsapp"]')).not.toBeNull();
-    // "Ver aluguel" mudou para "Mais ações"; o card tem "Comparar" e "Mais ações".
+    // Ações da linha: só o kebab padrão das listas do admin (como em Empresas), sem botões soltos.
     expect(card.querySelector('[data-testid="open-rental"]')).toBeNull();
-    expect(card.querySelector('[data-testid="open-compare"]')?.textContent?.trim()).toBe('Comparar');
-    expect(card.querySelector('[data-testid="open-actions"]')).not.toBeNull();
+    expect(card.querySelector('[data-testid="open-compare"]')).toBeNull();
+    expect(card.querySelector('[data-testid="row-menu"] app-actions-menu')).not.toBeNull();
   });
 
   /** "Atrasado é nossa prova": a LISTA não tem ação de dinheiro solta; tudo passa pela folha de ações. */
@@ -108,11 +119,17 @@ describe('AdminCharges (Cobranças)', () => {
     }
   });
 
-  it('"Comparar" abre a folha já comparando; "Mais ações" abre o menu', () => {
+  it('kebab: "Comparar com o Asaas" abre a folha já comparando', () => {
     const fixture = render();
     const el: HTMLElement = fixture.nativeElement;
+    const card = el.querySelector('[data-testid="charge-card"]') as HTMLElement;
 
-    (el.querySelector('[data-testid="open-compare"]') as HTMLButtonElement).click();
+    openKebab(card, fixture);
+    const items = Array.from(card.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim());
+    expect(items).toEqual(['Comparar com o Asaas', 'Tentar de novo', 'Corrigir nome do motorista',
+      'Atualizar cliente no Asaas', 'Ver aluguel']);
+
+    (card.querySelector('[data-testid="menu-compare"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="charge-actions-sheet"]')?.getAttribute('data-mode')).toBe('compare');
     expect(compareWithAsaas).toHaveBeenCalledWith('ch-1');
@@ -127,12 +144,12 @@ describe('AdminCharges (Cobranças)', () => {
     const fixture = render();
     const el: HTMLElement = fixture.nativeElement;
 
-    (el.querySelector('[data-testid="open-actions"]') as HTMLButtonElement).click();
-    fixture.detectChanges();
+    const card = el.querySelector('[data-testid="charge-card"]') as HTMLElement;
+    openKebab(card, fixture);
 
-    expect(el.querySelector('[data-testid="action-compare"]')).not.toBeNull();
-    expect(el.querySelector('[data-testid="action-retry"]')).toBeNull();
-    expect(el.querySelector('[data-testid="overdue-rule"]')).not.toBeNull();
+    expect(card.querySelector('[data-testid="menu-compare"]')).not.toBeNull();
+    expect(card.querySelector('[data-testid="menu-received"]')).not.toBeNull();
+    expect(card.querySelector('[data-testid="menu-retry"]')).toBeNull();
   });
 
   it('desktop: a mesma lista em tabela com cabeçalho de colunas e ações por linha', () => {
@@ -144,19 +161,29 @@ describe('AdminCharges (Cobranças)', () => {
     );
     const row = table.querySelector('[data-testid="charge-row"]') as HTMLElement;
     expect(row.textContent).toContain('Locadora Teste');
-    expect(row.querySelector('[data-testid="row-compare"]')).not.toBeNull();
-    expect(row.querySelector('[data-testid="row-actions"]')).not.toBeNull();
+    expect(row.querySelector('app-actions-menu')).not.toBeNull();
+    expect(row.querySelector('[data-testid="row-compare"]')).toBeNull();
   });
 
-  it('"Ver aluguel" em "Mais ações": fecha a folha e abre a sessão somente leitura da empresa', () => {
+  it('Leitura: sem kebab e sem contato na linha (o servidor recusaria de qualquer forma)', () => {
+    const readonly = new Set<AdminCapabilityCode>(['ver']);
+    TestBed.overrideProvider(AdminCapabilitiesService, {
+      useValue: { can: (c: AdminCapabilityCode) => readonly.has(c), ensureLoaded: () => of(null) },
+    });
+    const el: HTMLElement = render().nativeElement;
+    expect(el.querySelector('app-actions-menu')).toBeNull();
+    expect(el.querySelector('app-contact-actions')).toBeNull();
+  });
+
+  it('"Ver aluguel" no kebab abre a sessão somente leitura da empresa', () => {
     const start = TestBed.inject(ImpersonationService).start as ReturnType<typeof vi.fn>;
     start.mockReturnValue(of({ companyName: 'Locadora Teste' }));
     const fixture = render();
     const el: HTMLElement = fixture.nativeElement;
 
-    (el.querySelector('[data-testid="open-actions"]') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    (el.querySelector('[data-testid="action-view-rental"]') as HTMLButtonElement).click();
+    const card = el.querySelector('[data-testid="charge-card"]') as HTMLElement;
+    openKebab(card, fixture);
+    (card.querySelector('[data-testid="menu-view-rental"]') as HTMLButtonElement).click();
     fixture.detectChanges();
 
     expect(start).toHaveBeenCalledWith('co-1');

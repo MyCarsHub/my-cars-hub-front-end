@@ -8,6 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -119,6 +120,7 @@ const CONFIRMATION_WORD = 'SUSPENDER';
   templateUrl: './admin-company-detail.html',
 })
 export class AdminCompanyDetail implements OnInit, OnDestroy {
+  protected readonly caps = inject(AdminCapabilitiesService);
   private readonly companiesService = inject(AdminCompaniesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -342,6 +344,7 @@ export class AdminCompanyDetail implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    this.caps.ensureLoaded().subscribe();
     this.route.paramMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => {

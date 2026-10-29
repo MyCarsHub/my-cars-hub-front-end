@@ -54,6 +54,7 @@
           </p>
         </div>
         <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+@if (caps.can('ver_como')) {
           <button
             type="button"
             class="w-full sm:w-auto min-h-11 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10
@@ -65,9 +66,12 @@
           >
             {{ impersonationStarting() ? 'Abrindo sessão…' : 'Ver como empresa (leitura)' }}
           </button>
+}
+@if (caps.can('modo_edicao')) {
           <app-support-edit-entry [companyId]="company.id" [companyName]="company.name" />
+}
           <!-- [trilha A] Estender teste — só em teste (TRIALING ou EXPIRED); pagante é recusado no backend. -->
-          @if (canExtendTrial()) {
+          @if (canExtendTrial() && caps.can('empresa.teste')) {
             <button
               type="button"
               class="w-full sm:w-auto min-h-11 rounded-xl border border-primary-300 dark:border-primary-500/40
@@ -80,6 +84,7 @@
               Estender teste
             </button>
           }
+@if (caps.can('empresa.gerir')) {
           @if (company.active) {
             <button
               type="button"
@@ -105,6 +110,7 @@
               Reativar empresa
             </button>
           }
+}
         </div>
       </div>
 
@@ -124,6 +130,7 @@
     <!-- Admin v2 (D1) — barra de contato do DONO. Regiao propria (trilha B);
          as acoes do cabecalho acima sao da trilha A. Numero inteiro so pela
          revelacao auditada (canal VIEW), pedida uma vez ao abrir. -->
+@if (caps.can('contato.ver')) {
     <div class="mb-4" data-testid="owner-contact">
       <app-contact-bar
         subjectType="COMPANY"
@@ -133,6 +140,7 @@
         [heading]="owner() ? 'Contato do dono · ' + owner()!.name : 'Contato da empresa'"
       />
     </div>
+}
 
     <!-- Assinatura -->
     <app-page-card title="Assinatura">
@@ -433,6 +441,7 @@
                   <p class="mt-2 text-xs text-fg-muted">
                     Papel: <span class="font-medium text-fg-body">{{ roleLabel(member.role) }}</span>
                   </p>
+@if (caps.can('contato.ver')) {
                   <app-contact-actions
                     class="mt-2 pt-2 border-t border-edge-soft"
                     subjectType="USER"
@@ -441,6 +450,7 @@
                     [contextCompanyId]="company.id"
                     [label]="member.name"
                   />
+}
                 </li>
               }
             </ul>
@@ -469,6 +479,7 @@
                       </td>
                       <td class="py-3 pr-4 text-fg-muted">{{ member.email }}</td>
                       <td class="py-1 pr-4">
+@if (caps.can('contato.ver')) {
                         <app-contact-actions
                           subjectType="USER"
                           [subjectId]="member.userId"
@@ -476,6 +487,7 @@
                           [contextCompanyId]="company.id"
                           [label]="member.name"
                         />
+}
                       </td>
                       <td class="py-3 pr-4 text-fg-soft">{{ roleLabel(member.role) }}</td>
                       <td class="py-3 pr-4">

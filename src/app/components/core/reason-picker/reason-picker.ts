@@ -25,7 +25,7 @@ let nextId = 0;
   template: `
     <fieldset data-testid="reason-picker">
       <legend class="text-sm font-medium text-fg-muted">{{ legend() }}</legend>
-      <div class="mt-2 grid gap-2 sm:grid-cols-2">
+      <div class="mt-2 grid gap-2" [class.sm:grid-cols-2]="columns() === 2">
         @for (opt of options(); track opt.value) {
           <label
             class="press flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5
@@ -74,6 +74,8 @@ export class ReasonPicker {
   readonly options = input.required<ReasonOption[]>();
   readonly legend = input('Motivo');
   readonly showNote = input(true);
+  /** 2 (padrão) para rótulos curtos; 1 quando cada opção tem uma explicação longa. */
+  readonly columns = input<1 | 2>(2);
   readonly reason = model<string | null>(null);
   readonly note = model('');
 

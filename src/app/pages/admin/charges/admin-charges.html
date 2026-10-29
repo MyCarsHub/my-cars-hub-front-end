@@ -88,10 +88,49 @@
               }
               <p class="text-sm text-fg break-words">{{ item.driverName ?? 'Motorista não identificado' }}</p>
             </div>
-            <span
-              class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide"
-              [class]="statusChip(item.status)"
-            >{{ statusLabel(item.status) }}</span>
+            <div class="flex shrink-0 items-start gap-1">
+              <span
+                class="mt-3 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide"
+                [class]="statusChip(item.status)"
+              >{{ statusLabel(item.status) }}</span>
+              @if (hasAnyAction(item)) {
+                <div class="-mr-2" data-testid="row-menu">
+                  <app-actions-menu [label]="'Ações da cobrança de ' + (item.driverName ?? item.companyName)" [menuWidth]="248">
+                  @if (caps.can('asaas.comparar')) {
+                  <button type="button" role="menuitem" data-testid="menu-compare"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                  (click)="openActions(item, 'compare')">Comparar com o Asaas</button>
+                  }
+                  @if (caps.can('cobranca.agir')) {
+                  @if (canReceive(item)) {
+                  <button type="button" role="menuitem" data-testid="menu-received"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                  (click)="openActions(item, 'received')">Recebida por fora</button>
+                  }
+                  @if (canRetry(item)) {
+                  <button type="button" role="menuitem" data-testid="menu-retry"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                  (click)="openActions(item, 'retry')">Tentar de novo</button>
+                  }
+                  @if (item.driverId) {
+                  <button type="button" role="menuitem" data-testid="menu-name"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                  (click)="openActions(item, 'name')">Corrigir nome do motorista</button>
+                  <button type="button" role="menuitem" data-testid="menu-sync"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                  (click)="openActions(item, 'sync')">Atualizar cliente no Asaas</button>
+                  }
+                  }
+                  @if (caps.can('ver_como')) {
+                  <button type="button" role="menuitem" data-testid="menu-view-rental"
+                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                  [disabled]="opening() === item.chargeId"
+                  (click)="openRental(item)">Ver aluguel</button>
+                  }
+                  </app-actions-menu>
+                </div>
+              }
+            </div>
           </div>
 
           <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
@@ -113,33 +152,17 @@
 
           <div class="flex items-center gap-2 pt-2 border-t border-edge-soft min-h-11">
             @if (item.driverId) {
+@if (caps.can('contato.ver')) {
               <app-contact-actions
                 subjectType="DRIVER"
                 [subjectId]="item.driverId"
                 [phoneMasked]="item.driverPhoneMasked"
                 [label]="item.driverName ?? 'motorista'"
               />
+}
             } @else {
               <span class="text-xs text-fg-faint">sem motorista</span>
             }
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              data-testid="open-compare"
-              class="press min-h-12 px-3 rounded-xl border border-primary-500 text-base font-semibold
-                     text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              (click)="openActions(item, 'compare')"
-              aria-label="Comparar com o Asaas"
-            >Comparar</button>
-            <button
-              type="button"
-              data-testid="open-actions"
-              class="press min-h-12 px-4 rounded-xl bg-surface-sunken text-base font-medium text-fg
-                     hover:bg-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-              (click)="openActions(item)"
-            >Mais ações</button>
           </div>
         </li>
       }
@@ -178,12 +201,14 @@
                 <div class="mt-0.5 flex flex-wrap items-center gap-2 text-fg">
                   <span class="break-words">{{ item.driverName ?? 'Motorista não identificado' }}</span>
                   @if (item.driverId) {
+@if (caps.can('contato.ver')) {
                     <app-contact-actions
                       subjectType="DRIVER"
                       [subjectId]="item.driverId"
                       [phoneMasked]="item.driverPhoneMasked"
                       [label]="item.driverName ?? 'motorista'"
                     />
+}
                   }
                 </div>
                 @if (item.failureReason || item.failureCode) {
@@ -203,23 +228,42 @@
                 >{{ statusLabel(item.status) }}</span>
               </td>
               <td class="px-4 py-3">
-                <div class="flex justify-end gap-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    data-testid="row-compare"
-                    class="press min-h-10 px-3 rounded-lg border border-primary-500 font-semibold
-                           text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10
-                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                    aria-label="Comparar com o Asaas"
-                    (click)="openActions(item, 'compare')"
-                  >Comparar</button>
-                  <button
-                    type="button"
-                    data-testid="row-actions"
-                    class="press min-h-10 px-3 rounded-lg bg-surface-sunken font-medium text-fg hover:bg-surface-strong
-                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                    (click)="openActions(item)"
-                  >Ações</button>
+                <div class="flex justify-end">
+                  @if (hasAnyAction(item)) {
+                    <app-actions-menu [label]="'Ações da cobrança de ' + (item.driverName ?? item.companyName)" [menuWidth]="248">
+                      @if (caps.can('asaas.comparar')) {
+                        <button type="button" role="menuitem" data-testid="menu-compare"
+                                class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px]"
+                                (click)="openActions(item, 'compare')">Comparar com o Asaas</button>
+                      }
+                      @if (caps.can('cobranca.agir')) {
+                        @if (canReceive(item)) {
+                          <button type="button" role="menuitem" data-testid="menu-received"
+                                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                                  (click)="openActions(item, 'received')">Recebida por fora</button>
+                        }
+                        @if (canRetry(item)) {
+                          <button type="button" role="menuitem" data-testid="menu-retry"
+                                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                                  (click)="openActions(item, 'retry')">Tentar de novo</button>
+                        }
+                        @if (item.driverId) {
+                          <button type="button" role="menuitem" data-testid="menu-name"
+                                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                                  (click)="openActions(item, 'name')">Corrigir nome do motorista</button>
+                          <button type="button" role="menuitem" data-testid="menu-sync"
+                                  class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                                  (click)="openActions(item, 'sync')">Atualizar cliente no Asaas</button>
+                        }
+                      }
+                      @if (caps.can('ver_como')) {
+                        <button type="button" role="menuitem" data-testid="menu-view-rental"
+                                class="w-full text-left text-sm px-4 py-3 text-fg-soft hover:bg-canvas min-h-[44px] border-t border-edge-soft"
+                                [disabled]="opening() === item.chargeId"
+                                (click)="openRental(item)">Ver aluguel</button>
+                      }
+                    </app-actions-menu>
+                  }
                 </div>
               </td>
             </tr>

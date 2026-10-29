@@ -143,8 +143,12 @@ export class BottomSheet implements OnInit, OnDestroy {
     if (this.opener && this.doc.contains(this.opener)) this.opener.focus();
   }
 
-  requestClose(): void {
-    if (this.busy() || this.leaving()) return;
+  /**
+   * Fecha com a animação de saída. `force` ignora o `busy` — para quem fecha a
+   * folha no MESMO tique em que a ação terminou (o input ainda não atualizou).
+   */
+  requestClose(force = false): void {
+    if ((this.busy() && !force) || this.leaving()) return;
     this.leaving.set(true);
     const reduced = this.doc.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     setTimeout(() => this.closed.emit(), reduced ? 0 : BOTTOM_SHEET_LEAVE_MS);

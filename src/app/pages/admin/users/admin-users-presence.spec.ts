@@ -71,7 +71,6 @@ describe('AdminUsers — presença', () => {
             loading: signal(false),
             load,
             updateStatus: vi.fn(),
-            updateSystemRole: vi.fn(),
           },
         },
         {
