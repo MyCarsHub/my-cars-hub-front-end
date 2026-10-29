@@ -1,672 +1,396 @@
 <app-default-page-layout
   title="Assinatura"
-  description="Gerencie seu plano, forma de cobrança e status da assinatura.">
+  [description]="showsInlinePicker() ? 'Seu teste e os planos.' : 'Plano, pagamento e faturas.'">
 
-  <!-- Why the user was pushed here by the paywall guard (?reason=) -->
-  @if (blockedMessage(); as blocked) {
-    <div
-      role="status"
-      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200 text-sm font-medium">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        class="mt-0.5 shrink-0" aria-hidden="true">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      </svg>
-      <span class="min-w-0 flex-1">{{ blocked }}</span>
-      <button
-        type="button"
-        (click)="dismissBlockedMessage()"
-        aria-label="Fechar aviso de bloqueio"
-        class="shrink-0 -m-1 p-1 rounded-lg text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/15
-               focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-    </div>
-  }
-
-  <!-- Payment in flight / returning from the gateway -->
+  <!-- Pagamento em curso no checkout (outra aba) / voltando do gateway. -->
   @if (awaitingPayment()) {
-    <div
-      role="status"
-      aria-live="polite"
-      class="mb-4 flex items-start gap-3 p-4 rounded-2xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 text-blue-900 dark:text-blue-200 text-sm font-medium">
-      <span
-        class="mt-0.5 shrink-0 inline-block w-4 h-4 rounded-full border-2 border-blue-200 dark:border-blue-500/30 border-t-blue-600 animate-spin"
-        aria-hidden="true"></span>
-      <span>
-        Aguardando a confirmação do seu pagamento. Esta página se atualiza sozinha assim que ele
-        for confirmado.
-      </span>
+    <div role="status" aria-live="polite" class="notice info">
+      <span class="pulse" aria-hidden="true"></span>
+      <span>Aguardando a confirmação do pagamento. Esta página se atualiza sozinha.</span>
     </div>
   }
 
-  <!-- Pop-up blocked: the user opens the checkout with their own click -->
+  <!-- Pop-up bloqueado: o próprio usuário abre o checkout. -->
   @if (manualCheckout(); as manual) {
-    <div
-      role="alert"
-      class="mb-4 flex flex-col gap-3 p-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10
-             text-amber-900 dark:text-amber-200 text-sm font-medium">
-      <p class="min-w-0">
+    <div role="alert" class="notice warn col">
+      <p>
         Seu navegador bloqueou a aba de pagamento do plano {{ manual.planName }}. Toque no botão
         abaixo para abrir o checkout — nada foi cobrado ainda e a mesma cobrança será retomada.
       </p>
-      <a
-        #manualCheckoutLink
-        [href]="manual.url"
-        target="_blank"
-        rel="noreferrer"
-        (click)="onManualCheckoutOpened()"
-        class="inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:self-start
-               min-h-11 px-4 py-2.5 rounded-xl bg-amber-600 text-white font-semibold
-               hover:bg-amber-700 focus:outline-none focus-visible:ring-2
-               focus-visible:ring-amber-700 focus-visible:ring-offset-2">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-          <polyline points="15 3 21 3 21 9" />
-          <line x1="10" y1="14" x2="21" y2="3" />
-        </svg>
+      <a #manualCheckoutLink [href]="manual.url" target="_blank" rel="noreferrer"
+        (click)="onManualCheckoutOpened()" class="btn primary">
         Abrir pagamento em nova aba
       </a>
     </div>
   }
 
-  <!--
-    Page-level banner: LOAD failures only (`/plans`, `/subscription`). Failures of
-    an ACTION are shown where the action is — on the plan card (`ctaError`) or next
-    to the account buttons (`accountActionError`) — and clear this one, so the same
-    message never appears twice.
-  -->
+  <!-- Só falhas de CARGA; falhas de ação ficam onde a ação está. -->
   @if (error(); as loadError) {
-    <app-alert-banner variant="error" [message]="loadError" class="mb-6" />
+    <app-alert-banner variant="error" [message]="loadError" class="block mb-4" />
   }
 
-  <div class="space-y-4 sm:space-y-6 lg:space-y-8">
-
-    <!-- Section 1 — Current subscription hero (dark, on-brand) -->
-    @if (subscription(); as sub) {
-      <section
-        class="relative overflow-hidden rounded-2xl shadow-xl border"
-        [class.bg-neutral-900]="!currentHeroBackground()" [class.dark:bg-neutral-700]="!currentHeroBackground()"
-        [class.border-neutral-800]="!currentHeroBackground()" [class.dark:border-neutral-600]="!currentHeroBackground()"
-        [class.border-white/10]="!!currentHeroBackground()"
-        [style.background]="currentHeroBackground()"
-        aria-labelledby="assinatura-atual-title">
-        <div aria-hidden="true"
-          class="pointer-events-none absolute -top-24 -right-24 w-56 h-56 blur-[90px] rounded-full"
-          [style.background]="currentHeroGlow()"></div>
-        <div aria-hidden="true"
-          class="pointer-events-none absolute -bottom-28 -left-24 w-56 h-56 blur-[90px] rounded-full"
-          [style.background]="currentHeroGlowSecondary()"></div>
-
-        <div class="relative p-5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
-
-          <div class="flex flex-col-reverse sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-[11px] font-semibold uppercase tracking-widest"
-                [class]="currentHeroMutedClass()">{{ heroEyebrow() }}</p>
-              <h2 id="assinatura-atual-title"
-                class="mt-1 text-2xl sm:text-3xl font-black text-white italic tracking-tight break-words">
-                {{ heroPlanTitle() }}
-              </h2>
-            </div>
-            <!-- Status pill is ALWAYS rendered, TRIALING included: the state of
-                 someone who has not paid is exactly the one that must show. -->
-            <span
-              class="self-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider"
-              [class]="statusPillClass(sub.status)">
-              <span
-                class="w-1.5 h-1.5 rounded-full"
-                [class]="statusDotClass(sub.status)"
-                aria-hidden="true"></span>
-              {{ statusLabel(sub.status) }}
-            </span>
-          </div>
-
-          @if (heroNotice(); as notice) {
-            <p class="text-xs sm:text-sm leading-relaxed" [class]="currentHeroMutedClass()">
-              {{ notice }}
-            </p>
-          }
-
-          <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-            @if (currentPlan(); as cp) {
-              <div class="min-w-0">
-                <dt class="text-[11px] font-semibold uppercase tracking-widest"
-                [class]="currentHeroMutedClass()">Valor</dt>
-                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white tabular-nums">
-                  {{ formatPrice(cp.price) }}
-                  <span class="text-sm font-medium" [class]="currentHeroMutedClass()">/{{ sub.billingCycle === 'MONTHLY' ? 'mês' : 'ano' }}</span>
-                </dd>
-              </div>
-            }
-            <!-- A free ACTIVE plan has no next charge and no billing cycle
-                 (currentPeriodEnd is null): showing "Próxima cobrança: —"
-                 reads as a broken paid subscription. -->
-            @if (!isFreeActive()) {
-              <div class="min-w-0">
-                <dt class="text-[11px] font-semibold uppercase tracking-widest"
-                  [class]="currentHeroMutedClass()">
-                  @if (sub.status === 'TRIALING') { Fim do teste } @else { Próxima cobrança }
-                </dt>
-                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
-                  @if (sub.status === 'TRIALING') {
-                    {{ formatDate(sub.trialEndsAt) }}
-                  } @else {
-                    {{ formatDate(sub.currentPeriodEnd) }}
-                  }
-                </dd>
-              </div>
-              <div class="min-w-0">
-                <dt class="text-[11px] font-semibold uppercase tracking-widest"
-                  [class]="currentHeroMutedClass()">Ciclo</dt>
-                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">
-                  {{ sub.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual' }}
-                </dd>
-              </div>
-            } @else {
-              <div class="min-w-0">
-                <dt class="text-[11px] font-semibold uppercase tracking-widest"
-                  [class]="currentHeroMutedClass()">Cobrança</dt>
-                <dd class="mt-1.5 text-lg sm:text-xl font-bold text-white">Sem cobrança</dd>
-              </div>
-            }
-          </dl>
-
-          <!-- Checkout started but never paid — the plan is NOT in force. -->
-          @if (pendingPlanName(); as pendingName) {
-            <div
-              class="flex flex-col gap-3 text-xs sm:text-sm bg-amber-500/10 border border-amber-400/30 text-amber-100 rounded-xl px-4 py-3">
-              <div class="flex items-start gap-2.5">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="mt-0.5 shrink-0" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                <span>
-                  Aguardando confirmação do pagamento do plano <strong>{{ pendingName }}</strong>.
-                  Ele só passa a valer depois que o pagamento for confirmado.
-                </span>
-              </div>
-              @if (pendingPlan(); as pp) {
-                <button
-                  type="button"
-                  (click)="onPlanCta(pp)"
-                  [disabled]="planCtaDisabled(pp)"
-                  class="w-full sm:w-auto sm:self-start min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
-                         bg-surface text-fg hover:bg-surface-sunken transition-colors
-                         disabled:opacity-60 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
-                  {{ planCtaLabel(pp) }}
-                </button>
-              }
-            </div>
-          }
-
-          @if (scheduledDowngradeName(); as downgradeName) {
-            <div
-              class="flex items-start gap-2.5 text-xs sm:text-sm bg-blue-500/10 border border-blue-400/30 text-blue-100 rounded-xl px-4 py-3">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="mt-0.5 shrink-0" aria-hidden="true">
-                <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="10" />
-              </svg>
-              <span>Mudança para o plano <strong>{{ downgradeName }}</strong> agendada para {{ formatDate(scheduledDowngradeAt()) }}. Até lá nada muda.</span>
-            </div>
-          }
-
-          <!-- A scheduled downgrade ALSO sets `cancelAtPeriodEnd` server-side.
-               Showing both banners told two contradictory stories, so the
-               downgrade notice (which already states what happens) wins. -->
-          @if (sub.cancelAtPeriodEnd && !scheduledDowngradeName()) {
-            <div
-              class="flex flex-col gap-3 text-xs sm:text-sm bg-amber-500/10 border border-amber-400/30 text-amber-100 rounded-xl px-4 py-3">
-              <div class="flex items-start gap-2.5">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="mt-0.5 shrink-0" aria-hidden="true">
-                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                <span>Cancelamento agendado para {{ formatDate(sub.currentPeriodEnd) }}. Você mantém acesso até essa data.</span>
-              </div>
-            </div>
-          }
-
-          <!--
-            Failure of cancelar / reativar, shown right where the button is.
-            Deliberately OUTSIDE the button block below: a failed action can flip
-            `canCancel()` / `canReactivate()`, and the explanation must not vanish
-            with the button it belongs to.
-          -->
-          @if (accountActionError(); as actionError) {
-            <app-alert-banner variant="error" [message]="actionError" class="pt-2" />
-          }
-
-          <!-- Account actions: cancel and reactivate are distinct and never
-               share a code path with the plan-change CTAs. -->
-          @if (canCancel() || canReactivate()) {
-            <div class="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-white/10">
-              @if (canReactivate()) {
-                <button
-                  type="button"
-                  (click)="reactivate()"
-                  [disabled]="accountActionBusy()"
-                  class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold
-                         bg-surface text-fg hover:bg-surface-sunken transition-colors
-                         disabled:opacity-60 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
-                  @if (accountActionBusy()) { Reativando… } @else { Reativar assinatura }
-                </button>
-              }
-              @if (canCancel()) {
-                <button
-                  type="button"
-                  (click)="openCancel()"
-                  [disabled]="accountActionBusy() || loading()"
-                  class="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-                         bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
-                  Cancelar assinatura
-                </button>
-              }
-            </div>
-          }
-        </div>
-      </section>
-    } @else {
-      <app-page-card title="Assinatura">
-        <div cardIcon class="p-2 bg-primary-low dark:bg-primary-500/15 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-primary-500 dark:text-primary-400" aria-hidden="true">
-            <rect x="2" y="6" width="20" height="12" rx="2" />
-            <path d="M2 10h20" />
-          </svg>
-        </div>
-        <div class="px-4 sm:px-6 pb-6">
-          @if (loading()) {
-            <div class="flex flex-col items-center justify-center gap-3 py-10 text-center">
-              <span
-                class="inline-block w-6 h-6 rounded-full border-2 border-edge border-t-primary-500 animate-spin"
-                aria-hidden="true"></span>
-              <p class="text-sm text-fg-subtle">Carregando informações da assinatura…</p>
-            </div>
+  <!-- ====================================================== cartão de status -->
+  <ng-template #hero>
+    <section class="card hero st fade-in" [class]="heroTone()" aria-labelledby="hero-plan" data-testid="billing-hero"
+      [attr.data-state]="state()">
+      <div class="eyebrow">
+        <span class="plan" id="hero-plan">
+          @if (state() === 'TRIALING' || (state() === 'TRIAL_EXPIRED' && !planName())) {
+            Teste grátis
+          } @else if (planName()) {
+            Plano {{ planName() }}
           } @else {
-            <div class="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <div class="p-3 bg-primary-low dark:bg-primary-500/15 rounded-full mb-1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="text-primary-500 dark:text-primary-400" aria-hidden="true">
-                  <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
-                  <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
-                  <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" />
-                </svg>
-              </div>
-              <p class="text-base font-semibold text-fg">Você ainda não tem uma assinatura ativa</p>
-              <!-- "Desbloquear os recursos" não descreve nada que aconteça: os
-                   recursos são os mesmos em todo plano, e a nota de paridade
-                   logo abaixo da grade dizia o contrário desta frase na mesma
-                   tela. O que se escolhe aqui é tamanho de frota.
-                   `neutral-600` (#525252) dá 7,82:1 sobre o branco do card,
-                   contra 4,74:1 do `neutral-500` — os dois passam, este sobra. -->
-              <p class="text-sm text-fg-muted max-w-md">Escolha abaixo o plano do tamanho da sua frota.</p>
-            </div>
+            Assinatura
           }
-        </div>
-      </app-page-card>
-    }
-
-    <!-- Section 2 — Trocar de plano -->
-    <app-page-card title="Escolha seu plano" id="planos">
-      <div cardIcon class="p-2 bg-primary-low dark:bg-primary-500/15 rounded-lg">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          class="text-primary-500 dark:text-primary-400" aria-hidden="true">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
+        </span>
+        <span class="chip" [class]="heroChip().cls" data-testid="billing-chip"><i aria-hidden="true"></i>{{ heroChip().label }}</span>
       </div>
 
-      <div class="px-4 sm:px-6 pb-6 pt-2">
-        <!-- Cycle toggle -->
-        <div class="flex justify-center mb-6">
-          <app-segmented-toggle
-            [options]="cycleOptions()"
-            [value]="cycle()"
-            ariaLabel="Ciclo de cobrança"
-            (selectionChange)="setCycle($event)" />
-        </div>
-
-        <!-- Plans grid — 1 coluna no telefone, 2x2 a partir de 640px, 4 colunas
-             iguais a partir de 1024px. Eram três colunas
-             (`[0.9fr_1.15fr_0.9fr]`) para três tiers; a V59 trouxe o quarto, e o
-             STARTER passou a quebrar a linha sozinho.
-
-             A ORDEM vem pronta de `orderedPlans()`: catálogo (TRIAL → STARTER →
-             PRO → ENTERPRISE) a partir de 640px, invertida no telefone. Nenhuma
-             classe `order-*` participa disso — elas reordenam o pixel e deixam o
-             Tab e o leitor de tela na ordem do DOM, que é falha de 1.3.2 / 2.4.3
-             justamente numa grade cujos cards dizem "tudo o que o plano anterior
-             tem". Ver `billing.ts` e `utils/viewport.ts`. -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch pt-4">
-          @for (plan of orderedPlans(); track plan.id) {
-            <app-plan-card
-              [tone]="planTone(plan)"
-              [name]="plan.name"
-              [price]="formatPrice(plan.price)"
-              [cycleSuffix]="planCycleSuffix()"
-              [subtitleText]="planSubtitle(plan)"
-              [description]="planDescription(plan)"
-              [features]="planFeatures(plan)"
-              [ribbonText]="planRibbon(plan)"
-              [isCurrent]="isCurrent(plan)"
-              [ctaLabel]="planCtaLabel(plan)"
-              [ctaNote]="planCtaNote(plan)"
-              [errorText]="planCardError(plan)"
-              [ctaDisabled]="planCtaDisabled(plan)"
-              (ctaClick)="onPlanCta(plan)" />
-          } @empty {
-            @if (loading()) {
-              <div class="col-span-full flex flex-col items-center justify-center gap-3 py-10 text-center">
-                <span
-                  class="inline-block w-6 h-6 rounded-full border-2 border-edge border-t-primary-500 animate-spin"
-                  aria-hidden="true"></span>
-                <p class="text-sm text-fg-subtle">Carregando planos…</p>
-              </div>
-            } @else {
-              <p class="col-span-full text-center text-sm text-fg-subtle py-10">Nenhum plano disponível no momento.</p>
+      @switch (state()) {
+        @case ('TRIALING') {
+          <div class="price"><span class="big">{{ trialDaysLeft() }} {{ trialDaysLeft() === 1 ? 'dia' : 'dias' }}</span><span class="per">de teste</span></div>
+          <div class="bar drain" style="margin-top: 16px" role="progressbar" aria-label="Tempo de teste restante"
+            [attr.aria-valuenow]="trialDaysLeft()" aria-valuemin="0" [attr.aria-valuemax]="14">
+            <i [style.width.%]="trialPct()"></i>
+          </div>
+          <div class="meta">
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Termina em {{ trialEndLabel() }}</span>
+            @if (usage(); as u) {
+              <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 17h2v-4l-2-5H5L3 13v4h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>{{ u.vehicles }} de {{ u.limit }} veículos</span>
             }
-          }
-        </div>
-      </div>
-    </app-page-card>
-
-    <!-- Section 3 — Comparar recursos (collapsible) -->
-    @if (visiblePlans().length > 0) {
-      <app-page-card title="Comparar recursos">
-        <div cardIcon class="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-blue-600 dark:text-blue-300" aria-hidden="true">
-            <line x1="8" y1="6" x2="21" y2="6" />
-            <line x1="8" y1="12" x2="21" y2="12" />
-            <line x1="8" y1="18" x2="21" y2="18" />
-            <line x1="3" y1="6" x2="3.01" y2="6" />
-            <line x1="3" y1="12" x2="3.01" y2="12" />
-            <line x1="3" y1="18" x2="3.01" y2="18" />
-          </svg>
-        </div>
-        <button
-          cardActions
-          type="button"
-          (click)="toggleCompare()"
-          [attr.aria-expanded]="showCompare()"
-          class="min-h-[36px] px-3 rounded-lg text-xs font-semibold text-primary-700 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-400 hover:bg-primary-low dark:hover:bg-primary-500/15 inline-flex items-center gap-1.5 transition-colors
-                 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
-          @if (showCompare()) { Ocultar } @else { Mostrar comparação }
-          <svg
-            class="transition-transform duration-200"
-            [class.rotate-180]="showCompare()"
-            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-
-        @if (showCompare()) {
-          <div class="px-4 sm:px-6 pb-6 min-w-0">
-            <!-- A comparação segue `orderedPlans()`, a MESMA sequência dos
-                 cards. Ela lia `visiblePlans()` (sempre catálogo) enquanto a
-                 grade acima invertia no telefone: a mesma tela mostrava a escada
-                 nas duas direções, com um scroll de distância, e a lista
-                 comparativa de telefone logo abaixo é justamente onde a
-                 divergência aparecia. Acima de `sm` as duas ordens coincidem,
-                 então no desktop nada muda. -->
-
-            <!-- Desktop: table -->
-            <div class="hidden lg:block overflow-x-auto rounded-xl border border-edge">
-              <table class="w-full text-sm">
-                <thead class="bg-surface-muted">
-                  <tr class="border-b border-edge">
-                    <th class="text-left text-[11px] font-semibold text-fg-subtle uppercase tracking-wide px-4 py-3.5">Recurso</th>
-                    @for (plan of orderedPlans(); track plan.id) {
-                      <th class="text-center px-3 py-3.5">
-                        <div class="flex flex-col items-center gap-1.5">
-                          <span class="text-[11px] font-semibold text-fg-subtle uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
-                          <span class="font-semibold text-base text-fg">{{ plan.name }}</span>
-                          @if (isRecommended(plan)) {
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low dark:bg-primary-500/15 text-primary-700 dark:text-primary-400 border border-primary-low">
-                              Recomendado
-                            </span>
-                          }
-                        </div>
-                      </th>
-                    }
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-edge-soft bg-surface">
-                  <tr>
-                    <td class="py-3.5 px-4 font-medium text-fg-soft">Veículos</td>
-                    @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center font-semibold text-fg tabular-nums">
-                        @if (isUnlimited(plan.vehicleLimit, plan.name)) {
-                          <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
-                        } @else {
-                          {{ formatLimit(plan.vehicleLimit, plan.name) }}
-                        }
-                      </td>
-                    }
-                  </tr>
-                  <!-- Sem linha de "Motoristas" (FEAT-0070): o teto virou
-                       guarda-corpo interno e o campo saiu da resposta da API.
-                       A linha inteira sai — nunca uma célula órfã. -->
-                  <tr>
-                    <td class="py-3.5 px-4 font-medium text-fg-soft">Dias de teste grátis</td>
-                    @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center text-fg tabular-nums">
-                        @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-fg-faint">—</span> }
-                      </td>
-                    }
-                  </tr>
-                  <tr>
-                    <td class="py-3.5 px-4 font-medium text-fg-soft">Cobrança automática</td>
-                    @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center">
-                        <svg class="inline-block text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                        <span class="sr-only">Incluído</span>
-                      </td>
-                    }
-                  </tr>
-                  <tr>
-                    <td class="py-3.5 px-4 font-medium text-fg-soft">Dashboard completo</td>
-                    @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center">
-                        <svg class="inline-block text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                        <span class="sr-only">Incluído</span>
-                      </td>
-                    }
-                  </tr>
-                  <!--
-                    "Relatórios avançados" saiu daqui: era capacidade de SOFTWARE
-                    anunciada por tier, e o backend não tem gate de funcionalidade
-                    nenhum — só `vehicle_limit` e `driver_limit`. A linha marcava ✓
-                    no PRO por `isRecommended()` e travessão no resto, vendendo uma
-                    escada que o código não implementa.
-
-                    A de atendimento prioritário FICA, porque é compromisso
-                    operacional e não software, mas agora pergunta ao mesmo
-                    `utils/plan-features.ts` que monta os bullets do card. Antes ela
-                    também dependia de `isRecommended()` e deixava o ENTERPRISE, que
-                    paga por prioridade, com um travessão.
-                  -->
-                  <tr>
-                    <td class="py-3.5 px-4 font-medium text-fg-soft">{{ prioritySupportLabel }}</td>
-                    @for (plan of orderedPlans(); track plan.id) {
-                      <td class="py-3.5 px-3 text-center">
-                        @if (hasPrioritySupport(plan)) {
-                          <svg class="inline-block text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                          <span class="sr-only">Incluído</span>
-                        } @else {
-                          <span aria-hidden="true" class="text-fg-faint">—</span>
-                          <span class="sr-only">Não incluído</span>
-                        }
-                      </td>
-                    }
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Mobile: accordion per plan -->
-            <div class="lg:hidden space-y-3">
-              @for (plan of orderedPlans(); track plan.id) {
-                <div class="border border-edge rounded-2xl overflow-hidden bg-surface">
-                  <button
-                    type="button"
-                    (click)="toggleExpanded(plan.id)"
-                    [attr.aria-expanded]="isExpanded(plan.id)"
-                    class="w-full min-h-[56px] flex items-center justify-between p-4 text-left hover:bg-surface-muted transition-colors
-                           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset">
-                    <div class="flex flex-col min-w-0">
-                      <span class="text-[11px] font-semibold text-fg-subtle uppercase tracking-wide">{{ planPeriodLabel(plan) }}</span>
-                      <span class="font-semibold text-base text-fg mt-0.5 truncate">{{ plan.name }}</span>
-                    </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                      @if (isRecommended(plan)) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-low dark:bg-primary-500/15 text-primary-700 dark:text-primary-400 border border-primary-low">
-                          Popular
-                        </span>
-                      }
-                      <svg
-                        class="text-fg-subtle transition-transform duration-200"
-                        [class.rotate-180]="isExpanded(plan.id)"
-                        width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </div>
-                  </button>
-
-                  @if (isExpanded(plan.id)) {
-                    <ul class="p-4 pt-3 space-y-3 text-sm text-fg-soft border-t border-edge-soft bg-surface-muted">
-                      <li class="flex items-center justify-between">
-                        <span class="text-fg-subtle">Veículos</span>
-                        <span class="font-semibold text-fg tabular-nums">
-                          @if (isUnlimited(plan.vehicleLimit, plan.name)) {
-                            <span aria-hidden="true">∞</span><span class="sr-only">Ilimitado</span>
-                          } @else {
-                            {{ formatLimit(plan.vehicleLimit, plan.name) }}
-                          }
-                        </span>
-                      </li>
-                      <!-- Ver a tabela desktop: o item inteiro sai (FEAT-0070). -->
-                      <li class="flex items-center justify-between">
-                        <span class="text-fg-subtle">Dias de teste</span>
-                        <span class="font-semibold text-fg tabular-nums">
-                          @if (plan.trialDays > 0) { {{ plan.trialDays }} dias } @else { <span class="text-fg-faint">—</span> }
-                        </span>
-                      </li>
-                      <li class="flex items-center justify-between">
-                        <span class="text-fg-subtle">Cobrança automática</span>
-                        <svg class="text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                        <span class="sr-only">Incluído</span>
-                      </li>
-                      <li class="flex items-center justify-between">
-                        <span class="text-fg-subtle">Dashboard completo</span>
-                        <svg class="text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                        <span class="sr-only">Incluído</span>
-                      </li>
-                      <!-- Espelho móvel das linhas acima; ver o comentário na tabela. -->
-                      <li class="flex items-center justify-between gap-3">
-                        <span class="text-fg-subtle min-w-0">{{ prioritySupportLabel }}</span>
-                        @if (hasPrioritySupport(plan)) {
-                          <svg class="shrink-0 text-emerald-600 dark:text-emerald-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
-                          <span class="sr-only">Incluído</span>
-                        } @else {
-                          <span aria-hidden="true" class="shrink-0 text-fg-faint">—</span>
-                          <span class="sr-only">Não incluído</span>
-                        }
-                      </li>
-                    </ul>
-                  }
-                </div>
-              }
-            </div>
           </div>
         }
-      </app-page-card>
-    }
+        @case ('PAST_DUE') {
+          <ng-container *ngTemplateOutlet="owingBody" />
+        }
+        @case ('BLOCKED') {
+          <ng-container *ngTemplateOutlet="owingBody" />
+        }
+        @case ('ACTIVE') {
+          @if (heroAmount(); as amount) {
+            <div class="price"><span class="big">R$ {{ amount.reais }}</span><span class="cents">,{{ amount.cents }}</span><span class="per">{{ heroPer() }}</span></div>
+          }
+          <div class="meta">
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              @if (heroChip().cls === 'warn') { Acesso até {{ periodEndLabel() }} } @else { Renova em {{ periodEndLabel() }} }
+            </span>
+            @if (card(); as c) {
+              <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>{{ c.label }}</span>
+            }
+          </div>
+          @if (usage(); as u) {
+            <div class="usage">
+              <div class="u-h"><b>Veículos</b><span class="mono">{{ u.vehicles }} de {{ u.limit }}</span></div>
+              <div class="bar drain" role="progressbar" aria-label="Veículos cadastrados" [attr.aria-valuenow]="u.vehicles"
+                aria-valuemin="0" [attr.aria-valuemax]="u.limit"><i [style.width.%]="u.pct"></i></div>
+            </div>
+          }
+          @if (canReactivate()) {
+            <div class="actions">
+              <button type="button" class="btn primary" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="hero-reactivate">Reativar assinatura</button>
+            </div>
+          }
+        }
+        @default {
+          <div class="price"><span class="big idle">Escolha um plano</span></div>
+          <p class="idle-copy">
+            @if (state() === 'TRIAL_EXPIRED') {
+              Seu teste terminou. Seus carros, motoristas e cobranças continuam salvos.
+            } @else if (state() === 'CANCELED') {
+              A assinatura foi encerrada. Seus dados continuam salvos.
+            } @else {
+              Assine para cadastrar seus carros e motoristas.
+            }
+          </p>
+        }
+      }
+    </section>
+  </ng-template>
 
-    <!-- Section 4 — Admin gateway override (bottom, low-emphasis) -->
-    @if (isPlatformAdmin) {
-      <app-page-card title="Admin — gateway override">
-        <div cardIcon class="p-2 bg-amber-50 dark:bg-amber-500/10 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-amber-600 dark:text-amber-300" aria-hidden="true">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
+  <ng-template #owingBody>
+    @if (heroAmount(); as amount) {
+      <div class="price"><span class="big">R$ {{ amount.reais }}</span><span class="cents">,{{ amount.cents }}</span><span class="per">em aberto</span></div>
+    }
+    <div class="reason">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <span data-testid="billing-failure">{{ failureLine() }}</span>
+    </div>
+    @if (state() === 'PAST_DUE' && graceEnd()) {
+      <div class="deadline" data-testid="billing-deadline">
+        <div class="d-top"><b>{{ deadlineLabel() }}</b><span>até {{ deadlineAt() }}</span></div>
+        <div class="bar drain" aria-hidden="true"><i [style.width.%]="deadlinePct()"></i></div>
+        <p>Depois disso o acesso fica pausado até o pagamento.</p>
+      </div>
+    } @else if (state() === 'BLOCKED') {
+      <div class="deadline">
+        <div class="d-top"><b>Acesso pausado</b><span>desde {{ deadlineAt() }}</span></div>
+        <p>Seus carros, motoristas e cobranças continuam salvos. Pague e liberamos na hora.</p>
+      </div>
+    }
+    @if (canManage()) {
+      <div class="actions">
+        @if (canPayInvoice()) {
+          <button type="button" class="btn primary block" (click)="openPay()" data-testid="hero-pay">Pagar agora</button>
+        }
+        @if (has('UPDATE_CARD')) {
+          <button type="button" class="btn tonal block" [disabled]="cardBusy()" (click)="openCardUpdate()" data-testid="hero-card">
+            {{ cardBusy() ? 'Abrindo…' : 'Trocar cartão' }}
+          </button>
+        }
+      </div>
+    }
+  </ng-template>
+
+  <!-- ====================================================== grupos -->
+  <ng-template #payment>
+    <h2 class="group-h">Pagamento</h2>
+    <div class="group">
+      <button type="button" class="row" [disabled]="!has('UPDATE_CARD') || cardBusy()" (click)="openCardUpdate()" data-testid="row-card">
+        @if (card(); as c) {
+          <span class="cardbrand tint" aria-hidden="true">{{ c.short }}</span>
+          <span class="t"><b>{{ c.label }}</b>
+            @if (owing()) { <small class="warn-text">Recusado em {{ failureAt() }}</small> }
+            @else if (c.expiry) { <small>{{ c.expiry }}</small> }
+          </span>
+        } @else {
+          <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+          <span class="t"><b>Cartão</b><small>{{ summaryLoaded() ? 'Nenhum cartão salvo' : 'Carregando…' }}</small></span>
+        }
+        @if (has('UPDATE_CARD')) {
+          <span class="v">{{ cardBusy() ? 'Abrindo…' : 'Trocar' }}</span>
+          <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+        }
+      </button>
+      <div class="row" aria-disabled="true">
+        <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
+        <span class="t"><b>Pagar com Pix</b><small>{{ owing() ? 'Pague a fatura em aberto pelo app do banco' : 'Para pagar uma fatura em aberto' }}</small></span>
+        <span class="chip neutral sm">Em breve</span>
+      </div>
+    </div>
+  </ng-template>
+
+  <ng-template #planGroup>
+    <h2 class="group-h">Plano</h2>
+    <div class="group">
+      <button type="button" class="row" (click)="openPlans()" data-testid="row-plan">
+        <span class="tile tint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h10"/></svg></span>
+        <span class="t"><b>{{ planName() || 'Sem plano' }}@if (planName()) {<span class="mini-pill">Seu plano</span>}</b>
+          @if (usage(); as u) { <small>Até {{ u.limit }} veículos</small> }
+        </span>
+        <span class="v">Mudar</span>
+        <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+      </button>
+      <button type="button" class="row" (click)="openPlans()" data-testid="row-cycle">
+        <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+        <span class="t"><b>Cobrança</b></span>
+        <span class="v">{{ cycleLabel() }}</span>
+        <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+      </button>
+    </div>
+  </ng-template>
+
+  <ng-template #invoiceRows let-list>
+    @for (inv of list; track inv.ref) {
+      <button type="button" class="row" (click)="openInvoice(inv)" [attr.aria-label]="'Fatura de ' + invoiceDate(inv) + ', ' + invoiceAmount(inv) + ', ' + invoiceStatus(inv)">
+        <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+        <span class="t"><b>{{ invoiceDate(inv) }}</b>
+          @if (inv.status === 'OPEN') { <span class="chip warn sm inv-chip">Em aberto</span> }
+          @else { <small>{{ invoiceStatus(inv) }}</small> }
+        </span>
+        <span class="v inv-amt">{{ invoiceAmount(inv) }}</span>
+        <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+      </button>
+    }
+  </ng-template>
+
+  <ng-template #invoicesGroup>
+    <h2 class="group-h">Faturas</h2>
+    <div class="group" data-testid="invoices">
+      @if (recentInvoices().length) {
+        <ng-container *ngTemplateOutlet="invoiceRows; context: { $implicit: recentInvoices() }" />
+        @if (invoices().length > recentInvoices().length) {
+          <button type="button" class="row noicon" (click)="viewAllInvoices()">
+            <span class="t"><b class="link">Ver todas as faturas</b></span>
+            <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+          </button>
+        }
+      } @else {
+        <div class="row noicon"><span class="t"><small>{{ summaryLoaded() ? 'Nenhuma fatura ainda.' : 'Carregando faturas…' }}</small></span></div>
+      }
+    </div>
+  </ng-template>
+
+  <ng-template #account>
+    <h2 class="group-h">Conta</h2>
+    <div class="group">
+      <a class="row noicon" routerLink="/configuracoes">
+        <span class="t"><b>Dados de cobrança</b><small>Razão social, CNPJ e e-mail das faturas</small></span>
+        <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+      </a>
+      @if (canReactivate()) {
+        <button type="button" class="row noicon" [disabled]="accountActionBusy()" (click)="reactivate()" data-testid="row-reactivate">
+          <span class="t"><b class="link">Reativar assinatura</b></span>
+        </button>
+      } @else if (canCancel()) {
+        <button type="button" class="row noicon danger" [disabled]="accountActionBusy()" (click)="openCancel()" data-testid="row-cancel">
+          <span class="t"><b>Cancelar assinatura</b></span>
+        </button>
+      }
+    </div>
+    @if (accountActionError(); as accErr) {
+      <app-alert-banner variant="error" [message]="accErr" class="block mt-3" />
+    }
+  </ng-template>
+
+  <!-- ====================================================== página -->
+  @if (!summaryLoaded() && !subscription()) {
+    <div class="skeleton" aria-busy="true" aria-label="Carregando assinatura">
+      <div class="card sk-hero"></div>
+      <div class="card sk-row"></div>
+      <div class="card sk-row"></div>
+    </div>
+  } @else if (showsInlinePicker()) {
+    <div class="layout trial">
+      <div class="a-hero"><ng-container *ngTemplateOutlet="hero" /></div>
+      <div class="a-side">
+        <h2 class="group-h first">{{ state() === 'TRIALING' ? 'Seu teste' : 'Precisa de ajuda?' }}</h2>
+        <div class="group">
+          @if (state() === 'TRIALING') {
+            <div class="row">
+              <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2v-4l-2-5H5L3 13v4h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
+              <span class="t"><b>Limite no teste</b></span>
+              <span class="v">{{ trialVehicleLimit() }} veículos</span>
+            </div>
+          }
+          <button type="button" class="row" (click)="openSupport()">
+            <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></svg></span>
+            <span class="t"><b>Dúvidas sobre os planos</b><small>WhatsApp do suporte</small></span>
+            <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+          </button>
         </div>
-        <div class="px-4 sm:px-6 pb-6">
-          <p class="text-xs text-fg-subtle mb-3">Selecione o gateway usado no próximo checkout de teste.</p>
-          <div
-            role="radiogroup"
-            aria-label="Gateway de pagamento"
-            class="flex gap-2 flex-wrap">
-            <button
-              type="button"
-              role="radio"
-              [attr.aria-checked]="adminGateway() === 'stripe'"
-              (click)="setAdminGateway('stripe')"
-              class="rounded-full min-h-[44px] px-4 py-2 text-sm font-medium border transition-colors
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-              [class.bg-primary-500]="adminGateway() === 'stripe'"
-              [class.text-white]="adminGateway() === 'stripe'"
-              [class.border-primary-500]="adminGateway() === 'stripe'"
-              [class.bg-surface]="adminGateway() !== 'stripe'"
-              [class.text-fg-soft]="adminGateway() !== 'stripe'"
-              [class.border-edge]="adminGateway() !== 'stripe'"
-              [class.hover:bg-surface-muted]="adminGateway() !== 'stripe'">
-              Stripe
+      </div>
+      <div class="a-pick" id="planos">
+        <h2 class="group-h pick-h">Escolha seu plano</h2>
+        <app-plan-grid [columns]="planColumns()" [cycle]="cycle()" [savings]="yearlySavingsBadge()"
+          (cycleChange)="setCycle($event)" (choose)="onColumn($event)" />
+        <p class="foot-note">Pague com cartão. Cancele quando quiser.</p>
+      </div>
+    </div>
+  } @else {
+    <div class="layout">
+      <div class="a-hero"><ng-container *ngTemplateOutlet="hero" /></div>
+      <div class="a-side">
+        <div class="a-pay"><ng-container *ngTemplateOutlet="payment" /></div>
+        <div class="a-plan"><ng-container *ngTemplateOutlet="planGroup" /></div>
+        <div class="a-acc"><ng-container *ngTemplateOutlet="account" /></div>
+      </div>
+      <div class="a-inv"><ng-container *ngTemplateOutlet="invoicesGroup" /></div>
+    </div>
+  }
+
+  <!-- ====================================================== folhas -->
+  @switch (sheet()) {
+    @case ('pay') {
+      <app-bottom-sheet [title]="payTitle()" [subtitle]="paySubtitle()" [busy]="cardBusy()" (closed)="closeSheet()">
+        <div class="seg" role="tablist" aria-label="Forma de pagamento">
+          <button type="button" role="tab" aria-selected="false" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg>
+            Pix <span class="tag">em breve</span>
+          </button>
+          <button type="button" role="tab" aria-selected="true" class="on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+            Cartão
+          </button>
+        </div>
+        <div role="radiogroup" aria-label="Como pagar com cartão" style="margin-top: 6px">
+          @if (canPayInvoice()) {
+            <button type="button" role="radio" class="opt" [class.on]="payOption() === 'invoice'"
+              [attr.aria-checked]="payOption() === 'invoice'" (click)="payOption.set('invoice')" data-testid="pay-invoice">
+              <span class="radio" aria-hidden="true"></span>
+              @if (card(); as c) { <span class="cardbrand" aria-hidden="true">{{ c.short }}</span> }
+              <span class="t"><b>Pagar esta fatura</b><small>Com {{ card()?.label ?? 'o cartão' }} ou outro, sem salvar</small></span>
             </button>
-            <button
-              type="button"
-              role="radio"
-              [attr.aria-checked]="adminGateway() === 'abacate'"
-              (click)="setAdminGateway('abacate')"
-              class="rounded-full min-h-[44px] px-4 py-2 text-sm font-medium border transition-colors
-                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-              [class.bg-primary-500]="adminGateway() === 'abacate'"
-              [class.text-white]="adminGateway() === 'abacate'"
-              [class.border-primary-500]="adminGateway() === 'abacate'"
-              [class.bg-surface]="adminGateway() !== 'abacate'"
-              [class.text-fg-soft]="adminGateway() !== 'abacate'"
-              [class.border-edge]="adminGateway() !== 'abacate'"
-              [class.hover:bg-surface-muted]="adminGateway() !== 'abacate'">
-              AbacatePay
+          }
+          @if (has('UPDATE_CARD')) {
+            <button type="button" role="radio" class="opt" [class.on]="payOption() === 'card'"
+              [attr.aria-checked]="payOption() === 'card'" (click)="payOption.set('card')" data-testid="pay-card">
+              <span class="radio" aria-hidden="true"></span>
+              <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+              <span class="t"><b>Outro cartão</b><small>Passa a ser usado nas próximas cobranças</small></span>
             </button>
+          }
+        </div>
+        @if (sheetError(); as e) {
+          <app-alert-banner variant="error" [message]="e" class="block mt-3" />
+        }
+        <div sheetFooter>
+          <button type="button" class="btn primary block" [disabled]="cardBusy()" (click)="confirmPay()" data-testid="pay-continue">
+            {{ cardBusy() ? 'Abrindo…' : 'Continuar' }}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+          </button>
+          <p class="note">O cartão é informado na página segura da Stripe.</p>
+        </div>
+      </app-bottom-sheet>
+    }
+    @case ('plans') {
+      <app-bottom-sheet title="Mudar de plano" size="xl"
+        [subtitle]="usage() ? 'Você usa ' + usage()!.vehicles + ' de ' + usage()!.limit + ' veículos do ' + planName() + '.' : null"
+        (closed)="closeSheet()">
+        <app-plan-grid [columns]="planColumns()" [cycle]="cycle()" [savings]="yearlySavingsBadge()"
+          (cycleChange)="setCycle($event)" (choose)="onColumn($event)" />
+        <p class="foot-note">Ao trocar de plano, o valor e o que acontece com o período já pago aparecem antes de confirmar.</p>
+      </app-bottom-sheet>
+    }
+    @case ('cancel') {
+      <app-bottom-sheet title="Cancelar assinatura" subtitle="Os dados da sua conta continuam salvos." [busy]="accountActionBusy()" (closed)="closeSheet()">
+        <div class="group flat">
+          <div class="row">
+            <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+            <span class="t"><b>Acesso até {{ periodEndLabel() }}</b><small>Sem novas cobranças depois disso</small></span>
+          </div>
+          <div class="row">
+            <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+            <span class="t"><b>Conta guardada</b><small>Reative quando quiser</small></span>
           </div>
         </div>
-      </app-page-card>
+        <div sheetFooter class="stack">
+          <button type="button" class="btn primary block" (click)="closeSheet()">Manter assinatura</button>
+          <button type="button" class="btn tonal block danger-text" [disabled]="accountActionBusy()" (click)="onCancelConfirmed()" data-testid="cancel-confirm">
+            Cancelar no fim do período
+          </button>
+        </div>
+      </app-bottom-sheet>
     }
-
-  </div>
-
-  <app-confirm-dialog
-    [open]="showCancelDialog()"
-    title="Cancelar assinatura"
-    message="Tem certeza que deseja cancelar sua assinatura? Você continuará com acesso até o fim do período atual."
-    confirmLabel="Sim, cancelar"
-    cancelLabel="Manter assinatura"
-    variant="danger"
-    (confirmed)="onCancelConfirmed()"
-    (cancelled)="onCancelDismissed()" />
+    @case ('paid') {
+      @if (paidReceipt(); as r) {
+        <app-bottom-sheet title="Pagamento confirmado" [hideTitle]="true" (closed)="closePaid()">
+          <div class="paid">
+            <div class="check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <p class="paid-title" aria-hidden="true">Pagamento confirmado</p>
+            <p class="paid-sub">Plano {{ r.planName }} em dia até {{ r.until }}.</p>
+          </div>
+          <dl class="kv">
+            <div><dt>Valor</dt><dd class="mono">{{ r.amount }}</dd></div>
+            <div><dt>Forma</dt><dd>{{ r.method }}</dd></div>
+            <div><dt>Data</dt><dd>{{ r.at }}</dd></div>
+          </dl>
+          <div sheetFooter>
+            <button type="button" class="btn primary block" (click)="closePaid()">Fechar</button>
+            @if (r.receiptUrl) {
+              <p class="note"><button type="button" class="link" (click)="openPaidReceipt()">Ver recibo</button></p>
+            }
+          </div>
+        </app-bottom-sheet>
+      }
+    }
+    @case ('invoices') {
+      <app-bottom-sheet title="Faturas" [subtitle]="'Últimas ' + invoices().length" size="lg" (closed)="closeSheet()">
+        <div class="group flat">
+          <ng-container *ngTemplateOutlet="invoiceRows; context: { $implicit: invoices() }" />
+        </div>
+      </app-bottom-sheet>
+    }
+  }
 
   <!-- Downgrade / voltar ao gratuito — NUNCA passa pelo checkout. -->
   <app-confirm-dialog
@@ -679,10 +403,7 @@
     (confirmed)="confirmDowngrade()"
     (cancelled)="dismissDowngrade()" />
 
-  <!--
-    Troca de período (Mensal ↔ Anual). Passa pelo checkout, mas NUNCA em
-    silêncio: o diálogo diz, em números, o que a cobrança imediata custa.
-  -->
+  <!-- Troca de plano/período paga: o diálogo diz, em números, o que custa. -->
   <app-confirm-dialog
     [open]="periodSwitchTarget() !== null"
     [title]="periodSwitchDialogTitle()"

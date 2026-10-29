@@ -3,6 +3,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, of, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
+  BillingSummary,
   CheckoutRequest,
   CheckoutResponse,
   DowngradeRequest,
@@ -70,11 +71,14 @@ export class BillingService {
   private readonly _subscription = signal<SubscriptionResponse | null>(null);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
+  private readonly _summary = signal<BillingSummary | null>(null);
 
   readonly plans = this._plans.asReadonly();
   readonly subscription = this._subscription.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+  /** `GET /summary` — estado, cartão, fatura em aberto, faturas e ações (OWNER). */
+  readonly summary = this._summary.asReadonly();
 
   constructor() {
     // Troca de empresa e fim de sessao zeram este cache (FIX-0272).
@@ -92,6 +96,7 @@ export class BillingService {
     this._subscription.set(null);
     this._loading.set(false);
     this._error.set(null);
+    this._summary.set(null);
   }
 
   clearError(): void {
@@ -143,6 +148,33 @@ export class BillingService {
    * Upgrades and first subscriptions ONLY. Downgrades must go through
    * `downgrade()` — routing them here produced a R$ 0,00 checkout.
    */
+  /**
+   * Resumo da página Assinatura. Falha NÃO escreve em `error`: a página continua
+   * de pé com `/subscription` e `/plans`, só sem cartão e faturas.
+   */
+  loadSummary(): Observable<BillingSummary | null> {
+    return this.http.get<BillingSummary>(`${API_BASE}/summary`).pipe(
+      tap((summary) => this._summary.set(summary ?? null)),
+    );
+  }
+
+  /** "Trocar cartão": URL de uma sessão do Billing Portal do Stripe. */
+  cardUpdateUrl(): Observable<string> {
+    return this.http
+      .post<{ url: string }>(`${API_BASE}/card-update-session`, {})
+      .pipe(map((res) => res.url));
+  }
+
+  /**
+   * Volta do Billing Portal: faz a assinatura cobrar o cartão novo (o portal só
+   * troca o padrão do cliente, e o da assinatura tem precedência). Idempotente.
+   */
+  syncCardAfterUpdate(): Observable<string> {
+    return this.http
+      .post<{ outcome: string }>(`${API_BASE}/card-updated`, {})
+      .pipe(map((res) => res.outcome));
+  }
+
   startCheckout(planCode: string, gatewayOverride?: GatewayOverride): Observable<CheckoutResponse> {
     this._loading.set(true);
     this._error.set(null);

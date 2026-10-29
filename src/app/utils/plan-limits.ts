@@ -17,7 +17,7 @@
  * para lembrar).
  *
  * <h4>Maquiagem do ENTERPRISE</h4>
- * O backend guarda e APLICA 100 veículos no ENTERPRISE (V59; eram 500 na V44);
+ * O backend guarda e APLICA o teto `PLAN_CAPACITY.ENTERPRISE` (V127; eram 100 na V59, 500 na V44);
  * a apresentação como "ilimitado" é decisão de produto, deliberada, e vale só
  * na UI. Nenhuma guarda de limite consulta este arquivo.
  *
@@ -37,7 +37,7 @@
  */
 
 /** Planos do catálogo, pelo `name` da tabela `plans` (V59:7-15). */
-export type PlanTier = 'TRIAL' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type PlanTier = 'TRIAL' | 'STARTER' | 'PRO' | 'SCALE' | 'ENTERPRISE';
 
 export interface PlanCapacity {
   vehicles: number;
@@ -55,7 +55,9 @@ export const PLAN_CAPACITY: Readonly<Record<PlanTier, PlanCapacity>> = {
   TRIAL: { vehicles: 3 },
   STARTER: { vehicles: 15 },
   PRO: { vehicles: 25 },
-  ENTERPRISE: { vehicles: 100 },
+  /** V127 (decisão do dono, 2026-10-29). */
+  SCALE: { vehicles: 75 },
+  ENTERPRISE: { vehicles: 150 },
 };
 
 /**

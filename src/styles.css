@@ -386,14 +386,16 @@ body {
    ========================================================== */
 .dark {
   color-scheme: dark;
-  --color-canvas: #0F0F10;
-  --color-surface: #18181A;
-  --color-surface-muted: #1E1E21;
-  --color-surface-sunken: #26262A;
+  /* Página preta de verdade (decisão do dono, 2026-10-29); cartões #0E0E0F com
+     moldura #1F1F1F. A sidebar mantém a paleta anterior — ver `.app-sidebar`. */
+  --color-canvas: #000000;
+  --color-surface: #0E0E0F;
+  --color-surface-muted: #141416;
+  --color-surface-sunken: #1A1A1C;
   --color-surface-strong: #323237;
-  --color-edge-faint: #1E1E21;
-  --color-edge-soft: #242428;
-  --color-edge: #2E2E33;
+  --color-edge-faint: #141416;
+  --color-edge-soft: #1A1A1A;
+  --color-edge: #1F1F1F;
   --color-edge-strong: #6E6E78;
   --color-edge-field: #75757E;
   --color-fg-strong: #FAFAFA;
@@ -406,10 +408,10 @@ body {
 
   /* Tokens neutros da landing / blog / legais, expostos como utilities
      (`bg-paper`, `text-ink`, `border-rule`…): mesmo papel, valor escuro. */
-  --color-paper: #18181A;
-  --color-paper-alt: #1E1E21;
-  --color-paper-2: #26262A;
-  --color-rule: #2E2E33;
+  --color-paper: #0E0E0F;
+  --color-paper-alt: #141416;
+  --color-paper-2: #1A1A1C;
+  --color-rule: #1F1F1F;
   --color-rule-strong: #3A3A40;
   --color-rule-contrast: #75757E;
   --color-line: #3A3A40;
@@ -417,6 +419,19 @@ body {
   --color-ink-dark: #FAFAFA;
   --color-muted: #A1A1AA;
   --color-border: #2E2E33;
+}
+
+/* A sidebar continua na superfície anterior (#18181A) sobre a página preta: o
+   menu se destaca do conteúdo sem precisar de sombra. Os tokens são redeclarados
+   no escopo dela, então nenhuma classe do template muda. */
+.dark .app-sidebar {
+  --color-canvas: #0F0F10;
+  --color-surface: #18181A;
+  --color-surface-muted: #1E1E21;
+  --color-surface-sunken: #26262A;
+  --color-edge-faint: #1E1E21;
+  --color-edge-soft: #242428;
+  --color-edge: #2E2E33;
 }
 
 /* `border` sem cor herda `currentColor` (padrão do Tailwind v4). No claro isso dá a borda
@@ -435,10 +450,10 @@ body {
    As faixas de marca (laranja, carbono) têm cor própria e não mudam. */
 .dark .landing-root,
 .dark .pricing-scope {
-  --paper: #0F0F10;
-  --paper-alt: #18181A;
-  --paper-2: #1E1E21;
-  --rule: #2E2E33;
+  --paper: #000000;
+  --paper-alt: #0E0E0F;
+  --paper-2: #141416;
+  --rule: #1F1F1F;
   --rule-strong: #3A3A40;
   --ink: #F4F4F5;
   --ink-80: rgba(244, 244, 245, 0.85);

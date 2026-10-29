@@ -114,7 +114,7 @@ describe('plan-features', () => {
    */
   it('publica a linha de herança como constante única', () => {
     expect(PLAN_INHERITANCE_LINE).toBe('Tudo o que o plano anterior tem');
-    expect(PLAN_TIER_ORDER).toEqual(['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE']);
+    expect(PLAN_TIER_ORDER).toEqual(['TRIAL', 'STARTER', 'PRO', 'SCALE', 'ENTERPRISE']);
   });
 
   /**
@@ -288,6 +288,7 @@ describe('plan-features', () => {
     const priority = 'Atendimento prioritário no WhatsApp';
 
     expect(PLAN_FEATURE_EXTRAS.PRO).toEqual([priority]);
+    expect(PLAN_FEATURE_EXTRAS.SCALE).toEqual([priority]);
     expect(PLAN_FEATURE_EXTRAS.ENTERPRISE).toEqual([priority]);
     expect(PLAN_FEATURE_EXTRAS.TRIAL).toEqual([]);
     expect(PLAN_FEATURE_EXTRAS.STARTER).toEqual([]);

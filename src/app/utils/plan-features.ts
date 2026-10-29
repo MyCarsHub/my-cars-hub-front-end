@@ -63,6 +63,7 @@ export const PLAN_FEATURE_EXTRAS: Readonly<Record<PlanTier, readonly string[]>> 
   TRIAL: [],
   STARTER: [],
   PRO: [PRIORITY_SUPPORT_FEATURE],
+  SCALE: [PRIORITY_SUPPORT_FEATURE],
   ENTERPRISE: [PRIORITY_SUPPORT_FEATURE],
 };
 
@@ -232,7 +233,7 @@ export function planCardFeatureLines(
  * lista, não o card que por acaso está acima na tela (no telefone a grade sai
  * invertida, por decisão do dono).
  */
-export const PLAN_TIER_ORDER: readonly PlanTier[] = ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'];
+export const PLAN_TIER_ORDER: readonly PlanTier[] = ['TRIAL', 'STARTER', 'PRO', 'SCALE', 'ENTERPRISE'];
 
 /**
  * A linha de herança que abre todo card acima do TRIAL.
@@ -275,6 +276,7 @@ export const PLAN_DESCRIPTION: Readonly<Record<PlanTier, string>> = {
   TRIAL: 'Coloque seus primeiros carros e veja rodando. 14 dias, sem cartão.',
   STARTER: 'Saia da planilha de vez. Até 15 veículos, com contrato e cobrança no automático.',
   PRO: 'A frota cresceu e o suporte acompanha: até 25 veículos e sua mensagem na frente da fila.',
+  SCALE: 'Para operações com frota grande: até 75 veículos, com atendimento prioritário.',
   ENTERPRISE:
     'Frota ilimitada, com atendimento prioritário. Para quem não quer pensar em teto.',
 };
@@ -294,6 +296,8 @@ export function planTierOf(planName: string | null | undefined): PlanTier | null
       return 'STARTER';
     case 'PRO':
       return 'PRO';
+    case 'SCALE':
+      return 'SCALE';
     // `BUSINESS` é o nome legado da linha que hoje se chama ENTERPRISE. Enquanto
     // existir uma linha antiga na `plans`, ela precisa cair no mesmo tier.
     case 'BUSINESS':

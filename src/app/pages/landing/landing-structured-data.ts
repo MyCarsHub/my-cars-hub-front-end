@@ -1,6 +1,6 @@
 import { SITE_ORIGIN } from '../../services/seo.service';
 import { LANDING_FAQS } from './landing-faqs';
-import { ENTERPRISE_YEARLY_TOTAL, PLAN_PRICES } from './landing-plans';
+import { PLAN_PRICES } from './landing-plans';
 
 /**
  * schema.org blocks for the landing page.
@@ -158,7 +158,7 @@ function planOffers(): unknown[] {
     offer(PLAN_PRICES.starterYearlyTotal, 'YEAR'),
     offer(PLAN_PRICES.proMonthly, 'MONTH'),
     offer(PLAN_PRICES.proYearlyTotal, 'YEAR'),
-    offer(PLAN_PRICES.enterpriseMonthly, 'MONTH'),
-    offer(ENTERPRISE_YEARLY_TOTAL, 'YEAR'),
+    offer(PLAN_PRICES.scaleMonthly, 'MONTH'),
+    offer(PLAN_PRICES.scaleYearlyTotal, 'YEAR'),
   ];
 }

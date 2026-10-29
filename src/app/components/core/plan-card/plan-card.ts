@@ -63,6 +63,7 @@ const TIER_TONE: Readonly<Record<PlanTier, Readonly<Record<PlanCardCycle, PlanCa
   TRIAL: { monthly: 'plain', yearly: 'plain' },
   STARTER: { monthly: 'accent', yearly: 'accent-success' },
   PRO: { monthly: 'filled', yearly: 'filled-success' },
+  SCALE: { monthly: 'accent', yearly: 'accent-success' },
   ENTERPRISE: { monthly: 'carbon', yearly: 'carbon-success' },
 };
 
