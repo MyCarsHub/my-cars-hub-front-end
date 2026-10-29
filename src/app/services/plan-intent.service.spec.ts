@@ -67,10 +67,15 @@ describe('PlanIntentService — a travessia completa (FIX-0291)', () => {
     expect(planIntent.consume()).toBeNull();
   });
 
-  it('consome UMA vez: um segundo onboarding na mesma aba nao herda a escolha', () => {
+  it('ENTERPRISE (sob consulta, V127) nao vira intencao de compra', () => {
     planIntent.remember('ENTERPRISE');
+    expect(planIntent.consume()).toBeNull();
+  });
 
-    expect(planIntent.consume()).toBe('ENTERPRISE');
+  it('consome UMA vez: um segundo onboarding na mesma aba nao herda a escolha', () => {
+    planIntent.remember('SCALE');
+
+    expect(planIntent.consume()).toBe('SCALE');
     expect(planIntent.consume()).toBeNull();
   });
 
@@ -88,7 +93,7 @@ describe('PlanIntentService — a travessia completa (FIX-0291)', () => {
   });
 
   it('grava os tres pagos', () => {
-    for (const tier of ['STARTER', 'PRO', 'ENTERPRISE'] as const) {
+    for (const tier of ['STARTER', 'PRO', 'SCALE'] as const) {
       planIntent.remember(tier);
       expect(planIntent.consume()).toBe(tier);
     }

@@ -16,7 +16,7 @@ describe('plan-limits', () => {
     expect(PLAN_CAPACITY.SCALE).toEqual({ vehicles: 75 });
     expect(PLAN_CAPACITY.STARTER).toEqual({ vehicles: 15 });
     expect(PLAN_CAPACITY.PRO).toEqual({ vehicles: 25 });
-    expect(PLAN_CAPACITY.ENTERPRISE).toEqual({ vehicles: 100 });
+    expect(PLAN_CAPACITY.ENTERPRISE).toEqual({ vehicles: 150 }); // V127: guarda-corpo, a tela diz "ilimitado"
   });
 
   // O catálogo tem QUATRO famílias depois da V59 — ver o estado-alvo em

@@ -59,7 +59,7 @@ function retryAfterSecondsOf(err: HttpErrorResponse): number | null {
 const PLAN_LABEL: Readonly<Record<PlanIntent, string>> = {
   STARTER: 'Starter',
   PRO: 'Pro',
-  ENTERPRISE: 'Enterprise',
+  SCALE: 'Scale',
 };
 
 @Component({

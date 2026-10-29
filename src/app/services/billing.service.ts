@@ -165,6 +165,16 @@ export class BillingService {
       .pipe(map((res) => res.url));
   }
 
+  /**
+   * Volta do Billing Portal: faz a assinatura cobrar o cartão novo (o portal só
+   * troca o padrão do cliente, e o da assinatura tem precedência). Idempotente.
+   */
+  syncCardAfterUpdate(): Observable<string> {
+    return this.http
+      .post<{ outcome: string }>(`${API_BASE}/card-updated`, {})
+      .pipe(map((res) => res.outcome));
+  }
+
   startCheckout(planCode: string, gatewayOverride?: GatewayOverride): Observable<CheckoutResponse> {
     this._loading.set(true);
     this._error.set(null);

@@ -9,7 +9,8 @@ import {
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { ENTERPRISE_YEARLY_TOTAL, PLAN_PRICES } from '../../landing-plans';
+import { PLAN_PRICES } from '../../landing-plans';
+import { environment } from '../../../../../environments/environment';
 import {
   PlanCardComponent,
   PlanCardTone,
@@ -168,8 +169,8 @@ export class LandingPricingComponent {
   private readonly starterYearlyTotal = PLAN_PRICES.starterYearlyTotal;
   private readonly proMonthly = PLAN_PRICES.proMonthly;
   private readonly proYearlyTotal = PLAN_PRICES.proYearlyTotal;
-  private readonly enterpriseMonthly = PLAN_PRICES.enterpriseMonthly;
-  private readonly enterpriseYearlyTotal = ENTERPRISE_YEARLY_TOTAL;
+  private readonly scaleMonthly = PLAN_PRICES.scaleMonthly;
+  private readonly scaleYearlyTotal = PLAN_PRICES.scaleYearlyTotal;
 
   /** Price shown on each paid card: monthly value on Mensal, YEARLY TOTAL on Anual. */
   protected readonly starterPrice = computed(() =>
@@ -178,8 +179,8 @@ export class LandingPricingComponent {
   protected readonly proPrice = computed(() =>
     this.cycle() === 'monthly' ? this.proMonthly : this.proYearlyTotal,
   );
-  protected readonly enterprisePrice = computed(() =>
-    this.cycle() === 'monthly' ? this.enterpriseMonthly : this.enterpriseYearlyTotal,
+  protected readonly scalePrice = computed(() =>
+    this.cycle() === 'monthly' ? this.scaleMonthly : this.scaleYearlyTotal,
   );
 
   protected readonly starterSavings = computed(() =>
@@ -188,8 +189,8 @@ export class LandingPricingComponent {
   protected readonly proSavings = computed(() =>
     this.savingsPercent(this.proMonthly, this.proYearlyTotal),
   );
-  protected readonly enterpriseSavings = computed(() =>
-    this.savingsPercent(this.enterpriseMonthly, this.enterpriseYearlyTotal),
+  protected readonly scaleSavings = computed(() =>
+    this.savingsPercent(this.scaleMonthly, this.scaleYearlyTotal),
   );
 
   /** Sufixo do preço, comum aos quatro cards. */
@@ -247,6 +248,7 @@ export class LandingPricingComponent {
   readonly trialItems = this.items('TRIAL', CATALOG);
   readonly starterItems = this.items('STARTER', CATALOG);
   readonly proItems = this.items('PRO', CATALOG);
+  readonly scaleItems = this.items('SCALE', CATALOG);
   readonly enterpriseItems = this.items('ENTERPRISE', CATALOG);
 
   /**
@@ -259,12 +261,14 @@ export class LandingPricingComponent {
   protected readonly trialTone = computed(() => planCardTone('TRIAL', this.cycle()));
   protected readonly starterTone = computed(() => planCardTone('STARTER', this.cycle()));
   protected readonly proTone = computed(() => planCardTone('PRO', this.cycle()));
+  protected readonly scaleTone = computed(() => planCardTone('SCALE', this.cycle()));
   protected readonly enterpriseTone = computed(() => planCardTone('ENTERPRISE', this.cycle()));
 
   /** Descrições por tier — só TAMANHO, nunca recurso. Ver `plan-features.ts`. */
   protected readonly trialDescription = PLAN_DESCRIPTION.TRIAL;
   protected readonly starterDescription = PLAN_DESCRIPTION.STARTER;
   protected readonly proDescription = PLAN_DESCRIPTION.PRO;
+  protected readonly scaleDescription = PLAN_DESCRIPTION.SCALE;
   protected readonly enterpriseDescription = PLAN_DESCRIPTION.ENTERPRISE;
 
   protected readonly starterPriceLabel = computed<string>(
@@ -273,8 +277,8 @@ export class LandingPricingComponent {
   protected readonly proPriceLabel = computed<string>(
     () => `R$ ${this.formatBRL(this.proPrice())}`,
   );
-  protected readonly enterprisePriceLabel = computed<string>(
-    () => `R$ ${this.formatBRL(this.enterprisePrice())}`,
+  protected readonly scalePriceLabel = computed<string>(
+    () => `R$ ${this.formatBRL(this.scalePrice())}`,
   );
 
   protected readonly starterSubtitle = computed<string>(() =>
@@ -283,8 +287,8 @@ export class LandingPricingComponent {
   protected readonly proSubtitle = computed<string>(() =>
     this.subtitleFor(this.proYearlyTotal, this.proSavings()),
   );
-  protected readonly enterpriseSubtitle = computed<string>(() =>
-    this.subtitleFor(this.enterpriseYearlyTotal, this.enterpriseSavings()),
+  protected readonly scaleSubtitle = computed<string>(() =>
+    this.subtitleFor(this.scaleYearlyTotal, this.scaleSavings()),
   );
 
   /**
@@ -331,16 +335,30 @@ export class LandingPricingComponent {
         ctaLabel: 'Assinar Pro',
       },
       {
+        tier: 'SCALE',
+        tone: this.scaleTone(),
+        name: 'Scale',
+        price: this.scalePriceLabel(),
+        cycleSuffix: this.priceCycleSuffix(),
+        subtitle: this.scaleSubtitle(),
+        description: this.scaleDescription,
+        features: this.items('SCALE', arrangement),
+        ribbon: null,
+        ctaLabel: 'Assinar Scale',
+      },
+      {
+        // V127: "Sob consulta" — vendido por contato, nunca por checkout
+        // (`plans.contact_only`, a mesma regra que a grade da Assinatura lê).
         tier: 'ENTERPRISE',
         tone: this.enterpriseTone(),
         name: 'Enterprise',
-        price: this.enterprisePriceLabel(),
-        cycleSuffix: this.priceCycleSuffix(),
-        subtitle: this.enterpriseSubtitle(),
+        price: 'Sob consulta',
+        cycleSuffix: '',
+        subtitle: 'Preço conforme a frota',
         description: this.enterpriseDescription,
         features: this.items('ENTERPRISE', arrangement),
         ribbon: 'Sua frota cresceu?',
-        ctaLabel: 'Assinar Enterprise',
+        ctaLabel: 'Falar com a gente',
       },
     ];
   }
@@ -375,6 +393,7 @@ export class LandingPricingComponent {
     ['PRO', REVERSED],
     ['TRIAL', CATALOG],
     ['STARTER', CATALOG],
+    ['SCALE', CATALOG],
     ['ENTERPRISE', CATALOG],
   ];
 
@@ -432,7 +451,23 @@ export class LandingPricingComponent {
    * O TRIAL apaga em vez de gravar — ver `PlanIntentService`.
    */
   protected goToLogin(tier: PlanTier): void {
+    if (tier === 'ENTERPRISE') {
+      this.contactSales();
+      return;
+    }
     this.planIntent.remember(tier);
+    this.router.navigate(['/login']);
+  }
+
+  /** Enterprise "Sob consulta": WhatsApp do suporte; sem número configurado, o login. */
+  private contactSales(): void {
+    const phone = environment.supportWhatsapp;
+    if (phone && typeof window !== 'undefined') {
+      const text = encodeURIComponent('Olá! Quero falar sobre o plano Enterprise do MyCarsHub.');
+      window.open(`https://wa.me/${phone}?text=${text}`, '_blank', 'noopener');
+      return;
+    }
+    this.planIntent.remember('TRIAL');
     this.router.navigate(['/login']);
   }
 

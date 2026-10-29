@@ -1800,13 +1800,35 @@ export class Billing implements OnInit, OnDestroy {
       this.openPay();
     } else if (params.get('cartao') === '1' && sum.canManage && sum.actions.includes('UPDATE_CARD')) {
       this.openCardUpdate();
-    } else if (params.get('cartao') === 'atualizado') {
-      this.notifications.success(
-        owingNow
-          ? 'Cartão atualizado. Pague a fatura em aberto para liberar o acesso na hora.'
-          : 'Cartão atualizado. As próximas cobranças usam o cartão novo.',
-      );
+    } else if (params.get('cartao') === 'atualizado' && sum.canManage) {
+      this.syncCardAfterPortal(owingNow);
     }
+  }
+
+  /**
+   * Volta do Billing Portal. O portal grava o cartão só no cliente; aqui a
+   * ASSINATURA passa a cobrar o cartão novo. Fatura em aberto continua pelo
+   * "Pagar agora" (página da Stripe) — nada é cobrado nesta chamada.
+   */
+  private syncCardAfterPortal(owingNow: boolean): void {
+    this.billingService.syncCardAfterUpdate().subscribe({
+      next: () => {
+        this.notifications.success(
+          owingNow
+            ? 'Cartão atualizado. Pague a fatura em aberto para liberar o acesso na hora.'
+            : 'Cartão atualizado. As próximas cobranças usam o cartão novo.',
+        );
+        this.refreshSummary();
+      },
+      error: (err: unknown) => {
+        this.accountActionError.set(
+          this.apiErrors.messageFor(
+            err,
+            'O cartão foi salvo, mas não conseguimos ativá-lo na assinatura. Tente de novo em instantes.',
+          ),
+        );
+      },
+    });
   }
 
   /** Depois de abrir a fatura do Stripe: relê o resumo até o pagamento chegar. */

@@ -143,9 +143,14 @@
          alargasse a janela depois de carregar. -->
     <div class="reveal flex flex-col">
       <!-- md+ · ordem do catálogo -->
-      <div class="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 items-stretch">
-        @for (plan of catalogPlans(); track plan.tier) {
-          <ng-container [ngTemplateOutlet]="planCard" [ngTemplateOutletContext]="{ $implicit: plan }" />
+      <!-- V127: cinco planos. lg = grade de 6 trilhas, cada card ocupa 2 — três na
+           primeira fileira e os dois últimos CENTRALIZADOS na segunda (col-start 2),
+           sem estreitar a coluna abaixo da conta do preço feita acima. -->
+      <div class="hidden md:grid md:grid-cols-2 lg:grid-cols-6 gap-5 lg:gap-6 items-stretch">
+        @for (plan of catalogPlans(); track plan.tier; let i = $index) {
+          <div class="grid lg:col-span-2" [class.lg:col-start-2]="i === 3" [class.md:col-span-2]="i === 4">
+            <ng-container [ngTemplateOutlet]="planCard" [ngTemplateOutletContext]="{ $implicit: plan }" />
+          </div>
         }
       </div>
 

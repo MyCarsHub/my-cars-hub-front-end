@@ -259,6 +259,7 @@ describe('Billing', () => {
     summary: unknown;
     loadSummary: ReturnType<typeof vi.fn>;
     cardUpdateUrl: ReturnType<typeof vi.fn>;
+    syncCardAfterUpdate: ReturnType<typeof vi.fn>;
   };
   /**
    * A tab handed out by the stubbed `openPendingTab()`. `snapshot` models the
@@ -337,6 +338,7 @@ describe('Billing', () => {
       summary: summarySignal.asReadonly(),
       loadSummary: vi.fn(() => of(summarySignal())),
       cardUpdateUrl: vi.fn(() => of('https://billing.stripe.com/p/session/x')),
+      syncCardAfterUpdate: vi.fn(() => of('UPDATED')),
     };
     tabs = [];
     popupBlocked = false;
@@ -1673,6 +1675,21 @@ describe('Billing', () => {
     c.ngOnInit();
 
     expect(c.sheet()).toBe('pay');
+  });
+
+  it('back from the billing portal, the subscription is switched to the new card once', () => {
+    TestBed.overrideProvider(ActivatedRoute, {
+      useValue: { snapshot: { queryParamMap: convertToParamMap({ cartao: 'atualizado' }) } },
+    });
+    summarySignal.set(pastDueSummary());
+    const c = build();
+    c.ngOnInit();
+    c.revalidate();
+
+    expect(billing.syncCardAfterUpdate).toHaveBeenCalledTimes(1);
+    expect(notifications.success).toHaveBeenCalled();
+    // Paying the open invoice is still the hosted-invoice path, never this call.
+    expect(externalNav.openExternal).not.toHaveBeenCalled();
   });
 
   it('confirms the payment when the summary turns from past due to active', () => {

@@ -235,12 +235,13 @@ describe('LandingPricingComponent', () => {
         'TRIAL',
         'STARTER',
         'PRO',
+        'SCALE',
         'ENTERPRISE',
       ]);
       // FIX-0290 — PRIMAZIA DE SLOT: os dois primeiros slots levam a atencao
       // independentemente de qual plano esta neles, entao o plano que se QUER
       // escolhido vai na frente. PRO primeiro, TRIAL logo atras.
-      expect(c.phonePlans().map((p) => p.tier)).toEqual(['PRO', 'TRIAL', 'STARTER', 'ENTERPRISE']);
+      expect(c.phonePlans().map((p) => p.tier)).toEqual(['PRO', 'TRIAL', 'STARTER', 'SCALE', 'ENTERPRISE']);
     });
 
     /**
@@ -349,12 +350,29 @@ describe('LandingPricingComponent — guarda o plano escolhido (FIX-0291)', () =
     expect(remember).toHaveBeenCalledWith('PRO');
   });
 
-  it('guarda o STARTER e o ENTERPRISE pelos proprios botoes', () => {
+  it('guarda o STARTER e o SCALE pelos proprios botoes', () => {
     clickCta('Assinar Starter');
     expect(remember).toHaveBeenCalledWith('STARTER');
 
-    clickCta('Assinar Enterprise');
-    expect(remember).toHaveBeenCalledWith('ENTERPRISE');
+    clickCta('Assinar Scale');
+    expect(remember).toHaveBeenCalledWith('SCALE');
+  });
+
+  it('Enterprise e sob consulta: mostra contato, nunca preco nem intencao de compra', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    try {
+      clickCta('Falar com a gente');
+      expect(remember).not.toHaveBeenCalledWith('ENTERPRISE');
+
+      const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
+        catalogPlans(): readonly { tier: string; price: string; ctaLabel: string; cycleSuffix: string }[];
+      };
+      const ent = c.catalogPlans().find((p) => p.tier === 'ENTERPRISE')!;
+      expect(ent).toMatchObject({ price: 'Sob consulta', ctaLabel: 'Falar com a gente', cycleSuffix: '' });
+      expect(c.catalogPlans().find((p) => p.tier === 'PRO')!.price).toBe('R$ 159,90');
+    } finally {
+      open.mockRestore();
+    }
   });
 
   /**

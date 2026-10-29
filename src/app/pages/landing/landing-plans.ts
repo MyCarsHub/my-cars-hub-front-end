@@ -38,6 +38,10 @@ export const PLAN_PRICES = {
   enterpriseMonthly: 299,
   /** ENTERPRISE anual TOTAL: 2990,00 — era 3049,80 antes da V59 (V59:183-184, UPDATE V59:280-287, guarda V59:500). */
   enterpriseYearlyTotal: 2990,
+  /** SCALE mensal: 299,00 (V127, decisão do dono 2026-10-29). */
+  scaleMonthly: 299,
+  /** SCALE anual TOTAL: 2990,00 (V127; 10x o mensal). */
+  scaleYearlyTotal: 2990,
 } as const;
 
 /**
