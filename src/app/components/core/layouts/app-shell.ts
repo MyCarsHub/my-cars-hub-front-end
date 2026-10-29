@@ -268,7 +268,7 @@ export class AppShell implements OnInit, OnDestroy {
   protected readonly paywallAmount = computed(() => {
     const price = this.access.status()?.plan?.price ?? null;
     return price && price > 0
-      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price).replace(/ /g, ' ')
+      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price).replace(/\u00A0/g, ' ')
       : null;
   });
 

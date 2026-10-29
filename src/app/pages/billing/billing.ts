@@ -173,7 +173,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
 /** "R$ 79,90" a partir de centavos. */
 function formatCents(cents: number): string {
-  return BRL.format(cents / 100).replace(/ /g, ' ');
+  return BRL.format(cents / 100).replace(/\u00A0/g, ' ');
 }
 
 /** "79,90", "299", "1.599" — sem o "R$" (a grade o desenha menor). */
