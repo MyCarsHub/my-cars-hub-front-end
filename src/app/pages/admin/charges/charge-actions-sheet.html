@@ -15,13 +15,15 @@
     @switch (mode()) {
       @case ('menu') {
         <ul class="flex flex-col gap-2" role="list">
-          <li class="enter-up" style="--stagger-i: 0">
+          @if (caps.can('asaas.comparar')) {
+<li class="enter-up" style="--stagger-i: 0">
             <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-compare" (click)="go('compare')">
               <span class="font-medium text-fg">Comparar com o Asaas</span>
               <span class="text-sm text-fg-subtle">Valor, desconto, vencimento e situação lado a lado</span>
             </button>
           </li>
-          @if (canReceive()) {
+          }
+          @if (canReceive() && caps.can('cobranca.agir')) {
             <li class="enter-up" style="--stagger-i: 1">
               <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-received" (click)="go('received')">
                 <span class="font-medium text-fg">Recebida por fora</span>
@@ -29,7 +31,7 @@
               </button>
             </li>
           }
-          @if (canRetry()) {
+          @if (canRetry() && caps.can('cobranca.agir')) {
             <li class="enter-up" style="--stagger-i: 2">
               <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-retry" (click)="go('retry')">
                 <span class="font-medium text-fg">Tentar de novo</span>
@@ -37,7 +39,7 @@
               </button>
             </li>
           }
-          @if (hasDriver()) {
+          @if (hasDriver() && caps.can('cobranca.agir')) {
             <li class="enter-up" style="--stagger-i: 3">
               <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-name" (click)="go('name')">
                 <span class="font-medium text-fg">Corrigir nome do motorista</span>
@@ -51,12 +53,14 @@
               </button>
             </li>
           }
-          <li class="enter-up" style="--stagger-i: 5">
+          @if (caps.can('ver_como')) {
+<li class="enter-up" style="--stagger-i: 5">
             <button type="button" class="flex w-full min-h-14 flex-col items-start gap-0.5 rounded-2xl border border-edge bg-surface px-4 py-3 text-left text-base hover:bg-canvas hover:border-edge-field transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-view-rental" (click)="viewRental()">
               <span class="font-medium text-fg">Ver aluguel</span>
               <span class="text-sm text-fg-subtle">Abre o aluguel da empresa em modo somente leitura</span>
             </button>
           </li>
+          }
         </ul>
         @if (isOverdue()) {
           <p class="mt-4 rounded-xl bg-surface-muted px-4 py-3 text-sm text-fg-subtle" data-testid="overdue-rule">
@@ -161,7 +165,7 @@
   </div>
 
   <div sheetFooter class="flex flex-col-reverse lg:flex-row lg:justify-end gap-2 lg:gap-3">
-    @if (mode() !== 'menu') {
+    @if (mode() !== 'menu' && initialMode() === 'menu') {
       <button type="button" class="w-full lg:w-auto min-h-12 px-5 rounded-xl text-base font-medium text-fg-muted bg-surface-sunken hover:bg-surface-strong transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 press" data-testid="action-back" [disabled]="busy()" (click)="go('menu')">
         Voltar
       </button>

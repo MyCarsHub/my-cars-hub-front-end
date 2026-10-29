@@ -19,7 +19,7 @@
     </div>
   }
 
-  <!-- Falha de uma ação (ativar/desativar, promover/rebaixar) -->
+  <!-- Falha de uma ação (ativar/desativar; papel de admin so em Admins e papeis) -->
   @if (actionError(); as err) {
     <div class="mb-4">
       <app-alert-banner variant="error" [message]="err" />
@@ -60,8 +60,9 @@
           <p class="mt-1 text-xs text-fg-faint tabular-nums">ID {{ user.id }}</p>
         </div>
 
-        <!-- Actions menu -->
-        <div class="relative shrink-0">
+        <!-- Actions menu (Admin v2 2A: so quem tem usuario.gerir; o servidor confere de novo) -->
+        @if (caps.can('usuario.gerir')) {
+        <div class="relative shrink-0" data-testid="user-actions">
           <button
             type="button"
             class="min-w-[44px] min-h-[44px] flex items-center justify-center gap-2
@@ -94,22 +95,15 @@
               >
                 {{ user.active ? 'Desativar usuário' : 'Ativar usuário' }}
               </button>
-              <button
-                type="button"
-                class="w-full text-left text-sm px-4 py-3 hover:bg-canvas min-h-[44px]"
-                (click)="requestToggleRole()"
-              >
-                {{ user.systemRole === 'PLATFORM_ADMIN'
-                   ? 'Remover acesso de administrador'
-                   : 'Tornar administrador da plataforma' }}
-              </button>
             </div>
           }
         </div>
+        }
       </div>
     </section>
 
     <!-- Admin v2 (D1): contato completo, revelado com auditoria (canal VIEW). -->
+    @if (caps.can('contato.ver')) {
     <div class="mb-4">
       <app-contact-bar
         subjectType="USER"
@@ -118,6 +112,7 @@
         [fallbackEmail]="user.email"
       />
     </div>
+    }
 
     <!-- Dados -->
     <app-page-card title="Dados">

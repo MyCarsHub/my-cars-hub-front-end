@@ -1,3 +1,4 @@
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
@@ -19,6 +20,8 @@ import type {
  * Admin v2 P0 — "Estender teste" na página da empresa. Arquivo próprio para não
  * colidir com a trilha B, que edita `admin-company-detail.spec.ts`.
  */
+const OWNER_CAPS = { can: () => true, ensureLoaded: () => of(null) };
+
 describe('AdminCompanyDetail — Estender teste', () => {
   const SUB: AdminCompanySubscriptionSnapshot = {
     id: 'sub-1',
@@ -74,6 +77,8 @@ describe('AdminCompanyDetail — Estender teste', () => {
     TestBed.configureTestingModule({
       imports: [AdminCompanyDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 'co-1' })) } },

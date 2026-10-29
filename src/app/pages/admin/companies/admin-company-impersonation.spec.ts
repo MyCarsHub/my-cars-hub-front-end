@@ -1,3 +1,4 @@
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -78,6 +79,8 @@ const SESSION: ImpersonationState = {
  * Ponto de partida da feature: o admin abre a sessão somente-leitura a partir do
  * detalhe da empresa e é levado ao contexto do tenant.
  */
+const OWNER_CAPS = { can: () => true, ensureLoaded: () => of(null) };
+
 describe('AdminCompanyDetail — abrir "ver como empresa"', () => {
   let start: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.fn>;
@@ -87,6 +90,8 @@ describe('AdminCompanyDetail — abrir "ver como empresa"', () => {
     TestBed.configureTestingModule({
       imports: [AdminCompanyDetail],
       providers: [
+        // Lote 2A: estas specs exercem as acoes do Dono; o papel vem do /admin/me.
+        { provide: AdminCapabilitiesService, useValue: OWNER_CAPS },
         provideRouter([]),
         ApiErrorService,
         {

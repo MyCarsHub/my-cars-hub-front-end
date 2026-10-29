@@ -927,7 +927,13 @@ body.has-consent-banner {
   transform: scale(0.97);
 }
 .enter-up {
-  animation: enter-up 260ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  /*
+   * `backwards`, não `both`: com `both` o quadro final (translate3d) fica preso no
+   * elemento para sempre, e um transform vira o containing block de qualquer
+   * `position: fixed` dentro dele — o painel do ActionsMenu (kebab) abria
+   * deslocado pela altura do cartão, fora da tela no celular.
+   */
+  animation: enter-up 260ms cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
   animation-delay: calc(min(var(--stagger-i, 0), 8) * 40ms);
 }
 @keyframes enter-up {

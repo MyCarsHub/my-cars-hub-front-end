@@ -12,6 +12,9 @@ import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DefaultPageLayout } from '../../../components/layout/default-page-layout/default-page-layout';
 import { AlertBanner } from '../../../components/alert-banner/alert-banner';
+import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu';
+import { AdminCapabilitiesService } from '../../../services/admin-capabilities.service';
+import { canReceiveCharge, canRetryCharge } from './charge-action-rules';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { ImpersonationService } from '../../../services/impersonation.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -53,10 +56,12 @@ const KIND_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-admin-charges',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, AlertBanner, RouterLink, ContactActions, ChargeActionsSheet],
+  imports: [DefaultPageLayout, AlertBanner, RouterLink, ContactActions, ChargeActionsSheet, ActionsMenu],
   templateUrl: './admin-charges.html',
 })
 export class AdminCharges implements OnInit {
+  /** Lote 2A: as ações da linha seguem o papel (o servidor confere de novo). */
+  protected readonly caps = inject(AdminCapabilitiesService);
   private readonly service = inject(AdminChargesService);
   private readonly apiErrors = inject(ApiErrorService);
   private readonly impersonation = inject(ImpersonationService);
@@ -82,6 +87,7 @@ export class AdminCharges implements OnInit {
   });
 
   ngOnInit(): void {
+    this.caps.ensureLoaded().subscribe();
     this.load();
   }
 
@@ -136,6 +142,23 @@ export class AdminCharges implements OnInit {
         this.notify.error(this.apiErrors.messageFor(err, 'Não foi possível abrir o aluguel.'));
       },
     });
+  }
+
+  protected canReceive(item: AdminChargeListItem): boolean {
+    return canReceiveCharge(item);
+  }
+
+  protected canRetry(item: AdminChargeListItem): boolean {
+    return canRetryCharge(item);
+  }
+
+  /** O kebab só aparece se o papel tiver pelo menos uma ação nesta cobrança. */
+  protected hasAnyAction(item: AdminChargeListItem): boolean {
+    return (
+      this.caps.can('asaas.comparar') ||
+      this.caps.can('ver_como') ||
+      (this.caps.can('cobranca.agir') && (canReceiveCharge(item) || canRetryCharge(item) || item.driverId !== null))
+    );
   }
 
   protected openActions(item: AdminChargeListItem, mode: ChargeActionMode = 'menu'): void {

@@ -34,7 +34,7 @@ import {
 } from '../../../types/admin-user.types';
 
 interface PendingAction {
-  kind: 'DEACTIVATE' | 'ACTIVATE' | 'PROMOTE' | 'DEMOTE';
+  kind: 'DEACTIVATE' | 'ACTIVATE';
   user: AdminUserListItem;
 }
 
@@ -94,7 +94,7 @@ export class AdminUsers implements OnInit, OnDestroy {
   /** Falha ao CARREGAR a lista — banner inline, nunca toast. */
   protected readonly error = signal<string | null>(null);
   /**
-   * Falha de uma OPERACAO da tela (ativar/desativar, promover/rebaixar). Banner
+   * Falha de uma OPERACAO da tela (ativar/desativar; papel de admin so em Admins e papeis). Banner
    * inline: o interceptor nao toasta 4xx e `messageFor()` reivindica o erro,
    * desarmando o safety net.
    */
@@ -133,7 +133,7 @@ export class AdminUsers implements OnInit, OnDestroy {
   protected readonly confirmVariant = computed<'info' | 'warning' | 'danger'>(() => {
     const action = this.pendingAction();
     if (!action) return 'info';
-    return action.kind === 'PROMOTE' || action.kind === 'DEACTIVATE' ? 'danger' : 'warning';
+    return action.kind === 'DEACTIVATE' ? 'danger' : 'warning';
   });
 
   protected readonly confirmTitle = computed(() => {
@@ -142,8 +142,6 @@ export class AdminUsers implements OnInit, OnDestroy {
     switch (action.kind) {
       case 'DEACTIVATE': return 'Desativar usuário';
       case 'ACTIVATE': return 'Ativar usuário';
-      case 'PROMOTE': return 'Promover a administrador da plataforma';
-      case 'DEMOTE': return 'Rebaixar para usuário comum';
     }
   });
 
@@ -156,10 +154,6 @@ export class AdminUsers implements OnInit, OnDestroy {
         return `«${label}» perderá acesso imediatamente à plataforma. Continuar?`;
       case 'ACTIVATE':
         return `«${label}» poderá voltar a acessar a plataforma.`;
-      case 'PROMOTE':
-        return `Isso dará acesso admin total a «${label}» — inclusive gestão de usuários, feedback e métricas. Prossiga apenas se essa pessoa é membro da equipe.`;
-      case 'DEMOTE':
-        return `«${label}» perderá acesso à área /admin, mantendo apenas o app normal.`;
     }
   });
 
@@ -169,8 +163,6 @@ export class AdminUsers implements OnInit, OnDestroy {
     switch (action.kind) {
       case 'DEACTIVATE': return 'Desativar';
       case 'ACTIVATE': return 'Ativar';
-      case 'PROMOTE': return 'Promover';
-      case 'DEMOTE': return 'Rebaixar';
     }
   });
 
@@ -262,15 +254,6 @@ export class AdminUsers implements OnInit, OnDestroy {
     }
   }
 
-  protected requestToggleRole(user: AdminUserListItem): void {
-    if (user.systemRole === 'PLATFORM_ADMIN') {
-      // rebaixar
-      this.pendingAction.set({ kind: 'DEMOTE', user });
-    } else {
-      // promover — sempre confirma com variante danger
-      this.pendingAction.set({ kind: 'PROMOTE', user });
-    }
-  }
 
   protected cancelPending(): void {
     this.pendingAction.set(null);
@@ -282,8 +265,6 @@ export class AdminUsers implements OnInit, OnDestroy {
     switch (action.kind) {
       case 'DEACTIVATE': this.applyStatus(action.user, false); break;
       case 'ACTIVATE':   this.applyStatus(action.user, true); break;
-      case 'PROMOTE':    this.applyRole(action.user, 'PLATFORM_ADMIN'); break;
-      case 'DEMOTE':     this.applyRole(action.user, 'USER'); break;
     }
     this.pendingAction.set(null);
   }
@@ -336,24 +317,4 @@ export class AdminUsers implements OnInit, OnDestroy {
     });
   }
 
-  private applyRole(user: AdminUserListItem, role: 'USER' | 'PLATFORM_ADMIN'): void {
-    this.actionError.set(null);
-    this.setRowPending(user.id, true);
-    this.usersService.updateSystemRole(user.id, role).subscribe({
-      next: () => {
-        this.setRowPending(user.id, false);
-        this.notify.success(
-          role === 'PLATFORM_ADMIN'
-            ? 'Usuário promovido a administrador.'
-            : 'Usuário rebaixado para usuário comum.',
-        );
-      },
-      error: (err: HttpErrorResponse) => {
-        this.setRowPending(user.id, false);
-        this.actionError.set(
-          this.apiErrors.messageFor(err, 'Não foi possível atualizar o papel do usuário.'),
-        );
-      },
-    });
-  }
 }
