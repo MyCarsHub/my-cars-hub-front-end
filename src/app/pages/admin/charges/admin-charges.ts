@@ -22,6 +22,7 @@ import {
 } from '../../../types/admin-charges.types';
 import { ContactActions } from '../contact/contact-actions';
 import { AdminChargesService } from './admin-charges.service';
+import { ChargeActionMode, ChargeActionsSheet } from './charge-actions-sheet';
 
 const STATUS_LABELS: Record<string, string> = {
   FAILED: 'Falhou',
@@ -37,17 +38,22 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 /**
- * Cobranças (admin v2, P0): cobranças que FALHARAM na emissão e as ATRASADAS,
- * de todas as empresas, SÓ LEITURA.
+ * Cobranças (admin v2): cobranças que FALHARAM na emissão e as ATRASADAS, de
+ * todas as empresas.
  *
- * <p>"Atrasado é nossa prova" (regra do dono): esta página não oferece
- * reemitir, re-datar nem mudar status. A única ação é falar com o motorista
- * (WhatsApp auditado) e abrir o aluguel em modo leitura.</p>
+ * <p>P1: ações sem impersonar, na folha {@link ChargeActionsSheet} — comparar
+ * com o Asaas, recebida por fora (caução), tentar de novo (só FAILED no prazo),
+ * corrigir nome do motorista e atualizar o cliente no Asaas.</p>
+ *
+ * <p>"Atrasado é nossa prova" (regra do dono): atrasada nunca é reemitida,
+ * re-datada nem passada para falha — a tela nem oferece, e o backend recusa.</p>
+ *
+ * <p>Layout: cards no celular e tablet; tabela com colunas e hover a partir de 1024px.</p>
  */
 @Component({
   selector: 'app-admin-charges',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultPageLayout, AlertBanner, RouterLink, ContactActions],
+  imports: [DefaultPageLayout, AlertBanner, RouterLink, ContactActions, ChargeActionsSheet],
   templateUrl: './admin-charges.html',
 })
 export class AdminCharges implements OnInit {
@@ -65,6 +71,9 @@ export class AdminCharges implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly opening = signal<string | null>(null);
+  /** Cobrança com a folha de ações aberta, e em qual ação ela abre. */
+  protected readonly sheetItem = signal<AdminChargeListItem | null>(null);
+  protected readonly sheetMode = signal<ChargeActionMode>('menu');
 
   protected readonly items = computed(() => this.data()?.content ?? []);
   protected readonly totalPages = computed(() => {
@@ -127,6 +136,26 @@ export class AdminCharges implements OnInit {
         this.notify.error(this.apiErrors.messageFor(err, 'Não foi possível abrir o aluguel.'));
       },
     });
+  }
+
+  protected openActions(item: AdminChargeListItem, mode: ChargeActionMode = 'menu'): void {
+    this.sheetMode.set(mode);
+    this.sheetItem.set(item);
+  }
+
+  /** "Ver aluguel" agora mora em "Mais ações": fecha a folha e abre a sessão somente leitura. */
+  protected viewRentalFromSheet(item: AdminChargeListItem): void {
+    this.sheetItem.set(null);
+    this.openRental(item);
+  }
+
+  protected closeActions(): void {
+    this.sheetItem.set(null);
+  }
+
+  /** Algo mudou (recebida por fora, gerada de novo, nome): recarrega a lista por trás da folha. */
+  protected onActionChanged(): void {
+    this.load();
   }
 
   protected statusLabel(status: string): string {

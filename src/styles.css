@@ -912,3 +912,41 @@ body.has-consent-banner {
     padding-bottom: 104px;
   }
 }
+
+/*
+ * Movimento compartilhado (admin v2 P1) — só transform/opacity, 120–260ms.
+ * `.press`: retorno de toque estilo iOS (escala 0,97 enquanto pressionado).
+ * `.enter-up`: entrada curta de baixo para cima; com `--stagger-i` (índice) vira
+ * cascata de 40ms por item, limitada a 8 itens para nunca passar de ~320ms.
+ * `prefers-reduced-motion` desliga os dois.
+ */
+.press {
+  transition: transform 120ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.enter-up {
+  animation: enter-up 260ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: calc(min(var(--stagger-i, 0), 8) * 40ms);
+}
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .press,
+  .press:active:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+  .enter-up {
+    animation: none;
+  }
+}

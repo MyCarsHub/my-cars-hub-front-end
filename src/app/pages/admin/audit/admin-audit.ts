@@ -43,6 +43,11 @@ const ACTION_LABELS: Record<string, string> = {
   USER_CONTACT_REVEALED: 'Contato de usuário revelado',
   DRIVER_CONTACT_REVEALED: 'Contato de motorista revelado',
   COMPANY_CONTACT_REVEALED: 'Contato de empresa revelado',
+  CHARGE_ASAAS_COMPARED: 'Cobrança comparada com o Asaas',
+  CHARGE_MARKED_RECEIVED_OUTSIDE: 'Caução recebida por fora',
+  CHARGE_RETRIED_BY_ADMIN: 'Cobrança gerada de novo',
+  DRIVER_NAME_CORRECTED: 'Nome do motorista corrigido',
+  DRIVER_ASAAS_CUSTOMER_SYNCED: 'Cliente atualizado no Asaas',
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -76,6 +81,11 @@ const ACTION_CHIPS: Record<string, string> = {
   USER_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
   DRIVER_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
   COMPANY_CONTACT_REVEALED: 'bg-surface-strong text-fg-soft',
+  CHARGE_ASAAS_COMPARED: 'bg-surface-strong text-fg-soft',
+  CHARGE_MARKED_RECEIVED_OUTSIDE: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
+  CHARGE_RETRIED_BY_ADMIN: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
+  DRIVER_NAME_CORRECTED: 'bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-100',
+  DRIVER_ASAAS_CUSTOMER_SYNCED: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300',
 };
 
 const DEFAULT_CHIP = 'bg-surface-sunken text-fg-soft';
