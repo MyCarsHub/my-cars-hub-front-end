@@ -1,0 +1,157 @@
+<app-default-page-layout
+  title="Cobranças"
+  description="Cobranças que falharam e atrasadas, de todas as empresas. Só leitura."
+>
+  <!-- Abas + filtro -->
+  <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <nav class="flex gap-2 overflow-x-auto" aria-label="Tipo de cobrança">
+      <button
+        type="button"
+        data-testid="tab-failed"
+        [class]="tabClass(tab() === 'FAILED')"
+        [attr.aria-pressed]="tab() === 'FAILED'"
+        (click)="selectTab('FAILED')"
+      >
+        Com falha
+        <span class="tabular-nums">{{ data()?.failedCount ?? '…' }}</span>
+      </button>
+      <button
+        type="button"
+        data-testid="tab-overdue"
+        [class]="tabClass(tab() === 'OVERDUE')"
+        [attr.aria-pressed]="tab() === 'OVERDUE'"
+        (click)="selectTab('OVERDUE')"
+      >
+        Atrasadas
+        <span class="tabular-nums">{{ data()?.overdueCount ?? '…' }}</span>
+      </button>
+    </nav>
+
+    <label class="inline-flex items-center gap-3 min-h-[44px] cursor-pointer select-none">
+      <input
+        type="checkbox"
+        data-testid="toggle-internal"
+        class="h-5 w-5 rounded border-edge-field text-primary-500 focus:ring-primary-400"
+        [checked]="includeInternal()"
+        (change)="toggleInternal($event)"
+      />
+      <span class="text-base sm:text-sm text-fg-soft">Incluir empresas internas</span>
+    </label>
+  </div>
+
+  <!-- Regra do dono, visível: explica por que não há botão de reemitir. -->
+  <p class="mb-4 rounded-xl border border-edge-soft bg-surface-muted px-4 py-3 text-xs text-fg-subtle">
+    @if (tab() === 'OVERDUE') {
+      Atrasada é nossa prova: a cobrança vencida não é reemitida, re-datada nem marcada como falha.
+      Aqui você só lembra o motorista.
+    } @else {
+      Falha na emissão do gateway. Nesta versão a página é só de consulta: abra o aluguel para ver o detalhe.
+    }
+  </p>
+
+  @if (error(); as err) {
+    <div class="mb-4">
+      <app-alert-banner variant="error">
+        {{ err }}
+        <button type="button" class="ml-2 underline min-h-11 px-2" (click)="load()">Tentar novamente</button>
+      </app-alert-banner>
+    </div>
+  }
+
+  @if (loading() && items().length === 0) {
+    <div class="grid gap-3 lg:grid-cols-2">
+      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
+      <div class="h-40 rounded-2xl bg-surface-sunken animate-pulse"></div>
+    </div>
+  } @else if (!error() && items().length === 0) {
+    <p class="py-10 text-center text-sm text-fg-subtle" data-testid="empty">
+      @if (tab() === 'FAILED') { Nenhuma cobrança com falha. } @else { Nenhuma cobrança atrasada. }
+    </p>
+  } @else {
+    <ul class="grid gap-3 lg:grid-cols-2" data-testid="charges-list">
+      @for (item of items(); track item.chargeId) {
+        <li class="rounded-2xl border border-edge bg-surface p-4 flex flex-col gap-3" data-testid="charge-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <a
+                [routerLink]="['/admin/companies', item.companyId]"
+                class="inline-flex items-center min-h-[44px] text-sm font-semibold text-primary-700 dark:text-primary-300
+                       hover:underline break-words focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-sm"
+              >{{ item.companyName }}</a>
+              @if (item.companyInternal) {
+                <span class="ml-1 inline-flex rounded-full bg-indigo-100 dark:bg-indigo-500/15 px-2 py-0.5 text-[10px]
+                             font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Interna</span>
+              }
+              <p class="text-sm text-fg break-words">{{ item.driverName ?? 'Motorista não identificado' }}</p>
+            </div>
+            <span
+              class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide"
+              [class]="statusChip(item.status)"
+            >{{ statusLabel(item.status) }}</span>
+          </div>
+
+          <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+            <dt class="text-xs text-fg-subtle">Valor</dt>
+            <dd class="text-right font-semibold tabular-nums text-fg" data-testid="amount">{{ money(item.amountCents) }}</dd>
+            <dt class="text-xs text-fg-subtle">Vencimento</dt>
+            <dd class="text-right tabular-nums text-fg-soft">
+              {{ dueDate(item.dueDate) }} <span class="text-xs text-fg-subtle">({{ overdueLabel(item) }})</span>
+            </dd>
+            <dt class="text-xs text-fg-subtle">Tipo</dt>
+            <dd class="text-right text-fg-soft">{{ kindLabel(item.kind) }}</dd>
+          </dl>
+
+          @if (item.failureReason || item.failureCode) {
+            <p class="text-xs text-fg-subtle break-words">
+              Motivo: {{ item.failureReason ?? item.failureCode }}
+            </p>
+          }
+
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-edge-soft">
+            @if (item.driverId) {
+              <app-contact-actions
+                subjectType="DRIVER"
+                [subjectId]="item.driverId"
+                [phoneMasked]="item.driverPhoneMasked"
+                [label]="item.driverName ?? 'motorista'"
+              />
+            } @else {
+              <span class="text-xs text-fg-faint">sem motorista</span>
+            }
+            <button
+              type="button"
+              data-testid="open-rental"
+              class="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-edge text-sm font-medium
+                     text-fg-soft hover:bg-canvas disabled:opacity-50
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              [disabled]="opening() !== null"
+              (click)="openRental(item)"
+            >
+              {{ opening() === item.chargeId ? 'Abrindo…' : 'Ver aluguel' }}
+            </button>
+          </div>
+        </li>
+      }
+    </ul>
+
+    @if (totalPages() > 1) {
+      <div class="mt-4 flex items-center justify-between gap-3">
+        <p class="text-xs text-fg-subtle tabular-nums">Página {{ page() + 1 }} de {{ totalPages() }}</p>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="min-h-[44px] px-4 rounded-lg border border-edge text-sm disabled:opacity-40"
+            [disabled]="page() === 0 || loading()"
+            (click)="goTo(page() - 1)"
+          >Anterior</button>
+          <button
+            type="button"
+            class="min-h-[44px] px-4 rounded-lg border border-edge text-sm disabled:opacity-40"
+            [disabled]="page() + 1 >= totalPages() || loading()"
+            (click)="goTo(page() + 1)"
+          >Próxima</button>
+        </div>
+      </div>
+    }
+  }
+</app-default-page-layout>

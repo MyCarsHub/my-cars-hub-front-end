@@ -48,6 +48,12 @@ const SECTIONS: AdminSection[] = [
     icon: 'M3 21h18 M5 21V7l8-4v18 M19 21V11l-6-4',
   },
   {
+    route: '/admin/cobrancas',
+    title: 'Cobranças',
+    description: 'Cobranças com falha e atrasadas de todas as empresas, com WhatsApp do motorista.',
+    icon: 'M2 10h20 M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z M12 13v2 M12 9h.01',
+  },
+  {
     route: '/admin/blog',
     title: 'Blog',
     description: 'Publicar, editar e despublicar posts do blog público.',
@@ -103,10 +109,12 @@ interface StatusBar {
 
 const SUB_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
   { key: 'ACTIVE', label: 'Ativa', color: '#10b981' },
+  // Status EFETIVO do backend: "Trial" só conta teste com fim no futuro; o
+  // teste vencido (ainda TRIALING no banco ou já EXPIRED) cai em "Teste vencido".
   { key: 'TRIALING', label: 'Trial', color: '#3b82f6' },
   { key: 'PAST_DUE', label: 'Atrasada', color: '#f59e0b' },
   { key: 'CANCELED', label: 'Cancelada', color: '#6b7280' },
-  { key: 'EXPIRED', label: 'Expirada', color: '#ef4444' },
+  { key: 'EXPIRED', label: 'Teste vencido', color: '#ef4444' },
 ];
 
 const RENTAL_STATUS_ORDER: Array<{ key: string; label: string; color: string }> = [
@@ -182,17 +190,13 @@ export class AdminHome implements OnInit {
     return this.scope() === 'active' ? v.activeTotal : v.total;
   });
 
-  protected readonly mrr = computed(() => {
-    const subs = this.overview()?.subscriptions;
-    if (!subs) return 0;
-    const cents = this.scope() === 'active'
-      ? subs.mrrActiveOnlyCents
-      : subs.mrrCents;
-    return cents / 100;
-  });
-
-  protected readonly mrrSubtitle = computed(() =>
-    this.scope() === 'active' ? 'Apenas ativas' : 'Ativas + trial',
+  /**
+   * Admin v2 P0 — substitui o antigo "MRR estimado". Aquele card repetia o MRR
+   * no escopo padrão e, em "Todos", somava trials — que estão no plano gratuito
+   * e valem R$ 0. Este número é acionável: quem converter ou perder nesta semana.
+   */
+  protected readonly trialsEndingSoon = computed(
+    () => this.overview()?.subscriptions?.trialsEndingIn7Days ?? 0,
   );
 
   protected readonly mrrActiveOnly = computed(() => {

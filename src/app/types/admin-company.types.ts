@@ -39,6 +39,13 @@ export interface AdminCompanyListItem {
    * internas em trinta, e o dono confere as sete numa passada.
    */
   internal: boolean;
+  /** Admin v2 — nome do dono da empresa. */
+  ownerName?: string | null;
+  /**
+   * Admin v2 (D1) — telefone do dono, SO mascarado pelo servidor
+   * ("(11) •••••-4321"); nulo = sem telefone. O numero inteiro so pela revelacao auditada.
+   */
+  ownerPhoneMasked?: string | null;
 }
 
 export interface AdminCompanySubscriptionSnapshot {
@@ -62,6 +69,8 @@ export interface AdminCompanyMember {
   email: string;
   role: string;
   status: string;
+  /** Admin v2 (D1) — so mascarado; nulo = sem telefone. */
+  phoneMasked?: string | null;
 }
 
 export interface AdminCompanyChargeIntegrationSnapshot {

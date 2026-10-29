@@ -25,6 +25,7 @@ import { ActionsMenu } from '../../../components/core/actions-menu/actions-menu'
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import { AdminUsersService } from '../admin-users.service';
+import { ContactActions } from '../contact/contact-actions';
 import {
   AdminUserListItem,
   AdminUserPresenceFilter,
@@ -65,6 +66,7 @@ const ROLE_OPTIONS: readonly FilterChipOption<AdminUserRoleFilter>[] = [
   selector: 'app-admin-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ContactActions,
     BackLink,
     ReactiveFormsModule,
     DefaultPageLayout,

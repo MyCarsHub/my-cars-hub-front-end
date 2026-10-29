@@ -9,6 +9,7 @@ import { AdminUsersService } from '../admin-users.service';
 import { NotificationService } from '../../../services/notification.service';
 import { ApiErrorService } from '../../../services/api-error.service';
 import type { AdminUserDetail as AdminUserDetailDto } from '../../../types/admin-user.types';
+import { AdminContactService } from '../contact/admin-contact.service';
 
 /**
  * "Último login" tem dois estados legítimos: data real (o backend passou a
@@ -176,5 +177,92 @@ describe('AdminUserDetail — situação do vínculo com a empresa', () => {
     expect(text).toContain('Convidado');
     expect(text).toContain('Em cadastro');
     expect(text).not.toMatch(/\bACTIVE\b|\bINVITED\b|\bONBOARDING\b/);
+  });
+});
+
+/**
+ * Admin v2 (03 §1): o detalhe ganha presença ("Último acesso"), empresas
+ * clicáveis e a barra de contato — que revela com canal VIEW só quando o
+ * servidor disse que há telefone.
+ */
+describe('AdminUserDetail — contato, presença e empresas', () => {
+  const USER: AdminUserDetailDto = {
+    id: 'u-2',
+    name: 'Bia Dona',
+    email: 'bia@example.com',
+    systemRole: 'USER',
+    active: true,
+    createdDate: '2025-01-01T00:00:00Z',
+    lastLoginAt: null,
+    lastSeenAt: '2026-10-27T13:00:00Z',
+    phoneMasked: '(11) •••••-4321',
+    companies: [
+      { companyId: 'co-1', companyName: 'Locadora Um', role: 'OWNER', status: 'ACTIVE', joinedAt: null },
+    ],
+  };
+
+  function render(user: AdminUserDetailDto, reveal: ReturnType<typeof vi.fn>) {
+    const detail = signal<AdminUserDetailDto | null>(user);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [AdminUserDetail],
+      providers: [
+        provideRouter([]),
+        ApiErrorService,
+        { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: user.id })) } },
+        {
+          provide: AdminUsersService,
+          useValue: {
+            detail,
+            detailLoading: signal(false),
+            getDetail: vi.fn().mockReturnValue(of(user)),
+            clearDetail: vi.fn(),
+            updateStatus: vi.fn(),
+            updateSystemRole: vi.fn(),
+          },
+        },
+        { provide: AdminContactService, useValue: { reveal } },
+        {
+          provide: NotificationService,
+          useValue: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn(), push: vi.fn() },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(AdminUserDetail);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('liga cada empresa ao detalhe dela e mostra o último acesso', () => {
+    const reveal = vi.fn().mockReturnValue(of({ available: false }));
+    const el = render(USER, reveal);
+
+    const links = Array.from(el.querySelectorAll('[data-testid="company-link"]'));
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every((a) => a.getAttribute('href') === '/admin/companies/co-1')).toBe(true);
+    expect(el.querySelector('[data-testid="last-seen"]')?.textContent).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+  });
+
+  it('com telefone, a barra revela com canal VIEW; sem telefone, não revela', () => {
+    const reveal = vi.fn().mockReturnValue(
+      of({
+        subjectType: 'USER',
+        subjectId: 'u-2',
+        available: true,
+        e164: '+5511987654321',
+        display: '(11) 98765-4321',
+        waLink: 'https://wa.me/5511987654321',
+        telLink: 'tel:+5511987654321',
+        mobile: true,
+        email: 'bia@example.com',
+      }),
+    );
+    render(USER, reveal);
+    expect(reveal).toHaveBeenCalledWith('USER', 'u-2', 'VIEW');
+
+    const none = vi.fn();
+    const el = render({ ...USER, phoneMasked: null, lastSeenAt: null }, none);
+    expect(none).not.toHaveBeenCalled();
+    expect(el.querySelector('[data-testid="last-seen"]')?.textContent).toContain('Sem registro de presença');
   });
 });

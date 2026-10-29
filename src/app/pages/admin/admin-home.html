@@ -126,7 +126,7 @@
           {{ overview()?.subscriptions?.active ?? 0 }}
         </p>
         <p class="text-xs text-fg-subtle mt-1">
-          {{ overview()?.subscriptions?.trialing ?? 0 }} em trial
+          <span data-testid="trialing-count">{{ overview()?.subscriptions?.trialing ?? 0 }}</span> em trial
         </p>
       }
     </div>
@@ -157,16 +157,20 @@
       }
     </div>
 
-    <!-- MRR estimated (toggleable) -->
-    <div class="rounded-2xl bg-primary-500 text-white p-4">
-      <p class="text-xs text-white/70 uppercase tracking-wide">MRR estimado</p>
+    <!-- Testes acabando em 7 dias — ocupa o lugar do antigo "MRR estimado",
+         que repetia o MRR (o plano de teste vale R$ 0). Conta só teste com fim
+         no futuro, nunca pelo status. -->
+    <div class="rounded-2xl bg-primary-500 text-white p-4" data-testid="trials-ending-card">
+      <p class="text-xs text-white/70 uppercase tracking-wide">Testes acabando em 7 dias</p>
       @if (loading() && !overview()) {
         <div class="h-8 mt-2 w-24 rounded bg-white/20 animate-pulse"></div>
       } @else {
-        <p class="text-2xl font-semibold mt-1 tabular-nums">
-          {{ formatCurrency(mrr()) }}
+        <p class="text-2xl font-semibold mt-1 tabular-nums" data-testid="trials-ending-count">
+          {{ trialsEndingSoon() }}
         </p>
-        <p class="text-xs text-white/70 mt-1">{{ mrrSubtitle() }}</p>
+        <p class="text-xs text-white/70 mt-1">
+          de {{ overview()?.subscriptions?.trialing ?? 0 }} em teste
+        </p>
       }
     </div>
 

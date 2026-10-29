@@ -12,7 +12,7 @@
             type="search"
             [formControl]="searchControl"
             placeholder="Buscar por nome ou email…"
-            class="w-full text-sm border border-edge-field rounded-lg pl-10 pr-3 py-2.5
+            class="w-full text-base border border-edge-field rounded-lg pl-10 pr-3 py-2.5
                    focus:outline-none focus:ring-2 focus:ring-primary-400 min-h-[44px]"
             aria-label="Buscar usuário"
           />
@@ -197,6 +197,15 @@
                   Desde {{ formatDate(user.createdDate) }}
                 </span>
               </a>
+
+              <!-- Admin v2 (D1): fora dos ancoras — botao dentro de link seria HTML invalido. -->
+              <app-contact-actions
+                class="pt-1 border-t border-edge-soft"
+                subjectType="USER"
+                [subjectId]="user.id"
+                [phoneMasked]="user.phoneMasked"
+                [label]="user.name ?? user.email"
+              />
             </div>
           }
         </div>
@@ -208,6 +217,7 @@
               <tr class="text-left text-xs text-fg-subtle uppercase border-b border-edge-soft">
                 <th class="py-2 pr-4 font-medium">Nome</th>
                 <th class="py-2 pr-4 font-medium">Email</th>
+                <th class="py-2 pr-4 font-medium">Telefone</th>
                 <th class="py-2 pr-4 font-medium">Status</th>
                 <th class="py-2 pr-4 font-medium">Papel</th>
                 <th class="py-2 pr-4 font-medium">Empresa mais recente</th>
@@ -256,6 +266,14 @@
                       tabindex="-1"
                       class="block py-3 pr-4"
                     >{{ user.email }}</a>
+                  </td>
+                  <td class="py-1 pr-4 align-top" data-testid="cell-phone">
+                    <app-contact-actions
+                      subjectType="USER"
+                      [subjectId]="user.id"
+                      [phoneMasked]="user.phoneMasked"
+                      [label]="user.name ?? user.email"
+                    />
                   </td>
                   <td class="align-top" data-testid="cell-status">
                     <a

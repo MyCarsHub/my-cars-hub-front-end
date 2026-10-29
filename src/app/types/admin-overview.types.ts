@@ -23,6 +23,11 @@ export interface VehiclesMetrics {
   activeTotal: number;
 }
 
+/**
+ * `trialing` = testes EM ANDAMENTO (`trial_ends_at > now()`), nunca a contagem
+ * crua do status TRIALING. `byStatus` usa o mesmo status efetivo: teste vencido
+ * entra em `EXPIRED`. Tudo exclui empresas internas.
+ */
 export interface SubscriptionsMetrics {
   total: number;
   active: number;
@@ -31,6 +36,8 @@ export interface SubscriptionsMetrics {
   mrrCents: number;
   mrrActiveOnlyCents: number;
   arrCents: number;
+  /** Subconjunto de `trialing` que acaba nos próximos 7 dias. Opcional: backend anterior não envia. */
+  trialsEndingIn7Days?: number;
 }
 
 export interface FeedbackMetrics {
