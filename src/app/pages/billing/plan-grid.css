@@ -13,12 +13,28 @@
 .dots i { width: 6px; height: 6px; border-radius: 9px; background: var(--b-edge); transition: width 0.25s var(--b-ease), background-color 0.25s; }
 .dots i.on { width: 18px; background: var(--color-fg); }
 
+/* Pílulas (vitrine, só no celular): dizem quantos planos existem e levam a cada um. */
+.pills { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; margin: 20px 0 0; padding: 2px 0; justify-content: safe center; }
+.pills::-webkit-scrollbar { display: none; }
+.pills button {
+  position: relative;
+  flex: none; height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--b-edge); background: var(--b-plan-surface);
+  color: var(--b-muted); font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em; cursor: pointer; transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.pills button::after { content: ""; position: absolute; inset: -4px -2px; }
+.pills button.on { background: var(--color-fg); color: var(--color-surface); border-color: var(--color-fg); }
+.pills button:focus-visible { outline: 2px solid var(--color-primary-400); outline-offset: 2px; }
+.pills + .pl-grid { margin-top: 12px; }
+
 @media (min-width: 1024px) {
+  .pills { display: none; }
   .pl-grid {
     display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(7, auto);
     column-gap: 16px; row-gap: 0; overflow: visible; margin: 24px 0 0; padding: 8px 0 0;
   }
   .pl-grid .pl { grid-row: span 7; grid-template-rows: subgrid; }
+  /* Duas linhas reservadas só onde as colunas precisam alinhar lado a lado. */
+  .pl .r-pitch { min-height: 44px; }
   .pl:hover { transform: translateY(-6px); }
   .dots { display: none; }
 }
@@ -35,7 +51,7 @@
 .pl .tag.rec { color: #fff; background: #C22F00; }
 :host(.yr) .pl .tag.rec { background: #0A7854; }
 .pl .tag.cur { color: var(--color-fg-body); background: var(--color-surface-sunken); }
-.pl .r-pitch { margin: 8px 0 0; font-size: 15px; line-height: 22px; color: var(--b-muted); min-height: 44px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pl .r-pitch { margin: 8px 0 0; font-size: 15px; line-height: 22px; color: var(--b-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pl .r-price { margin-top: 24px; display: flex; align-items: baseline; gap: 4px; min-height: 40px; white-space: nowrap; }
 .pl .r-price b { font-family: var(--font-display); font-weight: 700; font-size: 32px; line-height: 40px; letter-spacing: -0.035em; color: var(--color-fg); }
 .pl .r-price b i { font-style: normal; font-size: 18px; letter-spacing: -0.01em; margin-right: 3px; vertical-align: top; position: relative; top: 3px; }
@@ -69,21 +85,21 @@
   background: linear-gradient(180deg, #0A0A0A 0%, #0A0A0A 40%, color-mix(in srgb, var(--acc) 12%, #0A0A0A) 100%);
   border-color: color-mix(in srgb, var(--acc) 45%, #1F1F1F);
 }
-.pl.rec .r-cta .btn:not(:disabled) { background: linear-gradient(180deg, #F84A16 0%, #F63B04 50%, #E23500 100%); border: 0; color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18); }
-:host(.yr) .pl.rec .r-cta .btn:not(:disabled) { background: linear-gradient(180deg, #0B8A61, #0A7854); }
+.pl.rec .r-cta .btn:not(:disabled), .pl.feat .r-cta .btn:not(:disabled) { background: linear-gradient(180deg, #F84A16 0%, #F63B04 50%, #E23500 100%); border: 0; color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+:host(.yr) .pl.rec .r-cta .btn:not(:disabled), :host(.yr) .pl.feat .r-cta .btn:not(:disabled) { background: linear-gradient(180deg, #0B8A61, #0A7854); }
 
 /* Plano atual: mesma superfície, a borda acende (mais forte embaixo). */
-.pl.cur { border-color: transparent; box-shadow: 0 22px 48px -22px var(--acc-glow); }
-.pl.cur::before {
+.pl.cur, .pl.feat { border-color: transparent; box-shadow: 0 22px 48px -22px var(--acc-glow); }
+.pl.cur::before, .pl.feat::before {
   content: ""; position: absolute; inset: -2px; border-radius: 19px; padding: 2px; pointer-events: none;
   background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 55%, transparent) 0%, color-mix(in srgb, var(--acc) 75%, transparent) 50%, var(--acc) 100%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
 }
-.pl.cur::after {
+.pl.cur::after, .pl.feat::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 140px; border-radius: 0 0 18px 18px; z-index: -1; pointer-events: none;
   background: radial-gradient(75% 95% at 50% 100%, color-mix(in srgb, var(--acc) 22%, transparent), transparent 72%);
 }
-:host-context(.dark) .pl.cur::after { background: radial-gradient(75% 95% at 50% 100%, color-mix(in srgb, var(--acc) 38%, transparent), transparent 72%); }
+:host-context(.dark) .pl.cur::after, .pl.feat::after { background: radial-gradient(75% 95% at 50% 100%, color-mix(in srgb, var(--acc) 38%, transparent), transparent 72%); }
 
 @media (prefers-reduced-motion: reduce) {
   .pl, .dots i { transition: none; }

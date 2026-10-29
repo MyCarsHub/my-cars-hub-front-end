@@ -150,29 +150,31 @@ describe('landing structured data', () => {
     });
 
     it('shows every plan the JSON-LD advertises', () => {
-      // Starter entrou na V59 e a landing precisa exibi-lo: uma offer sem card
-      // é preço anunciado só para o crawler.
-      for (const plan of ['Trial', 'Starter', 'Pro', 'Enterprise']) {
+      // Scale entrou na V127; Enterprise virou "Sob consulta" e saiu das offers.
+      for (const plan of ['Teste', 'Starter', 'Pro', 'Scale', 'Enterprise']) {
         expect(rendered).toContain(plan);
       }
+      expect(rendered).toContain('Sob consulta');
     });
 
     it('shows the monthly price of every paid plan', () => {
-      const monthly = [
-        PLAN_PRICES.starterMonthly,
-        PLAN_PRICES.proMonthly,
-        PLAN_PRICES.enterpriseMonthly,
-      ];
+      const monthly = [PLAN_PRICES.starterMonthly, PLAN_PRICES.proMonthly, PLAN_PRICES.scaleMonthly];
       // Todo preço mensal do JSON-LD tem de estar entre os que os cards exibem.
       const advertised = offers().map((o) => o.price);
+      const shown = (v: number): string =>
+        new Intl.NumberFormat('pt-BR', {
+          minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
+          maximumFractionDigits: Number.isInteger(v) ? 0 : 2,
+        }).format(v);
 
       for (const price of monthly) {
         expect(advertised).toContain(price.toFixed(2));
-        expect(rendered).toContain(`R$ ${price.toFixed(2).replace('.', ',')}`);
+        // O card desenha o "R$" menor, colado ao número.
+        expect(rendered).toContain(`R$${shown(price)}`);
       }
-      // O trial sai como "R$ 0" no card e como offer de preço zero no JSON-LD.
+      // O trial sai como "Grátis" no card e como offer de preço zero no JSON-LD.
       expect(advertised).toContain('0.00');
-      expect(rendered).toContain('R$ 0');
+      expect(rendered).toContain('Grátis');
     });
   });
 

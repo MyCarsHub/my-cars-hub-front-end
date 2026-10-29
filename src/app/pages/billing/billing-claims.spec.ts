@@ -79,7 +79,7 @@ describe('billing — promessas por tier fora dos cards', () => {
    * das fontes compartilhadas, nunca de um literal por tier.
    */
   it('a grade deriva capacidade e prioridade das fontes compartilhadas', () => {
-    const ts = readFileSync(resolve(workspaceRoot(), 'src/app/pages/billing/billing.ts'), 'utf8');
+    const ts = readFileSync(resolve(workspaceRoot(), 'src/app/utils/plan-grid-copy.ts'), 'utf8');
     expect(ts).toContain('hasPrioritySupport(tier)');
     expect(ts).toContain('planCapacityLines(tier)');
     expect(ts).not.toContain(PRIORITY_SUPPORT_FEATURE);

@@ -29,6 +29,12 @@ export interface PlanColumn {
   rows: readonly PlanColumnRow[];
   current: boolean;
   recommended: boolean;
+  /**
+   * Vitrine (landing): a coluna em destaque ganha a borda acesa, a etiqueta
+   * "Mais escolhido" e o CTA cheio — na MESMA superfície das outras. No app a
+   * borda acesa é do plano atual (`current`).
+   */
+  featured?: boolean;
   ctaLabel: string;
   ctaDisabled: boolean;
   /** Rótulo acessível do botão quando o visível é curto ("Plano atual"). */
@@ -81,12 +87,21 @@ export interface PlanColumn {
       </div>
     </div>
 
+    @if (pills()) {
+      <div class="pills" role="tablist" aria-label="Planos">
+        @for (col of columns(); track col.tier; let i = $index) {
+          <button type="button" role="tab" [attr.aria-selected]="i === activeIndex()" [class.on]="i === activeIndex()"
+            (click)="goTo(i)">{{ col.name }}</button>
+        }
+      </div>
+    }
     <div class="pl-grid" #track (scroll)="onScroll()" data-testid="plan-grid">
       @for (col of columns(); track col.tier) {
         <article
           class="pl"
           [class.cur]="col.current"
           [class.rec]="col.recommended && !col.current"
+          [class.feat]="col.featured"
           [attr.data-tier]="col.tier"
           [attr.aria-label]="'Plano ' + col.name"
         >
@@ -94,7 +109,7 @@ export interface PlanColumn {
             <h3 class="name">{{ col.name }}</h3>
             @if (col.current) {
               <span class="tag cur">Seu plano</span>
-            } @else if (col.recommended) {
+            } @else if (col.recommended || col.featured) {
               <span class="tag rec">Mais escolhido</span>
             }
           </div>
@@ -136,17 +151,21 @@ export interface PlanColumn {
         </article>
       }
     </div>
-    <div class="dots" aria-hidden="true">
-      @for (col of columns(); track col.tier; let i = $index) {
-        <i [class.on]="i === activeIndex()"></i>
-      }
-    </div>
+    @if (!pills()) {
+      <div class="dots" aria-hidden="true">
+        @for (col of columns(); track col.tier; let i = $index) {
+          <i [class.on]="i === activeIndex()"></i>
+        }
+      </div>
+    }
   `,
 })
 export class PlanGrid {
   readonly columns = input.required<readonly PlanColumn[]>();
   readonly cycle = input.required<BillingCycle>();
   readonly savings = input(0);
+  /** Celular: pílulas com o nome de cada plano acima do carrossel (vitrine). */
+  readonly pills = input(false);
   readonly cycleChange = output<BillingCycle>();
   readonly choose = output<PlanColumn>();
 
@@ -158,6 +177,7 @@ export class PlanGrid {
     afterNextRender(() => {
       const cols = this.columns();
       let idx = cols.findIndex((c) => c.current);
+      if (idx < 0) idx = cols.findIndex((c) => c.featured);
       if (idx < 0) idx = cols.findIndex((c) => c.recommended);
       if (idx < 0) idx = 0;
       this.activeIndex.set(idx);
@@ -167,6 +187,16 @@ export class PlanGrid {
         el.scrollLeft = card.offsetLeft - (el.clientWidth - card.clientWidth) / 2;
       }
     });
+  }
+
+  /** Pílula tocada: o carrossel desliza até o plano. */
+  protected goTo(index: number): void {
+    const el = this.track().nativeElement;
+    const card = el.children[index] as HTMLElement | undefined;
+    if (!card) return;
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollTo({ left: card.offsetLeft - (el.clientWidth - card.clientWidth) / 2, behavior: reduce ? 'auto' : 'smooth' });
+    this.activeIndex.set(index);
   }
 
   protected onScroll(): void {

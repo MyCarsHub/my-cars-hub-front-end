@@ -3,17 +3,30 @@ import { Router, provideRouter } from '@angular/router';
 import { PlanIntentService } from '../../../../services/plan-intent.service';
 import { LandingPricingComponent } from './landing-pricing.component';
 
-/**
- * `revealOnScroll()` registra um IntersectionObserver dentro de
- * `afterNextRender`, e o jsdom não implementa a API. Sem este stub, qualquer
- * teste que chame `detectChanges()` estoura antes de chegar à asserção.
- */
 class IntersectionObserverStub {
   observe(): void {}
   unobserve(): void {}
   disconnect(): void {}
 }
 
+type Column = {
+  tier: string;
+  name: string;
+  price: string;
+  per: string | null;
+  sub: string;
+  featured?: boolean;
+  current: boolean;
+  recommended: boolean;
+  rows: readonly { label: string; hi: boolean }[];
+};
+type Probe = { columns(): readonly Column[]; setCycle(c: 'monthly' | 'yearly'): void };
+
+/**
+ * Grade da landing (rev. 2026-10-29): a mesma `app-plan-grid` da Assinatura.
+ * Estes testes guardam o que a vitrine PROMETE — preço, capacidade, destaque —
+ * porque a landing escreve os números à mão (sem sessão, sem `/billing/plans`).
+ */
 describe('LandingPricingComponent', () => {
   beforeEach(async () => {
     (
@@ -25,288 +38,70 @@ describe('LandingPricingComponent', () => {
     }).compileComponents();
   });
 
-  it('should create', () => {
-    const fixture = TestBed.createComponent(LandingPricingComponent);
-    expect(fixture.componentInstance).toBeTruthy();
+  const build = (): Probe =>
+    TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as Probe;
+  const col = (c: Probe, tier: string): Column => c.columns().find((x) => x.tier === tier)!;
+
+  it('mostra os cinco planos na ordem do catálogo', () => {
+    expect(build().columns().map((c) => c.tier)).toEqual(['TRIAL', 'STARTER', 'PRO', 'SCALE', 'ENTERPRISE']);
   });
 
-  // A landing pública não tem sessão e `GET /v1/billing/plans` exige auth, então
-  // estes números são escritos à mão. Este teste é o único guarda-corpo contra
-  // eles voltarem a divergir da tabela `plans` — se um limite mudar no backend,
-  // ele quebra aqui e força a atualização em vez de a landing mentir calada.
-  it('anuncia exatamente os limites de VEÍCULO que o backend entrega', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
+  it('anuncia os preços da V127 no mensal e no anual', () => {
+    const c = build();
+    expect(col(c, 'STARTER')).toMatchObject({ price: '79,90', per: '/mês' });
+    expect(col(c, 'PRO')).toMatchObject({ price: '159,90', per: '/mês' });
+    expect(col(c, 'SCALE')).toMatchObject({ price: '299', per: '/mês' });
+    expect(col(c, 'TRIAL')).toMatchObject({ price: 'Grátis', per: null });
 
-    // TRIAL 3 — V59:310-313.
-    expect(c.trialItems).toContain('Até 3 veículos');
-    // STARTER 15 — V59:315-318.
-    expect(c.starterItems).toContain('Até 15 veículos');
-    // PRO 25 — V59:320-323.
-    expect(c.proItems).toContain('Até 25 veículos');
-  });
-
-  /**
-   * FEAT-0070 — a landing é PÚBLICA e era a porta mais exposta: com o teto
-   * unificado em 200, um bullet de motorista anunciaria "Até 200 motoristas"
-   * no TRIAL. Nenhum tier pode citar capacidade de motorista, em número ou
-   * como "ilimitados".
-   */
-  it('não cita capacidade de motoristas em nenhum tier', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
-
-    // Case-INSENSITIVE de propósito: a string que o bullet antigo trazia era
-    // "Motoristas ilimitados" (M maiúsculo, de AXIS_UNLIMITED_LINE), então uma
-    // guarda por substring minúscula deixaria exatamente a regressão que ela
-    // deveria pegar passar verde.
-    for (const items of [c.trialItems, c.starterItems, c.proItems, c.enterpriseItems]) {
-      expect(items.join(' | ')).not.toMatch(/motorista/i);
-    }
-  });
-
-  // O ENTERPRISE tem teto real de veículo (100 depois da V59:325-328; eram 500
-  // na V44) e mesmo assim é vendido como ilimitado — maquiagem deliberada de
-  // produto. O que não pode acontecer é o número vazar para a landing.
-  it('apresenta o ENTERPRISE como ilimitado, sem expor o teto real', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
-
-    expect(c.enterpriseItems).toContain('Veículos ilimitados');
-
-    const joined = c.enterpriseItems.join(' | ');
-    expect(joined).not.toContain('100');
-    expect(joined).not.toContain('300');
-    // O teto antigo também não pode reaparecer numa cópia esquecida.
-    expect(joined).not.toContain('500');
-    expect(joined).not.toContain('1000');
-  });
-
-  // Guarda-corpo contra a landing voltar a prometer o que a V43 prometia, e
-  // contra o PRO herdar o teto do STARTER agora que 15 é um número do catálogo.
-  it('não promete no PRO o teto de outro tier', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
-
-    expect(c.proItems).not.toContain('Veículos ilimitados');
-    expect(c.proItems).not.toContain('Até 15 veículos');
-    expect(c.proItems).not.toContain('Até 20 veículos');
-  });
-
-  /**
-   * A composição da lista é de `planCardFeatureLines()`; aqui o que se confere é
-   * que a landing REALMENTE a consome, em vez de voltar a somar `PLAN_FEATURES`
-   * nas quatro listas — que é como a tela ficou com sete bullets repetidos
-   * quatro vezes e uma nota acima da grade pedindo desculpa por isso.
-   */
-  it('abre os cards pagos com a herança e o TRIAL com a capacidade', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
-    const inheritance = 'Tudo o que o plano anterior tem';
-
-    expect(c.trialItems).not.toContain(inheritance);
-    expect(c.trialItems).toContain('Contratos, cobranças, multas, manutenções');
-
-    for (const items of [c.starterItems, c.proItems, c.enterpriseItems]) {
-      expect(items[0]).toBe(inheritance);
-      expect(items).not.toContain('Contratos, cobranças, multas, manutenções');
-    }
-  });
-
-  /**
-   * O TRIAL ditava a altura da fileira com nove bullets contra três do STARTER —
-   * e sob `items-stretch` isso punha um vão de umas dez linhas acima do botão
-   * dos outros três, com o card em DESTAQUE virando a caixa mais vazia da grade
-   * e o plano GRÁTIS lendo como a oferta mais generosa da tela. O teto de
-   * `plan-features.ts` corta pelo lado certo; aqui se confere o RESULTADO, com
-   * os números reais desta página.
-   */
-  it('deixa os quatro cards com listas equilibradas, e o destaque não é o mais curto', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
-    const lengths = [c.trialItems, c.starterItems, c.proItems, c.enterpriseItems].map(
-      (items) => items.length,
-    );
-
-    expect(Math.max(...lengths) - Math.min(...lengths)).toBeLessThanOrEqual(2);
-    expect(c.proItems.length).toBe(Math.max(...lengths));
-  });
-
-  /**
-   * A prioridade estreia no PRO. No ENTERPRISE ela já está dentro da herança, e
-   * reanunciá-la sugeriria que o PRO não a tem.
-   */
-  it('mostra o atendimento prioritário no card em que ele estreia', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance;
-    const priority = 'Atendimento prioritário no WhatsApp';
-
-    expect(c.proItems).toContain(priority);
-    expect(c.trialItems).not.toContain(priority);
-    expect(c.starterItems).not.toContain(priority);
-    expect(c.enterpriseItems).not.toContain(priority);
-  });
-
-  // O `SegmentedToggle` só ecoa o acento que recebe — a suíte dele ficaria
-  // verde com `var(--typo)`, que não resolve para nada e deixaria o pill ativo
-  // branco sobre o trilho neutro (1,09:1). Quem guarda o NOME do token é o
-  // consumidor, aqui e em `billing.spec.ts`.
-  //
-  // O card Pro NÃO entra mais nesta asserção: ele deixou de receber gradiente.
-  // `proGradient()` / `proShadow()` / `proAccentText()` alimentavam os inputs
-  // `gradientCss` / `shadowCss` / `accentTextClass` de `app-plan-card`, e esse
-  // contrato de string aberta foi por onde um gradiente de 3,16:1 entrou no
-  // card sem passar por revisão de contraste. Trocar o valor não fechava o
-  // buraco; tirar o input do componente fechou. Agora o tratamento vem de
-  // `planCardTone()` e o contraste de cada degrau é medido dentro de
-  // `plan-card.ts` — ver o teste de tom logo abaixo.
-  it('pinta o toggle com os tokens de gradiente medidos', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
-      cycleOptions(): readonly { value: string; activeBackground?: string }[];
-    };
-
-    const options = c.cycleOptions();
-    expect(options.map((o) => o.value)).toEqual(['monthly', 'yearly']);
-    expect(options[0].activeBackground).toBe('var(--brand-gradient-deep)');
-    expect(options[1].activeBackground).toBe('var(--success-gradient-deep)');
-
-    // Nenhum hex solto: o #FF5722/#EB3F00 fora do sistema voltar por aqui é
-    // exatamente o que estas asserções impedem.
-    for (const option of options) {
-      expect(option.activeBackground).not.toMatch(/#[0-9a-f]{3,8}/i);
-    }
-  });
-
-  /**
-   * Os quatro cards leem a MESMA tabela de tons que a tela de billing, então o
-   * Pro público e o Pro autenticado não podem ser pintados por regras
-   * diferentes — era assim que a landing mandava `business` para um card
-   * rotulado Enterprise, e que o STARTER caía no tratamento do TRIAL.
-   *
-   * A escada é de preenchimento (vazio → acento → sólido → carbono), não de
-   * matiz: ela sobrevive em escala de cinza e para quem tem deficiência de cor.
-   */
-  it('tira o tratamento de cada card da tabela de tons por tier e ciclo', () => {
-    const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
-      trialTone(): string;
-      starterTone(): string;
-      proTone(): string;
-      enterpriseTone(): string;
-      setCycle(cycle: 'monthly' | 'yearly'): void;
-    };
-
-    expect([c.trialTone(), c.starterTone(), c.proTone(), c.enterpriseTone()]).toEqual([
-      'plain',
-      'accent',
-      'filled',
-      'carbon',
-    ]);
-
-    // No ANUAL os três degraus coloridos trocam a matiz da marca pelo verde. O
-    // TRIAL não tem ciclo — é sempre 14 dias grátis — e por isso não muda.
     c.setCycle('yearly');
-    expect([c.trialTone(), c.starterTone(), c.proTone(), c.enterpriseTone()]).toEqual([
-      'plain',
-      'accent-success',
-      'filled-success',
-      'carbon-success',
-    ]);
+    expect(col(c, 'PRO')).toMatchObject({ price: '1.599', per: '/ano', sub: 'R$ 133,25 por mês' });
+    expect(col(c, 'SCALE')).toMatchObject({ price: '2.990', per: '/ano' });
   });
 
-  /**
-   * ═══ A ORDEM, QUE É INFORMAÇÃO E NÃO ENFEITE ═══
-   *
-   * Cada card acima do TRIAL diz que tem tudo o que outro tem. Isso só significa
-   * alguma coisa se a sequência na tela concordar com a frase.
-   *
-   * A ordem NÃO pode sair de um signal de media query aqui: `/` é
-   * prerenderizada, no servidor não há `matchMedia`, e o `index.html` estático
-   * saía com o arranjo de telefone para todo visitante — a fileira se
-   * reordenava sozinha na hidratação, sem erro nenhum no console, porque a
-   * contagem de nós batia e o Angular reivindicava as views por posição.
-   *
-   * As duas ordens são agora determinísticas e vão as duas no DOM; quem escolhe
-   * é o CSS. Estas asserções são o que impede a decisão de voltar para o JS.
-   */
-  describe('ordem da escada', () => {
-    it('publica as duas ordens sem consultar media query nenhuma', () => {
-      const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
-        catalogPlans(): readonly { tier: string }[];
-        phonePlans(): readonly { tier: string }[];
-      };
+  it('anuncia exatamente os limites de VEÍCULO que o backend entrega', () => {
+    const c = build();
+    const first = (tier: string) => col(c, tier).rows[0].label;
+    expect(first('TRIAL')).toBe('Até 3 veículos');
+    expect(first('STARTER')).toBe('Até 15 veículos');
+    expect(first('PRO')).toBe('Até 25 veículos');
+    expect(first('SCALE')).toBe('Até 75 veículos');
+  });
 
-      // jsdom não casa com media query alguma. Se a ordem dependesse de signal,
-      // a do catálogo viria invertida aqui — que é exatamente como o bug entrou
-      // no HTML prerenderizado.
-      expect(c.catalogPlans().map((p) => p.tier)).toEqual([
-        'TRIAL',
-        'STARTER',
-        'PRO',
-        'SCALE',
-        'ENTERPRISE',
-      ]);
-      // FIX-0290 — PRIMAZIA DE SLOT: os dois primeiros slots levam a atencao
-      // independentemente de qual plano esta neles, entao o plano que se QUER
-      // escolhido vai na frente. PRO primeiro, TRIAL logo atras.
-      expect(c.phonePlans().map((p) => p.tier)).toEqual(['PRO', 'TRIAL', 'STARTER', 'SCALE', 'ENTERPRISE']);
-    });
+  // O ENTERPRISE tem teto real (guarda-corpo da V127) e é vendido como ilimitado.
+  it('apresenta o ENTERPRISE como ilimitado e sob consulta, sem expor o teto', () => {
+    const ent = col(build(), 'ENTERPRISE');
+    expect(ent.price).toBe('Sob consulta');
+    const joined = ent.rows.map((r) => r.label).join(' | ');
+    expect(joined).toContain('Veículos ilimitados');
+    expect(joined).not.toMatch(/(100|150|300|500)/);
+  });
 
-    /**
-     * A REDAÇÃO SEGUE O ARRANJO, E AGORA CARD A CARD.
-     *
-     * Enquanto o telefone era a escada exatamente invertida, uma frase servia a
-     * grade inteira. Na ordem do FIX-0290 (PRO, TRIAL, STARTER, ENTERPRISE) a
-     * escada deixa de ser monotonica: o degrau anterior do PRO — o STARTER —
-     * fica ABAIXO dele, enquanto o do STARTER (TRIAL) e o do ENTERPRISE (PRO)
-     * ficam ACIMA. Uma frase so para os tres passaria a mentir sobre onde olhar.
-     */
-    it('aponta a heranca para onde o degrau anterior realmente esta', () => {
-      const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
-        catalogPlans(): readonly { tier: string; features: readonly string[] }[];
-        phonePlans(): readonly { tier: string; features: readonly string[] }[];
-      };
+  it('não cita capacidade de motoristas em nenhum plano', () => {
+    for (const c of build().columns()) {
+      expect(c.rows.map((r) => r.label).join(' | ')).not.toMatch(/motorista/i);
+    }
+  });
 
-      const firstLine = (
-        plans: readonly { tier: string; features: readonly string[] }[],
-        tier: string,
-      ) => plans.find((p) => p.tier === tier)?.features[0];
+  it('destaca só o Pro — mesma superfície para todos, nenhum "plano atual" na vitrine', () => {
+    const cols = build().columns();
+    expect(cols.filter((c) => c.featured).map((c) => c.tier)).toEqual(['PRO']);
+    expect(cols.some((c) => c.current || c.recommended)).toBe(false);
+  });
 
-      // O catalogo sobe, e a frase aponta para cima nos tres pagos.
-      for (const tier of ['STARTER', 'PRO', 'ENTERPRISE']) {
-        expect(firstLine(c.catalogPlans(), tier)).toBe('Tudo o que o plano anterior tem');
-      }
+  it('o atendimento prioritário estreia no Pro', () => {
+    const c = build();
+    const support = (tier: string) => col(c, tier).rows[5];
+    expect(support('STARTER')).toMatchObject({ label: 'Suporte no WhatsApp', hi: false });
+    expect(support('PRO')).toMatchObject({ label: 'Suporte prioritário', hi: true });
+    expect(support('SCALE')).toMatchObject({ label: 'Suporte prioritário', hi: false });
+  });
 
-      // No telefone, so o PRO tem o degrau anterior abaixo de si.
-      expect(firstLine(c.phonePlans(), 'PRO')).toBe('Tudo o que os planos abaixo têm');
-      expect(firstLine(c.phonePlans(), 'STARTER')).toBe('Tudo o que o plano anterior tem');
-      expect(firstLine(c.phonePlans(), 'ENTERPRISE')).toBe('Tudo o que o plano anterior tem');
-    });
-
-    /**
-     * A aposta do FIX-0290 e barata e REVERSIVEL de propósito: trocar a lista de
-     * ordem volta o arranjo anterior. Este teste existe para que a ordem seja um
-     * dado declarado num lugar so, e nao emergente de um `.reverse()`.
-     */
-    it('o TRIAL fica no segundo slot, nao no ultimo', () => {
-      const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
-        phonePlans(): readonly { tier: string }[];
-      };
-
-      const tiers = c.phonePlans().map((p) => p.tier);
-      expect(tiers.indexOf('TRIAL')).toBe(1);
-      expect(tiers.indexOf('ENTERPRISE')).toBe(tiers.length - 1);
-    });
-
-    /**
-     * O bloco que não vale é `display: none` — e não `order-*` nem
-     * `flex-col-reverse`, que reordenam só o pixel e deixariam o Tab e o leitor
-     * de tela na sequência oposta à que se vê (WCAG 1.3.2 / 2.4.3). `hidden` tira
-     * da árvore de acessibilidade E da ordem de foco, então o que se navega é
-     * sempre o que se enxerga.
-     */
-    it('esconde o arranjo que não vale, em vez de reordenar o pixel', () => {
-      const fixture = TestBed.createComponent(LandingPricingComponent);
-      fixture.detectChanges();
-      const html = (fixture.nativeElement as HTMLElement).innerHTML;
-
-      expect(html).toContain('md:hidden');
-      expect(html).toContain('hidden md:grid');
-      expect(html).not.toContain('flex-col-reverse');
-      expect(html).not.toMatch(/\border-(first|last|\d)\b/);
-    });
+  it('a linha de confiança só afirma o que é verdade, sem tabela comparativa', () => {
+    const fixture = TestBed.createComponent(LandingPricingComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid=pricing-trust]')?.textContent).toContain('14 dias grátis');
+    expect(el.textContent).not.toContain('Compare todos os recursos');
   });
 });
 
@@ -365,11 +160,10 @@ describe('LandingPricingComponent — guarda o plano escolhido (FIX-0291)', () =
       expect(remember).not.toHaveBeenCalledWith('ENTERPRISE');
 
       const c = TestBed.createComponent(LandingPricingComponent).componentInstance as unknown as {
-        catalogPlans(): readonly { tier: string; price: string; ctaLabel: string; cycleSuffix: string }[];
+        columns(): readonly { tier: string; price: string; ctaLabel: string; per: string | null }[];
       };
-      const ent = c.catalogPlans().find((p) => p.tier === 'ENTERPRISE')!;
-      expect(ent).toMatchObject({ price: 'Sob consulta', ctaLabel: 'Falar com a gente', cycleSuffix: '' });
-      expect(c.catalogPlans().find((p) => p.tier === 'PRO')!.price).toBe('R$ 159,90');
+      const ent = c.columns().find((p) => p.tier === 'ENTERPRISE')!;
+      expect(ent).toMatchObject({ price: 'Sob consulta', ctaLabel: 'Falar com a gente', per: null });
     } finally {
       open.mockRestore();
     }

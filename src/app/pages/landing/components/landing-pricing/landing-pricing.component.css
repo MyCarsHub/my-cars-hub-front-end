@@ -1,1 +1,11 @@
-/* Pricing 100% Tailwind. */
+/* Planos — mesma linguagem da grade da Assinatura; aqui só o enquadramento de vitrine. */
+.pricing { padding-block: clamp(72px, 9vw, 120px); }
+.wrap { max-width: var(--container, 1200px); margin: 0 auto; }
+
+.head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; max-width: 720px; margin: 0 auto 20px; }
+.head h2 { font-size: clamp(1.75rem, 3.4vw, 2.6rem); letter-spacing: -0.03em; line-height: 1.08; color: var(--color-fg); }
+.lede { margin: 0; font-size: 17px; line-height: 1.5; color: var(--color-fg-muted); max-width: 46ch; text-wrap: balance; }
+
+.trust { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 22px; margin: 28px 0 0; font-size: 14.5px; color: var(--color-fg-muted); }
+.trust span { display: inline-flex; align-items: center; gap: 7px; }
+.trust svg { width: 15px; height: 15px; color: var(--color-fg); }
