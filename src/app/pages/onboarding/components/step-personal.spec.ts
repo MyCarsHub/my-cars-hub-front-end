@@ -162,3 +162,47 @@ describe('StepPersonal — backspace no CPF (FIX-0285)', () => {
     expect(fixture.componentInstance.form.get('cpf')?.value).toBe('012.345.679-0');
   });
 });
+
+/**
+ * O telefone é pedido no PRIMEIRO passo (o backend o grava em `users` ao salvar o
+ * passo 1, para quem abandona depois continuar alcançável) e todo campo tem fonte
+ * de 16px: abaixo disso o iOS dá zoom no foco e desloca o formulário.
+ */
+describe('StepPersonal — telefone no primeiro passo', () => {
+  let fixture: ComponentFixture<StepPersonal>;
+  let emitted: Partial<OnboardingData>[];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [StepPersonal] });
+    fixture = TestBed.createComponent(StepPersonal);
+    emitted = [];
+    fixture.componentInstance.formChange.subscribe((value) => emitted.push(value));
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('pede o telefone como obrigatório e o emite só com dígitos', () => {
+    const control = fixture.componentInstance.form.get('phoneNumber');
+    expect(fixture.nativeElement.querySelector('#ob-phone')).toBeTruthy();
+    expect(control?.hasError('required')).toBe(true);
+
+    control?.setValue('(11) 98765-4321');
+
+    expect(control?.valid).toBe(true);
+    expect(emitted[emitted.length - 1].phoneNumber).toBe('11987654321');
+  });
+
+  it('todo campo do passo usa fonte de 16px (text-base), nunca text-sm', () => {
+    const inputs: HTMLInputElement[] = Array.from(fixture.nativeElement.querySelectorAll('input'));
+    expect(inputs.length).toBe(3);
+    for (const input of inputs) {
+      expect(input.classList.contains('text-base')).toBe(true);
+      expect(input.classList.contains('text-sm')).toBe(false);
+    }
+  });
+});

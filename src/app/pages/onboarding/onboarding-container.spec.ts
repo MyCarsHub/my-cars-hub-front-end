@@ -433,6 +433,24 @@ describe('OnboardingContainer — foco, Voltar no passo 4 e motivo do bloqueio',
     expect(document.activeElement).toBe(heading);
   });
 
+  it('o telefone sai já no salvamento do passo 1, não só no finish', async () => {
+    const { fixture, harness, svcMock } = renderAt(1, {
+      name: 'Ada',
+      cpf: '52998224725',
+      phoneNumber: '11987654321',
+    });
+    await drainStepTimers();
+
+    harness.onStepValidityChange(true);
+    harness.onNext();
+    fixture.detectChanges();
+
+    expect(svcMock.saveStep).toHaveBeenCalledTimes(1);
+    const [step, data] = svcMock.saveStep.mock.calls[0];
+    expect(step).toBe(1);
+    expect(data.phoneNumber).toBe('11987654321');
+  });
+
   it('voltar move o foco para o heading do passo anterior', async () => {
     const { fixture, harness } = renderAt(2, { name: 'Ada' });
     await drainStepTimers();
