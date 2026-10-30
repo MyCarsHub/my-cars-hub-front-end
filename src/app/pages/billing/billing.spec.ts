@@ -1793,6 +1793,18 @@ describe('Billing', () => {
     return api;
   };
 
+  const OPEN_INVOICE = {
+    ref: 'in_3',
+    number: 'A-3',
+    createdAt: serverTime(-86_400_000),
+    amountCents: 7990,
+    status: 'OPEN' as const,
+    cardBrand: null,
+    cardLast4: null,
+    pdfUrl: null,
+    hostedUrl: 'https://invoice.stripe.com/i/3',
+  };
+
   /** Renderiza a página v2 com o resumo atual e devolve o componente e o DOM. */
   const renderV2 = (status: SubscriptionResponse['status'] = 'PAST_DUE') => {
     subscriptionSignal.set(sub({ status, planCode: 'STARTER_MONTHLY_STRIPE', planName: 'STARTER' }));
@@ -1829,6 +1841,16 @@ describe('Billing', () => {
     c.payNow();
     expect(c.sheet()).toBeNull();
     expect(externalNav.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('read-only: an open invoice row has no "Pagar", even if the server lists the actions', () => {
+    summarySignal.set(pixSummary({ canManage: false, invoices: [OPEN_INVOICE] }));
+    const { el, q } = renderV2();
+
+    expect(el.querySelector('[data-testid=invoices-table]')?.textContent).toContain('Em aberto');
+    expect(q('inv-pay')).toBeNull();
+    expect(q('hero-pay')?.disabled).toBe(true);
+    expect(q('hero-card')?.disabled).toBe(true);
   });
 
   it('read-only on a blocked account shows the same disabled pair', () => {
@@ -1898,11 +1920,12 @@ describe('Billing', () => {
   });
 
   it('payment group: the Pix row only exists when the server offers Pix — never "Em breve"', () => {
-    summarySignal.set(pastDueSummary());
+    summarySignal.set(pastDueSummary({ invoices: [OPEN_INVOICE] }));
     let r = renderV2();
     expect(r.q('row-pix')).toBeNull();
     expect(r.q('row-pix-off')).toBeNull();
     expect(r.el.textContent).not.toContain('Em breve');
+    expect(r.q('inv-pay')?.textContent?.trim()).toBe('Pagar');
     expect(r.q('row-card')?.textContent).toContain('Trocar');
     r.fixture.destroy();
 
