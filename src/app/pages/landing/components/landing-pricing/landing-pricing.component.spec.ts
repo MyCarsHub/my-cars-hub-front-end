@@ -49,12 +49,12 @@ describe('LandingPricingComponent', () => {
   it('anuncia os preços da V127 no mensal e no anual', () => {
     const c = build();
     expect(col(c, 'STARTER')).toMatchObject({ price: '79,90', per: '/mês' });
-    expect(col(c, 'PRO')).toMatchObject({ price: '159,90', per: '/mês' });
+    expect(col(c, 'PRO')).toMatchObject({ price: '149,90', per: '/mês' });
     expect(col(c, 'SCALE')).toMatchObject({ price: '299', per: '/mês' });
     expect(col(c, 'TRIAL')).toMatchObject({ price: 'Grátis', per: null });
 
     c.setCycle('yearly');
-    expect(col(c, 'PRO')).toMatchObject({ price: '1.599', per: '/ano', sub: 'R$ 133,25 por mês' });
+    expect(col(c, 'PRO')).toMatchObject({ price: '1.499', per: '/ano', sub: 'R$ 124,92 por mês' });
     expect(col(c, 'SCALE')).toMatchObject({ price: '2.990', per: '/ano' });
   });
 
