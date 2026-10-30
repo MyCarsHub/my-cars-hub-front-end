@@ -37,6 +37,11 @@ describe('VehicleGerenciaHub — venda do veículo (FEAT-0074)', () => {
     saleValueCents: null,
     saleDate: null,
     resultCents: -3_800_000,
+    resultReceivedCents: -3_800_000,
+    financingDataIncomplete: false,
+    financed: false,
+    downPaymentCents: null,
+    purchasePriceMissing: false,
   };
 
   let fixture: ComponentFixture<VehicleGerenciaHub>;

@@ -267,7 +267,8 @@ export class VehicleGerenciaHub implements OnInit {
   }
 
   /** Sign-aware currency: negative results shown in red, positive in green. */
-  protected resultClass(cents: number): string {
+  protected resultClass(cents: number | null): string {
+    if (cents == null) return 'text-fg';
     if (cents > 0) return 'text-emerald-700 dark:text-emerald-300';
     if (cents < 0) return 'text-rose-700 dark:text-rose-300';
     return 'text-fg';

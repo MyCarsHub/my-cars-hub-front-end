@@ -5,6 +5,7 @@ import { environment } from '../../environments/environment';
 import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { PagedResponse } from '../types/paged.types';
 import { GerenciaSummary } from '../types/gerencia-summary.types';
+import { VehiclePendencia } from '../types/vehicle-pendencia.types';
 import {
   CreateFinancingRequest,
   CreateVehicleRequest,
@@ -230,9 +231,14 @@ export class VehiclesService {
     );
   }
 
-  /** Aggregated vehicle summary for the "Gerência do veículo" hub. */
+  /** Aggregated vehicle summary for the Gerência tab of the vehicle page. */
   getGerenciaSummary(vehicleId: string): Observable<GerenciaSummary> {
     return this.http.get<GerenciaSummary>(`${BASE}/${vehicleId}/gerencia/summary`);
+  }
+
+  /** O que falta resolver neste veículo, já na ordem de urgência. Lista vazia = nada. */
+  getPendencias(vehicleId: string): Observable<VehiclePendencia[]> {
+    return this.http.get<VehiclePendencia[]>(`${BASE}/${vehicleId}/gerencia/pendencias`);
   }
 
   listFinancings(vehicleId: string): Observable<Financing[]> {

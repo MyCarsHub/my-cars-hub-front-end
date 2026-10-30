@@ -10,6 +10,7 @@ import { VehiclesService } from './vehicles.service';
 import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { environment } from '../../environments/environment';
 import type { VehicleListItem } from '../types/vehicle.types';
+import type { VehiclePendencia } from '../types/vehicle-pendencia.types';
 
 /**
  * Contrato de FIO da LISTAGEM (FIX-0263/0264): cada item de
@@ -48,6 +49,18 @@ describe('VehiclesService — contrato de fio da listagem (FIX-0263/0264)', () =
 
   afterEach(() => {
     httpMock.verify();
+  });
+
+  it('getPendencias lê a lista do veículo com um GET, sem parâmetros', () => {
+    let received: VehiclePendencia[] = [];
+    service.getPendencias('veh-1').subscribe((res) => (received = res));
+
+    const req = httpMock.expectOne(`${BASE}/veh-1/gerencia/pendencias`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.keys()).toEqual([]);
+    req.flush([{ type: 'FINE', id: 'f-1', urgency: 'OVERDUE' }]);
+
+    expect(received.map((p) => p.id)).toEqual(['f-1']);
   });
 
   it('expõe `sold` do item da listagem como boolean, pinando as chaves do wire', () => {
