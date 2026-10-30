@@ -1750,6 +1750,7 @@ describe('Billing', () => {
     pixAvailable(): boolean;
     openPix(): void;
     closePix(): void;
+    closeSheet(): void;
     createPix(): void;
     copyPix(): Promise<void>;
     checkPixNow(): void;
@@ -1919,7 +1920,7 @@ describe('Billing', () => {
     expect(q('hero-card')?.disabled).toBe(false);
   });
 
-  it('payment group: the Pix row only exists when the server offers Pix — never "Em breve"', () => {
+  it('payment group: no Pix row, with or without Pix; paying lives in the "Pagar" buttons', () => {
     summarySignal.set(pastDueSummary({ invoices: [OPEN_INVOICE] }));
     let r = renderV2();
     expect(r.q('row-pix')).toBeNull();
@@ -1931,8 +1932,28 @@ describe('Billing', () => {
 
     summarySignal.set(pixSummary());
     r = renderV2();
-    expect(r.q('row-pix')?.textContent).toContain('Pagar com Pix');
+    expect(r.q('row-pix')).toBeNull();
+    expect(r.q('row-pix-off')).toBeNull();
+    expect(r.q('hero-pay')).not.toBeNull();
     expect(r.el.textContent).not.toContain('Em breve');
+  });
+
+  it('the open invoice "Pagar" does exactly what the hero "Pagar" does', () => {
+    summarySignal.set(pixSummary({ invoices: [OPEN_INVOICE] }));
+    withPixApi();
+    const { c, fixture, q } = renderV2();
+
+    q('inv-pay')!.click();
+    fixture.detectChanges();
+    expect(c.sheet()).toBe('choose');
+    c.closeSheet();
+    fixture.destroy();
+
+    summarySignal.set(pastDueSummary({ invoices: [OPEN_INVOICE] }));
+    const noPix = renderV2();
+    noPix.q('inv-pay')!.click();
+    expect(noPix.c.sheet()).toBeNull();
+    expect(externalNav.openExternal).toHaveBeenCalledWith('https://invoice.stripe.com/i/1');
   });
 
   it('cancel follows canManage, not only the subscription status', () => {

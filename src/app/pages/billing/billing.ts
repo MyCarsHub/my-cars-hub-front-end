@@ -1589,9 +1589,6 @@ export class Billing implements OnInit, OnDestroy {
     );
   });
 
-  /** O servidor oferece Pix (o chip "Em breve" sai mesmo para quem só olha). */
-  protected readonly pixOffered = computed(() => (this.summary()?.payWith ?? []).includes('PIX'));
-
   /** Cartão disponível para pagar a fatura (página da Stripe ou troca de cartão). */
   protected readonly canPayByCard = computed(() => this.canPayInvoice() || this.has('UPDATE_CARD'));
 
@@ -1850,12 +1847,6 @@ export class Billing implements OnInit, OnDestroy {
       default:
         return { cls: 'n', label: inv.status };
     }
-  }
-
-  /** "Pagar" da linha em aberto: Pix quando existe, senão o cartão. */
-  protected payOpenInvoice(): void {
-    if (this.pixAvailable()) this.openPix();
-    else this.openPay();
   }
 
   protected canPayRow(inv: BillingInvoice): boolean {
@@ -2331,7 +2322,7 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   /**
-   * "Pagar R$ …" do cartão de status — o ÚNICO lugar de pagar. Com Pix e cartão,
+   * "Pagar" do cartão de status e da fatura em aberto: o mesmo caminho nos dois. Com Pix e cartão,
    * uma escolha curta; só com um deles, direto para ele.
    */
   protected payNow(): void {

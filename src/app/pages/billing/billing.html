@@ -280,20 +280,6 @@
           <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
         }
       </button>
-      @if (pixAvailable()) {
-        <button type="button" class="row" (click)="openPix()" data-testid="row-pix">
-          <span class="tile tint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
-          <span class="t"><b>Pagar com Pix</b><small>QR code ou copia e cola · confirma na hora</small></span>
-          <span class="v strong">Pagar</span>
-          <svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
-        </button>
-      } @else if (pixOffered()) {
-        <!-- Pix só aparece quando o servidor o oferece; sem "Em breve". -->
-        <div class="row" aria-disabled="true" data-testid="row-pix-off">
-          <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l3 3-2 2a1.4 1.4 0 0 1-2 0l-2-2zM6.5 9l2-2 2.3 2.3a1.7 1.7 0 0 0 2.4 0L15.5 7l2 2L20.5 12l-3 3-2-2-2.3 2.3a1.7 1.7 0 0 1-2.4 0L8.5 13l-2 2-3-3zM12 20.5l-3-3 2-2a1.4 1.4 0 0 1 2 0l2 2z"/></svg></span>
-          <span class="t"><b>Pagar com Pix</b><small>{{ canManage() ? 'Disponível quando houver fatura em aberto' : 'Só o dono da empresa pode pagar' }}</small></span>
-        </div>
-      }
     </div>
   </ng-template>
 
@@ -360,7 +346,7 @@
                 <td class="r mono">{{ invoiceAmount(inv) }}</td>
                 <td class="r">
                   @if (canPayRow(inv)) {
-                    <button type="button" class="btn primary sm" (click)="payOpenInvoice()" data-testid="inv-pay">Pagar</button>
+                    <button type="button" class="btn primary sm" (click)="payNow()" data-testid="inv-pay">Pagar</button>
                   } @else if (inv.pdfUrl || inv.hostedUrl) {
                     <button type="button" class="icbtn" (click)="openInvoice(inv)" [attr.aria-label]="'Abrir fatura de ' + invoiceDate(inv)">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
