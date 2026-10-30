@@ -12,6 +12,7 @@ import { NotificationService } from '../../services/notification.service';
 import { ApiErrorService } from '../../services/api-error.service';
 import { FipeService } from '../../services/fipe.service';
 import { SessionService } from '../../services/session.service';
+import { ImageCompressionService } from '../../services/image-compression.service';
 
 /**
  * Foto do veículo no formulário (cadastro e edição): campo opcional, só dono e
@@ -30,6 +31,7 @@ describe('VehicleForm — foto do veículo', () => {
   let listDocuments: ReturnType<typeof vi.fn>;
   let documentSignedUrl: ReturnType<typeof vi.fn>;
   let notifySuccess: ReturnType<typeof vi.fn>;
+  let compress: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.spyOn>;
   let fixture: ReturnType<typeof TestBed.createComponent<VehicleForm>>;
 
@@ -57,11 +59,13 @@ describe('VehicleForm — foto do veículo', () => {
     });
   }
 
-  function choose(file: File): void {
+  /** O campo comprime antes de entregar: o gesto só termina quando a promessa resolve. */
+  async function choose(file: File): Promise<void> {
     const input = q<HTMLInputElement>('[data-photo-input]');
     if (!input) throw new Error('o seletor da foto não está na tela');
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     input.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
     fixture.detectChanges();
   }
 
@@ -95,12 +99,14 @@ describe('VehicleForm — foto do veículo', () => {
       .mockReturnValue(opts.listPending ? NEVER : of([{ id: 'doc-foto', kind: 'PHOTO' }]));
     documentSignedUrl = vi.fn().mockReturnValue(of({ url: 'https://cdn.test/foto.jpg' }));
     notifySuccess = vi.fn();
+    compress = vi.fn((file: File) => Promise.resolve(file));
 
     await TestBed.configureTestingModule({
       imports: [VehicleForm],
       providers: [
         provideRouter([]),
         ApiErrorService,
+        { provide: ImageCompressionService, useValue: { compress } },
         {
           provide: VehiclesService,
           useValue: {
@@ -147,9 +153,9 @@ describe('VehicleForm — foto do veículo', () => {
       await setup({ role: 'OWNER' });
     });
 
-    it('cria COM foto: o veículo é criado primeiro e a foto sobe como PHOTO, depois navega', () => {
+    it('cria COM foto: o veículo é criado primeiro e a foto sobe como PHOTO, depois navega', async () => {
       fillValidVehicle();
-      choose(photo);
+      await choose(photo);
       expect(q('[data-photo-preview]')).not.toBeNull();
       expect(q('[data-photo-name]')?.textContent).toContain('frente.jpg');
 
@@ -177,14 +183,14 @@ describe('VehicleForm — foto do veículo', () => {
       expect(navigate).toHaveBeenCalledWith(['/veiculos', NEW_ID]);
     });
 
-    it('a falha da foto NÃO perde o veículo: avisa, oferece reenviar e o reenvio sobe só a foto', () => {
+    it('a falha da foto NÃO perde o veículo: avisa, oferece reenviar e o reenvio sobe só a foto', async () => {
       uploadDocument.mockReturnValueOnce(
         throwError(
           () => new HttpErrorResponse({ status: 500, error: { message: 'Falha no armazenamento.' } }),
         ),
       );
       fillValidVehicle();
-      choose(photo);
+      await choose(photo);
       api().submit();
       fixture.detectChanges();
 
@@ -205,10 +211,10 @@ describe('VehicleForm — foto do veículo', () => {
       expect(navigate).toHaveBeenCalledWith(['/veiculos', NEW_ID]);
     });
 
-    it('«Continuar sem a foto» leva ao veículo já criado', () => {
+    it('«Continuar sem a foto» leva ao veículo já criado', async () => {
       uploadDocument.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })));
       fillValidVehicle();
-      choose(photo);
+      await choose(photo);
       api().submit();
       fixture.detectChanges();
 
@@ -218,10 +224,10 @@ describe('VehicleForm — foto do veículo', () => {
       expect(create).toHaveBeenCalledTimes(1);
     });
 
-    it('recusa PDF e HEIC antes de qualquer envio, com a razão na tela', () => {
-      choose(new File(['x'], 'crlv.pdf', { type: 'application/pdf' }));
+    it('recusa PDF e HEIC antes de qualquer envio, com a razão na tela', async () => {
+      await choose(new File(['x'], 'crlv.pdf', { type: 'application/pdf' }));
       expect(q('[data-photo-rejection]')?.textContent).toContain('JPG, PNG ou WebP');
-      choose(new File(['x'], 'iphone.heic', { type: 'image/heic' }));
+      await choose(new File(['x'], 'iphone.heic', { type: 'image/heic' }));
       expect(q('[data-photo-rejection]')).not.toBeNull();
       expect(q('[data-photo-preview]')).toBeNull();
 
@@ -230,8 +236,8 @@ describe('VehicleForm — foto do veículo', () => {
       expect(uploadDocument).not.toHaveBeenCalled();
     });
 
-    it('remover antes de salvar descarta a escolha', () => {
-      choose(photo);
+    it('remover antes de salvar descarta a escolha', async () => {
+      await choose(photo);
       click('[data-photo-remove]');
       expect(q('[data-photo-name]')).toBeNull();
       expect(q('[data-photo-remove]')).toBeNull();
@@ -241,8 +247,8 @@ describe('VehicleForm — foto do veículo', () => {
       expect(uploadDocument).not.toHaveBeenCalled();
     });
 
-    it('botões a partir de 44px (min-h-11) e texto de 16px (text-base)', () => {
-      choose(photo);
+    it('botões a partir de 44px (min-h-11) e texto de 16px (text-base)', async () => {
+      await choose(photo);
       for (const sel of ['[data-photo-pick]', '[data-photo-remove]']) {
         const cls = q(sel)?.className ?? '';
         expect(cls).toContain('min-h-11');
@@ -251,16 +257,118 @@ describe('VehicleForm — foto do veículo', () => {
       expect(q('[data-photo-thumb]')?.className).toContain('aspect-square');
     });
 
-    it('não envia a foto enquanto o veículo ainda está sendo criado (a foto vem DEPOIS)', () => {
+    it('não envia a foto enquanto o veículo ainda está sendo criado (a foto vem DEPOIS)', async () => {
       const pending = new Subject<{ id: string }>();
       create.mockReturnValue(pending);
       fillValidVehicle();
-      choose(photo);
+      await choose(photo);
       api().submit();
       expect(uploadDocument).not.toHaveBeenCalled();
       pending.next({ id: NEW_ID });
       pending.complete();
       expect(uploadDocument).toHaveBeenCalledWith(NEW_ID, 'PHOTO', photo);
+    });
+  });
+
+  describe('compressão ao escolher', () => {
+    const MB = 1024 * 1024;
+
+    function sized(name: string, bytes: number): File {
+      const file = new File(['x'], name, { type: 'image/jpeg' });
+      Object.defineProperty(file, 'size', { value: bytes, configurable: true });
+      return file;
+    }
+
+    beforeEach(async () => {
+      await setup({ role: 'OWNER' });
+    });
+
+    it('o que sobe é o arquivo COMPRIMIDO, não o original', async () => {
+      const original = sized('camera.jpg', 6 * MB);
+      const light = sized('camera-leve.jpg', 400 * 1024);
+      compress.mockResolvedValue(light);
+
+      fillValidVehicle();
+      await choose(original);
+      api().submit();
+      fixture.detectChanges();
+
+      expect(compress).toHaveBeenCalledWith(original);
+      expect(uploadDocument).toHaveBeenCalledWith(NEW_ID, 'PHOTO', light);
+    });
+
+    it('foto acima do teto que a compressão resolve é ACEITA: o teto vale para o resultado', async () => {
+      compress.mockResolvedValue(sized('reduzida.jpg', MB));
+
+      await choose(sized('camera.jpg', 18 * MB));
+
+      expect(q('[data-photo-rejection]')).toBeNull();
+      expect(q('[data-photo-name]')?.textContent).toContain('reduzida.jpg');
+    });
+
+    it('sem conseguir reduzir abaixo do teto, recusa com o limite real e não entrega o arquivo', async () => {
+      await choose(sized('nao-decodifica.png', 11 * MB));
+
+      const rejection = q('[data-photo-rejection]')?.textContent ?? '';
+      expect(rejection).toContain('11.0 MB');
+      expect(rejection).toContain('o limite é 10MB');
+      expect(rejection).not.toContain('20MB');
+      expect(q('[data-photo-name]')).toBeNull();
+    });
+
+    it('a dica do campo promete o limite real', () => {
+      const texto = host().textContent ?? '';
+      expect(texto).toContain('até 10MB');
+      expect(texto).not.toContain('até 20MB.');
+    });
+
+    it('enquanto comprime, o campo avisa e o Salvar fica travado (nem a tecla Enter passa)', async () => {
+      let finish: (file: File) => void = () => undefined;
+      compress.mockReturnValue(new Promise<File>((resolve) => (finish = resolve)));
+      fillValidVehicle();
+
+      const input = q<HTMLInputElement>('[data-photo-input]');
+      Object.defineProperty(input, 'files', { value: [photo], configurable: true });
+      input?.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(q('[data-photo-preparing]')?.textContent).toContain('Preparando a foto');
+      expect(q<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+      expect(q<HTMLButtonElement>('[data-photo-pick]')?.disabled).toBe(true);
+
+      api().submit();
+      expect(create).not.toHaveBeenCalled();
+
+      finish(photo);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(q('[data-photo-preparing]')).toBeNull();
+      expect(q<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+
+      api().submit();
+      fixture.detectChanges();
+
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(uploadDocument).toHaveBeenCalledWith(NEW_ID, 'PHOTO', photo);
+    });
+
+    it('sair da tela no meio da compressão não estoura ao terminar', async () => {
+      let finish: (file: File) => void = () => undefined;
+      compress.mockReturnValue(new Promise<File>((resolve) => (finish = resolve)));
+
+      const input = q<HTMLInputElement>('[data-photo-input]');
+      Object.defineProperty(input, 'files', { value: [photo], configurable: true });
+      input?.dispatchEvent(new Event('change'));
+      const form = fixture.componentInstance as unknown as { photoFile: () => File | null };
+      fixture.destroy();
+
+      // Emitir num output destruído lança dentro do handler assíncrono: o vitest
+      // acusa a rejeição solta e o run fica vermelho.
+      finish(photo);
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(form.photoFile()).toBeNull();
     });
   });
 
@@ -279,8 +387,8 @@ describe('VehicleForm — foto do veículo', () => {
       expect(q('[data-photo-remove]')).not.toBeNull();
     });
 
-    it('trocar envia a NOVA primeiro e só então apaga a antiga pelo id (nunca acumula)', () => {
-      choose(otherPhoto);
+    it('trocar envia a NOVA primeiro e só então apaga a antiga pelo id (nunca acumula)', async () => {
+      await choose(otherPhoto);
       api().submit();
       fixture.detectChanges();
 
@@ -294,11 +402,11 @@ describe('VehicleForm — foto do veículo', () => {
       expect(navigate).toHaveBeenCalledWith(['/veiculos', EDIT_ID]);
     });
 
-    it('se apagar a antiga falhar, tenta de novo em silêncio e a troca não vira erro', () => {
+    it('se apagar a antiga falhar, tenta de novo em silêncio e a troca não vira erro', async () => {
       deleteDocument
         .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })))
         .mockReturnValueOnce(of(void 0));
-      choose(otherPhoto);
+      await choose(otherPhoto);
       api().submit();
       fixture.detectChanges();
 
@@ -307,9 +415,9 @@ describe('VehicleForm — foto do veículo', () => {
       expect(navigate).toHaveBeenCalledWith(['/veiculos', EDIT_ID]);
     });
 
-    it('se apagar a antiga falhar sempre, a foto nova já está salva e nada é mostrado como erro', () => {
+    it('se apagar a antiga falhar sempre, a foto nova já está salva e nada é mostrado como erro', async () => {
       deleteDocument.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
-      choose(otherPhoto);
+      await choose(otherPhoto);
       api().submit();
       fixture.detectChanges();
 
@@ -340,9 +448,9 @@ describe('VehicleForm — foto do veículo', () => {
       expect(uploadDocument).not.toHaveBeenCalled();
     });
 
-    it('se o ENVIO da nova falha, a foto antiga continua lá: nada é apagado', () => {
+    it('se o ENVIO da nova falha, a foto antiga continua lá: nada é apagado', async () => {
       uploadDocument.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
-      choose(otherPhoto);
+      await choose(otherPhoto);
       api().submit();
       fixture.detectChanges();
 
@@ -369,7 +477,7 @@ describe('VehicleForm — foto do veículo', () => {
       await setup({ role: 'OWNER' });
       uploadDocument.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 504 })));
       fillValidVehicle();
-      choose(photo);
+      await choose(photo);
       api().submit();
       fixture.detectChanges();
 

@@ -2,7 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { VehiclesList } from './vehicles-list';
@@ -35,12 +36,15 @@ describe('VehiclesList — cards com miniatura', () => {
   let error: ReturnType<typeof signal<string | null>>;
   let listSpy: ReturnType<typeof vi.fn>;
 
-  function render(initial: VehicleListItem[], opts: { loading?: boolean; error?: string | null } = {}) {
+  function render(
+    initial: VehicleListItem[],
+    opts: { loading?: boolean; error?: string | null; list?: Observable<unknown> } = {},
+  ) {
     TestBed.resetTestingModule();
     items = signal<VehicleListItem[]>(initial);
     loading = signal(opts.loading ?? false);
     error = signal<string | null>(opts.error ?? null);
-    listSpy = vi.fn().mockReturnValue(of({ content: initial, total: initial.length }));
+    listSpy = vi.fn().mockReturnValue(opts.list ?? of({ content: initial, total: initial.length }));
 
     TestBed.configureTestingModule({
       imports: [VehiclesList],
@@ -125,6 +129,94 @@ describe('VehiclesList — cards com miniatura', () => {
 
     expect(host.querySelector('[data-vehicle-photo]')).toBeNull();
     expect(host.querySelector('[data-vehicle-photo-placeholder]')).not.toBeNull();
+  });
+
+  /**
+   * A lista fica retida no serviço raiz e sobrevive à navegação; a URL assinada
+   * vive poucos minutos. Voltar à tela repinta as URLs vencidas enquanto a
+   * recarga não responde. A ordem que apagava a foto, medida em produção: a
+   * recarga parte, a URL velha falha, a lista nova chega.
+   */
+  describe('URL assinada vencida na lista retida', () => {
+    const stale: VehicleListItem = {
+      ...base,
+      photoUrl: 'https://cdn.test/v-1.jpg?token=vencido',
+      photoSource: 'VEHICLE',
+    };
+    const fresh: VehicleListItem = { ...stale, photoUrl: 'https://cdn.test/v-1.jpg?token=novo' };
+
+    const photo = (host: HTMLElement) => host.querySelector<HTMLImageElement>('[data-vehicle-photo]');
+    const placeholder = (host: HTMLElement) => host.querySelector('[data-vehicle-photo-placeholder]');
+
+    function failPhoto(fixture: { detectChanges(): void }, host: HTMLElement): void {
+      photo(host)!.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+    }
+
+    /** Dispara uma recarga pelo gesto real: trocar o filtro de tipo. */
+    function changeFilter(fixture: { detectChanges(): void }, host: HTMLElement): void {
+      const type = host.querySelector<HTMLSelectElement>('#veiculos-type')!;
+      type.value = type.options[1].value;
+      type.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    }
+
+    it('a falha da URL velha não suprime a URL nova que chega depois', () => {
+      const pending = new Subject<unknown>();
+      const { fixture, host } = render([stale], { list: pending });
+
+      failPhoto(fixture, host);
+      expect(placeholder(host)).not.toBeNull();
+
+      items.set([fresh]);
+      pending.next({ content: [fresh], total: 1 });
+      pending.complete();
+      fixture.detectChanges();
+
+      expect(photo(host)?.getAttribute('src')).toBe(fresh.photoUrl);
+      expect(placeholder(host)).toBeNull();
+    });
+
+    it('a URL nova que também falha cai no placeholder, sem quadro quebrado', () => {
+      const { fixture, host } = render([fresh]);
+
+      failPhoto(fixture, host);
+
+      expect(photo(host)).toBeNull();
+      expect(placeholder(host)).not.toBeNull();
+    });
+
+    it('a recarga em voo não devolve à tela a URL que já falhou', () => {
+      const { fixture, host } = render([stale]);
+      failPhoto(fixture, host);
+
+      listSpy.mockReturnValue(new Subject<unknown>());
+      changeFilter(fixture, host);
+
+      expect(photo(host)).toBeNull();
+      expect(placeholder(host)).not.toBeNull();
+    });
+
+    it('a falha não sobrevive à carga seguinte: a mesma URL volta a ser tentada', () => {
+      const { fixture, host } = render([fresh]);
+      failPhoto(fixture, host);
+
+      changeFilter(fixture, host);
+
+      expect(photo(host)?.getAttribute('src')).toBe(fresh.photoUrl);
+      expect(placeholder(host)).toBeNull();
+    });
+
+    it('recarga que falha não finge que a URL velha voltou a valer', () => {
+      const { fixture, host } = render([stale]);
+      failPhoto(fixture, host);
+
+      listSpy.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+      changeFilter(fixture, host);
+
+      expect(photo(host)).toBeNull();
+      expect(placeholder(host)).not.toBeNull();
+    });
   });
 
   /**

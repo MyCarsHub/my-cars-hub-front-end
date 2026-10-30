@@ -8,10 +8,11 @@ import {
   computed,
   inject,
   input,
+  output,
   signal,
   viewChild,
 } from '@angular/core';
-import { Observable, Subscription } from 'rxjs';
+import { EMPTY, Observable, Subscription, from, of, switchMap } from 'rxjs';
 import { PageCard } from '../core/page-card/page-card';
 import { ConfirmDialog } from '../core/confirm-dialog/confirm-dialog';
 import { AlertBanner } from '../alert-banner/alert-banner';
@@ -20,6 +21,7 @@ import { NotificationService } from '../../services/notification.service';
 import { DocumentPreviewService } from '../document-preview/document-preview.service';
 import {
   MAX_DOCUMENT_BYTES,
+  MAX_DOCUMENT_LABEL,
   DOCUMENT_ACCEPT,
   formatDocumentSize,
   isAllowedDocumentFile,
@@ -41,6 +43,16 @@ export interface DocumentSlotDef {
   gated?: boolean;
   /** Mensagem inline quando um envio do kind vedado é recusado. */
   gatedRefusalMessage?: string;
+  /**
+   * Preparo do arquivo antes do envio. Só para o slot que PEDE: foto de veículo
+   * comprime; documento nunca (ver a nota "NÃO COMPRIME" do card). Com `prepare`,
+   * o teto vale para o arquivo PREPARADO, não para o que o usuário escolheu.
+   */
+  prepare?: (file: File) => Promise<File>;
+  /** Teto próprio do tipo, quando é menor que `MAX_DOCUMENT_BYTES`. */
+  maxBytes?: number;
+  /** O mesmo teto, como o usuário lê nas mensagens. */
+  maxLabel?: string;
 }
 
 /** O mínimo estrutural que o card precisa de um documento persistido. */
@@ -117,7 +129,9 @@ export interface DocumentSlot {
  *
  * NÃO COMPRIME o arquivo, e isso também é deliberado: comprimir uma CNH a deixa
  * ILEGÍVEL, o que anula a razão de anexá-la. A compressão do
- * `RentalInspectionService` serve foto de vistoria e não vale aqui.
+ * `RentalInspectionService` serve foto de vistoria e não vale aqui. A única
+ * exceção é opt-in e por slot (`DocumentSlotDef.prepare`): a foto do veículo é
+ * imagem de vitrine, não documento a ser lido.
  */
 @Component({
   selector: 'app-documents-card',
@@ -149,6 +163,13 @@ export class DocumentsCard implements OnInit, OnDestroy {
    */
   readonly nounSingular = input('documento');
   readonly nounPlural = input('documentos');
+
+  /**
+   * A lista como o card a conhece: depois de carregar, enviar ou remover. Quem
+   * mostra algo derivado dela (a foto no detalhe do veículo) acompanha por aqui,
+   * sem um segundo GET e sem ficar para trás quando o usuário mexe no slot.
+   */
+  readonly documentsChange = output<DocumentLike[]>();
 
   /** O substantivo em início de frase ("Documento enviado." / "Anexo enviado."). */
   protected readonly nounCapitalized = computed(() => {
@@ -264,10 +285,12 @@ export class DocumentsCard implements OnInit, OnDestroy {
         next: (docs) => {
           this.documents.set(Array.isArray(docs) ? docs : []);
           this.loading.set(false);
+          this.documentsChange.emit(this.documents());
         },
         error: (err: HttpErrorResponse) => {
           this.loading.set(false);
           this.documents.set([]);
+          this.documentsChange.emit(this.documents());
           this.error.set(
             this.apiErrors.messageFor(err, `Não foi possível carregar os ${this.nounPlural()}.`),
           );
@@ -345,35 +368,46 @@ export class DocumentsCard implements OnInit, OnDestroy {
       this.error.set('Formato não suportado. Aceitos: PDF, JPG, PNG, WebP, HEIC/HEIF.');
       return;
     }
-    if (file.size > MAX_DOCUMENT_BYTES) {
-      this.pendingKind.set(null);
-      this.error.set(
-        `O arquivo tem ${formatDocumentSize(file.size)} e o limite é 20MB. ` +
-          `Fotografe o ${this.nounSingular()} com menos resolução e envie de novo.`,
-      );
-      return;
-    }
-
+    const def = this.slotDefs().find((d) => d.kind === kind);
     this.error.set(null);
     // O estado "Enviando…" nasce AQUI, junto do request, e não no toque do
     // slot: o diálogo nativo pode ter sido dispensado sem escolher arquivo.
     this.uploadingKind.set(kind);
-    // Sem compressão: comprimir uma CNH a deixa ilegível.
-    this.uploadSub = this.ops()
-      .upload(kind, file)
+    // Sem compressão, salvo o slot que pede (`prepare`): comprimir uma CNH a
+    // deixa ilegível. O preparo mora dentro da assinatura para o "Cancelar
+    // envio" valer também enquanto ele roda.
+    this.uploadSub = (def?.prepare ? from(def.prepare(file)) : of(file))
+      .pipe(
+        switchMap((ready) => {
+          if (ready.size > (def?.maxBytes ?? MAX_DOCUMENT_BYTES)) {
+            this.finishUpload();
+            this.error.set(
+              `O arquivo tem ${formatDocumentSize(ready.size)} e o limite é ${this.limitLabel(def)}. ` +
+                `Fotografe o ${this.nounSingular()} com menos resolução e envie de novo.`,
+            );
+            return EMPTY;
+          }
+          return this.ops().upload(kind, ready);
+        }),
+      )
       .subscribe({
         next: (doc) => {
           this.finishUpload();
           // O slot tinha vaga (cheio não abre o seletor), então o append
           // preenche o tipo — e preserva eventual dado legado de outros tipos.
           this.documents.update((list) => [...list, doc]);
+          this.documentsChange.emit(this.documents());
           this.notifications.success(`${this.nounCapitalized()} enviado.`);
         },
         error: (err: HttpErrorResponse) => {
           this.finishUpload();
-          this.error.set(this.uploadErrorMessage(err));
+          this.error.set(this.uploadErrorMessage(err, def));
         },
       });
+  }
+
+  private limitLabel(def: DocumentSlotDef | undefined): string {
+    return def?.maxLabel ?? MAX_DOCUMENT_LABEL;
   }
 
   /**
@@ -385,11 +419,14 @@ export class DocumentsCard implements OnInit, OnDestroy {
    * anexos por pai entre eles — e `messageFor` já os prioriza sobre o
    * fallback, então o texto do servidor é o que aparece no banner inline.
    */
-  private uploadErrorMessage(err: HttpErrorResponse): string | null {
+  private uploadErrorMessage(
+    err: HttpErrorResponse,
+    def: DocumentSlotDef | undefined,
+  ): string | null {
     this.apiErrors.claim(err);
     if (err.status === 0) return null;
     if (err.status === 413) {
-      return 'O arquivo passou do limite de 20MB. Reduza a qualidade e envie de novo.';
+      return `O arquivo passou do limite de ${this.limitLabel(def)}. Reduza a qualidade e envie de novo.`;
     }
     return this.apiErrors.messageFor(
       err,
@@ -448,6 +485,7 @@ export class DocumentsCard implements OnInit, OnDestroy {
           this.deletingBusy.set(false);
           this.deleting.set(null);
           this.documents.update((list) => list.filter((d) => d.id !== doc.id));
+          this.documentsChange.emit(this.documents());
           this.notifications.success(`${this.nounCapitalized()} removido.`);
         },
         error: (err: HttpErrorResponse) => {

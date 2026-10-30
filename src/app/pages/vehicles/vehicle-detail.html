@@ -26,16 +26,34 @@
 
     <!-- Header -->
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
-      <div class="flex items-center gap-3 min-w-0">
-        <div class="w-12 h-12 rounded-xl bg-primary-500 text-white flex items-center justify-center
-                    shrink-0 shadow-inner" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
-            <circle cx="6.5" cy="16.5" r="2.5"/>
-            <circle cx="16.5" cy="16.5" r="2.5"/>
-          </svg>
-        </div>
+      <!-- Com foto, ela ocupa a largura no celular e a placa desce; sem foto
+           (ou se a foto falhar) fica o ícone, na mesma linha da placa. -->
+      <div
+        class="flex gap-3 min-w-0"
+        [class.items-center]="!showPhoto()"
+        [class.flex-col]="showPhoto()"
+        [class.sm:flex-row]="showPhoto()"
+        [class.sm:items-center]="showPhoto()"
+        [class.sm:gap-4]="showPhoto()"
+      >
+        @if (showPhoto()) {
+          <app-vehicle-detail-photo
+            [vehicleId]="v.id"
+            [photo]="photoDocument()!"
+            [plate]="formatPlate(v.plate)"
+            (failed)="onPhotoFailed()"
+          />
+        } @else {
+          <div class="w-12 h-12 rounded-xl bg-primary-500 text-white flex items-center justify-center
+                      shrink-0 shadow-inner" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
+              <circle cx="6.5" cy="16.5" r="2.5"/>
+              <circle cx="16.5" cy="16.5" r="2.5"/>
+            </svg>
+          </div>
+        }
         <div class="min-w-0">
           <h2 class="text-xl sm:text-2xl font-bold text-fg tracking-wider tabular-nums">
             {{ formatPlate(v.plate) }}
@@ -285,7 +303,11 @@
            Largura total pelo idioma desta página (lg:col-span-2 DENTRO da grid):
            cada linha carrega nome de arquivo mais dois botões e aperta em meia
            coluna de desktop. -->
-      <app-vehicle-documents-card [vehicleId]="v.id" class="lg:col-span-2" />
+      <app-vehicle-documents-card
+        [vehicleId]="v.id"
+        class="lg:col-span-2"
+        (documentsChange)="onDocumentsChange($event)"
+      />
 
       <!-- IPVA -->
       @if (hasIpva()) {

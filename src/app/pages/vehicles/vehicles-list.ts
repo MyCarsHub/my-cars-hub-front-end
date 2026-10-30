@@ -128,9 +128,14 @@ export class VehiclesList implements OnInit {
   protected readonly skeletonSlots = [0, 1, 2, 3];
 
   /**
-   * Miniaturas que falharam ao carregar (URL assinada vencida, objeto sumido).
-   * O card cai no placeholder em vez de mostrar um quadro quebrado. Zera a cada
-   * carga: a página nova chega com URLs reassinadas.
+   * URLs de miniatura que falharam ao carregar (assinatura vencida, objeto
+   * sumido). O card cai no placeholder em vez de mostrar um quadro quebrado.
+   *
+   * A chave é a URL, NUNCA o veículo. A falha é da assinatura, e não do carro: a
+   * lista fica retida no serviço, então voltar à tela pinta URLs já vencidas
+   * enquanto a recarga não responde. Com a chave no id, o erro dessa URL velha
+   * apagava também a URL nova que vinha a caminho, e uma foto gravada sumia até
+   * a carga seguinte. A URL nova nunca está neste conjunto.
    */
   private readonly brokenPhotos = signal<ReadonlySet<string>>(new Set());
 
@@ -217,16 +222,15 @@ export class VehiclesList implements OnInit {
 
   protected photoFor(vehicle: VehicleListItem): string | null {
     const url = vehicle.photoUrl ?? null;
-    return url && !this.brokenPhotos().has(vehicle.id) ? url : null;
+    return url && !this.brokenPhotos().has(url) ? url : null;
   }
 
-  protected onPhotoError(id: string): void {
-    this.brokenPhotos.update((current) => new Set(current).add(id));
+  protected onPhotoError(url: string): void {
+    this.brokenPhotos.update((current) => new Set(current).add(url));
   }
 
   private reload(page: number): void {
     this.actionError.set(null);
-    this.brokenPhotos.set(new Set());
     this.vehiclesService
       .list({
         q: this.search().trim() || undefined,
@@ -241,9 +245,14 @@ export class VehiclesList implements OnInit {
         // as assinaturas de foto.
         includePhoto: true,
       })
-      // `VehiclesService` já expõe a mensagem em `error()` (banner inline);
-      // aqui só reivindicamos o erro pra o safety net do interceptor não toastar.
-      .subscribe({ error: (err: HttpErrorResponse) => this.apiErrors.claim(err) });
+      .subscribe({
+        // Só agora: zerar antes da resposta devolveria à tela, por um instante,
+        // as URLs vencidas que já tinham falhado.
+        next: () => this.brokenPhotos.set(new Set()),
+        // `VehiclesService` já expõe a mensagem em `error()` (banner inline);
+        // aqui só reivindicamos o erro pra o safety net do interceptor não toastar.
+        error: (err: HttpErrorResponse) => this.apiErrors.claim(err),
+      });
   }
 
   protected statusLabel(status: VehicleStatus): string {

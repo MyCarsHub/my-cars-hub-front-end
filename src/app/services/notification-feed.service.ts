@@ -1,10 +1,11 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { DestroyRef, Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Observable, catchError, finalize, map, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { PagedResponse } from '../types/paged.types';
 import { MarkAllReadResult, NotificationItem, UnreadCount } from '../types/notification-feed.types';
+import { OWNED_HTTP_ERRORS } from './http-errors.context';
 import { SessionService } from './session.service';
 import { TenantResetRegistry } from './tenant-reset.registry';
 
@@ -139,10 +140,24 @@ export class NotificationFeedService {
     );
   }
 
-  /** `GET /v1/notifications/unread-count`. */
+  /**
+   * `GET /v1/notifications/unread-count`.
+   *
+   * Roda sozinho, de 60 em 60s e no instante em que a aba volta a ficar visível,
+   * inclusive quando o Android devolve a página depois da galeria de fotos. Nada
+   * ali foi pedido pelo usuário, então falha de rede não vira "Sem conexão com o
+   * servidor.": o próximo tick corrige o contador. O `error` vazio de quem assina
+   * não resolveria, porque o `errorInterceptor` toasta antes de chegar nele.
+   *
+   * `OWNED_HTTP_ERRORS`, não `SILENT_HTTP_ERRORS`: este desligaria também o desvio
+   * de sessão, e o poll é justamente o que tira da tela uma aba com token vencido
+   * (e encerra a impersonação expirada).
+   */
   refreshUnreadCount(): Observable<UnreadCount> {
     return this.http
-      .get<UnreadCount>(`${BASE}/unread-count`)
+      .get<UnreadCount>(`${BASE}/unread-count`, {
+        context: new HttpContext().set(OWNED_HTTP_ERRORS, true),
+      })
       .pipe(tap((res) => this._unreadCount.set(res?.count ?? 0)));
   }
 

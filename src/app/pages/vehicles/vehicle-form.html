@@ -378,6 +378,7 @@
             [disabled]="saving() || sold() || photoLoadFailed() || photoLoading()"
             (filePicked)="onPhotoPicked($event)"
             (removed)="onPhotoRemoved()"
+            (preparingChange)="photoPreparing.set($event)"
           />
           @if (photoLoadFailed()) {
             <div class="px-4 pb-4 sm:px-6 sm:pb-6">
@@ -395,7 +396,7 @@
                   type="button"
                   data-photo-retry
                   (click)="retryPhoto()"
-                  [disabled]="saving()"
+                  [disabled]="saving() || photoPreparing()"
                   class="inline-flex items-center justify-center min-h-11 px-4 rounded-xl text-base
                          font-semibold bg-primary-500 text-white hover:bg-primary-600
                          disabled:opacity-60 disabled:cursor-not-allowed"
@@ -709,7 +710,7 @@
              acima, para o operador entender a regra em vez de procurar um bug. -->
         <button
           type="submit"
-          [disabled]="saving() || sold()"
+          [disabled]="saving() || sold() || photoPreparing()"
           [attr.title]="soldLockReason()"
           class="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-semibold bg-primary-500 text-white
                  hover:bg-primary-600 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
