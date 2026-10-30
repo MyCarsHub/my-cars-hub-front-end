@@ -14,8 +14,8 @@ describe('PLAN_PRICES', () => {
     expect(PLAN_PRICES.trialMonthly).toBe(0); // V59:479
     expect(PLAN_PRICES.starterMonthly).toBe(79.9); // V59:480
     expect(PLAN_PRICES.starterYearlyTotal).toBe(799); // V59:481
-    expect(PLAN_PRICES.proMonthly).toBe(159.9); // V127 (era 149,90 na V59)
-    expect(PLAN_PRICES.proYearlyTotal).toBe(1599); // V127 (era 1499,00 na V59)
+    expect(PLAN_PRICES.proMonthly).toBe(149.9); // V129
+    expect(PLAN_PRICES.proYearlyTotal).toBe(1499); // V129
     expect(PLAN_PRICES.enterpriseMonthly).toBe(299); // V59:484
     expect(PLAN_PRICES.enterpriseYearlyTotal).toBe(2990); // V59:485
   });
