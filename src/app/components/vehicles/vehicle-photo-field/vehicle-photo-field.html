@@ -4,6 +4,7 @@
     data-photo-thumb
     class="relative shrink-0 aspect-square size-[104px] @min-[592px]:size-[148px]
            rounded-xl overflow-hidden bg-surface-sunken flex items-center justify-center text-fg-subtle"
+    [class.animate-pulse]="preparing()"
   >
     @if (previewUrl(); as url) {
       @if (!brokenImage()) {
@@ -41,10 +42,14 @@
 
   <div class="min-w-0 flex-1 space-y-2">
     <p class="text-base text-fg-muted">
-      Opcional. É a foto que aparece na lista de veículos. Sem ela, a lista usa a frente da última
-      vistoria aprovada. JPG, PNG ou WebP, até 20MB.
+      Opcional. É a foto que aparece na lista e no detalhe do veículo. Sem ela, a lista usa a frente
+      da última vistoria aprovada. JPG, PNG ou WebP, até {{ maxLabel }}.
     </p>
-    @if (file(); as chosen) {
+    @if (preparing()) {
+      <p data-photo-preparing role="status" class="text-sm font-medium text-fg-body">
+        Preparando a foto…
+      </p>
+    } @else if (file(); as chosen) {
       <p data-photo-name class="text-sm text-fg-body truncate">{{ chosen.name }}</p>
     }
 
@@ -53,7 +58,7 @@
         type="button"
         data-photo-pick
         (click)="openPicker()"
-        [disabled]="disabled()"
+        [disabled]="locked()"
         class="inline-flex items-center justify-center min-h-11 px-4 rounded-xl text-base font-medium
                text-primary-700 dark:text-primary-400 bg-surface border border-edge hover:bg-surface-muted
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600
@@ -66,7 +71,7 @@
           type="button"
           data-photo-remove
           (click)="remove()"
-          [disabled]="disabled()"
+          [disabled]="locked()"
           class="inline-flex items-center justify-center min-h-11 px-4 rounded-xl text-base font-medium
                  text-fg-muted bg-surface border border-edge hover:bg-surface-muted hover:text-rose-700
                  dark:hover:text-rose-300

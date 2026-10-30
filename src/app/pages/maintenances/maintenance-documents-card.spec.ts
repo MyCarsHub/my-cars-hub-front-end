@@ -279,7 +279,7 @@ describe('MaintenanceDocumentsCard', () => {
     const texto = (host().textContent ?? '').replace(/\s+/g, ' ');
     expect(texto).toContain(
       'Toque em um tipo para anexar os documentos da manutenção. ' +
-        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+        'São aceitos PDF, JPG ou PNG até 10MB cada.',
     );
     expect(texto).toContain('Uma por manutenção. Para mais notas, registre manutenções por evento.');
     expect(texto).not.toContain('notas diferentes');
@@ -344,13 +344,13 @@ describe('MaintenanceDocumentsCard', () => {
     expect(state().error()).toContain('Formato não suportado');
   });
 
-  it('recusa arquivo acima de 20MB ANTES de gastar a franquia de dados', async () => {
+  it('recusa arquivo acima de 10MB ANTES de gastar a franquia de dados', async () => {
     await setup();
 
     attach('NOTA_FISCAL', doc('nota.pdf', 21 * 1024 * 1024));
 
     expect(uploadDocument).not.toHaveBeenCalled();
-    expect(state().error()).toContain('o limite é 20MB');
+    expect(state().error()).toContain('o limite é 10MB');
   });
 
   it('um corpo de erro não-array não chega no @for — a lista fica array', async () => {

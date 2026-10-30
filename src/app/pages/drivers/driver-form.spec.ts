@@ -314,16 +314,16 @@ describe('DriverForm — anexos no cadastro (FEAT-0054)', () => {
     expect(navigate).toHaveBeenCalledWith(['/motoristas', 'drv-9']);
   });
 
-  it('recusa arquivo de tipo não permitido e acima de 20MB antes de qualquer envio', () => {
+  it('recusa arquivo de tipo não permitido e acima de 10MB antes de qualquer envio', () => {
     pick('CNH', new File(['x'], 'virus.exe', { type: 'application/x-msdownload' }));
     expect(component().pendingFiles()).toHaveLength(0);
     expect(component().error()).toContain('Formato não suportado');
 
     const big = new File(['x'], 'cnh.jpg', { type: 'image/jpeg' });
-    Object.defineProperty(big, 'size', { value: 20 * 1024 * 1024 + 1 });
+    Object.defineProperty(big, 'size', { value: 10 * 1024 * 1024 + 1 });
     pick('CNH', big);
     expect(component().pendingFiles()).toHaveLength(0);
-    expect(component().error()).toContain('limite é 20MB');
+    expect(component().error()).toContain('limite é 10MB');
   });
 
   /**
@@ -410,7 +410,7 @@ describe('DriverForm — anexos no cadastro (FEAT-0054)', () => {
   it('descreve o bloco com o texto exato', () => {
     expect(pageText()).toContain(
       'Toque em um tipo para anexar os documentos do motorista. ' +
-        'São aceitos PDF, JPG ou PNG até 20MB cada.',
+        'São aceitos PDF, JPG ou PNG até 10MB cada.',
     );
   });
 

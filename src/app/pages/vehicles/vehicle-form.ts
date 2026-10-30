@@ -350,6 +350,13 @@ export class VehicleForm implements OnInit {
   /** Foto escolhida e ainda não enviada: cadastro, ou TROCA na edição. */
   protected readonly photoFile = signal<File | null>(null);
 
+  /**
+   * O campo ainda está comprimindo a foto escolhida. Segura o Salvar: o arquivo
+   * só chega ao `photoFile` no fim, e salvar antes disso cadastraria o veículo
+   * sem a foto que o usuário acabou de escolher.
+   */
+  protected readonly photoPreparing = signal(false);
+
   /** O anexo PHOTO já gravado (edição). `url` é assinada e pode faltar. */
   protected readonly existingPhoto = signal<{ id: string; url: string | null } | null>(null);
 
@@ -956,7 +963,7 @@ export class VehicleForm implements OnInit {
   /** Reenvia SÓ a foto: não reenvia o formulário (o veículo já existe). */
   protected retryPhoto(): void {
     const id = this.editingId();
-    if (!id || this.saving()) return;
+    if (!id || this.saving() || this.photoPreparing()) return;
     this.saving.set(true);
     this.photoFailure.set(null);
     // Relê os anexos: se o envio anterior chegou ao servidor e só a resposta se
@@ -1046,7 +1053,7 @@ export class VehicleForm implements OnInit {
   }
 
   protected submit(): void {
-    if (this.saving()) return;
+    if (this.saving() || this.photoPreparing()) return;
     // Guarda no COMPONENTE, não só no `disabled` do botão: o backend recusa com
     // 409, e chegar lá para descobrir isso é a viagem que o FIX-0250 evita.
     if (this.sold()) return;

@@ -1,9 +1,16 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
 import {
+  DocumentLike,
   DocumentsCard,
   DocumentsCardOps,
   DocumentSlotDef,
 } from '../../components/documents/documents-card';
+import {
+  MAX_DOCUMENT_LABEL,
+  MAX_PHOTO_BYTES,
+  MAX_PHOTO_LABEL,
+} from '../../components/documents/document-file-rules';
+import { ImageCompressionService } from '../../services/image-compression.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { VEHICLE_DOCUMENT_KIND_META, VehicleDocumentKind } from '../../types/vehicle.types';
 
@@ -31,14 +38,24 @@ import { VEHICLE_DOCUMENT_KIND_META, VehicleDocumentKind } from '../../types/veh
       title="Documentos anexados"
       [slotDefs]="slotDefs"
       [ops]="ops"
-      description="Toque em um tipo para anexar os documentos do veículo. São aceitos PDF, JPG ou PNG até 20MB cada."
+      [description]="description"
+      (documentsChange)="documentsChange.emit($event)"
     />
   `,
 })
 export class VehicleDocumentsCard {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly compression = inject(ImageCompressionService);
 
   readonly vehicleId = input.required<string>();
+
+  /** Repassa a lista do card compartilhado; o detalhe tira dela a foto. */
+  readonly documentsChange = output<DocumentLike[]>();
+
+  /** A foto tem teto próprio (`MAX_PHOTO_BYTES`): a frase geral não pode prometer mais. */
+  protected readonly description =
+    'Toque em um tipo para anexar os documentos do veículo. São aceitos PDF, JPG ou PNG até ' +
+    `${MAX_DOCUMENT_LABEL} cada.`;
 
   /**
    * Três tipos, SEM PORTÃO — a lista é constante (array simples, não computed:
@@ -62,10 +79,15 @@ export class VehicleDocumentsCard {
       // V115 — OPCIONAL. Vira a miniatura do card na lista de veículos; sem
       // ela, a lista usa a frente da última vistoria aprovada. Só imagem: o
       // servidor recusa PDF neste tipo, e a mensagem cai no banner do card.
+      // É o ÚNICO tipo comprimido: a miniatura baixa este arquivo inteiro a
+      // cada carga da lista, e foto de carro não precisa de legibilidade.
       kind: 'PHOTO',
       label: VEHICLE_DOCUMENT_KIND_META['PHOTO'],
-      hint: 'Opcional. Aparece na lista de veículos. Só imagem: JPG, PNG ou WebP.',
+      hint: `Opcional. Aparece na lista e no detalhe do veículo. Só imagem: JPG, PNG ou WebP, até ${MAX_PHOTO_LABEL}.`,
       required: false,
+      prepare: (file) => this.compression.compress(file),
+      maxBytes: MAX_PHOTO_BYTES,
+      maxLabel: MAX_PHOTO_LABEL,
     },
   ];
 
