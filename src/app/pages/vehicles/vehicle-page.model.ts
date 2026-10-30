@@ -189,13 +189,13 @@ export function nextCharge(charges: readonly RentalChargeDto[]): RentalChargeDto
   return open[0] ?? null;
 }
 
-/** O que pede atenção, nesta ordem: falha primeiro, porque ninguém está cobrando. */
+/**
+ * O que pede atenção, nesta ordem. A frase diz só o que o status prova: `FAILED` também
+ * cobre vencida promovida por rotina e estorno, então ela não fala em causa. O motivo mora
+ * no detalhe do aluguel.
+ */
 const ATTENTION: readonly { status: ChargeStatus; dated: string; undated: string }[] = [
-  {
-    status: 'FAILED',
-    dated: 'Cobrança com falha na emissão: ',
-    undated: 'Há cobrança com falha na emissão.',
-  },
+  { status: 'FAILED', dated: 'Cobrança com falha: ', undated: 'Há cobrança com falha.' },
   { status: 'DISPUTED', dated: 'Cobrança contestada: ', undated: 'Há cobrança contestada.' },
   { status: 'PAST_DUE', dated: 'Cobrança atrasada desde ', undated: 'Há cobrança atrasada.' },
 ];
@@ -205,9 +205,11 @@ function chargeWhen(dueDate: string, charge: RentalChargeDto): string {
 }
 
 /**
- * Verde e "em dia" andam juntos, e só com evidência: as cobranças foram lidas, existe ao
- * menos uma e nenhuma está em estado ruim. Qualquer outra coisa é laranja com a frase do
- * que foi visto. Abertas usam `isOpenChargeStatus`, a mesma regra do detalhe do aluguel.
+ * Verde e "em dia" andam juntos, e só com evidência: as cobranças foram lidas, nenhuma está
+ * em estado ruim e existe ao menos uma de aluguel paga ou a vencer. Caução paga sozinha, ou
+ * tudo cancelado, não diz que o aluguel está sendo cobrado. Qualquer outra coisa é laranja
+ * com a frase do que foi visto. Abertas usam `isOpenChargeStatus`, a mesma regra do detalhe
+ * do aluguel.
  */
 function chargeHealth(detail: RentalResponseDto | null): { ok: boolean; line: string } {
   if (!detail) return { ok: false, line: 'Não foi possível ler as cobranças agora.' };
@@ -234,7 +236,12 @@ function chargeHealth(detail: RentalResponseDto | null): { ok: boolean; line: st
   if (undated) {
     return { ok: false, line: `Cobrança em aberto sem vencimento, ${brl(undated.amount)}.` };
   }
-  return { ok: true, line: 'Cobranças em dia.' };
+  const billed = charges.some(
+    (c) => RENT_KINDS.has(c.kind) && (c.status === 'PAID' || c.status === 'PENDING'),
+  );
+  return billed
+    ? { ok: true, line: 'Cobranças em dia.' }
+    : { ok: false, line: 'Nenhuma cobrança de aluguel ativa ou paga.' };
 }
 
 const PER_PERIOD: Record<RentalBillingFrequency, string> = {
@@ -324,10 +331,12 @@ function reservedHero(rental: RentalListItemDto): IdleHero {
   };
 }
 
-function reservedNote(rental: RentalListItemDto | null): string {
-  if (!rental) return '';
-  const who = rental.driverName ?? 'um motorista';
-  return ` Reservado para ${who} a partir de ${fullDate(rental.startDate)}.`;
+/** Sem leitura não se sabe se há reserva: calar aqui pareceria que não há. */
+function rentalsNote(rentals: IdleRentals): string {
+  if (rentals.failed) return ' Não foi possível ler os aluguéis agora.';
+  if (!rentals.reserved) return '';
+  const who = rentals.reserved.driverName ?? 'um motorista';
+  return ` Reservado para ${who} a partir de ${fullDate(rentals.reserved.startDate)}.`;
 }
 
 export function idleHero(
@@ -343,7 +352,7 @@ export function idleHero(
         kind: 'idle',
         label: 'Em manutenção',
         big: 'Na oficina',
-        line: `Fora da frota de aluguel até você marcar disponível.${reservedNote(reserved)}`,
+        line: `Fora da frota de aluguel até você marcar disponível.${rentalsNote(rentals)}`,
         action: {
           label: 'Ver manutenções',
           icon: 'maintenance',
@@ -356,7 +365,7 @@ export function idleHero(
         kind: 'idle',
         label: 'Inativo',
         big: 'Fora de operação',
-        line: `Para voltar a alugar, marque como disponível em Ações.${reservedNote(reserved)}`,
+        line: `Para voltar a alugar, marque como disponível em Ações.${rentalsNote(rentals)}`,
         action: null,
       };
     case 'RENTED':

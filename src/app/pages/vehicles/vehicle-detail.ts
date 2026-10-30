@@ -268,6 +268,11 @@ export class VehicleDetail implements OnInit {
     return null;
   });
 
+  /** Carro vendido pode seguir alugado: sem leitura, o bloco da venda diz que não leu. */
+  protected readonly rentalUnread = computed(
+    () => this.sold() && this.rentalFailed() && this.hero() === null,
+  );
+
   /** Os chips da Documentação leem a pendência: a urgência é decidida no backend. */
   private pendenciaOf(type: VehiclePendencia['type']): VehiclePendencia | undefined {
     return this.pendencias().find((p) => p.type === type);

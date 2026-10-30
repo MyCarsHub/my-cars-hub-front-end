@@ -684,7 +684,7 @@ describe('VehicleDetail, página única', () => {
       '/veiculos/veh-1/gerencia/manutencoes',
       '/veiculos/veh-1/gerencia/multas',
       '/veiculos/veh-1/gerencia/seguros',
-      '/veiculos/veh-1/gerencia/financiamentos',
+      '/veiculos/veh-1/editar',
     ]);
     expect(text(host().querySelector('app-vehicle-history-group'))).toContain(
       'Cadastrar financiamento',
@@ -692,7 +692,40 @@ describe('VehicleDetail, página única', () => {
 
     await setup({ aba: 'gerencia' });
     expect(hrefs()).toContain('/veiculos/veh-1/gerencia/financiamentos');
+    expect(hrefs()).not.toContain('/veiculos/veh-1/editar');
     expect(text(host().querySelector('app-vehicle-history-group'))).toContain('Contrato e parcelas');
+  });
+
+  it('carro à vista vendido não oferece cadastrar: o formulário está travado', async () => {
+    const sale = {
+      id: 's',
+      buyerName: 'M',
+      saleDate: '2026-08-20',
+      saleValueCents: 1,
+      createdDate: '2026-08-20',
+    };
+    await setup({
+      aba: 'gerencia',
+      vehicle: { ...baseVehicle, status: 'INACTIVE', sale },
+      summary: of(summaryOf({ financed: false })),
+    });
+    const group = host().querySelector('app-vehicle-history-group');
+    expect(text(group)).not.toContain('Financiamento');
+    expect(group?.querySelector('a[href$="/editar"]')).toBeNull();
+  });
+
+  it('carro financiado vendido mantém o histórico do financiamento', async () => {
+    const sale = {
+      id: 's',
+      buyerName: 'M',
+      saleDate: '2026-08-20',
+      saleValueCents: 1,
+      createdDate: '2026-08-20',
+    };
+    await setup({ aba: 'gerencia', vehicle: { ...baseVehicle, status: 'INACTIVE', sale } });
+    expect(
+      host().querySelector('app-vehicle-history-group a[href$="/gerencia/financiamentos"]'),
+    ).not.toBeNull();
   });
 
   it('o link do financiamento não some enquanto o resumo carrega ou falha', async () => {
@@ -773,7 +806,7 @@ describe('VehicleDetail, página única', () => {
     const hero = host().querySelector('[data-rental-hero]');
     expect(hero?.getAttribute('data-tone')).toBe('orange');
     expect(text(host().querySelector('[data-hero-line]'))).toBe(
-      'Cobrança com falha na emissão: 14/11, R$ 650,00.',
+      'Cobrança com falha: 14/11, R$ 650,00.',
     );
   });
 
@@ -797,7 +830,7 @@ describe('VehicleDetail, página única', () => {
       active: activeRental,
       charges: [charge({ status: 'FAILED', dueDate: null })],
     });
-    expect(text(host().querySelector('[data-hero-line]'))).toBe('Há cobrança com falha na emissão.');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe('Há cobrança com falha.');
   });
 
   it('sem nenhuma cobrança não há evidência para dizer "em dia"', async () => {
@@ -823,6 +856,48 @@ describe('VehicleDetail, página única', () => {
     const hero = host().querySelector('[data-rental-hero]');
     expect(text(host().querySelector('[data-hero-line]'))).toBe('Cobranças em dia.');
     expect(hero?.getAttribute('data-tone')).toBe('green');
+  });
+
+  it('caução paga sozinha não é aluguel em dia', async () => {
+    await setup({
+      active: activeRental,
+      charges: [charge({ kind: 'CAUCAO', status: 'PAID' })],
+    });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Nenhuma cobrança de aluguel ativa ou paga.',
+    );
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+  });
+
+  it('só cobranças de aluguel canceladas não são "em dia"', async () => {
+    await setup({
+      active: activeRental,
+      charges: [charge({ id: 'c-1', status: 'CANCELED' }), charge({ id: 'c-2', status: 'CANCELED' })],
+    });
+    const hero = host().querySelector('[data-rental-hero]');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Nenhuma cobrança de aluguel ativa ou paga.',
+    );
+    expect(hero?.getAttribute('data-tone')).toBe('orange');
+  });
+
+  it('caução em aberto com vencimento não vira próxima cobrança nem "em dia"', async () => {
+    await setup({
+      active: activeRental,
+      charges: [charge({ kind: 'CAUCAO', status: 'PENDING', dueDate: '2026-11-05' })],
+    });
+    expect(host().querySelector('[data-rental-hero]')?.getAttribute('data-tone')).toBe('orange');
+    expect(text(host().querySelector('[data-hero-line]'))).not.toContain('em dia');
+  });
+
+  it('uma cobrança de aluguel paga basta como evidência, mesmo com canceladas ao lado', async () => {
+    await setup({
+      active: activeRental,
+      charges: [charge({ id: 'c-1', status: 'CANCELED' }), charge({ id: 'c-2', status: 'PAID' })],
+    });
+    expect(host().querySelector('[data-rental-hero]')?.getAttribute('data-tone')).toBe('green');
+    expect(text(host().querySelector('[data-hero-line]'))).toBe('Cobranças em dia.');
   });
 
   it('leitura de cobranças que falha pinta o cartão de laranja', async () => {
@@ -886,6 +961,65 @@ describe('VehicleDetail, página única', () => {
     await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' }, rentalFails: true });
     const line = text(host().querySelector('[data-hero-line]'));
     expect(line).toBe('Não foi possível ler os aluguéis agora.');
+  });
+
+  describe('com a leitura de aluguéis sem resposta', () => {
+    const sale = {
+      id: 's',
+      buyerName: 'M',
+      saleDate: '2026-08-20',
+      saleValueCents: 1,
+      createdDate: '2026-08-20',
+    };
+
+    it('vendido não parece sem aluguel: o bloco da venda diz que não leu', async () => {
+      await setup({
+        vehicle: { ...baseVehicle, status: 'RENTED', sale },
+        rentalFails: true,
+      });
+      expect(host().querySelector('[data-sold-banner]')).not.toBeNull();
+      expect(text(host().querySelector('[data-rental-unread]'))).toBe(
+        'Não foi possível ler os aluguéis agora: pode haver aluguel em curso neste carro.',
+      );
+      expect(text()).not.toContain('Novo aluguel');
+      expect(text()).not.toContain('No pátio');
+    });
+
+    it('vendido com a leitura em dia não mostra aviso nenhum', async () => {
+      await setup({ vehicle: { ...baseVehicle, status: 'INACTIVE', sale } });
+      expect(host().querySelector('[data-sold-banner]')).not.toBeNull();
+      expect(host().querySelector('[data-rental-unread]')).toBeNull();
+      expect(host().querySelector('[data-rental-hero]')).toBeNull();
+    });
+
+    it('vendido e alugado, com o detalhe falhando, fica no cartão do aluguel', async () => {
+      await setup({
+        vehicle: { ...baseVehicle, status: 'RENTED', sale },
+        active: activeRental,
+        detailFails: true,
+      });
+      expect(host().querySelector('[data-rental-unread]')).toBeNull();
+      expect(text(host().querySelector('[data-hero-line]'))).toBe(
+        'Não foi possível ler as cobranças agora.',
+      );
+    });
+
+    it.each([
+      ['MAINTENANCE', 'Em manutenção'],
+      ['INACTIVE', 'Inativo'],
+    ] as const)('%s diz que não leu, em vez de calar sobre reserva', async (status, label) => {
+      await setup({ vehicle: { ...baseVehicle, status }, rentalFails: true });
+      const hero = host().querySelector('[data-rental-hero]');
+      expect(text(hero)).toContain(label);
+      expect(text(host().querySelector('[data-hero-line]'))).toContain(
+        'Não foi possível ler os aluguéis agora.',
+      );
+    });
+
+    it('sem falha, oficina e inativo não falam de leitura', async () => {
+      await setup({ vehicle: { ...baseVehicle, status: 'MAINTENANCE' } });
+      expect(text(host().querySelector('[data-hero-line]'))).not.toContain('Não foi possível');
+    });
   });
 
   it('o detalhe do aluguel só é pedido quando existe aluguel ativo', async () => {

@@ -115,6 +115,11 @@
                 <!-- Efeito na vaga (FIX-0262): mesma frase do diálogo de vender, e
                      condicional de propósito: vendido-mas-alugado não libera vaga. -->
                 <p data-sale-slot-note class="m-0 text-xs text-white/85 leading-snug">{{ slotNote }}</p>
+                @if (rentalUnread()) {
+                  <p data-rental-unread class="m-0 text-xs font-semibold leading-snug">
+                    Não foi possível ler os aluguéis agora: pode haver aluguel em curso neste carro.
+                  </p>
+                }
               </div>
             </app-painted-card>
           }
@@ -301,6 +306,7 @@
           <app-vehicle-history-group
             [vehicleId]="v.id"
             [financed]="summary()?.finance?.financed ?? null"
+            [sold]="sold()"
           />
         </div>
       </div>

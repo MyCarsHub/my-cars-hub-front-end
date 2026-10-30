@@ -33,6 +33,7 @@ export class VehicleHistoryGroup {
   readonly vehicleId = input.required<string>();
   /** `null` enquanto o resumo não respondeu: o caminho continua lá. */
   readonly financed = input<boolean | null>(null);
+  readonly sold = input(false);
 
   protected readonly rows = computed<HistoryRow[]>(() => {
     const id = this.vehicleId();
@@ -60,14 +61,25 @@ export class VehicleHistoryGroup {
         link: under('seguros'),
         query: null,
       },
-      // Carro à vista também: é por aqui que um financiamento novo é cadastrado.
-      {
-        title: 'Financiamento',
-        hint: this.financed() === false ? 'Cadastrar financiamento' : 'Contrato e parcelas',
-        icon: 'money',
-        link: under('financiamentos'),
-        query: null,
-      },
+      ...this.financingRow(id),
     ];
   });
+
+  /**
+   * A lista de financiamentos não cria nada: quem cadastra é o formulário do veículo, que
+   * trava no carro vendido. Por isso o carro à vista vendido não tem esta linha. Sem resumo
+   * ainda não se sabe se há contrato, e a lista é o destino que não promete nada.
+   */
+  private financingRow(id: string): HistoryRow[] {
+    const icon = 'money';
+    const title = 'Financiamento';
+    if (this.financed() === false) {
+      if (this.sold()) return [];
+      return [
+        { title, icon, hint: 'Cadastrar financiamento', link: ['/veiculos', id, 'editar'], query: null },
+      ];
+    }
+    const link = ['/veiculos', id, 'gerencia', 'financiamentos'];
+    return [{ title, icon, hint: 'Contrato e parcelas', link, query: null }];
+  }
 }
