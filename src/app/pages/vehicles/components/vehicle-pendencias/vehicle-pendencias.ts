@@ -50,11 +50,11 @@ import { VehicleIcon } from '../vehicle-icon/vehicle-icon';
           <caption class="sr-only">Pendências do veículo</caption>
           <thead>
             <tr>
-              <th scope="col" [class]="th">Pendência</th>
+              <th scope="col" [class]="th + ' w-2/5'">Pendência</th>
               <th scope="col" [class]="th">Vencimento</th>
               <th scope="col" [class]="th">Situação</th>
               <th scope="col" [class]="th + ' text-right'">Valor</th>
-              <th scope="col" [class]="th"><span class="sr-only">Resolver</span></th>
+              <th scope="col" [class]="th + ' !px-1'"><span class="sr-only">Resolver</span></th>
             </tr>
           </thead>
           <tbody>
@@ -90,7 +90,7 @@ import { VehicleIcon } from '../vehicle-icon/vehicle-icon';
                     <span class="text-fg-muted">—</span>
                   }
                 </td>
-                <td [class]="td + ' text-right'">
+                <td [class]="td + ' text-right !px-1'">
                   <a
                     [routerLink]="r.route"
                     [attr.aria-label]="'Resolver ' + r.title + ', ' + r.description"
@@ -137,9 +137,9 @@ export class VehiclePendencias {
   readonly items = input.required<readonly VehiclePendencia[]>();
 
   protected readonly th =
-    'text-left text-[12.5px] font-semibold text-fg-muted px-3 xl:px-4 pt-3.5 pb-2.5 border-b border-edge';
+    'text-left text-[12.5px] font-semibold text-fg-muted px-3 min-[1440px]:px-4 pt-3.5 pb-2.5 border-b border-edge';
   protected readonly td =
-    'px-3 xl:px-4 py-2.5 text-[14.5px] text-fg-body align-middle';
+    'px-3 min-[1440px]:px-4 py-2.5 text-[14.5px] text-fg-body align-middle';
 
   protected readonly lateNote = computed(() => overdueLabel(this.items()));
 
