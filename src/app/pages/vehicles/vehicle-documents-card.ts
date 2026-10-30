@@ -72,12 +72,6 @@ export class VehicleDocumentsCard {
       required: true,
     },
     {
-      kind: 'OTHER',
-      label: VEHICLE_DOCUMENT_KIND_META['OTHER'],
-      hint: 'Qualquer outro arquivo do veículo.',
-      required: false,
-    },
-    {
       // V115 — OPCIONAL. Vira a foto da lista e do detalhe do veículo; sem ela,
       // os dois usam a frente da última vistoria aprovada. Só imagem: o
       // servidor recusa PDF neste tipo, e a mensagem cai no banner do card.
@@ -87,9 +81,16 @@ export class VehicleDocumentsCard {
       label: VEHICLE_DOCUMENT_KIND_META['PHOTO'],
       hint: `Opcional. Aparece na lista e no detalhe do veículo. Só imagem: JPG, PNG ou WebP, até ${MAX_PHOTO_LABEL}.`,
       required: false,
+      icon: 'image',
       prepare: (file) => this.compression.compress(file),
       maxBytes: MAX_PHOTO_BYTES,
       maxLabel: MAX_PHOTO_LABEL,
+    },
+    {
+      kind: 'OTHER',
+      label: VEHICLE_DOCUMENT_KIND_META['OTHER'],
+      hint: 'Qualquer outro arquivo do veículo.',
+      required: false,
     },
   ];
 

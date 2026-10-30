@@ -9,6 +9,9 @@ export type VehicleStatusTarget = 'AVAILABLE' | 'MAINTENANCE' | 'INACTIVE';
 /** Por que Marcar em manutenção e Marcar inativo não respondem enquanto há aluguel. */
 export const RENTED_LOCK_REASON = 'Encerre o aluguel para alterar';
 
+/** No vendido a frase longa fica no `title`; aqui ela se repetiria em cada linha. */
+export const SOLD_LOCK_HINT = 'Desfaça a venda para alterar';
+
 /**
  * As ações do carro. Ação travada continua visível, cinza e com o motivo embaixo: esconder
  * faria o operador procurar um bug onde existe uma regra. Quem chama a API é a página.
@@ -23,7 +26,7 @@ export const RENTED_LOCK_REASON = 'Encerre o aluguel para alterar';
       @if (lockReason(); as reason) {
         <a appListRow locked aria-disabled="true" [attr.title]="reason">
           <span class="tile" aria-hidden="true"><app-vehicle-icon name="pen" /></span>
-          <span class="t"><b>Editar</b><small>{{ reason }}</small></span>
+          <span class="t"><b>Editar</b><small>{{ soldHint }}</small></span>
         </a>
       } @else {
         <a appListRow [routerLink]="['/veiculos', vehicleId(), 'editar']">
@@ -45,7 +48,7 @@ export const RENTED_LOCK_REASON = 'Encerre o aluguel para alterar';
           <span class="tile" aria-hidden="true"><app-vehicle-icon name="check" /></span>
           <span class="t">
             <b>Marcar disponível</b>
-            @if (lockReason(); as reason) { <small>{{ reason }}</small> }
+            @if (lockReason()) { <small>{{ soldHint }}</small> }
           </span>
           @if (!lockReason()) { <app-list-chevron /> }
         </button>
@@ -62,7 +65,7 @@ export const RENTED_LOCK_REASON = 'Encerre o aluguel para alterar';
           <span class="tile" aria-hidden="true"><app-vehicle-icon name="maintenance" /></span>
           <span class="t">
             <b>Marcar em manutenção</b>
-            @if (statusLock(); as reason) { <small>{{ reason }}</small> }
+            @if (statusHint(); as hint) { <small>{{ hint }}</small> }
           </span>
           @if (!statusLock()) { <app-list-chevron /> }
         </button>
@@ -79,7 +82,7 @@ export const RENTED_LOCK_REASON = 'Encerre o aluguel para alterar';
           <span class="tile" aria-hidden="true"><app-vehicle-icon name="pause" /></span>
           <span class="t">
             <b>Marcar inativo</b>
-            @if (statusLock(); as reason) { <small>{{ reason }}</small> }
+            @if (statusHint(); as hint) { <small>{{ hint }}</small> }
           </span>
           @if (!statusLock()) { <app-list-chevron /> }
         </button>
@@ -111,7 +114,7 @@ export const RENTED_LOCK_REASON = 'Encerre o aluguel para alterar';
       >
         <span class="t">
           <b>Excluir veículo</b>
-          @if (deleteLock(); as reason) { <small>{{ reason }}</small> }
+          @if (deleteHint(); as hint) { <small>{{ hint }}</small> }
         </span>
       </button>
     </app-list-group>
@@ -132,6 +135,8 @@ export class VehicleActionsGroup {
   readonly undoSale = output<void>();
   readonly remove = output<void>();
 
+  protected readonly soldHint = SOLD_LOCK_HINT;
+
   protected readonly canGoAvailable = computed(() => {
     const s = this.status();
     return s === 'MAINTENANCE' || s === 'INACTIVE';
@@ -139,5 +144,13 @@ export class VehicleActionsGroup {
 
   protected readonly statusLock = computed(
     () => this.lockReason() ?? (this.status() === 'RENTED' ? RENTED_LOCK_REASON : null),
+  );
+
+  protected readonly statusHint = computed(() =>
+    this.lockReason() ? SOLD_LOCK_HINT : this.statusLock(),
+  );
+
+  protected readonly deleteHint = computed(() =>
+    this.lockReason() ? SOLD_LOCK_HINT : this.deleteLock(),
   );
 }

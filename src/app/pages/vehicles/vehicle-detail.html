@@ -125,7 +125,7 @@
         </div>
 
         <div class="contents lg:block lg:order-2 lg:col-span-6 xl:col-span-4 min-w-0">
-          <div class="order-3 min-w-0">
+          <div class="order-3 min-w-0 enter-up" style="--stagger-i: 1">
             <app-list-group heading="Veículo">
               <div appListRow>
                 <span class="tile" aria-hidden="true"><app-vehicle-icon name="car" /></span>
@@ -135,12 +135,12 @@
                 </span>
               </div>
               <dl appKvList inset>
-                <div><dt>Hodômetro</dt><dd class="tabular-nums">{{ formatKm(v.hodometer) }}</dd></div>
+                <div><dt>Hodômetro</dt><dd class="tabular-nums whitespace-nowrap shrink-0">{{ formatKm(v.hodometer) }}</dd></div>
                 <div><dt>Tipo</dt><dd>{{ typeLabel() }}</dd></div>
-                <div><dt>Criado em</dt><dd class="tabular-nums">{{ formatDate(v.createdDate) }}</dd></div>
+                <div><dt>Criado em</dt><dd class="tabular-nums whitespace-nowrap shrink-0">{{ formatDate(v.createdDate) }}</dd></div>
                 <div>
                   <dt>Última alteração</dt>
-                  <dd class="tabular-nums">{{ v.modifyDate ? formatDate(v.modifyDate) : '—' }}</dd>
+                  <dd class="tabular-nums whitespace-nowrap shrink-0">{{ v.modifyDate ? formatDate(v.modifyDate) : '—' }}</dd>
                 </div>
               </dl>
             </app-list-group>
@@ -148,7 +148,7 @@
         </div>
 
         <div class="contents lg:block lg:order-2 lg:col-span-6 xl:col-span-4 min-w-0">
-          <div class="order-4 min-w-0">
+          <div class="order-4 min-w-0 enter-up" style="--stagger-i: 2">
             <app-list-group heading="Documentação">
               @if (v.licensingExpiration) {
                 <div appListRow data-licensing-row>
@@ -177,10 +177,10 @@
               <dl appKvList [inset]="!!v.licensingExpiration || hasIpva()">
                 <div><dt>Chassi</dt><dd class="tabular-nums">{{ v.chassis ?? '—' }}</dd></div>
                 <div><dt>RENAVAM</dt><dd class="tabular-nums">{{ v.renavam ?? '—' }}</dd></div>
-                <div><dt>Data de compra</dt><dd class="tabular-nums">{{ formatDate(v.purchaseDate) }}</dd></div>
+                <div><dt>Data de compra</dt><dd class="tabular-nums whitespace-nowrap shrink-0">{{ formatDate(v.purchaseDate) }}</dd></div>
                 <div>
                   <dt>Valor de compra</dt>
-                  <dd class="tabular-nums">
+                  <dd class="tabular-nums whitespace-nowrap shrink-0">
                     @if (summary()?.finance?.purchasePriceMissing && !sold()) {
                       <a
                         [routerLink]="['/veiculos', v.id, 'editar']"
@@ -200,14 +200,14 @@
           class="contents lg:grid lg:grid-cols-2 lg:gap-x-6 lg:items-start lg:order-2 lg:col-span-12
                  xl:block xl:col-span-4 min-w-0"
         >
-          <div class="order-2 min-w-0">
+          <div class="order-2 min-w-0 enter-up" style="--stagger-i: 3">
             <app-vehicle-documents-card
               variant="rows"
               [vehicleId]="v.id"
               (documentsChange)="onDocumentsChange($event)"
             />
           </div>
-          <div class="order-6 min-w-0">
+          <div class="order-6 min-w-0 enter-up" style="--stagger-i: 4">
             <app-vehicle-actions-group
               [vehicleId]="v.id"
               [status]="v.status"
@@ -252,7 +252,7 @@
           }
         </div>
 
-        <div class="lg:col-span-12 xl:col-span-8 min-w-0">
+        <div class="lg:col-span-12 xl:col-span-8 min-w-0 enter-up" style="--stagger-i: 1">
           @if (pendenciasError(); as pendenciasFailure) {
             <app-list-group heading="Pendências">
               <div class="p-3">
@@ -273,7 +273,7 @@
           }
         </div>
 
-        <div class="lg:col-span-12 xl:col-span-4 min-w-0">
+        <div class="lg:col-span-12 xl:col-span-4 min-w-0 enter-up" style="--stagger-i: 2">
           <app-vehicle-history-group
             [vehicleId]="v.id"
             [financed]="summary()?.finance?.financed ?? false"

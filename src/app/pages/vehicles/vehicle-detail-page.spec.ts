@@ -602,6 +602,19 @@ describe('VehicleDetail, página única', () => {
     );
   });
 
+  it('a frase da atrasada fala dela, mesmo que a atrasada não seja de aluguel', async () => {
+    await setup({
+      active: activeRental,
+      charges: [
+        charge({ dueDate: '2026-11-05' }),
+        charge({ id: 'c-9', kind: 'CAUCAO', status: 'PAST_DUE', dueDate: '2026-10-02', amount: 80_000 }),
+      ],
+    });
+    expect(text(host().querySelector('[data-hero-line]'))).toBe(
+      'Cobrança atrasada desde 02/10, R$ 800,00.',
+    );
+  });
+
   it('o detalhe do aluguel só é pedido quando existe aluguel ativo', async () => {
     await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE' } });
     expect(getById).not.toHaveBeenCalled();
@@ -681,6 +694,24 @@ describe('VehicleDetail, página única', () => {
     const excluir = buttons.find((x) => text(x).startsWith('Excluir veículo'));
     expect(excluir?.disabled).toBe(true);
     expect(text(excluir ?? null)).toContain('Finalize o aluguel para excluir');
+  });
+
+  it('vendido: a frase longa fica no title e a linha mostra só o caminho', async () => {
+    const sale = {
+      id: 's-1',
+      buyerName: 'Maria',
+      saleDate: '2026-08-20',
+      saleValueCents: 4_500_000,
+      createdDate: '2026-08-20',
+    };
+    await setup({ vehicle: { ...baseVehicle, status: 'AVAILABLE', sale } });
+    const buttons = Array.from(host().querySelectorAll<HTMLButtonElement>('button[appListRow]'));
+    const manutencao = buttons.find((x) => text(x).startsWith('Marcar em manutenção'));
+
+    expect(manutencao?.disabled).toBe(true);
+    expect(text(manutencao ?? null)).toContain('Desfaça a venda para alterar');
+    expect(text(manutencao ?? null)).not.toContain('20/08/2026');
+    expect(manutencao?.getAttribute('title')).toContain('20/08/2026');
   });
 
   it('disponível: as ações respondem e o motivo some', async () => {

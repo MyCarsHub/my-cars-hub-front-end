@@ -176,8 +176,12 @@ export function nextCharge(charges: readonly RentalChargeDto[]): RentalChargeDto
   return open[0] ?? null;
 }
 
-export function lateCharge(charges: readonly RentalChargeDto[]): boolean {
-  return charges.some((c) => c.status === 'PAST_DUE');
+/** A atrasada mais antiga, de qualquer tipo: caução e multa de atraso também contam. */
+export function oldestLateCharge(charges: readonly RentalChargeDto[]): RentalChargeDto | null {
+  const late = charges
+    .filter((c) => c.status === 'PAST_DUE')
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+  return late[0] ?? null;
 }
 
 const PER_PERIOD: Record<RentalBillingFrequency, string> = {
@@ -205,8 +209,7 @@ export function rentedHero(
   now: Date = new Date(),
 ): RentedHero {
   const charges = detail?.charges ?? [];
-  const late = lateCharge(charges);
-  const next = nextCharge(charges);
+  const late = oldestLateCharge(charges);
   const total = daysFromToday(rental.endDate, new Date(rental.startDate + ISO_DAY));
   const days = Math.max(0, daysFromToday(rental.endDate, now));
   const unit = days === 1 ? 'dia' : 'dias';
@@ -216,8 +219,8 @@ export function rentedHero(
     tone: late ? 'orange' : 'green',
     rentalId: rental.id,
     driver: rental.driverName ?? 'Motorista',
-    late,
-    line: rentedLine(detail, late, next),
+    late: late !== null,
+    line: rentedLine(detail, late, nextCharge(charges)),
     ring: {
       percent: total > 0 ? (days / total) * 100 : 0,
       days,
@@ -238,13 +241,22 @@ export function rentedHero(
 
 function rentedLine(
   detail: RentalResponseDto | null,
-  late: boolean,
+  late: RentalChargeDto | null,
   next: RentalChargeDto | null,
 ): string {
   if (!detail) return 'Não foi possível ler as cobranças agora.';
-  const when = next?.dueDate ? `${dayMonth(next.dueDate)}, ${brl(next.amount)}` : null;
-  if (late) return when ? `Cobrança atrasada desde ${when}.` : 'Há cobrança atrasada.';
-  return when ? `Cobranças em dia. Próxima em ${when}.` : 'Cobranças em dia.';
+  if (late) {
+    return late.dueDate
+      ? `Cobrança atrasada desde ${chargeWhen(late.dueDate, late)}.`
+      : 'Há cobrança atrasada.';
+  }
+  return next?.dueDate
+    ? `Cobranças em dia. Próxima em ${chargeWhen(next.dueDate, next)}.`
+    : 'Cobranças em dia.';
+}
+
+function chargeWhen(dueDate: string, charge: RentalChargeDto): string {
+  return `${dayMonth(dueDate)}, ${brl(charge.amount)}`;
 }
 
 /** O carro parado: pátio, oficina ou inativo. Sempre laranja, nunca cinza. */

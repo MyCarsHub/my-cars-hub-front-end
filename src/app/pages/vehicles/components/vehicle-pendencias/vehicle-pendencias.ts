@@ -94,10 +94,12 @@ import { VehicleIcon } from '../vehicle-icon/vehicle-icon';
                   <a
                     [routerLink]="r.route"
                     [attr.aria-label]="'Resolver ' + r.title + ', ' + r.description"
-                    class="press inline-grid place-items-center size-11 rounded-[9px] bg-surface-sunken
-                           text-fg-muted focus-visible:outline-2 focus-visible:outline-primary-400"
+                    class="press inline-grid place-items-center size-11 rounded-[9px]
+                           focus-visible:outline-2 focus-visible:outline-primary-400"
                   >
-                    <app-list-chevron />
+                    <span class="grid place-items-center size-8 rounded-[9px] bg-surface-sunken">
+                      <app-list-chevron />
+                    </span>
                   </a>
                 </td>
               </tr>

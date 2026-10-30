@@ -215,7 +215,7 @@ describe('VehicleDocumentsCard', () => {
   it('mostra exatamente os slots de CRLV, Outro e Foto do veículo, sem seletor de tipo', async () => {
     await setup();
 
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
+    expect(slotKinds()).toEqual(['CRLV', 'PHOTO', 'OTHER']);
     expect(host().querySelector('select')).toBeNull();
     expect(host().textContent).not.toContain('Anexar documento');
   });
@@ -771,7 +771,7 @@ describe('VehicleDocumentsCard', () => {
 
     await setup();
 
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
+    expect(slotKinds()).toEqual(['CRLV', 'PHOTO', 'OTHER']);
     expect(slotFileRows('CRLV')).toHaveLength(0);
     expect(state().documents()).toEqual([]);
   });
@@ -790,7 +790,7 @@ describe('VehicleDocumentsCard', () => {
 
     expect(state().documents()).toEqual([]);
     expect(host().textContent).toContain('Não foi possível carregar os documentos.');
-    expect(slotKinds()).toEqual(['CRLV', 'OTHER', 'PHOTO']);
+    expect(slotKinds()).toEqual(['CRLV', 'PHOTO', 'OTHER']);
   });
 
   /**

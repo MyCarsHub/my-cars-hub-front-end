@@ -12,6 +12,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { EMPTY, Observable, Subscription, from, of, switchMap } from 'rxjs';
 import { PageCard } from '../core/page-card/page-card';
 import { ConfirmDialog } from '../core/confirm-dialog/confirm-dialog';
@@ -43,6 +44,8 @@ export interface DocumentSlotDef {
   label: string;
   hint: string;
   required: boolean;
+  /** Ícone do slot nas linhas. Ausente = documento. */
+  icon?: 'image';
   /** Portão fechado: veda envio novo; o slot só aparece se JÁ tem arquivo. */
   gated?: boolean;
   /** Mensagem inline quando um envio do kind vedado é recusado. */
@@ -86,6 +89,7 @@ export interface DocumentSlot {
   label: string;
   hint: string;
   required: boolean;
+  icon?: 'image';
   /**
    * A REGRA DE PRODUTO é `maxPerKind` (1 por padrão — a CNH é um arquivo só,
    * frente e verso juntos). Continua lista porque o SERVIDOR ainda aceita N
@@ -142,6 +146,7 @@ export interface DocumentSlot {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   imports: [
+    NgTemplateOutlet,
     PageCard,
     ConfirmDialog,
     AlertBanner,
@@ -254,6 +259,7 @@ export class DocumentsCard implements OnInit, OnDestroy {
           label: def.label,
           hint: def.hint,
           required: def.required,
+          icon: def.icon,
           files,
           uploading: sending === def.kind,
           uploadable,

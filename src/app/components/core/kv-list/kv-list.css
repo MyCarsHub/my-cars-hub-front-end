@@ -12,7 +12,8 @@
 [appKvList].kv-list-inset { padding-top: 0; }
 [appKvList].kv-list-inset > div { padding-left: 62px; }
 [appKvList].kv-list-flush > div { padding-left: 0; padding-right: 0; }
-[appKvList] dt { color: var(--color-fg-muted); flex: none; }
+/* Aperto vira quebra no rótulo: valor com `shrink-0` não parte um número ao meio. */
+[appKvList] dt { color: var(--color-fg-muted); flex: 0 1 auto; }
 [appKvList] dd {
   margin: 0;
   color: var(--color-fg);
