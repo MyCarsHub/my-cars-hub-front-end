@@ -104,7 +104,7 @@ describe('VehiclesList — menu de ações', () => {
       .filter((el): el is HTMLAnchorElement => el.tagName === 'A')
       .map((a) => a.getAttribute('href'));
 
-    expect(hrefs).toContain('/veiculos/v-1/gerencia');
+    expect(hrefs).toContain('/veiculos/v-1?aba=gerencia');
     expect(hrefs).toContain('/veiculos/v-1/editar');
   });
 

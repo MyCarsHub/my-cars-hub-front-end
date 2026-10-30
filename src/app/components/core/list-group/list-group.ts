@@ -80,7 +80,9 @@ export class ListRow {
   host: { class: 'contents' },
   template: `
     <svg
-      class="chev"
+      class="chev text-fg-faint flex-none"
+      width="8"
+      height="14"
       viewBox="0 0 8 14"
       fill="none"
       stroke="currentColor"

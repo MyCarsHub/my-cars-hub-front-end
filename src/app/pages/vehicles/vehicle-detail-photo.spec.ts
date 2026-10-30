@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { firstValueFrom, isObservable, of, throwError } from 'rxjs';
+import { EMPTY, firstValueFrom, isObservable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VehicleDetail } from './vehicle-detail';
@@ -11,6 +11,7 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { ImageCompressionService } from '../../services/image-compression.service';
 import { NotificationService } from '../../services/notification.service';
 import { VehiclesService } from '../../services/vehicles.service';
+import { RentalService } from '../rentals/rental.service';
 import type { Vehicle, VehicleDocument } from '../../types/vehicle.types';
 
 /**
@@ -66,8 +67,8 @@ describe('VehicleDetail — foto do veículo', () => {
   const photoButton = () => host().querySelector<HTMLButtonElement>('[data-vehicle-detail-photo]');
   const photoImg = () => host().querySelector<HTMLImageElement>('[data-vehicle-detail-photo-img]');
   const skeleton = () => host().querySelector('[data-vehicle-detail-photo-skeleton]');
-  /** O ícone laranja do cabeçalho: é para ele que a tela volta sem foto. */
-  const fallbackIcon = () => host().querySelector('.bg-primary-500.shadow-inner');
+  /** O cartão neutro: é para ele que a tela volta sem foto. */
+  const fallbackIcon = () => host().querySelector('[data-vehicle-no-photo]');
 
   function photoSlotButton(): HTMLButtonElement {
     const button = host().querySelector<HTMLButtonElement>('[data-kind="PHOTO"] > button');
@@ -89,7 +90,20 @@ describe('VehicleDetail — foto do veículo', () => {
       providers: [
         provideRouter([]),
         provideNoopAnimations(),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => VEHICLE_ID } } } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { paramMap: { get: () => VEHICLE_ID } },
+            queryParamMap: of(convertToParamMap({})),
+          },
+        },
+        {
+          provide: RentalService,
+          useValue: {
+            list: vi.fn(() => of({ content: [], page: 0, size: 1, total: 0 })),
+            getById: vi.fn(),
+          },
+        },
         {
           provide: VehiclesService,
           useValue: {
@@ -99,6 +113,8 @@ describe('VehicleDetail — foto do veículo', () => {
             documentSignedUrl,
             uploadDocument,
             deleteDocument,
+            getGerenciaSummary: vi.fn(() => EMPTY),
+            getPendencias: vi.fn(() => of([])),
           },
         },
         { provide: DocumentPreviewService, useValue: { open: previewOpen } },
@@ -122,7 +138,11 @@ describe('VehicleDetail — foto do veículo', () => {
   function removePhotoInTheSlot(): void {
     const row = host().querySelector<HTMLElement>('[data-kind="PHOTO"] [data-file-row]');
     if (!row) throw new Error('a linha do arquivo não está na tela');
-    button('Remover', row).click();
+    row.click();
+    fixture.detectChanges();
+    const sheet = host().querySelector('app-bottom-sheet');
+    if (!sheet) throw new Error('a folha do arquivo não abriu');
+    button('Remover', sheet).click();
     fixture.detectChanges();
     const dialog = Array.from(host().querySelectorAll('app-confirm-dialog')).find((d) =>
       (d.textContent ?? '').includes('será apagado do armazenamento'),

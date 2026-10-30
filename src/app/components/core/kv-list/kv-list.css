@@ -9,6 +9,7 @@
   min-height: 40px;
   font-size: 14.5px;
 }
+[appKvList].kv-list-inset { padding-top: 0; }
 [appKvList].kv-list-inset > div { padding-left: 62px; }
 [appKvList].kv-list-flush > div { padding-left: 0; padding-right: 0; }
 [appKvList] dt { color: var(--color-fg-muted); flex: none; }

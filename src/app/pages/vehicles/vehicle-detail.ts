@@ -1,21 +1,33 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   computed,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription } from 'rxjs';
-import { BackLink } from '../../components/core/back-link/back-link';
 import { DefaultPageLayout } from '../../components/layout/default-page-layout/default-page-layout';
-import { PageCard } from '../../components/core/page-card/page-card';
 import { ConfirmDialog } from '../../components/core/confirm-dialog/confirm-dialog';
-import { DetailActions } from '../../components/core/detail-actions/detail-actions';
 import { AlertBanner } from '../../components/alert-banner/alert-banner';
+import { KvList } from '../../components/core/kv-list/kv-list';
+import { ListGroup, ListRow } from '../../components/core/list-group/list-group';
+import { PaintedCard } from '../../components/core/painted-card/painted-card';
+import {
+  SegmentedTabs,
+  SegmentedTabsOption,
+} from '../../components/core/segmented-tabs/segmented-tabs';
+import { StatusChip, StatusChipTone } from '../../components/core/status-chip/status-chip';
+import { VehicleActionsGroup } from './components/vehicle-actions-group/vehicle-actions-group';
+import { VehicleHistoryGroup } from './components/vehicle-history-group/vehicle-history-group';
+import { VehicleIcon } from './components/vehicle-icon/vehicle-icon';
+import { VehicleMoneyHero } from './components/vehicle-money-hero/vehicle-money-hero';
+import { VehiclePendencias } from './components/vehicle-pendencias/vehicle-pendencias';
+import { VehicleRentalHero } from './components/vehicle-rental-hero/vehicle-rental-hero';
 import { VehicleDocumentsCard } from './vehicle-documents-card';
 import { VehicleDetailPhoto } from './components/vehicle-detail-photo/vehicle-detail-photo';
 import { DocumentLike } from '../../components/documents/documents-card';
@@ -27,41 +39,69 @@ import { ApiErrorService } from '../../services/api-error.service';
 import { VehiclesService } from '../../services/vehicles.service';
 import { NotificationService } from '../../services/notification.service';
 import { IpvaStatus, Vehicle, VehiclePhotoSource, VehicleType } from '../../types/vehicle.types';
+import { GerenciaSummary } from '../../types/gerencia-summary.types';
+import { RentalListItemDto, RentalResponseDto } from '../../types/rental.types';
+import { VehiclePendencia } from '../../types/vehicle-pendencia.types';
 import { vehicleStatusMeta } from '../../utils/status-maps';
+import { RentalService } from '../rentals/rental.service';
+import {
+  VehicleHero,
+  brl,
+  dayMonth,
+  idleHero,
+  latestEnd,
+  pendenciaChip,
+  pendenciaKm,
+  rentedHero,
+} from './vehicle-page.model';
 import { formatSaleDate, saleReleasesSlotNote, soldLockReason as soldLockReasonFor } from './vehicle-sale-copy';
 
-const TYPE_LABEL: Record<VehicleType, { label: string; chip: string }> = {
-  CAR: { label: 'Carro', chip: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' },
-  MOTORCYCLE: { label: 'Moto', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
+const TYPE_LABEL: Record<VehicleType, string> = { CAR: 'Carro', MOTORCYCLE: 'Moto' };
+
+const IPVA_STATUS_CHIP: Record<IpvaStatus, { label: string; tone: StatusChipTone }> = {
+  PAID: { label: 'Pago', tone: 'green' },
+  PENDING: { label: 'Pendente', tone: 'neutral' },
+  OVERDUE: { label: 'Vencido', tone: 'orange' },
 };
 
-const IPVA_STATUS_LABEL: Record<IpvaStatus, { label: string; chip: string }> = {
-  PAID: { label: 'Pago', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' },
-  PENDING: { label: 'Pendente', chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' },
-  OVERDUE: { label: 'Vencido', chip: 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-200' },
-};
+export type VehicleTab = 'veiculo' | 'gerencia';
+
+/** O segmento vem de `?aba=gerencia`: é para lá que o caminho antigo redireciona. */
+function tabFromQuery(value: string | null): VehicleTab {
+  return value === 'gerencia' ? 'gerencia' : 'veiculo';
+}
 
 @Component({
   selector: 'app-vehicle-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    BackLink,
     RouterLink,
-    DecimalPipe,
     DefaultPageLayout,
-    PageCard,
     ConfirmDialog,
-    DetailActions,
     AlertBanner,
+    KvList,
+    ListGroup,
+    ListRow,
+    PaintedCard,
+    SegmentedTabs,
+    StatusChip,
+    VehicleActionsGroup,
     VehicleDocumentsCard,
     VehicleDetailPhoto,
+    VehicleHistoryGroup,
+    VehicleIcon,
+    VehicleMoneyHero,
+    VehiclePendencias,
+    VehicleRentalHero,
     SellVehicleDialog,
   ],
   templateUrl: './vehicle-detail.html',
 })
 export class VehicleDetail implements OnInit {
   private readonly vehiclesService = inject(VehiclesService);
+  private readonly rentalService = inject(RentalService);
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly notify = inject(NotificationService);
   private readonly apiErrors = inject(ApiErrorService);
@@ -80,7 +120,56 @@ export class VehicleDetail implements OnInit {
   protected readonly deleteOpen = signal(false);
   protected readonly deleting = signal(false);
 
-  protected readonly vehicleId = computed(() => this.vehicle()?.id ?? '');
+  protected readonly tab = signal<VehicleTab>('veiculo');
+
+  // Cada leitura carrega sozinha: se uma falha, as outras continuam na tela. A página só
+  // LÊ daqui para baixo; quem resolve pendência ou cobrança é a tela de destino.
+  protected readonly summary = signal<GerenciaSummary | null>(null);
+  protected readonly summaryError = signal<string | null>(null);
+  protected readonly pendencias = signal<readonly VehiclePendencia[]>([]);
+  protected readonly pendenciasLoaded = signal(false);
+  protected readonly pendenciasError = signal<string | null>(null);
+
+  private readonly activeRental = signal<RentalListItemDto | null>(null);
+  private readonly rentalDetail = signal<RentalResponseDto | null>(null);
+  /** `null`: nenhum concluído. `undefined`: não deu para saber. */
+  private readonly lastRentalEnd = signal<string | null | undefined>(undefined);
+  protected readonly rentalLoading = signal(true);
+
+  protected readonly pageTitle = computed(() => {
+    const v = this.vehicle();
+    return v ? this.formatPlate(v.plate) : 'Veículo';
+  });
+
+  protected readonly pageDescription = computed(() => {
+    const v = this.vehicle();
+    if (!v) return '';
+    return [`${v.brand} ${v.model}`, v.yearModel, v.color].filter(Boolean).join(' · ');
+  });
+
+  /** O número do segmento é o tamanho da lista, nunca o `openCount` do resumo. */
+  protected readonly tabOptions = computed<readonly SegmentedTabsOption<VehicleTab>[]>(() => {
+    const count = this.pendencias().length;
+    return [
+      { value: 'veiculo', label: 'Veículo' },
+      {
+        value: 'gerencia',
+        label: 'Gerência',
+        count,
+        countLabel: count === 1 ? '1 pendência' : `${count} pendências`,
+      },
+    ];
+  });
+
+  protected readonly hero = computed<VehicleHero | null>(() => {
+    const v = this.vehicle();
+    if (!v) return null;
+    const rental = this.activeRental();
+    if (rental) return rentedHero(rental, this.rentalDetail());
+    // Vendido e sem aluguel: o bloco da venda já diz tudo.
+    if (v.sale) return null;
+    return idleHero(v.id, v.status, this.lastRentalEnd());
+  });
 
   /**
    * A foto do cabeçalho, a mesma da lista: quem decide é o backend (o anexo PHOTO,
@@ -98,32 +187,12 @@ export class VehicleDetail implements OnInit {
   private photoDocumentId: string | null | undefined = undefined;
   private photoRefresh: Subscription | null = null;
 
-  protected readonly typeInfo = computed(() => {
+  protected readonly typeLabel = computed(() => {
     const t = this.vehicle()?.type;
-    return t ? TYPE_LABEL[t] : { label: '—', chip: 'bg-surface-sunken text-fg-soft' };
+    return t ? TYPE_LABEL[t] : '—';
   });
 
-  protected readonly statusInfo = computed(() => {
-    const s = this.vehicle()?.status;
-    return vehicleStatusMeta(s);
-  });
-
-  protected readonly canGoMaintenance = computed(() => {
-    const s = this.vehicle()?.status;
-    return s === 'AVAILABLE' || s === 'INACTIVE';
-  });
-
-  // Transições de status continuam VISÍVEIS no veículo vendido, mas
-  // desabilitadas (ver `soldLockReason`): sumir com elas esconderia a regra.
-  protected readonly canGoAvailable = computed(() => {
-    const s = this.vehicle()?.status;
-    return s === 'MAINTENANCE' || s === 'INACTIVE';
-  });
-
-  protected readonly canGoInactive = computed(() => {
-    const s = this.vehicle()?.status;
-    return s === 'AVAILABLE' || s === 'MAINTENANCE';
-  });
+  protected readonly statusInfo = computed(() => vehicleStatusMeta(this.vehicle()?.status));
 
   // ---- Venda (FEAT-0072) ------------------------------------------------
 
@@ -177,21 +246,19 @@ export class VehicleDetail implements OnInit {
     if (soldReason) return soldReason;
     const s = this.vehicle()?.status;
     if (s === 'RENTED') {
-      return 'Veículo está alugado. Finalize o aluguel para excluir.';
+      return 'Finalize o aluguel para excluir';
     }
     return null;
   });
 
-  protected readonly licensingBadge = computed(() => {
-    const iso = this.vehicle()?.licensingExpiration;
-    if (!iso) return null;
-    const expiry = new Date(iso + 'T00:00:00').getTime();
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const days = Math.round((expiry - startOfToday) / 86400000);
-    if (days < 0) return { label: 'Vencido', chip: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' };
-    if (days <= 30) return { label: `Vence em ${days}d`, chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200' };
-    return null;
+  /** Os chips da Documentação leem a pendência: a urgência é decidida no backend. */
+  private pendenciaOf(type: VehiclePendencia['type']): VehiclePendencia | undefined {
+    return this.pendencias().find((p) => p.type === type);
+  }
+
+  protected readonly licensingChip = computed(() => {
+    const p = this.pendenciaOf('LICENSING');
+    return p ? pendenciaChip(p) : null;
   });
 
   protected readonly hasIpva = computed(() => {
@@ -200,22 +267,28 @@ export class VehicleDetail implements OnInit {
     return v.ipvaAmount != null || v.ipvaDueDate != null || v.ipvaStatus != null;
   });
 
-  protected readonly ipvaStatusBadge = computed(() => {
-    const s = this.vehicle()?.ipvaStatus;
-    return s ? IPVA_STATUS_LABEL[s] : null;
+  protected readonly ipvaTitle = computed(() => {
+    const due = this.vehicle()?.ipvaDueDate;
+    return due ? `IPVA ${due.slice(0, 4)}` : 'IPVA';
   });
 
-  protected readonly ipvaOverdueChip = computed(() => {
+  protected readonly ipvaDetail = computed(() => {
     const v = this.vehicle();
-    if (!v || !v.ipvaExpired || v.ipvaStatus === 'PAID') return null;
-    if (!v.ipvaDueDate) return { label: 'IPVA vencido' };
-    const due = new Date(v.ipvaDueDate + 'T00:00:00').getTime();
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const days = Math.max(0, Math.round((startOfToday - due) / 86400000));
-    if (days === 0) return { label: 'IPVA vence hoje' };
-    return { label: `IPVA vencido há ${days} ${days === 1 ? 'dia' : 'dias'}` };
+    const amount = v?.ipvaAmount != null ? brl(v.ipvaAmount) : null;
+    const due = v?.ipvaDueDate ? `vence em ${dayMonth(v.ipvaDueDate)}` : null;
+    return [amount, due].filter(Boolean).join(', ') || 'Sem valor informado';
   });
+
+  protected readonly ipvaChip = computed(() => {
+    const p = this.pendenciaOf('IPVA');
+    if (p) return pendenciaChip(p);
+    const status = this.vehicle()?.ipvaStatus;
+    return status ? IPVA_STATUS_CHIP[status] : null;
+  });
+
+  protected formatKm(km: number | null | undefined): string {
+    return km == null ? '—' : pendenciaKm(km);
+  }
 
   protected formatMoney(cents: number | null | undefined): string {
     if (cents == null) return '—';
@@ -226,8 +299,109 @@ export class VehicleDetail implements OnInit {
   }
 
   ngOnInit(): void {
+    // O redirecionamento de `:id/gerencia` pode cair nesta mesma página, já aberta.
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => this.tab.set(tabFromQuery(params.get('aba'))));
+
     const id = this.route.snapshot.paramMap.get('id');
-    if (id) this.load(id);
+    if (!id) return;
+    this.load(id);
+    this.loadSummary(id);
+    this.loadPendencias(id);
+    this.loadRental(id);
+  }
+
+  protected selectTab(tab: VehicleTab): void {
+    this.tab.set(tab);
+    void this.router.navigate([], {
+      queryParams: { aba: tab === 'gerencia' ? 'gerencia' : null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  private loadSummary(id: string): void {
+    this.summaryError.set(null);
+    this.vehiclesService.getGerenciaSummary(id).subscribe({
+      next: (s) => this.summary.set(s),
+      error: (err: HttpErrorResponse) => {
+        this.summaryError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar a gerência do veículo.'),
+        );
+      },
+    });
+  }
+
+  private loadPendencias(id: string): void {
+    this.pendenciasError.set(null);
+    this.vehiclesService.getPendencias(id).subscribe({
+      next: (items) => {
+        this.pendencias.set(Array.isArray(items) ? items : []);
+        this.pendenciasLoaded.set(true);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.pendenciasError.set(
+          this.apiErrors.messageFor(err, 'Não foi possível carregar as pendências.'),
+        );
+      },
+    });
+  }
+
+  /** Só GET: aluguel ativo, o detalhe dele, ou o último concluído para o carro parado. */
+  private loadRental(id: string): void {
+    this.rentalLoading.set(true);
+    this.rentalService.list({ vehicleId: id, status: 'ACTIVE', size: 1 }).subscribe({
+      next: (res) => {
+        const active = res.content?.[0] ?? null;
+        this.activeRental.set(active);
+        if (active) this.loadRentalDetail(active.id);
+        else this.loadLastRentalEnd(id);
+      },
+      error: (err: HttpErrorResponse) => this.onRentalFailed(err),
+    });
+  }
+
+  private loadRentalDetail(rentalId: string): void {
+    this.rentalService.getById(rentalId).subscribe({
+      next: (detail) => {
+        this.rentalDetail.set(detail);
+        this.rentalLoading.set(false);
+      },
+      error: (err: HttpErrorResponse) => this.onRentalFailed(err),
+    });
+  }
+
+  private loadLastRentalEnd(vehicleId: string): void {
+    this.rentalService.list({ vehicleId, status: 'COMPLETED', size: 100 }).subscribe({
+      next: (res) => {
+        this.lastRentalEnd.set(latestEnd(res.content ?? []));
+        this.rentalLoading.set(false);
+      },
+      error: (err: HttpErrorResponse) => this.onRentalFailed(err),
+    });
+  }
+
+  /** O hero diz que não leu; o aluguel em si não mudou, então nada de banner vermelho. */
+  private onRentalFailed(err: HttpErrorResponse): void {
+    this.apiErrors.claim(err);
+    this.rentalLoading.set(false);
+  }
+
+  protected retrySummary(): void {
+    const id = this.vehicle()?.id;
+    if (id) this.loadSummary(id);
+  }
+
+  protected retryPendencias(): void {
+    const id = this.vehicle()?.id;
+    if (id) this.loadPendencias(id);
+  }
+
+  /** Venda e desfazer mudam Resultado e pendências, e a página não recarrega sozinha. */
+  private refreshGerencia(vehicleId: string): void {
+    this.loadSummary(vehicleId);
+    this.loadPendencias(vehicleId);
   }
 
   private load(id: string): void {
@@ -346,6 +520,7 @@ export class VehicleDetail implements OnInit {
         this.selling.set(false);
         this.sellOpen.set(false);
         this.vehicle.set(updated);
+        this.refreshGerencia(updated.id);
         this.notify.success(`Venda registrada para «${this.formatPlate(updated.plate)}».`);
       },
       error: (err: HttpErrorResponse) => {
@@ -384,6 +559,7 @@ export class VehicleDetail implements OnInit {
         this.undoingSale.set(false);
         this.undoOpen.set(false);
         this.vehicle.set(updated);
+        this.refreshGerencia(updated.id);
         this.notify.success('Venda desfeita. O veículo voltou para a frota.');
       },
       error: (err: HttpErrorResponse) => {
@@ -411,7 +587,7 @@ export class VehicleDetail implements OnInit {
 
   protected transitionStatus(target: 'AVAILABLE' | 'MAINTENANCE' | 'INACTIVE'): void {
     const v = this.vehicle();
-    if (!v || this.transitioning() || this.sold()) return;
+    if (!v || this.transitioning() || this.sold() || v.status === 'RENTED') return;
     this.actionError.set(null);
     this.transitioning.set(true);
     this.vehiclesService.updateStatus(v.id, target).subscribe({

@@ -1,7 +1,27 @@
-<app-default-page-layout
-  title="Detalhes do veículo"
-  description="Informações completas do veículo cadastrado."
->
+<app-default-page-layout [title]="pageTitle()" [description]="pageDescription()">
+  <a
+    pageBack
+    routerLink="/veiculos"
+    data-back
+    class="-ml-1 inline-flex items-center gap-1.5 min-h-[44px] px-1 rounded-lg text-sm font-semibold
+           text-fg-muted hover:text-fg transition-colors focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-primary-400"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+    Veículos
+  </a>
+  <span pageBadge class="inline-flex items-center gap-2">
+    @if (vehicle()) {
+      <app-status-chip [colorClass]="statusInfo().chip">{{ statusInfo().label }}</app-status-chip>
+      @if (sold()) {
+        <app-status-chip colorClass="bg-neutral-800 dark:bg-neutral-700 text-white">Vendido</app-status-chip>
+      }
+    }
+  </span>
+
   @if (loading()) {
     <div class="rounded-2xl bg-surface border border-edge p-8 text-center text-fg-subtle text-sm">
       Carregando…
@@ -24,385 +44,243 @@
       </div>
     }
 
-    <!-- Header -->
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
-      <!-- Com foto, ela ocupa a largura no celular e a placa desce; sem foto
-           (ou se a foto falhar) fica o ícone, na mesma linha da placa. -->
-      <div
-        class="flex gap-3 min-w-0"
-        [class.items-center]="!showPhoto()"
-        [class.flex-col]="showPhoto()"
-        [class.sm:flex-row]="showPhoto()"
-        [class.sm:items-center]="showPhoto()"
-        [class.sm:gap-4]="showPhoto()"
-      >
-        @if (showPhoto()) {
-          <app-vehicle-detail-photo
-            [vehicleId]="v.id"
-            [url]="photo()!.url"
-            [source]="photo()!.source"
-            [fileName]="photoFileName()"
-            [plate]="formatPlate(v.plate)"
-            (failed)="onPhotoFailed()"
-          />
-        } @else {
-          <div class="w-12 h-12 rounded-xl bg-primary-500 text-white flex items-center justify-center
-                      shrink-0 shadow-inner" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
-              <circle cx="6.5" cy="16.5" r="2.5"/>
-              <circle cx="16.5" cy="16.5" r="2.5"/>
-            </svg>
-          </div>
-        }
-        <div class="min-w-0">
-          <h2 class="text-xl sm:text-2xl font-bold text-fg tracking-wider tabular-nums">
-            {{ formatPlate(v.plate) }}
-          </h2>
-          <div class="flex items-center gap-2 mt-1 flex-wrap">
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-              [class]="statusInfo().chip">
-              {{ statusInfo().label }}
-            </span>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-              [class]="typeInfo().chip">
-              {{ typeInfo().label }}
-            </span>
-            @if (sold()) {
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold
-                           uppercase tracking-wide bg-neutral-800 dark:bg-neutral-700 text-white">
-                Vendido
-              </span>
-            }
-            <span class="text-sm text-fg-muted break-words">
-              {{ v.brand }} {{ v.model }} · {{ v.yearModel }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Desktop actions (top-right) -->
-      <div class="hidden lg:flex shrink-0 items-center gap-3">
-        @if (sold()) {
-          <button
-            type="button"
-            (click)="askUndoSale()"
-            [disabled]="undoingSale()"
-            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                   bg-surface text-fg-soft border border-edge-strong hover:bg-surface-muted transition-colors
-                   min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500/40 disabled:opacity-60">
-            {{ undoingSale() ? 'Desfazendo…' : 'Desfazer venda' }}
-          </button>
-        } @else {
-          <button
-            type="button"
-            (click)="askSell()"
-            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                   bg-surface text-primary-700 dark:text-primary-400 border border-primary-300 dark:border-primary-500/40 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors
-                   min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500/40">
-            Vender
-          </button>
-        }
-        <app-detail-actions
-          [editRouterLink]="['/veiculos', v.id, 'editar']"
-          [editDisabled]="sold()"
-          [deleteDisabled]="deleteDisabledReason() !== null"
-          [deleteDisabledReason]="deleteDisabledReason()"
-          (delete)="askDelete()"
-        />
-      </div>
-    </div>
-
-    <!-- Veículo VENDIDO: o aviso vem antes de tudo e explica a tela travada.
-         Legível em coluna única, sem scroll horizontal (texto quebra). -->
-    @if (sale(); as saleInfo) {
-      <div
-        class="rounded-xl border border-edge-strong bg-surface-muted p-4 mb-4"
-        role="status"
-        data-sold-banner
-      >
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-fg">
-              Veículo vendido em {{ formatDate(saleInfo.saleDate) }}
-            </p>
-            <p class="mt-1 text-sm text-fg-muted break-words">
-              Comprador: <span class="font-medium text-fg">{{ saleInfo.buyerName }}</span>
-              · Valor:
-              <span class="font-medium text-fg tabular-nums">
-                {{ formatMoney(saleInfo.saleValueCents) }}
-              </span>
-            </p>
-            <p class="mt-2 text-xs text-fg-subtle">
-              Ele saiu da frota: a tela fica só para consulta e as ações de operação ficam
-              desabilitadas. Para voltar a operar, desfaça a venda.
-            </p>
-            <!-- Efeito na vaga (FIX-0262): mesma frase do diálogo de vender, e
-                 condicional de propósito — vendido-mas-alugado não libera vaga. -->
-            <p data-sale-slot-note class="mt-1 text-xs text-fg-subtle">
-              {{ slotNote }}
-            </p>
-          </div>
-        </div>
-      </div>
-    }
-
-    <!-- Status transitions -->
-    <div class="flex flex-wrap items-center gap-2 mb-4">
-      @if (canGoAvailable()) {
-        <button
-          type="button"
-          [disabled]="transitioning() || sold()"
-          [attr.title]="soldLockReason()"
-          (click)="transitionStatus('AVAILABLE')"
-          class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15
-                 border border-emerald-200 dark:border-emerald-500/30 px-3 py-2 rounded-lg min-h-[44px] disabled:opacity-60">
-          Marcar disponível
-        </button>
-      }
-      @if (canGoMaintenance()) {
-        <button
-          type="button"
-          [disabled]="transitioning() || sold()"
-          [attr.title]="soldLockReason()"
-          (click)="transitionStatus('MAINTENANCE')"
-          class="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15
-                 border border-amber-200 dark:border-amber-500/30 px-3 py-2 rounded-lg min-h-[44px] disabled:opacity-60">
-          Marcar em manutenção
-        </button>
-      }
-      @if (canGoInactive()) {
-        <button
-          type="button"
-          [disabled]="transitioning() || sold()"
-          [attr.title]="soldLockReason()"
-          (click)="transitionStatus('INACTIVE')"
-          class="inline-flex items-center gap-1.5 text-xs font-semibold text-fg-soft bg-surface-muted hover:bg-surface-sunken
-                 border border-edge px-3 py-2 rounded-lg min-h-[44px] disabled:opacity-60">
-          Marcar inativo
-        </button>
-      }
-      @if (v.status === 'RENTED') {
-        <p class="text-xs text-fg-subtle">
-          Status alterado automaticamente pelo aluguel ativo — finalize o aluguel para alterar manualmente.
-        </p>
-      }
-    </div>
-
-    <!--
-      VISTORIA SAIU DAQUI, e nao por descuido.
-      O agendamento periodico mora agora na tela de Vistorias, num formulario UNICO
-      com seletor de alvo (toda a frota ou um carro) — antes eram dois formularios
-      identicos campo a campo, um aqui e um la, e agendar carro a carro numa frota de
-      dez eram dez visitas a dez telas. Nao recoloque um cartao de agendamento aqui:
-      a terceira copia e o defeito, nao a conveniencia.
-    -->
-
-    <!-- Gerência do veículo CTA -->
-    <a
-      [routerLink]="['/veiculos', v.id, 'gerencia']"
-      class="flex items-center justify-between gap-3 rounded-2xl bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/30 p-4 sm:p-5 hover:bg-primary-100 dark:hover:bg-primary-500/15 transition-colors mb-4 sm:mb-6"
+    <div
+      class="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-1.5 mb-3 bg-canvas/90 backdrop-blur-sm
+             lg:static lg:mx-0 lg:px-0 lg:py-0 lg:mb-6 lg:bg-transparent lg:backdrop-blur-none"
     >
-      <div class="flex items-center gap-3 min-w-0">
-        <span class="flex-none inline-flex items-center justify-center w-11 h-11 rounded-xl bg-surface text-primary-700 dark:text-primary-400 border border-primary-200 dark:border-primary-500/30"
-          aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/>
-            <rect x="14" y="14" width="7" height="7" rx="1"/>
-          </svg>
-        </span>
-        <div class="min-w-0">
-          <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-400">Gerência do veículo</p>
-          <p class="text-base font-semibold text-primary-900 dark:text-primary-400 truncate">
-            Multas, manutenções e financiamento
-          </p>
+      <app-segmented-tabs
+        class="lg:max-w-[360px]"
+        ariaLabel="Seções do veículo"
+        idPrefix="vehicle"
+        [options]="tabOptions()"
+        [value]="tab()"
+        (selected)="selectTab($event)"
+      />
+    </div>
+
+    <!-- Os dois painéis ficam montados: trocar de segmento no meio de um envio de
+         documento não pode cancelar o envio. -->
+    <section
+      role="tabpanel"
+      id="vehicle-panel-veiculo"
+      aria-labelledby="vehicle-tab-veiculo"
+      [hidden]="tab() !== 'veiculo'"
+    >
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-x-4 lg:gap-x-6 items-start">
+        <div class="order-1 sm:col-span-2 lg:col-span-8 lg:self-stretch mb-4 lg:mb-1.5 flex flex-col gap-4 min-w-0">
+          @if (sale(); as saleInfo) {
+            <!-- VENDIDO: o aviso vem antes de tudo e explica a tela travada. -->
+            <app-painted-card tone="orange" role="status" data-sold-banner>
+              <div class="flex flex-col gap-1.5 min-w-0">
+                <span class="text-xs uppercase tracking-wide text-white/80">Vendido</span>
+                <span class="text-[32px] sm:text-[40px] font-semibold tracking-tight leading-tight tabular-nums">
+                  {{ formatMoney(saleInfo.saleValueCents) }}
+                </span>
+                <span class="text-sm text-white/85 leading-snug [overflow-wrap:anywhere]">
+                  Veículo vendido em {{ formatDate(saleInfo.saleDate) }} para {{ saleInfo.buyerName }}.
+                </span>
+              </div>
+              <div class="border-t border-white/25 pt-3 flex flex-col gap-1">
+                <p class="m-0 text-xs text-white/85 leading-snug">
+                  Ele saiu da frota: a tela fica só para consulta e as ações de operação ficam
+                  desabilitadas. Para voltar a operar, desfaça a venda.
+                </p>
+                <!-- Efeito na vaga (FIX-0262): mesma frase do diálogo de vender, e
+                     condicional de propósito: vendido-mas-alugado não libera vaga. -->
+                <p data-sale-slot-note class="m-0 text-xs text-white/85 leading-snug">{{ slotNote }}</p>
+              </div>
+            </app-painted-card>
+          }
+          @if (rentalLoading()) {
+            <div
+              class="h-48 rounded-2xl bg-surface-sunken animate-pulse"
+              role="status"
+              aria-label="Carregando o aluguel"
+            ></div>
+          } @else if (hero(); as h) {
+            <app-vehicle-rental-hero [hero]="h" />
+          }
+        </div>
+
+        <div class="order-0 sm:col-span-2 lg:order-1 lg:col-span-4 lg:self-stretch mb-4 lg:mb-1.5 min-w-0">
+          @if (showPhoto()) {
+            <app-vehicle-detail-photo
+              [vehicleId]="v.id"
+              [url]="photo()!.url"
+              [source]="photo()!.source"
+              [fileName]="photoFileName()"
+              [plate]="formatPlate(v.plate)"
+              (failed)="onPhotoFailed()"
+            />
+          } @else {
+            <div
+              data-vehicle-no-photo
+              class="enter-up h-28 sm:h-[220px] lg:h-full lg:min-h-[200px] rounded-2xl bg-surface border
+                     border-edge flex flex-col items-center justify-center gap-1 text-fg-muted"
+            >
+              <app-vehicle-icon name="car" [size]="28" />
+              <span class="text-sm">Sem foto</span>
+            </div>
+          }
+        </div>
+
+        <div class="contents lg:block lg:order-2 lg:col-span-6 xl:col-span-4 min-w-0">
+          <div class="order-3 min-w-0">
+            <app-list-group heading="Veículo">
+              <div appListRow>
+                <span class="tile" aria-hidden="true"><app-vehicle-icon name="car" /></span>
+                <span class="t">
+                  <b class="[overflow-wrap:anywhere]">{{ v.brand }} {{ v.model }}</b>
+                  <small>{{ v.yearManufacture }} / {{ v.yearModel }}{{ v.color ? ', ' + v.color : '' }}</small>
+                </span>
+              </div>
+              <dl appKvList inset>
+                <div><dt>Hodômetro</dt><dd class="tabular-nums">{{ formatKm(v.hodometer) }}</dd></div>
+                <div><dt>Tipo</dt><dd>{{ typeLabel() }}</dd></div>
+                <div><dt>Criado em</dt><dd class="tabular-nums">{{ formatDate(v.createdDate) }}</dd></div>
+                <div>
+                  <dt>Última alteração</dt>
+                  <dd class="tabular-nums">{{ v.modifyDate ? formatDate(v.modifyDate) : '—' }}</dd>
+                </div>
+              </dl>
+            </app-list-group>
+          </div>
+        </div>
+
+        <div class="contents lg:block lg:order-2 lg:col-span-6 xl:col-span-4 min-w-0">
+          <div class="order-4 min-w-0">
+            <app-list-group heading="Documentação">
+              @if (v.licensingExpiration) {
+                <div appListRow data-licensing-row>
+                  <span class="tile" aria-hidden="true"><app-vehicle-icon name="document" /></span>
+                  <span class="t">
+                    <b>Licenciamento</b>
+                    <small>Vence em {{ formatDate(v.licensingExpiration) }}</small>
+                  </span>
+                  @if (licensingChip(); as chip) {
+                    <app-status-chip size="sm" [tone]="chip.tone">{{ chip.label }}</app-status-chip>
+                  }
+                </div>
+              }
+              @if (hasIpva()) {
+                <div appListRow data-ipva-row>
+                  <span class="tile" aria-hidden="true"><app-vehicle-icon name="card" /></span>
+                  <span class="t">
+                    <b>{{ ipvaTitle() }}</b>
+                    <small>{{ ipvaDetail() }}</small>
+                  </span>
+                  @if (ipvaChip(); as chip) {
+                    <app-status-chip size="sm" [tone]="chip.tone">{{ chip.label }}</app-status-chip>
+                  }
+                </div>
+              }
+              <dl appKvList [inset]="!!v.licensingExpiration || hasIpva()">
+                <div><dt>Chassi</dt><dd class="tabular-nums">{{ v.chassis ?? '—' }}</dd></div>
+                <div><dt>RENAVAM</dt><dd class="tabular-nums">{{ v.renavam ?? '—' }}</dd></div>
+                <div><dt>Data de compra</dt><dd class="tabular-nums">{{ formatDate(v.purchaseDate) }}</dd></div>
+                <div>
+                  <dt>Valor de compra</dt>
+                  <dd class="tabular-nums">
+                    @if (summary()?.finance?.purchasePriceMissing && !sold()) {
+                      <a
+                        [routerLink]="['/veiculos', v.id, 'editar']"
+                        class="inline-flex items-center min-h-11 -my-2 text-primary-700 dark:text-primary-300"
+                      >Informar</a>
+                    } @else {
+                      {{ formatMoney(v.purchasePrice) }}
+                    }
+                  </dd>
+                </div>
+              </dl>
+            </app-list-group>
+          </div>
+        </div>
+
+        <div
+          class="contents lg:grid lg:grid-cols-2 lg:gap-x-6 lg:items-start lg:order-2 lg:col-span-12
+                 xl:block xl:col-span-4 min-w-0"
+        >
+          <div class="order-2 min-w-0">
+            <app-vehicle-documents-card
+              variant="rows"
+              [vehicleId]="v.id"
+              (documentsChange)="onDocumentsChange($event)"
+            />
+          </div>
+          <div class="order-6 min-w-0">
+            <app-vehicle-actions-group
+              [vehicleId]="v.id"
+              [status]="v.status"
+              [sold]="sold()"
+              [lockReason]="soldLockReason()"
+              [deleteLock]="deleteDisabledReason()"
+              [busy]="transitioning()"
+              [undoing]="undoingSale()"
+              (transition)="transitionStatus($event)"
+              (sell)="askSell()"
+              (undoSale)="askUndoSale()"
+              (remove)="askDelete()"
+            />
+          </div>
         </div>
       </div>
-      <svg class="flex-none w-6 h-6 text-primary-700 dark:text-primary-400"
-        xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
-    </a>
+    </section>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-
-      <!-- Identificação -->
-      <app-page-card title="Identificação">
-        <div class="p-4 sm:p-6 grid grid-cols-2 gap-3">
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Placa</p>
-            <p class="text-fg font-medium tabular-nums tracking-wider">{{ formatPlate(v.plate) }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Tipo</p>
-            <p class="text-fg font-medium">{{ typeInfo().label }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Marca / Modelo</p>
-            <p class="text-fg font-medium break-words">{{ v.brand }} {{ v.model }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Ano fab. / mod.</p>
-            <p class="text-fg font-medium tabular-nums">{{ v.yearManufacture }} / {{ v.yearModel }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Cor</p>
-            <p class="text-fg font-medium">{{ v.color ?? '—' }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Hodômetro</p>
-            <p class="text-fg font-medium tabular-nums">{{ v.hodometer | number }} km</p>
-          </div>
+    <section
+      role="tabpanel"
+      id="vehicle-panel-gerencia"
+      aria-labelledby="vehicle-tab-gerencia"
+      [hidden]="tab() !== 'gerencia'"
+    >
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-x-6 items-start">
+        <div class="lg:col-span-12 mb-4 lg:mb-1.5 min-w-0">
+          @if (summaryError(); as summaryFailure) {
+            <app-alert-banner variant="error" data-summary-error>
+              {{ summaryFailure }}
+              <button type="button" (click)="retrySummary()" class="ml-2 underline font-semibold min-h-11 cursor-pointer">
+                Tentar novamente
+              </button>
+            </app-alert-banner>
+          } @else if (summary(); as s) {
+            <app-vehicle-money-hero [finance]="s.finance" [vehicleId]="v.id" [sold]="sold()" />
+          } @else {
+            <div
+              class="h-64 rounded-2xl bg-surface-sunken animate-pulse"
+              role="status"
+              aria-label="Carregando os números do carro"
+            ></div>
+          }
         </div>
-      </app-page-card>
 
-      <!-- Documentação -->
-      <app-page-card title="Documentação">
-        <div class="p-4 sm:p-6 space-y-3">
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Chassi</p>
-            <p class="text-fg font-medium tabular-nums tracking-wider break-all">
-              {{ v.chassis ?? '—' }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">RENAVAM</p>
-            <p class="text-fg font-medium tabular-nums">{{ v.renavam ?? '—' }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Licenciamento</p>
-            <p class="font-medium tabular-nums flex items-center gap-2 flex-wrap"
-              [class.text-rose-600]="licensingBadge()" [class.dark:text-rose-300]="licensingBadge()"
-              [class.text-fg]="!licensingBadge()">
-              {{ formatDate(v.licensingExpiration) }}
-              @if (licensingBadge(); as badge) {
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                  [class]="badge.chip">
-                  {{ badge.label }}
-                </span>
-              }
-            </p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Data de compra</p>
-            <p class="text-fg font-medium tabular-nums">{{ formatDate(v.purchaseDate) }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Valor total</p>
-            <p class="text-fg font-medium tabular-nums">{{ formatMoney(v.purchasePrice) }}</p>
-          </div>
+        <div class="lg:col-span-12 xl:col-span-8 min-w-0">
+          @if (pendenciasError(); as pendenciasFailure) {
+            <app-list-group heading="Pendências">
+              <div class="p-3">
+                <app-alert-banner variant="error" data-pendencias-error>
+                  {{ pendenciasFailure }}
+                  <button type="button" (click)="retryPendencias()" class="ml-2 underline font-semibold min-h-11 cursor-pointer">
+                    Tentar novamente
+                  </button>
+                </app-alert-banner>
+              </div>
+            </app-list-group>
+          } @else if (pendenciasLoaded()) {
+            <app-vehicle-pendencias [items]="pendencias()" />
+          } @else {
+            <app-list-group heading="Pendências">
+              <div class="h-40 bg-surface-sunken animate-pulse" aria-hidden="true"></div>
+            </app-list-group>
+          }
         </div>
-      </app-page-card>
 
-      <!-- Documentos anexados. Título deliberadamente diferente de "Documentação":
-           aquele card mostra NÚMEROS (RENAVAM, chassi, licenciamento), este guarda
-           os ARQUIVOS. Dois cards com o mesmo nome na mesma tela seria ruído.
-           Largura total pelo idioma desta página (lg:col-span-2 DENTRO da grid):
-           cada linha carrega nome de arquivo mais dois botões e aperta em meia
-           coluna de desktop. -->
-      <app-vehicle-documents-card
-        [vehicleId]="v.id"
-        class="lg:col-span-2"
-        (documentsChange)="onDocumentsChange($event)"
-      />
-
-      <!-- IPVA -->
-      @if (hasIpva()) {
-        <app-page-card title="IPVA" class="lg:col-span-2">
-          <div class="p-4 sm:p-6 space-y-4">
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div>
-                <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Valor</p>
-                <p class="text-fg font-medium tabular-nums">{{ formatMoney(v.ipvaAmount) }}</p>
-              </div>
-              <div>
-                <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Vencimento</p>
-                <p class="text-fg font-medium tabular-nums">{{ formatDate(v.ipvaDueDate) }}</p>
-              </div>
-              <div>
-                <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Status</p>
-                @if (ipvaStatusBadge(); as badge) {
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold mt-0.5"
-                    [class]="badge.chip">
-                    {{ badge.label }}
-                  </span>
-                } @else {
-                  <p class="text-fg font-medium">—</p>
-                }
-              </div>
-            </div>
-
-            @if (ipvaOverdueChip(); as chip) {
-              <div class="flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-800 dark:text-red-200 text-sm p-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="shrink-0 mt-0.5" aria-hidden="true">
-                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/>
-                  <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                <span class="font-medium">{{ chip.label }}</span>
-              </div>
-            }
-          </div>
-        </app-page-card>
-      }
-
-      <!-- Cadastro -->
-      <app-page-card title="Cadastro" class="lg:col-span-2">
-        <div class="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Criado em</p>
-            <p class="text-fg font-medium tabular-nums">{{ formatDate(v.createdDate) }}</p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold text-fg-faint uppercase tracking-wider">Última alteração</p>
-            <p class="text-fg font-medium tabular-nums">
-              {{ v.modifyDate ? formatDate(v.modifyDate) : '—' }}
-            </p>
-          </div>
+        <div class="lg:col-span-12 xl:col-span-4 min-w-0">
+          <app-vehicle-history-group
+            [vehicleId]="v.id"
+            [financed]="summary()?.finance?.financed ?? false"
+          />
         </div>
-      </app-page-card>
-
-    </div>
-
-    <!-- Mobile actions (bottom) -->
-    <div class="lg:hidden mt-6 space-y-3">
-      @if (sold()) {
-        <button
-          type="button"
-          (click)="askUndoSale()"
-          [disabled]="undoingSale()"
-          class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                 bg-surface text-fg-soft border border-edge-strong hover:bg-surface-muted transition-colors
-                 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500/40 disabled:opacity-60">
-          {{ undoingSale() ? 'Desfazendo…' : 'Desfazer venda' }}
-        </button>
-      } @else {
-        <button
-          type="button"
-          (click)="askSell()"
-          class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                 bg-surface text-primary-700 dark:text-primary-400 border border-primary-300 dark:border-primary-500/40 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors
-                 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary-500/40">
-          Vender
-        </button>
-      }
-      <app-detail-actions
-        [editRouterLink]="['/veiculos', v.id, 'editar']"
-        [editDisabled]="sold()"
-        [deleteDisabled]="deleteDisabledReason() !== null"
-        [deleteDisabledReason]="deleteDisabledReason()"
-        (delete)="askDelete()"
-      />
-    </div>
-
-    <app-back-link link="/veiculos" label="Voltar para a lista" />
+      </div>
+    </section>
   }
 </app-default-page-layout>
 

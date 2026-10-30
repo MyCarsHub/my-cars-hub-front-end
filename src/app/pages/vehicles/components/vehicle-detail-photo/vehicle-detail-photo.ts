@@ -13,8 +13,8 @@ import { VehiclesService } from '../../../../services/vehicles.service';
 import { VehiclePhotoSource } from '../../../../types/vehicle.types';
 
 /**
- * A foto do veículo no detalhe: quadro 16:10, largura total no celular e fixa a
- * partir de `sm`. Tocar abre o visualizador do app, o mesmo do «Abrir» do card
+ * A foto do veículo no detalhe: cartão neutro próprio, largura total no celular e ao lado
+ * do bloco pintado no desktop. Tocar abre o visualizador do app, o mesmo do «Abrir» do card
  * de documentos.
  *
  * Mostra a foto que o backend resolveu, com a mesma regra da lista. Este quadro
@@ -31,7 +31,7 @@ import { VehiclePhotoSource } from '../../../../types/vehicle.types';
 @Component({
   selector: 'app-vehicle-detail-photo',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'enter-up block w-full shrink-0 sm:w-[200px] lg:w-[240px]' },
+  host: { class: 'enter-up block w-full h-full' },
   template: `
     <button
       type="button"
@@ -39,7 +39,7 @@ import { VehiclePhotoSource } from '../../../../types/vehicle.types';
       [attr.data-photo-source]="source()"
       (click)="open()"
       [attr.aria-label]="label()"
-      class="press relative block w-full aspect-[16/10] rounded-2xl overflow-hidden
+      class="press relative block w-full h-[168px] sm:h-[220px] lg:h-full lg:min-h-[200px] rounded-2xl overflow-hidden
              bg-surface-sunken border border-edge cursor-zoom-in
              focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
              focus-visible:outline-primary-600"
