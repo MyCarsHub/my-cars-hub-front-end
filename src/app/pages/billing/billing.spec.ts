@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { signal } from '@angular/core';
 import { Subject, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -2076,5 +2076,31 @@ describe('Billing', () => {
     expect(c.sheet()).toBeNull();
     expect(api.createInvoicePix).not.toHaveBeenCalled();
   });
+
+  for (const state of ['TRIAL_EXPIRED', 'TRIALING', 'PAST_DUE'] as const) {
+    it(`help is one centred WhatsApp line, never an orphan "Precisa de ajuda?" section (${state})`, async () => {
+      summarySignal.set(pastDueSummary({ state, trialEndsAt: serverTime(5 * 86_400_000) }));
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const fixture = TestBed.createComponent(Billing);
+      (fixture.componentInstance as unknown as V2Probe).ngOnInit();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+
+      expect(el.textContent).not.toContain('Precisa de ajuda?');
+      expect(el.textContent).not.toContain('WhatsApp do suporte');
+      const help = el.querySelectorAll('[data-testid=billing-help]');
+      expect(help.length).toBe(1);
+      expect(help[0].textContent).toContain('Dúvidas sobre os planos?');
+
+      (el.querySelector('[data-testid=billing-help-wa]') as HTMLButtonElement).click();
+      const opened = externalNav.openExternal.mock.calls.length > 0;
+      if (opened) {
+        expect(externalNav.openExternal.mock.calls[0][0]).toMatch(/^https:\/\/wa\.me\/\d+\?text=/);
+      } else {
+        expect(navigate).toHaveBeenCalledWith(['/suporte']);
+      }
+    });
+  }
 
 });

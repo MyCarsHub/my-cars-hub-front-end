@@ -2287,6 +2287,16 @@ export class Billing implements OnInit, OnDestroy {
     if (this.periodSwitchTarget() || this.downgradeTarget()) this.sheet.set(null);
   }
 
+  /** "Dúvidas sobre os planos?" — WhatsApp do suporte com a pergunta já escrita. */
+  protected readonly helpUrl = environment.supportWhatsapp
+    ? `https://wa.me/${environment.supportWhatsapp}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre os planos do MyCarsHub.')}`
+    : null;
+
+  protected openHelp(): void {
+    if (this.helpUrl) this.externalNav.openExternal(this.helpUrl);
+    else void this.router.navigate(['/suporte']);
+  }
+
   protected openSupport(): void {
     if (this.supportUrl) this.externalNav.openExternal(this.supportUrl);
     else void this.router.navigate(['/suporte']);

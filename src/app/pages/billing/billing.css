@@ -213,6 +213,18 @@
   .inv-list { display: none; }
 }
 
+/* ---------- linha de ajuda (WhatsApp) ---------- */
+.help-line { margin: 28px 0 4px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; font-size: 14.5px; color: var(--color-fg-muted); text-align: center; }
+.btn.wa { min-height: 44px; padding: 0 16px 0 12px; border-radius: 999px; font-size: 15px; color: var(--color-fg); gap: 8px; }
+.btn.wa svg { width: 20px; height: 20px; }
+.btn.wa:hover:not(:disabled) { border-color: color-mix(in srgb, #25D366 55%, var(--color-edge)); transform: translateY(-1px); }
+.btn.wa:active:not(:disabled) { transform: scale(0.97); }
+.v2-help { order: 6; }
+@media (min-width: 1024px) {
+  .v2-help { grid-column: 1 / -1; }
+  .layout.trial.no-side .a-hero { grid-column: 1 / -1; }
+}
+
 .foot-note { margin: 20px 0 0; text-align: center; font-size: 14px; color: var(--b-muted); }
 .idle { font-size: 34px; }
 .idle-copy { margin: 12px 0 0; font-size: 14.5px; color: var(--b-muted); }
@@ -246,4 +258,5 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton .card, .dial .arc, .tl .track i { animation: none; }
   .tbl td { transition: none; }
+  .btn.wa:hover:not(:disabled), .btn.wa:active:not(:disabled) { transform: none; }
 }
