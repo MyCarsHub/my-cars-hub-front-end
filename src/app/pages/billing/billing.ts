@@ -27,6 +27,7 @@ import {
   formatDayMonth,
   formatDayMonthTime,
   formatFullDate,
+  formatTime,
   parseServerTime,
   remainingLabel,
 } from '../../utils/server-time';
@@ -50,8 +51,11 @@ import {
   PlanPeriod,
   PlanResponse,
   SubscriptionChangeOutcome,
+  SubscriptionPix,
+  SubscriptionPixStatus,
   SubscriptionStatus,
 } from '../../types/billing.types';
+import { IMPERSONATION_STATE_KEY } from '../../services/impersonation.context';
 import { environment } from '../../../environments/environment';
 import { PlanColumn, PlanGrid } from './plan-grid';
 
@@ -121,7 +125,53 @@ type AwaitMode = 'returned' | 'checkout-open';
 const ACTIVE_GATEWAY: PlanGateway = 'stripe';
 
 /** Folhas da página: uma de cada vez. */
-type BillingSheet = 'pay' | 'plans' | 'cancel' | 'paid' | 'invoices';
+type BillingSheet = 'pay' | 'plans' | 'cancel' | 'paid' | 'invoices' | 'pix';
+
+/**
+ * Fases da folha "Pagar com Pix". `releasing`: o dinheiro entrou mas o acesso
+ * ainda não voltou (o `invoice.paid` está a caminho) — continua consultando.
+ */
+type PixPhase = 'loading' | 'qr' | 'releasing' | 'paid' | 'expired' | 'refunded' | 'error';
+
+/** Consulta o estado do Pix nesta cadência enquanto a folha está aberta. */
+const PIX_POLL_MS = 3000;
+/** Abaixo disto o "Expira em" fica laranja. */
+const PIX_URGENT_MS = 5 * 60_000;
+/** Quanto tempo o "Código Pix copiado" fica à vista. */
+const PIX_TOAST_MS = 2400;
+
+/** Tom do cartão de status v2. */
+type HeroTone = 'ok' | 'owe' | 'blk' | 'paid';
+
+interface HeroStop {
+  cls: 'done' | 'now' | '';
+  date: string;
+  label: string;
+}
+
+/** Tudo o que o cartão de status v2 desenha, menos as ações. */
+interface HeroView {
+  tone: HeroTone;
+  chip: { cls: 'g' | 'o' | 'w'; label: string };
+  amount: { reais: string; cents: string } | null;
+  per: string;
+  reasonIcon: 'check' | 'alert' | 'lock';
+  reason: string;
+  ring: {
+    /** 0–100: o quanto do anel está desenhado. */
+    pct: number;
+    value: string | null;
+    unit: string | null;
+    icon: 'lock' | 'check' | null;
+    caption: string;
+    sub: string;
+    label: string;
+  };
+  timeline: { fill: number; stops: HeroStop[] };
+}
+
+const DAY_MS = 86_400_000;
+const RING_CIRCUMFERENCE = 2 * Math.PI * 42;
 
 /** Depois de abrir a fatura do Stripe, relê o resumo nesta cadência… */
 const INVOICE_POLL_MS = 4000;
@@ -191,7 +241,7 @@ function formatPlanPrice(value: number, forceCents = false): string {
   selector: 'app-billing',
   imports: [CommonModule, RouterLink, DefaultPageLayout, ConfirmDialog, BottomSheet, AlertBanner, PlanGrid],
   templateUrl: './billing.html',
-  styleUrls: ['./billing-kit.css', './billing.css'],
+  styleUrls: ['./billing-kit.css', './billing.css', './billing-pix.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Billing implements OnInit, OnDestroy {
@@ -358,6 +408,9 @@ export class Billing implements OnInit, OnDestroy {
   protected readonly canCancel = computed<boolean>(() => {
     const sub = this.subscription();
     if (!sub) return false;
+    // Sessão somente-leitura (suporte "vendo como empresa"): o backend responde
+    // 403 — o botão não pode existir.
+    if (!this.canManage()) return false;
     if (sub.cancelAtPeriodEnd) return false;
     // A free ACTIVE plan is the floor — "Cancelar assinatura" would be a 400
     // and means nothing to the user.
@@ -444,6 +497,7 @@ export class Billing implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.stopPixTimers();
     this.stopAwaitPolling();
     this.stopInvoiceWatch();
     this.stopClock();
@@ -1277,8 +1331,11 @@ export class Billing implements OnInit, OnDestroy {
   /** Comprovante da folha "Pagamento confirmado". */
   protected readonly paidReceipt = signal<{
     amount: string;
+    cents: number | null;
     method: string;
+    viaPix: boolean;
     at: string;
+    failedAt: string;
     planName: string;
     until: string;
     receiptUrl: string | null;
@@ -1290,6 +1347,8 @@ export class Billing implements OnInit, OnDestroy {
   private invoiceWatchUntil = 0;
   private wasOwing = false;
   private lastOwingAmountCents: number | null = null;
+  /** "28/10" — quando a cobrança foi recusada; o cartão "pago" ainda conta a história. */
+  private lastOwingFailedAt = '—';
   private queryIntentHandled = false;
 
   protected readonly supportUrl = environment.supportWhatsapp
@@ -1325,7 +1384,21 @@ export class Billing implements OnInit, OnDestroy {
     return s === 'TRIALING' || s === 'TRIAL_EXPIRED' || s === 'CANCELED' || s === 'NONE';
   });
 
-  protected readonly canManage = computed(() => this.summary()?.canManage ?? true);
+  /**
+   * Quem pode pagar/cancelar. Vem do resumo; ANTES dele (ou se ele falhar) não
+   * presume "pode": uma sessão de suporte ("Ver como empresa") é somente leitura.
+   */
+  protected readonly canManage = computed(
+    () => this.summary()?.canManage ?? !this.isSupportSession(),
+  );
+
+  /** Sessão de impersonação aberta neste navegador. */
+  private isSupportSession(): boolean {
+    return this.session.getItem(IMPERSONATION_STATE_KEY) !== null;
+  }
+
+  /** Aviso da sessão somente leitura — explica por que não há botões de pagamento. */
+  protected readonly readOnly = computed(() => this.summaryLoaded() && !this.canManage());
 
   protected readonly planName = computed(() =>
     displayPlanName(this.summary()?.plan?.name ?? this.subscription()?.planName ?? null),
@@ -1497,6 +1570,578 @@ export class Billing implements OnInit, OnDestroy {
     return (this.summary()?.actions ?? []).includes(action as never);
   }
 
+  // ===================================================== cartão de status v2
+
+  /** Pago nesta visita: o cartão fica verde até a próxima. */
+  protected readonly showsPaidHero = computed(
+    () => this.paidReceipt() !== null && this.state() === 'ACTIVE',
+  );
+
+  /** O Pix desta fatura está ligado no servidor e quem olha pode pagar. */
+  protected readonly pixAvailable = computed(() => {
+    const sum = this.summary();
+    return (
+      !!sum &&
+      this.owing() &&
+      this.canManage() &&
+      sum.openInvoice !== null &&
+      sum.payWith.includes('PIX')
+    );
+  });
+
+  /** O servidor oferece Pix (o chip "Em breve" sai mesmo para quem só olha). */
+  protected readonly pixOffered = computed(() => (this.summary()?.payWith ?? []).includes('PIX'));
+
+  /** Cartão disponível para pagar a fatura (página da Stripe ou troca de cartão). */
+  protected readonly canPayByCard = computed(() => this.canPayInvoice() || this.has('UPDATE_CARD'));
+
+  /** Início do ciclo, para o anel e a linha do tempo do "em dia". */
+  private readonly periodStart = computed<Date | null>(() => {
+    const fromSub = parseServerTime(this.subscription()?.currentPeriodStart ?? null);
+    if (fromSub) return fromSub;
+    const end = this.periodEnd();
+    if (!end) return null;
+    const period = this.summary()?.plan?.period ?? this.currentPlan()?.period ?? 'MONTHLY';
+    const start = new Date(end);
+    if (period === 'YEARLY') start.setFullYear(start.getFullYear() - 1);
+    else start.setMonth(start.getMonth() - 1);
+    return start;
+  });
+
+  protected readonly hero = computed<HeroView | null>(() => {
+    const state = this.state();
+    if (this.showsPaidHero()) return this.paidHero();
+    if (state === 'PAST_DUE') return this.pastDueHero();
+    if (state === 'BLOCKED') return this.blockedHero();
+    if (state === 'ACTIVE') return this.activeHero();
+    return null;
+  });
+
+  private activeHero(): HeroView {
+    const now = this.now();
+    const end = this.periodEnd();
+    const start = this.periodStart();
+    const ending = !!(this.summary()?.cancelAtPeriodEnd || this.subscription()?.cancelAtPeriodEnd);
+    const card = this.card();
+    const u = this.usage();
+    const total = end && start ? Math.max(DAY_MS, end.getTime() - start.getTime()) : null;
+    const left = end ? Math.max(0, end.getTime() - now.getTime()) : null;
+    const days = left != null ? Math.ceil(left / DAY_MS) : null;
+    const elapsedPct =
+      total && left != null ? Math.max(0, Math.min(100, 100 - (left / total) * 100)) : 0;
+    const dayMonth = formatDayMonth(end);
+    let reason: string;
+    if (!end) reason = 'Plano ativo.';
+    else if (ending) reason = `Acesso até ${formatFullDate(end)}. Sem novas cobranças.`;
+    else
+      reason = card
+        ? `Próxima cobrança em ${dayMonth} no ${card.label}.`
+        : `Próxima cobrança em ${dayMonth}.`;
+    const unit = days === 1 ? 'dia' : 'dias';
+    return {
+      tone: 'ok',
+      chip: ending ? { cls: 'o', label: `Termina em ${dayMonth}` } : { cls: 'g', label: 'Em dia' },
+      amount: this.heroAmount(),
+      per: this.heroPer(),
+      reasonIcon: 'check',
+      reason,
+      ring:
+        days == null
+          ? {
+              pct: 100,
+              value: null,
+              unit: null,
+              icon: 'check',
+              caption: 'Plano ativo',
+              sub: '',
+              label: 'Plano ativo',
+            }
+          : {
+              pct: total ? Math.max(0, Math.min(100, ((left ?? 0) / total) * 100)) : 100,
+              value: String(days),
+              unit,
+              icon: null,
+              caption: ending ? `Termina em ${dayMonth}` : `Renova em ${dayMonth}`,
+              sub: ending ? 'sem nova cobrança' : 'cobrança automática',
+              label: `${days} ${unit} até ${ending ? 'o fim do acesso' : 'a renovação'}`,
+            },
+      timeline: {
+        fill: elapsedPct,
+        stops: [
+          {
+            cls: 'done',
+            date: formatDayMonth(start),
+            label: card ? `Pago · ${card.label.replace(' final ', ' ')}` : 'Pago',
+          },
+          {
+            cls: 'now',
+            date: `Hoje, ${formatDayMonth(now)}`,
+            label: u ? `${u.vehicles} de ${u.limit} veículos` : 'Plano ativo',
+          },
+          { cls: '', date: dayMonth, label: ending ? 'Fim do acesso' : 'Próxima cobrança' },
+        ],
+      },
+    };
+  }
+
+  private pastDueHero(): HeroView {
+    const now = this.now();
+    const end = this.graceEnd();
+    const start = parseServerTime(this.summary()?.pastDueSince ?? null);
+    const left = end ? Math.max(0, end.getTime() - now.getTime()) : null;
+    const total = end && start ? Math.max(1, end.getTime() - start.getTime()) : null;
+    let value: string | null = null;
+    let unit: string | null = null;
+    if (left != null) {
+      const days = Math.floor(left / DAY_MS);
+      if (days >= 1) {
+        value = String(days);
+        unit = days === 1 ? 'dia' : 'dias';
+      } else {
+        const hours = Math.max(0, Math.ceil(left / 3_600_000));
+        value = String(hours);
+        unit = hours === 1 ? 'hora' : 'horas';
+      }
+    }
+    return {
+      tone: 'owe',
+      chip: { cls: 'o', label: 'Pagamento recusado' },
+      amount: this.heroAmount(),
+      per: 'em aberto',
+      reasonIcon: 'alert',
+      reason: this.failureLine(),
+      ring: end
+        ? {
+            pct: total && left != null ? Math.max(0, Math.min(100, (left / total) * 100)) : 0,
+            value,
+            unit,
+            icon: null,
+            caption: `Acesso até ${formatDayMonth(end)}`,
+            sub: `às ${formatTime(end)}`,
+            label: `${this.deadlineLabel()} até o acesso pausar`,
+          }
+        : {
+            pct: 0,
+            value: null,
+            unit: null,
+            icon: null,
+            caption: 'Pague para manter o acesso',
+            sub: '',
+            label: 'Pagamento em aberto',
+          },
+      timeline: {
+        fill: 50,
+        stops: [
+          { cls: 'done', date: this.failureAt(), label: 'Cobrança recusada' },
+          {
+            cls: 'now',
+            date: `Hoje, ${formatDayMonth(now)}`,
+            label: this.deadlineLabel() || 'Pague hoje',
+          },
+          { cls: '', date: formatDayMonthTime(end), label: 'Acesso pausa' },
+        ],
+      },
+    };
+  }
+
+  private blockedHero(): HeroView {
+    const end = this.graceEnd();
+    const invoiceAt = parseServerTime(this.summary()?.openInvoice?.createdAt ?? null);
+    const invoiceDay = invoiceAt ? formatDayMonth(invoiceAt) : this.failureAt();
+    return {
+      tone: 'blk',
+      chip: { cls: 'w', label: 'Acesso pausado' },
+      amount: this.heroAmount(),
+      per: 'em aberto',
+      reasonIcon: 'lock',
+      reason: `A fatura de ${invoiceDay} não foi paga. Seus carros, motoristas e cobranças continuam salvos.`,
+      ring: {
+        pct: 0,
+        value: null,
+        unit: null,
+        icon: 'lock',
+        caption: end ? `Pausado desde ${formatDayMonth(end)}` : 'Acesso pausado',
+        sub: end ? `às ${formatTime(end)}` : '',
+        label: 'Acesso pausado até o pagamento',
+      },
+      timeline: {
+        fill: 100,
+        stops: [
+          { cls: 'done', date: this.failureAt(), label: 'Cobrança recusada' },
+          { cls: 'done', date: formatDayMonthTime(end), label: 'Acesso pausado' },
+          { cls: 'now', date: 'Agora', label: 'Pague e volta na hora' },
+        ],
+      },
+    };
+  }
+
+  private paidHero(): HeroView {
+    const r = this.paidReceipt()!;
+    const cents = r.cents;
+    return {
+      tone: 'paid',
+      chip: { cls: 'w', label: 'Pagamento confirmado' },
+      amount:
+        cents != null
+          ? {
+              reais: new Intl.NumberFormat('pt-BR').format(Math.floor(cents / 100)),
+              cents: String(cents % 100).padStart(2, '0'),
+            }
+          : this.heroAmount(),
+      per: r.viaPix ? 'pago via Pix' : 'pago',
+      reasonIcon: 'check',
+      reason: `Plano ${r.planName} em dia até ${r.until}. Obrigado!`,
+      ring: {
+        pct: 100,
+        value: null,
+        unit: null,
+        icon: 'check',
+        caption: 'Pago hoje',
+        sub: r.at,
+        label: 'Pagamento confirmado',
+      },
+      timeline: {
+        fill: 50,
+        stops: [
+          { cls: 'done', date: r.failedAt, label: 'Cobrança recusada' },
+          { cls: 'now', date: r.at, label: r.viaPix ? 'Pago via Pix' : 'Pagamento confirmado' },
+          { cls: '', date: formatDayMonth(this.periodEnd()), label: 'Próxima cobrança' },
+        ],
+      },
+    };
+  }
+
+  /** `stroke-dasharray` do anel: o arco desenhado e o resto. */
+  protected ringDash(pct: number): string {
+    const drawn = (RING_CIRCUMFERENCE * Math.max(0, Math.min(100, pct))) / 100;
+    return `${drawn.toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(2)}`;
+  }
+
+  /** Fatura paga mais recente com link — "Ver última fatura". */
+  protected readonly lastPaidInvoice = computed(
+    () => this.invoices().find((i) => i.status === 'PAID' && (i.hostedUrl || i.pdfUrl)) ?? null,
+  );
+
+  /** "Plano Starter · mensal" — a descrição da linha da tabela de faturas. */
+  protected readonly invoiceDescription = computed(() => {
+    const name = this.planName();
+    const period = this.summary()?.plan?.period ?? this.currentPlan()?.period ?? 'MONTHLY';
+    const cycle = period === 'YEARLY' ? 'anual' : 'mensal';
+    return name ? `Plano ${name} · ${cycle}` : `Assinatura · ${cycle}`;
+  });
+
+  protected invoiceMethod(inv: BillingInvoice): string {
+    return inv.cardLast4 ? `${brandName(inv.cardBrand)} ${inv.cardLast4}` : '—';
+  }
+
+  protected invoiceChip(inv: BillingInvoice): { cls: 'g' | 'o' | 'n'; label: string } {
+    switch (inv.status) {
+      case 'PAID':
+        return { cls: 'g', label: 'Paga' };
+      case 'OPEN':
+        return { cls: 'o', label: 'Em aberto' };
+      case 'VOID':
+        return { cls: 'n', label: 'Cancelada' };
+      case 'UNCOLLECTIBLE':
+        return { cls: 'n', label: 'Não paga' };
+      default:
+        return { cls: 'n', label: inv.status };
+    }
+  }
+
+  /** "Pagar" da linha em aberto: Pix quando existe, senão o cartão. */
+  protected payOpenInvoice(): void {
+    if (this.pixAvailable()) this.openPix();
+    else this.openPay();
+  }
+
+  protected canPayRow(inv: BillingInvoice): boolean {
+    return (
+      inv.status === 'OPEN' &&
+      this.canManage() &&
+      this.owing() &&
+      (this.pixAvailable() || this.canPayByCard())
+    );
+  }
+
+  protected openLastInvoice(): void {
+    const inv = this.lastPaidInvoice();
+    if (inv) this.openInvoice(inv);
+  }
+
+  // ===================================================== Pagar com Pix
+
+  protected readonly pix = signal<SubscriptionPix | null>(null);
+  protected readonly pixPhase = signal<PixPhase>('loading');
+  protected readonly pixCopied = signal(false);
+  /** Celular: o QR fica dobrado em "Pagar de outro aparelho". */
+  protected readonly pixQrOpen = signal(false);
+  protected readonly pixError = signal<string | null>(null);
+  /** Sem área de transferência: o código fica selecionado e isto explica o que fazer. */
+  protected readonly pixCopyHint = signal<string | null>(null);
+  protected readonly pixChecking = signal(false);
+  /** "Código Pix copiado" — o aviso desce DENTRO da folha (um toast da página ficaria atrás do fundo). */
+  protected readonly pixToast = signal(false);
+  private pixToastHandle: ReturnType<typeof setTimeout> | null = null;
+  /** Quando o pagamento foi visto — o "Data" da confirmação. */
+  protected readonly pixPaidAt = signal<string | null>(null);
+  protected readonly pixNow = signal(Date.now());
+  private pixIssuedAt = 0;
+  private pixPollHandle: ReturnType<typeof setInterval> | null = null;
+  private pixTickHandle: ReturnType<typeof setInterval> | null = null;
+  private readonly pixCodeEl = viewChild<ElementRef<HTMLElement>>('pixCode');
+
+  private readonly pixExpiresAt = computed(() => {
+    const at = this.pix()?.expiresAt;
+    const ms = at ? Date.parse(at) : NaN;
+    return Number.isNaN(ms) ? null : ms;
+  });
+
+  protected readonly pixLeftMs = computed(() => {
+    const until = this.pixExpiresAt();
+    return until == null ? 0 : Math.max(0, until - this.pixNow());
+  });
+
+  /** "29:58" — minutos e segundos até o código expirar. */
+  protected readonly pixCountdown = computed(() => {
+    const total = Math.ceil(this.pixLeftMs() / 1000);
+    const m = Math.floor(total / 60);
+    const sec = total % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  });
+
+  protected readonly pixUrgent = computed(
+    () => this.pixLeftMs() > 0 && this.pixLeftMs() < PIX_URGENT_MS,
+  );
+
+  /** 0–1: a barra do topo esvazia em tempo real. */
+  protected readonly pixBarScale = computed(() => {
+    const until = this.pixExpiresAt();
+    if (until == null || this.pixPhase() === 'expired') return 0;
+    const total = Math.max(1, until - this.pixIssuedAt);
+    return Math.max(0, Math.min(1, this.pixLeftMs() / total));
+  });
+
+  protected readonly pixQrSrc = computed(() => {
+    const qr = this.pix()?.qrCodeBase64;
+    return qr ? `data:image/png;base64,${qr}` : null;
+  });
+
+  protected readonly pixAmount = computed(() => {
+    const cents = this.pix()?.amountCents ?? this.summary()?.amountDueCents ?? null;
+    if (cents == null) return null;
+    return {
+      reais: new Intl.NumberFormat('pt-BR').format(Math.floor(cents / 100)),
+      cents: String(cents % 100).padStart(2, '0'),
+      label: formatCents(cents),
+    };
+  });
+
+  protected readonly pixSubtitle = computed(() => {
+    const created = parseServerTime(this.summary()?.openInvoice?.createdAt ?? null);
+    const plan = this.planName() ? `Plano ${this.planName()}` : 'Assinatura';
+    return created ? `Fatura de ${formatDayMonth(created)} · ${plan}` : plan;
+  });
+
+  protected readonly pixPaidUntil = computed(
+    () => this.paidReceipt()?.until ?? this.periodEndLabel(),
+  );
+
+  protected openPix(): void {
+    if (!this.canManage()) return;
+    this.sheetError.set(null);
+    this.pixQrOpen.set(false);
+    this.sheet.set('pix');
+    this.createPix();
+  }
+
+  /** Gera (ou reabre) o código. Também é o "Gerar novo código" depois de expirar. */
+  protected createPix(): void {
+    this.stopPixTimers();
+    this.pixPhase.set('loading');
+    this.pixError.set(null);
+    this.pixCopied.set(false);
+    this.pixCopyHint.set(null);
+    this.billingService.createInvoicePix().subscribe({
+      next: (pix) => {
+        this.pix.set(pix);
+        this.pixIssuedAt = Date.now();
+        this.pixNow.set(Date.now());
+        if (this.pixLeftMs() > 0) {
+          this.pixPhase.set('qr');
+          this.startPixTimers();
+        } else {
+          this.pixPhase.set('expired');
+        }
+      },
+      error: (err: unknown) => {
+        this.pixPhase.set('error');
+        this.pixError.set(
+          this.apiErrors.messageFor(
+            err,
+            'Não foi possível gerar o código Pix agora. Tente de novo ou pague com cartão.',
+          ),
+        );
+      },
+    });
+  }
+
+  protected async copyPix(): Promise<void> {
+    const payload = this.pix()?.payload;
+    if (!payload || this.pixPhase() !== 'qr') return;
+    const clipboard = this.document.defaultView?.navigator?.clipboard;
+    try {
+      if (!clipboard?.writeText) throw new Error('sem clipboard');
+      await clipboard.writeText(payload);
+      this.pixCopied.set(true);
+      this.pixCopyHint.set(null);
+      this.showPixToast();
+    } catch {
+      // Sem área de transferência (http, permissão negada): o código fica
+      // selecionado para copiar pelo menu do aparelho. Nunca finge que copiou.
+      this.selectPixCode();
+      this.pixCopyHint.set('Toque e segure o código para copiar.');
+    }
+  }
+
+  private showPixToast(): void {
+    if (this.pixToastHandle) clearTimeout(this.pixToastHandle);
+    this.pixToast.set(true);
+    this.pixToastHandle = setTimeout(() => {
+      this.pixToast.set(false);
+      this.pixToastHandle = null;
+    }, PIX_TOAST_MS);
+  }
+
+  private selectPixCode(): void {
+    const el = this.pixCodeEl()?.nativeElement;
+    const selection = this.document.defaultView?.getSelection?.();
+    if (!el || !selection) return;
+    const range = this.document.createRange();
+    range.selectNodeContents(el);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  /** "Já paguei": consulta agora (o servidor reconfere a Stripe). */
+  protected checkPixNow(): void {
+    this.pollPix(true);
+  }
+
+  protected togglePixQr(): void {
+    this.pixQrOpen.update((open) => !open);
+  }
+
+  /** "Prefiro pagar com cartão": troca de folha; o código segue válido no servidor. */
+  protected pixPayByCard(): void {
+    this.stopPixTimers();
+    this.openPay();
+  }
+
+  protected closePix(): void {
+    this.stopPixTimers();
+    this.sheet.set(null);
+  }
+
+  private startPixTimers(): void {
+    if (!this.isBrowser) return;
+    this.pixTickHandle = setInterval(() => this.onPixTick(), 1000);
+    this.pixPollHandle = setInterval(() => this.pollPix(false), PIX_POLL_MS);
+  }
+
+  private stopPixTimers(): void {
+    if (this.pixToastHandle) {
+      clearTimeout(this.pixToastHandle);
+      this.pixToastHandle = null;
+      this.pixToast.set(false);
+    }
+    if (this.pixTickHandle) {
+      clearInterval(this.pixTickHandle);
+      this.pixTickHandle = null;
+    }
+    if (this.pixPollHandle) {
+      clearInterval(this.pixPollHandle);
+      this.pixPollHandle = null;
+    }
+  }
+
+  private onPixTick(): void {
+    this.pixNow.set(Date.now());
+    if (this.pixLeftMs() > 0 || this.pixPhase() !== 'qr') return;
+    // Expirou aqui: uma última consulta, porque um Pix pago no último segundo
+    // ainda conta. Se ele não voltar pago, a folha oferece um código novo.
+    this.stopPixTimers();
+    this.pixPhase.set('expired');
+    this.pollPix(false);
+  }
+
+  private pollPix(manual: boolean): void {
+    const pix = this.pix();
+    if (!pix) return;
+    if (manual) this.pixChecking.set(true);
+    this.billingService.invoicePixStatus(pix.attemptId).subscribe({
+      next: (status) => {
+        this.pixChecking.set(false);
+        this.onPixStatus(status);
+      },
+      error: (err: unknown) => {
+        // Consulta de fundo: uma falha isolada não assusta ninguém; a próxima
+        // volta tenta de novo.
+        this.pixChecking.set(false);
+        this.apiErrors.claim(err);
+      },
+    });
+  }
+
+  private onPixStatus(status: SubscriptionPixStatus): void {
+    if (this.sheet() !== 'pix') return;
+    switch (status.status) {
+      case 'SETTLED':
+      case 'SUCCEEDED':
+        if (status.accessReleased) {
+          this.stopPixTimers();
+          this.pixPaidAt.set(formatDayMonthTime(new Date()));
+          this.pixPhase.set('paid');
+          // O resumo pode ter voltado ACTIVE ANTES desta consulta (o dono voltou
+          // do app do banco e o foco releu a página): o comprovante já existe,
+          // mas sem saber que foi Pix. Corrige aqui.
+          const cents = this.pix()?.amountCents ?? null;
+          this.paidReceipt.update((r) =>
+            r ? { ...r, viaPix: true, method: 'Pix', cents, amount: cents != null ? formatCents(cents) : r.amount } : r,
+          );
+          // O resumo volta ACTIVE: `showPaid` grava o comprovante (via Pix) e o
+          // cartão de status fica verde por trás da folha.
+          this.access.invalidate();
+          this.refreshSummary();
+        } else {
+          // Dinheiro recebido, acesso a caminho: o código não "expira" mais na
+          // tela e a consulta continua até o acesso voltar.
+          this.pixPhase.set('releasing');
+          if (this.pixTickHandle) {
+            clearInterval(this.pixTickHandle);
+            this.pixTickHandle = null;
+          }
+          if (!this.pixPollHandle && this.isBrowser) {
+            this.pixPollHandle = setInterval(() => this.pollPix(false), PIX_POLL_MS);
+          }
+        }
+        return;
+      case 'REFUNDING':
+      case 'REFUNDED':
+        this.stopPixTimers();
+        this.pixPhase.set('refunded');
+        this.refreshSummary();
+        return;
+      case 'EXPIRED':
+      case 'CANCELED':
+        this.stopPixTimers();
+        this.pixPhase.set('expired');
+        return;
+      default:
+        return;
+    }
+  }
+
   protected invoiceDate(inv: BillingInvoice): string {
     return formatFullDate(parseServerTime(inv.createdAt));
   }
@@ -1642,6 +2287,16 @@ export class Billing implements OnInit, OnDestroy {
     if (this.periodSwitchTarget() || this.downgradeTarget()) this.sheet.set(null);
   }
 
+  /** "Dúvidas sobre os planos?" — WhatsApp do suporte com a pergunta já escrita. */
+  protected readonly helpUrl = environment.supportWhatsapp
+    ? `https://wa.me/${environment.supportWhatsapp}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre os planos do MyCarsHub.')}`
+    : null;
+
+  protected openHelp(): void {
+    if (this.helpUrl) this.externalNav.openExternal(this.helpUrl);
+    else void this.router.navigate(['/suporte']);
+  }
+
   protected openSupport(): void {
     if (this.supportUrl) this.externalNav.openExternal(this.supportUrl);
     else void this.router.navigate(['/suporte']);
@@ -1699,9 +2354,12 @@ export class Billing implements OnInit, OnDestroy {
     this.sheet.set('invoices');
   }
 
+  /**
+   * Fecha a folha de confirmação. O comprovante FICA: é ele que mantém o cartão
+   * de status no tom "pago" nesta visita; na próxima, a página já abre em dia.
+   */
   protected closePaid(): void {
     this.sheet.set(null);
-    this.paidReceipt.set(null);
   }
 
   protected openPaidReceipt(): void {
@@ -1727,13 +2385,24 @@ export class Billing implements OnInit, OnDestroy {
     this.summaryLoaded.set(true);
     if (!sum) return;
     const owingNow = sum.state === 'PAST_DUE' || sum.state === 'BLOCKED';
-    if (this.wasOwing && sum.state === 'ACTIVE') this.showPaid(sum);
+    if (this.wasOwing && sum.state === 'ACTIVE') {
+      this.showPaid(sum);
+      // Pago enquanto a folha do Pix estava aberta: pergunta já ao Pix quem pagou.
+      if (this.sheet() === 'pix' && (this.pixPhase() === 'qr' || this.pixPhase() === 'releasing')) {
+        this.pollPix(false);
+      }
+    }
     this.wasOwing = owingNow;
     // A contagem regressiva só existe com fatura em aberto.
     if (owingNow) this.startClock();
     else this.stopClock();
     this.now.set(new Date());
-    if (owingNow) this.lastOwingAmountCents = sum.amountDueCents;
+    if (owingNow) {
+      this.lastOwingAmountCents = sum.amountDueCents;
+      this.lastOwingFailedAt = formatDayMonth(
+        parseServerTime(sum.lastFailure?.at ?? sum.pastDueSince ?? null),
+      );
+    }
     this.handleQueryIntent(sum);
   }
 
@@ -1743,16 +2412,29 @@ export class Billing implements OnInit, OnDestroy {
     this.access.invalidate();
     this.access.load().subscribe({ error: (err: unknown) => this.apiErrors.claim(err) });
     const paid = sum.invoices.find((i) => i.status === 'PAID') ?? null;
-    const cents = paid?.amountCents ?? this.lastOwingAmountCents;
+    // Pago pelo Pix desta folha: o valor e a forma vêm do Pix, não da fatura
+    // (a fatura paga "fora do Stripe" não tem cartão nenhum).
+    const viaPix = this.pixPhase() === 'paid' && this.pix() !== null;
+    const cents = viaPix
+      ? this.pix()!.amountCents
+      : (paid?.amountCents ?? this.lastOwingAmountCents);
     this.paidReceipt.set({
       amount: cents != null ? formatCents(cents) : '—',
-      method: paid?.cardLast4 ? `${brandName(paid.cardBrand)} final ${paid.cardLast4}` : 'Cartão',
+      cents,
+      method: viaPix
+        ? 'Pix'
+        : paid?.cardLast4
+          ? `${brandName(paid.cardBrand)} final ${paid.cardLast4}`
+          : 'Cartão',
+      viaPix,
       at: formatDayMonthTime(new Date()),
+      failedAt: this.lastOwingFailedAt,
       planName: displayPlanName(sum.plan?.name ?? null),
       until: formatFullDate(parseServerTime(sum.currentPeriodEnd)),
       receiptUrl: paid?.hostedUrl ?? paid?.pdfUrl ?? null,
     });
-    this.sheet.set('paid');
+    // A folha do Pix já mostra a confirmação dela — não troca por outra.
+    if (this.sheet() !== 'pix') this.sheet.set('paid');
   }
 
   /** Links dos e-mails: `?pagar=1` abre o pagamento, `?cartao=1` a troca de cartão. */
